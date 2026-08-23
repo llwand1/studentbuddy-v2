@@ -9,6 +9,7 @@ import { api } from '../lib/api';
 import { ChatView } from '../features/chat/ChatView';
 import { SettingsView } from '../features/settings/SettingsView';
 import { QuizBankPage } from '../features/quiz/QuizBankPage';
+import { MemorizePage } from '../features/memorize/MemorizePage';
 import './app.css';
 
 type View = 'chat' | 'quiz' | 'memorize' | 'summary' | 'settings';
@@ -113,8 +114,9 @@ export function App() {
           <ChatView sessionId={currentId} onNewSession={() => void newSession()} onRoundDone={() => void reloadSessions()} />
         )}
         {view === 'quiz' && <QuizBankPage />}
+        {view === 'memorize' && <MemorizePage />}
         {view === 'settings' && <SettingsView />}
-        {view !== 'chat' && view !== 'settings' && view !== 'quiz' && <Placeholder view={view} />}
+        {(view === 'chat' || view === 'settings' || view === 'quiz' || view === 'memorize') ? null : <Placeholder view={view} />}
       </main>
     </div>
   );

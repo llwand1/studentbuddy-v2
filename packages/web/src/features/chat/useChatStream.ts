@@ -12,6 +12,7 @@ export interface StreamMessage {
   role: 'user' | 'assistant';
   content: string;
   streaming?: boolean;
+  quizBlock?: { blockId: string; quiz: { title?: string; questions: import('@sb/shared').QuizQuestion[] }; quizId?: string };
 }
 
 export function useChatStream(sessionId: string | null, onRoundDone?: () => void) {
@@ -68,6 +69,17 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
         });
         setReasoning('');
         onRoundDone?.();
+      } else if (ev.type === 'block') {
+        // 内容块流（演进③）：quiz 块以可交互卡片进入消息流
+        const p = ev.payload as { kind?: string; blockId?: string; payload?: unknown };
+        if (p?.kind === 'quiz' && p.payload) {
+          const quiz = p.payload as { title?: string; questions: never[] };
+          const quizIdMatch = ev.blockId.match(/quiz-(.+)/);
+          setMessages((ms) => [
+            ...ms,
+            { role: 'assistant', content: '', quizBlock: { blockId: ev.blockId, quiz, quizId: quizIdMatch?.[1] } },
+          ]);
+        }
       } else if (ev.type === 'chat-error') {
         setBusy(false);
         setError(ev.message);

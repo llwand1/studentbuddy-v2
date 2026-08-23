@@ -76,6 +76,75 @@ const MIGRATIONS: Array<{ version: number; statements: string[] }> = [
   },
 ];
 
+// M2：练+析（题库/逐题统计）
+MIGRATIONS.push({
+  version: 2,
+  statements: [
+    `CREATE TABLE IF NOT EXISTS quiz_bank (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'ai',
+      data TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS quiz_stats (
+      quiz_id TEXT NOT NULL,
+      question_index INTEGER NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      correct INTEGER NOT NULL DEFAULT 0,
+      streak INTEGER NOT NULL DEFAULT 0,
+      best_streak INTEGER NOT NULL DEFAULT 0,
+      last_answer TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (quiz_id, question_index)
+    )`,
+  ],
+});
+
+// M3：忆（SRS 引擎字段与索引）
+MIGRATIONS.push({
+  version: 3,
+  statements: [
+    `CREATE TABLE IF NOT EXISTS memorize (
+      id TEXT PRIMARY KEY,
+      term TEXT NOT NULL,
+      definition TEXT NOT NULL,
+      category TEXT,
+      difficulty INTEGER NOT NULL DEFAULT 1,
+      status TEXT NOT NULL DEFAULT 'new',
+      ease_factor REAL NOT NULL DEFAULT 2.5,
+      interval_days INTEGER NOT NULL DEFAULT 0,
+      next_review_at TEXT,
+      review_count INTEGER NOT NULL DEFAULT 0,
+      lapse_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_memorize_due ON memorize(status, next_review_at)`,
+  ],
+});
+
+// M4：反馈环（活动/每日总结/学习会话）
+MIGRATIONS.push({
+  version: 4,
+  statements: [
+    `CREATE TABLE IF NOT EXISTS daily_activity (
+      day TEXT NOT NULL,
+      type TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (day, type)
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_stats (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS daily_summaries (
+      day TEXT PRIMARY KEY,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  ],
+});
+
 export function getDb(): Database.Database {
   if (db) return db;
   fs.mkdirSync(DATA_DIR, { recursive: true });

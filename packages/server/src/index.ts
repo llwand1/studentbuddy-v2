@@ -6,6 +6,7 @@ import express from 'express';
 import cors from 'cors';
 import { securityHeaders, originCheck, isAllowedOrigin } from './security.js';
 import { sessionsRouter, chatRouter, providersRouter, initChatInfra } from './routes.js';
+import { quizRouter } from './routes/quiz.js';
 import { getDb } from './storage/db.js';
 import type { StatusResponse } from '@sb/shared';
 import { VERSION } from './version.js';
@@ -40,6 +41,7 @@ app.get<never, StatusResponse>('/api/status', (_req, res) => {
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/providers', providersRouter);
+app.use('/api/quiz', quizRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });

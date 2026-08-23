@@ -93,6 +93,21 @@
   box-shadow: 0 0 0 2.5px var(--sb-primary-weak);
 }
 
+.chat-quiz-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+  border-radius: var(--sb-radius-sm);
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-xs);
+  border: 1px solid var(--sb-line);
+  flex-shrink: 0;
+  margin-bottom: 4px;
+}
+.chat-quiz-btn:hover:not(:disabled) { color: var(--sb-primary); border-color: var(--sb-primary); }
+.chat-quiz-btn:disabled { color: var(--sb-ink-tertiary); cursor: not-allowed; }
+
 .chat-composer textarea {
   flex: 1;
   border: none;

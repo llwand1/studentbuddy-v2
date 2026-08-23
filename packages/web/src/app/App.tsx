@@ -8,6 +8,7 @@ import { ChatIcon, QuizIcon, CardsIcon, StatsIcon, SettingsIcon, PlusIcon } from
 import { api } from '../lib/api';
 import { ChatView } from '../features/chat/ChatView';
 import { SettingsView } from '../features/settings/SettingsView';
+import { QuizBankPage } from '../features/quiz/QuizBankPage';
 import './app.css';
 
 type View = 'chat' | 'quiz' | 'memorize' | 'summary' | 'settings';
@@ -111,8 +112,9 @@ export function App() {
         {view === 'chat' && (
           <ChatView sessionId={currentId} onNewSession={() => void newSession()} onRoundDone={() => void reloadSessions()} />
         )}
+        {view === 'quiz' && <QuizBankPage />}
         {view === 'settings' && <SettingsView />}
-        {view !== 'chat' && view !== 'settings' && <Placeholder view={view} />}
+        {view !== 'chat' && view !== 'settings' && view !== 'quiz' && <Placeholder view={view} />}
       </main>
     </div>
   );

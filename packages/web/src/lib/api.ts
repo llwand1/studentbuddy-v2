@@ -25,6 +25,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  /** 通用请求（页面内直接用） */
+  request,
+
   status: () => request<StatusResponse>('/api/status'),
 
   sessions: {

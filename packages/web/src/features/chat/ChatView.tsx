@@ -3,7 +3,9 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useChatStream } from './useChatStream';
-import { SendIcon, PlusIcon } from '../../components/icons';
+import { SendIcon, PlusIcon, QuizIcon } from '../../components/icons';
+import { QuizCard } from '../quiz/QuizCard';
+import { api } from '../../lib/api';
 import './chat.css';
 
 export function ChatView({
@@ -18,6 +20,7 @@ export function ChatView({
   const { messages, streamingText, busy, ready, error, send, stop } = useChatStream(sessionId, onRoundDone);
   const [input, setInput] = useState('');
   const [sendError, setSendError] = useState('');
+  const [quizzing, setQuizzing] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,6 +40,25 @@ export function ChatView({
     if (!r.ok && r.error) setSendError(r.error);
   };
 
+  const quickQuiz = async () => {
+    if (!sessionId || quizzing) return;
+    const material = messages.slice(-8).map((m) => m.content).filter(Boolean).join('\n').slice(-4000);
+    setQuizzing(true);
+    setSendError('');
+    try {
+      const r = await api.request<{ error?: string }>('/api/quiz/generate', {
+        method: 'POST',
+        body: JSON.stringify({ topic: input.trim() || '根据当前对话内容出题', material: material || undefined, sessionId }),
+      });
+      if (r.error) setSendError(r.error);
+      setInput('');
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setQuizzing(false);
+    }
+  };
+
   if (!sessionId) {
     return (
       <div className="chat-empty">
@@ -54,11 +76,28 @@ export function ChatView({
   return (
     <div className="chat-view">
       <div className="chat-scroll">
-        {messages.map((m, i) => (
-          <div key={i} className={m.role === 'user' ? 'chat-row user' : 'chat-row'}>
-            <div className={m.role === 'user' ? 'chat-bubble user' : 'chat-bubble'}>{m.content}</div>
-          </div>
-        ))}
+        {messages.map((m, i) =>
+          m.quizBlock ? (
+            <QuizCard
+              key={i}
+              title={m.quizBlock.quiz.title ?? '练习'}
+              questions={m.quizBlock.quiz.questions}
+              quizId={m.quizBlock.quizId}
+              onAnswer={(qi, correct) => {
+                if (m.quizBlock?.quizId) {
+                  void api.request('/api/quiz/stats/record', {
+                    method: 'POST',
+                    body: JSON.stringify({ quizId: m.quizBlock.quizId, questionIndex: qi, correct }),
+                  });
+                }
+              }}
+            />
+          ) : m.content ? (
+            <div key={i} className={m.role === 'user' ? 'chat-row user' : 'chat-row'}>
+              <div className={m.role === 'user' ? 'chat-bubble user' : 'chat-bubble'}>{m.content}</div>
+            </div>
+          ) : null,
+        )}
         {streamingText && (
           <div className="chat-row">
             <div className="chat-bubble streaming">
@@ -74,6 +113,14 @@ export function ChatView({
       <div className="chat-composer-wrap">
         {statusHint && <div className="chat-conn-hint">{statusHint}</div>}
         <div className="chat-composer">
+          <button
+            className="chat-quiz-btn"
+            title="基于当前对话一键出题（输入框文字作为主题）"
+            disabled={!sessionId || quizzing || ready !== 'open'}
+            onClick={() => void quickQuiz()}
+          >
+            <QuizIcon /> {quizzing ? '出题中…' : '出题'}
+          </button>
           <textarea
             value={input}
             placeholder={blocked ? (busy ? '生成中…' : '连接未就绪…') : '问点什么（Enter 发送 / Shift+Enter 换行）'}

@@ -111,3 +111,5 @@
 .quiz-gen-form input:focus { outline: none; border-color: var(--sb-primary); }
 .quiz-gen-btn { padding: var(--sb-sp-1) var(--sb-sp-4); border-radius: var(--sb-radius-sm); background: var(--sb-primary); color: #fff; font-weight: 600; font-size: var(--sb-fs-sm); }
 .quiz-gen-btn:disabled { background: var(--sb-ink-tertiary); cursor: not-allowed; }
+
+.quiz-explain-mt { margin-top: 12px; }

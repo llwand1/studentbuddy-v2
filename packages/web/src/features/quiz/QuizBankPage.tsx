@@ -79,7 +79,7 @@ export function QuizBankPage() {
         <button className="quiz-gen-btn" onClick={() => void analyze()}>
           薄弱点分析
         </button>
-        {practicing.weak && <div className="quiz-explain" style={{ marginTop: 12 }}>{practicing.weak}</div>}
+        {practicing.weak && <div className="quiz-explain quiz-explain-mt">{practicing.weak}</div>}
       </div>
     );
   }

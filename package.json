@@ -1,0 +1,35 @@
+{
+  "name": "studentbuddy",
+  "version": "2.0.0-alpha.0",
+  "private": true,
+  "description": "studentbuddy v2 - 本地优先的 AI 学习助手（学→练→析→忆→反馈闭环，学习版豆包）",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @sb/server & npm run dev -w @sb/web",
+    "dev:server": "npm run dev -w @sb/server",
+    "dev:web": "npm run dev -w @sb/web",
+    "build": "npm run build -w @sb/web",
+    "lint": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/server && tsc --noEmit -p packages/web && eslint packages",
+    "test": "vitest run",
+    "gates": "node tools/gates/check.mjs",
+    "check": "npm run lint && npm run test && npm run gates"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "@types/supertest": "^6.0.2",
+    "eslint": "^9.19.0",
+    "supertest": "^7.0.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.22.0",
+    "vitest": "^2.1.8"
+  }
+}

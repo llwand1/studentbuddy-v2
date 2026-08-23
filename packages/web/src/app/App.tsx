@@ -1,9 +1,13 @@
 /**
- * 应用壳：180px 浅色侧栏（会话+学习四环+系统）+ 主区。
- * 五环入口即需求闭环的导航面（学/练/忆/反馈），M1 起逐环填充。
+ * 应用壳：180px 浅色侧栏（会话列表 + 学习四环导航 + 设置）+ 主区视图路由。
+ * 五环入口即需求闭环的导航面（学/练/忆/反馈），M2-M4 逐环填充。
  */
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import type { Session } from '@sb/shared';
 import { ChatIcon, QuizIcon, CardsIcon, StatsIcon, SettingsIcon, PlusIcon } from '../components/icons';
+import { api } from '../lib/api';
+import { ChatView } from '../features/chat/ChatView';
+import { SettingsView } from '../features/settings/SettingsView';
 import './app.css';
 
 type View = 'chat' | 'quiz' | 'memorize' | 'summary' | 'settings';
@@ -17,13 +21,75 @@ const NAV: Array<{ key: View; label: string; icon: typeof ChatIcon }> = [
 
 export function App() {
   const [view, setView] = useState<View>('chat');
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [currentId, setCurrentId] = useState<string | null>(null);
+
+  const reloadSessions = useCallback(async () => {
+    try {
+      setSessions(await api.sessions.list());
+    } catch {
+      setSessions([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void reloadSessions();
+  }, [reloadSessions]);
+
+  // 会话标题在首轮对话后由服务端更新：切回会话列表时刷新
+  useEffect(() => {
+    if (view === 'chat') void reloadSessions();
+  }, [view, currentId, reloadSessions]);
+
+  const newSession = useCallback(async () => {
+    const s = await api.sessions.create();
+    setView('chat');
+    setCurrentId(s.id);
+    await reloadSessions();
+  }, [reloadSessions]);
+
+  const openSession = (id: string) => {
+    setView('chat');
+    setCurrentId(id);
+  };
+
+  const removeSession = async (id: string) => {
+    await api.sessions.remove(id).catch(() => undefined);
+    if (currentId === id) setCurrentId(null);
+    await reloadSessions();
+  };
+
   return (
     <div className="sb-shell">
       <aside className="sb-sidebar">
-        <button className="sb-new-chat" onClick={() => setView('chat')}>
+        <button className="sb-new-chat" onClick={() => void newSession()}>
           <PlusIcon /> 新对话
         </button>
-        <nav className="sb-nav">
+        <div className="sb-session-list">
+          {sessions.map((s) => (
+            <div
+              key={s.id}
+              className={currentId === s.id && view === 'chat' ? 'sb-session active' : 'sb-session'}
+              onClick={() => openSession(s.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && openSession(s.id)}
+            >
+              <span className="sb-session-title">{s.title || '新对话'}</span>
+              <button
+                className="sb-session-del"
+                title="删除"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void removeSession(s.id);
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        <nav className="sb-nav sb-nav-bottom">
           {NAV.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
@@ -33,18 +99,20 @@ export function App() {
               <Icon /> {label}
             </button>
           ))}
-        </nav>
-        <div className="sb-nav sb-nav-bottom">
           <button
             className={view === 'settings' ? 'sb-nav-item active' : 'sb-nav-item'}
             onClick={() => setView('settings')}
           >
             <SettingsIcon /> 设置
           </button>
-        </div>
+        </nav>
       </aside>
       <main className="sb-main">
-        <Placeholder view={view} />
+        {view === 'chat' && (
+          <ChatView sessionId={currentId} onNewSession={() => void newSession()} onRoundDone={() => void reloadSessions()} />
+        )}
+        {view === 'settings' && <SettingsView />}
+        {view !== 'chat' && view !== 'settings' && <Placeholder view={view} />}
       </main>
     </div>
   );
@@ -52,18 +120,17 @@ export function App() {
 
 function Placeholder({ view }: { view: View }) {
   const labels: Record<View, string> = {
-    chat: '对话（M1：流式/SSE 重连/上传附件）',
+    chat: '',
     quiz: '题库（M2：出题/三题型/统计/薄弱点）',
     memorize: '背背背（M3：翻卡/SRS 到期队列）',
     summary: '今日总结（M4：XP/连签/趋势）',
-    settings: '设置（M1：服务商 + 角色模型绑定）',
+    settings: '',
   };
   return (
     <div className="sb-placeholder">
       <div className="sb-placeholder-card">
         <h2>studentbuddy v2</h2>
         <p>{labels[view]}</p>
-        <p className="sb-placeholder-meta">M0 地基 · 学→练→析→忆→反馈</p>
       </div>
     </div>
   );

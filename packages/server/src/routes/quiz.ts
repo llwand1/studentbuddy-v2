@@ -5,6 +5,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { generateQuiz, saveQuiz, listQuiz, getQuiz, deleteQuiz, recordAnswer, analyzeWeakPoints } from '../learning/quiz.js';
 import { getDb } from '../storage/db.js';
+import { publishEvent } from '../events/bus.js';
 import { publish } from '../chat/sse-bus.js';
 
 export const quizRouter = Router();
@@ -29,6 +30,7 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
     }
     let quizId: string | undefined;
     if (save) quizId = saveQuiz(quiz, 'ai');
+    if (quizId) publishEvent({ type: 'quiz_generated', quizId });
     if (sessionId) {
       // 内容块流（演进③）：quiz 经 SSE block 事件下发聊天视图
       publish(sessionId, {

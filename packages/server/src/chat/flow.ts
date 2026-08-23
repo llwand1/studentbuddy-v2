@@ -9,6 +9,7 @@ import type { ModelRole } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { routeRole } from '../llm/router.js';
 import { publish, startNewRound } from './sse-bus.js';
+import { publishEvent } from '../events/bus.js';
 import { estimateTokens, truncateHistoryToBudget, getContextLimit } from './context.js';
 import type { ChatMessage } from '../llm/types.js';
 
@@ -118,6 +119,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       );
     db.prepare(`UPDATE sessions SET updated_at = datetime('now') WHERE id = ?`).run(sessionId);
 
+    publishEvent({ type: 'chat_done', sessionId });
     publish(sessionId, {
       type: 'done',
       sessionId,

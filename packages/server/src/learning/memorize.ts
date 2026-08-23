@@ -4,6 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
 import { schedule, nextReviewAt, isDue, type SrsQuality } from './srs.js';
+import { publishEvent } from '../events/bus.js';
 
 export interface MemorizeRow {
   id: string;
@@ -76,6 +77,7 @@ export function reviewTerm(id: string, quality: SrsQuality, now: Date): { interv
       `UPDATE memorize SET ease_factor=?, interval_days=?, next_review_at=?, review_count=?, lapse_count=?, status=? WHERE id=?`,
     )
     .run(next.easeFactor, next.intervalDays, nra, next.reviewCount, next.lapseCount, mastered ? 'mastered' : 'learning', id);
+  publishEvent({ type: 'review_done', termId: id, quality });
   return { intervalDays: next.intervalDays, nextReviewAt: nra };
 }
 

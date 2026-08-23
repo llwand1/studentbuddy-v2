@@ -8,6 +8,8 @@ import { securityHeaders, originCheck, isAllowedOrigin } from './security.js';
 import { sessionsRouter, chatRouter, providersRouter, initChatInfra } from './routes.js';
 import { quizRouter } from './routes/quiz.js';
 import { memorizeRouter } from './routes/memorize.js';
+import { activityRouter } from './routes/activity.js';
+import { wireActivityEvents } from './learning/activity.js';
 import { getDb } from './storage/db.js';
 import type { StatusResponse } from '@sb/shared';
 import { VERSION } from './version.js';
@@ -44,6 +46,7 @@ app.use('/api/chat', chatRouter);
 app.use('/api/providers', providersRouter);
 app.use('/api/quiz', quizRouter);
 app.use('/api/memorize', memorizeRouter);
+app.use('/api/activity', activityRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
@@ -60,6 +63,7 @@ export function startServer(port = PORT) {
 // 直接运行时启动（tsx src/index.ts）；测试导入时不自动监听
 if (process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('index.js')) {
   initChatInfra();
+  wireActivityEvents();
   startServer();
   // eslint-disable-next-line no-console -- 启动横幅是进程日志，非调试输出
   console.log(`[sb-server] listening on http://${HOST}:${PORT} (v${VERSION})`);

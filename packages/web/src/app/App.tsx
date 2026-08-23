@@ -10,6 +10,7 @@ import { ChatView } from '../features/chat/ChatView';
 import { SettingsView } from '../features/settings/SettingsView';
 import { QuizBankPage } from '../features/quiz/QuizBankPage';
 import { MemorizePage } from '../features/memorize/MemorizePage';
+import { DailySummaryPage } from '../features/summary/DailySummaryPage';
 import './app.css';
 
 type View = 'chat' | 'quiz' | 'memorize' | 'summary' | 'settings';
@@ -115,8 +116,9 @@ export function App() {
         )}
         {view === 'quiz' && <QuizBankPage />}
         {view === 'memorize' && <MemorizePage />}
+        {view === 'summary' && <DailySummaryPage />}
         {view === 'settings' && <SettingsView />}
-        {(view === 'chat' || view === 'settings' || view === 'quiz' || view === 'memorize') ? null : <Placeholder view={view} />}
+        {(view === 'chat' || view === 'settings' || view === 'quiz' || view === 'memorize' || view === 'summary') ? null : <Placeholder view={view} />}
       </main>
     </div>
   );

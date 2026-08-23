@@ -37,11 +37,15 @@ for (const pkg of ['packages/server/src', 'packages/web/src']) {
   }
 }
 
-// 2) 内联样式红线（web）
+// 2) 内联样式红线（web）；「gates:style-ok」行注释 = 数据驱动样式的显式豁免
 for (const file of walk(join(ROOT, 'packages/web/src'))) {
   if (extname(file) !== '.tsx') continue;
-  const src = readFileSync(file, 'utf8');
-  if (src.includes('style={{')) violations.push(`[内联样式] ${win(file)} 含 style={{，请用 tokens.css/class`);
+  const lines = readFileSync(file, 'utf8').split('\n');
+  lines.forEach((line, i) => {
+    if (line.includes('style={{') && !lines[i - 1]?.includes('gates:style-ok') && !line.includes('gates:style-ok')) {
+      violations.push(`[内联样式] ${win(file)}:${i + 1} 含 style={{，请用 tokens.css/class（数据驱动可加 gates:style-ok 豁免注释）`);
+    }
+  });
 }
 
 // 3) any 红线（兜底）

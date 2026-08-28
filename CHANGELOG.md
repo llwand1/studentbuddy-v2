@@ -9,6 +9,9 @@
 
 | 日期 | 时间 | 域 | 改动内容 | 验证 |
 |------|------|----|----------|------|
+| 2026-08-28 | 16:35 | search | 无 key 兜底空转改进：DDG lite/instant 双通道超时 10s→5s（最坏 20s→10s）；`tools.ts` search_web 失败时按 `listKeyStatus()` 判断——未配 key 时回灌「请到设置页配置搜索 key（推荐智谱，国产可达）」，已配 key 时保留「基于已有知识回答」 | 新增 flow 用例断言 tool 消息含引导与失败原因；10 例 search 回归全绿（超时改动不影响 mock 测试） |
+| 2026-08-28 | 16:35 | chat | 工具循环内逐轮预算检查：`flow.ts` 每轮工具回灌后累计 `toolTokens`（toolCalls JSON + tool 结果），超过 `工具预算=窗口−系统提示−历史−20k 预留` 即置 `budgetExceeded` 提前收口，收尾提示区分「上下文预算已满」/「工具调用已达上限」 | 新增 flow 用例：3 轮×3 结果 ≈126k tokens 回灌在第 3 轮触发预算收口，断言已执行 3 组 tool_calls+9 条 tool 结果、提示非轮次上限；6 例 flow 全绿 |
+| 2026-08-28 | 16:35 | shared | BlockKind 摘除无发射器无渲染器的 markdown/form/code（仅留 quiz/chart/actions/svg），`TextPayload` 一并删除，payload 映射简化为 `quiz?QuizPayload:GenericPayload`；头注释注明摘除时间与 actions 未实现 | tsc×3 + eslint 全绿（无 TextPayload 残留引用）；13 文件 92 测试全绿 |
 | 2026-08-28 | 12:20 | web | ```chart 图表 DSL 三件：`lib/chart-utils.ts`（JSON 容错 port from v1 `fixEcharts` + bar/line/pie 零依赖自绘 SVG）、`features/chat/ChartCard.tsx`、`markdown.ts` 围栏白名单加 `chart`；`chat/flow.ts` 系统提示词加出图协议（+3 行） | 新增 9 例单测；真机模型自发 ```chart 出柱状图（5 柱/坐标轴/标题齐）；恶意标签 `<script>aler` 只以转义死文本上屏（`rawScriptInCanvas:false`） |
 | 2026-08-28 | 12:20 | server + web | ```html 交互演示通道：`routes/preview.ts`（内存暂存 20 条 / 512KB 上限 + `CSP: sandbox` 不含 `allow-same-origin` 下发）、`features/chat/HtmlCard.tsx`（永不内联，点「打开」换 id 再新标签页）、`markdown.ts` 白名单加 `html`、提示词加协议 | `index.test.ts` 新增 3 例；真机沙箱页 `Origin:"null"`、`localStorage` 抛 SecurityError、GET sessions / PUT search-keys 均被拒，curl 复核配置未被动越权写入 |
 | 2026-08-28 | 12:20 | web | 卡片「放大/下载」收口：新增 `lib/svg-utils.ts` `openSvgDocument()`，SvgPreviewCard 与 ChartCard 共用 | tsc + 真机新标签页出图；自动化页 rAF 被节流（`visibilityState:hidden`）⇒ 动画帧数不可测，改以「暂停→继续」按钮标签变化证明脚本执行 |

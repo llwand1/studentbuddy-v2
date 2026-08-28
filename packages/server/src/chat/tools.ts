@@ -3,7 +3,7 @@
  * 每工具一函数；新增工具=在此注册，flow 循环零改动。
  */
 import type { ToolDefinition } from '../llm/types.js';
-import { searchWeb, resultsToContext } from '../search/index.js';
+import { searchWeb, resultsToContext, listKeyStatus } from '../search/index.js';
 
 export interface ToolContext {
   /** 工具步骤回调（step 事件上屏） */
@@ -44,8 +44,12 @@ registry.set('search_web', {
     ctx.onStep('search_web', 'running', query);
     const { results, providers, failed } = await searchWeb(query);
     if (results.length === 0) {
+      const noKey = !Object.values(listKeyStatus()).some(Boolean);
+      const guide = noKey
+        ? '未配置搜索 key（当前为免 key 兜底，本网络可能不可达）。请到设置页配置搜索 key（推荐智谱，国产可达）后重试，或基于已有知识回答。'
+        : '搜索失败或无结果。请基于已有知识回答并说明未联网核实。';
       ctx.onStep('search_web', 'error', failed.join('; ') || '无结果');
-      return { content: `搜索失败或无结果：${failed.join('; ') || '无结果'}。请基于已有知识回答并说明未联网核实。` };
+      return { content: `${guide} [原因：${failed.join('; ') || '无结果'}]` };
     }
     const from = providers.filter((p) => p !== 'cache');
     ctx.onStep('search_web', 'done', `${results.length} 条结果${from.length > 0 ? `（来源 ${from.join('、')}）` : '（缓存）'}`);

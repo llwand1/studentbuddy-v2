@@ -6,30 +6,20 @@
  *
  * 现状（2026-08-28）：`quiz` 走 SSE block 事件；`svg` / `chart` / `html` 由前端识别正文里的同名围栏
  * 直接渲染卡片（不占 block 通道；html 不在本应用 DOM 内渲染，只送进右侧沙箱预览面板或新标签页）。
- * BlockKind 里的 markdown / form / code 既无发射器也无渲染器，登记未实现。
+ * 曾登记但无发射器也无渲染器的 markdown / form / code 已摘除（2026-08-28）；`actions` 已登记但尚未实现。
  */
 
 export type BlockKind =
-  | 'markdown' // 纯 markdown 段落
   | 'quiz' // [QUIZ] 协议题组（payload: QuizData）
   | 'chart' // 图表 DSL
-  | 'form' // 可输入表单
-  | 'actions' // 动作按钮组
-  | 'code' // 代码块（可带运行标记，第二批沙箱用）
+  | 'actions' // 动作按钮组（已登记，尚未实现）
   | 'svg'; // 内联 SVG 预览（经净化）
 
 export interface ContentBlock<K extends BlockKind = BlockKind> {
   kind: K;
   /** 会话内唯一块 id，流式追加按 blockId 聚合 */
   blockId: string;
-  payload: K extends 'quiz' ? QuizPayload : K extends 'markdown' | 'code' ? TextPayload : GenericPayload;
-}
-
-export interface TextPayload {
-  text: string;
-  language?: string;
-  /** code 块的可运行标记（第二批沙箱） */
-  runnable?: false;
+  payload: K extends 'quiz' ? QuizPayload : GenericPayload;
 }
 
 export interface QuizQuestion {

@@ -19,6 +19,8 @@ delete process.env.ZHIPU_API_KEY;
 const stub = vi.hoisted(() => ({
   turns: [] as Array<TokenChunk[] | Error>,
   idx: 0,
+  searchFail: null as string | null,
+  searchSnippet: 'F=ma',
 }));
 
 vi.mock('../llm/router.js', () => ({
@@ -41,12 +43,16 @@ vi.mock('../llm/router.js', () => ({
 }));
 
 vi.mock('../search/index.js', () => ({
-  searchWeb: async () => ({
-    results: [{ title: '牛顿第二定律', url: 'https://example.com/newton', snippet: 'F=ma', source: 'exa' }],
-    providers: ['exa'],
-    failed: [],
-  }),
-  resultsToContext: (rs: Array<{ title: string; url: string }>) => rs.map((r) => `${r.title}\n${r.url}`).join('\n\n'),
+  searchWeb: async () =>
+    stub.searchFail
+      ? { results: [], providers: [], failed: [stub.searchFail] }
+      : {
+          results: [{ title: '牛顿第二定律', url: 'https://example.com/newton', snippet: stub.searchSnippet, source: 'exa' }],
+          providers: ['exa'],
+          failed: [],
+        },
+  resultsToContext: (rs: Array<{ title: string; url: string; snippet: string }>) =>
+    rs.map((r) => `${r.title}\n${r.url}\n${r.snippet}`).join('\n\n'),
   KEYED_PROVIDERS: ['exa', 'tavily', 'zhipu'] as const,
   listKeyStatus: () => ({ exa: false, tavily: false, zhipu: false }),
   saveProviderKey: () => undefined,
@@ -84,6 +90,8 @@ const toolCallTurn = (text: string): TokenChunk[] => [
 beforeEach(() => {
   stub.turns = [];
   stub.idx = 0;
+  stub.searchFail = null;
+  stub.searchSnippet = 'F=ma';
   getDb().prepare('DELETE FROM messages').run();
   getDb().prepare('DELETE FROM sessions').run();
 });
@@ -149,6 +157,49 @@ describe('单轨工具循环', () => {
     expect(streamed(sid)).toBe(list.at(-1)?.content); // 上限提示同样上屏
     expect(list.filter((x) => x.tool_calls).length).toBe(8);
     expect(list.filter((x) => x.role === 'tool').length).toBe(8);
+  });
+
+  it('工具回灌逼近预算 → 提前收口并提示「上下文预算已满」（而非轮次上限）', async () => {
+    const sid = newSession();
+    stub.searchSnippet = '中'.repeat(20_000); // 单轮 3 个工具结果 ≈ 3×14k tokens，三轮回灌 ≈126k > 预算
+    const multiCallTurn = (): TokenChunk[] => [
+      {
+        content: '',
+        done: false,
+        toolCalls: [
+          { id: 'a', name: 'search_web', arguments: '{"query":"x"}' },
+          { id: 'b', name: 'search_web', arguments: '{"query":"y"}' },
+          { id: 'c', name: 'search_web', arguments: '{"query":"z"}' },
+        ],
+      },
+    ];
+    stub.turns = [multiCallTurn(), multiCallTurn(), multiCallTurn(), multiCallTurn(), multiCallTurn(), multiCallTurn()];
+
+    const r = await handleMessage({ sessionId: sid, text: 'q' });
+    expect(r.ok).toBe(true);
+
+    const list = rows(sid);
+    expect(list.at(-1)?.role).toBe('assistant');
+    expect(list.at(-1)?.content).toContain('上下文预算已满');
+    expect(list.at(-1)?.content).not.toContain('工具调用已达上限');
+    // 预算在第 3 轮回灌后触发：已执行 3 轮（3 组 tool_calls + 9 条 tool 结果），未等到轮次上限
+    expect(list.filter((x) => x.tool_calls).length).toBe(3);
+    expect(list.filter((x) => x.role === 'tool').length).toBe(9);
+  });
+
+  it('无 key 且搜索失败 → 工具结果回灌明确引导（去设置页配搜索 key）', async () => {
+    const sid = newSession();
+    stub.searchFail = 'lite: 超时; instant: 超时';
+    stub.turns = [toolCallTurn(''), [{ content: '基于已有知识回答。', done: true }]];
+
+    const r = await handleMessage({ sessionId: sid, text: 'q' });
+    expect(r.ok).toBe(true);
+
+    const list = rows(sid);
+    const toolMsg = list.find((x) => x.role === 'tool');
+    expect(toolMsg?.content).toContain('未配置搜索 key');
+    expect(toolMsg?.content).toContain('智谱');
+    expect(toolMsg?.content).toContain('lite: 超时');
   });
 });
 

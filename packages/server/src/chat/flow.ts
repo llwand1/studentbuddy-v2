@@ -83,13 +83,22 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
 
   // 组装上下文（截断含工具轮对齐）
   const history = loadHistory(sessionId);
-  const messages: ChatMessage[] = [
-    { role: 'system', content: SYSTEM_PROMPT },
-    ...truncateHistoryToBudget(history, {
-      limit: getContextLimit(target.model),
-      systemPromptTokens: estimateTokens(SYSTEM_PROMPT),
-    }),
-  ];
+  const truncated = truncateHistoryToBudget(history, {
+    limit: getContextLimit(target.model),
+    systemPromptTokens: estimateTokens(SYSTEM_PROMPT),
+  });
+  const messages: ChatMessage[] = [{ role: 'system', content: SYSTEM_PROMPT }, ...truncated];
+  // 工具循环预算：窗口 − 系统提示 − 已载历史 − 预留。每轮工具回灌后核对，
+  // 接近上限提前收口——小上下文模型 8 轮 × MAX_TOOL_RESULT_CHARS 会撑爆窗口。
+  const toolBudget = Math.max(
+    0,
+    getContextLimit(target.model) -
+      estimateTokens(SYSTEM_PROMPT) -
+      truncated.reduce((s, m) => s + estimateTokens((m.content || '') + (m.toolCalls ? JSON.stringify(m.toolCalls) : '')), 0) -
+      20_000,
+  );
+  let toolTokens = 0;
+  let budgetExceeded = false;
 
   let acc = '';
   let usage: { promptTokens: number; completionTokens: number } | undefined;
@@ -163,15 +172,23 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       }
       rounds.push({ calls: turnToolCalls, results });
       messages.push({ role: 'assistant', content: '', toolCalls: turnToolCalls }, ...results);
+      toolTokens +=
+        estimateTokens(JSON.stringify(turnToolCalls)) + results.reduce((s, r) => s + estimateTokens(r.content), 0);
       if (turnText) {
         acc += '\n\n'; // 过程语与下一轮正文之间留分隔（已流式上屏，不能粘连）
         publish(sessionId, { type: 'token', sessionId, content: '\n\n' }); // 分隔符同样下发：屏上与库内文本逐字一致
       }
       pendingToolRound = true;
+      if (toolTokens > toolBudget) {
+        budgetExceeded = true;
+        break; // 预算耗尽，提前停止工具循环（预留收尾窗口）
+      }
     }
 
     if (pendingToolRound) {
-      const capMsg = `工具调用已达上限（${MAX_TOOL_TURNS} 轮），已停止；请调整提问或直接要求作答。`;
+      const capMsg = budgetExceeded
+        ? '上下文预算已满，工具调用提前停止；请基于已有内容作答或开始新对话。'
+        : `工具调用已达上限（${MAX_TOOL_TURNS} 轮），已停止；请调整提问或直接要求作答。`;
       appendFinal(capMsg);
       publish(sessionId, { type: 'chat-error', sessionId, message: capMsg });
     }

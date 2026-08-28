@@ -160,7 +160,7 @@ function decodeUrl(raw: string): string {
 async function ddgLite(query: string): Promise<SearchResult[]> {
   const res = await fetchSafe(`https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`, {
     headers: { 'User-Agent': DDG_UA },
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(5_000),
   });
   if (!res.ok) throw new Error(`DuckDuckGo Lite ${res.status}`);
   const html = await res.text();
@@ -181,7 +181,7 @@ async function ddgLite(query: string): Promise<SearchResult[]> {
 async function ddgInstant(query: string): Promise<SearchResult[]> {
   const res = await fetchSafe(
     `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`,
-    { headers: { 'User-Agent': DDG_UA }, signal: AbortSignal.timeout(10_000) },
+    { headers: { 'User-Agent': DDG_UA }, signal: AbortSignal.timeout(5_000) },
   );
   if (!res.ok) throw new Error(`DuckDuckGo ${res.status}`);
   const data = (await res.json()) as {

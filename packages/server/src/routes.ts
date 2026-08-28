@@ -10,6 +10,7 @@ import { snapshot } from './chat/sse-bus.js';
 import { subscribe, startHeartbeat } from './chat/sse-bus.js';
 import { getProviders, seedIfEmpty, MODEL_ROLES } from './llm/router.js';
 import { encryptSecret, decryptSecret, isEncrypted } from './storage/crypto.js';
+import { searchWeb, listKeyStatus, saveProviderKey, KEYED_PROVIDERS } from './search/index.js';
 
 // ── sessions ──────────────────────────────────────────────
 export const sessionsRouter = Router();
@@ -35,7 +36,7 @@ sessionsRouter.delete('/:id', (req: Request, res: Response) => {
 
 sessionsRouter.get('/:id/messages', (req: Request, res: Response) => {
   const rows = getDb()
-    .prepare(`SELECT id, role, content, created_at FROM messages WHERE session_id = ? ORDER BY created_at`)
+    .prepare(`SELECT id, role, content, created_at FROM messages WHERE session_id = ? ORDER BY created_at, rowid`)
     .all((req.params.id ?? ''));
   res.json(rows);
 });
@@ -158,6 +159,42 @@ providersRouter.get('/:id/key-status', (req: Request, res: Response) => {
   }
   const roundtrip = row.api_key ? decryptSecret(row.api_key).length > 0 : true;
   res.json({ encrypted: isEncrypted(row.api_key), roundtrip });
+});
+
+// ── settings（搜索 key：密文落库，响应只回状态）──────────────
+export const settingsRouter = Router();
+
+settingsRouter.get('/search-keys', (_req, res) => {
+  res.json({ configured: listKeyStatus() });
+});
+
+settingsRouter.put('/search-keys', (req: Request, res: Response) => {
+  const body = req.body as Record<string, unknown>;
+  const patch: Array<{ key: (typeof KEYED_PROVIDERS)[number]; value: string }> = [];
+  for (const key of KEYED_PROVIDERS) {
+    const value = body[key];
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (trimmed.length > 300) {
+      res.status(400).json({ error: `${key} key 过长（上限 300 字符）` });
+      return;
+    }
+    patch.push({ key, value: trimmed });
+  }
+  // 先全量校验再落库：避免一个字段超限导致半写状态
+  for (const item of patch) saveProviderKey(item.key, item.value);
+  res.json({ ok: true, configured: listKeyStatus() });
+});
+
+/** 搜索连通性自检：真发一次（国产网络可用性必须实测，不接受纸面判断；绕缓存才叫自检）。 */
+settingsRouter.post('/search/test', async (req: Request, res: Response) => {
+  const query = String((req.body as { query?: unknown }).query ?? '学习 方法').slice(0, 80);
+  try {
+    const { results, providers, failed } = await searchWeb(query, { skipCache: true });
+    res.json({ ok: results.length > 0, count: results.length, providers, failed });
+  } catch (err) {
+    res.json({ ok: false, count: 0, providers: [], failed: [err instanceof Error ? err.message : String(err)] });
+  }
 });
 
 export function initChatInfra(): void {

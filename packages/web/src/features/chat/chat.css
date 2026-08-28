@@ -64,6 +64,37 @@
   margin-bottom: var(--sb-sp-2);
 }
 
+/* 工具步骤条（step 事件三态上屏，ADR-5） */
+.chat-steps {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sb-sp-1);
+  margin-bottom: var(--sb-sp-2);
+}
+.chat-step {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  max-width: 100%;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-1) var(--sb-sp-3);
+}
+.chat-step.running { color: var(--sb-primary); border-color: var(--sb-primary); }
+.chat-step.done { color: #15803d; border-color: rgba(34, 197, 94, 0.35); }
+.chat-step.error { color: var(--sb-danger); border-color: rgba(239, 68, 68, 0.4); }
+.chat-step-name { font-weight: 600; }
+.chat-step-detail {
+  color: var(--sb-ink-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .chat-composer-wrap {
   padding: 0 var(--sb-sp-4) var(--sb-sp-4);
   max-width: var(--sb-composer-max);

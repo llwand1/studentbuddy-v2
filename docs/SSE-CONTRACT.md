@@ -14,6 +14,8 @@
 - **按 sessionId 隔离**：服务端只推送该会话事件（无通配订阅——v1 串台教训）。
 - **seq 单调去重**：每个入缓冲事件带按会话独立递增的 `seq`；断线后客户端携带已收最大 `seq` 作 `since` 重连，服务端只回放 `seq > since` 的事件（不重复消费 token）。
 - **新一轮对话**（`POST /api/chat/send` 后）服务端缓冲清空、seq 从 1 重新计数；客户端同时重置 since=0。
+- **回放只服务"进行中的一轮"**：缓冲里已出现 `done` 时，新订阅仅补该 `done`（让在看的连接收口），**不重放 token/step**——已落库的正文由 `GET /sessions/:id/messages` 权威提供，全量回放会让前端把同一答案二次上屏（2026-08-27 真机复现）。
+- **流什么就存什么（逐字成立）**：服务端补进最终文本的每一段（轮间分隔、上限提示、中断标记）都同步作为 `token` 下发，故 `assistant.content` === 该轮 token 拼接；失败/中止同样收口（补 `done`，半截正文带标记落库，工具轮仍不落）。前端 `done` 据此判重：历史尾条与流式文本同字时不再追加（防 `/messages` 晚于落库返回时双份气泡）。
 - **心跳**：每 15s 一条 `{ "type": "ping" }`（不占 seq、不进缓冲）；destroyed 连接自动移除。
 
 **断线恢复（客户端 sse-client 实现）**：
@@ -29,7 +31,7 @@
 | `token` | content | 助手文本增量（前端按序追加） |
 | `reasoning` | content | 推理过程增量（M1 仅流式呈现不落库） |
 | `block` | blockId/payload/done | 结构化内容块（演进③；M2 起启用，payload 见 shared/content-blocks） |
-| `step` | tool/status/detail | 工具执行步骤（单轨工具注册表，M2 起） |
+| `step` | tool/status/detail | 工具执行进度：`running`（detail=入参摘要）→ `done`（detail=结果概览）/ `error`（detail=失败原因，不静默）；前端渲染为进度芯片，`done` 时清空 |
 | `chat-error` | message | 本轮失败（用户中止为「已停止」） |
 | `done` | usage? | 本轮收口；usage.source=provider/estimated |
 | `ping` | — | 心跳 |
@@ -48,6 +50,11 @@
 | GET/POST/PUT/DELETE | `/api/providers` | 服务商 CRUD（api_key 密文入库，**永不出现在响应**） |
 | GET | `/api/providers/roles` | 五角色定义 + 当前绑定 |
 | PUT | `/api/providers/roles/:role` | `{ providerId, model }` 角色绑定（演进①） |
+| GET | `/api/settings/search-keys` | `{ configured: { exa, tavily, zhipu } }` — **只回布尔**，明文与密文都不出响应 |
+| PUT | `/api/settings/search-keys` | `{ exa?, tavily?, zhipu? }` 存 key（AES-GCM 密文入库）；空串=删除；非 string 字段忽略；单值上限 300 字符——**先全量校验再落库**，任一超限 → 400 且一字不写（无半写） |
+| POST | `/api/settings/search/test` | `{ query? }` 真发一次连通性自检（跳过 24h 缓存，保证"真发"）→ `{ ok, count, providers, failed }`（query 截 80 字，providers 只列真出结果的来源，响应不含密钥） |
+
+**已注册工具（单轨 function-calling，`chat/tools.ts`）**：`search_web` 一个；多路 provider 聚合语义见 `search/index.ts`（Exa/Tavily/智谱按 key 并行，三家全无 key → DuckDuckGo 免 key 兜底）。
 
 **安全语义**：写操作（POST/PUT/DELETE）强制 Origin 校验（无 Origin / 恶意 Origin → 403）；请求体上限 2MB；服务仅绑 127.0.0.1。
 
@@ -56,3 +63,5 @@
 | 日期 | 变更 |
 |------|------|
 | 2026-08-23 | M1 首版（SSE/会话/发送/中止/服务商+角色绑定） |
+| 2026-08-27 | `step` 事件随单轨工具循环上线（search_web）；新增 `/api/settings/search-keys`（GET/PUT）与 `/api/settings/search/test`；订阅回放语义收紧——已完结的一轮只补 `done`，修重复气泡 |
+| 2026-08-27（复审） | 屏上==库内扩到收尾语（上限提示、中断标记均走 token）；失败轮补发终止 `done`；搜索 `providers` 只报真出结果的一家、缓存键含 provider 组合、自检跳缓存；PUT 先校验后写 + 单值 300 字上限；前端 `done` 判重（历史尾条同字不再追加）——真机 reload 复验单气泡 |

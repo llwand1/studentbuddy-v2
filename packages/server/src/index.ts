@@ -5,7 +5,7 @@
 import express from 'express';
 import cors from 'cors';
 import { securityHeaders, originCheck, isAllowedOrigin } from './security.js';
-import { sessionsRouter, chatRouter, providersRouter, initChatInfra } from './routes.js';
+import { sessionsRouter, chatRouter, providersRouter, settingsRouter, initChatInfra } from './routes.js';
 import { quizRouter } from './routes/quiz.js';
 import { memorizeRouter } from './routes/memorize.js';
 import { activityRouter } from './routes/activity.js';
@@ -47,6 +47,7 @@ app.use('/api/providers', providersRouter);
 app.use('/api/quiz', quizRouter);
 app.use('/api/memorize', memorizeRouter);
 app.use('/api/activity', activityRouter);
+app.use('/api/settings', settingsRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });

@@ -86,3 +86,13 @@ export function SendIcon(props: IconProps) {
     </svg>
   );
 }
+
+/** 联网搜索（工具步骤/搜索设置） */
+export function SearchIcon(props: IconProps) {
+  return (
+    <svg {...base(props.size, props)}>
+      <circle cx="11" cy="11" r="6" />
+      <path d="M15.5 15.5 20 20" />
+    </svg>
+  );
+}

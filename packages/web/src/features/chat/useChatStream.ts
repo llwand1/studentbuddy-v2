@@ -15,21 +15,32 @@ export interface StreamMessage {
   quizBlock?: { blockId: string; quiz: { title?: string; questions: import('@sb/shared').QuizQuestion[] }; quizId?: string };
 }
 
+export interface ToolStep {
+  tool: string;
+  status: 'running' | 'done' | 'error';
+  detail?: string;
+}
+
 export function useChatStream(sessionId: string | null, onRoundDone?: () => void) {
   const [messages, setMessages] = useState<StreamMessage[]>([]);
   const [streamingText, setStreamingText] = useState('');
   const [reasoning, setReasoning] = useState('');
+  const [steps, setSteps] = useState<ToolStep[]>([]);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState<SseReadyState>('connecting');
   const [error, setError] = useState('');
   const clientRef = useRef<ReturnType<typeof connectSse> | null>(null);
+  /** 历史是否已落定：未落定前禁发，否则 messages 响应后到会把刚发的用户消息整表覆盖掉 */
+  const historyLoadedRef = useRef(false);
 
   // 载入历史
   useEffect(() => {
     if (!sessionId) {
+      historyLoadedRef.current = true;
       setMessages([]);
       return;
     }
+    historyLoadedRef.current = false;
     let alive = true;
     api.sessions
       .messages(sessionId)
@@ -41,7 +52,10 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
             .map((r) => ({ role: r.role as 'user' | 'assistant', content: r.content })),
         );
       })
-      .catch(() => setMessages([]));
+      .catch(() => setMessages([]))
+      .finally(() => {
+        historyLoadedRef.current = true;
+      });
     return () => {
       alive = false;
     };
@@ -52,6 +66,7 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
     if (!sessionId) return;
     setError('');
     setStreamingText('');
+    setSteps([]);
     const client = connectSse(sessionId);
     clientRef.current = client;
     const offState = client.onStateChange(setReady);
@@ -61,10 +76,25 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
         setBusy(true);
       } else if (ev.type === 'reasoning') {
         setReasoning((r) => r + ev.content);
+      } else if (ev.type === 'step') {
+        setBusy(true);
+        setSteps((prev) => {
+          if (ev.status === 'running') return [...prev, { tool: ev.tool, status: ev.status, detail: ev.detail }];
+          const next = [...prev];
+          for (let i = next.length - 1; i >= 0; i--) {
+            if (next[i]?.tool === ev.tool && next[i]?.status === 'running') {
+              next[i] = { tool: ev.tool, status: ev.status, detail: ev.detail };
+              return next;
+            }
+          }
+          return [...next, { tool: ev.tool, status: ev.status, detail: ev.detail }];
+        });
       } else if (ev.type === 'done') {
         setBusy(false);
+        setSteps([]);
         setStreamingText((t) => {
-          if (t) setMessages((ms) => [...ms, { role: 'assistant', content: t }]);
+          // 屏上文本与库内文本逐字一致（服务端保证）：/messages 晚于本轮落库返回时尾条已是这段字，不能再补一遍
+          if (t) setMessages((ms) => (ms.at(-1)?.role === 'assistant' && ms.at(-1)?.content === t ? ms : [...ms, { role: 'assistant', content: t }]));
           return '';
         });
         setReasoning('');
@@ -82,6 +112,7 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
         }
       } else if (ev.type === 'chat-error') {
         setBusy(false);
+        setSteps((prev) => prev.map((s) => (s.status === 'running' ? { ...s, status: 'error', detail: '已中断' } : s)));
         setError(ev.message);
       }
     });
@@ -99,7 +130,12 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
       if (!sessionId) return { ok: false, error: '无会话' };
       if (ready !== 'open') return { ok: false, error: `连接${ready === 'reconnecting' ? '重连中' : '建立中'}，稍候再发` };
       if (busy) return { ok: false, error: '生成中，请先停止' };
+      if (!historyLoadedRef.current) return { ok: false, error: '历史加载中，稍候再发' };
       setError('');
+      // 上一轮残留必须归零：终止帧丢失时，新 token 否则会拼到旧半句后面
+      setStreamingText('');
+      setReasoning('');
+      setSteps([]);
       setMessages((ms) => [...ms, { role: 'user', content: text }]);
       try {
         await api.chat.send(sessionId, text);
@@ -118,5 +154,5 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
     if (sessionId) await api.chat.abort(sessionId).catch(() => undefined);
   }, [sessionId]);
 
-  return { messages, streamingText, reasoning, busy, ready, error, send, stop };
+  return { messages, streamingText, reasoning, steps, busy, ready, error, send, stop };
 }

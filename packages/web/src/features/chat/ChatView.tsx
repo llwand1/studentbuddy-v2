@@ -3,10 +3,18 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useChatStream } from './useChatStream';
-import { SendIcon, PlusIcon, QuizIcon } from '../../components/icons';
+import { SendIcon, PlusIcon, QuizIcon, SearchIcon } from '../../components/icons';
 import { QuizCard } from '../quiz/QuizCard';
 import { api } from '../../lib/api';
 import './chat.css';
+
+/** 工具中文名（新工具在 chat/tools.ts 注册后在此补一行） */
+const TOOL_LABELS: Record<string, string> = { search_web: '联网搜索' };
+const STEP_STATE: Record<'running' | 'done' | 'error', string> = {
+  running: '进行中…',
+  done: '完成',
+  error: '失败',
+};
 
 export function ChatView({
   sessionId,
@@ -17,7 +25,7 @@ export function ChatView({
   onNewSession: () => void;
   onRoundDone?: () => void;
 }) {
-  const { messages, streamingText, busy, ready, error, send, stop } = useChatStream(sessionId, onRoundDone);
+  const { messages, streamingText, steps, busy, ready, error, send, stop } = useChatStream(sessionId, onRoundDone);
   const [input, setInput] = useState('');
   const [sendError, setSendError] = useState('');
   const [quizzing, setQuizzing] = useState(false);
@@ -25,7 +33,7 @@ export function ChatView({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length, streamingText]);
+  }, [messages.length, steps.length, streamingText]);
 
   const blocked = ready !== 'open' || busy;
   const statusHint =
@@ -97,6 +105,18 @@ export function ChatView({
               <div className={m.role === 'user' ? 'chat-bubble user' : 'chat-bubble'}>{m.content}</div>
             </div>
           ) : null,
+        )}
+        {steps.length > 0 && (
+          <div className="chat-steps">
+            {steps.map((s, i) => (
+              <div key={i} className={`chat-step ${s.status}`}>
+                <SearchIcon size={14} />
+                <span className="chat-step-name">{TOOL_LABELS[s.tool] ?? s.tool}</span>
+                <span className="chat-step-state">{STEP_STATE[s.status]}</span>
+                {s.detail && <span className="chat-step-detail">{s.detail}</span>}
+              </div>
+            ))}
+          </div>
         )}
         {streamingText && (
           <div className="chat-row">

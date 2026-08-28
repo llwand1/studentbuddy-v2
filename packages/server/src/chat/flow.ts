@@ -2,7 +2,7 @@
  * chat/flow — 单轮对话编排（chat 域唯一入口）。
  * 职责：会话串行锁（同会话消息不交错）/ abort 真断流 / 流式经 sse-bus 广播 /
  * 边流边累积末尾一次落库 / 用量兜底估算落库（v1 全部踩坑语义继承）。
- * 单轨原则（ADR/G3）：仅原生 function-calling；M1 先纯文本流，工具注册表接入点已留。
+ * 单轨原则（ADR/G3）：仅原生 function-calling，工具注册表见 chat/tools.ts。
  */
 import { randomUUID } from 'node:crypto';
 import type { ModelRole } from '@sb/shared';
@@ -11,7 +11,13 @@ import { routeRole } from '../llm/router.js';
 import { publish, startNewRound } from './sse-bus.js';
 import { publishEvent } from '../events/bus.js';
 import { estimateTokens, truncateHistoryToBudget, getContextLimit } from './context.js';
-import type { ChatMessage } from '../llm/types.js';
+import { toolDefinitions, runTool } from './tools.js';
+import type { ChatMessage, ToolCall } from '../llm/types.js';
+
+/** 工具循环上限（v1 语义：模型连续发起工具调用时最多 8 轮，防死循环） */
+const MAX_TOOL_TURNS = 8;
+/** 单条工具结果回灌上限（v1 语义：多轮工具调用会把上下文撑爆） */
+const MAX_TOOL_RESULT_CHARS = 14_000;
 
 const SYSTEM_PROMPT = [
   '你是 studentbuddy，一个本地优先的 AI 学习助手（学习版豆包）。',
@@ -85,30 +91,89 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   let acc = '';
   let usage: { promptTokens: number; completionTokens: number } | undefined;
 
+  /**
+   * 追加收尾文本（上限提示 / 中断标记）：补进 acc 的与下发的是同一个 delta，
+   * acc 因此恒等于已上屏文本——屏上与库内不会分叉（刷新前后一字不差）。
+   */
+  const appendFinal = (suffix: string) => {
+    const delta = acc ? (acc.endsWith('\n') ? '' : '\n\n') + suffix : suffix;
+    acc += delta;
+    publish(sessionId, { type: 'token', sessionId, content: delta });
+  };
+
+  // 单轨工具循环（G3）：toolCalls → 执行 → tool 回灌 → 再生成；上限 MAX_TOOL_TURNS 轮
+  const tools = toolDefinitions();
+  const onStep = (tool: string, status: 'running' | 'done' | 'error', detail?: string) => {
+    publish(sessionId, { type: 'step', sessionId, tool, status, detail });
+  };
+  /** 工具轮攒到最终答案确认后一并落库：中途失败/中止不留孤儿 tool 消息（v1 语义） */
+  const rounds: Array<{ calls: ToolCall[]; results: ChatMessage[] }> = [];
+  const abortIfNeeded = () => {
+    if (opts.signal?.aborted) throw new Error('已停止');
+  };
+
   try {
-    for await (const chunk of target.adapter.chat({
-      model: target.model,
-      apiKey: target.apiKey,
-      baseUrl: target.baseUrl,
-      messages,
-      signal: opts.signal,
-    })) {
-      if (chunk.reasoning) {
-        // 推理内容仅流式呈现（M1 不落库）
-        publish(sessionId, { type: 'reasoning', sessionId, content: chunk.reasoning });
+    let pendingToolRound = false;
+    for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
+      abortIfNeeded();
+      let turnText = '';
+      let turnToolCalls: ToolCall[] | undefined;
+      for await (const chunk of target.adapter.chat({
+        model: target.model,
+        apiKey: target.apiKey,
+        baseUrl: target.baseUrl,
+        messages,
+        signal: opts.signal,
+        tools,
+      })) {
+        abortIfNeeded();
+        if (chunk.reasoning) {
+          // 推理内容仅流式呈现（不落库）
+          publish(sessionId, { type: 'reasoning', sessionId, content: chunk.reasoning });
+        }
+        if (chunk.content) {
+          turnText += chunk.content;
+          acc += chunk.content;
+          publish(sessionId, { type: 'token', sessionId, content: chunk.content });
+        }
+        if (chunk.usage) {
+          // 多轮各自计费：跨轮累加而非覆盖
+          usage = {
+            promptTokens: (usage?.promptTokens ?? 0) + chunk.usage.promptTokens,
+            completionTokens: (usage?.completionTokens ?? 0) + chunk.usage.completionTokens,
+          };
+        }
+        if (chunk.toolCalls && chunk.toolCalls.length > 0) turnToolCalls = chunk.toolCalls;
+        if (chunk.done) break;
       }
-      if (chunk.content) {
-        acc += chunk.content;
-        publish(sessionId, { type: 'token', sessionId, content: chunk.content });
+
+      if (!turnToolCalls) {
+        pendingToolRound = false;
+        break; // 无工具调用 → 本轮即最终回答
       }
-      if (chunk.usage) usage = chunk.usage;
-      // M1：纯文本流（单轨工具循环接入点——chunk.toolCalls 在 M2 工具注册表就绪后启用）
-      if (chunk.done) break;
+
+      const results: ChatMessage[] = [];
+      for (const tc of turnToolCalls) {
+        const r = await runTool(tc.name, tc.arguments, { onStep });
+        abortIfNeeded();
+        results.push({ role: 'tool', content: r.content.slice(0, MAX_TOOL_RESULT_CHARS), toolCallId: tc.id });
+      }
+      rounds.push({ calls: turnToolCalls, results });
+      messages.push({ role: 'assistant', content: '', toolCalls: turnToolCalls }, ...results);
+      if (turnText) {
+        acc += '\n\n'; // 过程语与下一轮正文之间留分隔（已流式上屏，不能粘连）
+        publish(sessionId, { type: 'token', sessionId, content: '\n\n' }); // 分隔符同样下发：屏上与库内文本逐字一致
+      }
+      pendingToolRound = true;
     }
 
-    const assistantId = randomUUID();
-    db.prepare(`INSERT INTO messages (id, session_id, role, content, tokens) VALUES (?, ?, 'assistant', ?, ?)`)
-      .run(assistantId, sessionId, acc, usage?.completionTokens ?? estimateTokens(acc));
+    if (pendingToolRound) {
+      const capMsg = `工具调用已达上限（${MAX_TOOL_TURNS} 轮），已停止；请调整提问或直接要求作答。`;
+      appendFinal(capMsg);
+      publish(sessionId, { type: 'chat-error', sessionId, message: capMsg });
+    }
+
+    const assistantId = persistRounds(sessionId, rounds, acc, usage?.completionTokens ?? estimateTokens(acc));
     db.prepare(`INSERT INTO token_usage (session_id, model, prompt_tokens, completion_tokens, source) VALUES (?, ?, ?, ?, ?)`)
       .run(
         sessionId,
@@ -131,28 +196,59 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     });
     return { ok: true, assistantMessageId: assistantId };
   } catch (err) {
-    // 用户中止：静默收尾（已生成部分保留落库），其余错误明确上报（ADR-5 失败可见）
     const aborted = opts.signal?.aborted === true;
-    if (aborted && acc) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // 流什么就存什么：已上屏的字不留白（中止与中途失败同样收口）。
+    // 工具轮仍不落，绝不留孤儿 tool 消息。
+    if (acc) {
+      appendFinal(`（${aborted ? '已停止' : '生成中断'}）`);
       db.prepare(`INSERT INTO messages (id, session_id, role, content, tokens) VALUES (?, ?, 'assistant', ?, ?)`)
         .run(randomUUID(), sessionId, acc, estimateTokens(acc));
-      publish(sessionId, { type: 'done', sessionId });
-      return { ok: true };
     }
-    const msg = err instanceof Error ? err.message : String(err);
     publish(sessionId, { type: 'chat-error', sessionId, message: aborted ? '已停止' : `生成失败：${msg}` });
+    // 失败也要收口：缓冲里留下终止帧，切回会话时不会重放这半截死流
+    publish(sessionId, { type: 'done', sessionId });
     return { ok: false, error: msg };
   }
 }
 
+/**
+ * 工具轮 + 最终回答原子落库（v1 语义）：中途失败/中止时整体不落，历史里不会
+ * 出现以孤立 tool 消息结尾的轮次（OpenAI 要求 tool 消息前必有对应 assistant tool_calls）。
+ */
+function persistRounds(
+  sessionId: string,
+  rounds: Array<{ calls: ToolCall[]; results: ChatMessage[] }>,
+  finalContent: string,
+  tokens: number,
+): string {
+  const db = getDb();
+  const assistantId = randomUUID();
+  const apply = db.transaction(() => {
+    for (const r of rounds) {
+      db.prepare(`INSERT INTO messages (id, session_id, role, content, tool_calls) VALUES (?, ?, 'assistant', '', ?)`)
+        .run(randomUUID(), sessionId, JSON.stringify(r.calls));
+      for (const t of r.results) {
+        db.prepare(`INSERT INTO messages (id, session_id, role, content, tool_call_id) VALUES (?, ?, 'tool', ?, ?)`)
+          .run(randomUUID(), sessionId, t.content, t.toolCallId ?? null);
+      }
+    }
+    db.prepare(`INSERT INTO messages (id, session_id, role, content, tokens) VALUES (?, ?, 'assistant', ?, ?)`)
+      .run(assistantId, sessionId, finalContent, tokens);
+  });
+  apply();
+  return assistantId;
+}
+
 function loadHistory(sessionId: string): ChatMessage[] {
   const rows = getDb()
-    .prepare(`SELECT role, content, tool_calls, tool_call_id FROM messages WHERE session_id = ? ORDER BY created_at`)
+    // created_at 只到秒，同秒内的工具轮必须靠 rowid 保住 assistant→tool 的先后
+    .prepare(`SELECT role, content, tool_calls, tool_call_id FROM messages WHERE session_id = ? ORDER BY created_at, rowid`)
     .all(sessionId) as Array<{ role: string; content: string; tool_calls: string | null; tool_call_id: string | null }>;
   return rows.map((r) => ({
     role: r.role as ChatMessage['role'],
     content: r.content,
-    toolCalls: r.tool_calls ? JSON.parse(r.tool_calls) : undefined,
+    toolCalls: r.tool_calls ? (JSON.parse(r.tool_calls) as ToolCall[]) : undefined,
     toolCallId: r.tool_call_id ?? undefined,
   }));
 }

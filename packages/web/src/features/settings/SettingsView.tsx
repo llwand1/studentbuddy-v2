@@ -1,10 +1,11 @@
 /**
- * SettingsView — 服务商 CRUD + 角色模型绑定（演进①的配置面）。
+ * SettingsView — 服务商 CRUD + 角色模型绑定（演进①的配置面）+ 联网搜索 key 配置。
  */
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 import type { ModelRole } from '@sb/shared';
 import './settings.css';
+import { SearchKeysCard } from './SearchKeysCard';
 
 type ProviderRow = { id: string; name: string; baseUrl: string; enabled: boolean };
 type RoleBindingRow = { role: string; provider_id: string; model: string };
@@ -169,6 +170,8 @@ export function SettingsView() {
           </tbody>
         </table>
       </section>
+
+      <SearchKeysCard flash={flash} />
     </div>
   );
 }

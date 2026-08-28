@@ -84,3 +84,27 @@
 }
 .settings-msg.ok { background: rgba(34, 197, 94, 0.08); color: #15803d; }
 .settings-msg.err { background: rgba(239, 68, 68, 0.08); color: var(--sb-danger); }
+
+/* 联网搜索 key */
+.settings-keys { display: grid; gap: var(--sb-sp-2); margin-bottom: var(--sb-sp-3); }
+.settings-key-row {
+  display: grid;
+  grid-template-columns: 150px 1fr auto;
+  gap: var(--sb-sp-2);
+  align-items: center;
+}
+.settings-key-row input {
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+  font: inherit;
+  font-size: var(--sb-fs-sm);
+  background: var(--sb-bg);
+  color: var(--sb-ink);
+  min-width: 0;
+}
+.settings-key-row input:focus { outline: none; border-color: var(--sb-primary); }
+.settings-state { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); white-space: nowrap; }
+.settings-state.on { color: #15803d; }
+.settings-actions { display: flex; gap: var(--sb-sp-2); }
+.settings-test { font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary); }

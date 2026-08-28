@@ -68,4 +68,18 @@ export const api = {
         body: JSON.stringify({ providerId, model }),
       }),
   },
+
+  settings: {
+    searchKeys: () => request<{ configured: Record<'exa' | 'tavily' | 'zhipu', boolean> }>('/api/settings/search-keys'),
+    saveSearchKeys: (patch: Partial<Record<'exa' | 'tavily' | 'zhipu', string>>) =>
+      request<{ ok: boolean; configured: Record<'exa' | 'tavily' | 'zhipu', boolean> }>('/api/settings/search-keys', {
+        method: 'PUT',
+        body: JSON.stringify(patch),
+      }),
+    testSearch: (query?: string) =>
+      request<{ ok: boolean; count: number; providers: string[]; failed: string[] }>('/api/settings/search/test', {
+        method: 'POST',
+        body: JSON.stringify({ query }),
+      }),
+  },
 };

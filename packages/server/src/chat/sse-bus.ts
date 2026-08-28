@@ -46,7 +46,11 @@ export function subscribe(sessionId: string, res: Response, since = 0): () => vo
 
   const buf = buffers.get(sessionId);
   if (buf) {
-    for (const ev of buf.events) {
+    // 回放只为恢复"进行中的一轮"；已完结的一轮已落库，正文由 /messages 权威提供。
+    // 全量回放会让前端把同一答案二次上屏（真机复现），故已完结时只补 done 收尾信号。
+    const doneIdx = buf.events.findIndex((e) => e.type === 'done');
+    const replay = doneIdx >= 0 ? buf.events.slice(doneIdx, doneIdx + 1) : buf.events;
+    for (const ev of replay) {
       if (ev.seq > since) writeEvent(res, ev);
     }
   }

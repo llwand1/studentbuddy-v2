@@ -60,4 +60,26 @@ describe('sse-bus — 按 sessionId 隔离广播（v1 串台防护回归）', ()
     expect(snapshot('s1')).toHaveLength(0);
     expect(publish('s1', { type: 'token', sessionId: 's1', content: 'new' })).toBe(1);
   });
+
+  it('已完结的一轮：新订阅只补 done，不重放正文与 step（真机重复气泡回归）', () => {
+    publish('s1', { type: 'token', sessionId: 's1', content: '已落库的正文' });
+    publish('s1', { type: 'step', sessionId: 's1', tool: 'search_web', status: 'running', detail: 'q' });
+    publish('s1', { type: 'done', sessionId: 's1', usage: { promptTokens: 1, completionTokens: 2, source: 'provider' } });
+
+    const fresh = fakeRes();
+    subscribe('s1', fresh);
+    const evs = fresh.frames.map(parse);
+    expect(evs.filter((e) => e.type === 'token')).toHaveLength(0);
+    expect(evs.filter((e) => e.type === 'step')).toHaveLength(0);
+    expect(evs.some((e) => e.type === 'done')).toBe(true);
+  });
+
+  it('进行中的一轮：新订阅仍全量回放，切回会话不丢已生成的字', () => {
+    publish('s1', { type: 'token', sessionId: 's1', content: '半句' });
+    const mid = fakeRes();
+    subscribe('s1', mid);
+    const tokens = mid.frames.map(parse).filter((e) => e.type === 'token');
+    expect(tokens).toHaveLength(1);
+    expect(tokens[0]).toMatchObject({ content: '半句' });
+  });
 });

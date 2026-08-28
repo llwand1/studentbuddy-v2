@@ -21,7 +21,7 @@ npm run dev:web      # web :5173（代理目标 SB_PROXY_TARGET 可配）
 
 ```
 packages/shared   契约单一事实源：SSE 事件 / 内容块协议 / REST / 领域模型
-packages/server   Express + 学习域（chat / quiz / memorize+SRS / feedback）+ 搬运件
+packages/server   Express + 学习域（chat / quiz / memorize+SRS / feedback）+ search 聚合 + 搬运件
 packages/web      React 18 + 浅色豆包 token（180px 侧栏 / SVG line-icon）
 tools/gates       工程红线：行数 ≤400/300 · 禁内联 style · 禁 any
 docs/             L3 仓库文档

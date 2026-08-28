@@ -31,6 +31,9 @@
 | `packages/shared/src/content-blocks.ts` | 内容块协议（演进③；新卡片=登记 kind+注册渲染器） |
 | `packages/shared/src/domain.ts` | Session/Message/RoleBinding(演进①)/MemorizeItem(SRS 字段) |
 | `packages/server/src/index.ts` | Express 入口（安全头/CORS/originCheck/2MB 限制） |
+| `packages/server/src/chat/tools.ts` | 单轨工具注册表（当前仅 `search_web`；新增工具=加定义+加 `step` 上报） |
+| `packages/server/src/search/index.ts` | 搜索聚合（Exa/Tavily/智谱按 key 并行 → 全无 key 走 DuckDuckGo；24h 缓存；SSRF 护栏） |
+| `packages/server/src/routes.ts` | 路由含 `settingsRouter`（搜索 key 读写 + 连通自检，密钥不出接口） |
 | `packages/server/src/security.ts` | 安全三件之 Origin 校验 |
 | `packages/web/src/app/App.tsx` | 应用壳：180px 侧栏（五环导航） |
 | `packages/web/src/styles/tokens.css` | 设计 token 唯一事实源（改它必须同步设计系统 demo） |
@@ -42,7 +45,7 @@
 | 阶段 | 状态 |
 |------|------|
 | M0 地基（脚手架/门禁/token/图标/文档骨架） | ✅ 2026-08-23 |
-| M1 对话核（SSE/单轨工具/模型路由/内容块流） | ⬜ |
+| M1 对话核（SSE/单轨工具/模型路由/内容块流） | 🔶 2026-08-27：SSE+单轨工具循环+角色路由真机通过；内容块流未启 |
 | M2 练+析（出题/题库/golden dataset） | ⬜ |
 | M3 忆（SRS 引擎） | ⬜ |
 | M4 反馈+迁移+定稿 | ⬜ |
@@ -50,5 +53,6 @@
 ## 已知约束
 
 - dev 端口与 v1 冲突时用 `SB_PORT` 切换，**不杀 v1 进程**
+- **免 key 兜底在本机网络不可用**：2026-08-27 实测 `lite.duckduckgo.com` 与 `api.duckduckgo.com` 均超时（直连被阻断，baidu/agnes 正常 200/401）→ 三路全挂约 20s 且零结果。要让 `search_web` 真出结果必须在设置页配 key（智谱国产可达，优先试）；挂代理另议
 - vite 监听 IPv6 `::1`：本机验证用 `http://localhost:5173`（127.0.0.1 不通）
 - Mermaid 边标签内禁圆括号（解析冲突）

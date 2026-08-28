@@ -38,6 +38,9 @@
 | `packages/web/src/app/App.tsx` | 应用壳：180px 侧栏（五环导航） |
 | `packages/web/src/styles/tokens.css` | 设计 token 唯一事实源（改它必须同步设计系统 demo） |
 | `packages/web/src/components/icons.tsx` | SVG line-icon 基座（禁 emoji） |
+| `packages/web/src/lib/markdown.ts` | 零依赖正文解析：块级切分 + 行内标记；围栏白名单只有 `svg`，其余语言一律代码块（禁裸注入） |
+| `packages/web/src/lib/svg-utils.ts` | SVG 净化（DOMParser 快路径 + 线性正则回退）+ L1 自愈（补闭合/钳宽/主题色），port from v1 |
+| `packages/web/src/features/chat/Markdown.tsx` | 助手正文渲染器（唯一注入点在 SvgPreviewCard 的净化后 SVG，其余走 React 转义） |
 | `tools/gates/check.mjs` | 行数/内联样式/any 门禁 |
 
 ## 里程碑
@@ -45,7 +48,7 @@
 | 阶段 | 状态 |
 |------|------|
 | M0 地基（脚手架/门禁/token/图标/文档骨架） | ✅ 2026-08-23 |
-| M1 对话核（SSE/单轨工具/模型路由/内容块流） | 🔶 2026-08-27：SSE+单轨工具循环+角色路由真机通过；内容块流未启 |
+| M1 对话核（SSE/单轨工具/模型路由/内容块流） | 🔶 2026-08-28：SSE+单轨工具循环+角色路由真机通过；正文 Markdown + SVG 卡片渲染上屏（零依赖）；SSE `block` 事件通道仍只服务 quiz |
 | M2 练+析（出题/题库/golden dataset） | ⬜ |
 | M3 忆（SRS 引擎） | ⬜ |
 | M4 反馈+迁移+定稿 | ⬜ |
@@ -56,3 +59,5 @@
 - **免 key 兜底在本机网络不可用**：2026-08-27 实测 `lite.duckduckgo.com` 与 `api.duckduckgo.com` 均超时（直连被阻断，baidu/agnes 正常 200/401）→ 三路全挂约 20s 且零结果。要让 `search_web` 真出结果必须在设置页配 key（智谱国产可达，优先试）；挂代理另议
 - vite 监听 IPv6 `::1`：本机验证用 `http://localhost:5173`（127.0.0.1 不通）
 - Mermaid 边标签内禁圆括号（解析冲突）
+- **行内公式不渲染**：`$a^2+b^2=c^2$` 按原文显示（未引 katex，保持 @sb/web 零运行时依赖）
+- **demo 式动画未实现**：`html` / `mermaid` / `echarts` 通道两版都没做——围栏一律降级成代码块；html 交互通道需要先做 iframe 沙箱 + CSP 分级，是本项最大的安全设计成本

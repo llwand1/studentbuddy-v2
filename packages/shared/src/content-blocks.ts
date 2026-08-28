@@ -3,6 +3,9 @@
  * SSE block 事件下发 → 前端 block-registry 按 kind 渲染。
  *
  * 新增卡片类型 = 在此登记 BlockKind + web 注册一个渲染器（不改正文解析）。
+ *
+ * 现状（2026-08-28）：`quiz` 走 SSE block 事件；`svg` 由前端识别正文里的 ```svg 围栏直接渲染
+ * （不占 block 通道）；markdown / chart / form / code 既无发射器也无渲染器。
  */
 
 export type BlockKind =

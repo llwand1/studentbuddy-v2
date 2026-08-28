@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useChatStream } from './useChatStream';
 import { SendIcon, PlusIcon, QuizIcon, SearchIcon } from '../../components/icons';
 import { QuizCard } from '../quiz/QuizCard';
+import { Markdown } from './Markdown';
 import { api } from '../../lib/api';
 import './chat.css';
 
@@ -102,7 +103,13 @@ export function ChatView({
             />
           ) : m.content ? (
             <div key={i} className={m.role === 'user' ? 'chat-row user' : 'chat-row'}>
-              <div className={m.role === 'user' ? 'chat-bubble user' : 'chat-bubble'}>{m.content}</div>
+              {m.role === 'user' ? (
+                <div className="chat-bubble user">{m.content}</div>
+              ) : (
+                <div className="chat-bubble md">
+                  <Markdown text={m.content} />
+                </div>
+              )}
             </div>
           ) : null,
         )}
@@ -120,8 +127,8 @@ export function ChatView({
         )}
         {streamingText && (
           <div className="chat-row">
-            <div className="chat-bubble streaming">
-              {streamingText}
+            <div className="chat-bubble md streaming">
+              <Markdown text={streamingText} streaming />
               <span className="chat-caret" />
             </div>
           </div>

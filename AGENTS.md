@@ -34,13 +34,21 @@
 | `packages/server/src/chat/tools.ts` | 单轨工具注册表（当前仅 `search_web`；新增工具=加定义+加 `step` 上报） |
 | `packages/server/src/search/index.ts` | 搜索聚合（Exa/Tavily/智谱按 key 并行 → 全无 key 走 DuckDuckGo；24h 缓存；SSRF 护栏） |
 | `packages/server/src/routes.ts` | 路由含 `settingsRouter`（搜索 key 读写 + 连通自检，密钥不出接口） |
-| `packages/server/src/security.ts` | 安全三件之 Origin 校验 |
+| `packages/server/src/security.ts` | 安全三件之 Origin 校验（**不放行 `'null'`**：sandbox 预览页的源就是字符串 null，放行等于让模型写的网页能调写接口） |
 | `packages/web/src/app/App.tsx` | 应用壳：180px 侧栏（五环导航） |
 | `packages/web/src/styles/tokens.css` | 设计 token 唯一事实源（改它必须同步设计系统 demo） |
 | `packages/web/src/components/icons.tsx` | SVG line-icon 基座（禁 emoji） |
-| `packages/web/src/lib/markdown.ts` | 零依赖正文解析：块级切分 + 行内标记；围栏白名单只有 `svg`，其余语言一律代码块（禁裸注入） |
-| `packages/web/src/lib/svg-utils.ts` | SVG 净化（DOMParser 快路径 + 线性正则回退）+ L1 自愈（补闭合/钳宽/主题色），port from v1 |
-| `packages/web/src/features/chat/Markdown.tsx` | 助手正文渲染器（唯一注入点在 SvgPreviewCard 的净化后 SVG，其余走 React 转义） |
+| `packages/web/src/lib/markdown.ts` | 零依赖正文解析：块级切分 + 行内标记；围栏白名单只有 `svg` / `chart` / `html`，其余语言一律代码块（禁裸注入） |
+| `packages/web/src/lib/svg-utils.ts` | SVG 净化（DOMParser 快路径 + 线性正则回退）+ L1 自愈（补闭合/钳宽/主题色）+ `openSvgDocument` 下载/新标签页（入参必须是**净化后**的 SVG，blob 文档继承本应用源），port from v1 |
+| `packages/web/src/lib/chart-utils.ts` | 图表 DSL：```chart 围栏 JSON 容错（port from v1 fixEcharts）+ bar/line/pie 零依赖自绘 SVG，渲染卡在 features/chat/ChartCard.tsx |
+| `packages/server/src/routes/preview.ts` | ```html 预览出页：内存暂存（上限 20 条 / 512KB）+ `CSP: sandbox`（无 allow-same-origin ⇒ 源为 null）；本页 `X-Frame-Options` 由全局 DENY 放宽到 SAMEORIGIN（侧栏面板要嵌它，外站仍嵌不到） |
+| `packages/web/src/features/chat/HtmlCard.tsx` | html 卡片：永不内联，点「侧栏预览」送右侧面板、「新标签页」走同一上传路径，三态齐备（进行中/失败/成功） |
+| `packages/web/src/features/preview/PreviewPanel.tsx` | 应用右侧内置浏览器面板：只挂 `/api/preview/:id` 沙箱文档，iframe 再叠 `sandbox` 双保险；**无地址栏**（不承诺打开任意 URL） |
+| `packages/web/src/lib/preview-store.ts` + `preview-api.ts` | 面板状态（`useSyncExternalStore` 微型 store，跨层不套 provider）与 `uploadPreview()`/`pickTitle()` |
+| `packages/server/src/learning/` | 练+忆域：quiz 出题引擎 / srs SM-2 调度 / memorize 卡片 / activity 打卡 |
+| `packages/web/src/features/quiz·memorize·summary/` | 题库 / 背背背翻卡 / 今日总结三屏 |
+| `packages/web/src/features/chat/useChatStream.ts` | SSE 生命周期 + 流式文本/step/block 累积编排（前端加一种 SSE 事件渲染从这里接） |
+| `packages/web/src/features/chat/Markdown.tsx` | 助手正文渲染器（注入点只有 SvgPreviewCard / ChartCard 里净化后的 SVG，其余走 React 转义） |
 | `tools/gates/check.mjs` | 行数/内联样式/any 门禁 |
 
 ## 里程碑
@@ -48,16 +56,17 @@
 | 阶段 | 状态 |
 |------|------|
 | M0 地基（脚手架/门禁/token/图标/文档骨架） | ✅ 2026-08-23 |
-| M1 对话核（SSE/单轨工具/模型路由/内容块流） | 🔶 2026-08-28：SSE+单轨工具循环+角色路由真机通过；正文 Markdown + SVG 卡片渲染上屏（零依赖）；SSE `block` 事件通道仍只服务 quiz |
-| M2 练+析（出题/题库/golden dataset） | ⬜ |
-| M3 忆（SRS 引擎） | ⬜ |
-| M4 反馈+迁移+定稿 | ⬜ |
+| M1 对话核（SSE/单轨工具/模型路由/内容块流） | 🔶 2026-08-28：SSE+单轨工具循环+角色路由真机通过；正文 Markdown + SVG 卡片 + chart 数据图内联渲染、```html 走右侧内置浏览器面板（沙箱 iframe，也可新标签页）；卡片带下载/放大，零依赖；SSE `block` 事件通道仍只服务 quiz |
+| M2 练+析（出题/题库/golden dataset） | ✅ 2026-08-23：出题引擎/题库/QuizCard/逐题统计/薄弱点 |
+| M3 忆（SRS 引擎） | ✅ 2026-08-23：SM-2 调度 + 背背背翻卡 |
+| M4 反馈+迁移+定稿 | 🔶 2026-08-23：反馈环（事件总线/XP连签/今日总结/近7天趋势）+ v1 全量数据迁移工具已落；定稿未做 |
 
 ## 已知约束
 
 - dev 端口与 v1 冲突时用 `SB_PORT` 切换，**不杀 v1 进程**
 - **免 key 兜底在本机网络不可用**：2026-08-27 实测 `lite.duckduckgo.com` 与 `api.duckduckgo.com` 均超时（直连被阻断，baidu/agnes 正常 200/401）→ 三路全挂约 20s 且零结果。要让 `search_web` 真出结果必须在设置页配 key（智谱国产可达，优先试）；挂代理另议
 - vite 监听 IPv6 `::1`：本机验证用 `http://localhost:5173`（127.0.0.1 不通）
-- Mermaid 边标签内禁圆括号（解析冲突）
 - **行内公式不渲染**：`$a^2+b^2=c^2$` 按原文显示（未引 katex，保持 @sb/web 零运行时依赖）
-- **demo 式动画未实现**：`html` / `mermaid` / `echarts` 通道两版都没做——围栏一律降级成代码块；html 交互通道需要先做 iframe 沙箱 + CSP 分级，是本项最大的安全设计成本
+- **重型图库仍未实现**：`mermaid` / `echarts` 围栏照旧降级代码块（刻意不引库）；数据图走自绘 ```chart，交互动画走 ```html 沙箱预览（2026-08-28 已上，真机验证预览文档源为 `null`、应用侧读不到其 DOM、读写接口均被拒）
+- **预览页只活内存不落盘**：上限 20 条、服务重启即失效，页内提示回对话重新点「侧栏预览」；不做分享链接（本地单用户形态无场景）
+- 面板宽 `min(--sb-browser-w, 46vw)` 且 `flex-shrink: 0`：窗口很窄时优先保面板、对话区被挤。未做可拖拽分隔条（内联 style 被门禁禁，需走 CSS 变量 + `documentElement.style.setProperty`，等真需要再加）

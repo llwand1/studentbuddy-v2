@@ -170,3 +170,27 @@ export function fixSvg(code: string): SvgFix {
 export function prepareSvg(code: string): string {
   return sanitizeSvg(fixSvg(code).code);
 }
+
+/**
+ * SVG 作为独立文档下载 / 新标签页打开（SvgPreviewCard 与 ChartCard 共用）。
+ * 参数只应传**已净化**的 SVG：blob 文档的 Origin 等于本应用，直接开模型原始输出
+ * 等于让里面的 <script> 拿着我们的写接口权限执行。
+ */
+export function openSvgDocument(safeSvg: string, mode: 'download' | 'open'): void {
+  if (typeof document === 'undefined') return;
+  try {
+    const url = URL.createObjectURL(new Blob([safeSvg], { type: 'image/svg+xml;charset=utf-8' }));
+    if (mode === 'download') {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `studentbuddy-${Date.now()}.svg`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    }
+  } catch {
+    /* 静默：单机应用打开/下载失败不弹错 */
+  }
+}

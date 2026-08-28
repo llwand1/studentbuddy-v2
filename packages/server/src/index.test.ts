@@ -91,3 +91,42 @@ describe('搜索 key 接口（密钥永不回显，v2 P1）', () => {
     expect(res.body.configured).toEqual({ exa: false, tavily: false, zhipu: false });
   });
 });
+
+describe('html 预览通道（CSP sandbox 隔离）', () => {
+  const origin = 'http://localhost:5173';
+
+  it('POST 换 id → GET 出页带 sandbox CSP（不含 allow-same-origin），片段补文档壳', async () => {
+    const reg = await request(app).post('/api/preview').set('Origin', origin).send({ html: '<b>hi</b>' });
+    expect(reg.status).toBe(200);
+    const page = await request(app).get(`/api/preview/${reg.body.id}`).expect(200);
+    expect(page.headers['content-security-policy']).toContain('sandbox allow-scripts');
+    expect(page.headers['content-security-policy']).not.toContain('allow-same-origin');
+    expect(page.text).toContain('<!doctype html>');
+    expect(page.text).toContain('<b>hi</b>');
+  });
+
+  it('预览页 X-Frame-Options 放宽为 SAMEORIGIN（侧栏 iframe 才嵌得进），其它接口仍 DENY', async () => {
+    const reg = await request(app).post('/api/preview').set('Origin', origin).send({ html: '<b>hi</b>' });
+    const page = await request(app).get(`/api/preview/${reg.body.id}`).expect(200);
+    expect(page.headers['x-frame-options']).toBe('SAMEORIGIN');
+    const gone = await request(app).get('/api/preview/gone-id').expect(404);
+    expect(gone.headers['x-frame-options']).toBe('SAMEORIGIN'); // 失效提示也要能在面板里显示
+    const other = await request(app).get('/api/health').expect(200);
+    expect(other.headers['x-frame-options']).toBe('DENY');
+  });
+
+  it('未知 id → 404 可读提示；非 string / 超 512KB → 400', async () => {
+    const miss = await request(app).get('/api/preview/none-here').expect(404);
+    expect(miss.text).toContain('预览已失效');
+    const badType = await request(app).post('/api/preview').set('Origin', origin).send({ html: 42 });
+    expect(badType.status).toBe(400);
+    const tooBig = await request(app).post('/api/preview').set('Origin', origin).send({ html: 'x'.repeat(512 * 1024 + 1) });
+    expect(tooBig.status).toBe(400);
+  });
+
+  it('sandbox 预览页的 Origin: null → 写接口 403 且拿不到 CORS 头（html 通道的前提）', async () => {
+    const res = await request(app).post('/api/preview').set('Origin', 'null').send({ html: '<i>x</i>' });
+    expect(res.status).toBe(403);
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
+  });
+});

@@ -1,5 +1,5 @@
 // markdown.ts —— 零依赖正文解析（块级切分 + 行内标记），渲染在 features/chat/Markdown.tsx。
-// 设计约束：纯字符串进、数据结构出，node 环境可单测；```svg 围栏在此识别成 svg 块。
+// 设计约束：纯字符串进、数据结构出，node 环境可单测；```svg / ```chart / ```html 围栏识别成专用块。
 
 export type Inline =
   | { t: 'text'; v: string }
@@ -19,6 +19,8 @@ export type Block =
   | { kind: 'table'; head: Inline[][]; rows: Inline[][][] }
   | { kind: 'code'; lang: string; text: string }
   | { kind: 'svg'; code: string; closed: boolean }
+  | { kind: 'chart'; code: string; closed: boolean }
+  | { kind: 'html'; code: string; closed: boolean }
   | { kind: 'hr' };
 
 const FENCE = /^ {0,3}```([+\-\w]*)\s*$/;
@@ -138,8 +140,11 @@ export function parseBlocks(src: string): Block[] {
         body.push(at(j));
       }
       const text = body.join('\n');
-      // 只有 svg 有专用渲染器；其余语言（含 html/mermaid 等未实现通道）一律按代码块显示，绝不裸注入
+      // svg/chart 有内联渲染器，html 只有「新标签页打开」卡（本应用 DOM 内绝不渲染）；
+      // 其余语言（含 mermaid/echarts 等未实现通道）一律按代码块显示，绝不裸注入
       if (lang === 'svg') blocks.push({ kind: 'svg', code: text, closed });
+      else if (lang === 'chart') blocks.push({ kind: 'chart', code: text, closed });
+      else if (lang === 'html' || lang === 'htm') blocks.push({ kind: 'html', code: text, closed });
       else blocks.push({ kind: 'code', lang, text });
       i = closed ? j + 1 : lines.length;
       continue;

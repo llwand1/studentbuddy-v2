@@ -7,7 +7,8 @@
 
 - 纯本地 Web 服务：`api(Express :18791 仅 127.0.0.1) + web(Vite :5173)`，浏览器访问
 - 单用户、零 AI 写盘、SQLite 单文件（WAL）
-- 助手正文按 Markdown 排版，```svg 围栏内联出图（净化 + 自愈），@sb/web 保持零运行时依赖
+- 助手正文按 Markdown 排版，```svg / ```chart 围栏内联出图与数据图（净化 + 自愈，零依赖自绘），@sb/web 保持零运行时依赖
+- ```html 围栏是可交互演示页：对话里只出卡片，点「侧栏预览」在应用右侧的内置浏览器面板里运行（也可新标签页）。出页带 `CSP: sandbox`（无 `allow-same-origin`）+ iframe 再叠一层 `sandbox` ⇒ 页面源为 `null`，读不到本应用数据也调不了写接口
 
 ## 快速开始
 
@@ -23,8 +24,9 @@ npm run dev:web      # web :5173（代理目标 SB_PROXY_TARGET 可配）
 ```
 packages/shared   契约单一事实源：SSE 事件 / 内容块协议 / REST / 领域模型
 packages/server   Express + 学习域（chat / quiz / memorize+SRS / feedback）+ search 聚合 + 搬运件
-packages/web      React 18 + 浅色豆包 token（180px 侧栏 / SVG line-icon / Markdown+SVG 正文渲染）
+packages/web      React 18 + 浅色豆包 token（180px 侧栏 / SVG line-icon / Markdown+SVG+图表+html预览 正文渲染）
 tools/gates       工程红线：行数 ≤400/300 · 禁内联 style · 禁 any
+CHANGELOG.md      项目改动登记册（代码/文档/测试同批；项目条目不进个人文档表）
 docs/             L3 仓库文档
 ```
 
@@ -42,3 +44,4 @@ docs/             L3 仓库文档
 
 - 三件套：代码 + 文档 + 测试同批提交；`npm run check` 全绿才提交
 - Conventional Commits；搬运件标注 `port from v1`
+- 每批改动在 `CHANGELOG.md`「未发布」段追加一行，验证列只写实测结论（推断不进表）

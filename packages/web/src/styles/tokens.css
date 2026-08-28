@@ -42,6 +42,7 @@
 
   /* 布局 */
   --sb-sidebar-w: 180px;
+  --sb-browser-w: 560px;
   --sb-composer-max: 760px;
 }
 

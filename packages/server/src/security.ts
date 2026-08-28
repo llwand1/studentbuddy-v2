@@ -13,7 +13,8 @@ const ALLOWED_ORIGINS = new Set([
 
 export function isAllowedOrigin(origin: string | undefined): boolean {
   if (origin === undefined) return false; // 写操作必须携带 Origin（SEC-09 语义）
-  if (origin === 'null') return true; // file:// 本地预览
+  // 不放行 'null'：CSP sandbox 的 html 预览页 Origin 就是字符串 null，放行等于让模型写的
+  // 网页能调写接口 + 读到带 CORS 头的 JSON（v1 file:// 遗留规则在 v2 无场景，已删）
   return ALLOWED_ORIGINS.has(origin) || /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
 }
 

@@ -4,8 +4,9 @@
  *
  * 新增卡片类型 = 在此登记 BlockKind + web 注册一个渲染器（不改正文解析）。
  *
- * 现状（2026-08-28）：`quiz` 走 SSE block 事件；`svg` 由前端识别正文里的 ```svg 围栏直接渲染
- * （不占 block 通道）；markdown / chart / form / code 既无发射器也无渲染器。
+ * 现状（2026-08-28）：`quiz` 走 SSE block 事件；`svg` / `chart` / `html` 由前端识别正文里的同名围栏
+ * 直接渲染卡片（不占 block 通道；html 不在本应用 DOM 内渲染，只送进右侧沙箱预览面板或新标签页）。
+ * BlockKind 里的 markdown / form / code 既无发射器也无渲染器，登记未实现。
  */
 
 export type BlockKind =

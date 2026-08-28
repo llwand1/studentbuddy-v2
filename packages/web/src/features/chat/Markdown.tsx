@@ -1,12 +1,15 @@
 /**
- * Markdown — 助手正文渲染（零依赖：块级切分在 lib/markdown.ts，SVG 走净化卡片）。
+ * Markdown — 助手正文渲染（零依赖：块级切分在 lib/markdown.ts，SVG/图表走净化卡片）。
  * 只做「数据结构 → DOM」，文本节点一律作为 React children 渲染（自动转义），
- * 全篇唯一注入点是 SvgPreviewCard 里的净化后 SVG。
+ * 全篇注入点只有 SvgPreviewCard / ChartCard 里净化后的 SVG；```html 永不内联（HtmlCard 只给
+ * 「新标签页打开」，由服务端 CSP sandbox 隔离）。
  */
 import { useMemo, useState } from 'react';
 import type { Block, Inline } from '../../lib/markdown';
 import { parseBlocks } from '../../lib/markdown';
 import { SvgPreviewCard } from './SvgPreviewCard';
+import { ChartCard } from './ChartCard';
+import { HtmlCard } from './HtmlCard';
 import './markdown.css';
 
 function InlineNodes({ nodes }: { nodes: Inline[] }) {
@@ -141,6 +144,10 @@ function BlockNode({ block, streaming }: { block: Block; streaming: boolean }) {
     case 'svg':
       // 未闭合的围栏 = 仍在流式绘制：卡片自己出"正在绘制"占位，绝不当 HTML 注入
       return <SvgPreviewCard code={block.code} streaming={!block.closed || streaming} />;
+    case 'chart':
+      return <ChartCard code={block.code} streaming={!block.closed || streaming} />;
+    case 'html':
+      return <HtmlCard code={block.code} streaming={!block.closed || streaming} />;
     case 'hr':
       return <hr className="md-hr" />;
   }

@@ -7,6 +7,8 @@
 .chat-scroll {
   flex: 1;
   overflow-y: auto;
+  /* 欢迎页光带绝对定位会横向溢出，纵向 auto 会把 overflow-x 变成 auto 而冒出横向滚动条 */
+  overflow-x: hidden;
   padding: var(--sb-sp-5) var(--sb-sp-4);
   max-width: var(--sb-composer-max);
   margin: 0 auto;
@@ -177,32 +179,141 @@
   justify-content: center;
 }
 
-/* 空态 */
-.chat-empty {
-  flex: 1;
+/* ── 欢迎页（空会话）：逐张上浮淡入；空态时把消息区当画布垂直居中 ── */
+
+.chat-scroll:has(.welcome) {
   display: flex;
   align-items: center;
-  justify-content: center;
 }
-.chat-empty-card {
-  text-align: center;
-  background: var(--sb-surface);
-  border: 1px solid var(--sb-line);
-  border-radius: var(--sb-radius-lg);
-  box-shadow: var(--sb-shadow-1);
-  padding: var(--sb-sp-6) var(--sb-sp-5);
-}
-.chat-empty-card h2 { margin-bottom: var(--sb-sp-2); }
-.chat-empty-card p { color: var(--sb-ink-secondary); font-size: var(--sb-fs-sm); margin-bottom: var(--sb-sp-4); }
 
-.chat-new-btn {
-  display: inline-flex;
+.welcome {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sb-sp-1);
+  text-align: center;
+}
+/* 单色呼吸光带：只用品牌蓝的浅渐变，面积压在标题一带 */
+.welcome-glow {
+  position: absolute;
+  top: -56px;
+  left: 50%;
+  width: 420px;
+  height: 200px;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, var(--sb-primary-weak), rgba(255, 255, 255, 0) 68%);
+  animation: welcome-breathe 6.5s ease-in-out infinite;
+}
+@keyframes welcome-breathe {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateX(-50%) scale(1.06);
+  }
+}
+
+.welcome-hi {
+  font-size: var(--sb-fs-xl);
+  font-weight: 650;
+  animation: welcome-rise 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+}
+.welcome-sub {
+  max-width: 460px;
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-sm);
+  animation: welcome-rise 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) 60ms backwards;
+}
+
+.welcome-grid {
+  width: 100%;
+  margin-top: var(--sb-sp-5);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sb-sp-3);
+}
+
+.welcome-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: var(--sb-sp-3);
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), var(--sb-surface));
+  backdrop-filter: blur(8px);
+  box-shadow: var(--sb-shadow-1);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  animation: welcome-rise 0.32s cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+}
+/* 入场逐张延迟：延迟只能写在 CSS 里（门禁禁内联 style） */
+.welcome-card:nth-child(1) {
+  animation-delay: 120ms;
+}
+.welcome-card:nth-child(2) {
+  animation-delay: 170ms;
+}
+.welcome-card:nth-child(3) {
+  animation-delay: 220ms;
+}
+.welcome-card:nth-child(4) {
+  animation-delay: 270ms;
+}
+@keyframes welcome-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+.welcome-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--sb-primary);
+  box-shadow: var(--sb-shadow-2);
+}
+
+.welcome-card-top {
+  display: flex;
   align-items: center;
   gap: var(--sb-sp-2);
-  padding: var(--sb-sp-2) var(--sb-sp-5);
-  border-radius: var(--sb-radius-md);
-  background: var(--sb-primary);
-  color: #fff;
+  color: var(--sb-primary);
+}
+.welcome-card-ring {
+  font-size: var(--sb-fs-xs);
+  font-weight: 600;
+  color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+  border-radius: 4px;
+  padding: 0 5px;
+}
+.welcome-card-title {
+  font-size: var(--sb-fs-md);
   font-weight: 600;
 }
-.chat-new-btn:hover { opacity: 0.88; }
+.welcome-card-prompt {
+  font-size: var(--sb-fs-xs);
+  line-height: 1.5;
+  color: var(--sb-ink-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-glow {
+    animation: none;
+    opacity: 0.7;
+  }
+  .welcome-hi,
+  .welcome-sub,
+  .welcome-card {
+    animation: none;
+  }
+  .welcome-card {
+    transition: none;
+  }
+}

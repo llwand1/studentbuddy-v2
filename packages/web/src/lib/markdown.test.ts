@@ -37,10 +37,23 @@ describe('markdown 块级切分', () => {
     if (half[0]?.kind === 'svg') expect(half[0].closed).toBe(false);
   });
 
-  it('未实现的围栏语言（html/mermaid）只能当代码块，不会变成 svg 通道', () => {
-    const bs = parseBlocks('```html\n<script>alert(1)</script>\n```');
-    expect(bs[0]?.kind).toBe('code');
-    if (bs[0]?.kind === 'code') expect(bs[0].lang).toBe('html');
+  it('```html → html 块（只给「新标签页打开」卡，绝不内联）；未实现语言仍是代码块', () => {
+    const bs = parseBlocks('```html\n<button onclick="alert(1)">点</button>\n```');
+    expect(bs[0]?.kind).toBe('html');
+    if (bs[0]?.kind === 'html') expect(bs[0].code).toContain('alert(1)');
+    expect(parseBlocks('```vue\n<template/>\n```')[0]?.kind).toBe('code');
+  });
+
+  it('```chart 围栏 → chart 块；未闭合也成块并标 closed=false（流式）', () => {
+    const done = parseBlocks('看数据：\n```chart\n{"type":"bar","labels":["一"],"values":[1]}\n```');
+    expect(done.map((b) => b.kind)).toEqual(['para', 'chart']);
+    if (done[1]?.kind === 'chart') expect(done[1].closed).toBe(true);
+
+    const half = parseBlocks('```chart\n{"type":"pie"');
+    expect(half[0]?.kind).toBe('chart');
+    if (half[0]?.kind === 'chart') expect(half[0].closed).toBe(false);
+
+    expect(parseBlocks('```mermaid\nflow TD\na-->b\n```')[0]?.kind).toBe('code');
   });
 });
 

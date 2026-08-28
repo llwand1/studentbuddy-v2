@@ -1,6 +1,7 @@
 /**
- * 应用壳：180px 浅色侧栏（会话列表 + 学习四环导航 + 设置）+ 主区视图路由。
+ * 应用壳：180px 浅色侧栏（会话列表 + 学习四环导航 + 设置）+ 主区视图路由 + 右侧内置浏览器面板。
  * 五环入口即需求闭环的导航面（学/练/忆/反馈），M2-M4 逐环填充。
+ * 面板（PreviewPanel）自己无预览时返回 null，故壳层不需要为它持状态。
  */
 import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@sb/shared';
@@ -11,6 +12,7 @@ import { SettingsView } from '../features/settings/SettingsView';
 import { QuizBankPage } from '../features/quiz/QuizBankPage';
 import { MemorizePage } from '../features/memorize/MemorizePage';
 import { DailySummaryPage } from '../features/summary/DailySummaryPage';
+import { PreviewPanel } from '../features/preview/PreviewPanel';
 import './app.css';
 
 type View = 'chat' | 'quiz' | 'memorize' | 'summary' | 'settings';
@@ -118,26 +120,8 @@ export function App() {
         {view === 'memorize' && <MemorizePage />}
         {view === 'summary' && <DailySummaryPage />}
         {view === 'settings' && <SettingsView />}
-        {(view === 'chat' || view === 'settings' || view === 'quiz' || view === 'memorize' || view === 'summary') ? null : <Placeholder view={view} />}
       </main>
-    </div>
-  );
-}
-
-function Placeholder({ view }: { view: View }) {
-  const labels: Record<View, string> = {
-    chat: '',
-    quiz: '题库（M2：出题/三题型/统计/薄弱点）',
-    memorize: '背背背（M3：翻卡/SRS 到期队列）',
-    summary: '今日总结（M4：XP/连签/趋势）',
-    settings: '',
-  };
-  return (
-    <div className="sb-placeholder">
-      <div className="sb-placeholder-card">
-        <h2>studentbuddy v2</h2>
-        <p>{labels[view]}</p>
-      </div>
+      <PreviewPanel />
     </div>
   );
 }

@@ -184,6 +184,26 @@
   color: var(--sb-primary);
   border-color: var(--sb-primary);
 }
+/* 主操作（如 html 卡的「侧栏预览」）：品牌蓝实底 */
+.chat-svg-btn.primary {
+  color: #fff;
+  background: var(--sb-primary);
+  border-color: var(--sb-primary);
+}
+.chat-svg-btn.primary:hover {
+  color: #fff;
+  opacity: 0.88;
+}
+.chat-svg-btn:disabled {
+  color: var(--sb-ink-tertiary);
+  border-color: var(--sb-line);
+  background: transparent;
+  cursor: default;
+}
+.chat-svg-btn.primary:disabled {
+  color: var(--sb-ink-tertiary);
+  background: var(--sb-primary-weak);
+}
 .chat-svg-body {
   padding: var(--sb-sp-3);
 }

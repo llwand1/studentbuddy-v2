@@ -9,6 +9,7 @@ import { sessionsRouter, chatRouter, providersRouter, settingsRouter, initChatIn
 import { quizRouter } from './routes/quiz.js';
 import { memorizeRouter } from './routes/memorize.js';
 import { activityRouter } from './routes/activity.js';
+import { previewRouter } from './routes/preview.js';
 import { wireActivityEvents } from './learning/activity.js';
 import { getDb } from './storage/db.js';
 import type { StatusResponse } from '@sb/shared';
@@ -24,11 +25,9 @@ app.disable('x-powered-by');
 app.use(securityHeaders);
 app.use(
   cors({
-    // 无 Origin（curl/同源）不设 CORS 头即可；跨源合法性由 originCheck 对写操作强制
-    origin: (origin, cb) => {
-      if (origin === undefined || isAllowedOrigin(origin)) cb(null, true);
-      else cb(new Error('Not allowed by CORS'));
-    },
+    // 无 Origin（curl/同源）不设 CORS 头即可；跨源合法性由 originCheck 对写操作强制。
+    // 非法 origin 返回 false 而不是抛错：抛错会让请求变成 500，授权判定应只由 originCheck 出
+    origin: (origin, cb) => cb(null, origin === undefined || isAllowedOrigin(origin)),
     credentials: false,
   }),
 );
@@ -48,6 +47,7 @@ app.use('/api/quiz', quizRouter);
 app.use('/api/memorize', memorizeRouter);
 app.use('/api/activity', activityRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/preview', previewRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });

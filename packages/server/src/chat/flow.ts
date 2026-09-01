@@ -12,6 +12,7 @@ import { publish, startNewRound } from './sse-bus.js';
 import { publishEvent } from '../events/bus.js';
 import { estimateTokens, truncateHistoryToBudget, getContextLimit } from './context.js';
 import { toolDefinitions, runTool } from './tools.js';
+import { getRelevantTerms, saveTerms, extractTerms, countUsage } from '../learning/terms.js';
 import type { ChatMessage, ToolCall } from '../llm/types.js';
 
 /** 工具循环上限（v1 语义：模型连续发起工具调用时最多 8 轮，防死循环） */
@@ -88,6 +89,16 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     systemPromptTokens: estimateTokens(SYSTEM_PROMPT),
   });
   const messages: ChatMessage[] = [{ role: 'system', content: SYSTEM_PROMPT }, ...truncated];
+  // 忆域 v2（词条库注入）：检索与本次提问相关的已入库词条，软性提示 AI 优先使用。
+  // 命中失败/为空不影响对话（ADR-4）；词条提示本身计入后续工具预算（短，约 ≤1k tokens）。
+  const relevantTerms = getRelevantTerms(opts.text, 15);
+  if (relevantTerms.length > 0) {
+    const termLines = relevantTerms.map((t) => `- ${t.term}（${t.domain}）：${t.definition}`).join('\n');
+    messages.push({
+      role: 'system',
+      content: `以下是你的术语记忆库中与本次提问相关的词条，回复时请优先使用这些术语（保持回答自然，不必逐条列举）：\n${termLines}`,
+    });
+  }
   // 工具循环预算：窗口 − 系统提示 − 已载历史 − 预留。每轮工具回灌后核对，
   // 接近上限提前收口——小上下文模型 8 轮 × MAX_TOOL_RESULT_CHARS 会撑爆窗口。
   const toolBudget = Math.max(
@@ -205,6 +216,13 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     db.prepare(`UPDATE sessions SET updated_at = datetime('now') WHERE id = ?`).run(sessionId);
 
     publishEvent({ type: 'chat_done', sessionId });
+    // 忆域 v2：回复完成后自动抽取重要词条入库（失败静默不阻塞对话）+ 命中词条计数
+    void extractTerms(`${opts.text}\n\n${acc}`.slice(0, 30000))
+      .then((items) => {
+        if (items.length > 0) saveTerms(items, sessionId);
+      })
+      .catch(() => undefined);
+    countUsage(acc);
     publish(sessionId, {
       type: 'done',
       sessionId,

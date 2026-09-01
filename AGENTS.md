@@ -12,7 +12,7 @@
 
 1. 需求为纲：模块必须答「服务学习闭环哪一环」
 2. 简洁优先：安全做必要最小（密钥加密/Origin/SSRF+白名单三件），无审批门无策略引擎
-3. 域自治：chat/quiz/memorize/feedback 只经 shared 契约 + 事件总线交互
+3. 域自治：chat/quiz/terms/feedback 只经 shared 契约 + 事件总线交互
 4. 失败隔离：次级功能失败只记日志；LLM 输出 normalize+降级不崩
 5. 体验契约：操作必有成功/失败/进行中三态，禁止静默
 6. 数据容错：schema_version 逐语句迁移；迁移永不触碰 v1 原库
@@ -29,11 +29,12 @@
 |------|------|
 | `packages/shared/src/sse-events.ts` | SSE 事件契约（先登记再实现，同步 docs/SSE-CONTRACT.md） |
 | `packages/shared/src/content-blocks.ts` | 内容块协议（演进③；新卡片=登记 kind+注册渲染器） |
-| `packages/shared/src/domain.ts` | Session/Message/RoleBinding(演进①)/MemorizeItem(SRS 字段) |
+| `packages/shared/src/domain.ts` | Session/Message/RoleBinding(演进①)/TermItem(词条库字段) |
 | `packages/server/src/index.ts` | Express 入口（安全头/CORS/originCheck/2MB 限制） |
 | `packages/server/src/chat/tools.ts` | 单轨工具注册表（当前仅 `search_web`；新增工具=加定义+加 `step` 上报） |
 | `packages/server/src/search/index.ts` | 搜索聚合（Exa/Tavily/智谱按 key 并行 → 全无 key 走 DuckDuckGo；24h 缓存；SSRF 护栏） |
 | `packages/server/src/routes.ts` | 路由含 `settingsRouter`（搜索 key 读写 + 连通自检，密钥不出接口） |
+| `packages/server/src/routes/terms.ts` | 词条库路由：`/api/terms` CRUD + `POST /extract`（AI 抽取入库）+ `/domains`（统计） |
 | `packages/server/src/security.ts` | 安全三件之 Origin 校验（**不放行 `'null'`**：sandbox 预览页的源就是字符串 null，放行等于让模型写的网页能调写接口） |
 | `packages/web/src/app/App.tsx` | 应用壳：180px 侧栏（五环导航） |
 | `packages/web/src/styles/tokens.css` | 设计 token 唯一事实源（改它必须同步设计系统 demo） |
@@ -45,10 +46,11 @@
 | `packages/web/src/features/chat/HtmlCard.tsx` | html 卡片：永不内联，点「侧栏预览」送右侧面板、「新标签页」走同一上传路径，三态齐备（进行中/失败/成功） |
 | `packages/web/src/features/preview/PreviewPanel.tsx` | 应用右侧内置浏览器面板：只挂 `/api/preview/:id` 沙箱文档，iframe 再叠 `sandbox` 双保险；**无地址栏**（不承诺打开任意 URL） |
 | `packages/web/src/lib/preview-store.ts` + `preview-api.ts` | 面板状态（`useSyncExternalStore` 微型 store，跨层不套 provider）与 `uploadPreview()`/`pickTitle()` |
-| `packages/server/src/learning/` | 练+忆域：quiz 出题引擎 / srs SM-2 调度 / memorize 卡片 / activity 打卡 |
-| `packages/web/src/features/quiz·memorize·summary/` | 题库 / 背背背翻卡 / 今日总结三屏 |
+| `packages/server/src/learning/` | 练+忆域：quiz 出题引擎 / **terms AI 词条库**（`[TERMS]` 协议抽取 / `UNIQUE(term,domain)` 入库 / 相关性检索注入 / usage 计数）/ activity 打卡（srs+memorize 已废弃，2026-09-01） |
+| `packages/web/src/features/quiz·terms·summary/` | 题库 / 词条库（TermsPage 列表管理页）/ 今日总结三屏 |
 | `packages/web/src/features/chat/useChatStream.ts` | SSE 生命周期 + 流式文本/step/block 累积编排（前端加一种 SSE 事件渲染从这里接） |
 | `packages/web/src/features/chat/Markdown.tsx` | 助手正文渲染器（注入点只有 SvgPreviewCard / ChartCard 里净化后的 SVG，其余走 React 转义） |
+| `packages/web/src/features/chat/Welcome.tsx` + `Mascot.tsx` | 空会话欢迎页（「未选会话」与「新会话无消息」共用一套；建议卡只填输入框不自动发送）；吉祥物是 **16×16 像素点阵**（`SPRITE` + 眨眼合帧 `LID` 由 `toRuns()` 并成 `<rect>`，`crispEdges` 且只按 4× 整数倍放大）；配色档位与 `steps()` 动效时序在 `chat.css`（组件内不写内联 style），`Mascot.test.ts` 用 `spriteErrors()` 钉住点阵自洽（行宽／字母登记／合帧必须正压眼位） |
 | `tools/gates/check.mjs` | 行数/内联样式/any 门禁 |
 
 ## 里程碑
@@ -58,7 +60,7 @@
 | M0 地基（脚手架/门禁/token/图标/文档骨架） | ✅ 2026-08-23 |
 | M1 对话核（SSE/单轨工具/模型路由/内容块流） | 🔶 2026-08-28：SSE+单轨工具循环+角色路由真机通过；正文 Markdown + SVG 卡片 + chart 数据图内联渲染、```html 走右侧内置浏览器面板（沙箱 iframe，也可新标签页）；卡片带下载/放大，零依赖；SSE `block` 事件通道仍只服务 quiz |
 | M2 练+析（出题/题库/golden dataset） | ✅ 2026-08-23：出题引擎/题库/QuizCard/逐题统计/薄弱点 |
-| M3 忆（SRS 引擎） | ✅ 2026-08-23：SM-2 调度 + 背背背翻卡 |
+| M3 忆（AI 词条库） | ✅ 2026-08-23：SM-2 调度 + 背背背翻卡；**2026-09-01 重构忆域 v2**：旧 SRS 翻卡废弃（源码删除、数据清空），改 AI 术语库——对话/手动双通道抽词入库、回复前软性注入优先使用、回复后自动计数 |
 | M4 反馈+迁移+定稿 | 🔶 2026-08-23：反馈环（事件总线/XP连签/今日总结/近7天趋势）+ v1 全量数据迁移工具已落；定稿未做 |
 
 ## 已知约束

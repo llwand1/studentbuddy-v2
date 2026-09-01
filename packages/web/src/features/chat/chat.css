@@ -181,14 +181,16 @@
 
 /* ── 欢迎页（空会话）：逐张上浮淡入；空态时把消息区当画布垂直居中 ── */
 
+/* 空态时把消息区当画布：居中交给子元素的 auto margin，
+   不用 align-items:center —— 内容一超出滚动盒，那种居中会把顶部裁掉且滚不回来 */
 .chat-scroll:has(.welcome) {
   display: flex;
-  align-items: center;
 }
 
 .welcome {
   position: relative;
   width: 100%;
+  margin: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -200,6 +202,8 @@
   position: absolute;
   top: -56px;
   left: 50%;
+  /* transform 必须也落在基础规则上：关掉动画（prefers-reduced-motion）时才不会右偏半个身位 */
+  transform: translateX(-50%);
   width: 420px;
   height: 200px;
   pointer-events: none;
@@ -216,6 +220,73 @@
     opacity: 0.9;
     transform: translateX(-50%) scale(1.06);
   }
+}
+
+/* 吉祥物「像素团子」：入场位移 12px 走 steps(3) ⇒ 12/8/4/0 全是整格，不会半像素发虚 */
+.welcome-mascot {
+  position: relative;
+  display: block;
+  margin-bottom: var(--sb-sp-4);
+  animation: mascot-in 0.28s steps(3) backwards;
+}
+.welcome-mascot svg {
+  display: block;
+  width: 64px;
+  height: 64px;
+  /* 跳动落在 svg 根上：它是 CSS 布局盒，px 就是屏幕像素，4px 正好一格；
+     落在 <g> 上则按 viewBox 用户单位算，一格会变成 16 屏幕像素 */
+  animation: mascot-hop 1.9s steps(1) infinite;
+}
+@keyframes mascot-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@keyframes mascot-hop {
+  0%,
+  62% {
+    transform: translateY(0);
+  }
+  63%,
+  100% {
+    transform: translateY(-4px);
+  }
+}
+/* 眨眼 = 换帧：合帧盖住眼位再掀开，steps(1) 保证没有半透明过渡 */
+.mascot-px-lid {
+  opacity: 0;
+  animation: mascot-blink 5.2s steps(1) infinite;
+}
+@keyframes mascot-blink {
+  0%,
+  93% {
+    opacity: 0;
+  }
+  93.5%,
+  97% {
+    opacity: 1;
+  }
+  97.5%,
+  100% {
+    opacity: 0;
+  }
+}
+/* 调色板：亮/本体/暗/墨四档全从 --sb-primary 混出来，品牌色一改团子跟着改，不留私有蓝 */
+.mascot-px .px-light {
+  fill: color-mix(in srgb, var(--sb-primary) 58%, #ffffff);
+}
+.mascot-px .px-base {
+  fill: var(--sb-primary);
+}
+.mascot-px .px-shade {
+  fill: color-mix(in srgb, var(--sb-primary) 72%, #0a1c33);
+}
+.mascot-px .px-ink {
+  fill: color-mix(in srgb, var(--sb-primary) 26%, #050e1f);
+}
+.mascot-px .px-glint {
+  fill: #ffffff;
 }
 
 .welcome-hi {
@@ -308,6 +379,9 @@
     animation: none;
     opacity: 0.7;
   }
+  .welcome-mascot,
+  .welcome-mascot svg,
+  .mascot-px-lid,
   .welcome-hi,
   .welcome-sub,
   .welcome-card {
@@ -316,4 +390,14 @@
   .welcome-card {
     transition: none;
   }
+}
+
+/* 忆域 v2：「存入记忆」操作反馈 */
+.chat-remember-msg {
+  color: var(--sb-success);
+  font-size: var(--sb-fs-sm);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  border-radius: var(--sb-radius-sm);
+  background: rgba(34, 197, 94, 0.07);
+  margin-bottom: var(--sb-sp-2);
 }

@@ -6,7 +6,7 @@ import { getDb } from '../storage/db.js';
 import { subscribeEvents } from '../events/bus.js';
 import { routeRole } from '../llm/router.js';
 
-const XP_PER = { chat_done: 2, quiz_answered: 3, review_done: 2, quiz_generated: 5 } as const;
+const XP_PER = { chat_done: 2, quiz_answered: 3, quiz_generated: 5, term_added: 1 } as const;
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -109,6 +109,6 @@ export function wireActivityEvents(): void {
     if (ev.type === 'chat_done') recordActivity('chat_done');
     else if (ev.type === 'quiz_generated') recordActivity('quiz_generated');
     else if (ev.type === 'quiz_answered') recordActivity('quiz_answered');
-    else if (ev.type === 'review_done') recordActivity('review_done');
+    else if (ev.type === 'term_added') recordActivity('term_added', ev.count);
   });
 }

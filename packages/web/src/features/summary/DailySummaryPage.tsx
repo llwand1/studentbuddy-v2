@@ -10,7 +10,7 @@ const TYPE_LABEL: Record<string, string> = {
   chat_done: '问答',
   quiz_generated: '出题',
   quiz_answered: '做题',
-  review_done: '背词',
+  term_added: '记词',
 };
 
 export function DailySummaryPage() {

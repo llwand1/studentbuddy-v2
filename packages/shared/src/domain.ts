@@ -51,19 +51,16 @@ export interface Provider {
   enabled: boolean;
 }
 
-/** 背词词条（SRS 字段：next_review_at 到期队列 / ease / interval） */
-export interface MemorizeItem {
+/** 词条库条目（忆域 v2：AI 自动词条库；废弃 MemorizeItem/SRS 翻卡，2026-09-01 契约） */
+export interface TermItem {
   id: string;
   term: string;
   definition: string;
-  category?: string;
-  difficulty: 0 | 1 | 2;
-  status: 'new' | 'learning' | 'mastered';
-  /** SM-2：easy factor（1.3-2.5） */
-  easeFactor: number;
-  /** SM-2：当前间隔天数 */
-  intervalDays: number;
-  nextReviewAt: string | null;
-  reviewCount: number;
-  lapseCount: number;
+  domain: string;
+  sourceSessionId?: string | null;
+  importance: number;
+  usageCount: number;
+  lastUsedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }

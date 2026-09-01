@@ -82,4 +82,40 @@ export const api = {
         body: JSON.stringify({ query }),
       }),
   },
+
+  terms: {
+    list: (domain?: string, keyword?: string) => {
+      const q = new URLSearchParams();
+      if (domain && domain !== 'all') q.set('domain', domain);
+      if (keyword) q.set('keyword', keyword);
+      const qs = q.toString();
+      return request<TermItem[]>(`/api/terms${qs ? `?${qs}` : ''}`);
+    },
+    domains: () =>
+      request<{ total: number; domains: Array<{ domain: string; count: number }>; today: number }>('/api/terms/domains'),
+    add: (term: string, definition: string, domain?: string) =>
+      request<TermItem>('/api/terms', { method: 'POST', body: JSON.stringify({ term, definition, domain }) }),
+    extract: (text: string, sourceSessionId?: string) =>
+      request<{ added: number; items: TermItem[] }>('/api/terms/extract', {
+        method: 'POST',
+        body: JSON.stringify({ text, sourceSessionId }),
+      }),
+    update: (id: string, patch: { definition?: string; domain?: string; importance?: number }) =>
+      request<TermItem>(`/api/terms/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
+    remove: (id: string) => request<{ ok: boolean }>(`/api/terms/${id}`, { method: 'DELETE' }),
+  },
 };
+
+export interface TermItem {
+  id: string;
+  term: string;
+  definition: string;
+  domain: string;
+  source_session_id: string | null;
+  source_title: string | null;
+  importance: number;
+  usage_count: number;
+  last_used_at: string | null;
+  created_at: string;
+  updated_at: string;
+}

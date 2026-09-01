@@ -10,17 +10,17 @@ import { api } from '../lib/api';
 import { ChatView } from '../features/chat/ChatView';
 import { SettingsView } from '../features/settings/SettingsView';
 import { QuizBankPage } from '../features/quiz/QuizBankPage';
-import { MemorizePage } from '../features/memorize/MemorizePage';
+import { TermsPage } from '../features/terms/TermsPage';
 import { DailySummaryPage } from '../features/summary/DailySummaryPage';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
 import './app.css';
 
-type View = 'chat' | 'quiz' | 'memorize' | 'summary' | 'settings';
+type View = 'chat' | 'quiz' | 'terms' | 'summary' | 'settings';
 
 const NAV: Array<{ key: View; label: string; icon: typeof ChatIcon }> = [
   { key: 'chat', label: '对话', icon: ChatIcon },
   { key: 'quiz', label: '题库', icon: QuizIcon },
-  { key: 'memorize', label: '背背背', icon: CardsIcon },
+  { key: 'terms', label: '词条库', icon: CardsIcon },
   { key: 'summary', label: '今日总结', icon: StatsIcon },
 ];
 
@@ -117,7 +117,7 @@ export function App() {
           <ChatView sessionId={currentId} onNewSession={() => void newSession()} onRoundDone={() => void reloadSessions()} />
         )}
         {view === 'quiz' && <QuizBankPage />}
-        {view === 'memorize' && <MemorizePage />}
+        {view === 'terms' && <TermsPage />}
         {view === 'summary' && <DailySummaryPage />}
         {view === 'settings' && <SettingsView />}
       </main>

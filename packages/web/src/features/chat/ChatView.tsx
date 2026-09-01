@@ -4,7 +4,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useChatStream } from './useChatStream';
-import { SendIcon, QuizIcon, SearchIcon } from '../../components/icons';
+import { SendIcon, QuizIcon, SearchIcon, CardsIcon } from '../../components/icons';
 import { QuizCard } from '../quiz/QuizCard';
 import { Markdown } from './Markdown';
 import { Welcome } from './Welcome';
@@ -32,6 +32,8 @@ export function ChatView({
   const [input, setInput] = useState('');
   const [sendError, setSendError] = useState('');
   const [quizzing, setQuizzing] = useState(false);
+  const [remembering, setRemembering] = useState(false);
+  const [rememberMsg, setRememberMsg] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -76,6 +78,24 @@ export function ChatView({
       setSendError(e instanceof Error ? e.message : String(e));
     } finally {
       setQuizzing(false);
+    }
+  };
+
+  /** 忆域 v2：手动「存入记忆」——把最近对话内容交给 AI 抽取重要词条入库 */
+  const rememberTerms = async () => {
+    if (!sessionId || remembering) return;
+    const material = messages.slice(-8).map((m) => m.content).filter(Boolean).join('\n').slice(-4000);
+    if (!material.trim()) return;
+    setRemembering(true);
+    setRememberMsg('');
+    try {
+      const r = await api.terms.extract(material, sessionId);
+      setRememberMsg(r.added > 0 ? `已存入 ${r.added} 个词条，后续回答会优先使用` : '这段对话没有值得记住的术语');
+    } catch {
+      setRememberMsg('存入失败，请稍后重试');
+    } finally {
+      setRemembering(false);
+      window.setTimeout(() => setRememberMsg(''), 3000);
     }
   };
 
@@ -132,6 +152,7 @@ export function ChatView({
           </div>
         )}
         {(error || sendError) && <div className="chat-error">⚠ {error || sendError}</div>}
+        {rememberMsg && <div className="chat-remember-msg">{rememberMsg}</div>}
         <div ref={bottomRef} />
       </div>
 
@@ -145,6 +166,14 @@ export function ChatView({
             onClick={() => void quickQuiz()}
           >
             <QuizIcon /> {quizzing ? '出题中…' : '出题'}
+          </button>
+          <button
+            className="chat-quiz-btn"
+            title="把最近对话中的重要术语存入词条库，后续回答优先使用"
+            disabled={!sessionId || remembering || ready !== 'open'}
+            onClick={() => void rememberTerms()}
+          >
+            <CardsIcon /> {remembering ? '收集中…' : '存入记忆'}
           </button>
           <textarea
             ref={inputRef}

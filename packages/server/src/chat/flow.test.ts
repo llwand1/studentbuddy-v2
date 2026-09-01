@@ -21,6 +21,8 @@ const stub = vi.hoisted(() => ({
   idx: 0,
   searchFail: null as string | null,
   searchSnippet: 'F=ma',
+  /** 最近一次 chat() 收到的 messages（断言词条注入进了上下文） */
+  lastMessages: [] as Array<{ role: string; content: string }>,
 }));
 
 vi.mock('../llm/router.js', () => ({
@@ -30,7 +32,8 @@ vi.mock('../llm/router.js', () => ({
     baseUrl: 'http://127.0.0.1:1/v1',
     adapter: {
       type: 'openai' as const,
-      async *chat() {
+      async *chat(args: { messages: Array<{ role: string; content: string }> }) {
+        stub.lastMessages = args.messages;
         const turn = stub.turns[stub.idx++];
         if (turn instanceof Error) throw turn;
         for (const chunk of turn ?? []) yield chunk;
@@ -57,6 +60,26 @@ vi.mock('../search/index.js', () => ({
   listKeyStatus: () => ({ exa: false, tavily: false, zhipu: false }),
   saveProviderKey: () => undefined,
   getProviderKey: () => '',
+}));
+
+// 忆域 v2（词条库）mock：受控返回「命中词条」/「抽取失败」，隔离 flow 注入路径断言
+const termsStub = vi.hoisted(() => ({
+  relevant: [] as Array<{ term: string; definition: string; domain: string }>,
+  queries: [] as Array<[string, number]>,
+  extractRejects: false,
+}));
+
+vi.mock('../learning/terms.js', () => ({
+  getRelevantTerms: (q: string, limit: number) => {
+    termsStub.queries.push([q, limit]);
+    return termsStub.relevant;
+  },
+  saveTerms: () => 0,
+  extractTerms: async () => {
+    if (termsStub.extractRejects) throw new Error('抽取服务不可用');
+    return [];
+  },
+  countUsage: () => 0,
 }));
 
 const { getDb, closeDb } = await import('../storage/db.js');
@@ -92,6 +115,10 @@ beforeEach(() => {
   stub.idx = 0;
   stub.searchFail = null;
   stub.searchSnippet = 'F=ma';
+  stub.lastMessages = [];
+  termsStub.relevant = [];
+  termsStub.queries = [];
+  termsStub.extractRejects = false;
   getDb().prepare('DELETE FROM messages').run();
   getDb().prepare('DELETE FROM sessions').run();
 });
@@ -200,6 +227,44 @@ describe('单轨工具循环', () => {
     expect(toolMsg?.content).toContain('未配置搜索 key');
     expect(toolMsg?.content).toContain('智谱');
     expect(toolMsg?.content).toContain('lite: 超时');
+  });
+
+  it('忆域 v2：命中词条以第二条 system 消息注入上下文（不污染正文）', async () => {
+    const sid = newSession();
+    termsStub.relevant = [
+      { term: 'closure', definition: '闭包：函数与其词法作用域的绑定', domain: 'cs' },
+      { term: 'scope', definition: '作用域：变量可被访问的范围', domain: 'cs' },
+    ];
+    stub.turns = [[{ content: '闭包（closure）是函数与其词法作用域的绑定。', done: false }, { content: '', done: true }]];
+
+    const r = await handleMessage({ sessionId: sid, text: '什么是闭包 closure？' });
+    expect(r.ok).toBe(true);
+
+    // 检索参数正确（query + 默认 Top-15）
+    expect(termsStub.queries).toEqual([['什么是闭包 closure？', 15]]);
+    // 注入后的消息里应有第二条 system（基础提示 + 词条提示），词条行逐字正确
+    const sys = stub.lastMessages.filter((m) => m.role === 'system');
+    expect(sys).toHaveLength(2);
+    expect(sys[1]?.content).toContain('优先使用这些术语');
+    expect(sys[1]?.content).toContain('- closure（cs）：闭包：函数与其词法作用域的绑定');
+    expect(sys[1]?.content).toContain('- scope（cs）：作用域：变量可被访问的范围');
+    // 注入只进上下文，屏上与库内正文都不含词条提示
+    expect(streamed(sid)).toBe('闭包（closure）是函数与其词法作用域的绑定。');
+    const list = rows(sid);
+    expect(list.at(-1)?.content).toBe('闭包（closure）是函数与其词法作用域的绑定。');
+  });
+
+  it('忆域 v2：自动抽取失败（fire-and-forget）不打断对话主流程', async () => {
+    const sid = newSession();
+    termsStub.extractRejects = true;
+    stub.turns = [[{ content: '正常回答。', done: true }]];
+
+    const r = await handleMessage({ sessionId: sid, text: 'q' });
+    expect(r.ok).toBe(true);
+
+    const list = rows(sid);
+    expect(list.at(-1)?.content).toBe('正常回答。');
+    expect(streamed(sid)).toBe('正常回答。');
   });
 });
 

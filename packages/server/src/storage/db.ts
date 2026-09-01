@@ -145,6 +145,30 @@ MIGRATIONS.push({
   ],
 });
 
+// M5：忆域重做（2026-09-01 契约）——手动词条+SRS 翻卡废弃，改 AI 自动词条库
+//（term_library：对话/搜索中 AI 认为重要的词条自动入库，后续对话注入优先使用）
+MIGRATIONS.push({
+  version: 5,
+  statements: [
+    `CREATE TABLE IF NOT EXISTS term_library (
+      id TEXT PRIMARY KEY,
+      term TEXT NOT NULL,
+      definition TEXT NOT NULL,
+      domain TEXT NOT NULL DEFAULT 'general',
+      source_session_id TEXT,
+      importance REAL NOT NULL DEFAULT 0.5,
+      usage_count INTEGER NOT NULL DEFAULT 0,
+      last_used_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(term, domain)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_term_domain ON term_library(domain)`,
+    // 旧词条记忆（memorize/SRS）按决策整体废弃：数据清空、表结构保留作迁移记录
+    `DELETE FROM memorize`,
+  ],
+});
+
 export function getDb(): Database.Database {
   if (db) return db;
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -169,13 +193,14 @@ function migrate(d: Database.Database): void {
   }
 }
 
-/** 测试辅助：用临时目录开独立实例（不污染真实库）。 */
+/** 测试辅助：用临时目录开独立实例（不污染真实库）；同时让 getDb() 指向它。 */
 export function openIsolated(dataDir: string): Database.Database {
   fs.mkdirSync(dataDir, { recursive: true });
   const d = new Database(path.join(dataDir, 'studentbuddy.db'));
   d.pragma('journal_mode = WAL');
   d.pragma('foreign_keys = ON');
   migrate(d);
+  db = d;
   return d;
 }
 

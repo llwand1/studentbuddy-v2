@@ -2,9 +2,10 @@
  * QuizBankPage — 题库页：一键出题 + 题库列表 + 练习 + 薄弱点。
  */
 import { useCallback, useEffect, useState } from 'react';
-import type { QuizPayload } from '@sb/shared';
+import type { QuizPayload, QuizMixReport } from '@sb/shared';
 import { api } from '../../lib/api';
 import { QuizCard } from './QuizCard';
+import { mixSummary, shortfallText } from './mix-report';
 import './quiz.css';
 
 type BankItem = { id: string; title: string; source: string; count: number; created_at: string };
@@ -14,6 +15,8 @@ export function QuizBankPage() {
   const [topic, setTopic] = useState('');
   const [generating, setGenerating] = useState(false);
   const [err, setErr] = useState('');
+  const [mixTip, setMixTip] = useState('');
+  const [note, setNote] = useState('');
   const [practicing, setPracticing] = useState<{ quizId: string; quiz: QuizPayload; weak?: string } | null>(null);
 
   const reload = useCallback(async () => {
@@ -28,15 +31,25 @@ export function QuizBankPage() {
     void reload();
   }, [reload]);
 
+  // 出题配比是全局设置（设置页改的），本页只展示摘要；切回本页会重新挂载，故不必轮询
+  useEffect(() => {
+    api.settings
+      .quizMix()
+      .then((r) => setMixTip(mixSummary(r.mix)))
+      .catch(() => setMixTip(''));
+  }, []);
+
   const generate = async () => {
     if (!topic.trim() || generating) return;
     setGenerating(true);
     setErr('');
+    setNote('');
     try {
-      const r = await api.request<{ quizId?: string; quiz: QuizPayload }>('/api/quiz/generate', {
+      const r = await api.request<{ quizId?: string; quiz: QuizPayload; mix?: QuizMixReport }>('/api/quiz/generate', {
         method: 'POST',
         body: JSON.stringify({ topic: topic.trim() }),
       });
+      if (r.mix) setNote(shortfallText(r.mix) ?? '');
       if (r.quizId) setPracticing({ quizId: r.quizId, quiz: r.quiz });
       setTopic('');
       await reload();
@@ -93,6 +106,8 @@ export function QuizBankPage() {
           {generating ? '出题中…' : '一键出题'}
         </button>
       </div>
+      {mixTip && <div className="quiz-mix-tip">本次出题配比：{mixTip}（设置页可改）</div>}
+      {note && <div className="quiz-note">{note}</div>}
       {err && <div className="quiz-explain">{err}</div>}
       {bank.map((b) => (
         <div key={b.id} className="quiz-bank-item" onClick={() => void openPractice(b.id)} role="button" tabIndex={0}>

@@ -111,6 +111,21 @@
   padding: var(--sb-sp-1) 0;
 }
 
+/* 出题配比摘要：点「出题」前就知道会按什么配比出（配比本身在设置页改） */
+.chat-quiz-mix {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+  background: var(--sb-bg);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  margin-bottom: var(--sb-sp-1);
+}
+.chat-quiz-mix-sep {
+  margin: 0 var(--sb-sp-1);
+  color: var(--sb-line);
+}
+
 .chat-composer {
   display: flex;
   gap: var(--sb-sp-2);
@@ -140,6 +155,94 @@
 }
 .chat-quiz-btn:hover:not(:disabled) { color: var(--sb-primary); border-color: var(--sb-primary); }
 .chat-quiz-btn:disabled { color: var(--sb-ink-tertiary); cursor: not-allowed; }
+
+/* 文档模式（DocModeControl）：composer 上方一条横条 + 可展开载入面板 */
+.chat-doc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-1);
+  padding-bottom: var(--sb-sp-1);
+}
+
+.chat-doc-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  flex-wrap: wrap;
+}
+.chat-doc-bar .chat-quiz-btn { margin-bottom: 0; }
+
+.chat-doc-pill {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  min-width: 0;
+  padding: 2px var(--sb-sp-2);
+  border: 1px solid var(--sb-primary);
+  border-radius: var(--sb-radius-md);
+  background: var(--sb-primary-weak);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+}
+
+.chat-doc-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--sb-ink);
+}
+
+.chat-doc-chars { color: var(--sb-ink-secondary); }
+
+/* 截断标记用强调色：降级必须看得见（ADR-5） */
+.chat-doc-warn { color: var(--sb-danger); }
+
+.chat-doc-clear {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.chat-doc-clear:hover:not(:disabled) { color: var(--sb-danger); }
+
+.chat-doc-hint { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); }
+
+.chat-doc-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  background: var(--sb-surface);
+}
+
+.chat-doc-name-input,
+.chat-doc-text {
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: none;
+  color: var(--sb-ink);
+  font: inherit;
+  font-size: var(--sb-fs-sm);
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+}
+.chat-doc-text { resize: vertical; line-height: 1.6; }
+
+.chat-doc-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  flex-wrap: wrap;
+}
+.chat-doc-actions .chat-quiz-btn { margin-bottom: 0; }
+
+.chat-doc-count { flex: 1; font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); }
+.chat-doc-count.warn { color: var(--sb-danger); }
 
 .chat-composer textarea {
   flex: 1;
@@ -399,5 +502,16 @@
   padding: var(--sb-sp-2) var(--sb-sp-3);
   border-radius: var(--sb-radius-sm);
   background: rgba(34, 197, 94, 0.07);
+  margin-bottom: var(--sb-sp-2);
+}
+
+/* 出题配比没出齐时的如实告知（非错误，故不用红色告警） */
+.chat-quiz-note {
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-sm);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  border-radius: var(--sb-radius-sm);
+  border: 1px dashed var(--sb-line);
+  background: var(--sb-bg);
   margin-bottom: var(--sb-sp-2);
 }

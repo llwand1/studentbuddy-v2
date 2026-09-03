@@ -6,6 +6,7 @@ import { api, ApiError } from '../../lib/api';
 import type { ModelRole } from '@sb/shared';
 import './settings.css';
 import { SearchKeysCard } from './SearchKeysCard';
+import { QuizMixCard } from './QuizMixCard';
 
 type ProviderRow = { id: string; name: string; baseUrl: string; enabled: boolean };
 type RoleBindingRow = { role: string; provider_id: string; model: string };
@@ -171,6 +172,7 @@ export function SettingsView() {
         </table>
       </section>
 
+      <QuizMixCard flash={flash} />
       <SearchKeysCard flash={flash} />
     </div>
   );

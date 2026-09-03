@@ -11,6 +11,8 @@ import { subscribe, startHeartbeat } from './chat/sse-bus.js';
 import { getProviders, seedIfEmpty, MODEL_ROLES } from './llm/router.js';
 import { encryptSecret, decryptSecret, isEncrypted } from './storage/crypto.js';
 import { searchWeb, listKeyStatus, saveProviderKey, KEYED_PROVIDERS } from './search/index.js';
+import { loadQuizMix, saveQuizMix } from './learning/quiz.js';
+import { normalizeQuizMix } from '@sb/shared';
 
 // ── sessions ──────────────────────────────────────────────
 export const sessionsRouter = Router();
@@ -184,6 +186,17 @@ settingsRouter.put('/search-keys', (req: Request, res: Response) => {
   // 先全量校验再落库：避免一个字段超限导致半写状态
   for (const item of patch) saveProviderKey(item.key, item.value);
   res.json({ ok: true, configured: listKeyStatus() });
+});
+
+// ── settings：出题题型配比（全局一份，对话页「出题」与题库页「一键出题」共用）──
+settingsRouter.get('/quiz-mix', (_req, res) => {
+  res.json({ mix: loadQuizMix() });
+});
+
+settingsRouter.put('/quiz-mix', (req: Request, res: Response) => {
+  // 入参一律过归一化（负数/小数/超上限/全 0 都有既定归宿），落库即干净值
+  const mix = saveQuizMix(normalizeQuizMix((req.body as { mix?: unknown }).mix));
+  res.json({ ok: true, mix });
 });
 
 /** 搜索连通性自检：真发一次（国产网络可用性必须实测，不接受纸面判断；绕缓存才叫自检）。 */

@@ -169,6 +169,16 @@ MIGRATIONS.push({
   ],
 });
 
+// 文档模式（2026-09-02 契约 5.0 §5.1）：会话绑定一篇 txt/md 资料，整篇直塞进 system。
+// 只加两列、不建表：资料的生命周期完全随会话，无跨会话检索需求（不做切块/embedding）。
+MIGRATIONS.push({
+  version: 6,
+  statements: [
+    `ALTER TABLE sessions ADD COLUMN doc_name TEXT`,
+    `ALTER TABLE sessions ADD COLUMN doc_text TEXT`,
+  ],
+});
+
 export function getDb(): Database.Database {
   if (db) return db;
   fs.mkdirSync(DATA_DIR, { recursive: true });

@@ -1,7 +1,7 @@
 /**
  * api — REST 封装（同源经 vite proxy；错误统一抛 ApiError，UI 层可见可重试，ADR-5）。
  */
-import type { StatusResponse, Session, Provider, ModelRole } from '@sb/shared';
+import type { StatusResponse, Session, Provider, ModelRole, QuizMix } from '@sb/shared';
 
 export class ApiError extends Error {
   constructor(
@@ -81,6 +81,10 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ query }),
       }),
+    /** 出题题型配比：设置页读写，服务端归一回读；对话页/题库页只读这份全局配比 */
+    quizMix: () => request<{ mix: QuizMix }>('/api/settings/quiz-mix'),
+    saveQuizMix: (mix: QuizMix) =>
+      request<{ mix: QuizMix }>('/api/settings/quiz-mix', { method: 'PUT', body: JSON.stringify({ mix }) }),
   },
 
   terms: {
@@ -104,7 +108,26 @@ export const api = {
       request<TermItem>(`/api/terms/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
     remove: (id: string) => request<{ ok: boolean }>(`/api/terms/${id}`, { method: 'DELETE' }),
   },
+
+  /** 文档模式：会话绑定一篇资料。三个接口都只过元信息，正文只在 set 时上一次行 */
+  doc: {
+    get: (sessionId: string) =>
+      request<{ doc: DocMeta | null }>(`/api/doc?sessionId=${encodeURIComponent(sessionId)}`),
+    set: (sessionId: string, name: string, text: string) =>
+      request<{ doc: DocMeta }>('/api/doc', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, name, text }),
+      }),
+    clear: (sessionId: string) =>
+      request<{ ok: boolean }>(`/api/doc?sessionId=${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
+  },
 };
+
+export interface DocMeta {
+  name: string;
+  chars: number;
+  truncated: boolean;
+}
 
 export interface TermItem {
   id: string;

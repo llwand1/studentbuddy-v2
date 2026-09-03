@@ -13,6 +13,7 @@ import {
   removeTerm,
   updateTerm,
 } from '../learning/terms.js';
+import { getSessionDoc } from '../learning/document.js';
 
 export const termsRouter = Router();
 
@@ -37,14 +38,16 @@ termsRouter.post('/', (req: Request, res: Response) => {
   res.status(201).json(row);
 });
 
-/** 按文本抽取并入库（对话「存入记忆」按钮 / 调试用）。 */
+/** 按文本抽取并入库（对话「存入记忆」按钮 / 文档模式抽词条 / 调试用）。 */
 termsRouter.post('/extract', async (req: Request, res: Response) => {
   const { text, sourceSessionId } = req.body as { text?: string; sourceSessionId?: string };
-  if (!text?.trim()) {
-    res.status(400).json({ error: 'text 必填' });
+  // 文档模式回退（契约 5.0 §5.1-5）：未给文本时用该会话载入的资料抽词条
+  const body = text?.trim() || (sourceSessionId ? getSessionDoc(sourceSessionId)?.text || '' : '');
+  if (!body) {
+    res.status(400).json({ error: 'text 必填（或先为本会话载入资料）' });
     return;
   }
-  const items = await extractTerms(text.slice(0, 30000));
+  const items = await extractTerms(body.slice(0, 30000));
   if (items.length === 0) {
     res.json({ added: 0, items: [] });
     return;

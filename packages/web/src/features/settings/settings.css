@@ -106,5 +106,49 @@
 .settings-key-row input:focus { outline: none; border-color: var(--sb-primary); }
 .settings-state { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); white-space: nowrap; }
 .settings-state.on { color: #15803d; }
-.settings-actions { display: flex; gap: var(--sb-sp-2); }
-.settings-test { font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary); }
+.settings-actions { display: flex; gap: var(--sb-sp-2); align-items: center; }
+.settings-test {
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-1) var(--sb-sp-3);
+}
+.settings-test:hover:not(:disabled) { border-color: var(--sb-primary); color: var(--sb-primary); }
+.settings-test:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* 出题题型配比（预设 chip + 每题型步进器） */
+.quiz-mix-presets { display: flex; flex-wrap: wrap; gap: var(--sb-sp-2); margin-bottom: var(--sb-sp-3); }
+.quiz-mix-chip {
+  border: 1px solid var(--sb-line);
+  border-radius: 999px;
+  padding: var(--sb-sp-1) var(--sb-sp-3);
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+  background: var(--sb-bg);
+}
+.quiz-mix-chip:hover:not(:disabled) { border-color: var(--sb-primary); color: var(--sb-primary); }
+.quiz-mix-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+.quiz-mix-chip.active { background: var(--sb-primary); border-color: var(--sb-primary); color: #fff; }
+
+.quiz-mix-rows { display: grid; gap: var(--sb-sp-2); margin-bottom: var(--sb-sp-3); }
+.quiz-mix-row {
+  display: grid;
+  grid-template-columns: 84px auto auto auto 72px 1fr;
+  gap: var(--sb-sp-2);
+  align-items: center;
+  font-size: var(--sb-fs-sm);
+}
+.quiz-mix-step {
+  width: 28px;
+  height: 26px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  color: var(--sb-ink-secondary);
+  background: var(--sb-bg);
+  line-height: 1;
+}
+.quiz-mix-step:hover:not(:disabled) { border-color: var(--sb-primary); color: var(--sb-primary); }
+.quiz-mix-step:disabled { opacity: 0.4; cursor: not-allowed; }
+.quiz-mix-num { min-width: 24px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.quiz-mix-total { font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary); margin-left: auto; }

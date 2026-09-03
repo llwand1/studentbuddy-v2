@@ -3,31 +3,56 @@
  */
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { generateQuiz, saveQuiz, listQuiz, getQuiz, deleteQuiz, recordAnswer, analyzeWeakPoints } from '../learning/quiz.js';
+import {
+  generateQuiz,
+  saveQuiz,
+  listQuiz,
+  getQuiz,
+  deleteQuiz,
+  recordAnswer,
+  analyzeWeakPoints,
+  loadQuizMix,
+  applyQuizMix,
+} from '../learning/quiz.js';
+import { normalizeQuizMix } from '@sb/shared';
+import { getSessionDoc } from '../learning/document.js';
 import { getDb } from '../storage/db.js';
 import { publishEvent } from '../events/bus.js';
 import { publish } from '../chat/sse-bus.js';
 
 export const quizRouter = Router();
 
-/** 一键出题：{ topic, material?, sessionId? } → 生成→（可选）入会话消息流→返回题目 */
+/**
+ * 一键出题：{ topic, material?, sessionId?, mix?, save? } → 生成→裁剪→（可选）入会话消息流→返回题目。
+ * mix 省略 = 用设置页存的全局配比；传了按传的归一化（两处出题共用一套语义）。
+ * 出不够不静默补题：响应带 mix 报告，UI 如实告知缺哪类（ADR-5）。
+ */
 quizRouter.post('/generate', async (req: Request, res: Response) => {
-  const { topic, material, sessionId, save = true } = req.body as {
+  const { topic, material, sessionId, mix, save = true } = req.body as {
     topic?: string;
     material?: string;
     sessionId?: string;
+    mix?: unknown;
     save?: boolean;
   };
-  if (!topic && !material) {
+  // 文档模式回退（契约 5.0 §5.1-5）：未显式给材料时用本会话载入的资料出题，
+  // 故必须在校验前算——否则「只传 sessionId、对话还是空的」会被误判为无材料。
+  // 截断不在这里做：generateQuiz 自带 60k 材料上限，两处各截会互相掩盖。
+  const docFallback = material?.trim() || !sessionId ? null : getSessionDoc(sessionId);
+  const effectiveMaterial = material?.trim() || docFallback?.text;
+  if (!topic && !effectiveMaterial) {
     res.status(400).json({ error: 'topic 或 material 必填' });
     return;
   }
   try {
-    const quiz = await generateQuiz(topic ?? '综合', material);
-    if (!quiz) {
-      res.status(502).json({ error: '出题失败：模型输出未遵循协议（可重试）' });
+    const requested = mix === undefined ? loadQuizMix() : normalizeQuizMix(mix);
+    const raw = await generateQuiz(topic ?? '综合', effectiveMaterial, requested);
+    const applied = raw ? applyQuizMix(raw, requested) : null;
+    if (!applied?.quiz) {
+      res.status(502).json({ error: '出题失败：模型输出未遵循协议或没出中要求的题型（可重试）' });
       return;
     }
+    const quiz = applied.quiz;
     let quizId: string | undefined;
     if (save) quizId = saveQuiz(quiz, 'ai');
     if (quizId) publishEvent({ type: 'quiz_generated', quizId });
@@ -44,7 +69,7 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
         .prepare(`INSERT INTO messages (id, session_id, role, content, tokens) VALUES (?, ?, 'assistant', ?, ?)`)
         .run(`m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, sessionId, `[QUIZ]${JSON.stringify(quiz)}[/QUIZ]`, 0);
     }
-    res.json({ quizId, quiz });
+    res.json({ quizId, quiz, mix: applied.report });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

@@ -14,7 +14,9 @@ export class AnthropicAdapter implements LLMAdapter {
     const baseUrl = req.baseUrl || 'https://api.anthropic.com/v1';
     const url = `${baseUrl}/messages`;
 
-    const systemMsg = req.messages.find((m) => m.role === 'system');
+    // B-001（bug-ledger）：system 段可能有多条——基础提示词 / 忆域词条段 / 文档模式资料段。
+    // 旧实现用 find() 只取第一条，第二条起在出站请求里凭空消失（openai 适配器全量透传故掩盖）。
+    const systemBlocks = req.messages.filter((m) => m.role === 'system').map((m) => m.content);
     const nonSystemMsgs = req.messages.filter((m) => m.role !== 'system');
 
     const controller = new AbortController();
@@ -53,7 +55,7 @@ export class AnthropicAdapter implements LLMAdapter {
           }
           return { role: m.role, content: m.content };
         }),
-        system: systemMsg?.content,
+        system: systemBlocks.filter(Boolean).join('\n\n') || undefined,
         temperature: req.temperature ?? 0.7,
         max_tokens: req.maxTokens ?? getMaxOutputTokens(req.model),
         stream: true,

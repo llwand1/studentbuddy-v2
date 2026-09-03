@@ -53,10 +53,26 @@
 | GET | `/api/settings/search-keys` | `{ configured: { exa, tavily, zhipu } }` — **只回布尔**，明文与密文都不出响应 |
 | PUT | `/api/settings/search-keys` | `{ exa?, tavily?, zhipu? }` 存 key（AES-GCM 密文入库）；空串=删除；非 string 字段忽略；单值上限 300 字符——**先全量校验再落库**，任一超限 → 400 且一字不写（无半写） |
 | POST | `/api/settings/search/test` | `{ query? }` 真发一次连通性自检（跳过 24h 缓存，保证"真发"）→ `{ ok, count, providers, failed }`（query 截 80 字，providers 只列真出结果的来源，响应不含密钥） |
+| GET | `/api/doc?sessionId=` | 文档模式：读该会话当前资料元信息 → `{ doc: { name, chars, truncated } | null }`。**永不回原文**（正文只在 POST 时过一次网络，前端刷新重绘不需要 60k 文本）；缺 `sessionId` → 400 |
+| POST | `/api/doc` | `{ sessionId, name?, text }` 载入/整篇替换该会话的资料 → `{ doc: DocMeta }`。`text` 空/纯空白 → 400；会话不存在 → 404。**不落盘**（进 `sessions.doc_text`，故无 multer/上传目录/路径穿越面）；**扩展名不在此校验**（粘贴文本本无文件名，txt/md 约束留在 UI 的 `accept`） |
+| DELETE | `/api/doc?sessionId=` | 清除该会话资料（两列置 NULL，不碰标题与消息）→ `{ ok: true }`；会话不存在 → 404 |
+
+### 3.1 此前漏登的端点（2026-09-02 对账补登，非本批新增）
+
+> 本节表头原为「REST 端点（M1）」，只登了 M1 的接口；M2/M3 与预览/活动的路由一直未登记，属 §0.11 漂移，按代码实况补如下（语义以源码为准，此处只做索引）。
+
+| 前缀 | 路由文件 | 端点 |
+|------|----------|------|
+| `/api/quiz` | `routes/quiz.ts` | `POST /generate`（`{topic?,material?,sessionId?}`，`topic` 与 `material` 至少给一个否则 400；**`material` 缺省时回退用该会话已载入的资料**）、`GET /bank`、`GET /bank/:id`、`DELETE /bank/:id`、`POST /stats/record`、`GET /analyze/:id` |
+| `/api/terms` | `routes/terms.ts` | `GET /`、`GET /domains`、`POST /`、`POST /extract`（`{text?,sessionId?}`，`text` 缺省时同样回退会话资料）、`PUT /:id`、`DELETE /:id` |
+| `/api/preview` | `routes/preview.ts` | `POST /`（暂存 html 换 id）、`GET /:id`（带 `CSP: sandbox` 出页，无 `allow-same-origin`） |
+| `/api/activity` | `routes/activity.ts` | `GET /today`、`GET /week`、`GET /summary` |
 
 **已注册工具（单轨 function-calling，`chat/tools.ts`）**：`search_web` 一个；多路 provider 聚合语义见 `search/index.ts`（Exa/Tavily/智谱按 key 并行，三家全无 key → DuckDuckGo 免 key 兜底）。
 
 **安全语义**：写操作（POST/PUT/DELETE）强制 Origin 校验（无 Origin / 恶意 Origin → 403）；请求体上限 2MB；服务仅绑 127.0.0.1。
+
+**适配器契约（多段 `system`）**：`chat/flow.ts` 依次 push 基础提示词 / 忆域词条段 / 文档模式资料段——`system` 可以有多条且语义不同。适配器**必须合并全部** system 后下发：`llm/anthropic.ts` 曾用 `find()` 只取第一条，导致 Anthropic 型服务商上词条与资料静默失效（**B-001**，2026-09-02 修，回归锁在 `llm/anthropic.test.ts` 断言出站 `body.system` 同时含两段）。新增 Provider 必须补同一条出站体断言。
 
 ## 4. 变更记录
 
@@ -65,3 +81,4 @@
 | 2026-08-23 | M1 首版（SSE/会话/发送/中止/服务商+角色绑定） |
 | 2026-08-27 | `step` 事件随单轨工具循环上线（search_web）；新增 `/api/settings/search-keys`（GET/PUT）与 `/api/settings/search/test`；订阅回放语义收紧——已完结的一轮只补 `done`，修重复气泡 |
 | 2026-08-27（复审） | 屏上==库内扩到收尾语（上限提示、中断标记均走 token）；失败轮补发终止 `done`；搜索 `providers` 只报真出结果的一家、缓存键含 provider 组合、自检跳缓存；PUT 先校验后写 + 单值 300 字上限；前端 `done` 判重（历史尾条同字不再追加）——真机 reload 复验单气泡 |
+| 2026-09-02 | 新增文档模式三端点 `GET/POST/DELETE /api/doc`（只回元信息、正文不落盘、会话绑定）；补登 §3.1 此前漏登的 quiz/terms/preview/activity 路由；加**多段 system 必须全量合并**的适配器契约（B-001 教训） |

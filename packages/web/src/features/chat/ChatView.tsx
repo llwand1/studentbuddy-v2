@@ -6,8 +6,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useChatStream } from './useChatStream';
 import { SendIcon, QuizIcon, SearchIcon, CardsIcon } from '../../components/icons';
 import { QuizCard } from '../quiz/QuizCard';
+import { mixSummary } from '../quiz/mix-report';
 import { Markdown } from './Markdown';
 import { Welcome } from './Welcome';
+import { DocModeControl } from './DocModeControl';
 import { api } from '../../lib/api';
 import './chat.css';
 
@@ -34,12 +36,21 @@ export function ChatView({
   const [quizzing, setQuizzing] = useState(false);
   const [remembering, setRemembering] = useState(false);
   const [rememberMsg, setRememberMsg] = useState('');
+  const [mixTip, setMixTip] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, steps.length, streamingText]);
+
+  /** 出题配比是全局设置（设置页改的），本视图只展示摘要；拉取失败静默——服务端仍按库内配比出题 */
+  useEffect(() => {
+    api.settings
+      .quizMix()
+      .then((r) => setMixTip(mixSummary(r.mix)))
+      .catch(() => {});
+  }, []);
 
   const blocked = ready !== 'open' || busy;
   const isEmpty = messages.length === 0 && steps.length === 0 && !streamingText;
@@ -158,10 +169,22 @@ export function ChatView({
 
       <div className="chat-composer-wrap">
         {statusHint && <div className="chat-conn-hint">{statusHint}</div>}
+        {mixTip && sessionId && (
+          <div className="chat-quiz-mix">
+            出题配比：{mixTip}
+            <span className="chat-quiz-mix-sep">·</span>
+            设置页可改
+          </div>
+        )}
+        <DocModeControl sessionId={sessionId} blocked={ready !== 'open'} />
         <div className="chat-composer">
           <button
             className="chat-quiz-btn"
-            title="基于当前对话一键出题（输入框文字作为主题）"
+            title={
+              mixTip
+                ? `基于当前对话一键出题，按配比出：${mixTip}（设置页可改）`
+                : '基于当前对话一键出题（输入框文字作为主题）'
+            }
             disabled={!sessionId || quizzing || ready !== 'open'}
             onClick={() => void quickQuiz()}
           >

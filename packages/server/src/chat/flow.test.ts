@@ -82,6 +82,17 @@ vi.mock('../learning/terms.js', () => ({
   countUsage: () => 0,
 }));
 
+// 文档模式 mock：资料段是否存在由测例控制，隔离 flow 的注入与预算路径
+const documentStub = vi.hoisted(() => ({
+  doc: null as null | { name: string; text: string; chars: number; truncated: boolean },
+}));
+
+vi.mock('../learning/document.js', () => ({
+  MAX_DOC_CHARS: 60_000,
+  getSessionDoc: () => documentStub.doc,
+  buildDocBlock: (d: { name: string; text: string }) => `【资料 ${d.name}】${d.text}`,
+}));
+
 const { getDb, closeDb } = await import('../storage/db.js');
 const { handleMessage } = await import('./flow.js');
 const { snapshot } = await import('./sse-bus.js');
@@ -119,6 +130,7 @@ beforeEach(() => {
   termsStub.relevant = [];
   termsStub.queries = [];
   termsStub.extractRejects = false;
+  documentStub.doc = null;
   getDb().prepare('DELETE FROM messages').run();
   getDb().prepare('DELETE FROM sessions').run();
 });
@@ -265,6 +277,68 @@ describe('单轨工具循环', () => {
     const list = rows(sid);
     expect(list.at(-1)?.content).toBe('正常回答。');
     expect(streamed(sid)).toBe('正常回答。');
+  });
+});
+
+describe('文档模式注入（契约 5.0 §5.1-2/3）', () => {
+  const docOf = (chars: number) => ({ name: '讲义.md', text: '资'.repeat(chars), chars, truncated: false });
+
+  it('载入资料后以第三条 system 注入资料段，且只进上下文不外泄', async () => {
+    const sid = newSession();
+    documentStub.doc = docOf(120);
+    termsStub.relevant = [{ term: '加速度', definition: '速度的变化率', domain: 'physics' }];
+    stub.turns = [[{ content: '按资料作答。', done: true }]];
+
+    const r = await handleMessage({ sessionId: sid, text: '这一节讲什么' });
+    expect(r.ok).toBe(true);
+
+    const sys = stub.lastMessages.filter((m) => m.role === 'system');
+    expect(sys).toHaveLength(3); // 基础提示 + 词条段 + 资料段
+    expect(sys.at(-1)?.content).toContain('【资料 讲义.md】');
+    // 注入只进上下文：屏上与库内正文都不该出现资料段
+    expect(streamed(sid)).toBe('按资料作答。');
+    expect(rows(sid).at(-1)?.content).toBe('按资料作答。');
+  });
+
+  it('清除资料后下一轮出站 messages 不再含资料段（验收③）', async () => {
+    const sid = newSession();
+    documentStub.doc = docOf(50);
+    stub.turns = [[{ content: '一', done: true }], [{ content: '二', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: '第一问' });
+    expect(stub.lastMessages.some((m) => m.content.includes('【资料'))).toBe(true);
+
+    documentStub.doc = null;
+    await handleMessage({ sessionId: sid, text: '第二问' });
+    expect(stub.lastMessages.some((m) => m.content.includes('【资料'))).toBe(false);
+    expect(stub.lastMessages.filter((m) => m.role === 'system')).toHaveLength(1);
+  });
+
+  it('资料段计入截断预算：载入 4 万字资料后被载历史明变少', async () => {
+    const sid = newSession();
+    const seed = (n: number) => {
+      for (let i = 0; i < n; i++) {
+        getDb()
+          .prepare(`INSERT INTO messages (id, session_id, role, content) VALUES (?, ?, ?, ?)`)
+          .run(`h-${i}`, sid, i % 2 === 0 ? 'user' : 'assistant', '字'.repeat(5000));
+      }
+    };
+    const historyCount = () => stub.lastMessages.filter((m) => m.role !== 'system').length;
+    stub.turns = [[{ content: 'ok', done: true }], [{ content: 'ok', done: true }]];
+
+    seed(20);
+    await handleMessage({ sessionId: sid, text: 'q' });
+    const withoutDoc = historyCount();
+
+    // 重播种：上一轮落库的新消息会让历史长度漂
+    getDb().prepare('DELETE FROM messages').run();
+    seed(20);
+    documentStub.doc = docOf(40_000);
+    await handleMessage({ sessionId: sid, text: 'q' });
+    const withDoc = historyCount();
+
+    expect(withoutDoc).toBe(21); // 20 条历史 + 本轮新问题全数保留
+    expect(withDoc).toBeLessThanOrEqual(withoutDoc - 3);
   });
 });
 

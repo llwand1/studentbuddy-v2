@@ -13,6 +13,7 @@ import { publishEvent } from '../events/bus.js';
 import { estimateTokens, truncateHistoryToBudget, getContextLimit } from './context.js';
 import { toolDefinitions, runTool } from './tools.js';
 import { getRelevantTerms, saveTerms, extractTerms, countUsage } from '../learning/terms.js';
+import { getSessionDoc, buildDocBlock } from '../learning/document.js';
 import type { ChatMessage, ToolCall } from '../llm/types.js';
 
 /** 工具循环上限（v1 语义：模型连续发起工具调用时最多 8 轮，防死循环） */
@@ -84,27 +85,33 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
 
   // 组装上下文（截断含工具轮对齐）
   const history = loadHistory(sessionId);
+  // 附加 system 段必须在截断前算好：词条段与资料段和 SYSTEM_PROMPT 一样占窗口，
+  // 漏算就是「窗口明明不够却按满额载历史」那类 v1 老坑（契约 5.0 §5.1-2）。
+  // 忆域 v2（词条库注入）：检索与本次提问相关的已入库词条，软性提示 AI 优先使用；
+  // 命中失败/为空不影响对话（ADR-4），词条段短（约 ≤1k tokens）。
+  const relevantTerms = getRelevantTerms(opts.text, 15);
+  const termLines = relevantTerms.map((t) => `- ${t.term}（${t.domain}）：${t.definition}`).join('\n');
+  const termBlock =
+    relevantTerms.length > 0
+      ? `以下是你的术语记忆库中与本次提问相关的词条，回复时请优先使用这些术语（保持回答自然，不必逐条列举）：\n${termLines}`
+      : '';
+  // 文档模式：本会话绑定的资料整篇直塞（超 MAX_DOC_CHARS 由 buildDocBlock 截断并自报）
+  const doc = getSessionDoc(sessionId);
+  const docBlock = doc ? buildDocBlock(doc) : '';
+  const systemPromptTokens = estimateTokens(SYSTEM_PROMPT) + estimateTokens(termBlock) + estimateTokens(docBlock);
   const truncated = truncateHistoryToBudget(history, {
     limit: getContextLimit(target.model),
-    systemPromptTokens: estimateTokens(SYSTEM_PROMPT),
+    systemPromptTokens,
   });
   const messages: ChatMessage[] = [{ role: 'system', content: SYSTEM_PROMPT }, ...truncated];
-  // 忆域 v2（词条库注入）：检索与本次提问相关的已入库词条，软性提示 AI 优先使用。
-  // 命中失败/为空不影响对话（ADR-4）；词条提示本身计入后续工具预算（短，约 ≤1k tokens）。
-  const relevantTerms = getRelevantTerms(opts.text, 15);
-  if (relevantTerms.length > 0) {
-    const termLines = relevantTerms.map((t) => `- ${t.term}（${t.domain}）：${t.definition}`).join('\n');
-    messages.push({
-      role: 'system',
-      content: `以下是你的术语记忆库中与本次提问相关的词条，回复时请优先使用这些术语（保持回答自然，不必逐条列举）：\n${termLines}`,
-    });
-  }
-  // 工具循环预算：窗口 − 系统提示 − 已载历史 − 预留。每轮工具回灌后核对，
+  if (termBlock) messages.push({ role: 'system', content: termBlock });
+  if (docBlock) messages.push({ role: 'system', content: docBlock });
+  // 工具循环预算：窗口 − 系统提示（含词条/资料两段）− 已载历史 − 预留。每轮工具回灌后核对，
   // 接近上限提前收口——小上下文模型 8 轮 × MAX_TOOL_RESULT_CHARS 会撑爆窗口。
   const toolBudget = Math.max(
     0,
     getContextLimit(target.model) -
-      estimateTokens(SYSTEM_PROMPT) -
+      systemPromptTokens -
       truncated.reduce((s, m) => s + estimateTokens((m.content || '') + (m.toolCalls ? JSON.stringify(m.toolCalls) : '')), 0) -
       20_000,
   );

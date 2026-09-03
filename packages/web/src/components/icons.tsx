@@ -59,6 +59,16 @@ export function StatsIcon(props: IconProps) {
   );
 }
 
+/** 文档模式（本会话载入一篇资料） */
+export function DocIcon(props: IconProps) {
+  return (
+    <svg {...base(props.size, props)}>
+      <path d="M6 3h8l4 4v14H6z" />
+      <path d="M14 3v4h4M9 12h6M9 16h5" />
+    </svg>
+  );
+}
+
 /** 设置 */
 export function SettingsIcon(props: IconProps) {
   return (

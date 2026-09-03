@@ -1,5 +1,6 @@
 /**
  * QuizMixCard — 出题题型配比设置：预设快选 + 逐题型题数微调（每档 0 起，0 = 不出）。
+ * 数量既能 +/− 步进，也能**直接输入数字**（直输与步进共用同一套钳位：shared `setQuizMix`/`stepQuizMix`）。
  * 全局一份落服务端 app_settings：对话页「出题」与题库页「一键出题」共用同一配比。
  * 上限由 shared 契约给（单题型 10 / 总 20），本卡只做钳位与如实展示，不自己定规则。
  */
@@ -13,6 +14,7 @@ import {
   MAX_QUIZ_TOTAL,
   mixTotal,
   stepQuizMix,
+  setQuizMix,
 } from '@sb/shared';
 import { api } from '../../lib/api';
 import './settings.css';
@@ -53,6 +55,11 @@ export function QuizMixCard({ flash }: { flash: (ok: boolean, text: string) => v
     setMix((m) => stepQuizMix(m, t, delta));
   };
 
+  /** 数字直输：同一套钳位规则（setQuizMix），输入 12 / 负数 / 顶破总上限都按编辑态规则收口 */
+  const bumpTo = (t: QuizType, value: number) => {
+    setMix((m) => setQuizMix(m, t, value));
+  };
+
   const save = async () => {
     if (total === 0 || busy) return;
     setBusy(true);
@@ -89,36 +96,17 @@ export function QuizMixCard({ flash }: { flash: (ok: boolean, text: string) => v
       </div>
 
       <div className="quiz-mix-rows">
-        {QUIZ_TYPES.map((t) => {
-          const perTypeFull = mix[t] >= MAX_QUIZ_PER_TYPE;
-          return (
-            <div key={t} className="quiz-mix-row">
-              <span>{QUIZ_TYPE_LABELS[t]}</span>
-              <button className="quiz-mix-step" disabled={mix[t] <= 0} onClick={() => bump(t, -1)} title="减少">
-                −
-              </button>
-              <span className="quiz-mix-num">{mix[t]}</span>
-              <button
-                className="quiz-mix-step"
-                disabled={perTypeFull || totalFull}
-                onClick={() => bump(t, 1)}
-                title={
-                  perTypeFull
-                    ? `单题型上限 ${MAX_QUIZ_PER_TYPE} 道`
-                    : totalFull
-                      ? `总题数已达上限 ${MAX_QUIZ_TOTAL} 道，先减掉别的题型再加`
-                      : '增加'
-                }
-              >
-                +
-              </button>
-              <span className="settings-state">0 = 不出</span>
-              <span className="settings-state">
-                {perTypeFull ? '已达单题型上限' : `单题型上限 ${MAX_QUIZ_PER_TYPE}`}
-              </span>
-            </div>
-          );
-        })}
+        {QUIZ_TYPES.map((t) => (
+          <QuizMixRow
+            key={t}
+            label={QUIZ_TYPE_LABELS[t]}
+            value={mix[t]}
+            total={total}
+            disabled={loading || busy}
+            onStep={(delta) => bump(t, delta)}
+            onSet={(v) => bumpTo(t, v)}
+          />
+        ))}
       </div>
 
       <div className="settings-actions">
@@ -139,5 +127,95 @@ export function QuizMixCard({ flash }: { flash: (ok: boolean, text: string) => v
         </span>
       </div>
     </section>
+  );
+}
+
+/**
+ * 单题型一行：− / 数字直输 / +。数字框用本地 draft（字符串），失焦或回车才提交，
+ * 避免每次按键都重算导致光标跳动；提交走 shared `setQuizMix` 钳位，钳位后的最终值由
+ * 父组件 value 回灌（useEffect 同步 draft），输入超限数字会自动"回落"到合法值。
+ */
+function QuizMixRow({
+  label,
+  value,
+  total,
+  disabled,
+  onStep,
+  onSet,
+}: {
+  label: string;
+  value: number;
+  total: number;
+  disabled: boolean;
+  onStep: (delta: number) => void;
+  onSet: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+
+  // 父级 mix 变化（点预设 / 点 +− / 保存回读 / 输入被钳位）时，把输入框同步回真实值
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const perTypeFull = value >= MAX_QUIZ_PER_TYPE;
+  const totalFull = total >= MAX_QUIZ_TOTAL;
+
+  /** 失焦/回车提交：无效输入还原为当前值；有效输入本地先规范化，再交给钳位规则 */
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (trimmed === '') {
+      setDraft(String(value));
+      return;
+    }
+    const n = Number(trimmed);
+    if (!Number.isFinite(n)) {
+      setDraft(String(value));
+      return;
+    }
+    setDraft(String(Math.trunc(n)));
+    onSet(n);
+  };
+
+  return (
+    <div className="quiz-mix-row">
+      <span>{label}</span>
+      <button className="quiz-mix-step" disabled={disabled || value <= 0} onClick={() => onStep(-1)} title="减少">
+        −
+      </button>
+      <input
+        className="quiz-mix-num"
+        type="number"
+        min={0}
+        max={MAX_QUIZ_PER_TYPE}
+        step={1}
+        value={draft}
+        disabled={disabled}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+            e.currentTarget.blur();
+          }
+        }}
+      />
+      <button
+        className="quiz-mix-step"
+        disabled={disabled || perTypeFull || totalFull}
+        onClick={() => onStep(1)}
+        title={
+          perTypeFull
+            ? `单题型上限 ${MAX_QUIZ_PER_TYPE} 道`
+            : totalFull
+              ? `总题数已达上限 ${MAX_QUIZ_TOTAL} 道，先减掉别的题型再加`
+              : '增加'
+        }
+      >
+        +
+      </button>
+      <span className="settings-state">0 = 不出</span>
+      <span className="settings-state">{perTypeFull ? '已达单题型上限' : `单题型上限 ${MAX_QUIZ_PER_TYPE}`}</span>
+    </div>
   );
 }

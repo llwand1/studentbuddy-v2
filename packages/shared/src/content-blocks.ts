@@ -117,3 +117,16 @@ export function stepQuizMix(mix: QuizMix, type: QuizType, delta: number): QuizMi
   const step = Math.min(delta, MAX_QUIZ_PER_TYPE - mix[type], MAX_QUIZ_TOTAL - mixTotal(mix));
   return { ...mix, [type]: mix[type] + Math.max(0, step) };
 }
+
+/**
+ * 编辑态直输（设置页数字输入框用）：把某档直接设为指定值（替代连点 +）。
+ * 约束与 stepQuizMix 同源——单档 [0, 10]；总值 ≤ 20：若输入值会顶破总值上限，
+ * 只给到「其他档占用后剩余额度」（恒 ≥ 0），不牵连别的档位。
+ * 非数字/NaN → 0；小数取整。返回新对象，不改入参。
+ */
+export function setQuizMix(mix: QuizMix, type: QuizType, value: number): QuizMix {
+  const others = mixTotal(mix) - mix[type];
+  const cap = Math.min(MAX_QUIZ_PER_TYPE, MAX_QUIZ_TOTAL - others);
+  const v = Number.isFinite(value) ? Math.trunc(value) : 0;
+  return { ...mix, [type]: Math.min(Math.max(0, v), Math.max(0, cap)) };
+}

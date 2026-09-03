@@ -30,16 +30,16 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ Node 版本坑（2026-09-02 实测，最坑的一条）**：`better-sqlite3` 原生模块按 **Node 20** 编译（`NODE_MODULE_VERSION 115`），而 PATH 上默认的 `node` 是 22.22.2（`127`）。用 22 跑 ⇒ 所有涉库接口 500、测试大面积红（`was compiled against a different Node.js version`），**极易误判成新写的代码有 bug**。绕法：`C:\nodejs20\node-v20.18.3-win-x64\node.exe node_modules\vitest\vitest.mjs run`（或把该目录前置到 `PATH` 再 `npm run check`）。**不要为此改仓库配置。**
 - 测试隔离：`flow.test.ts` 等在 import 前设 `process.env.SB_DATA_DIR = mkdtempSync(...)`；`storage/db.ts` 另有 `openIsolated(dataDir)` 供单库用例。**禁止测试写真实数据目录。**
 
-## 3. 用例清单（基线：20 文件 / 177 例全绿，2026-09-03 实测，Node 20）
+## 3. 用例清单（基线：20 文件 / 184 例全绿，2026-09-03 实测，Node 20）
 
-> 上一基线：19 文件 / 175 例（配比编辑态钳位批）。本批修 **B-003**（web 侧断链）+1 文件 / +2 例：新 `web/src/lib/api.test.ts`（`settings.quizMix`/`saveQuizMix` 契约回归锁——跨页共用的 api 客户端曾整段缺失却声称 check 全绿，本文件让同类断链在 tsc 之外再多一道运行时锁）。
+> 上一基线：20 文件 / 177 例（B-003 修复批）。本批补 09-02 决策欠账「自定义数字输入」：shared `quiz-mix.test.ts` 12→19 例（+7 例 `setQuizMix` 直输钳位），文件数不变。
 > 用例数以 `vitest run` 汇总为准；新增用例须同步本表与 §2 基线数。**必须用 Node 20 跑（见 §2 版本坑）**。
 
-### shared（12 例）
+### shared（19 例）
 
 | 文件 | 例数 | 锁死的不变量 | 状态 |
 |------|------|--------------|------|
-| `src/quiz-mix.test.ts` | 12 | `stepQuizMix` **编辑期钳住**：加档只动目标档位、减档不越 0、单题型到 10 停住不绕回、总额到 20 后加不进任何题型且已有档位一格不动；**先减后加这条路径要通**；一步跨多档只加到能加的位置；不改入参（`delta=0` 也返回新副本）。与 `normalizeQuizMix` 的分工：编辑态钳住的配比落库后原样不变（**所见即所存**，不再被从后往前削）、绕过 `stepQuizMix` 硬造的超限配比仍由 `normalizeQuizMix` 兜底削到总上限 | [DONE] |
+| `src/quiz-mix.test.ts` | 19 | `stepQuizMix` **编辑期钳住**：加档只动目标档位、减档不越 0、单题型到 10 停住不绕回、总额到 20 后加不进任何题型且已有档位一格不动；**先减后加这条路径要通**；一步跨多档只加到能加的位置；不改入参（`delta=0` 也返回新副本）。`setQuizMix` **数字直输同源钳位**：直输只动目标档、0=关题型、负数→0/小数取整/NaN→0、超 10 钳 10、**总满场景只给「其他档占用后剩余额度」且别的档一格不动**、全 0 起可直输、不改入参。与 `normalizeQuizMix` 的分工：编辑态钳住的配比落库后原样不变（**所见即所存**，不再被从后往前削）、绕过 `stepQuizMix` 硬造的超限配比仍由 `normalizeQuizMix` 兜底削到总上限 | [DONE] |
 
 ### server（102 例）
 

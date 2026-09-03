@@ -150,5 +150,18 @@
 }
 .quiz-mix-step:hover:not(:disabled) { border-color: var(--sb-primary); color: var(--sb-primary); }
 .quiz-mix-step:disabled { opacity: 0.4; cursor: not-allowed; }
-.quiz-mix-num { min-width: 24px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.quiz-mix-num {
+  width: 52px;
+  height: 26px;
+  text-align: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--sb-ink);
+  background: var(--sb-bg);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: 0 2px;
+}
+.quiz-mix-num:focus { outline: none; border-color: var(--sb-primary); }
+.quiz-mix-num:disabled { opacity: 0.5; }
 .quiz-mix-total { font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary); margin-left: auto; }

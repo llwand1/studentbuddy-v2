@@ -14,6 +14,7 @@ import {
   MAX_QUIZ_TOTAL,
   mixTotal,
   normalizeQuizMix,
+  setQuizMix,
   stepQuizMix,
 } from './content-blocks.js';
 
@@ -69,6 +70,50 @@ describe('stepQuizMix（设置页 +/− 编辑态钳位）', () => {
     expect(copy).not.toBe(src);
     stepQuizMix(src, 'single', 1);
     expect(src).toEqual(DEFAULT_QUIZ_MIX);
+  });
+});
+
+describe('setQuizMix（设置页数字直输编辑态钳位）', () => {
+  it('直输：目标档位设为输入值，其他档位不动', () => {
+    expect(setQuizMix(mix(), 'single', 4)).toEqual({ single: 4, multiple: 0, fill: 1, essay: 1 });
+  });
+
+  it('直输 0 = 关掉该题型（每档最少 0 题）', () => {
+    expect(setQuizMix(mix(), 'fill', 0).fill).toBe(0);
+    expect(setQuizMix(mix(), 'essay', 0)).toEqual({ single: 2, multiple: 0, fill: 1, essay: 0 });
+  });
+
+  it('负数直输 → 0；小数取整；非数字 → 0', () => {
+    expect(setQuizMix(mix(), 'single', -3).single).toBe(0);
+    expect(setQuizMix(mix(), 'single', 3.9).single).toBe(3);
+    expect(setQuizMix(mix(), 'single', Number.NaN).single).toBe(0);
+  });
+
+  it(`超过单题型上限 ${MAX_QUIZ_PER_TYPE} → 钳到上限`, () => {
+    expect(setQuizMix(mix(), 'single', 99).single).toBe(MAX_QUIZ_PER_TYPE);
+  });
+
+  it(`总题数超 ${MAX_QUIZ_TOTAL} 时只给到「其他档占用后的剩余额度」，不削别的档`, () => {
+    // 全 0 起、其它三档已占 18：fill 直输 10 只能给 2（总额 20），multiple/essay/single 一格不动
+    const src: QuizMix = { single: 8, multiple: 10, fill: 0, essay: 0 };
+    const after = setQuizMix(src, 'fill', 10);
+    expect(after.fill).toBe(2);
+    expect(mixTotal(after)).toBe(MAX_QUIZ_TOTAL);
+    expect(after.single).toBe(8);
+    expect(after.multiple).toBe(10);
+  });
+
+  it('全 0 配比下仍可直输单档（0 题起步不锁死）', () => {
+    const zero: QuizMix = { single: 0, multiple: 0, fill: 0, essay: 0 };
+    expect(setQuizMix(zero, 'single', 3)).toEqual({ single: 3, multiple: 0, fill: 0, essay: 0 });
+  });
+
+  it('不改入参；直输后配比仍是合法编辑态（normalize 兜底原样）', () => {
+    const src = mix();
+    const copy = setQuizMix(src, 'single', 7);
+    expect(copy.single).toBe(7);
+    expect(src).toEqual(DEFAULT_QUIZ_MIX);
+    expect(normalizeQuizMix(copy)).toEqual(copy);
   });
 });
 

@@ -7,6 +7,8 @@ import type { ModelRole } from '@sb/shared';
 import './settings.css';
 import { SearchKeysCard } from './SearchKeysCard';
 import { QuizMixCard } from './QuizMixCard';
+import { QuizImageCard } from './QuizImageCard';
+import { AnswerStyleCard } from './AnswerStyleCard';
 
 type ProviderRow = { id: string; name: string; baseUrl: string; enabled: boolean };
 type RoleBindingRow = { role: string; provider_id: string; model: string };
@@ -172,7 +174,9 @@ export function SettingsView() {
         </table>
       </section>
 
+      <AnswerStyleCard flash={flash} />
       <QuizMixCard flash={flash} />
+      <QuizImageCard flash={flash} />
       <SearchKeysCard flash={flash} />
     </div>
   );

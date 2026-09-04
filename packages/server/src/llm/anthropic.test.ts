@@ -62,6 +62,21 @@ describe('system 段合并（B-001 回归）', () => {
     expect(body.system).toBe('基础提示词\n\n忆域词条段\n\n文档资料段');
   });
 
+  // 回答方式偏好段是第四条 system（flow.ts 恒注入）——漏发即设置页与弹卡选的档位对模型无效
+  it('四条 system 仍全部下发，顺序保持、用空行分隔', async () => {
+    const body = await outbound([
+      { role: 'system', content: '基础提示词' },
+      { role: 'user', content: '问' },
+      { role: 'system', content: '忆域词条段' },
+      { role: 'system', content: '文档资料段' },
+      { role: 'system', content: '表达偏好段' },
+    ]);
+    expect(body.system).toContain('表达偏好段');
+    expect(body.system).toBe(['基础提示词', '忆域词条段', '文档资料段', '表达偏好段'].join('\n\n'));
+    // system 一律走 body.system，第四条也不许混进 messages（混入即 API 400）
+    expect(body.messages.map((m) => m.role)).toEqual(['user']);
+  });
+
   it('system 只走 body.system，绝不混进 messages（混入即 API 400）', async () => {
     const body = await outbound([
       { role: 'system', content: 'S1' },

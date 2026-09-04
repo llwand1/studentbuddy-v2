@@ -3,7 +3,9 @@
  * 每工具一函数；新增工具=在此注册，flow 循环零改动。
  */
 import type { ToolDefinition } from '../llm/types.js';
+import type { TidySummary } from '@sb/shared';
 import { searchWeb, resultsToContext, listKeyStatus } from '../search/index.js';
+import { tidyTerms, mergeTerms, renameDomain } from '../learning/tidy.js';
 
 export interface ToolContext {
   /** 工具步骤回调（step 事件上屏） */
@@ -54,6 +56,74 @@ registry.set('search_web', {
     const from = providers.filter((p) => p !== 'cache');
     ctx.onStep('search_web', 'done', `${results.length} 条结果${from.length > 0 ? `（来源 ${from.join('、')}）` : '（缓存）'}`);
     return { content: resultsToContext(results) };
+  },
+});
+
+/** 词条整理结果回灌：给模型自然语言汇报的口径，不让它原样甩 JSON 给用户 */
+function tidyResultContent(summary: TidySummary): string {
+  return `词条库整理结果（请用简洁的自然语言向用户汇报要点，不要原样输出本 JSON）：${JSON.stringify(summary)}`;
+}
+
+registry.set('tidy_terms', {
+  definition: {
+    type: 'function',
+    function: {
+      name: 'tidy_terms',
+      description:
+        '维护词条库（术语记忆库）。用户提到整理/清理词条库、词条太多太乱、合并同义词、领域归组/归类、给领域改名时调用。整理只合并不删除概念。',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['auto', 'merge', 'rename_domain'],
+            description:
+              'auto=全量整理（AI 判断同义词合并与领域归一）；merge=把用户点名的几个词条合并成一条；rename_domain=领域改名',
+          },
+          terms: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'merge 时必填：要合并的词条名列表，第一个为主词条',
+          },
+          from: { type: 'string', description: 'rename_domain 时必填：旧领域名' },
+          to: { type: 'string', description: 'rename_domain 时必填：新领域名' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  async run(args, ctx) {
+    const action = String(args.action ?? '').trim();
+    let summary: TidySummary;
+    if (action === 'auto') {
+      ctx.onStep('tidy_terms', 'running', '正在整理词条库');
+      summary = await tidyTerms();
+    } else if (action === 'merge') {
+      const terms = (Array.isArray(args.terms) ? args.terms : []).map((t) => String(t)).filter(Boolean).slice(0, 20);
+      if (terms.length < 2) {
+        ctx.onStep('tidy_terms', 'error', 'terms 至少两个词条名');
+        return { content: 'merge 需要在 terms 里给至少两个词条名（第一个为主词条），请重新调用 tidy_terms。' };
+      }
+      ctx.onStep('tidy_terms', 'running', `合并 ${terms.length} 个词条`);
+      summary = mergeTerms(terms);
+    } else if (action === 'rename_domain') {
+      const from = String(args.from ?? '').trim();
+      const to = String(args.to ?? '').trim();
+      if (!from || !to) {
+        ctx.onStep('tidy_terms', 'error', '缺少领域名');
+        return { content: 'rename_domain 需要 from（旧领域名）与 to（新领域名），请重新调用 tidy_terms。' };
+      }
+      ctx.onStep('tidy_terms', 'running', `领域改名 ${from} → ${to}`);
+      summary = renameDomain(from, to);
+    } else {
+      ctx.onStep('tidy_terms', 'error', '未知 action');
+      return { content: 'tidy_terms 的 action 只能是 auto / merge / rename_domain，请重新调用。' };
+    }
+    const done =
+      summary.message ??
+      (summary.before !== undefined && summary.after !== undefined ? `词条 ${summary.before} → ${summary.after} 条` : '完成');
+    ctx.onStep('tidy_terms', summary.result === 'error' ? 'error' : 'done', done);
+    return { content: tidyResultContent(summary) };
   },
 });
 

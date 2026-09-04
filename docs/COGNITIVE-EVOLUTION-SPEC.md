@@ -20,7 +20,7 @@
 
 | 文件:行 | 现状 | 本功能要动的地方 |
 |---|---|---|
-| `packages/server/src/storage/db.ts:150-180` | 迁移体系 v1..v6（v6 给 sessions 加 doc 两列） | **新增 v7**（三张/四列，见 §5） |
+| `packages/server/src/storage/db.ts:150-180` | 迁移体系 v1..v6（v6 给 sessions 加 doc 两列；**v7 已被词条库 AI 整理占用，2026-09-03**） | **新增 v8**（三张/四列，见 §5） |
 | `packages/server/src/chat/flow.ts:24-31` | `SYSTEM_PROMPT` 常量 | 进化模式下**替换**为教练版（不追加，见 §6.2） |
 | `packages/server/src/chat/flow.ts:92-108` | 词条段 / 资料段注入 + `systemPromptTokens` 收口 | 新增进化模式段，**必须计入** `systemPromptTokens`（`AGENTS.md:35` 明确要求，否则又是 v1 老坑） |
 | `packages/server/src/chat/flow.ts:164-178` | token 流累积 → `publish` | 插入**流式闸门**：`[VERDICT]` 段不上屏不落库（见 §6.3） |
@@ -80,10 +80,10 @@ flow.ts：system 注入【进化模式段】→ 模型点评 + 追问（正常�
 
 ---
 
-## 5. 数据模型（DB 迁移 v7）
+## 5. 数据模型（DB 迁移 v8；原 v7 已被词条库 AI 整理占用，2026-09-03 改号）
 
 ```sql
--- v7：认知进化（2026-09-02 契约）
+-- v8：认知进化（2026-09-02 契约；版本号 2026-09-03 顺延）
 -- 1) 会话的进化模式绑定：一个会话一套选题（与文档模式「生命周期随会话」同构）
 CREATE TABLE IF NOT EXISTS evolution_session (
   session_id TEXT PRIMARY KEY,
@@ -288,7 +288,7 @@ export interface EvolutionEventRow {
 | # | 任务 | 产出 | 依赖 |
 |:--:|---|---|---|
 | 1 | 契约登记：`BlockKind 'verdict'` + `DomainEvent` + shared 类型 | 改 3 个文件 + 同步 `docs/SSE-CONTRACT.md` | — |
-| 2 | DB v7 迁移 | `db.ts` 追加 v7 数组 | 1 |
+| 2 | DB v8 迁移 | `db.ts` 追加 v8 数组 | 1 |
 | 3 | `learning/verdict.ts`（闸门 + 解析）+ 两个测试文件 | 纯函数 + 单测绿灯 | 1 |
 | 4 | `learning/evolution.ts`（绑定 / 判定 / 链查询）+ 单测 | service + 单测绿灯 | 2,3 |
 | 5 | `routes/evolution.ts` + 挂到 `index.ts` + 路由单测 | 4 个端点 | 4 |

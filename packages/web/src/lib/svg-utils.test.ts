@@ -58,6 +58,13 @@ describe('安全净化 sanitizeSvg（正则回退路径）', () => {
     expect(clean).toContain('<style/>');
   });
 
+  it('剥掉 <image> 外链（否则本地应用会被动发请求，泄露 IP 与本机存在）', () => {
+    const clean = sanitizeSvg('<svg><image href="https://evil.test/beacon.png" width="10" height="10"/><rect/></svg>');
+    expect(clean).not.toContain('evil.test');
+    expect(clean).not.toContain('<image');
+    expect(clean).toContain('<rect');
+  });
+
   it('剥掉 on* 事件属性与 javascript: 链接协议', () => {
     const clean = sanitizeSvg('<svg><a href="javascript:alert(2)" onclick="evil()" onmouseover=3><text>ok</text></a></svg>');
     expect(clean).not.toContain('javascript:');

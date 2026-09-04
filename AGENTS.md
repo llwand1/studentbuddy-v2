@@ -30,14 +30,20 @@
 |------|------|
 | `packages/shared/src/sse-events.ts` | SSE 事件契约（先登记再实现，同步 docs/SSE-CONTRACT.md） |
 | `packages/shared/src/content-blocks.ts` | 内容块协议（演进③；新卡片=登记 kind+注册渲染器）**+ 出题题型配比契约**：`QuizType`/`QuizMix`/`DEFAULT_QUIZ_MIX`/`normalizeQuizMix`（负数小数→0/取整、超上限从后往前削、全 0 回退默认）/`QuizMixReport`，前后端共用一份 |
+| `packages/shared/src/answer-style.ts` | **回答方式偏好契约**（契约 `docs/ANSWER-STYLE-SPEC.md` v1.0，前后端共用一份）：四维 `AnswerStyle`（verbosity 详略 / tone 口吻 / support 辅助 / shape 形状）+ `ANSWER_STYLE_FIELDS`（每个选项的 label/hint/**要注入 prompt 的那句 line**——UI 文案与提示词同源，不可能各说一套）+ `SETTING_KEY_ANSWER_STYLE`（`app_settings` 键名唯一登记处）+ `normalizeAnswerStyle`（**逐字段**回落默认，一个非法值不作废整份偏好）+ `styleSummary` + `buildAnswerStyleBlock(style, target?)`（`target:'quiz'` 那支额外带「反斜杠写两根」与「整套题一次写完」两句护栏）。**默认档必须逐字等价现状口径**——新增强指令会让所有历史行为漂移 |
 | `packages/shared/src/domain.ts` | Session/Message/RoleBinding(演进①)/TermItem(词条库字段) |
 | `packages/server/src/index.ts` | Express 入口（安全头/CORS/originCheck/2MB 限制） |
-| `packages/server/src/chat/flow.ts` | 一轮对话编排。**上下文注入顺序与预算在此收口**：基础提示词 / 忆域词条段 / 文档模式资料段均为独立 `system` 消息（适配器必须全量合并，见 B-001），两段注入的 tokens 均计入 `truncateHistoryToBudget` 的 `systemPromptTokens` 与工具预算，否则资料越长越会撑爆窗口 |
-| `packages/server/src/chat/tools.ts` | 单轨工具注册表（当前仅 `search_web`；新增工具=加定义+加 `step` 上报） |
+| `packages/server/src/chat/flow.ts` | 一轮对话编排。**上下文注入顺序与预算在此收口**：基础提示词 / 忆域词条段 / 文档模式资料段 / **回答方式偏好段**（`buildAnswerStyleBlock(loadAnswerStyle())`，四维全默认时它只是重述现状口径、不改口吻，故恒非空、无条件拼接，契约 ANSWER-STYLE §3）均为独立 `system` 消息（适配器必须全量合并，见 B-001），**四段**注入的 tokens 均计入 `truncateHistoryToBudget` 的 `systemPromptTokens` 与工具预算，否则资料越长越会撑爆窗口 |
+| `packages/server/src/chat/tools.ts` | 单轨工具注册表（`tidy_terms` 词条整理 + `search_web`；新增工具=加定义+加 `step` 上报；flow 循环零改动） |
 | `packages/server/src/search/index.ts` | 搜索聚合（Exa/Tavily/智谱按 key 并行 → 全无 key 走 DuckDuckGo；24h 缓存；SSRF 护栏） |
-| `packages/server/src/routes.ts` | 路由含 `settingsRouter`（搜索 key 读写 + 连通自检，密钥不出接口） |
-| `packages/server/src/learning/quiz.ts` | 出题引擎（协议解析/题库/逐题统计）**+ 题型配比**：`loadQuizMix`/`saveQuizMix`（`app_settings` 键 `quiz_mix`）、`buildMixInstruction`（配比指令拼进提示词）、`applyQuizMix`（多出裁掉、自造题型丢弃、少出记进 report 不补题）——配比规则一律过 shared，不在此另立标准 |
+| `packages/server/src/routes.ts` | 路由含 `settingsRouter`（搜索 key 读写 + 连通自检，密钥不出接口；出题配比/配图/回答方式三张卡的读写也收口在此）：`GET/PUT/DELETE /api/settings/answer-style` 一律回 `{ style, configured }`——**`configured` 是 L1 弹卡的开关量**（只回 style 表达不了「没配过」与「配成恰好等于默认」的区别），入参非法逐字段回落不 400，DELETE＝删键回到没配过 |
+| `packages/server/src/learning/quiz.ts` | 出题引擎（协议解析/题库/逐题统计）**+ 题型配比**：`loadQuizMix`/`saveQuizMix`（`app_settings` 键 `quiz_mix`）、`buildMixInstruction`（配比指令拼进提示词）、`applyQuizMix`（多出裁掉、自造题型丢弃、少出记进 report 不补题）——配比规则一律过 shared，不在此另立标准。**+ 出题配图**（契约 `docs/QUIZ-IMAGE-SPEC.md` v1.1.1）：`loadQuizImage`/`saveQuizImage`、`buildImageInstruction(on)`（**开＝正面强制口径 + 属性单引号 + 每组最多 3 张；关＝明令一律 `""`**，v1.0 那套劝说式负面措辞实测 0 出图）、`parseQuizBlock` 五级阶梯（前置无损补括号 → 原样 parse → 剥图重试 → 截断逐题回退 `salvageTruncatedQuiz` → 回退后再剥图）+ 产出 `QuizImageReport{on,delivered,droppedSvg,truncated}`；`normalizeQuiz(payload, { allowSvg, report })` **开关关着就在服务端无条件剥 `svg`（硬门，不靠提示词碰运气）**；`parseQuizBlock(text, report?, allowSvg?)` 同样收这两个参数。**＋ 回答方式偏好**：`generateQuiz(topic, material?, mix?, report?, styleArg?)` 第五参省略＝读库内偏好、显式传入＝**只覆盖本次不落库**（L1 就地弹卡用）；注入段顺序固定为 **配比→配图→偏好**（flow/quiz 两处都有回归锁钉顺序）。★ 本文件 **397/400 行**，余量只剩 3 行（本次修复转义接线净增 0 行）——**再加任何逻辑前必须先开新文件**（`quiz-json-repair.ts` 即因此单开） |
 | `packages/web/src/features/settings/QuizMixCard.tsx` | 设置页「出题题型配比」卡：4 预设 chip + 四题型步进器（0..10）+ 总题数提示，读写 `GET/PUT /api/settings/quiz-mix`；配比全局一份，对话页「出题」与题库页「一键出题」共用 |
+| `packages/web/src/features/settings/QuizImageCard.tsx` | 设置页「出题配图」总开关（契约 `docs/QUIZ-IMAGE-SPEC.md`）：**默认关**，读写 `GET/PUT /api/settings/quiz-image`；点选即存。关＝服务端硬门剥掉 `svg`（模型给了也不渲染）；开＝提示词正面强制「涉及示意图的题目必须给 `svg`」，不必配图的题给 `""`，每组最多 3 张。题内渲染走 `SvgPreviewCard`（唯一注入点）；没图/丢图/被截断由 `mix-report.ts` 的 `imageNote()` 如实补一句（ADR-5 不静默） |
+| `packages/web/src/features/settings/AnswerStyleCard.tsx` | 设置页「回答方式偏好」卡（**L0**）：四维 chip 行 + 当前摘要 + 「恢复默认」（＝调 DELETE 删键，回到没配过的态，下次出题会重新问）。点选即存，屏上永远回显服务端归一后的值（不能选 A 存 B） |
+| `packages/web/src/features/chat/AskStyleCard.tsx` | **L1「出题前先问一次」**：`useAskStyle(run)` 返 `{ tap, card, summary, hint }`——没配过时点「出题」只就地展开内联选项卡（**不新增 modal、不加遮罩**：打断感是这套功能最大的风险），勾「记住」则顺手 PUT。三条实测决定的行为：`configured` **初值 true**（读回来前按已配过处理，宁少问一次也不在出题路上插队）、**落库失败也照常出题**（本次覆盖照样生效）、「别问了，直接出」＝ `PUT 默认值` 后按归一值出题（屏上与库里同源）。聊天页与题库页**共用同一 hook**（两页各写一遍必然漂成两种行为），对话发送永不弹卡、只在未配过时于 composer 上方常驻一句 `hint` |
+| `packages/web/src/components/StyleChips.tsx` | 四维 chip 行共用件（设置卡与出题前弹卡同一套渲染，题面/选项全取自 `ANSWER_STYLE_FIELDS`，前端不复制一份文案）；样式自卡在 `style-chips.css`，不依赖调用方的 css |
+| `packages/web/src/lib/svg-utils.ts` | SVG 净化（DOMParser 快路径 + 线性正则回退）+ L1 自愈（补闭合/钳宽/主题色）+ `openSvgDocument` 下载/新标签页（入参必须是**净化后**的 SVG，blob 文档继承本应用源），port from v1。**剥除白名单**：script/foreignObject/iframe/object/embed/**image**（`<image href>` 是外链信标，会让本地应用向外部发请求泄露 IP，2026-09-04 补） |
 | `packages/web/src/features/quiz/mix-report.ts` | 配比展示文案纯函数（`mixSummary` 摘要 / `shortfallText` 缺题文案），组件只负责挂——判定逻辑留在组件里就测不到 |
 | `packages/server/src/routes/terms.ts` | 词条库路由：`/api/terms` CRUD + `POST /extract`（AI 抽取入库）+ `/domains`（统计） |
 | `packages/server/src/security.ts` | 安全三件之 Origin 校验（**不放行 `'null'`**：sandbox 预览页的源就是字符串 null，放行等于让模型写的网页能调写接口） |
@@ -51,7 +57,8 @@
 | `packages/web/src/features/chat/HtmlCard.tsx` | html 卡片：永不内联，点「侧栏预览」送右侧面板、「新标签页」走同一上传路径，三态齐备（进行中/失败/成功） |
 | `packages/web/src/features/preview/PreviewPanel.tsx` | 应用右侧内置浏览器面板：只挂 `/api/preview/:id` 沙箱文档，iframe 再叠 `sandbox` 双保险；**无地址栏**（不承诺打开任意 URL） |
 | `packages/web/src/lib/preview-store.ts` + `preview-api.ts` | 面板状态（`useSyncExternalStore` 微型 store，跨层不套 provider）与 `uploadPreview()`/`pickTitle()` |
-| `packages/server/src/learning/` | 练+忆+学域：quiz 出题引擎 / **terms AI 词条库**（`[TERMS]` 协议抽取 / `UNIQUE(term,domain)` 入库 / 相关性检索注入 / usage 计数）/ **document 文档模式资料**（会话绑定、整篇直塞、不做切块与 embedding）/ activity 打卡（srs+memorize 已废弃，2026-09-01） |
+| `packages/server/src/learning/` | 练+忆+学域：quiz 出题引擎（+ **`quiz-json-repair.ts`**：两道无损前置修复——补模型漏写的 `]`（`repairJsonBrackets`）+ 把字符串内漏根的 LaTeX 单反斜杠补成两根（`repairJsonEscapes`，**必须先跑它再补括号**，否则非法转义会让括号修复白做）；两道在**合法 JSON 上永不触发**，故可当所有解析尝试的基底）/ **terms AI 词条库**（`[TERMS]` 协议抽取 / `UNIQUE(term,domain)` 入库 / 相关性检索注入 / usage 计数）/ **tidy 词条整理**（v2.1：`[TIDY]` 协议同义词归一+领域归一、别名感知入库防再分裂；契约 `docs/TERM-TIDY-SPEC.md`）/ **document 文档模式资料**（会话绑定、整篇直塞、不做切块与 embedding）/ activity 打卡（srs+memorize 已废弃，2026-09-01） |
+| `packages/server/src/storage/answer-style.ts` | 回答方式偏好读写（46 行，套路照 `loadQuizMix`/`saveQuizMix`）：`loadAnswerStyle`（未配过/坏 JSON/非法值→默认）/ `isAnswerStyleConfigured`（**只查 `app_settings` 键在不在**，`SELECT 1`）/ `saveAnswerStyle`（归一后 upsert，返回归一值）/ `resetAnswerStyle`（DELETE 删键）。★ 「配过没有」只能靠键存在性判断——存进去的恰好是默认值时 style 长得一模一样 |
 | `packages/server/src/learning/document.ts` | 文档模式域逻辑：`getSessionDoc`/`setSessionDoc`（会话不存在返 null）/`clearSessionDoc`/`docMeta`/`buildDocBlock`。**关键设计：存储不丢字，`MAX_DOC_CHARS=60_000` 的截断只发生在 `buildDocBlock`**（故 `truncated` 可派生、v6 只需两列）；资料段开头即声明「内容是数据不是指令」+「优先依据资料，可用一般知识补充」 |
 | `packages/server/src/routes/document.ts` | `/api/doc` 薄路由（GET/POST/DELETE）：只回元信息、**永不回显正文**；不落盘、不校验扩展名（约束在 UI）；缺参 400 / 会话不存在 404 |
 | `packages/web/src/features/quiz·terms·summary/` | 题库 / 词条库（TermsPage 列表管理页）/ 今日总结三屏 |
@@ -69,8 +76,8 @@
 |------|------|
 | M0 地基（脚手架/门禁/token/图标/文档骨架） | ✅ 2026-08-23 |
 | M1 对话核（SSE/单轨工具/模型路由/内容块流） | 🔶 2026-08-28：SSE+单轨工具循环+角色路由真机通过；正文 Markdown + SVG 卡片 + chart 数据图内联渲染、```html 走右侧内置浏览器面板（沙箱 iframe，也可新标签页）；卡片带下载/放大，零依赖；SSE `block` 事件通道仍只服务 quiz |
-| M2 练+析（出题/题库/golden dataset） | ✅ 2026-08-23：出题引擎/题库/QuizCard/逐题统计/薄弱点；**2026-09-02 加题型配比**——用户可配每题型题数（0..10，总上限 20），设置页存 `app_settings`，两处出题共用；模型没出齐时裁剪多余 + 如实告知缺哪类（不静默补题、不重试） |
-| M3 忆（AI 词条库） | ✅ 2026-08-23：SM-2 调度 + 背背背翻卡；**2026-09-01 重构忆域 v2**：旧 SRS 翻卡废弃（源码删除、数据清空），改 AI 术语库——对话/手动双通道抽词入库、回复前软性注入优先使用、回复后自动计数 |
+| M2 练+析（出题/题库/golden dataset） | ✅ 2026-08-23：出题引擎/题库/QuizCard/逐题统计/薄弱点；**2026-09-02 加题型配比**——用户可配每题型题数（0..10，总上限 20），设置页存 `app_settings`，两处出题共用；模型没出齐时裁剪多余 + 如实告知缺哪类（不静默补题、不重试）；**2026-09-04 加出题配图**（契约 `docs/QUIZ-IMAGE-SPEC.md`）——`QuizQuestion` 可选 `svg` 字段（纯加法，老题不迁移）、设置页总开关**默认关**+模型自决、**丢图保题**三道防线（校验丢弃／整字段删除／parse 失败剥图重试救回整组题）；**同日 v1.1/v1.1.1 修「真机出图率 0」**：根因在提示词层（`svg` 没进 `[QUIZ]` 格式示例 + 劝说式负面措辞），改为字段进示例 + 正面强制口径；总开关改成服务端硬门；新增截断逐题回退与 `repairJsonBrackets` 补括号（撞 `max_tokens` 与模型漏写 `]` 都不再整组 502）；`QuizImageReport` 全链上报没图/丢图/被截断。**已真机端到端复验**（接口→落库→题库回读→浏览器渲染→清理）：4 题 3 图、实拍为切题真矢量图、控制台零 error；**同日再加「回答方式偏好」**（契约 `docs/ANSWER-STYLE-SPEC.md` v1.0）——四维偏好存 `app_settings` 键 `answer_style`，**L0** 设置页常驻卡 + **L1** 没配过时点「出题」先就地问一次（勾「记住」才落库），**默认档逐字等价现状口径**（老用户零感知）；真机量化：简短+列点 51 字 / 默认 136 字 / 详细+列点 312 字且 30 行里 26 行是列点（0.87），两维相乘生效。顺带修掉真机暴露的 LaTeX 非法转义导致整组题 502（新增 `repairJsonEscapes`：该组合 7 次里 3 次挂 → 修复后复验 4/4 成功） |
+| M3 忆（AI 词条库） | 🔶 2026-08-23：SM-2 调度 + 背背背翻卡；**2026-09-01 重构忆域 v2**：旧 SRS 翻卡废弃（源码删除、数据清空），改 AI 术语库——对话/手动双通道抽词入库、回复前软性注入优先使用、回复后自动计数；**2026-09-03 v2.1 词条库 AI 整理**：`tidy_terms` 对话工具（auto 全量整理 / merge 点名合并 / rename_domain 领域改名），DB 迁移 v7 加 `aliases` 列，别名感知入库防再分裂（契约 `docs/TERM-TIDY-SPEC.md`） |
 | M4 反馈+迁移+定稿 | 🔶 2026-08-23：反馈环（事件总线/XP连签/今日总结/近7天趋势）+ v1 全量数据迁移工具已落；定稿未做 |
 | 5.0 §5 学环·**文档模式**（简易 RAG：整篇直塞） | ✅ 2026-09-02：DB 迁移 v6 给 `sessions` 加 `doc_name`/`doc_text`（不建表，资料生命周期随会话）；`/api/doc` 三端点 + 前端 DocModeControl；`flow.ts` 注入资料段并计入预算；quiz/terms 缺材料时回退用会话资料。**同批修掉 B-001**（anthropic 丢弃第二条 system，忆域 v2 的词条注入因此静默失效）。未验项：真实模型忠实度与浏览器视觉（见 test-plan §6） |
 
@@ -82,6 +89,7 @@
 - **免 key 兜底在本机网络不可用**：2026-08-27 实测 `lite.duckduckgo.com` 与 `api.duckduckgo.com` 均超时（直连被阻断，baidu/agnes 正常 200/401）→ 三路全挂约 20s 且零结果。要让 `search_web` 真出结果必须在设置页配 key（智谱国产可达，优先试）；挂代理另议
 - vite 监听 IPv6 `::1`：本机验证用 `http://localhost:5173`（127.0.0.1 不通）
 - **行内公式不渲染**：`$a^2+b^2=c^2$` 按原文显示（未引 katex，保持 @sb/web 零运行时依赖）
+- **转义修复只补「漏根」，不修「错命令」**：`repairJsonEscapes` 能把 LaTeX 单根反斜杠构成的非法 JSON 转义补成两根（真机 502 的主因，统计与复验见 `docs/ANSWER-STYLE-SPEC.md` §8.3）；但 `\theta` / `\nu` 这类恰好等于合法转义（`\t` / `\n`）的写法**无法与真制表符/换行区分，故意不修**——命中时该题仍走逐题回退，最坏丢那一题不连坐整组
 - **重型图库仍未实现**：`mermaid` / `echarts` 围栏照旧降级代码块（刻意不引库）；数据图走自绘 ```chart，交互动画走 ```html 沙箱预览（2026-08-28 已上，真机验证预览文档源为 `null`、应用侧读不到其 DOM、读写接口均被拒）
 - **预览页只活内存不落盘**：上限 20 条、服务重启即失效，页内提示回对话重新点「侧栏预览」；不做分享链接（本地单用户形态无场景）
 - 面板宽 `min(--sb-browser-w, 46vw)` 且 `flex-shrink: 0`：窗口很窄时优先保面板、对话区被挤。未做可拖拽分隔条（内联 style 被门禁禁，需走 CSS 变量 + `documentElement.style.setProperty`，等真需要再加）

@@ -179,6 +179,15 @@ MIGRATIONS.push({
   ],
 });
 
+// v7：词条库 AI 整理（2026-09-03 契约 TERM-TIDY-SPEC）——同义词归一挂别名列。
+// 认知进化契约（COGNITIVE-EVOLUTION-SPEC，待评审）原定 v7 已顺延为 v8。
+MIGRATIONS.push({
+  version: 7,
+  statements: [
+    `ALTER TABLE term_library ADD COLUMN aliases TEXT NOT NULL DEFAULT '[]'`,
+  ],
+});
+
 export function getDb(): Database.Database {
   if (db) return db;
   fs.mkdirSync(DATA_DIR, { recursive: true });

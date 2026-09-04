@@ -5,8 +5,10 @@
  * 单轨原则（ADR/G3）：仅原生 function-calling，工具注册表见 chat/tools.ts。
  */
 import { randomUUID } from 'node:crypto';
+import { buildAnswerStyleBlock } from '@sb/shared';
 import type { ModelRole } from '@sb/shared';
 import { getDb } from '../storage/db.js';
+import { loadAnswerStyle } from '../storage/answer-style.js';
 import { routeRole } from '../llm/router.js';
 import { publish, startNewRound } from './sse-bus.js';
 import { publishEvent } from '../events/bus.js';
@@ -85,7 +87,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
 
   // 组装上下文（截断含工具轮对齐）
   const history = loadHistory(sessionId);
-  // 附加 system 段必须在截断前算好：词条段与资料段和 SYSTEM_PROMPT 一样占窗口，
+  // 附加 system 段必须在截断前算好：词条段、资料段与表达偏好段和 SYSTEM_PROMPT 一样占窗口，
   // 漏算就是「窗口明明不够却按满额载历史」那类 v1 老坑（契约 5.0 §5.1-2）。
   // 忆域 v2（词条库注入）：检索与本次提问相关的已入库词条，软性提示 AI 优先使用；
   // 命中失败/为空不影响对话（ADR-4），词条段短（约 ≤1k tokens）。
@@ -98,7 +100,13 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   // 文档模式：本会话绑定的资料整篇直塞（超 MAX_DOC_CHARS 由 buildDocBlock 截断并自报）
   const doc = getSessionDoc(sessionId);
   const docBlock = doc ? buildDocBlock(doc) : '';
-  const systemPromptTokens = estimateTokens(SYSTEM_PROMPT) + estimateTokens(termBlock) + estimateTokens(docBlock);
+  // 表达偏好段（契约 ANSWER-STYLE §3）：四维全默认时它只是重述现状口径，不改口吻
+  const styleBlock = buildAnswerStyleBlock(loadAnswerStyle());
+  const systemPromptTokens =
+    estimateTokens(SYSTEM_PROMPT) +
+    estimateTokens(termBlock) +
+    estimateTokens(docBlock) +
+    estimateTokens(styleBlock);
   const truncated = truncateHistoryToBudget(history, {
     limit: getContextLimit(target.model),
     systemPromptTokens,
@@ -106,7 +114,9 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   const messages: ChatMessage[] = [{ role: 'system', content: SYSTEM_PROMPT }, ...truncated];
   if (termBlock) messages.push({ role: 'system', content: termBlock });
   if (docBlock) messages.push({ role: 'system', content: docBlock });
-  // 工具循环预算：窗口 − 系统提示（含词条/资料两段）− 已载历史 − 预留。每轮工具回灌后核对，
+  // 偏好段恒非空（默认值也有话要说），故不加条件；多段 system 由适配器全量合并（B-001）
+  messages.push({ role: 'system', content: styleBlock });
+  // 工具循环预算：窗口 − 系统提示（含词条/资料/偏好三段）− 已载历史 − 预留。每轮工具回灌后核对，
   // 接近上限提前收口——小上下文模型 8 轮 × MAX_TOOL_RESULT_CHARS 会撑爆窗口。
   const toolBudget = Math.max(
     0,

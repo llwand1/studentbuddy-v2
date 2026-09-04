@@ -1,7 +1,7 @@
 /**
  * api — REST 封装（同源经 vite proxy；错误统一抛 ApiError，UI 层可见可重试，ADR-5）。
  */
-import type { StatusResponse, Session, Provider, ModelRole, QuizMix } from '@sb/shared';
+import type { StatusResponse, Session, Provider, ModelRole, QuizMix, AnswerStyle } from '@sb/shared';
 
 export class ApiError extends Error {
   constructor(
@@ -85,6 +85,20 @@ export const api = {
     quizMix: () => request<{ mix: QuizMix }>('/api/settings/quiz-mix'),
     saveQuizMix: (mix: QuizMix) =>
       request<{ mix: QuizMix }>('/api/settings/quiz-mix', { method: 'PUT', body: JSON.stringify({ mix }) }),
+    /** 出题配图开关：设置页读写（契约 docs/QUIZ-IMAGE-SPEC.md） */
+    quizImage: () => request<{ on: boolean }>('/api/settings/quiz-image'),
+    saveQuizImage: (on: boolean) =>
+      request<{ ok: boolean; on: boolean }>('/api/settings/quiz-image', { method: 'PUT', body: JSON.stringify({ on }) }),
+    /** 回答方式偏好（契约 docs/ANSWER-STYLE-SPEC.md）：configured 是「出题前要不要问」的开关量 */
+    answerStyle: () => request<{ style: AnswerStyle; configured: boolean }>('/api/settings/answer-style'),
+    saveAnswerStyle: (style: AnswerStyle) =>
+      request<{ style: AnswerStyle; configured: boolean }>('/api/settings/answer-style', {
+        method: 'PUT',
+        body: JSON.stringify({ style }),
+      }),
+    /** 恢复默认＝删键，回到「没配过」态（不是把四维写成默认值，那样 configured 仍为 true） */
+    resetAnswerStyle: () =>
+      request<{ style: AnswerStyle; configured: boolean }>('/api/settings/answer-style', { method: 'DELETE' }),
   },
 
   terms: {
@@ -134,6 +148,8 @@ export interface TermItem {
   term: string;
   definition: string;
   domain: string;
+  /** 同义词别名（AI 整理时被并入的词名） */
+  aliases: string[];
   source_session_id: string | null;
   source_title: string | null;
   importance: number;

@@ -6,10 +6,12 @@ import { useEffect, useRef, useState } from 'react';
 import { useChatStream } from './useChatStream';
 import { SendIcon, QuizIcon, SearchIcon, CardsIcon } from '../../components/icons';
 import { QuizCard } from '../quiz/QuizCard';
-import { mixSummary } from '../quiz/mix-report';
+import { mixSummary, imageNote } from '../quiz/mix-report';
+import type { QuizImageReport, AnswerStyle } from '@sb/shared';
 import { Markdown } from './Markdown';
 import { Welcome } from './Welcome';
 import { DocModeControl } from './DocModeControl';
+import { AskStyleCard, useAskStyle } from './AskStyleCard';
 import { api } from '../../lib/api';
 import './chat.css';
 
@@ -37,6 +39,7 @@ export function ChatView({
   const [remembering, setRemembering] = useState(false);
   const [rememberMsg, setRememberMsg] = useState('');
   const [mixTip, setMixTip] = useState('');
+  const [quizNote, setQuizNote] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -73,17 +76,26 @@ export function ChatView({
     if (!r.ok && r.error) setSendError(r.error);
   };
 
-  const quickQuiz = async () => {
+  /** 单次覆盖：style 只在「没配过 + 刚在选项卡上选完」这一条路上非空（契约 ANSWER-STYLE §4） */
+  const quickQuiz = async (style?: AnswerStyle) => {
     if (!sessionId || quizzing) return;
     const material = messages.slice(-8).map((m) => m.content).filter(Boolean).join('\n').slice(-4000);
     setQuizzing(true);
     setSendError('');
+    setQuizNote('');
     try {
-      const r = await api.request<{ error?: string }>('/api/quiz/generate', {
+      const r = await api.request<{ error?: string; images?: QuizImageReport }>('/api/quiz/generate', {
         method: 'POST',
-        body: JSON.stringify({ topic: input.trim() || '根据当前对话内容出题', material: material || undefined, sessionId }),
+        body: JSON.stringify({
+          topic: input.trim() || '根据当前对话内容出题',
+          material: material || undefined,
+          sessionId,
+          style,
+        }),
       });
       if (r.error) setSendError(r.error);
+      // 题卡走 SSE 块进消息流，本行只补「图为什么没出」这句话（没图不是失败，但也不能不说）
+      else setQuizNote(imageNote(r.images) ?? '');
       setInput('');
     } catch (e) {
       setSendError(e instanceof Error ? e.message : String(e));
@@ -91,6 +103,9 @@ export function ChatView({
       setQuizzing(false);
     }
   };
+
+  /** 没配过回答方式时，点「出题」先就地展开选项卡问一次（契约 ANSWER-STYLE §4） */
+  const ask = useAskStyle((style) => void quickQuiz(style));
 
   /** 忆域 v2：手动「存入记忆」——把最近对话内容交给 AI 抽取重要词条入库 */
   const rememberTerms = async () => {
@@ -172,11 +187,15 @@ export function ChatView({
         {mixTip && sessionId && (
           <div className="chat-quiz-mix">
             出题配比：{mixTip}
+            {ask.summary && <>｜回答方式：{ask.summary}</>}
             <span className="chat-quiz-mix-sep">·</span>
             设置页可改
           </div>
         )}
+        {ask.hint && <div className="ask-style-hint">{ask.hint}</div>}
+        {ask.card && <AskStyleCard {...ask.card} busy={quizzing} />}
         <DocModeControl sessionId={sessionId} blocked={ready !== 'open'} />
+        {quizNote && <div className="chat-quiz-mix">{quizNote}</div>}
         <div className="chat-composer">
           <button
             className="chat-quiz-btn"
@@ -186,7 +205,7 @@ export function ChatView({
                 : '基于当前对话一键出题（输入框文字作为主题）'
             }
             disabled={!sessionId || quizzing || ready !== 'open'}
-            onClick={() => void quickQuiz()}
+            onClick={() => ask.tap()}
           >
             <QuizIcon /> {quizzing ? '出题中…' : '出题'}
           </button>

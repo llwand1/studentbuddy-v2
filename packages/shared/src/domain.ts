@@ -57,10 +57,37 @@ export interface TermItem {
   term: string;
   definition: string;
   domain: string;
+  /** 同义词别名（AI 整理时被并入的词名，2026-09-03 契约 TERM-TIDY-SPEC） */
+  aliases: string[];
   sourceSessionId?: string | null;
   importance: number;
   usageCount: number;
   lastUsedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** 词条整理：同义词簇（keep 为主词条，merge 为被并入 id；TERM-TIDY-SPEC §5） */
+export interface TidyCluster {
+  keep: string;
+  term: string;
+  domain: string;
+  merge: string[];
+  reason: string;
+}
+
+/** 词条整理方案（[TIDY] 协议解析产物；applyTidy 前须再校验） */
+export interface TidyPlan {
+  clusters: TidyCluster[];
+  domainRenames: Record<string, string>;
+}
+
+/** 词条整理结果摘要（tidy_terms 工具回灌给模型，由其自然语言转述） */
+export interface TidySummary {
+  result: 'ok' | 'noop' | 'error';
+  before?: number;
+  after?: number;
+  mergedClusters?: Array<{ canonical: string; aliases: string[]; reason: string }>;
+  domainRenames?: Record<string, string>;
+  message?: string;
 }

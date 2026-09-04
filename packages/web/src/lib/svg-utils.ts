@@ -63,8 +63,12 @@ export function parseSvgSize(svg: string): SvgSize {
 }
 
 /**
- * 内联渲染前净化：剥 <script>/<foreignObject>/<iframe>/<object>/<embed>、
+ * 内联渲染前净化：剥 <script>/<foreignObject>/<iframe>/<object>/<embed>/<image>、
  * 所有 on* 事件属性与 href 的 javascript: 协议；保留 SMIL/CSS 动画等正常绘图能力。
+ *
+ * **<image> 一并剥除**：SVG 是模型产出的不可信内容，`<image href="https://x/y.png">` 会让
+ * 本地应用向外部发请求——等于给对方递上一枚信标，泄露用户 IP 与「本机会跑 studentbuddy」这一事实。
+ * 本机形态下配图没有外链需求（要图就画出来），故整标签剥掉而非只拦协议。
  */
 export function sanitizeSvg(svg: string): string {
   if (typeof DOMParser !== 'undefined') {
@@ -81,7 +85,7 @@ export function sanitizeSvg(svg: string): string {
 function sanitizeViaDom(svg: string): string {
   const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
   if (doc.querySelector('parsererror')) throw new Error('malformed svg');
-  doc.querySelectorAll('script, foreignObject, iframe, object, embed').forEach((el) => el.remove());
+  doc.querySelectorAll('script, foreignObject, iframe, object, embed, image').forEach((el) => el.remove());
   doc.querySelectorAll('*').forEach((el) => {
     for (const attr of Array.from(el.attributes)) {
       const name = attr.name.toLowerCase();
@@ -107,7 +111,7 @@ function sanitizeViaRegex(svg: string): string {
     );
     s = s.replace(block, '').replace(open, '');
   };
-  for (const tag of ['script', 'foreignObject', 'iframe', 'object', 'embed']) removeBlock(tag);
+  for (const tag of ['script', 'foreignObject', 'iframe', 'object', 'embed', 'image']) removeBlock(tag);
   s = s.replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
   s = s.replace(/(\s(?:xlink:)?href\s*=\s*["'])\s*javascript:[^"']*(["'])/gi, '$1$2');
   s = s.replace(/(\s[-\w:]*url\s*\(\s*["']?)\s*javascript:/gi, '$1');

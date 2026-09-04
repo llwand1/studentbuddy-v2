@@ -31,6 +31,11 @@ export interface QuizQuestion {
   explanation?: string;
   solution?: string;
   source?: { kind: 'web' | 'ai'; title: string; url?: string };
+  /**
+   * 配图：SVG 源码（契约 docs/QUIZ-IMAGE-SPEC.md）。模型自决——需要示意图才给，看得懂文字就不给。
+   * 可选字段：历史题无此键 → undefined → 不渲染，**不做数据迁移**；判分逻辑不读它，图只作附加展示。
+   */
+  svg?: string;
 }
 
 export interface QuizPayload {
@@ -129,4 +134,62 @@ export function setQuizMix(mix: QuizMix, type: QuizType, value: number): QuizMix
   const cap = Math.min(MAX_QUIZ_PER_TYPE, MAX_QUIZ_TOTAL - others);
   const v = Number.isFinite(value) ? Math.trunc(value) : 0;
   return { ...mix, [type]: Math.min(Math.max(0, v), Math.max(0, cap)) };
+}
+
+// ── 出题配图开关（契约 docs/QUIZ-IMAGE-SPEC.md §2.2 / §2.3）──
+
+/** 落 app_settings 的键名（server 读写，前端不直接碰库） */
+export const SETTING_KEY_QUIZ_IMAGE = 'quiz_image';
+
+/** 默认关：配图显著拉长输出，弱模型先不背这个包袱；要图去设置页开 */
+export const DEFAULT_QUIZ_IMAGE = false;
+
+/** 单张 SVG 字符上限：超长基本是模型跑飞了（几百个元素的怪物图） */
+export const MAX_QUIZ_SVG_CHARS = 8000;
+
+/**
+ * SVG 校验：**只返回「能用的图」或 undefined，绝不抛错** —— 图挂了题必须还在（丢图保题）。
+ * 丢弃规则（详见契约 §2.3）：非字符串/空白 → 丢；不含 `<svg` 根标记 → 丢；
+ * 缺 `</svg>` 闭合 → 丢（宁可不给，也不给半张残缺图——学习软件里残缺的几何图会教错）；
+ * 超 MAX_QUIZ_SVG_CHARS → 丢。
+ */
+export function normalizeQuizSvg(input: unknown): string | undefined {
+  if (typeof input !== 'string') return undefined;
+  const s = input.trim();
+  if (!s || s.length > MAX_QUIZ_SVG_CHARS) return undefined;
+  const open = s.match(/<svg\b[^>]*>/i);
+  if (!open) return undefined;
+  // 截断裂据是「有开标记但两种终止写法都没有」：成对 </svg> 或自闭合 <svg .../> 都算收尾完整
+  const selfClosed = /\/>\s*$/.test(open[0] ?? '');
+  if (!selfClosed && !/<\/svg\s*>/i.test(s)) return undefined;
+  return s;
+}
+
+/**
+ * 配图结果报告（v1.1，契约 §2.4）：开关状态 + 交付几张 + 丢了几张 + 是否撞顶截断过。
+ * 与 QuizMixReport 同族：都是「缺了就说什么」的出参，前端只念不判。
+ * 不加这个的话，「模型画了但图坏了被丢」与「开关本来关着」在前端长得一模一样——静默，违反 ADR-5。
+ */
+export interface QuizImageReport {
+  /** 本次出题时总开关是否为开（关时 delivered/droppedSvg 恒 0，不算失败） */
+  on: boolean;
+  /** 最终题组里带可用 svg 的题数（由路由在配比裁剪**后**重算，不报被裁掉的图） */
+  delivered: number;
+  /** 模型给了 svg 但**最终没交付**的题数：未通过校验（残缺/非源码/超长），或解析救援时被剥掉 */
+  droppedSvg: number;
+  /** 输出撞 token 上限、靠逐题回退才保住前缀：尾部不完整题已丢弃，题组可用但不全 */
+  truncated: boolean;
+}
+
+/** 零值报告：路由出题前先建好，传给 generateQuiz 当出参（避开 undefined 分支） */
+export function emptyQuizImageReport(on = false): QuizImageReport {
+  return { on, delivered: 0, droppedSvg: 0, truncated: false };
+}
+
+/**
+ * 数题组里实际带可用图的题数。须在配比裁剪**后**调用：
+ * 模型画了 3 张、裁剪后只剩 1 张带图的题，就只该报 1，不然前端与题库会对不上数。
+ */
+export function countQuizImages(quiz: QuizPayload | null | undefined): number {
+  return quiz ? quiz.questions.filter((q) => q.svg).length : 0;
 }

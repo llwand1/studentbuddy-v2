@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { TokenChunk } from '../llm/types.js';
+import type { TidySummary } from '@sb/shared';
 
 process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-flow-test-'));
 delete process.env.EXA_API_KEY;
@@ -93,7 +94,35 @@ vi.mock('../learning/document.js', () => ({
   buildDocBlock: (d: { name: string; text: string }) => `【资料 ${d.name}】${d.text}`,
 }));
 
+// 词条整理 mock：flow 测的是工具接线（tool_calls → 执行 → 摘要回灌 → step），引擎语义由 tidy.test.ts 锁
+const tidyStub = vi.hoisted(() => ({
+  calls: [] as string[],
+  summary: {
+    result: 'ok',
+    before: 5,
+    after: 3,
+    mergedClusters: [{ canonical: '机器学习', aliases: ['machine learning'], reason: '中英互译' }],
+    domainRenames: { 计算机: 'cs' },
+  } as TidySummary,
+}));
+
+vi.mock('../learning/tidy.js', () => ({
+  tidyTerms: async (): Promise<TidySummary> => {
+    tidyStub.calls.push('auto');
+    return tidyStub.summary;
+  },
+  mergeTerms: (terms: string[]): TidySummary => {
+    tidyStub.calls.push(`merge:${terms.join(',')}`);
+    return tidyStub.summary;
+  },
+  renameDomain: (from: string, to: string): TidySummary => {
+    tidyStub.calls.push(`rename:${from}>${to}`);
+    return tidyStub.summary;
+  },
+}));
+
 const { getDb, closeDb } = await import('../storage/db.js');
+const { saveAnswerStyle, resetAnswerStyle } = await import('../storage/answer-style.js');
 const { handleMessage } = await import('./flow.js');
 const { snapshot } = await import('./sse-bus.js');
 
@@ -127,10 +156,12 @@ beforeEach(() => {
   stub.searchFail = null;
   stub.searchSnippet = 'F=ma';
   stub.lastMessages = [];
+  resetAnswerStyle(); // 偏好落 app_settings，不清就会流到下一个测例
   termsStub.relevant = [];
   termsStub.queries = [];
   termsStub.extractRejects = false;
   documentStub.doc = null;
+  tidyStub.calls = [];
   getDb().prepare('DELETE FROM messages').run();
   getDb().prepare('DELETE FROM sessions').run();
 });
@@ -254,9 +285,9 @@ describe('单轨工具循环', () => {
 
     // 检索参数正确（query + 默认 Top-15）
     expect(termsStub.queries).toEqual([['什么是闭包 closure？', 15]]);
-    // 注入后的消息里应有第二条 system（基础提示 + 词条提示），词条行逐字正确
+    // 注入后的消息里应有第二条 system（基础提示 + 词条提示），词条行逐字正确（偏好段恒在其后）
     const sys = stub.lastMessages.filter((m) => m.role === 'system');
-    expect(sys).toHaveLength(2);
+    expect(sys).toHaveLength(3); // 基础提示 + 词条段 + 偏好段（偏好段恒在最后，不挤掉前两段）
     expect(sys[1]?.content).toContain('优先使用这些术语');
     expect(sys[1]?.content).toContain('- closure（cs）：闭包：函数与其词法作用域的绑定');
     expect(sys[1]?.content).toContain('- scope（cs）：作用域：变量可被访问的范围');
@@ -278,6 +309,57 @@ describe('单轨工具循环', () => {
     expect(list.at(-1)?.content).toBe('正常回答。');
     expect(streamed(sid)).toBe('正常回答。');
   });
+
+  it('词条库整理：tidy_terms auto 全链路（tool_calls → 执行 → 摘要回灌 → step 三态）', async () => {
+    const sid = newSession();
+    stub.turns = [
+      [
+        {
+          content: '我来整理一下',
+          done: false,
+          toolCalls: [{ id: 't1', name: 'tidy_terms', arguments: '{"action":"auto"}' }],
+        },
+      ],
+      [{ content: '整理好了。', done: true }],
+    ];
+
+    const r = await handleMessage({ sessionId: sid, text: '帮我整理一下词条库' });
+    expect(r.ok).toBe(true);
+    expect(tidyStub.calls).toEqual(['auto']);
+
+    const list = rows(sid);
+    expect(list.map((x) => x.role)).toEqual(['user', 'assistant', 'tool', 'assistant']);
+    const toolMsg = list.find((x) => x.role === 'tool');
+    expect(toolMsg?.content).toContain('机器学习'); // 整理摘要回灌给模型
+    expect(toolMsg?.content).toContain('自然语言'); // 汇报口径指令随行（不让模型甩原始 JSON）
+    const steps = snapshot(sid).filter((e) => e.type === 'step');
+    expect(
+      steps.some((s) => s.type === 'step' && s.tool === 'tidy_terms' && s.status === 'running' && (s.detail ?? '').includes('整理')),
+    ).toBe(true);
+    expect(steps.some((s) => s.type === 'step' && s.tool === 'tidy_terms' && s.status === 'done')).toBe(true);
+  });
+
+  it('词条库整理：merge 参数不全 → 引导重调（不崩、step error）', async () => {
+    const sid = newSession();
+    stub.turns = [
+      [
+        {
+          content: '',
+          done: false,
+          toolCalls: [{ id: 't2', name: 'tidy_terms', arguments: '{"action":"merge","terms":["闭包"]}' }],
+        },
+      ],
+      [{ content: '好的。', done: true }],
+    ];
+
+    const r = await handleMessage({ sessionId: sid, text: '把闭包合并一下' });
+    expect(r.ok).toBe(true);
+    expect(tidyStub.calls).toHaveLength(0); // 参数没过关，引擎没被调用
+    const toolMsg = rows(sid).find((x) => x.role === 'tool');
+    expect(toolMsg?.content).toContain('至少两个词条名');
+    const steps = snapshot(sid).filter((e) => e.type === 'step');
+    expect(steps.some((s) => s.type === 'step' && s.tool === 'tidy_terms' && s.status === 'error')).toBe(true);
+  });
 });
 
 describe('文档模式注入（契约 5.0 §5.1-2/3）', () => {
@@ -293,8 +375,8 @@ describe('文档模式注入（契约 5.0 §5.1-2/3）', () => {
     expect(r.ok).toBe(true);
 
     const sys = stub.lastMessages.filter((m) => m.role === 'system');
-    expect(sys).toHaveLength(3); // 基础提示 + 词条段 + 资料段
-    expect(sys.at(-1)?.content).toContain('【资料 讲义.md】');
+    expect(sys).toHaveLength(4); // 基础提示 + 词条段 + 资料段 + 偏好段
+    expect(sys[2]?.content).toContain('【资料 讲义.md】'); // 资料段仍在第三位，偏好段固定收尾
     // 注入只进上下文：屏上与库内正文都不该出现资料段
     expect(streamed(sid)).toBe('按资料作答。');
     expect(rows(sid).at(-1)?.content).toBe('按资料作答。');
@@ -311,7 +393,7 @@ describe('文档模式注入（契约 5.0 §5.1-2/3）', () => {
     documentStub.doc = null;
     await handleMessage({ sessionId: sid, text: '第二问' });
     expect(stub.lastMessages.some((m) => m.content.includes('【资料'))).toBe(false);
-    expect(stub.lastMessages.filter((m) => m.role === 'system')).toHaveLength(1);
+    expect(stub.lastMessages.filter((m) => m.role === 'system')).toHaveLength(2); // 基础 + 偏好（资料段已清）
   });
 
   it('资料段计入截断预算：载入 4 万字资料后被载历史明变少', async () => {
@@ -339,6 +421,58 @@ describe('文档模式注入（契约 5.0 §5.1-2/3）', () => {
 
     expect(withoutDoc).toBe(21); // 20 条历史 + 本轮新问题全数保留
     expect(withDoc).toBeLessThanOrEqual(withoutDoc - 3);
+  });
+});
+
+describe('回答方式偏好注入（契约 ANSWER-STYLE §3）', () => {
+  const sysNow = () => stub.lastMessages.filter((m) => m.role === 'system');
+
+  it('未配置也注入一段默认偏好，且排在所有注入段的最后', async () => {
+    const sid = newSession();
+    termsStub.relevant = [{ term: '加速度', definition: '速度的变化率', domain: 'physics' }];
+    stub.turns = [[{ content: '答。', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: '什么是加速度' });
+    const sys = sysNow();
+    expect(sys).toHaveLength(3); // 基础 + 词条 + 偏好
+    expect(sys[1]?.content).toContain('优先使用这些术语');
+    expect(sys.at(-1)?.content).toContain('结论先行'); // 默认 verbosity=standard
+    expect(sys.at(-1)?.content).toContain('讲人话'); // 默认 tone=teacher，与现状同话
+  });
+
+  it('改库内偏好 → 下一轮出站的偏好段随之改变（不改就不算生效）', async () => {
+    const sid = newSession();
+    saveAnswerStyle({ verbosity: 'brief', shape: 'bullets' });
+    stub.turns = [[{ content: '一', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: '第一问' });
+    const block = sysNow().at(-1)?.content ?? '';
+    expect(block).toContain('两三句内');
+    expect(block).toContain('多用短列点');
+    expect(block).not.toContain('结论先行'); // 换档后旧措辞必须消失，防两段并存
+  });
+
+  it('偏好段只进上下文：屏上与库内正文都不含它', async () => {
+    const sid = newSession();
+    saveAnswerStyle({ tone: 'socratic' });
+    stub.turns = [[{ content: '你先想想看。', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: '讲讲牛顿定律' });
+    expect(streamed(sid)).toBe('你先想想看。');
+    expect(rows(sid).at(-1)?.content).toBe('你先想想看。');
+    expect(sysNow().at(-1)?.content).toContain('先反问一两个关键问题');
+  });
+
+  it('恢复默认（删键）后回到默认偏好段', async () => {
+    const sid = newSession();
+    saveAnswerStyle({ verbosity: 'detailed' });
+    resetAnswerStyle();
+    stub.turns = [[{ content: 'ok', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: 'q' });
+    const block = sysNow().at(-1)?.content ?? '';
+    expect(block).toContain('结论先行');
+    expect(block).not.toContain('宁长勿短');
   });
 });
 

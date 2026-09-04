@@ -4,6 +4,7 @@
  */
 import { useState } from 'react';
 import type { QuizQuestion } from '@sb/shared';
+import { SvgPreviewCard } from '../chat/SvgPreviewCard';
 import './quiz.css';
 
 export function QuizCard({
@@ -59,6 +60,14 @@ function QuestionItem({ index, q, onAnswer }: { index: number; q: QuizQuestion; 
         <span className="quiz-q-type">{typeLabel}</span>
         {q.question}
       </div>
+
+      {/* 配图：svg 由模型产出，属不可信内容——只经 SvgPreviewCard 渲染（内含 prepareSvg 净化），
+          此处不得另开 dangerouslySetInnerHTML。契约 docs/QUIZ-IMAGE-SPEC.md §2.5 */}
+      {q.svg && (
+        <div className="quiz-q-svg">
+          <SvgPreviewCard code={q.svg} streaming={false} />
+        </div>
+      )}
 
       {(q.type === 'single' || q.type === 'multiple') &&
         q.options?.map((opt, i) => {

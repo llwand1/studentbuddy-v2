@@ -150,6 +150,11 @@ export function TermsPage() {
                   <div className="term-top">
                     <span className="term-name">{t.term}</span>
                     <span className="term-domain">{t.domain}</span>
+                    {t.aliases?.length > 0 && (
+                      <span className="term-alias" title="AI 整理时并入的同义词">
+                        别名 {t.aliases.join(' · ')}
+                      </span>
+                    )}
                     {t.usage_count > 0 && <span className="term-used">已在对话中使用 {t.usage_count} 次</span>}
                   </div>
                   <div className="term-def">{t.definition}</div>

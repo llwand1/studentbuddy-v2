@@ -11,8 +11,14 @@ import { subscribe, startHeartbeat } from './chat/sse-bus.js';
 import { getProviders, seedIfEmpty, MODEL_ROLES } from './llm/router.js';
 import { encryptSecret, decryptSecret, isEncrypted } from './storage/crypto.js';
 import { searchWeb, listKeyStatus, saveProviderKey, KEYED_PROVIDERS } from './search/index.js';
-import { loadQuizMix, saveQuizMix } from './learning/quiz.js';
-import { normalizeQuizMix } from '@sb/shared';
+import { loadQuizMix, saveQuizMix, loadQuizImage, saveQuizImage } from './learning/quiz.js';
+import {
+  loadAnswerStyle,
+  saveAnswerStyle,
+  resetAnswerStyle,
+  isAnswerStyleConfigured,
+} from './storage/answer-style.js';
+import { DEFAULT_ANSWER_STYLE, normalizeQuizMix } from '@sb/shared';
 
 // ── sessions ──────────────────────────────────────────────
 export const sessionsRouter = Router();
@@ -197,6 +203,35 @@ settingsRouter.put('/quiz-mix', (req: Request, res: Response) => {
   // 入参一律过归一化（负数/小数/超上限/全 0 都有既定归宿），落库即干净值
   const mix = saveQuizMix(normalizeQuizMix((req.body as { mix?: unknown }).mix));
   res.json({ ok: true, mix });
+});
+
+// ── settings：出题配图开关（契约 docs/QUIZ-IMAGE-SPEC.md §2.2）──
+settingsRouter.get('/quiz-image', (_req, res) => {
+  res.json({ on: loadQuizImage() });
+});
+
+settingsRouter.put('/quiz-image', (req: Request, res: Response) => {
+  // 只认真值，其余一律按关处理（saveQuizImage 内归一化）
+  const on = saveQuizImage((req.body as { on?: unknown }).on === true);
+  res.json({ ok: true, on });
+});
+
+// ── settings：回答方式偏好（契约 docs/ANSWER-STYLE-SPEC.md §2）──
+settingsRouter.get('/answer-style', (_req, res) => {
+  // configured 是 L1 的开关量：没配过 与 配成默认值 在 style 上看不出区别
+  res.json({ style: loadAnswerStyle(), configured: isAnswerStyleConfigured() });
+});
+
+settingsRouter.put('/answer-style', (req: Request, res: Response) => {
+  // 入参逐字段过归一化（非法/缺失各自回落默认，不 400），回读的是实际落库值
+  const style = saveAnswerStyle((req.body as { style?: unknown }).style);
+  res.json({ style, configured: true });
+});
+
+settingsRouter.delete('/answer-style', (_req, res) => {
+  // 删键＝回到「没配过」：下次点出题会重新弹一次选项卡
+  resetAnswerStyle();
+  res.json({ style: { ...DEFAULT_ANSWER_STYLE }, configured: false });
 });
 
 /** 搜索连通性自检：真发一次（国产网络可用性必须实测，不接受纸面判断；绕缓存才叫自检）。 */

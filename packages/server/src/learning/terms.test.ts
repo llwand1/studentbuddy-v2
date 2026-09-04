@@ -1,10 +1,28 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { openIsolated, closeDb } from '../storage/db.js';
 import { getDb } from '../storage/db.js';
-import { parseTermsBlock, normalizeTerms, saveTerms, saveOneTerm, listTerms, domainStats, removeTerm, updateTerm, getRelevantTerms, countUsage } from './terms.js';
+import { parseTermsBlock, normalizeTerms, saveTerms, saveOneTerm, listTerms, domainStats, removeTerm, updateTerm, getRelevantTerms, countUsage, extractTerms } from './terms.js';
+
+// extractTerms 的 LLM 调用走 mock（捕获出站提示词；本文件其余用例不触 LLM）
+let lastPrompt = '';
+vi.mock('../llm/router.js', () => ({
+  routeRole: () => ({
+    adapter: {
+      chat: (opts: { messages: Array<{ role: string; content: string }> }) => ({
+        async *[Symbol.asyncIterator]() {
+          lastPrompt = opts.messages[0]?.content ?? '';
+          yield { content: '[TERMS]{"terms":[]}', done: true };
+        },
+      }),
+    },
+    model: 'test-model',
+    apiKey: 'k',
+    baseUrl: 'b',
+  }),
+}));
 
 let dir: string;
 
@@ -98,6 +116,61 @@ describe('learning/terms — 入库与合并', () => {
     expect(s.total).toBe(3);
     expect(s.domains.find((d) => d.domain === 'english')?.count).toBe(2);
     expect(s.today).toBe(3);
+  });
+});
+
+describe('learning/terms — 防再分裂（TERM-TIDY-SPEC §7）', () => {
+  /** 给指定词条挂别名（模拟整理后的状态） */
+  const setAliases = (term: string, aliases: string[]) => {
+    getDb().prepare('UPDATE term_library SET aliases = ? WHERE term = ?').run(JSON.stringify(aliases), term);
+  };
+
+  it('saveTerms 命中已有词条的别名 → 并入不新建（跨域也并入）', () => {
+    saveTerms([{ term: '机器学习', definition: '定义', domain: 'cs', importance: 0.8 }]);
+    setAliases('机器学习', ['machine learning', 'ML']);
+    // 再抽到 machine learning（哪怕 LLM 给了别的领域）→ 并入已有行
+    const n = saveTerms([{ term: 'machine learning', definition: '新释义', domain: 'english', importance: 0.6 }]);
+    expect(n).toBe(1);
+    expect(listTerms()).toHaveLength(1);
+    expect(listTerms()[0]?.term).toBe('机器学习');
+    expect(listTerms()[0]?.definition).toBe('定义'); // 0.6 < 0.8，不覆盖释义
+    expect(listTerms()[0]?.importance).toBe(0.8);
+  });
+
+  it('saveTerms 同词同域大小写不敏感 → 并入（Closure/closure 不再各成一条）', () => {
+    saveTerms([{ term: 'closure', definition: '闭包', domain: 'cs', importance: 0.5 }]);
+    saveTerms([{ term: 'Closure', definition: '闭包（大写变体）', domain: 'cs', importance: 0.9 }]);
+    expect(listTerms()).toHaveLength(1);
+    expect(listTerms()[0]?.definition).toBe('闭包（大写变体）');
+  });
+
+  it('saveTerms 同词不同域不并入（closure 的 math 与 english 是两个概念）', () => {
+    saveTerms([
+      { term: 'matrix', definition: '矩阵', domain: 'math', importance: 0.5 },
+      { term: 'matrix', definition: '母体', domain: 'general', importance: 0.5 },
+    ]);
+    expect(listTerms()).toHaveLength(2);
+  });
+
+  it('countUsage 命中别名与大小写变体；英文按词边界不误报', () => {
+    saveTerms([{ term: '机器学习', definition: 'x', domain: 'cs', importance: 0.5 }]);
+    setAliases('机器学习', ['machine learning', 'ML']);
+    const n = countUsage('Machine Learning 与 ML 都是机器学习的说法');
+    expect(n).toBe(1);
+    expect(listTerms()[0]?.usage_count).toBe(1);
+    // html 内含 "ml" 子串，但不是独立词 → 不计数
+    expect(countUsage('html 是超文本标记语言')).toBe(0);
+  });
+
+  it('extractTerms 提示词注入已有领域（防领域碎裂）', async () => {
+    saveTerms([
+      { term: 'a', definition: 'a', domain: 'english', importance: 0.5 },
+      { term: 'b', definition: 'b', domain: 'cs', importance: 0.5 },
+    ]);
+    await extractTerms('一段学习材料');
+    expect(lastPrompt).toContain('已有领域（优先复用');
+    expect(lastPrompt).toContain('english');
+    expect(lastPrompt).toContain('cs');
   });
 });
 

@@ -108,13 +108,10 @@ tools/gates     — 工程门禁：行数上限 / 禁内联样式 / 禁 any
 
 ## 快速开始
 
-> ⚠️ **必须用 Node 20**（`engines: >=20.11.0`）：`better-sqlite3` 原生模块按 Node 20 编译，Node 22 跑涉库代码会全线 `NODE_MODULE_VERSION` 报错。
+> ⚠️ **Node 版本必须「装依赖」与「运行时」一致**（`engines: >=22.11.0`，现役 Node 22.22.2 / ABI 127，仓库带 `.nvmrc`）：`better-sqlite3` 是原生模块，产物按**安装那一刻**的 Node ABI 编译；用 Node 20 装完再拿 Node 22 跑（或反之），涉库代码会全线 `ERR_DLOPEN_FAILED`，表现为所有 HTTP 接口 500、测试大面积红，**极易误判成新代码写错**。**换 Node 大版本必须重装依赖**（删 `node_modules` 后 `npm install`），只换运行时无效。
 
 ```bash
-# 0) 用 Node 20（按你的安装路径调整）
-#    本机参考：C:\nodejs20\node-v20.18.3-win-x64
-
-npm install          # workspaces 三包一次装齐
+npm install          # workspaces 三包一次装齐（装依赖的 Node = 以后跑的 Node）
 npm run check        # lint(tsc×3 + eslint) + test(vitest) + gates —— 全绿基线
 npm run dev:server   # api :18791（端口被占时 SB_PORT=18792）
 npm run dev:web      # web :5173（代理目标 SB_PROXY_TARGET 可配）

@@ -83,7 +83,7 @@
 
 ## 已知约束
 
-- **跑测试/起服务必须用 Node 20**（`C:\nodejs20\node-v20.18.3-win-x64\node.exe`）：`better-sqlite3` 原生模块按 Node 20 编译（`NODE_MODULE_VERSION 115`），PATH 上默认的 Node 22（`127`）一跑涉库代码就全线 500（`was compiled against a different Node.js version`）。2026-09-02 实测踩到，症状是所有 HTTP 接口 500、测试大面积红，极易误判成新代码写错
+- **Node 版本必须「装依赖」与「运行时」一致**（**现役 Node 22.22.2 / ABI 127**，仓库带 `.nvmrc`）：`better-sqlite3` 原生模块产物按**安装那一刻**的 Node ABI 编译，换 Node 大版本**必须重装依赖**（删 `node_modules` 后 `npm install`），只换运行时无效——否则涉库代码全线 `ERR_DLOPEN_FAILED: was compiled against a different Node.js version`，症状是所有 HTTP 接口 500、测试大面积红，极易误判成新代码写错。历史：2026-09-02 踩到（Node 20 装的产物用 PATH 默认 Node 22 跑）；**2026-09-05 已正式迁到 Node 22**——删 node_modules 用 22 重装（prebuilt-install 直接下 v127 官方二进制，未本地编译），`npm run check` 26 文件/302 例全绿 + 隔离实例（`SB_PORT=18799` + 临时 `SB_DATA_DIR`）端到端验过建会话落库、配比 PUT 后 GET 回读一致、WAL 正常生成
 - dev 端口与 v1 冲突时用 `SB_PORT` 切换，**不杀 v1 进程**
 - **文档模式是“整篇直塞”不是检索**：无切块／无向量库／无跨会话检索，`MAX_DOC_CHARS=60_000` 以上直接截断上屏（库里保留全文）。要超出这个能力预算需**先改契约（5.0 §5）再改码**，不得先写实现再补文档
 - **免 key 兜底在本机网络不可用**：2026-08-27 实测 `lite.duckduckgo.com` 与 `api.duckduckgo.com` 均超时（直连被阻断，baidu/agnes 正常 200/401）→ 三路全挂约 20s 且零结果。要让 `search_web` 真出结果必须在设置页配 key（智谱国产可达，优先试）；挂代理另议

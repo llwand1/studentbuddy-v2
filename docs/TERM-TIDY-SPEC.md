@@ -113,7 +113,7 @@ SSE step 事件为通用契约（tool/status/detail），不新增事件类型�
 | `learning/terms.test.ts` | +命中别名并入不新建；+同词同域大小写不敏感并入；+countUsage 别名与大小写命中 |
 | `chat/flow.test.ts` | +tidy_terms 工具全链路（模型 tool_calls → 真执行 → 摘要回灌 → step 事件） |
 
-通过后同步 `docs/dev/test-plan.md` 基线与不变量；`npm run check`（Node 20）全绿。
+通过后同步 `docs/dev/test-plan.md` 基线与不变量；`npm run check`（现役 Node 22，见 `docs/dev/test-plan.md` §2 版本坑）全绿。
 
 ## 10. 风险（§0.5）
 

@@ -5,7 +5,7 @@
   "description": "studentbuddy v2 - 本地优先的 AI 学习助手（学→练→析→忆→反馈闭环，学习版豆包）",
   "license": "MIT",
   "engines": {
-    "node": ">=20.11.0"
+    "node": ">=22.11.0"
   },
   "workspaces": [
     "packages/*"

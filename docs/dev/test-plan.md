@@ -28,12 +28,12 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 
 - **本机坑（2026-09-02 实测）**：`PATH` 上存在 `D:\npx.ps1` 残 shim，`npx vitest` 报 `Cannot find module 'D:\node_modules\npm\bin\npm-prefix.js'`。绕法=用 `node node_modules\vitest\vitest.mjs …` 直调，**不要为此改仓库配置**。
 - **退出码坑**：Vite 的 CJS Node API 弃告走 stderr，PowerShell 会把管道结果标成 `ExitCode 1`；判定以汇总行 `Tests  N passed` 为准，不以退出码为准。
-- **★ Node 版本坑（2026-09-02 实测，最坑的一条）**：`better-sqlite3` 原生模块按 **Node 20** 编译（`NODE_MODULE_VERSION 115`），而 PATH 上默认的 `node` 是 22.22.2（`127`）。用 22 跑 ⇒ 所有涉库接口 500、测试大面积红（`was compiled against a different Node.js version`），**极易误判成新写的代码有 bug**。绕法：`C:\nodejs20\node-v20.18.3-win-x64\node.exe node_modules\vitest\vitest.mjs run`（或把该目录前置到 `PATH` 再 `npm run check`）。**不要为此改仓库配置。**
+- **★ Node 版本坑（2026-09-02 实测；2026-09-05 已迁到 Node 22，坑的原理不变）**：`better-sqlite3` 是原生模块，产物按**安装那一刻**的 Node ABI 编译（Node 20 = `NODE_MODULE_VERSION 115`，Node 22 = `127`）。「装依赖的 Node」与「跑的 Node」大版本不一致 ⇒ 所有涉库接口 500、测试大面积红（`was compiled against a different Node.js version`），**极易误判成新写的代码有 bug**。现役：**Node 22.22.2 / ABI 127**（仓库带 `.nvmrc`），直接 `npm run check` 即可。若哪天要换 Node 大版本，**必须删 `node_modules` 用目标版本重装**（只改 PATH 无效）；`npm run check` 全绿即产物已对齐。
 - 测试隔离：`flow.test.ts` 等在 import 前设 `process.env.SB_DATA_DIR = mkdtempSync(...)`；`storage/db.ts` 另有 `openIsolated(dataDir)` 供单库用例。**禁止测试写真实数据目录。**
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
-- **退出挂住（沙箱实测，非功能缺陷，诚实记账）**：本批在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用 Node 20 跑 `npm run test` 即可干净退出。
+- **退出挂住（沙箱实测，非功能缺陷，诚实记账）**：本批在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（基线：26 文件 / 302 例全绿，2026-09-04 22:31 实测，Node 20）
+## 3. 用例清单（基线：26 文件 / 302 例全绿，2026-09-04 22:31 实测于 Node 20；2026-09-05 09:07 迁到 Node 22 后复验：同数 26 文件 / 302 例全绿）
 
 > 上一基线：24 文件 / 258 例（出题配图 v1.1.1，2026-09-04 21:02）。**本批（回答方式偏好 L0+L1）**：
 > 文件 24→26、例 258→302（**+44**，逐文件实测求和而非拿总数倒推）：
@@ -43,7 +43,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 > 小计随之变：shared 27→**45**、server 187→**210**、web 44→**47**（45+210+47=302，与本节表格行数一致）。
 > 其中 **6 例转义修复、两例风格段行为不是原契约 §5 列的**，是做的时候补上（前者被真机 502 逼出来、后者因为「只测 shared 拼字符串」证明不了风格段真进过出站消息）。
 > **同时补登两处本表自身的老账**（与代码无关，是登记缺失）：① `routes/quiz-mix.test.ts` 10 例自 09-03 配比批起从未进表，现补行；② 三节小计按行求和校正——server 141→**187**、web 64→**44**（逐文件跑 vitest 数出来的，shared 27 本来就对）。小计与自家表格不符 = 基线数没人复核过。
-> 用例数以 `vitest run` 汇总为准；新增用例须同步本表与 §2 基线数。**必须用 Node 20 跑（见 §2 版本坑）**。
+> 用例数以 `vitest run` 汇总为准；新增用例须同步本表与 §2 基线数。**必须用与装依赖一致的 Node 版本跑（现役 Node 22，见 §2 版本坑）**。
 
 ### shared（45 例）
 

@@ -5,10 +5,18 @@
  */
 import Database from 'better-sqlite3';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
+/**
+ * 数据目录优先级：`SB_DATA_DIR` → `%APPDATA%` → `os.homedir()`。
+ * 末级兜底**不能是 '.'**：无 APPDATA 的环境（CI / 精简 shell / 部分沙箱）会把
+ * studentbuddy.db 直接写进当前工作目录——起服务时 cwd 是 packages/server，
+ * 库文件就落在源码树里污染工作区（2026-09-05 实测踩到）。homedir 拿不到时
+ * Node 会自行回退到 tmpdir，无需再兜一层。
+ */
 export const DATA_DIR =
-  process.env.SB_DATA_DIR ?? path.join(process.env.APPDATA ?? '.', 'studentbuddy-v2');
+  process.env.SB_DATA_DIR ?? path.join(process.env.APPDATA ?? os.homedir(), 'studentbuddy-v2');
 
 let db: Database.Database | null = null;
 

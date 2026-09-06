@@ -38,7 +38,7 @@ export interface RetrieveOpts {
 
 /**
  * 检索器接缝（硬约束 2「向量可插拔」）。本批只落 bm25 一档：
- * embed 档要等 provider 的 `/v1/embeddings` **实测可用**再加（探针至今未跑通，见 DOC-RAG-SPEC §8.3），
+ * embed 档要等 provider 的 `/v1/embeddings` **实测可用**再加（它要真调服务商花额度，至今未实测，见 DOC-RAG-SPEC §8.3），
  * 届时新增一个 `Retriever` 实现并只改 `getRetriever()` 一处，调用方不动。
  */
 export interface Retriever {

@@ -196,6 +196,27 @@ MIGRATIONS.push({
   ],
 });
 
+// v9：可观测地基（可观测与数据飞轮方案，2026-09-06）——event_log 单表落观测事件。
+// v8 已被认知进化契约预留（见 v7 注释），本迁移直接取 v9；后续批次从 v10 顺延。
+// payload 只存摘要类字段（截断查询词/工具名/错误摘要），不复制消息正文。
+MIGRATIONS.push({
+  version: 9,
+  statements: [
+    `CREATE TABLE IF NOT EXISTS event_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts TEXT NOT NULL DEFAULT (datetime('now')),
+      session_id TEXT,
+      kind TEXT NOT NULL,
+      payload TEXT,
+      latency_ms INTEGER,
+      tokens_in INTEGER,
+      tokens_out INTEGER
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_event_log_kind_ts ON event_log(kind, ts)`,
+    `CREATE INDEX IF NOT EXISTS idx_event_log_ts ON event_log(ts)`,
+  ],
+});
+
 export function getDb(): Database.Database {
   if (db) return db;
   fs.mkdirSync(DATA_DIR, { recursive: true });

@@ -8,6 +8,7 @@
 import { getDb } from '../storage/db.js';
 import { encryptSecret, decryptSecret } from '../storage/crypto.js';
 import { fetchSafe } from './ssrf-guard.js';
+import { publishEvent } from '../events/bus.js';
 
 export interface SearchResult {
   title: string;
@@ -278,6 +279,14 @@ export async function searchWeb(
     }
   });
   const results = [...byUrl.values()];
+  if (results.length === 0) {
+    // 观测接线（可观测地基 M-A）：零结果也是信号。payload 只存截断查询词与失败摘要（隐私口径见 shared/obs.ts）。
+    publishEvent({
+      type: 'obs',
+      kind: 'search_empty',
+      payload: { query: query.slice(0, 200), failed: failed.join('; ').slice(0, 500) },
+    });
+  }
   if (results.length > 0) cacheSet(cacheKey, results);
   return { results, providers: used, failed };
 }

@@ -8,6 +8,7 @@
     "./sse-events": "./src/sse-events.ts",
     "./content-blocks": "./src/content-blocks.ts",
     "./api": "./src/api.ts",
-    "./domain": "./src/domain.ts"
+    "./domain": "./src/domain.ts",
+    "./obs": "./src/obs.ts"
   }
 }

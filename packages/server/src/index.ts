@@ -10,8 +10,10 @@ import { quizRouter } from './routes/quiz.js';
 import { termsRouter } from './routes/terms.js';
 import { documentRouter } from './routes/document.js';
 import { activityRouter } from './routes/activity.js';
+import { obsRouter } from './routes/obs.js';
 import { previewRouter } from './routes/preview.js';
 import { wireActivityEvents } from './learning/activity.js';
+import { wireObsEvents } from './storage/obs.js';
 import { getDb } from './storage/db.js';
 import type { StatusResponse } from '@sb/shared';
 import { VERSION } from './version.js';
@@ -48,6 +50,7 @@ app.use('/api/quiz', quizRouter);
 app.use('/api/terms', termsRouter);
 app.use('/api/doc', documentRouter);
 app.use('/api/activity', activityRouter);
+app.use('/api/obs', obsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/preview', previewRouter);
 
@@ -67,6 +70,7 @@ export function startServer(port = PORT) {
 if (process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('index.js')) {
   initChatInfra();
   wireActivityEvents();
+  wireObsEvents();
   startServer();
   // eslint-disable-next-line no-console -- 启动横幅是进程日志，非调试输出
   console.log(`[sb-server] listening on http://${HOST}:${PORT} (v${VERSION})`);

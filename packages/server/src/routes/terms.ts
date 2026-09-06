@@ -13,7 +13,8 @@ import {
   removeTerm,
   updateTerm,
 } from '../learning/terms.js';
-import { getSessionDoc } from '../learning/document.js';
+import { getSessionDoc, buildDocMaterial } from '../learning/document.js';
+import { DOC_EXTRACT_BUDGET_CHARS } from '@sb/shared';
 
 export const termsRouter = Router();
 
@@ -41,13 +42,17 @@ termsRouter.post('/', (req: Request, res: Response) => {
 /** 按文本抽取并入库（对话「存入记忆」按钮 / 文档模式抽词条 / 调试用）。 */
 termsRouter.post('/extract', async (req: Request, res: Response) => {
   const { text, sourceSessionId } = req.body as { text?: string; sourceSessionId?: string };
-  // 文档模式回退（契约 5.0 §5.1-5）：未给文本时用该会话载入的资料抽词条
-  const body = text?.trim() || (sourceSessionId ? getSessionDoc(sourceSessionId)?.text || '' : '');
+  // 文档模式回退（契约 5.0 §5.1-5 + DOC-RAG-SPEC §3.4）：未给文本时用该会话载入的资料抽词条。
+  // 传空查询 ⇒ 走**均匀覆盖全文**而不是检索：抽词条没有查询，要的是覆盖面不是相关度，
+  // 拿 BM25 做这件事会把词条抽成「跟某个词最像的那几段」。旧行为是只送前 30k 字，
+  // 长资料后段从未被抽过；新行为是同体量（≈DOC_EXTRACT_BUDGET_CHARS）但横跨全文。
+  const doc = sourceSessionId ? getSessionDoc(sourceSessionId) : null;
+  const body = text?.trim() || (doc ? buildDocMaterial(doc, '') : '');
   if (!body) {
     res.status(400).json({ error: 'text 必填（或先为本会话载入资料）' });
     return;
   }
-  const items = await extractTerms(body.slice(0, 30000));
+  const items = await extractTerms(body.slice(0, DOC_EXTRACT_BUDGET_CHARS));
   if (items.length === 0) {
     res.json({ added: 0, items: [] });
     return;

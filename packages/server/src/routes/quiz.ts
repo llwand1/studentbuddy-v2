@@ -15,7 +15,7 @@ import {
   applyQuizMix,
 } from '../learning/quiz.js';
 import { normalizeQuizMix, normalizeAnswerStyle, mixTotal, emptyQuizImageReport, countQuizImages } from '@sb/shared';
-import { getSessionDoc } from '../learning/document.js';
+import { getSessionDoc, buildDocMaterial } from '../learning/document.js';
 import { getDb } from '../storage/db.js';
 import { publishEvent } from '../events/bus.js';
 import { publish } from '../chat/sse-bus.js';
@@ -37,11 +37,13 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
     style?: unknown;
     save?: boolean;
   };
-  // 文档模式回退（契约 5.0 §5.1-5）：未显式给材料时用本会话载入的资料出题，
+  // 文档模式回退（契约 5.0 §5.1-5 + §5.1.1）：未显式给材料时用本会话载入的资料出题，
   // 故必须在校验前算——否则「只传 sessionId、对话还是空的」会被误判为无材料。
-  // 截断不在这里做：generateQuiz 自带 60k 材料上限，两处各截会互相掩盖。
+  // 长资料按出题主题检索相关段落（出题拿得到 topic 作查询，§3.4）；短资料仍是全文。
+  // `generateQuiz` 自带的材料上限仍是堆叠安全网，不靠它截正确内容。
   const docFallback = material?.trim() || !sessionId ? null : getSessionDoc(sessionId);
-  const effectiveMaterial = material?.trim() || docFallback?.text;
+  const effectiveMaterial =
+    material?.trim() || (docFallback ? buildDocMaterial(docFallback, topic ?? '') : undefined);
   if (!topic && !effectiveMaterial) {
     res.status(400).json({ error: 'topic 或 material 必填' });
     return;

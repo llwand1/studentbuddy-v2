@@ -19,6 +19,7 @@ import {
   normalizeQuizSvg,
   emptyQuizImageReport,
   buildAnswerStyleBlock,
+  MAX_DOC_CHARS,
 } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { loadAnswerStyle } from '../storage/answer-style.js';
@@ -248,7 +249,7 @@ export async function generateQuiz(
   // 开关只读一次：提示词与解析硬门必须同源，否则会出现「叫模型画、画完又剥掉」的自相矛盾
   const imageOn = loadQuizImage();
   if (report) report.on = imageOn;
-  const prompt = `${QUIZ_PROTOCOL}\n${buildMixInstruction(wanted)}\n${buildImageInstruction(imageOn)}\n${buildAnswerStyleBlock(styleArg ?? loadAnswerStyle(), 'quiz')}\n\n材料：\n${material ? material.slice(0, 60000) : `主题：${topic}`}`;
+  const prompt = `${QUIZ_PROTOCOL}\n${buildMixInstruction(wanted)}\n${buildImageInstruction(imageOn)}\n${buildAnswerStyleBlock(styleArg ?? loadAnswerStyle(), 'quiz')}\n\n材料：\n${material ? material.slice(0, MAX_DOC_CHARS) : `主题：${topic}`}`;
   for await (const chunk of target.adapter.chat({
     model: target.model,
     apiKey: target.apiKey,

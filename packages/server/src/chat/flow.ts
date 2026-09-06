@@ -97,9 +97,11 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     relevantTerms.length > 0
       ? `以下是你的术语记忆库中与本次提问相关的词条，回复时请优先使用这些术语（保持回答自然，不必逐条列举）：\n${termLines}`
       : '';
-  // 文档模式：本会话绑定的资料整篇直塞（超 MAX_DOC_CHARS 由 buildDocBlock 截断并自报）
+  // 文档模式（契约 5.0 §5.1.1 + DOC-RAG-SPEC）：短文档整篇直塞（逐字等价旧行为），
+  // 长文档拿本轮提问作查询检索 Top-K——传 query 就是这一行的全部改动，预算口径不需动：
+  // 下面 `estimateTokens(docBlock)` 量的就是最终要上屏的那段字，不管它是全文还是 12 个段落。
   const doc = getSessionDoc(sessionId);
-  const docBlock = doc ? buildDocBlock(doc) : '';
+  const docBlock = doc ? buildDocBlock(doc, opts.text) : '';
   // 表达偏好段（契约 ANSWER-STYLE §3）：四维全默认时它只是重述现状口径，不改口吻
   const styleBlock = buildAnswerStyleBlock(loadAnswerStyle());
   const systemPromptTokens =

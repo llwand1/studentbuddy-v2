@@ -84,14 +84,19 @@ vi.mock('../learning/terms.js', () => ({
 }));
 
 // 文档模式 mock：资料段是否存在由测例控制，隔离 flow 的注入与预算路径
+// queries 记录 flow 传进来的检索查询词：长文档靠它才能检索，漏传就只能整篇直塞（契约 DOC-RAG-SPEC T7）
 const documentStub = vi.hoisted(() => ({
   doc: null as null | { name: string; text: string; chars: number; truncated: boolean },
+  queries: [] as string[],
 }));
 
 vi.mock('../learning/document.js', () => ({
   MAX_DOC_CHARS: 60_000,
   getSessionDoc: () => documentStub.doc,
-  buildDocBlock: (d: { name: string; text: string }) => `【资料 ${d.name}】${d.text}`,
+  buildDocBlock: (d: { name: string; text: string }, query = '') => {
+    documentStub.queries.push(query);
+    return `【资料 ${d.name}】${d.text}`;
+  },
 }));
 
 // 词条整理 mock：flow 测的是工具接线（tool_calls → 执行 → 摘要回灌 → step），引擎语义由 tidy.test.ts 锁
@@ -161,6 +166,7 @@ beforeEach(() => {
   termsStub.queries = [];
   termsStub.extractRejects = false;
   documentStub.doc = null;
+  documentStub.queries = [];
   tidyStub.calls = [];
   getDb().prepare('DELETE FROM messages').run();
   getDb().prepare('DELETE FROM sessions').run();
@@ -421,6 +427,18 @@ describe('文档模式注入（契约 5.0 §5.1-2/3）', () => {
 
     expect(withoutDoc).toBe(21); // 20 条历史 + 本轮新问题全数保留
     expect(withDoc).toBeLessThanOrEqual(withoutDoc - 3);
+  });
+
+  // 契约 DOC-RAG-SPEC §6 T7：长文档分支的检索词来自本轮提问，flow 漏传则文档模式退化回直塞
+  it('本轮提问会作为检索词传给 buildDocBlock', async () => {
+    const sid = newSession();
+    documentStub.doc = docOf(80_000);
+    stub.turns = [[{ content: '答。', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: '半衰期受不受温度影响' });
+
+    expect(documentStub.queries.length).toBeGreaterThan(0); // 一调都没调 = 资料段根本没注入
+    for (const q of documentStub.queries) expect(q).toBe('半衰期受不受温度影响');
   });
 });
 

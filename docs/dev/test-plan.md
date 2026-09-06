@@ -1,6 +1,7 @@
 # studentbuddy v2 · 测试方案（test-plan）
 
-> 版本：v0.2.4 | 状态：[活跃] | 更新：2026-09-04 22:35（回答方式偏好 L0+L1 批回写；上一版为出题配图 v1.1.1）
+> 版本：v0.2.6 | 状态：[活跃] | 更新：2026-09-06 23:25（认知进化 WBS 任务 1-3 批回写；上一版为文档检索 DOC-RAG）
+> ★ **本版基线为账面数**：DOC-RAG 批 9 例（`document.test.ts` +8／`flow.test.ts` +1）+ 本批 4 例（`db.test.ts` v8 迁移）共 **13 例**因本机无 Node 22 未跑；本批新增的另 **35 例**（`domain.test.ts` 7／`verdict.test.ts` 18／`verdict-gate.test.ts` 10）不碰 DB，已在 Node 20 **实测绿**，详见 §3 顶注。
 > （表头版本号此前滞后一格——`§8` 已记到 v0.2.2 而表头仍写 v0.2.1，本次一并校正。）
 > 依据：个人开发文档 `AI-DEVELOPMENT-GUIDE.md` §0.8（测试同步）／§0.15 第 5 步（登记）、《计划重写文档》§10.4。
 > **本表是 §0.8 的强制载体**：改了代码 → 跑测试 → 更新本表，缺一即违规。此前本仓无本文件，属流程欠账（2026-09-02 随「文档模式」批次补齐）。
@@ -35,6 +36,13 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 
 ## 3. 用例清单（基线：26 文件 / 302 例全绿，2026-09-04 22:31 实测于 Node 20；2026-09-05 09:07 迁到 Node 22 后复验：同数 26 文件 / 302 例全绿）
 
+> ⚠️ **2026-09-06 文档检索批（DOC-RAG）后的基线尚未复验**：本批 +1 文件 / +37 例 → 理论 **27 文件 / 339 例**，
+> 但只跑过 `doc-retrieve.test.ts` 单文件（**28 例全绿**，它不碰 DB 故 Node 20 可跑），
+> 其余 9 例（`document.test.ts` +8、`flow.test.ts` +1）因本机无 Node 22 而未跑（`NODE_MODULE_VERSION 127 vs 115`）。
+> **所以下表 339 是账面数不是实测数**，需在 Node 22 下跑一次 `npm run check` 才能当新基线。
+>
+> ⚠️ **2026-09-06 认知进化批（契约 v1.1 · WBS 任务 1-3）叠加后的账面**：本批 +3 文件 / +39 例（新 `shared/domain.test.ts` 7、新 `learning/verdict.test.ts` 18、新 `learning/verdict-gate.test.ts` 10、`storage/db.test.ts` +4）→ 理论 **30 文件 / 378 例**。其中 **35 例已在 Node 20 实测绿**（三个新文件都不碰 DB），只有 `db.test.ts` 的 v8 新 4 例待 Node 22 复验；DOC-RAG 批欠的 9 例依旧是同一堵墙（`NODE_MODULE_VERSION 127 vs 115`）。**378 仍是账面数**，全量 `npm run check` 需在 Node 22 终端跑一次才能当新基线。
+
 > 上一基线：24 文件 / 258 例（出题配图 v1.1.1，2026-09-04 21:02）。**本批（回答方式偏好 L0+L1）**：
 > 文件 24→26、例 258→302（**+44**，逐文件实测求和而非拿总数倒推）：
 > 新 `shared/answer-style.test.ts` 18／新 `routes/answer-style.test.ts` 8／`learning/quiz-json-repair.test.ts` 10→16（+6，转义修复）／
@@ -45,23 +53,27 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 > **同时补登两处本表自身的老账**（与代码无关，是登记缺失）：① `routes/quiz-mix.test.ts` 10 例自 09-03 配比批起从未进表，现补行；② 三节小计按行求和校正——server 141→**187**、web 64→**44**（逐文件跑 vitest 数出来的，shared 27 本来就对）。小计与自家表格不符 = 基线数没人复核过。
 > 用例数以 `vitest run` 汇总为准；新增用例须同步本表与 §2 基线数。**必须用与装依赖一致的 Node 版本跑（现役 Node 22，见 §2 版本坑）**。
 
-### shared（45 例）
+### shared（52 例，账面：45 + 本批 7，本批 7 例已实测）
 
 | 文件 | 例数 | 锁死的不变量 | 状态 |
 |------|------|--------------|------|
 | `src/answer-style.test.ts` | 18 | **回答方式偏好契约（ANSWER-STYLE §1/§5）**：正好四道题·每题 2~4 个互斥选项·label ≤6 字能进 chip·**12 句指令措辞两两不同**（同题换档必须换话）·每个 value 都在该字段类型联合取值内（防文案与类型各跑一头）；`normalizeAnswerStyle` 逐字段回落（`null`/数字/数组/空串都不抛，合法+非法+缺失混给时**合法的进、其余各自保默认，不是整份作废**）；**默认值＝引入本功能之前的行为**（四维默认逐个钉死 + 默认段只含现状等价口径、不含新增强指令——改这里＝改所有未设置用户的 AI 口吻）；`buildAnswerStyleBlock` 默认段 = 1 行护栏 + 4 行指令（一维一句，不少不并）、**任换一档输出必随之变**、quiz 场景带「不动 [QUIZ] 协议字段」护栏而对话场景不提 | [DONE] |
 | `src/quiz-image.test.ts` | 8 | **出题配图契约（QUIZ-IMAGE-SPEC §2.3）**：`normalizeQuizSvg` 只返回「能用的图」或 undefined，**绝不抛错**；合法图原样过（含自闭合 `<svg .../>`——终止写法有 `</svg>` 与自闭合两种，只有两者皆无才判截断）；丢弃规则：非字符串/null/对象/空白→丢、不含 `<svg` 根标记→丢、**缺终止标记（截断）→丢**、超 `MAX_QUIZ_SVG_CHARS`→丢。常量：默认 `DEFAULT_QUIZ_IMAGE=false`、键名 `quiz_image` | [DONE] |
 | `src/quiz-mix.test.ts` | 19 | `stepQuizMix` **编辑期钳住**：加档只动目标档位、减档不越 0、单题型到 10 停住不绕回、总额到 20 后加不进任何题型且已有档位一格不动；**先减后加这条路径要通**；一步跨多档只加到能加的位置；不改入参（`delta=0` 也返回新副本）。`setQuizMix` **数字直输同源钳位**：直输只动目标档、0=关题型、负数→0/小数取整/NaN→0、超 10 钳 10、**总满场景只给「其他档占用后剩余额度」且别的档一格不动**、全 0 起可直输、不改入参。与 `normalizeQuizMix` 的分工：编辑态钳住的配比落库后原样不变（**所见即所存**，不再被从后往前削）、绕过 `stepQuizMix` 硬造的超限配比仍由 `normalizeQuizMix` 兜底削到总上限 | [DONE] |
+| `src/domain.test.ts` | 7 | **认知进化类型登记编译锁（COGNITIVE-EVOLUTION-SPEC v1.1 §6.1/§8/§9.1）**：`Verdict` 必填仅 `term/level/verdict`，v1.1 的 `met?` 与 `gaps`/`nextGoal`/`evidence` 全可选（**v1 老形状与 v1.1 完整形状都必须可构造**，`met: []` 诚实档与字段缺失同形）；`ContentBlock<'verdict'>` 的 payload 收窄为 `Verdict`（`const p: Verdict = b.payload` —— payload 若退回 `GenericPayload` 这行编译即红）、`BlockKind` 联合含 `'verdict'`；`EvolutionState`（`active` + `level`/`bestLevel` 双级）与 `EvolutionEventRow`（`termText` 抗删快照、`gaps` 已是解析后的 `string[]`）字段形状与 §5 表列对齐——**改字段名即 tsc 红**，运行期 expect 只防手滑改名 | **[DONE] 7 passed（实测，Node 20：纯类型/编译锁，不碰 DB）** |
 
-### server（210 例）
+### server（279 例，账面：210 + DOC-RAG 批 37 + 认知进化批 32，其中 56 例已实测）
 
 | 文件 | 例数 | 锁死的不变量 | 状态 |
 |------|------|--------------|------|
 | `src/index.test.ts` | 15 | ① status/health 契约、未知路由 404 JSON、安全响应头齐备；② **写操作无 Origin → 403**、合法 localhost 放行；③ 搜索 key **明文与密文都不出接口**、空串即删除、超长 400 且一字不落（先校验后写）、非 string 忽略；④ `/api/preview` 出页带 `sandbox` CSP（不含 `allow-same-origin`）、`X-Frame-Options` 仅预览页放宽到 SAMEORIGIN、未知 id 404、`Origin: null` 打写接口 403 | [DONE] |
-| `src/chat/flow.test.ts` | 17 | 工具轮 `assistant(tool_calls)→tool→assistant` 原子落库；中途失败不留孤儿 tool 且屏上文本===库内文本；达轮次上限仍收口为 assistant；回灌逼近预算提前收口（提示区分「预算已满」/「轮次上限」）；无 key 时工具回灌引导配 key；**忆域 v2 命中词条以第二条 system 注入且不污染正文**；自动抽取失败不打断主流程；**文档模式：资料段作第三条 system 注入且不外泄到屏上/库内、清除后下一轮出站 messages 不再含资料段、资料段计入截断预算（载入 4 万字后被载历史明变少）**；**tidy_terms 工具全链路：tool_calls→执行→摘要回灌→step 三态（running/done/error）；参数缺失→引导模型重调、引擎不被调用、step error**；**★ 回答方式偏好（ANSWER-STYLE §3）：未配置也注入一段默认偏好且排在所有注入段最后、改库内偏好→下一轮出站的偏好段随之改变（不改就不算生效）、偏好段只进上下文（屏上与库内正文都不含它）、恢复默认（删键）后回到默认偏好段** | [DONE] |
+| `src/chat/flow.test.ts` | 18 | 工具轮 `assistant(tool_calls)→tool→assistant` 原子落库；中途失败不留孤儿 tool 且屏上文本===库内文本；达轮次上限仍收口为 assistant；回灌逼近预算提前收口（提示区分「预算已满」/「轮次上限」）；无 key 时工具回灌引导配 key；**忆域 v2 命中词条以第二条 system 注入且不污染正文**；自动抽取失败不打断主流程；**文档模式：资料段作第三条 system 注入且不外泄到屏上/库内、清除后下一轮出站 messages 不再含资料段、资料段计入截断预算（载入 4 万字后被载历史明变少）**；**tidy_terms 工具全链路：tool_calls→执行→摘要回灌→step 三态（running/done/error）；参数缺失→引导模型重调、引擎不被调用、step error**；**★ 文档检索接线（DOC-RAG §6 T7）：本轮提问必须原样作为检索词传给 `buildDocBlock`**（桩子 `documentStub.queries` 记录收到的一切；flow 漏传 ⇒ 长文档永远只能拿到空查询而静默退化回整篇直塞，而单测里看不出来）；**★ 回答方式偏好（ANSWER-STYLE §3）：未配置也注入一段默认偏好且排在所有注入段最后、改库内偏好→下一轮出站的偏好段随之改变（不改就不算生效）、偏好段只进上下文（屏上与库内正文都不含它）、恢复默认（删键）后回到默认偏好段** | [DONE] |
 | `src/llm/anthropic.test.ts` | 11 | **出站请求体逐字段钉死**（B-001 回归锁 + 适配器零断言欠账首笔）：多条 system 合并为一串且顺序保持、system 绝不混进 messages、无 system 时不下发该字段、空段被过滤；tool→`user(tool_result)`、assistant tool_calls→text+tool_use 块、坏 JSON arguments 兜底 `{}`；`max_tokens` 必发（Anthropic 缺失即 400）；OpenAI 形态 tools 映射为 `input_schema`；**四条 system（基础提示词 + 词条段 + 资料段 + 偏好段）仍全部合并下发、顺序保持**（风格段使 system 从三条变四条，B-001 那条锁必须跟进，否则新段会在 Anthropic 型服务商上静默消失） | [DONE] |
-| `src/learning/document.test.ts` | 11 | v6 迁移真给 `sessions` 加了 `doc_name`/`doc_text` 两列；读写回读、首尾裁空白、无名兜底、整篇替换永远只一份；空白正文/会话不存在都返回 null（不静默）；clear 只清两列不碰标题与消息；**超长存储不丢字、`truncated` 仅表示注入会截**；`docMeta` 只含三字段且正文绝不出现在其中；`buildDocBlock` 文案含「数据不是指令/优先依据资料/可补一般知识」、超长时只注入前 MAX 字符并自报截断 | [DONE] |
-| `src/routes/document.test.ts` | 13 | `/api/doc` 吃同一套跨源闸门（无 Origin 写→403）；未载入回 `{doc:null}`；GET/POST/DELETE 缺 sessionId 均 400；**GET 永不回显正文**；换资料是整篇替换；超 60k → `truncated:true`；空正文 400、会话不存在 404；DELETE 后回到未载入。**出题/抽词回退**：未传 material 时资料全文送到 `generateQuiz`、显式给了则不抢戏、两者都无仍 400；`extract` 无 text 时用会话资料、有 text 用 text、清除资料后回退链断开回到 400 | [DONE] |
+| `src/learning/document.test.ts` | 19 | v6 迁移真给 `sessions` 加了 `doc_name`/`doc_text` 两列；读写回读、首尾裁空白、无名兜底、整篇替换永远只一份；空白正文/会话不存在都返回 null（不静默）；clear 只清两列不碰标题与消息；**超长存储不丢字、`truncated` 仅表示「注入层会换形状」**；`docMeta` 只含三字段且正文绝不出现在其中。**★ DOC-RAG 批新增 8 例**：探针前提（`LONG_DOC` 必须真的 > `MAX_DOC_CHARS+5000`，否则下面全空转）、**≤60k 直塞分支的 golden 串逐字节等价**（手抄今天全文、传不传 query 都相等——这条是「零行为漂移」拍板的锁，改一个字就红）、**>60k 走检索**（含「局部不是全文」措辞、带【段 n】段号、**只在末尾的冷事实能被捞回**、不得声称覆盖全文）、零命中退化到均匀覆盖、无 query 也照注入、`buildDocMaterial` 三态（短文档原样／有查询带段号／无查询横跨全文） | ⚠ **[待 Node 22 复验]**（本文件顶部 `await import('../storage/db.js')`，Node 20 上 19 例中 18 例挂在 `NODE_MODULE_VERSION`，唯一过的正是探针前提那条） |
+| `src/learning/doc-retrieve.test.ts` | 28 | **文档检索层（契约 DOC-RAG-SPEC §6 T1~T5、T8）**，全新建：分词（中英混排/数字成词/中文 bigram/**单个汉字原样保留**否则「熵」这类单字全体漏切/标点空白不参打）；切块（**块偏移能 `slice` 回原文** = 出处可溯源的前提、overlap=0 不丢字、**整篇无换行的粘贴件走定长硬切且偏移仍对得上**、seq 严格递增）；BM25（稀有词权重必高于常见词、**idf 用非负式**——取经典式会在 `df>N/2` 上出负分而把命中一堆常用词的块排到零分之下）；**字面零命中就是空结果，不设任何分数阈值**（绝对阈值与词元覆盖度阈值均已被 `tools/probes/doc-rag-bm25.mjs` 实测否掉：真命中块最小区间与干扰项 top1 区间重叠）；`retrieveDoc` 编排（k 与预算双截断、**首块无条件保留**、返回按分数降序、空查询交回调用方、`getRetriever()===bm25Retriever` 钉住 embedder 接缝）；**T8 召回锁 12 章×关键词型 Top-3 必含答案块且首位正确**（检索层确定性 ⇒ 能当回归锁；向量路线锁不住，这是词法路线的验收优势）；`pickUniformChunks` 横跨全文（首块与末块必被选中、**预算不够时是「少取几块但仍铺满全文」而不是「从前往后装到装不下」**——后者会退化成只覆盖开头，正是这个函数要治的病）；`joinChunks` 段号开关 | **[DONE] 28 passed（实测，Node 20 与 22 等价：纯函数、无原生依赖）** |
+| `src/learning/verdict.test.ts` | 18 | **[VERDICT] 解析与归一化（契约 v1.1 §6.1/§6.3）**：`parseVerdictBlock` 容错阶梯（带/不带外层标记、json 围栏与前后杂质均容错、**verdict 文本里含 `}` 不截错对象**——string-aware 平衡括号扫描、非法 JSON/无对象/顶层数组/缺收尾括号 → null 走 ADR-4 降级不猜）；**契约 §6.1 示例逐字可解析且 `met` 在形**（钉「格式示例没带新字段」这个配图 v1.0 老坑的回归）；`normalizeVerdict`：`term` trim 后白名单不中 → 丢块、`level` 越界钳 0..4 / 小数四舍五入 / 非数字 → 丢块、`verdict` 超 500 截断而纯空白判死；**★ `met` 三态**：合法字符串数组超 3 截 3 / **空数组合法保留（诚实档，与丢块是两回事）** / 非数组 → 丢字段不丢块、含非字符串元素 → 整字段丢；**★ 双空兜底**：`met` 与 `gaps` 皆无 → `met` 显式置 `[]`（反馈纪律「绝不静默吞卡」）；`gaps` 逐元素过滤（v1 老口径，`parseAliases` 同族）、`nextGoal` 收 string 与 null 两形、不改入参 | **[DONE] 18 passed（实测，Node 20：纯函数，不碰 DB/LLM）** |
+| `src/learning/verdict-gate.test.ts` | 10 | **[VERDICT] 流式闸门（契约 §6.3「屏上文本==库内文本」铁律的延续）**：正文原样上屏且块被摘出；**OPEN/CLOSE 标记跨 chunk 切断不误上屏、不丢块**（含「逐字符喂整段」与「整块喂入」结果一致这条最刁钻路径）；假标记（`[VERY`）与悬空真前缀（`[VERDICT` 未成 OPEN）flush 原样吐回**绝不吞字**；进入块后流被截断（无 CLOSE）→ OPEN + 半截 JSON 全量吐回可见文本（宁漏上、不静默丢）；一轮多块独立摘出且闭合后正文继续；gate→parse→normalize 全链跨 chunk 流入、v1.1 `met` 出得去 | **[DONE] 10 passed（实测，Node 20：纯函数）** |
+| `src/routes/document.test.ts` | 13 | `/api/doc` 吃同一套跨源闸门（无 Origin 写→403）；未载入回 `{doc:null}`；GET/POST/DELETE 缺 sessionId 均 400；**GET 永不回显正文**；换资料是整篇替换；超 60k → `truncated:true`；空正文 400、会话不存在 404；DELETE 后回到未载入。**出题/抽词回退**：未传 material 时**资料经 `buildDocMaterial` 取材后送到 `generateQuiz`**（★ DOC-RAG 后口径：短文档仍是全文，长文档改为按 topic 检索／无 topic 则均匀覆盖，**不再无条件全文下发**）、显式给了则不抢戏、两者都无仍 400；`extract` 无 text 时用会话资料、有 text 用 text、清除资料后回退链断开回到 400 | [DONE]（**本行未在本批改动范围内验证**：`routes/document.test.ts` 碰 DB 需 Node 22；若回退取材改坏了这些断言，要在 Node 22 下才能看到）|
 | `src/chat/context.test.ts` | 6 | 截断点落在 tool 上时向旧吸入至来源 assistant、同轮兄弟 tool 结果一并保留、头部孤儿丢弃、**截断后序列绝不以 tool 开头**（防拆散 `tool_calls` 被 API 400——v1 崩溃性 bug 回归）、预算极小仍保留最后一条、token 估算 CJK≈1 字/英文按词 | [DONE] |
 | `src/chat/sse-bus.test.ts` | 5 | 按 sessionId 隔离广播（v1 串台防护）；seq 按会话单调、`since` 只补错过的事件；新一轮 seq 归 1；**已完结的一轮只补 `done` 不重放正文**；进行中的一轮全量回放 | [DONE] |
 | `src/learning/terms.test.ts` | 20 | `[TERMS]` 协议解析容错（围栏/杂质/非法 JSON→[]/字段缺失丢弃+importance 钳 0-1）；`UNIQUE(term,domain)` upsert 合并取更高 importance、同词不同域独立成条；手动存/编辑/删除；`domainStats`；`getRelevantTerms` 中英子串命中与无关返回空；`countUsage` 累加；`term_library` 表与唯一约束存在；**防再分裂（TERM-TIDY-SPEC §7）**：别名感知并入（被并同义词挂主条 `aliases`）/大小写不敏感归并/同词不同域不并入/别名计数+词边界匹配（英文按词边界、中文子串）/html 标签不实报/抽取提示词注入已有领域 top-12 | [DONE] |
@@ -72,7 +84,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `src/routes/answer-style.test.ts` | 8 | **回答方式偏好端点（supertest，照 `quiz-image.test.ts` 手法）**：未配置过→默认偏好 + `configured:false`（L1 据此决定要不要弹卡）；PUT 四维全改→回读一致**且真落库**（不是只在响应里演一遍）；**存了恰好等于默认的值→`configured` 仍为 true**（配过与没配过是两件事，`AnswerStyle` 本身表达不了）；非法值/缺字段→逐字段归一后回读，不 400 也不落脏值；**body 里根本没有 `style`→全默认落库**（PUT 语义是「存我给的」不是「改我给的」）；**库里是坏 JSON→读回默认但 `configured` 仍 true**（键在就是配过，别把用户重新问一遍）；DELETE→回到未配置态，下次出题会重新问一次；写操作无 Origin→403（与其余设置接口同一道闸门） | [DONE] |
 | `src/routes/quiz-mix.test.ts` | 10 | **（09-03 配比批交付、本表漏登，本次补行）** GET 未配置过回默认配比（2 单选 + 1 填空 + 1 解答）；PUT 先归一化再落库（负数归 0、小数取整、超上限钳住）、四档全 0 落默认、总题数堆不过上限、写操作无 Origin→403；`/api/quiz/generate` 不传 mix 用设置页全局配比、本次传 mix 覆盖全局**且不写脏库里的配比**、模型多出裁到配比并回实际配比报告、模型少出 `matched false` 且不补题（UI 据此如实告知）、题型全不在配比内→502 给可重试文案（不返回空题组） | [DONE] |
 | `src/search/search.test.ts` | 10 | 三家无 key 走 DDG 兜底、单路挂另一路兜底、双路挂失败原因逐路冒泡不静默；配 Exa key 只发 Exa；一家失败只跳过 + 跨家 URL 去重；24h 缓存命中不真发、**缓存键含 provider 组合**（配 key 后不吃旧免 key 缓存）、`skipCache` 强制真发；key 密文落库读取解密、空串删除；`resultsToContext` 带来源编号与 URL | [DONE] |
-| `src/storage/db.test.ts` | 3 | 建表齐全 + `schema_version` 记录 + 幂等（重复打开不改动）；`messages(session_id, created_at)` 索引第一天就有；外键生效 | [DONE] |
+| `src/storage/db.test.ts` | 7 | 建表齐全 + `schema_version` 记录 + 幂等（重复打开不改动）；`messages(session_id, created_at)` 索引第一天就有；外键生效。**★ 认知进化批 v8 迁移 4 例**：`evolution_session`/`evolution_event` 两表与 `term_id+created_at`、`session_id+created_at` 两索引齐备；`term_library` 新列 `evo_level`/`best_level` 默认 0、`evo_updated_at` 默认 NULL；**`evolution_event` 刻意无外键**——已删词条的链节点必须写得进（append-only 历史若抗删 = 功能缺陷）；`probe_first`/`status` 默认值在位（契约 v1.1.1 勘误补的列得有持久化载体） | 原 3 例 [DONE]；**★ v8 新 4 例 [待 Node 22 复验]**（本文件碰 DB，Node 20 上挂 `NODE_MODULE_VERSION 127 vs 115`，与本表 `document.test.ts` 行同一堵墙）|
 
 ### web（47 例）
 
@@ -106,7 +118,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | 项 | 内容 |
 |----|------|
 | 触发 | 任何代码变更（含改文案以外的逻辑改动） |
-| 命令 | `npm run check`（tsc×3 + eslint + vitest 302 + gates） |
+| 命令 | `npm run check`（tsc×3 + eslint + vitest 302 + gates；★ DOC-RAG 批后账面 339、认知进化批（WBS 1-3）后账面 **378**，共 13 例待 Node 22 复验） |
 | 通过判据 | 汇总行 `Tests  N passed`（N 只增不减）+ gates 无红 |
 | **★ 涉模型输出格式的改动** | 单测全绿**不算完**：必须真机端到端跑一次（真实接口 → 落库回读 → 浏览器渲染），且换材料破缓存。判据与踩坑见 §7 末六条与 `docs/QUIZ-IMAGE-SPEC.md` §5 |
 | 追加要求 | 涉 SSE 事件/REST 接口 → 同步 `docs/SSE-CONTRACT.md`；涉目录职责 → 同步 `AGENTS.md`；涉数据模型 → 同步 `开发文档5.0` §4 + `db.ts` 新迁移版本号 |
@@ -115,6 +127,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 
 | 优先级 | 测试项 | 说明 |
 |--------|--------|------|
+| P1 | **DOC-RAG 批欠的两条账**（2026-09-06） | ① `document.test.ts` 19 例与 `flow.test.ts` 18 例需在 **Node 22** 下跑（两文件都碰 DB，Node 20 直接 `NODE_MODULE_VERSION 127 vs 115`）；② **T9 真机端到端未跑**：载 >60k 字资料 → 问一件只有最后 1/5 才有的事 → 应答对并标段号，对照旧实现同问必错。属 AI 忠实度与体验类（§0.15），**不得自行验收**；同期欠的还有 embedding 端点可用性（契约 §8.3） |
 | ~~P1~~ → 已清偿 | 文档模式（2026-09-02 本批） | 37 例已落：注入与不外泄、截断、清除后回退链断开、出题/抽词回退（见 §3）。**未清偿的是真忠实度**，下行 P2 |
 | P1 | `openai.ts` 适配器出站体断言 | `anthropic.ts` 已补（本批 10 例），但 `openai.ts` 仍无 `*.test.ts`——**跨 Provider 契约只锁了一半**，B-001 同类问题在 openai 侧仍靠真机撞 |
 | P2 | `routes/*` 其余薄路由集成 | `/api/doc` 已有 HTTP 层测例（本批 13 例）；`/api/terms`  CRUD、`/api/sessions` 分页/软删仍未测 HTTP 层入参校验 |
@@ -137,13 +150,18 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ 复验产物文件名不得复用**：探针脚本按 case 名固定写盘（`probe6-机械波.txt`），重跑同一材料把上一份**唯一的真机坏样本覆盖**掉，事后无法恢复——可靠凭证只剩单测里那份逐字结构的 fixture。复验样本必须带时间戳或自增后缀。
 - **★ 真机端到端造出的数据必须自清并复核**：测试题库条目跑完 DELETE，再回读 404 + 数一遍列表，确认用户真实库回到原有规模（本批：17 条、无残留带图条目、设置项复原）。**不留测试垃圾进用户库**。
 - **探针脚本范式（写在工作区，不进仓）**：只读取真库拿 provider/role → `decryptSecret` → 直接构造 `OpenAICompatibleAdapter`，并且 **import 生产真提示词**（`QUIZ_PROTOCOL` / `buildMixInstruction` / `buildImageInstruction`）——自己手抄一份提示词去测＝测的是另一套东西，结论不可迁移。定位解析失败时**逐次打印每次 `JSON.parse` 的报错与出错位置上下文**：`parseQuizBlock` 的 `catch { continue }` 会吞掉真因，线上文案永远只有一句笼统的「模型不可用或解析失败」。
+- **★ 例外：结论写进契约的探针必须进仓**（2026-09-06 DOC-RAG 批立的反例，上一条只适用于“帮我看看”的临时量测）：当某个常量（`DOC_CHUNK_CHARS=800` / `DOC_TOP_K=12` / 不设阈值）是靠探针量出来的，脚本与原始输出就是契约 §8 的**可复算凭证**，入库到 `tools/probes/<主题>.mjs` + 同名 `.result.txt`，并在头注释里写清复跑命令。同时必须声明它**是否 import 仓内实现**：复刻一份同参数算法去量，得到的就不是实现的行为（两者靠召回锁关联，分叉时以实现 + 其单测为准）。另：计时与内存行天然浮动，可复现的是召回与块数——**不得把“重跑逐字节一致”当成入库前提，也不得拿浮动行当结论**。
 - **「无损前置变换」的入场券：在合法输入上必须永不触发**。证到这一点才能当所有解析尝试的基底、不占用一次尝试（`repairJsonBrackets` 的依据是「合法 JSON 里数组元素闭合引号之后只能跟 `,` 或 `]`」）；证不到就别往阶梯前面塞——前置变换只要可能在合法输入上动手，就是把「改坏数据」的风险铺到每一条成功路径上。
+- **★ 预算截断与“要覆盖面”不能直接拼**（2026-09-06 `pickUniformChunks` 开发时真实踩到，测试当场逮住）：先定 36 块再按预算**从前往后累加、装不下就砍掉尾部**，结果是只覆盖开头——而“覆盖全文”正是这个函数存在的理由，**退化得正好退成它要治的那个病**。正确写法：从上限逐个递减地试，找到第一个装得下的块数，**再按该数均匀铺开**（首块与末块必取）。通则：**一个函数声称解决 X，它的降级路径就必须仍解决 X**，否则预算／截断这类“装不下”的分支会把功能静默换成反面；锁测例得直接断“末块在输出里”，不能只断长度。
 - **★ 有歧义就不修，且要把歧义写成断言钉住**（上一条的推论，09-04 转义修复批撞出来的）：`repairJsonEscapes` 遇到 `\theta` 无法区分「漏了一根的 LaTeX」与「真制表符 + `heta`」，选**不动它**并加一条「已知局限」用例（断言文字坏成控制字符但题目仍保住）。零歧义才允许前置变换动手；有歧义还去修，就是拿「造出错题」换「提高成功率」——后者输得更隐蔽。**另：两道变换的先后不是自由选择**——转义不先修好，括号扫描连字符串边界都会认错。
+- **★ 流式标记闸门：闭合标记必须在「已并入的整块缓冲」里找，不能只在当前碎片里找**（2026-09-06 认知进化批写 `VerdictGate` 时写测试当场逮住的真 bug）：块内若只对当轮 `rest` 做 `indexOf(CLOSE)`，CLOSE 恰被切断在两个 chunk 之间（`'[/VERD'` + `'ICT]'`）时永远找不到，块永不闭合、其后正文全被吞进缓冲。正确写法＝**先把 rest 并入 `blockBuf`，再在 `blockBuf` 上找 CLOSE**。同族锁：块外只挂「最长真前缀」缓冲，假标记与未闭合尾巴在 flush 时原样吐回——闸门宁可漏判成正文，**也绝不能吃字**（屏上文本==库内文本是 flow 的既有铁律）。
 
 ## 8. 变更记录
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-09-06 | v0.2.6 | 认知进化 WBS 任务 1-3 批回写（契约 `docs/COGNITIVE-EVOLUTION-SPEC.md` v1.1 落码首三单）：账面 27 文件／339 例 → **30 文件 / 378 例**（新 `shared/domain.test.ts` 7、新 `learning/verdict.test.ts` 18、新 `learning/verdict-gate.test.ts` 10、`storage/db.test.ts` 3→7），小计随之改 shared 45→**52**、server 247→**279**、web 47 不变；**35 例已在 Node 20 实测绿**（三个新文件不碰 DB；同期实测 `tsc×3` 0 错、eslint 0 错、gates 全绿），**4 例（db v8）待 Node 22 复验**，DOC-RAG 欠的 9 例同账未清。交付：① shared 类型登记（`Verdict.met?` / `EvolutionState` / `EvolutionEventRow` / `BlockKind` 加 `'verdict'` 且 payload 条件收窄）② DB 迁移 v8（`evolution_session`、`evolution_event` 无外键 append-only 链、`term_library` 三列）③ `learning/verdict.ts`（`VerdictGate` 流式闸门 + `parseVerdictBlock` 容错阶梯 + `normalizeVerdict` 含 **met 三态**与**双空兜底**）。落码中自查出并回写契约两处：① **v1.1.1 勘误**——§8 的 `probeFirst` 无持久化载体，v8 建表补 `probe_first` 列；连带定档 `met` **不落链**（只作 SSE 即时反馈）② 写测试时逮住 `VerdictGate` 的 CLOSE 跨 chunk 真 bug（已立 §7 那条新约定） |
+| 2026-09-06 | v0.2.5 | 文档检索批（DOC-RAG）回写：新 `learning/doc-retrieve.test.ts` **28 例实测全绿**（不碰 DB 故 Node 20 可跑）、`learning/document.test.ts` 11→19（★ 删掉与新契约冲突的旧断言“超长只注入前 MAX 字符并自报截断”）、`chat/flow.test.ts` 17→18（T7 接线锁）→ 账面 **27 文件 / 339 例**，但 §3 顶注已标明其中 9 例未跑、**本版不声称全绿**。§5 命令行加基线欠账注；§6 新挂一条 P1（DOC-RAG 欠的两条账：Node 22 复验 + T9 真机）；§7 新立两条：「结论写进契约的探针必须进仓」（本批首次把探针入库 `tools/probes/doc-rag-bm25.mjs`，并如实声明它是复刻不是 import 仓内实现）／「预算截断与要覆盖面不能直接拼」（`pickUniformChunks` 静默退化成只覆盖开头）。配套契约 `docs/DOC-RAG-SPEC.md` 新建（含两条被实测否掉的阈值方案） |
 | 2026-09-04 | v0.2.4 | 回答方式偏好 L0+L1 批回写：基线 24 文件／258 例 → **26 文件 / 302 例**（新 `shared/answer-style.test.ts` 18、新 `routes/answer-style.test.ts` 8；`quiz-json-repair` 10→16、`learning/quiz` 33→37、`flow` 13→17、`anthropic` 10→11、`web/lib/api` 2→5），小计随之改 shared 45／server 210／web 47（逐文件实测求和，=302）。§4 新增一行：`detailed + bullets` 档 43% 出题 502，真因是 **LaTeX 漏一根斜杠构成非法 JSON 转义**（不是截断，先排了 `truncated`/`max_tokens` 才敢下句），已用 `repairJsonEscapes` + 提示词护栏双保险修掉并真机复验 4/4。§6 新挂一条 P1：`useAskStyle` 三只行为零回归锁（本批最容易改坏的一层）。§7 新立一条：「有歧义就不修，且要把歧义写成断言钉住」（`\theta` 撞 `\t`，故意不修）——它是上一条「无损前置变换入场券」的推论。配套契约 `docs/ANSWER-STYLE-SPEC.md` 升 v1.0 并新增 §8（真机量化数据、两处契约偏离、四项未验） |
 | 2026-09-04 | v0.2.3 | 出题配图 v1.1 / v1.1.1 批复验回写：基线 23 文件／232 例 → **24 文件 / 258 例**（新 `learning/quiz-json-repair.test.ts` 10；`learning/quiz.test.ts` 12→33；`routes/quiz-image.test.ts` 7→11）。§3 同时校正本表两处老账：补登 09-03 配比批漏登的 `routes/quiz-mix.test.ts` 10 例，三节小计改为按行实测求和（server 141→**187**、web 64→**44**、shared 27 本来就对）——小计与自家表格不符，说明基线数此前没被复核过。§2 新增 PowerShell GBK 重编码坑（中文打接口必乱，改 node 自 fetch）。§4 新增两行：真机出图率 0 的根因在提示词层／模型漏写 `]` 致整组 502 且被 `catch { continue }` 吞因。§5 新增强制项「涉模型输出格式的改动必须真机端到端」。§7 立六条新约定：真机端到端才算落地／换材料破 prompt 缓存／复验产物不得复用固定文件名／真机造出的数据要自清并复核／探针须 import 生产真提示词并逐次打印解析报错／无损前置变换的入场券是在合法输入上永不触发。表头版本号校正（此前滞后 §8 一格）。配套契约 `docs/QUIZ-IMAGE-SPEC.md` 升 v1.1.1 |
 | 2026-09-04 | v0.2.2 | 出题配图批（契约 `docs/QUIZ-IMAGE-SPEC.md`）：基线 208 → **232 例**（21→23 文件，+24：新 `shared/quiz-image.test.ts` 8／新 `routes/quiz-image.test.ts` 7／`learning/quiz.test.ts` 4→12／`web/svg-utils.test.ts` 11→12）。`QuizQuestion` 加可选 `svg` 字段（纯加法，老题库不迁移）；**丢图保题**三道防线（normalizeQuizSvg 丢弃非法图／normalizeQuiz 整字段删除／parseQuizBlock 剥图重试救回整组题）；设置页总开关（默认关）+ 模型自决；**顺带补 P2 缺口**：`sanitizeSvg` 原漏剥 `<image href="...">`，会被当外链信标用。§7 新增两条约定（三元假分支静默保留原值的坑／断言要顺数据流看落库值） |

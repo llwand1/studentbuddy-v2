@@ -1,15 +1,14 @@
 /**
  * DocModeControl — 文档模式控件（挂在 composer 上方）。
  * 三态齐备（ADR-5）：未载入（只有按钮）｜载入中（按钮变「载入中…」并禁用）｜
- * 已载入（pill：文件名 · 字数 · 截断标记 · 清除）。
- * 正文只随会话存服务端，刷新后靠 GET meta 复原——60k 文本不反复过网络。
+ * 已载入（pill：文件名 · 字数 · 超长标记 · 清除）。
+ * 正文只随会话存服务端，刷新后靠 GET meta 复原——长资料也没必要反复过网络。
  */
 import { useEffect, useState } from 'react';
 import { DocIcon } from '../../components/icons';
 import { api, type DocMeta } from '../../lib/api';
+import { MAX_DOC_CHARS } from '@sb/shared';
 
-/** 与服务端 MAX_DOC_CHARS 同值：仅用于载入前告知「超出部分不会送入模型」 */
-const INJECT_CAP = 60_000;
 /** 服务端 express.json 上限 2mb，留余量给 JSON 转义膨胀 */
 const MAX_FILE_BYTES = 1_900_000;
 const ACCEPT = '.txt,.md,.markdown,text/plain,text/markdown';
@@ -86,14 +85,14 @@ export function DocModeControl({ sessionId, blocked }: { sessionId: string | nul
     }
   };
 
-  const overCap = text.length > INJECT_CAP;
+  const overCap = text.length > MAX_DOC_CHARS;
 
   return (
     <div className="chat-doc">
       <div className="chat-doc-bar">
         <button
           className="chat-quiz-btn"
-          title="文档模式：为本会话载入一篇 txt/md 资料，回答优先依据它（每次一份，可替换/清除）"
+          title="文档模式：为本会话载入一篇 txt/md 资料，回答优先依据它（超长资料按提问检索段落；每次一份，可替换/清除）"
           disabled={!sessionId || busy || blocked}
           onClick={() => setPanelOpen((v) => !v)}
         >
@@ -105,7 +104,7 @@ export function DocModeControl({ sessionId, blocked }: { sessionId: string | nul
               {meta.name}
             </span>
             <span className="chat-doc-chars">{num(meta.chars)} 字</span>
-            {meta.truncated && <span className="chat-doc-warn">超 {num(INJECT_CAP)} 字已截断</span>}
+            {meta.truncated && <span className="chat-doc-warn">超 {num(MAX_DOC_CHARS)} 字 · 按提问检索段落</span>}
             <button className="chat-doc-clear" disabled={busy} onClick={() => void clear()} title="清除本会话资料">
               清除
             </button>
@@ -133,7 +132,7 @@ export function DocModeControl({ sessionId, blocked }: { sessionId: string | nul
           <div className="chat-doc-actions">
             <span className={overCap ? 'chat-doc-count warn' : 'chat-doc-count'}>
               {num(text.length)} 字
-              {overCap ? ` · 仅前 ${num(INJECT_CAP)} 字送入模型` : ''}
+              {overCap ? ` · 超 ${num(MAX_DOC_CHARS)} 字，将按提问检索相关段落` : ''}
             </span>
             <label className="chat-quiz-btn">
               选文件

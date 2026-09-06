@@ -7,5 +7,6 @@
 export * from './sse-events.js';
 export * from './content-blocks.js';
 export * from './answer-style.js';
+export * from './doc-rag.js';
 export * from './api.js';
 export * from './domain.js';

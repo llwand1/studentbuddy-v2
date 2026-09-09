@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { publish, subscribe, snapshot, startNewRound } from './sse-bus.js';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { publish, subscribe, snapshot, startNewRound, startHeartbeat } from './sse-bus.js';
 import type { SseEvent } from '@sb/shared';
 
 /** 最小 Response 桩：收集写入的 SSE 帧 */
@@ -81,5 +81,35 @@ describe('sse-bus — 按 sessionId 隔离广播（v1 串台防护回归）', ()
     const tokens = mid.frames.map(parse).filter((e) => e.type === 'token');
     expect(tokens).toHaveLength(1);
     expect(tokens[0]).toMatchObject({ content: '半句' });
+  });
+});
+
+describe('sse-bus — 缓冲 TTL 回收（buffers 泄漏回归，原版 now % TTL 闸门永不触发）', () => {
+  it('无订阅者且超 TTL 的缓冲被心跳回收；有订阅者的不回收', async () => {
+    vi.useFakeTimers();
+    try {
+      startNewRound('ttl-a');
+      startNewRound('ttl-b');
+      publish('ttl-a', { type: 'token', sessionId: 'ttl-a', content: 'x' });
+      publish('ttl-b', { type: 'token', sessionId: 'ttl-b', content: 'y' });
+
+      const r = fakeRes();
+      subscribe('ttl-a', r); // ttl-a 有订阅者
+
+      const hb = startHeartbeat();
+      // 快进 80s：跨过多个 15s 心跳周期（60s 心跳时差值恰为 TTL 不满足 >，75s 心跳时才回收）
+      vi.advanceTimersByTime(80_000);
+
+      // ttl-a 仍可正常发布（缓冲未被回收）
+      expect(publish('ttl-a', { type: 'token', sessionId: 'ttl-a', content: 'z' })).toBeGreaterThan(0);
+      // ttl-b 无订阅者且超时：缓冲应已被回收（快照为空说明 Map 条目已删或 events 清空——
+      // 直接验证 Map 回收需要导出内部状态，这里以"再次订阅无旧事件回放"作为外部可见行为）
+      const late = fakeRes();
+      subscribe('ttl-b', late);
+      expect(late.frames.map(parse).filter((e) => e.type === 'token')).toHaveLength(0);
+      clearInterval(hb);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

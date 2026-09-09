@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { DocIcon } from '../../components/icons';
 import { api, type DocMeta } from '../../lib/api';
+import { splitDocName } from './doc-name';
 import { MAX_DOC_CHARS } from '@sb/shared';
 
 /** 服务端 express.json 上限 2mb，留余量给 JSON 转义膨胀 */
@@ -86,22 +87,30 @@ export function DocModeControl({ sessionId, blocked }: { sessionId: string | nul
   };
 
   const overCap = text.length > MAX_DOC_CHARS;
+  const dn = meta ? splitDocName(meta.name) : null;
 
   return (
     <div className="chat-doc">
       <div className="chat-doc-bar">
         <button
           className="chat-quiz-btn"
-          title="文档模式：为本会话载入一篇 txt/md 资料，回答优先依据它（超长资料按提问检索段落；每次一份，可替换/清除）"
+          title={
+            meta
+              ? `换资料：载入新资料会替换本会话当前的「${meta.name}」。回答优先依据资料，超长资料按提问检索段落`
+              : '文档模式：为本会话载入一篇 txt/md 资料，回答优先依据它（超长资料按提问检索段落；每次一份，可替换/清除）'
+          }
           disabled={!sessionId || busy || blocked}
           onClick={() => setPanelOpen((v) => !v)}
         >
           <DocIcon /> {busy ? '载入中…' : meta ? '换资料' : '文档模式'}
         </button>
-        {meta && (
+        {meta && dn && (
           <span className="chat-doc-pill">
-            <span className="chat-doc-name" title={meta.name}>
-              {meta.name}
+            <span className="chat-doc-filename">
+              <span className="chat-doc-name" title={meta.name}>
+                {dn.base}
+              </span>
+              {dn.ext && <span className="chat-doc-ext">{dn.ext}</span>}
             </span>
             <span className="chat-doc-chars">{num(meta.chars)} 字</span>
             {meta.truncated && <span className="chat-doc-warn">超 {num(MAX_DOC_CHARS)} 字 · 按提问检索段落</span>}
@@ -115,6 +124,9 @@ export function DocModeControl({ sessionId, blocked }: { sessionId: string | nul
 
       {panelOpen && (
         <div className="chat-doc-panel">
+          <div className="chat-doc-note">
+            每次一份，载入新资料会替换当前的。超过 {num(MAX_DOC_CHARS)} 字不再整篇送入模型，而是按你的提问检索相关段落来回答。
+          </div>
           <input
             className="chat-doc-name-input"
             value={name}

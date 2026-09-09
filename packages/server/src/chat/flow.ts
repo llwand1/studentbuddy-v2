@@ -10,6 +10,7 @@ import type { ModelRole } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { loadAnswerStyle } from '../storage/answer-style.js';
 import { routeRole } from '../llm/router.js';
+import { getMaxOutputTokens } from '../llm/model-limits.js';
 import { publish, startNewRound } from './sse-bus.js';
 import { publishEvent } from '../events/bus.js';
 import { estimateTokens, truncateHistoryToBudget, getContextLimit } from './context.js';
@@ -167,6 +168,9 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         messages,
         signal: opts.signal,
         tools,
+        // 显式传输出上限（B 系列防御）：不再依赖适配器 ?? getMaxOutputTokens 兜底，
+        // 新增适配器漏写兜底时 Anthropic 会直接 400——类型层由 ChatRequest.maxTokens 承载。
+        maxTokens: getMaxOutputTokens(target.model),
       })) {
         abortIfNeeded();
         if (chunk.reasoning) {

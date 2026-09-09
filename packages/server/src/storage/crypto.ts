@@ -38,7 +38,10 @@ export function initCrypto(): void {
       fs.mkdirSync(path.dirname(mk), { recursive: true });
       fs.writeFileSync(mk, wrapped, { mode: 0o600 });
     } else if (process.platform !== 'win32') {
-      // 非 Windows 如实降级：随机机器密钥明文落盘（无用户绑定）
+      // 非 Windows 如实降级：随机机器密钥明文落盘（无用户绑定）。
+      // E-10 警示：明文 .mk = 拿到文件即拿到全部密文密钥，非 Windows 环境请自行加固
+      // （如放加密盘/设 OS 级 ACL），本地单用户 Windows 场景走 DPAPI 不受影响。
+      console.warn('[crypto] 非 Windows 平台：主密钥将以明文落盘（.mk），文件权限 0600。拿到该文件即可解密全部密钥，请注意物理安全。');
       fs.mkdirSync(path.dirname(mk), { recursive: true });
       fs.writeFileSync(mk, masterKey, { mode: 0o600 });
     } else {

@@ -196,6 +196,47 @@ MIGRATIONS.push({
   ],
 });
 
+// v8：认知进化（2026-09-02 契约 v1；2026-09-06 v1.1 评审通过落码，SPEC §5）。
+// v1.1.1 勘误：evolution_session 加 probe_first 列——§8 POST 的 probeFirst 必须随会话持久化，
+// 否则刷新复原的直达会话会丢提问式开场（契约建表时漏列，纯表结构补齐，不动协议与提示词行为）。
+// met（v1.1 证据式判定）刻意不落链：仅经 SSE verdict block 做会话内即时反馈，
+// 进化链回顾保持 v1 字段集（SPEC §5/§11 TermEvolutionChain）。
+MIGRATIONS.push({
+  version: 8,
+  statements: [
+    // 会话的进化模式绑定：一个会话一套选题（与文档模式「生命周期随会话」同构）
+    `CREATE TABLE IF NOT EXISTS evolution_session (
+      session_id  TEXT PRIMARY KEY,
+      term_ids    TEXT NOT NULL,                        -- JSON string[]（term_library.id）
+      probe_first INTEGER NOT NULL DEFAULT 0,           -- 词条直达提问式开场（v1.1）
+      status      TEXT NOT NULL DEFAULT 'active',       -- active | closed
+      created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    // 进化链：每次判定一条 append-only 记录；term 被删也要能回顾，
+    // 故冗余 term_text 快照、不设外键（链行独立于词条生命周期）
+    `CREATE TABLE IF NOT EXISTS evolution_event (
+      id         TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      term_id    TEXT NOT NULL,
+      term_text  TEXT NOT NULL,
+      from_level INTEGER NOT NULL,
+      to_level   INTEGER NOT NULL,
+      verdict    TEXT NOT NULL,      -- AI 评语（面向用户）
+      gaps       TEXT,               -- JSON string[] 缺口
+      next_goal  TEXT,               -- 下一级目标（L4 时为 null）
+      user_say   TEXT NOT NULL,      -- 本轮用户原话（截 2000 字）
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_evo_event_term ON evolution_event(term_id, created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_evo_event_session ON evolution_event(session_id, created_at)`,
+    // 等级是词条的属性，不建新表；best_level 只增不减（判定允许降级）
+    `ALTER TABLE term_library ADD COLUMN evo_level INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE term_library ADD COLUMN best_level INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE term_library ADD COLUMN evo_updated_at TEXT`,
+  ],
+});
+
 // v9：可观测地基（可观测与数据飞轮方案，2026-09-06）——event_log 单表落观测事件。
 // v8 已被认知进化契约预留（见 v7 注释），本迁移直接取 v9；后续批次从 v10 顺延。
 // payload 只存摘要类字段（截断查询词/工具名/错误摘要），不复制消息正文。

@@ -9,17 +9,20 @@
  * 曾登记但无发射器也无渲染器的 markdown / form / code 已摘除（2026-08-28）；`actions` 已登记但尚未实现。
  */
 
+import type { Verdict } from './domain.js';
+
 export type BlockKind =
   | 'quiz' // [QUIZ] 协议题组（payload: QuizData）
   | 'chart' // 图表 DSL
   | 'actions' // 动作按钮组（已登记，尚未实现）
-  | 'svg'; // 内联 SVG 预览（经净化）
+  | 'svg' // 内联 SVG 预览（经净化）
+  | 'verdict'; // 认知进化判定（payload: Verdict；COGNITIVE-EVOLUTION-SPEC §9.1，2026-09-06 登记，渲染器随任务 7）
 
 export interface ContentBlock<K extends BlockKind = BlockKind> {
   kind: K;
   /** 会话内唯一块 id，流式追加按 blockId 聚合 */
   blockId: string;
-  payload: K extends 'quiz' ? QuizPayload : GenericPayload;
+  payload: K extends 'quiz' ? QuizPayload : K extends 'verdict' ? Verdict : GenericPayload;
 }
 
 export interface QuizQuestion {

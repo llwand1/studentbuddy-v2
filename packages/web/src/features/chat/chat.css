@@ -185,6 +185,14 @@
   color: var(--sb-ink-secondary);
 }
 
+/* 文件名是一个整体：名+扩展名包进同一容器，pill 的 gap 只作用于逻辑分组之间——
+   否则 gap 会把 .txt 顶出 8px，看着像个独立 token 而不是文件名的一部分 */
+.chat-doc-filename {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 0;
+}
+
 .chat-doc-name {
   max-width: 180px;
   overflow: hidden;
@@ -194,21 +202,32 @@
 }
 
 .chat-doc-chars { color: var(--sb-ink-secondary); }
+/* 扩展名单独成 span：主体被 ellipsis 截断时它不参与收缩，保证 .txt / .md 始终看得见 */
+.chat-doc-ext { flex: none; }
 
 /* 截断标记用强调色：降级必须看得见（ADR-5） */
 .chat-doc-warn { color: var(--sb-danger); }
 
+/* 清除做成描边 chip：实测它原先只是下划线文字，挨着「939 字」看不出是个可点的动作（已列入待老板看图的清单）。
+   hover 才转危险色——它是破坏性动作，但没被按下时不该抢 pill 里降级红字的戏 */
 .chat-doc-clear {
-  border: none;
+  border: 1px solid var(--sb-line);
   background: none;
-  padding: 0;
+  border-radius: var(--sb-radius-sm);
+  padding: 0 6px;
+  line-height: 18px;
   font-size: var(--sb-fs-xs);
   color: var(--sb-ink-secondary);
   cursor: pointer;
-  text-decoration: underline;
 }
-.chat-doc-clear:hover:not(:disabled) { color: var(--sb-danger); }
+.chat-doc-clear:hover:not(:disabled) {
+  color: var(--sb-danger);
+  border-color: var(--sb-danger);
+  background: color-mix(in srgb, var(--sb-danger) 7%, transparent);
+}
 
+/* 面板里的机制说明：阈值与「会替换当前资料」原先只藏在按钮 tooltip，用户在面板里看不到 */
+.chat-doc-note { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); line-height: 1.6; }
 .chat-doc-hint { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); }
 
 .chat-doc-panel {

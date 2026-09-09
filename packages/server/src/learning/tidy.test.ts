@@ -51,6 +51,37 @@ describe('learning/tidy — [TIDY] 协议解析（AI 输出容错）', () => {
     expect(b?.clusters).toHaveLength(0);
   });
 
+  it('闭合标签写错成 </TIDY> → 归一后照常解析（2026-09-07 真机回归）', () => {
+    const plan = parseTidyBlock(
+      `[TIDY]{"clusters":[{"keep":"id1","term":"机器学习","domain":"cs","merge":["id2"],"reason":"中英互译"}]}</TIDY>`,
+    );
+    expect(plan?.clusters).toHaveLength(1);
+    expect(plan?.clusters[0]?.term).toBe('机器学习');
+  });
+
+  it('省略号截断 salvage：模型把 JSON 写成 `...}`，整包非法但完整簇逐个救回（2026-09-07 真机回归）', () => {
+    const broken =
+      '[TIDY]{"clusters":[' +
+      '{"keep":"id1","term":"机器学习","domain":"cs","merge":["id2","id3"],"reason":"中英互译"},' +
+      '{"keep":"id4","term":"闭包","domain":"cs","merge":["id5"],"reason":"同概念"},' +
+      '...}\n</TIDY>';
+    const plan = parseTidyBlock(broken);
+    expect(plan).not.toBeNull();
+    expect(plan?.clusters).toHaveLength(2);
+    expect(plan?.clusters[0]?.term).toBe('机器学习');
+    expect(plan?.clusters[1]?.term).toBe('闭包');
+  });
+
+  it('省略号截断 salvage：domainRenames 残缺时丢表保簇，全残 → null 走降级', () => {
+    const onlyRenames = '[TIDY]{"clusters":[...],"domainRenames":{"计...}}[/TIDY]';
+    expect(parseTidyBlock(onlyRenames)).toBeNull();
+    const mixed =
+      '[TIDY]{"clusters":[{"keep":"id1","term":"闭包","domain":"cs","merge":["id2"],"reason":"同义"}],"domainRenames":{"计';
+    const plan = parseTidyBlock(mixed);
+    expect(plan?.clusters).toHaveLength(1);
+    expect(plan?.domainRenames).toEqual({});
+  });
+
   it('畸形输入 → null（走降级，ADR-4）', () => {
     expect(parseTidyBlock('[TIDY]not-json[/TIDY]')).toBeNull();
     expect(parseTidyBlock('完全无关文本')).toBeNull();

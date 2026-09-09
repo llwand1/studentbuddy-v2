@@ -22,6 +22,8 @@ interface SessionBuffer {
   events: SeqEvent[];
   /** 新一轮对话（sendText）重置为 0 */
   round: number;
+  /** 最近一次 publish/回放活动时间（ms），供 TTL 回收判定 */
+  lastActivity: number;
 }
 
 const clients = new Set<Client>();
@@ -46,6 +48,7 @@ export function subscribe(sessionId: string, res: Response, since = 0): () => vo
 
   const buf = buffers.get(sessionId);
   if (buf) {
+    buf.lastActivity = Date.now();
     // 回放只为恢复"进行中的一轮"；已完结的一轮已落库，正文由 /messages 权威提供。
     // 全量回放会让前端把同一答案二次上屏（真机复现），故已完结时只补 done 收尾信号。
     const doneIdx = buf.events.findIndex((e) => e.type === 'done');
@@ -67,9 +70,10 @@ export function subscribe(sessionId: string, res: Response, since = 0): () => vo
 export function publish(sessionId: string, ev: Publishable): number {
   let buf = buffers.get(sessionId);
   if (!buf) {
-    buf = { events: [], round: 0 };
+    buf = { events: [], round: 0, lastActivity: Date.now() };
     buffers.set(sessionId, buf);
   }
+  buf.lastActivity = Date.now();
   const seq = buf.events.length > 0 ? (buf.events[buf.events.length - 1]?.seq ?? 0) + 1 : 1;
   const full = { ...ev, seq } as SeqEvent;
   buf.events.push(full);
@@ -104,11 +108,11 @@ export function startHeartbeat(): ReturnType<typeof setInterval> {
       writeEvent(c.res, { type: 'ping' });
     }
     const now = Date.now();
-    // 无订阅者的缓冲超时回收
+    // 无订阅者的缓冲超时回收：距最近活动超过 TTL 即删（原版 now % BUFFER_TTL_MS === 0
+    // 在 15s 心跳采样下几乎永不成立，导致 buffers Map 随会话数单调增长——真泄漏，已修）。
     for (const [sid, buf] of buffers) {
       const hasClient = [...clients].some((c) => c.sessionId === sid);
-      const lastSeq = buf.events[buf.events.length - 1]?.seq ?? 0;
-      if (!hasClient && lastSeq === 0 && now % BUFFER_TTL_MS === 0) buffers.delete(sid);
+      if (!hasClient && now - buf.lastActivity > BUFFER_TTL_MS) buffers.delete(sid);
     }
   }, 15_000);
 }

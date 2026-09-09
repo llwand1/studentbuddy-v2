@@ -1,7 +1,7 @@
-# 认知进化（Cognitive Evolution）功能契约 v1
+# 认知进化（Cognitive Evolution）功能契约 v1.1
 
 > 状态：**待评审**（写代码前的准备工作，尚未落任何实现代码）
-> 日期：2026-09-02 · 适用仓库：`Desktop\studentbuddy-v2`（monorepo：server / shared / web）
+> 日期：2026-09-02 立 v1 · **2026-09-06 修订 v1.1**（反馈加强：证据式判定 + 词条直达进化·出题评估，老板拍板，全量纪要见 §16）· 适用仓库：`Desktop\studentbuddy-v2`（monorepo：server / shared / web）
 > 铁律来源：`AGENTS.md`（六条 ADR + 工程红线）；本文是「先改契约再改码」（`AGENTS.md` §已知约束）要求的载体。
 
 ---
@@ -13,6 +13,7 @@
 - 服务闭环：**忆（M3 词条库）→ 析（判定缺口）→ 练（难度联动）→ 反馈（XP）** 的合环，不新建第六环。
 - ADR-1 自检：不是「又一个功能」，而是让已有词条库从「存住」升级为「练准」。
 - 形态（老板 2026-09-02 拍板）：**不做独立页面**，做**对话页的一个模式**——开启前必须先选 1..N 个词条，开启后正常与 AI 对话，AI 每轮给出理解度判定。
+- 形态 v1.1 追加（老板 2026-09-06 拍板）：入口增加**词条直达**——词条行「进化」按钮一键就该词条开启进化对话，且**首轮 AI 直接对该词条出题**（`[QUIZ]` 单题水平探针）评估用户认知程度，答完转入追问；自由讲述方式照旧共存。仍不建第二个聊天壳（§16.2）。
 
 ---
 
@@ -31,7 +32,7 @@
 | `packages/server/src/learning/activity.ts:9` | `XP_PER` 表 | 新增 `evolution_levelup: 6`（升级给最多 XP） |
 | `packages/web/src/features/chat/ChatView.tsx:160-162` | composer 上方挂 `DocModeControl` | 并列挂 `EvolutionModeControl`（同一模式控件范式） |
 | `packages/web/src/features/chat/ChatView.tsx:107-122` | `m.quizBlock` → `QuizCard` | 同构加 `m.verdictBlock` → `VerdictCard` |
-| `packages/web/src/features/terms/TermsPage.tsx:132-177` | 词条项 | 词条项加「进化链」展开（复用 `evolution_event` 快照） |
+| `packages/web/src/features/terms/TermsPage.tsx:132-177` | 词条项 | 词条项加「进化链」展开（复用 `evolution_event` 快照）；**v1.1** 加「进化」直达按钮（点击 → 新会话预开进化模式并选定该词条 + `probeFirst`，经 app 级跳转参数由 ChatView 消费）。⚠ 行数风险：两项叠进后 TermsPage 若逼近 web 组件 ≤300 行红线，按钮与链展开一并抽入 `TermEvolutionActions.tsx` 小组件 |
 | `packages/web/src/lib/api.ts:86-106` | `api.terms` 分组 | 并列加 `api.evolution` 分组 |
 | `packages/web/src/components/icons.tsx` | SVG line-icon 基座 | 加 `EvoIcon`（自绘，禁 emoji） |
 
@@ -88,6 +89,7 @@ flow.ts：system 注入【进化模式段】→ 模型点评 + 追问（正常�
 CREATE TABLE IF NOT EXISTS evolution_session (
   session_id TEXT PRIMARY KEY,
   term_ids   TEXT NOT NULL,                        -- JSON string[]（term_library.id）
+  probe_first INTEGER NOT NULL DEFAULT 0,          -- v1.1.1 勘误补列：直达提问式开场标志（§8 probeFirst 随会话持久化，刷新复原不丢）
   status     TEXT NOT NULL DEFAULT 'active',       -- active | closed
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -128,7 +130,7 @@ ALTER TABLE term_library ADD COLUMN evo_updated_at TEXT;
 模型在正常点评文字之后输出，外围包一对标记（与 `[TERMS]`/`[QUIZ]` 同风格）：
 
 ```
-[VERDICT]{"term":"闭包","level":2,"verdict":"你把「函数记住外部变量」说清楚了，但没说清捕获的是变量本身还是值，这是 L2 到 L3 的关键。","gaps":["未区分捕获变量与捕获值","没提生命周期"],"nextGoal":"说清闭包捕获变量的生命周期，并举一个踩坑例子","evidence":"用户原话中最能支撑判定的一句"}[/VERDICT]
+[VERDICT]{"term":"闭包","level":2,"verdict":"你把「函数记住外部变量」说清楚了，但没说清捕获的是变量本身还是值，这是 L2 到 L3 的关键。","gaps":["未区分捕获变量与捕获值","没提生命周期"],"nextGoal":"说清闭包捕获变量的生命周期，并举一个踩坑例子","evidence":"用户原话中最能支撑判定的一句","met":["说清了捕获的是变量本身而非值"]}[/VERDICT]
 ```
 
 | 字段 | 类型 | 约束 |
@@ -139,6 +141,7 @@ ALTER TABLE term_library ADD COLUMN evo_updated_at TEXT;
 | `gaps` | string[] | 可选；缺缺口列表，空数组视为无 |
 | `nextGoal` | string \| null | 可选；`level<4` 时应给出 |
 | `evidence` | string | 可选；留档，不展示 |
+| `met` | string[] | 可选（**v1.1 新增**）；本轮命中的 §3 rubric 正面证据要素，每条须可在用户本轮原话里指认（`normalizeVerdict`：非字符串数组→丢字段；超 3 条截 3；**空数组合法** = 本轮没新证据，前端据此渲染「等级不动且无进展」的诚实档） |
 
 一轮可输出**多个** VERDICT 块（用户一次讲多个词条时），闸门与解析均支持重复出现。
 
@@ -150,6 +153,8 @@ ALTER TABLE term_library ADD COLUMN evo_updated_at TEXT;
 - 输入：目标词条清单 + 每个词条当前等级 + 该等级的提问侧重（见 §10 难度表）+ 词条现有释义（AI 内部参考，**不许**原样念给用户）。
 - 输出纪律：先给点评与下一问（正常文字，用户可见），最后输出 `[VERDICT]` 块（用户不可见）。
 - 判定纪律：宁可判低不可判高；只有 rubric 证据充分才升级；用户答非所问时 `level` 取当前等级（不变）并在 `verdict` 里说明。
+- **v1.1 反馈纪律（治「没升级 = 没反馈」）**：等级不动的轮次，`met` 与 `gaps` **不得同时为空**——要么列出「本轮命中的 rubric 要素」（离升级又近一步的证据），要么列出「还缺什么」。`normalizeVerdict` 对双空块兜底：`verdict` 保留、`met` 置空数组（前端渲染「本轮无新证据」，但绝不静默吞卡）。
+- **v1.1 提问式开场**（仅 `probeFirst=true` 的词条直达会话）：首轮回复必须先出一道该词条的单题 `[QUIZ]` 探针题再开始追问——题干与干扰项按 §10 该等级档侧重（L0 考直觉识别、L3 必含边界辨析），`[QUIZ]` 字段清单与示例照 `QUIZ_PROTOCOL` 既有纪律（**字段必须出现在示例里**，flash 级实测教训移植）。复用既有解析阶梯与 `QuizCard` 渲染：**零新协议、零嵌套 LLM 调用**。
 - **反幻觉**：不许把未讲过的内容算作用户已掌握。
 
 ### 6.3 流式闸门（关键实现约束）
@@ -191,7 +196,7 @@ export function normalizeVerdict(v: Verdict, allowed: Set<string>): Verdict | nu
 | 方法 | 路径 | 请求 | 响应 | 失败 |
 |---|---|---|---|---|
 | GET | `/api/evolution?sessionId=` | — | `EvolutionState` | 缺参 400 |
-| POST | `/api/evolution` | `{ sessionId, termIds: string[] }` | `EvolutionState`（201） | 缺参/空数组 400；词条不存在 404；会话不存在 404 |
+| POST | `/api/evolution` | `{ sessionId, termIds: string[], probeFirst?: boolean }`（**v1.1 加法**：直达入口传 true → 进化段提示词带提问式开场令；缺省 false，手动开启路径行为与 v1 完全一致） | `EvolutionState`（201） | 缺参/空数组 400；词条不存在 404；会话不存在 404 |
 | DELETE | `/api/evolution?sessionId=` | — | `{ ok:true }` | 缺参 400 |
 | GET | `/api/evolution/chain/:termId` | `?limit=` 默认 50 | `EvolutionEventRow[]` | — |
 
@@ -247,7 +252,7 @@ export interface EvolutionEventRow {
 | 组件 | 文件 | 要点 | 预估行数 |
 |---|---|---|---|
 | 进化模式控件 | `features/chat/EvolutionModeControl.tsx` | 三态齐备（ADR-5）：未开（按钮）/ 开启中（禁用+「开启中…」）/ 已开（pill：进化中 · 词条 · 当前等级 · 关闭）。选词面板：领域 Tab + 搜索 + 多选（≥1 才可开启）。切会话重取（`alive` 防串台，照抄 `DocModeControl.tsx:28-45`） | ~260 |
-| 判定卡片 | `features/chat/VerdictCard.tsx` | 等级徽章 `L1 → L2`、升/降级配色、缺口列表、下一级目标 | ~110 |
+| 判定卡片 | `features/chat/VerdictCard.tsx` | 等级徽章 `L1 → L2`、升/降级配色、缺口列表、下一级目标；**v1.1**：顶部 5 格等级阶梯条（点亮至当前级、`best_level` 档浅色描边——「只增不减」字段的首个展示位）+ `met` ✅ 勾选清单（等级不动轮次的正反馈主渠道）；阶梯纯 CSS token 实现不引库 | ~180 |
 | 进化链 | `features/terms/TermEvolutionChain.tsx` | 时间轴（竖线 + 节点）：每级时间 / 等级变化 / 用户当时原话 / AI 评语 / 缺口 | ~190 |
 | 图标 | `components/icons.tsx` | `EvoIcon` 自绘 SVG line-icon（`currentColor`） | +12 |
 
@@ -278,6 +283,8 @@ export interface EvolutionEventRow {
 | `learning/verdict-gate.test.ts` | 逐字喂入；跨 chunk 边界（`[VER` + `DICT]`）；未闭合 `flush()` 原样吐回；闭合后正文继续 |
 | `learning/evolution.test.ts` | 开启/关闭幂等；`applyVerdict` 写链 + `evo_level` 更新 + `best_level` 只增；降级路径；已删词条剔除 |
 | `routes/evolution.test.ts` | 缺参 400 / 空数组 400 / 会话不存在 404 / 开启后 GET 复原 |
+| `learning/verdict.test.ts`（v1.1 追加） | `met` 容错三态（非数组丢 / 超 3 截断 / 空数组合法）；双空兜底策略；示例 JSON 自带 `met` 字段可被解析（防「字段没进示例」老坑） |
+| `chat/flow.test.ts`（v1.1 追加） | 进化模式回复含 `[QUIZ]` 探针题时：quiz block 正常解析上卡、`[VERDICT]` 闸门不被探针题干扰（两协议共存回归）；`probeFirst` 段计入 `systemPromptTokens` |
 
 通过后同步 `docs/dev/test-plan.md` 的**基线用例数与不变量清单**（不同步即违规）；跑 `npm run check`（tsc×3 + eslint + vitest + gates）全绿。
 
@@ -297,6 +304,9 @@ export interface EvolutionEventRow {
 | 8 | 难度联动：`generateQuiz` 加 `level` + 出题按钮带档 | 练环联动 | 4 |
 | 9 | `TermEvolutionChain` 进化链回顾 | 忆环闭环 | 5 |
 | 10 | 反馈环：`evolution_levelup` → XP；同步 test-plan / CHANGELOG / AGENTS.md | 全环合上 | 4 |
+| 11 | **v1.1** `met` 管线：shared 类型 + `normalizeVerdict` 容错与双空兜底 + 提示词反馈纪律 + 单测 | 证据式判定协议就绪 | 1,3 |
+| 12 | **v1.1** VerdictCard 阶梯条 + `met` 勾选清单 + CSS token 阶梯样式 | 「没升级也有话」落地 | 11 |
+| 13 | **v1.1** 词条直达：TermsPage「进化」按钮（必要时抽 `TermEvolutionActions.tsx`）+ ChatView 跳转消费 + `probeFirst` 提问式开场 + 共存回归锁 | 一键评估入口 | 4,5,6,11 |
 
 建议分批提交：1-2 → 3-4 → 5-6 → 7 → 8-10（每批 `npm run check` 全绿再提交）。
 
@@ -307,3 +317,37 @@ export interface EvolutionEventRow {
 1. **降级是否写链**：当前设计写（诚实记录回退）。若你希望链上只显示「最好轨迹」，改为降级不落 `evolution_event`、只更新 `evo_level`。
 2. **选题上限**：建议单会话 ≤5 个词条（等级判定要逐个给，太多会稀释每轮深度）。
 3. **难度取 `level` 还是 `best_level`**：当前设计取 `level`（跟随当前真实水平）。
+
+---
+
+## 16. v1.1 修订纪要（2026-09-06 · 反馈加强 · 老板拍板）
+
+**原提示词（逐字）**：
+
+> 「但是这个认知进化目前的反馈太弱了,所以需要加强」
+> （方向选择时）「让用户可以直接在词条哪里展开对话,可以让ai直接对词条进行出题,然后评估用户的认知程度」
+
+### 16.1 根因诊断（为什么 v1 设计会「反馈弱」）
+
+1. 判定纪律「宁判低不判高」是对的（反幻觉），但 v1 的反馈面只设计了升/降配色——**等级不动的轮次（多数轮）零正反馈**，用户体感＝问了半天没反应；
+2. 入口在对话页模式控件里，**开启前要自己选词**，链条长；词条页（用户刚看过答案的地方）反而没有进化入口；
+3. 判定介质是自由讲述，冷启动靠 placeholder 引导——首轮没有结构化评估抓手。
+
+### 16.2 v1.1 范围（两件事）
+
+- **A 证据式判定**：`[VERDICT]` 加 `met` 字段（§6.1）+ 反馈纪律「双空禁止」（§6.2）+ VerdictCard 阶梯条与勾选清单（§11）。核心不变式：**等级不动的轮次也必须输出证据增量或缺口**，判定严格度不降、反馈量上升。
+- **F 词条直达进化**：词条行「进化」按钮 → 新会话预开进化模式选定该词条 + `probeFirst=true` → 首轮 AI 出 `[QUIZ]` 单题水平探针（复用解析阶梯与渲染，零新协议零嵌套调用）→ 作答后转入追问。定档**开新会话**（进化链随会话隔离更干净，与文档模式「生命周期随会话」同构）；不建第二个聊天壳。
+
+### 16.3 本轮显式不做（候选池，老板未选，不悄悄扩权）
+
+- B 缺口一键复练（gaps 点击「针对这个出一道」+ 修复回写链节点）——依赖 A 落地后缺口数据已有，属纯加法，候选 v1.2；
+- C 本场结算卡 + 今日总结进化行；D XP 按跨度分档与 L4 成就；E 词条页 best_level 轨迹缩略图（v1.1 阶梯条已占用 `best_level` 展示位，E 剩「历史轨迹图」部分）；
+- 以上均**未写入正文契约**，落码批次若顺手的行（如 activity 费率函数化）也不得夹带——先回契约重新拍板（照 QUIZ-IMAGE-SPEC §4「显式划界」先例）。
+
+### 16.4 版本记录
+
+| 日期 | 版本 | 变更 |
+|---|---|---|
+| 2026-09-02 | v1.0 | 建契约：5 级链、VERDICT 闸门、难度联动，评审前状态 |
+| 2026-09-06 | v1.1 | 反馈加强：`met` 证据式判定 + 双空禁令 + 阶梯条卡片；词条直达进化按钮 + `probeFirst` 提问式开场（`[QUIZ]` 探针复用）；WBS +11/12/13；候选池划界（B/C/D/E 不做） |
+| 2026-09-06 | v1.1.1 勘误 | 落码时补 §5 `evolution_session.probe_first` 列（§8 `probeFirst` 的持久化载体，评审时漏随附建表 SQL；纯表结构补齐，协议与提示词行为不变）。同时定档：`met` 不落链——仅经 SSE verdict block 做会话内即时反馈，链回顾保持 v1 字段集 |

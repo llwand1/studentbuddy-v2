@@ -30,7 +30,7 @@
 |------|------|------|
 | `token` | content | 助手文本增量（前端按序追加） |
 | `reasoning` | content | 推理过程增量（M1 仅流式呈现不落库） |
-| `block` | blockId/payload/done | 结构化内容块（演进③；M2 起启用，payload 见 shared/content-blocks） |
+| `block` | blockId/payload/done | 结构化内容块（演进③；M2 起启用，payload 见 shared/content-blocks）。**2026-09-06 登记 `kind:'verdict'`**：认知进化判定块（COGNITIVE-EVOLUTION-SPEC §9.1），payload=`Verdict`（shared/domain，v1.1 含 `met`），`blockId='evo-<termId>-<ts>'`；由 flow 端 `[VERDICT]` 流式闸门吞掉正文后发射——判定块不上屏、不落 messages，「屏上文本==库内文本」铁律不破 |
 | `step` | tool/status/detail | 工具执行进度：`running`（detail=入参摘要）→ `done`（detail=结果概览）/ `error`（detail=失败原因，不静默）；前端渲染为进度芯片，`done` 时清空 |
 | `chat-error` | message | 本轮失败（用户中止为「已停止」） |
 | `done` | usage? | 本轮收口；usage.source=provider/estimated |
@@ -82,3 +82,4 @@
 | 2026-08-27 | `step` 事件随单轨工具循环上线（search_web）；新增 `/api/settings/search-keys`（GET/PUT）与 `/api/settings/search/test`；订阅回放语义收紧——已完结的一轮只补 `done`，修重复气泡 |
 | 2026-08-27（复审） | 屏上==库内扩到收尾语（上限提示、中断标记均走 token）；失败轮补发终止 `done`；搜索 `providers` 只报真出结果的一家、缓存键含 provider 组合、自检跳缓存；PUT 先校验后写 + 单值 300 字上限；前端 `done` 判重（历史尾条同字不再追加）——真机 reload 复验单气泡 |
 | 2026-09-02 | 新增文档模式三端点 `GET/POST/DELETE /api/doc`（只回元信息、正文不落盘、会话绑定）；补登 §3.1 此前漏登的 quiz/terms/preview/activity 路由；加**多段 system 必须全量合并**的适配器契约（B-001 教训） |
+| 2026-09-06 | 认知进化 v1.1 契约登记（WBS 任务 1）：`BlockKind` 增 `'verdict'`（payload=Verdict 含 `met`）；`DomainEvent` 增 `evolution_levelup`（server/events/bus.ts）；shared/domain.ts 落 `Verdict`/`EvolutionTermState`/`EvolutionState`/`EvolutionEventRow` 四类型 |

@@ -1,6 +1,7 @@
 /**
  * tools/migrate-from-v1 — v1 → v2 数据迁移（ADR-6：永不触碰 v1 原库；v2 库先备份）。
- * 迁移：sessions/messages/quiz_bank/memorize（SRS 初值）；providers 已在 M1 迁移。
+ * 迁移：sessions/messages/quiz_bank（providers 已在 M1 迁移）。
+ * memorize（SRS）不迁移：v2 已废弃 SRS，忆域 v2 词条库取代，详见下方第 4 步说明。
  * 乱码清洗：v1 早期 GBK 写入的脏标题用 TextDecoder('gbk') 重解码，不可恢复标记保留。
  * 用法：
  *   node tools/migrate-from-v1/migrate.mjs --dry-run   # 只出报告
@@ -68,17 +69,13 @@ try {
   report.skipped.push('quiz_bank: v1 无此表');
 }
 
-// 4) 背词（SRS 初值：按 review_count 推算；mastered 保留）
+// 4) 背词（SRS 初值）—— 已废弃：v2 M5 迁移明文 DELETE FROM memorize（db.ts），
+//    v2 无任何代码读取该表（忆域 v2 词条库 term_library 已整体取代 SRS）。
+//    旧版本会把 SRS 数据迁进一张永不读取的孤儿表，此处改为显式跳过并告知。
 try {
-  const terms = v1.prepare('SELECT id, term, definition, category, difficulty, review_count, mastered, last_review_at FROM memorize').all();
-  const insM = v2.prepare(
-    `INSERT OR IGNORE INTO memorize (id, term, definition, category, difficulty, status, review_count, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-  );
-  for (const t of terms) {
-    const status = t.mastered ? 'mastered' : 'new';
-    insM.run(t.id, clean(t.term).s, clean(t.definition).s, t.category ?? null, t.difficulty ?? 1, status, t.review_count ?? 0);
-    report.memorize++;
+  const n = v1.prepare('SELECT COUNT(*) c FROM memorize').get();
+  if (n && n.c > 0) {
+    report.skipped.push(`memorize: v1 有 ${n.c} 条 SRS 记录，v2 已废弃 SRS（忆域 v2 取代），不迁移`);
   }
 } catch {
   report.skipped.push('memorize: v1 无此表');

@@ -31,7 +31,8 @@
 | `token` | content | 助手文本增量（前端按序追加） |
 | `reasoning` | content | 推理过程增量（M1 仅流式呈现不落库） |
 | `block` | blockId/payload/done | 结构化内容块（演进③；M2 起启用，payload 见 shared/content-blocks）。**2026-09-06 登记 `kind:'verdict'`**：认知进化判定块（COGNITIVE-EVOLUTION-SPEC §9.1），payload=`Verdict`（shared/domain，v1.1 含 `met`），`blockId='evo-<termId>-<ts>'`；由 flow 端 `[VERDICT]` 流式闸门吞掉正文后发射——判定块不上屏、不落 messages，「屏上文本==库内文本」铁律不破 |
-| `step` | tool/status/detail | 工具执行进度：`running`（detail=入参摘要）→ `done`（detail=结果概览）/ `error`（detail=失败原因，不静默）；前端渲染为进度芯片，`done` 时清空 |
+| `step` | tool/status/detail/args?/result? | 工具执行进度：`running`（detail=入参摘要）→ `done`（detail=结果概览）/ `error`（detail=失败原因，不静默）；前端渲染为过程卡片。**2026-09-09 增强**：终态事件附 `args`（工具入参原文 JSON 串）与 `result`（结果摘要截 ~400 字），前端点击卡片展开查看输入/输出；终态由 tool-exec 调度器统一发射（每张卡片有且只有一个终态）。生成完成后 steps 不再清空（与 reasoning 同策略），清空点在下一轮 send/regenerate 与切会话 |
+| `tasks` | items | **2026-09-09 登记（标准 CoT 任务清单）**：模型经 `update_tasks` 工具（不在 tools.ts 注册表，flow.ts exec 注入接入）发来的全量清单 `[{text, status: 'pending'\|'done'}]`（≤10 条）；**整表覆盖语义**——面板每次整体替换，不做增量合并；前端渲染为打勾进度面板（n/m 计数），done 后保留可回看 |
 | `chat-error` | message | 本轮失败（用户中止为「已停止」） |
 | `done` | usage? | 本轮收口；usage.source=provider/estimated |
 | `ping` | — | 心跳 |

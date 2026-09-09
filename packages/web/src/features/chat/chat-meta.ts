@@ -8,6 +8,7 @@ const TOOL_LABELS: Record<string, string> = {
   search_web: '联网搜索',
   tidy_terms: '整理词条',
   manage_terms: '管理词条',
+  update_tasks: '任务清单',
 };
 
 /**

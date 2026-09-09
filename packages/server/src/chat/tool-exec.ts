@@ -36,6 +36,15 @@ export interface ToolExecOptions {
   signal?: AbortSignal;
 }
 
+/** 过程卡片可展开的载荷（SSE 契约 2026-09-09）：入参原文 + 结果摘要 */
+export interface StepPayload {
+  args?: string;
+  result?: string;
+}
+
+/** 结果摘要截断上限：给用户点开看的，不是回灌模型的（回灌另有 MAX_TOOL_RESULT_CHARS） */
+export const RESULT_SNIPPET_CHARS = 400;
+
 /** 契约 §4.2 默认超时。搜网免 key 兜底已知可挂 ~20s，30s 是「给它跑完但别拖死一轮」的折中 */
 export const DEFAULT_TOOL_TIMEOUT_MS = 30_000;
 
@@ -82,13 +91,21 @@ function abortRaceOf(signal: AbortSignal | undefined, done: AbortController): Pr
 }
 
 /**
+ * 步骤发射器的宽松口径：比 tools.ts 的 ToolContext.onStep 多一个可选 payload——
+ * 本文件要在终态事件上附 args/result。3 参的 onStep（工具实现、测试桩）照样可赋值进来。
+ */
+export interface StepEmitterCtx {
+  onStep: (tool: string, status: 'running' | 'done' | 'error', detail?: string, payload?: StepPayload) => void;
+}
+
+/**
  * 并行执行一轮内的全部工具调用，返回与入参同序的结果。
  * 单个工具失败/超时/被取消都**不抛**——各自的失败以 `content` 回灌模型自纠（契约 §4.2），
  * 只有调度器本身炸了才进 allSettled 的兜底分支（那属于 bug，不静默吞）。
  */
 export async function runToolCalls(
   calls: ToolCall[],
-  ctx: ToolContext,
+  ctx: StepEmitterCtx,
   opts: ToolExecOptions = {},
 ): Promise<ToolOutcome[]> {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS;
@@ -104,9 +121,26 @@ export async function runToolCalls(
         return { id: call.id, name: call.name, content: ABORT_HINT, ok: false };
       }
 
+      /**
+       * 终态接管：工具实现（tools.ts）内部会自己发 done/error，这里**拦下缓存、
+       * 不直接透出**，等 race 出结果后由本调度器统一重发一次并附上 args/result 载荷——
+       * 保证每张过程卡片有且只有一个终态，且点开能看到输入输出（SSE 契约 2026-09-09）。
+       * running 原样透传（过程态要实时）。
+       */
+      let terminal: { status: 'done' | 'error'; detail?: string } | undefined;
+      const callCtx: ToolContext = {
+        onStep: (tool, status, detail) => {
+          if (status === 'running') {
+            ctx.onStep(tool, 'running', detail);
+            return;
+          }
+          terminal = { status, detail };
+        },
+      };
+
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        const racers: Array<Promise<ToolResult>> = [exec(call.name, call.arguments, ctx)];
+        const racers: Array<Promise<ToolResult>> = [exec(call.name, call.arguments, callCtx)];
         racers.push(
           new Promise<never>((_, reject) => {
             timer = setTimeout(() => reject(new ToolTimeoutError(timeoutMs)), timeoutMs);
@@ -114,6 +148,15 @@ export async function runToolCalls(
         );
         if (abortRace) racers.push(abortRace);
         const r = await Promise.race(racers);
+        // 工具内部已自判 error 却正常返回（如搜索词为空）：如实重发 error，不再补 done
+        if (terminal?.status === 'error') {
+          ctx.onStep(call.name, 'error', terminal.detail, { args: call.arguments });
+        } else {
+          ctx.onStep(call.name, 'done', terminal?.detail, {
+            args: call.arguments,
+            result: r.content.slice(0, RESULT_SNIPPET_CHARS),
+          });
+        }
         return { id: call.id, name: call.name, content: r.content, ok: true };
       } catch (err) {
         const aborted = signal?.aborted === true;
@@ -125,7 +168,7 @@ export async function runToolCalls(
             : err instanceof Error
               ? err.message
               : String(err);
-        ctx.onStep(call.name, 'error', detail);
+        ctx.onStep(call.name, 'error', detail, { args: call.arguments });
         return {
           id: call.id,
           name: call.name,

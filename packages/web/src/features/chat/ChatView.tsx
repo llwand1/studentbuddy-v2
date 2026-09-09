@@ -6,9 +6,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useChatStream } from './useChatStream';
 import { useScrollAnchor } from './useScrollAnchor';
 import { ThoughtPanel } from './ThoughtPanel';
+import { ToolSteps } from './ToolSteps';
+import { TaskPanel } from './TaskPanel';
 import { MessageFoot } from './MessageFoot';
-import { formatRoundMeta, toolLabel } from './chat-meta';
-import { SendIcon, QuizIcon, SearchIcon, CardsIcon, DownloadIcon } from '../../components/icons';
+import { formatRoundMeta } from './chat-meta';
+import { SendIcon, QuizIcon, CardsIcon, DownloadIcon } from '../../components/icons';
 import { buildExportMarkdown, downloadText, exportFilename } from './chat-export';
 import { QuizCard } from '../quiz/QuizCard';
 import { mixSummary, imageNote } from '../quiz/mix-report';
@@ -19,13 +21,6 @@ import { DocModeControl } from './DocModeControl';
 import { AskStyleCard, useAskStyle } from './AskStyleCard';
 import { api } from '../../lib/api';
 import './chat.css';
-
-/** 中文名在 chat-meta.ts（新工具在 chat/tools.ts 注册后去那里补一行） */
-const STEP_STATE: Record<'running' | 'done' | 'error', string> = {
-  running: '进行中…',
-  done: '完成',
-  error: '失败',
-};
 
 export function ChatView({
   sessionId,
@@ -39,7 +34,7 @@ export function ChatView({
   onNewSession: () => void;
   onRoundDone?: () => void;
 }) {
-  const { messages, streamingText, reasoning, steps, busy, ready, error, usage, elapsedMs, send, stop, regenerate } =
+  const { messages, streamingText, reasoning, steps, tasks, busy, ready, error, usage, elapsedMs, send, stop, regenerate } =
     useChatStream(sessionId, onRoundDone);
   const [input, setInput] = useState('');
   const [sendError, setSendError] = useState('');
@@ -50,7 +45,7 @@ export function ChatView({
   const [quizNote, setQuizNote] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   /** 滚动锚定：贴底才跟随流式输出；离底时不打断用户上翻，改显示「回到底部」 */
-  const { scrollRef, showJump, onScroll, jumpToBottom } = useScrollAnchor([messages.length, steps.length, streamingText]);
+  const { scrollRef, showJump, onScroll, jumpToBottom } = useScrollAnchor([messages.length, steps.length, tasks.length, streamingText]);
 
   /** 出题配比是全局设置（设置页改的），本视图只展示摘要；拉取失败静默——服务端仍按库内配比出题 */
   useEffect(() => {
@@ -61,7 +56,7 @@ export function ChatView({
   }, []);
 
   const blocked = ready !== 'open' || busy;
-  const isEmpty = messages.length === 0 && steps.length === 0 && !streamingText;
+  const isEmpty = messages.length === 0 && steps.length === 0 && tasks.length === 0 && !streamingText;
   /** 轮次元信息只在收口后显示：生成过程中显示「已用 x tokens」会随流式跳动，且中途的数没有意义 */
   const roundMeta = busy ? '' : formatRoundMeta(usage, elapsedMs);
   /** 「重新生成」只给最后一条回答：对中间某条重生成的语义是分叉，本版不做（会牵扯历史改写） */
@@ -185,18 +180,8 @@ export function ChatView({
           ) : null,
         )}
         {reasoning && <ThoughtPanel text={reasoning} streaming={busy} />}
-        {steps.length > 0 && (
-          <div className="chat-steps">
-            {steps.map((s, i) => (
-              <div key={i} className={`chat-step ${s.status}`}>
-                <SearchIcon size={14} />
-                <span className="chat-step-name">{toolLabel(s.tool)}</span>
-                <span className="chat-step-state">{STEP_STATE[s.status]}</span>
-                {s.detail && <span className="chat-step-detail">{s.detail}</span>}
-              </div>
-            ))}
-          </div>
-        )}
+        {tasks.length > 0 && <TaskPanel items={tasks} streaming={busy} />}
+        <ToolSteps steps={steps} />
         {streamingText && (
           <div className="chat-row">
             <div className="chat-bubble md streaming">

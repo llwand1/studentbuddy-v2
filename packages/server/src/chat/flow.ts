@@ -14,8 +14,10 @@ import { getMaxOutputTokens } from '../llm/model-limits.js';
 import { publish, startNewRound } from './sse-bus.js';
 import { publishEvent } from '../events/bus.js';
 import { estimateTokens, truncateHistoryToBudget, getContextLimit } from './context.js';
-import { toolDefinitions } from './tools.js';
-import { runToolCalls } from './tool-exec.js';
+import { toolDefinitions, runTool } from './tools.js';
+import type { ToolContext, ToolResult } from './tools.js';
+import { runToolCalls, type StepPayload } from './tool-exec.js';
+import { TASKS_TOOL, parseTaskList } from './task-list.js';
 import { getRelevantTerms, saveTerms, extractTerms, countUsage } from '../learning/terms.js';
 import { getSessionDoc, buildDocBlock } from '../learning/document.js';
 import type { ChatMessage, ToolCall } from '../llm/types.js';
@@ -32,6 +34,7 @@ const SYSTEM_PROMPT = [
   '需要展示数据对比/趋势/占比时，用 ```chart 围栏输出单个 JSON：',
   '{"type":"bar|line|pie","title":"标题","labels":["类目"],"values":[非负数值]}；labels 与 values 一一对应，柱/折线最多31项，饼图2-8项。',
   '做可交互演示（动画/模拟器/小工具）时，用 ```html 围栏输出单个完整可独立运行的 HTML 文档：CSS 与 JS 全部内联、不引 CDN，用户点卡片按钮在新标签页打开。',
+  '处理多步骤任务（制定计划、查资料对比、系统性讲解等需要多个环节的请求）时，先调用 update_tasks 工具列出任务清单（≤10 条），每完成一个关键环节就再次调用更新对应条目为 done；一步能答完的简单问题不要用它。',
 ].join('\n');
 
 /** 同会话串行锁：并发消息排队执行，绝不交错（v1 修复语义） */
@@ -150,10 +153,32 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     publish(sessionId, { type: 'token', sessionId, content: delta });
   };
 
-  // 单轨工具循环（G3）：toolCalls → 执行 → tool 回灌 → 再生成；上限 MAX_TOOL_TURNS 轮
-  const tools = toolDefinitions();
-  const onStep = (tool: string, status: 'running' | 'done' | 'error', detail?: string) => {
-    publish(sessionId, { type: 'step', sessionId, tool, status, detail });
+  // 单轨工具循环（G3）：toolCalls → 执行 → tool 回灌 → 再生成；上限 MAX_TOOL_TURNS 轮。
+  // update_tasks（任务清单）不在 tools.ts 注册表（该文件被并行会话在途改动，R1 避让）：
+  // definition 拼进 tools 列表、执行走 exec 注入（runToolCalls 支持自定义执行器），零改动 tools.ts。
+  const tools = [...toolDefinitions(), TASKS_TOOL.definition];
+  const onStep = (
+    tool: string,
+    status: 'running' | 'done' | 'error',
+    detail?: string,
+    payload?: StepPayload,
+  ) => {
+    publish(sessionId, {
+      type: 'step',
+      sessionId,
+      tool,
+      status,
+      detail,
+      args: payload?.args,
+      result: payload?.result,
+    });
+  };
+  /** 任务清单工具执行器：发 tasks 事件 + 回灌确认（与注册表工具同构的 ToolResult 口径） */
+  const execTool = (name: string, argsJson: string, ctx: ToolContext): Promise<ToolResult> => {
+    if (name !== 'update_tasks') return runTool(name, argsJson, ctx);
+    const r = parseTaskList(argsJson);
+    if (r.ok) publish(sessionId, { type: 'tasks', sessionId, items: r.items });
+    return Promise.resolve({ content: r.content });
   };
   /** 工具轮攒到最终答案确认后一并落库：中途失败/中止不留孤儿 tool 消息（v1 语义） */
   const rounds: Array<{ calls: ToolCall[]; results: ChatMessage[] }> = [];
@@ -208,7 +233,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       // 并行执行 + 单工具超时 + 中止即停（契约 §4.3）：原来是 for 循环裸 await，
       // 多工具时耗时叠加，且长工具期间「停止」按钮形同虚设（signal 没进执行环节）。
       // 结果按调用顺序回灌，顺序稳定性＝回归锁可钉（见 chat/tool-exec.test.ts）。
-      const outcomes = await runToolCalls(turnToolCalls, { onStep }, { signal: opts.signal });
+      const outcomes = await runToolCalls(turnToolCalls, { onStep }, { signal: opts.signal, exec: execTool });
       abortIfNeeded();
       for (const o of outcomes) {
         results.push({ role: 'tool', content: o.content.slice(0, MAX_TOOL_RESULT_CHARS), toolCallId: o.id });

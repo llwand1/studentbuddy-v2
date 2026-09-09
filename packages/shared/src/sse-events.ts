@@ -25,6 +25,17 @@ export type SseEvent =
       tool: string;
       status: 'running' | 'done' | 'error';
       detail?: string;
+      /** 工具入参原文（JSON 串）：过程卡片点击展开时展示（2026-09-09 登记） */
+      args?: string;
+      /** 工具结果摘要（截断至 ~400 字）：同上，展开时展示，不回灌模型 */
+      result?: string;
+    }
+  | {
+      /** 任务清单（标准 CoT）：模型经 update_tasks 工具整体覆盖式更新；前端渲染为打勾清单 */
+      type: 'tasks';
+      seq: number;
+      sessionId: string;
+      items: Array<{ text: string; status: 'pending' | 'done' }>;
     }
   | { type: 'chat-error'; seq: number; sessionId: string; message: string }
   | { type: 'done'; seq: number; sessionId: string; usage?: TokenUsage }

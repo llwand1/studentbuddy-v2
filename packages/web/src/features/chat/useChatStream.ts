@@ -21,6 +21,16 @@ export interface ToolStep {
   tool: string;
   status: 'running' | 'done' | 'error';
   detail?: string;
+  /** 工具入参原文（JSON 串）：过程卡片点开看 */
+  args?: string;
+  /** 工具结果摘要（截断 ~400 字）：同上 */
+  result?: string;
+}
+
+/** 任务清单条目（SSE tasks 事件，标准 CoT 进度面板） */
+export interface TaskItem {
+  text: string;
+  status: 'pending' | 'done';
 }
 
 export function useChatStream(sessionId: string | null, onRoundDone?: () => void) {
@@ -28,6 +38,7 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
   const [streamingText, setStreamingText] = useState('');
   const [reasoning, setReasoning] = useState('');
   const [steps, setSteps] = useState<ToolStep[]>([]);
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState<SseReadyState>('connecting');
   const [error, setError] = useState('');
@@ -111,6 +122,7 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
     setError('');
     setStreamingText('');
     setSteps([]);
+    setTasks([]);
     // 切会话即换轮：上一轮的 token/耗时不能跟着漂到新会话的页面上
     setUsage(null);
     setElapsedMs(0);
@@ -130,17 +142,22 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
           const next = [...prev];
           for (let i = next.length - 1; i >= 0; i--) {
             if (next[i]?.tool === ev.tool && next[i]?.status === 'running') {
-              next[i] = { tool: ev.tool, status: ev.status, detail: ev.detail };
+              next[i] = { tool: ev.tool, status: ev.status, detail: ev.detail, args: ev.args, result: ev.result };
               return next;
             }
           }
-          return [...next, { tool: ev.tool, status: ev.status, detail: ev.detail }];
+          return [...next, { tool: ev.tool, status: ev.status, detail: ev.detail, args: ev.args, result: ev.result }];
         });
+      } else if (ev.type === 'tasks') {
+        // 任务清单是全量覆盖语义：面板整表替换，模型每次 update_tasks 都发完整列表
+        setBusy(true);
+        setTasks(ev.items);
       } else if (ev.type === 'done') {
         // 合批残留必须先落屏：buffer 里可能压着最后一帧没 flush 的字，丢了就是尾巴少一段
         flushTokens();
         setBusy(false);
-        setSteps([]);
+        // steps 刻意不清（与 reasoning 同策略）：过程卡片是这轮回答的执行痕迹，用户要能回看；
+        // 清空点在下一轮 send/regenerate 与切会话，保证不串轮
         if (ev.usage) setUsage(ev.usage);
         if (startedAtRef.current) setElapsedMs(Date.now() - startedAtRef.current);
         setStreamingText((t) => {
@@ -197,6 +214,7 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
       setStreamingText('');
       setReasoning('');
       setSteps([]);
+    setTasks([]);
       setUsage(null);
       setElapsedMs(0);
       startedAtRef.current = Date.now();
@@ -235,6 +253,7 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
       setUsage(null);
       setElapsedMs(0);
       setSteps([]);
+    setTasks([]);
       startedAtRef.current = Date.now();
       setMessages((ms) => {
         const lastUser = ms.reduce((acc, m, i) => (m.role === 'user' ? i : acc), -1);
@@ -253,5 +272,5 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
     [sessionId, ready, busy, resetTokens],
   );
 
-  return { messages, streamingText, reasoning, steps, busy, ready, error, usage, elapsedMs, send, stop, regenerate };
+  return { messages, streamingText, reasoning, steps, tasks, busy, ready, error, usage, elapsedMs, send, stop, regenerate };
 }

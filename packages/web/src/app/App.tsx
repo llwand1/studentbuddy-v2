@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@sb/shared';
+import { UserAuthBox } from '../components/UserAuthBox';
 import {
   QuizIcon,
   CardsIcon,
@@ -16,7 +17,6 @@ import {
   PinIcon,
   ChevronDownIcon,
   ClockIcon,
-  UserIcon,
 } from '../components/icons';
 import { api } from '../lib/api';
 import { ChatView } from '../features/chat/ChatView';
@@ -186,17 +186,8 @@ export function App() {
           {visible.length === 0 && query && <div className="sb-session-empty">没有匹配的会话</div>}
         </div>
 
-        {/* 底部用户占位：微信登录预留位（登录态接入前只作展示） */}
-        <div className="sb-user-box" title="预留：微信登录">
-          <span className="sb-avatar">
-            <UserIcon size={15} />
-          </span>
-          <span className="sb-user-meta">
-            <span className="sb-user-name">未登录</span>
-            <span className="sb-user-hint">点击登录</span>
-          </span>
-          <span className="sb-login-tag">微信登录</span>
-        </div>
+        {/* 底部用户区：PK 登录（P0-1），组件自持登录态，见 components/UserAuthBox */}
+        <UserAuthBox />
       </aside>
       <main className="sb-main">
         {view === 'chat' && (

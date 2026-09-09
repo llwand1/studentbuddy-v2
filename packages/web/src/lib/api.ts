@@ -1,7 +1,7 @@
 /**
  * api — REST 封装（同源经 vite proxy；错误统一抛 ApiError，UI 层可见可重试，ADR-5）。
  */
-import type { StatusResponse, Session, Provider, ModelRole, QuizMix, AnswerStyle } from '@sb/shared';
+import type { StatusResponse, Session, Provider, ModelRole, QuizMix, AnswerStyle, PkIdentity } from '@sb/shared';
 
 export class ApiError extends Error {
   constructor(
@@ -29,6 +29,17 @@ export const api = {
   request,
 
   status: () => request<StatusResponse>('/api/status'),
+
+  /** PK 登录（契约 docs/PK-SPEC.md §2.1）：P0 模拟实现，P1 换真微信授权时这两个签名不变 */
+  pk: {
+    login: (nickname: string, userId?: string) =>
+      request<PkIdentity>('/api/pk/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ nickname, ...(userId ? { userId } : {}) }),
+      }),
+    /** 启动时校验本地登录态；404（账号不存在）由调用方按需清除 */
+    me: (userId: string) => request<PkIdentity>(`/api/pk/auth/me?userId=${encodeURIComponent(userId)}`),
+  },
 
   sessions: {
     list: () => request<Session[]>('/api/sessions'),

@@ -12,6 +12,7 @@ import { documentRouter } from './routes/document.js';
 import { activityRouter } from './routes/activity.js';
 import { obsRouter } from './routes/obs.js';
 import { previewRouter } from './routes/preview.js';
+import { pkRouter } from './routes/pk.js';
 import { wireActivityEvents } from './learning/activity.js';
 import { wireObsEvents } from './storage/obs.js';
 import { getDb } from './storage/db.js';
@@ -53,6 +54,7 @@ app.use('/api/activity', activityRouter);
 app.use('/api/obs', obsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/preview', previewRouter);
+app.use('/api/pk', pkRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });

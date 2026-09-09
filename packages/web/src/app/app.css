@@ -288,6 +288,46 @@
   padding: 2px 5px;
 }
 
+/* ===== 用户框内嵌登录/改名表单（PK 登录 P0-1）：展开时替换昵称区，不弹窗 ===== */
+.sb-user-form {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sb-user-form-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  padding: 4px 6px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: #fff;
+  color: var(--sb-ink-primary, #1f2329);
+  outline: none;
+}
+.sb-user-form-input:focus { border-color: var(--sb-primary); }
+.sb-user-form-err { font-size: 10px; color: #d54941; }
+.sb-user-form-actions { display: flex; gap: 4px; }
+.sb-user-form-btn {
+  flex: 1;
+  font-size: 11px;
+  padding: 3px 0;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: #fff;
+  color: var(--sb-ink-secondary, #4e5969);
+  cursor: pointer;
+}
+.sb-user-form-btn:hover { border-color: var(--sb-primary); color: var(--sb-primary); }
+.sb-user-form-btn.primary {
+  background: var(--sb-primary);
+  border-color: var(--sb-primary);
+  color: #fff;
+}
+.sb-user-form-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* ===== 吉祥物像素团子：调色板与眨眼（自 chat.css 迁入——侧栏也用团子，样式归壳层）
    调色板：亮/本体/暗/墨四档全从 --sb-primary 混出来，品牌色一改团子跟着改，不留私有蓝 ===== */
 .mascot-px-lid {

@@ -280,6 +280,21 @@ MIGRATIONS.push({
   ],
 });
 
+// v10：PK 登录（2026-09-09 契约 docs/PK-SPEC.md P0-1）——账号 = pk_users 一条记录。
+// openid 现为模拟值（mock_<id>），P1 换真微信授权时只改写入方，表结构与唯一约束已按真 openid 设计。
+MIGRATIONS.push({
+  version: 10,
+  statements: [
+    `CREATE TABLE IF NOT EXISTS pk_users (
+      id TEXT PRIMARY KEY,
+      openid TEXT NOT NULL UNIQUE,
+      nickname TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_seen_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  ],
+});
+
 export function getDb(): Database.Database {
   if (db) return db;
   fs.mkdirSync(DATA_DIR, { recursive: true });

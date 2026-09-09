@@ -14,7 +14,8 @@ import { getMaxOutputTokens } from '../llm/model-limits.js';
 import { publish, startNewRound } from './sse-bus.js';
 import { publishEvent } from '../events/bus.js';
 import { estimateTokens, truncateHistoryToBudget, getContextLimit } from './context.js';
-import { toolDefinitions, runTool } from './tools.js';
+import { toolDefinitions } from './tools.js';
+import { runToolCalls } from './tool-exec.js';
 import { getRelevantTerms, saveTerms, extractTerms, countUsage } from '../learning/terms.js';
 import { getSessionDoc, buildDocBlock } from '../learning/document.js';
 import type { ChatMessage, ToolCall } from '../llm/types.js';
@@ -199,10 +200,13 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       }
 
       const results: ChatMessage[] = [];
-      for (const tc of turnToolCalls) {
-        const r = await runTool(tc.name, tc.arguments, { onStep });
-        abortIfNeeded();
-        results.push({ role: 'tool', content: r.content.slice(0, MAX_TOOL_RESULT_CHARS), toolCallId: tc.id });
+      // 并行执行 + 单工具超时 + 中止即停（契约 §4.3）：原来是 for 循环裸 await，
+      // 多工具时耗时叠加，且长工具期间「停止」按钮形同虚设（signal 没进执行环节）。
+      // 结果按调用顺序回灌，顺序稳定性＝回归锁可钉（见 chat/tool-exec.test.ts）。
+      const outcomes = await runToolCalls(turnToolCalls, { onStep }, { signal: opts.signal });
+      abortIfNeeded();
+      for (const o of outcomes) {
+        results.push({ role: 'tool', content: o.content.slice(0, MAX_TOOL_RESULT_CHARS), toolCallId: o.id });
       }
       rounds.push({ calls: turnToolCalls, results });
       messages.push({ role: 'assistant', content: '', toolCalls: turnToolCalls }, ...results);

@@ -8,7 +8,7 @@
  * - 并行：`Promise.allSettled`，结果**按调用顺序**回灌（顺序稳定性＝回归锁可钉）。
  * - 超时：到点后不再等待、不把结果回灌；被放弃的那次调用仍在后台跑完——
  *   真正的中断需要 `signal` 透传进工具内部（改 `ToolContext`，下一步，本批不做）。
- * - 取消：`signal` 已中止时**不发起**新调用；已在跑的同样只是「不等它」。
+ * - 取消：中止后**不再干等**，立刻按「已停止」结算（见 `abortRaceOf`）；已在跑的调用同样只是「不等它」。
  * - 未做（需要 `kind` 字段，属 S1 后半）：同轮去重、network 失败重试 1 次。
  *
  * 为什么 exec 走参数注入而不是直接 import：`runTool` 会碰 DB 与网络，
@@ -52,6 +52,36 @@ export class ToolTimeoutError extends Error {
 }
 
 /**
+ * 把 signal 变成可参与 race 的 promise。
+ *
+ * 为什么要 `done` 这个内部 controller：race 结束后这个 promise 会**永远 pending**，
+ * 而留着 pending promise 会拖住 vitest 的 worker（表现为 worker 层面莫名其妙的栈溢出，
+ * 与本文件逻辑无关、极难定位）。故调用结束时由 `done` 主动结算掉它；
+ * 那次结算走 reject，用 `p.catch` 兜住，不让它冒成 unhandled rejection。
+ */
+function abortRaceOf(signal: AbortSignal | undefined, done: AbortController): Promise<never> | null {
+  if (!signal) return null;
+  const p = new Promise<never>((_resolve, reject) => {
+    const onAbort = (): void => reject(new Error('已停止'));
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener('abort', onAbort, { once: true });
+    done.signal.addEventListener(
+      'abort',
+      () => {
+        signal.removeEventListener('abort', onAbort);
+        reject(new Error('__settled__'));
+      },
+      { once: true },
+    );
+  });
+  p.catch(() => undefined);
+  return p;
+}
+
+/**
  * 并行执行一轮内的全部工具调用，返回与入参同序的结果。
  * 单个工具失败/超时/被取消都**不抛**——各自的失败以 `content` 回灌模型自纠（契约 §4.2），
  * 只有调度器本身炸了才进 allSettled 的兜底分支（那属于 bug，不静默吞）。
@@ -64,54 +94,62 @@ export async function runToolCalls(
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS;
   const exec = opts.exec ?? runTool;
   const signal = opts.signal;
+  const done = new AbortController();
+  const abortRace = abortRaceOf(signal, done);
 
-  const tasks = calls.map(async (call) => {
-    if (signal?.aborted) {
-      ctx.onStep(call.name, 'error', '已停止');
-      return { id: call.id, name: call.name, content: ABORT_HINT, ok: false };
-    }
+  try {
+    const tasks = calls.map(async (call) => {
+      if (signal?.aborted) {
+        ctx.onStep(call.name, 'error', '已停止');
+        return { id: call.id, name: call.name, content: ABORT_HINT, ok: false };
+      }
 
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      const r = await Promise.race([
-        exec(call.name, call.arguments, ctx),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new ToolTimeoutError(timeoutMs)), timeoutMs);
-        }),
-      ]);
-      return { id: call.id, name: call.name, content: r.content, ok: true };
-    } catch (err) {
-      const aborted = signal?.aborted === true;
-      const timedOut = err instanceof ToolTimeoutError;
-      const detail = aborted
-        ? '已停止'
-        : timedOut
-          ? `超时 ${timeoutMs}ms`
-          : err instanceof Error
-            ? err.message
-            : String(err);
-      ctx.onStep(call.name, 'error', detail);
-      return {
-        id: call.id,
-        name: call.name,
-        content: aborted ? ABORT_HINT : timedOut ? TIMEOUT_HINT : `工具执行失败：${detail}`,
-        ok: false,
-      };
-    } finally {
-      // 必须清：不清的话每个工具都会挂一个 timer 拖到超时点，Node 进程退出被推迟
-      if (timer) clearTimeout(timer);
-    }
-  });
-
-  const settled = await Promise.allSettled(tasks);
-  return settled.map((s, i) =>
-    s.status === 'fulfilled'
-      ? s.value
-      : {
-          id: calls[i]?.id ?? '',
-          name: calls[i]?.name ?? '',
-          content: `工具执行失败：${String(s.reason)}`,
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const racers: Array<Promise<ToolResult>> = [exec(call.name, call.arguments, ctx)];
+        racers.push(
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new ToolTimeoutError(timeoutMs)), timeoutMs);
+          }),
+        );
+        if (abortRace) racers.push(abortRace);
+        const r = await Promise.race(racers);
+        return { id: call.id, name: call.name, content: r.content, ok: true };
+      } catch (err) {
+        const aborted = signal?.aborted === true;
+        const timedOut = err instanceof ToolTimeoutError;
+        const detail = aborted
+          ? '已停止'
+          : timedOut
+            ? `超时 ${timeoutMs}ms`
+            : err instanceof Error
+              ? err.message
+              : String(err);
+        ctx.onStep(call.name, 'error', detail);
+        return {
+          id: call.id,
+          name: call.name,
+          content: aborted ? ABORT_HINT : timedOut ? TIMEOUT_HINT : `工具执行失败：${detail}`,
           ok: false,
-        },
-  );
+        };
+      } finally {
+        // 必须清：不清的话每个工具都会挂一个 timer 拖到超时点，Node 进程退出被推迟
+        if (timer) clearTimeout(timer);
+      }
+    });
+
+    const settled = await Promise.allSettled(tasks);
+    return settled.map((s, i) =>
+      s.status === 'fulfilled'
+        ? s.value
+        : {
+            id: calls[i]?.id ?? '',
+            name: calls[i]?.name ?? '',
+            content: `工具执行失败：${String(s.reason)}`,
+            ok: false,
+          },
+    );
+  } finally {
+    done.abort(); // 结算 abortRace，不留 pending promise
+  }
 }

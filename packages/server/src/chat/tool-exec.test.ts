@@ -103,6 +103,26 @@ describe('runToolCalls — 取消与失败', () => {
     expect(steps[0]).toMatchObject({ status: 'error', detail: '已停止' });
   });
 
+  it('执行途中被中止：不等超时就结算（否则用户点「停止」要干等 30s）', async () => {
+    const { ctx, steps } = makeCtx();
+    const ac = new AbortController();
+    let release: (() => void) | undefined;
+    const exec = (): Promise<ToolResult> =>
+      new Promise((r) => {
+        release = () => r({ content: 'late' });
+      });
+    const t0 = Date.now();
+    setTimeout(() => ac.abort(), 40);
+    try {
+      const out = await runToolCalls([call('1', 'hang')], ctx, { exec, signal: ac.signal, timeoutMs: 5000 });
+      expect(Date.now() - t0).toBeLessThan(1000); // 远小于 5s 超时 ⇒ 确实没在干等
+      expect(out[0]?.content).toBe(ABORT_HINT);
+      expect(steps[0]).toMatchObject({ status: 'error', detail: '已停止' });
+    } finally {
+      release?.();
+    }
+  });
+
   it('工具抛错时不炸本轮：回灌失败原因给模型自纠，并标 error 上屏', async () => {
     const { ctx, steps } = makeCtx();
     const exec = async (): Promise<ToolResult> => {

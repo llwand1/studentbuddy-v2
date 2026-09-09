@@ -30,6 +30,8 @@ export function App() {
   const [currentId, setCurrentId] = useState<string | null>(null);
   /** 会话标题过滤（纯前端，服务端列表本就 ≤ 单机量级）；空串 = 不过滤 */
   const [query, setQuery] = useState('');
+  /** 正在生成回复的会话 id：侧栏在该会话项上显示「回复中」提示（busy 上报自 ChatView） */
+  const [busySid, setBusySid] = useState<string | null>(null);
 
   const reloadSessions = useCallback(async () => {
     try {
@@ -66,6 +68,11 @@ export function App() {
     await reloadSessions();
   };
 
+  /** 稳定引用：ChatView 的 useEffect 以它为依赖，箭头函数每次新建会导致 effect 反复触发 */
+  const handleBusyChange = useCallback((busy: boolean, sid: string | null) => {
+    setBusySid(busy ? sid : null);
+  }, []);
+
   const togglePin = async (s: Session) => {
     await api.sessions.pin(s.id, !s.pinned).catch(() => undefined);
     await reloadSessions();
@@ -97,6 +104,12 @@ export function App() {
               onKeyDown={(e) => e.key === 'Enter' && openSession(s.id)}
             >
               <span className="sb-session-title">{s.title || '新对话'}</span>
+              {busySid === s.id && (
+                <span className="sb-session-busy" role="status">
+                  <span className="sb-session-busy-dot" />
+                  回复中
+                </span>
+              )}
               <button
                 className={s.pinned ? 'sb-session-pin pinned' : 'sb-session-pin'}
                 title={s.pinned ? '取消置顶' : '置顶'}
@@ -146,6 +159,7 @@ export function App() {
             sessionTitle={sessions.find((s) => s.id === currentId)?.title}
             onNewSession={() => void newSession()}
             onRoundDone={() => void reloadSessions()}
+            onBusyChange={handleBusyChange}
           />
         )}
         {view === 'quiz' && <QuizBankPage />}

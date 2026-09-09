@@ -33,7 +33,12 @@ export interface TaskItem {
   status: 'pending' | 'done';
 }
 
-export function useChatStream(sessionId: string | null, onRoundDone?: () => void) {
+export function useChatStream(
+  sessionId: string | null,
+  onRoundDone?: () => void,
+  /** 生成状态上报（App 侧栏「回复中」提示）：busy 翻转时回调一次 */
+  onBusyChange?: (busy: boolean, sessionId: string | null) => void,
+) {
   const [messages, setMessages] = useState<StreamMessage[]>([]);
   const [streamingText, setStreamingText] = useState('');
   const [reasoning, setReasoning] = useState('');
@@ -49,6 +54,12 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
   const historyLoadedRef = useRef(false);
   /** 本轮发起时刻：done 时与它相减得上屏耗时（usage 是服务端口径，耗时只能前端自己量） */
   const startedAtRef = useRef(0);
+  // busy 上报给壳层：ref 锁回调解耦渲染，effect 只在 busy/sessionId 翻转时触发
+  const busyCbRef = useRef(onBusyChange);
+  busyCbRef.current = onBusyChange;
+  useEffect(() => {
+    busyCbRef.current?.(busy, sessionId);
+  }, [busy, sessionId]);
   /**
    * 流式合批：token 先进 buffer，每帧只 flush 一次。
    * 不做合批时每个 token 触发一次 setState → Markdown 全量重解析，长回答是 O(n²) 且越流越卡。

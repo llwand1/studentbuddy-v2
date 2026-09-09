@@ -272,3 +272,37 @@
   color: var(--sb-ink-tertiary);
   text-decoration: line-through;
 }
+
+/* ===== 回复中三点弹跳（发起后到首 token 落屏前的空窗补位） ===== */
+.chat-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+}
+.chat-typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sb-ink-tertiary);
+  animation: chat-typing-bounce 1.2s ease-in-out infinite;
+}
+.chat-typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.chat-typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes chat-typing-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}

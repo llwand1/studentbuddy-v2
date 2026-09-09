@@ -27,15 +27,18 @@ export function ChatView({
   sessionTitle,
   onNewSession,
   onRoundDone,
+  onBusyChange,
 }: {
   sessionId: string | null;
   /** 当前会话标题：导出文件与文档首行用它（App 持有会话列表，这里只收结果） */
   sessionTitle?: string;
   onNewSession: () => void;
   onRoundDone?: () => void;
+  /** 生成状态上报：App 侧栏在生成中的会话项上显示「回复中」提示 */
+  onBusyChange?: (busy: boolean, sessionId: string | null) => void;
 }) {
   const { messages, streamingText, reasoning, steps, tasks, busy, ready, error, usage, elapsedMs, send, stop, regenerate } =
-    useChatStream(sessionId, onRoundDone);
+    useChatStream(sessionId, onRoundDone, onBusyChange);
   const [input, setInput] = useState('');
   const [sendError, setSendError] = useState('');
   const [quizzing, setQuizzing] = useState(false);
@@ -182,6 +185,17 @@ export function ChatView({
         {reasoning && <ThoughtPanel text={reasoning} streaming={busy} />}
         {tasks.length > 0 && <TaskPanel items={tasks} streaming={busy} />}
         <ToolSteps steps={steps} />
+        {/* 回复中动画：发起后到首 token 落屏前（含纯工具执行期）的空窗，三点弹跳补位；
+            正文一开始流就退场（气泡内已有闪烁光标），不与内容抢屏 */}
+        {busy && !streamingText && (
+          <div className="chat-row">
+            <div className="chat-bubble chat-typing" role="status" aria-label="回复中">
+              <span className="chat-typing-dot" />
+              <span className="chat-typing-dot" />
+              <span className="chat-typing-dot" />
+            </div>
+          </div>
+        )}
         {streamingText && (
           <div className="chat-row">
             <div className="chat-bubble md streaming">

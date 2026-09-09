@@ -143,3 +143,33 @@
   color: var(--sb-ink-tertiary);
   text-align: center;
 }
+
+/* ===== 侧栏「回复中」提示：生成中的会话项（busy 上报自 ChatView） ===== */
+.sb-session-busy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--sb-primary);
+  white-space: nowrap;
+}
+.sb-session-busy-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sb-primary);
+  animation: sb-busy-pulse 1.2s ease-in-out infinite;
+}
+@keyframes sb-busy-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(0.75);
+  }
+}

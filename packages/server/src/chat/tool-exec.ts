@@ -1,0 +1,117 @@
+/**
+ * chat/tool-exec —— 单轮工具调用的调度策略：并行 + 超时 + 取消（契约 `docs/TOOL-ECOSYSTEM-SPEC.md` §4.3 第 1/2/3 条）。
+ *
+ * 过渡定位：契约 S1 的终态是 `chat/tools/registry.ts`（注册表拆目录）。本文件是「先把执行策略落地」
+ * 的一步，拆目录时整体搬进去 —— **不在别处再写第二份**（指针原则：只留一处事实）。
+ *
+ * 能力边界（如实标注，不假装做全）：
+ * - 并行：`Promise.allSettled`，结果**按调用顺序**回灌（顺序稳定性＝回归锁可钉）。
+ * - 超时：到点后不再等待、不把结果回灌；被放弃的那次调用仍在后台跑完——
+ *   真正的中断需要 `signal` 透传进工具内部（改 `ToolContext`，下一步，本批不做）。
+ * - 取消：`signal` 已中止时**不发起**新调用；已在跑的同样只是「不等它」。
+ * - 未做（需要 `kind` 字段，属 S1 后半）：同轮去重、network 失败重试 1 次。
+ *
+ * 为什么 exec 走参数注入而不是直接 import：`runTool` 会碰 DB 与网络，
+ * 注入后本文件的策略逻辑可以零 mock 单测（改的是计时与顺序，mock 模块反而测不准）。
+ */
+import type { ToolCall } from '../llm/types.js';
+import type { ToolContext, ToolResult } from './tools.js';
+import { runTool } from './tools.js';
+
+export type ToolExecFn = (name: string, argsJson: string, ctx: ToolContext) => Promise<ToolResult>;
+
+export interface ToolOutcome {
+  id: string;
+  name: string;
+  /** 回灌给模型的内容：成功是工具返回，失败是「怎么改对」的指示（契约 §4.2 纠错口径） */
+  content: string;
+  ok: boolean;
+}
+
+export interface ToolExecOptions {
+  /** 单工具超时，缺省 30s（契约 §4.2 默认；network/external 的 15s 待 kind 字段落地后再分档） */
+  timeoutMs?: number;
+  /** 执行器注入点，缺省用真实 runTool */
+  exec?: ToolExecFn;
+  signal?: AbortSignal;
+}
+
+/** 契约 §4.2 默认超时。搜网免 key 兜底已知可挂 ~20s，30s 是「给它跑完但别拖死一轮」的折中 */
+export const DEFAULT_TOOL_TIMEOUT_MS = 30_000;
+
+/** 超时回灌：明确禁止模型重复调用（小模型最爱原地重试，一重试就再等一个超时） */
+export const TIMEOUT_HINT = '本工具超时，请勿重复调用同一工具，改为直接作答。';
+/** 中止回灌：同样是「别再调了」，但归因给用户，便于模型给出得体的收尾 */
+export const ABORT_HINT = '用户已停止本次生成，不要再调用工具，改为直接作答。';
+
+export class ToolTimeoutError extends Error {
+  constructor(ms: number) {
+    super(`工具执行超时（${ms}ms）`);
+    this.name = 'ToolTimeoutError';
+  }
+}
+
+/**
+ * 并行执行一轮内的全部工具调用，返回与入参同序的结果。
+ * 单个工具失败/超时/被取消都**不抛**——各自的失败以 `content` 回灌模型自纠（契约 §4.2），
+ * 只有调度器本身炸了才进 allSettled 的兜底分支（那属于 bug，不静默吞）。
+ */
+export async function runToolCalls(
+  calls: ToolCall[],
+  ctx: ToolContext,
+  opts: ToolExecOptions = {},
+): Promise<ToolOutcome[]> {
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS;
+  const exec = opts.exec ?? runTool;
+  const signal = opts.signal;
+
+  const tasks = calls.map(async (call) => {
+    if (signal?.aborted) {
+      ctx.onStep(call.name, 'error', '已停止');
+      return { id: call.id, name: call.name, content: ABORT_HINT, ok: false };
+    }
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const r = await Promise.race([
+        exec(call.name, call.arguments, ctx),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new ToolTimeoutError(timeoutMs)), timeoutMs);
+        }),
+      ]);
+      return { id: call.id, name: call.name, content: r.content, ok: true };
+    } catch (err) {
+      const aborted = signal?.aborted === true;
+      const timedOut = err instanceof ToolTimeoutError;
+      const detail = aborted
+        ? '已停止'
+        : timedOut
+          ? `超时 ${timeoutMs}ms`
+          : err instanceof Error
+            ? err.message
+            : String(err);
+      ctx.onStep(call.name, 'error', detail);
+      return {
+        id: call.id,
+        name: call.name,
+        content: aborted ? ABORT_HINT : timedOut ? TIMEOUT_HINT : `工具执行失败：${detail}`,
+        ok: false,
+      };
+    } finally {
+      // 必须清：不清的话每个工具都会挂一个 timer 拖到超时点，Node 进程退出被推迟
+      if (timer) clearTimeout(timer);
+    }
+  });
+
+  const settled = await Promise.allSettled(tasks);
+  return settled.map((s, i) =>
+    s.status === 'fulfilled'
+      ? s.value
+      : {
+          id: calls[i]?.id ?? '',
+          name: calls[i]?.name ?? '',
+          content: `工具执行失败：${String(s.reason)}`,
+          ok: false,
+        },
+  );
+}

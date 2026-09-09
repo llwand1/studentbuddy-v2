@@ -375,41 +375,7 @@
     transform: translateY(-4px);
   }
 }
-/* 眨眼 = 换帧：合帧盖住眼位再掀开，steps(1) 保证没有半透明过渡 */
-.mascot-px-lid {
-  opacity: 0;
-  animation: mascot-blink 5.2s steps(1) infinite;
-}
-@keyframes mascot-blink {
-  0%,
-  93% {
-    opacity: 0;
-  }
-  93.5%,
-  97% {
-    opacity: 1;
-  }
-  97.5%,
-  100% {
-    opacity: 0;
-  }
-}
-/* 调色板：亮/本体/暗/墨四档全从 --sb-primary 混出来，品牌色一改团子跟着改，不留私有蓝 */
-.mascot-px .px-light {
-  fill: color-mix(in srgb, var(--sb-primary) 58%, #ffffff);
-}
-.mascot-px .px-base {
-  fill: var(--sb-primary);
-}
-.mascot-px .px-shade {
-  fill: color-mix(in srgb, var(--sb-primary) 72%, #0a1c33);
-}
-.mascot-px .px-ink {
-  fill: color-mix(in srgb, var(--sb-primary) 26%, #050e1f);
-}
-.mascot-px .px-glint {
-  fill: #ffffff;
-}
+/* 团子调色板与眨眼动画已迁至 app/app.css（侧栏也用团子，样式归壳层；指针原则：只留一处事实） */
 
 .welcome-hi {
   font-size: var(--sb-fs-xl);

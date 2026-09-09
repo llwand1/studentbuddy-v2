@@ -173,3 +173,153 @@
     transform: scale(0.75);
   }
 }
+
+/* ===== 侧栏改版（2026-09-09，老板定稿）：logo/历史折叠/用户占位 ===== */
+.sb-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  padding: var(--sb-sp-1) var(--sb-sp-2) var(--sb-sp-2);
+  border: none;
+  border-bottom: 1px solid var(--sb-line);
+  border-radius: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  flex-shrink: 0;
+}
+.sb-logo:hover { background: none; }
+/* 团子在侧栏的尺寸与动效收编：不要入场位移与跳动（小尺寸下显闹），保留眨眼 */
+.sb-logo .welcome-mascot {
+  margin: 0;
+  animation: none;
+  flex: none;
+}
+.sb-logo .welcome-mascot svg {
+  width: 34px;
+  height: 34px;
+  animation: none;
+}
+.sb-logo-name {
+  min-width: 0;
+  font-size: var(--sb-fs-md);
+  font-weight: 700;
+  color: var(--sb-ink);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+.sb-logo-name small {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--sb-ink-tertiary);
+  letter-spacing: 0.5px;
+}
+
+.sb-nav-divider {
+  border: none;
+  border-top: 1px solid var(--sb-line);
+  margin: var(--sb-sp-1) var(--sb-sp-2);
+  flex-shrink: 0;
+}
+
+.sb-history-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--sb-sp-2) var(--sb-sp-3) var(--sb-sp-1);
+  border: none;
+  border-radius: var(--sb-radius-sm);
+  background: none;
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-xs);
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.sb-history-head:hover { background: rgba(30, 40, 60, 0.04); }
+.sb-history-count {
+  background: rgba(30, 40, 60, 0.07);
+  color: var(--sb-ink-tertiary);
+  font-size: 10px;
+  border-radius: 8px;
+  padding: 1px 6px;
+}
+.sb-history-chev { margin-left: auto; transition: transform 0.2s; }
+.sb-history-head.collapsed .sb-history-chev { transform: rotate(-90deg); }
+.sb-session-list.collapsed { display: none; }
+
+.sb-user-box {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--sb-sp-2) var(--sb-sp-1);
+  border-top: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.sb-user-box:hover { background: rgba(30, 40, 60, 0.05); }
+.sb-avatar {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--sb-primary-weak);
+  border: 1px dashed var(--sb-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sb-primary);
+}
+.sb-user-meta { min-width: 0; display: flex; flex-direction: column; }
+.sb-user-name { font-size: var(--sb-fs-xs); font-weight: 600; color: var(--sb-ink-secondary); white-space: nowrap; }
+.sb-user-hint { font-size: 10px; color: var(--sb-ink-tertiary); }
+.sb-login-tag {
+  margin-left: auto;
+  flex: none;
+  font-size: 10px;
+  color: var(--sb-ink-tertiary);
+  border: 1px solid var(--sb-line);
+  border-radius: 8px;
+  padding: 2px 5px;
+}
+
+/* ===== 吉祥物像素团子：调色板与眨眼（自 chat.css 迁入——侧栏也用团子，样式归壳层）
+   调色板：亮/本体/暗/墨四档全从 --sb-primary 混出来，品牌色一改团子跟着改，不留私有蓝 ===== */
+.mascot-px-lid {
+  opacity: 0;
+  animation: mascot-blink 5.2s steps(1) infinite;
+}
+@keyframes mascot-blink {
+  0%,
+  93% {
+    opacity: 0;
+  }
+  93.5%,
+  97% {
+    opacity: 1;
+  }
+  97.5%,
+  100% {
+    opacity: 0;
+  }
+}
+.mascot-px .px-light {
+  fill: color-mix(in srgb, var(--sb-primary) 58%, #ffffff);
+}
+.mascot-px .px-base {
+  fill: var(--sb-primary);
+}
+.mascot-px .px-shade {
+  fill: color-mix(in srgb, var(--sb-primary) 72%, #0a1c33);
+}
+.mascot-px .px-ink {
+  fill: color-mix(in srgb, var(--sb-primary) 26%, #050e1f);
+}
+.mascot-px .px-glint {
+  fill: #ffffff;
+}

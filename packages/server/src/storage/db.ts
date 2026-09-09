@@ -9,14 +9,36 @@ import os from 'node:os';
 import path from 'node:path';
 
 /**
- * 数据目录优先级：`SB_DATA_DIR` → `%APPDATA%` → `os.homedir()`。
- * 末级兜底**不能是 '.'**：无 APPDATA 的环境（CI / 精简 shell / 部分沙箱）会把
- * studentbuddy.db 直接写进当前工作目录——起服务时 cwd 是 packages/server，
- * 库文件就落在源码树里污染工作区（2026-09-05 实测踩到）。homedir 拿不到时
- * Node 会自行回退到 tmpdir，无需再兜一层。
+ * 数据目录解析（ADR-6：不碰用户数据，且**不能静默落到错误位置**）。
+ *
+ * 优先级：
+ *   1. `SB_DATA_DIR` 显式覆盖（测试 / 多实例场景，最高优先级，原样保留）。
+ *   2. `APPDATA` / `LOCALAPPDATA`（正常 Windows 终端一定存在）→ 各自下的 `studentbuddy-v2`。
+ *   3. **即便上述环境变量缺失**，Windows 上真实数据几乎总在用户目录下的
+ *      `AppData/Roaming/studentbuddy-v2`；末位再保留 `os.homedir()/studentbuddy-v2`
+ *      这一历史兜底（2026-09-05 引入，防库写进源码树）。
+ *
+ * ★ 关键修正（根治「反复启动后没数据」）：不再直接拿首个候选去**新建**空库，
+ * 而是先扫描候选列表、优先挑**已经存在 `studentbuddy.db` 的那个**真实库。
+ * 这样即使启动环境没有 `APPDATA`（CI / 精简 shell / 部分沙箱 Bash，已反复踩到），
+ * 也能自动找回真实库，而不是在 homedir 下新建一个空壳库把用户数据「藏起来」。
+ * 只有当所有候选都不存在库文件时，才在首个候选处新建。
  */
-export const DATA_DIR =
-  process.env.SB_DATA_DIR ?? path.join(process.env.APPDATA ?? os.homedir(), 'studentbuddy-v2');
+export function resolveDataDir(): string {
+  if (process.env.SB_DATA_DIR) return process.env.SB_DATA_DIR;
+  const home = os.homedir();
+  const candidates: string[] = [];
+  if (process.env.APPDATA) candidates.push(path.join(process.env.APPDATA, 'studentbuddy-v2'));
+  if (process.env.LOCALAPPDATA) candidates.push(path.join(process.env.LOCALAPPDATA, 'studentbuddy-v2'));
+  candidates.push(path.join(home, 'AppData', 'Roaming', 'studentbuddy-v2'));
+  candidates.push(path.join(home, 'studentbuddy-v2')); // 历史兜底（09-05 引入）
+  for (const dir of candidates) {
+    if (fs.existsSync(path.join(dir, 'studentbuddy.db'))) return dir;
+  }
+  return candidates[0] ?? path.join(home, 'studentbuddy-v2');
+}
+
+export const DATA_DIR = resolveDataDir();
 
 let db: Database.Database | null = null;
 

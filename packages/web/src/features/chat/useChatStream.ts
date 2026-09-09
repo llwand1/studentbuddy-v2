@@ -4,7 +4,7 @@
  * 输入框 UI 在 Composer——单一关注点（ADR-3 的前端落地）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SseEvent } from '@sb/shared';
+import type { SseEvent, TokenUsage } from '@sb/shared';
 import { connectSse, type SseReadyState } from '../../lib/sse-client';
 import { api } from '../../lib/api';
 
@@ -29,9 +29,51 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState<SseReadyState>('connecting');
   const [error, setError] = useState('');
+  const [usage, setUsage] = useState<TokenUsage | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const clientRef = useRef<ReturnType<typeof connectSse> | null>(null);
   /** 历史是否已落定：未落定前禁发，否则 messages 响应后到会把刚发的用户消息整表覆盖掉 */
   const historyLoadedRef = useRef(false);
+  /** 本轮发起时刻：done 时与它相减得上屏耗时（usage 是服务端口径，耗时只能前端自己量） */
+  const startedAtRef = useRef(0);
+  /**
+   * 流式合批：token 先进 buffer，每帧只 flush 一次。
+   * 不做合批时每个 token 触发一次 setState → Markdown 全量重解析，长回答是 O(n²) 且越流越卡。
+   */
+  const bufRef = useRef('');
+  const rafRef = useRef<number | null>(null);
+
+  /** 把攒下的字一次性推上屏（每帧至多一次） */
+  const flushTokens = useCallback(() => {
+    rafRef.current = null;
+    const chunk = bufRef.current;
+    bufRef.current = '';
+    if (chunk) setStreamingText((t) => t + chunk);
+  }, []);
+
+  /** token 入缓冲：同帧内的多个 token 合成一次 setState */
+  const pushTokens = useCallback(
+    (s: string) => {
+      bufRef.current += s;
+      if (rafRef.current !== null) return;
+      // 无 rAF 的环境（老浏览器/测试容器）直接同步落，不丢字
+      if (typeof requestAnimationFrame !== 'function') {
+        flushTokens();
+        return;
+      }
+      rafRef.current = requestAnimationFrame(flushTokens);
+    },
+    [flushTokens],
+  );
+
+  /** 丢弃缓冲并把 pending 帧取消：新一轮/卸载时防旧字拼到新句子后面 */
+  const resetTokens = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    bufRef.current = '';
+  }, []);
 
   // 载入历史
   useEffect(() => {
@@ -67,12 +109,15 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
     setError('');
     setStreamingText('');
     setSteps([]);
+    // 切会话即换轮：上一轮的 token/耗时不能跟着漂到新会话的页面上
+    setUsage(null);
+    setElapsedMs(0);
     const client = connectSse(sessionId);
     clientRef.current = client;
     const offState = client.onStateChange(setReady);
     const offEvent = client.onEvent((ev: SseEvent) => {
       if (ev.type === 'token') {
-        setStreamingText((t) => t + ev.content);
+        pushTokens(ev.content);
         setBusy(true);
       } else if (ev.type === 'reasoning') {
         setReasoning((r) => r + ev.content);
@@ -90,14 +135,19 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
           return [...next, { tool: ev.tool, status: ev.status, detail: ev.detail }];
         });
       } else if (ev.type === 'done') {
+        // 合批残留必须先落屏：buffer 里可能压着最后一帧没 flush 的字，丢了就是尾巴少一段
+        flushTokens();
         setBusy(false);
         setSteps([]);
+        if (ev.usage) setUsage(ev.usage);
+        if (startedAtRef.current) setElapsedMs(Date.now() - startedAtRef.current);
         setStreamingText((t) => {
           // 屏上文本与库内文本逐字一致（服务端保证）：/messages 晚于本轮落库返回时尾条已是这段字，不能再补一遍
           if (t) setMessages((ms) => (ms.at(-1)?.role === 'assistant' && ms.at(-1)?.content === t ? ms : [...ms, { role: 'assistant', content: t }]));
           return '';
         });
-        setReasoning('');
+        // reasoning 刻意不清：学习场景下「它刚才是怎么想的」是答案的一部分，用户要能回看；
+        // 清空点放在下一轮 send（本文件的 send 里已清），保证不串轮
         onRoundDone?.();
       } else if (ev.type === 'block') {
         // 内容块流（演进③）：quiz 块以可交互卡片进入消息流
@@ -111,18 +161,21 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
           ]);
         }
       } else if (ev.type === 'chat-error') {
+        // 出错也要把已流出的字落屏：服务端会把这半截落库（flow.ts catch 分支），屏上不能比库里少
+        flushTokens();
         setBusy(false);
         setSteps((prev) => prev.map((s) => (s.status === 'running' ? { ...s, status: 'error', detail: '已中断' } : s)));
         setError(ev.message);
       }
     });
     return () => {
+      resetTokens();
       offState();
       offEvent();
       client.close();
       clientRef.current = null;
     };
-  }, [sessionId]);
+  }, [sessionId, flushTokens, pushTokens, resetTokens]);
 
   /** 发送：SSE 未就绪时拒绝并提示（修 F1 竞态——绝不静默吞） */
   const send = useCallback(
@@ -133,9 +186,13 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
       if (!historyLoadedRef.current) return { ok: false, error: '历史加载中，稍候再发' };
       setError('');
       // 上一轮残留必须归零：终止帧丢失时，新 token 否则会拼到旧半句后面
+      resetTokens();
       setStreamingText('');
       setReasoning('');
       setSteps([]);
+      setUsage(null);
+      setElapsedMs(0);
+      startedAtRef.current = Date.now();
       setMessages((ms) => [...ms, { role: 'user', content: text }]);
       try {
         await api.chat.send(sessionId, text);
@@ -154,5 +211,5 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
     if (sessionId) await api.chat.abort(sessionId).catch(() => undefined);
   }, [sessionId]);
 
-  return { messages, streamingText, reasoning, steps, busy, ready, error, send, stop };
+  return { messages, streamingText, reasoning, steps, busy, ready, error, usage, elapsedMs, send, stop };
 }

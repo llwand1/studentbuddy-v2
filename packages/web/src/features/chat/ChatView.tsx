@@ -4,6 +4,9 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useChatStream } from './useChatStream';
+import { useScrollAnchor } from './useScrollAnchor';
+import { ThoughtPanel } from './ThoughtPanel';
+import { formatRoundMeta, toolLabel } from './chat-meta';
 import { SendIcon, QuizIcon, SearchIcon, CardsIcon } from '../../components/icons';
 import { QuizCard } from '../quiz/QuizCard';
 import { mixSummary, imageNote } from '../quiz/mix-report';
@@ -15,8 +18,7 @@ import { AskStyleCard, useAskStyle } from './AskStyleCard';
 import { api } from '../../lib/api';
 import './chat.css';
 
-/** 工具中文名（新工具在 chat/tools.ts 注册后在此补一行） */
-const TOOL_LABELS: Record<string, string> = { search_web: '联网搜索' };
+/** 中文名在 chat-meta.ts（新工具在 chat/tools.ts 注册后去那里补一行） */
 const STEP_STATE: Record<'running' | 'done' | 'error', string> = {
   running: '进行中…',
   done: '完成',
@@ -32,7 +34,10 @@ export function ChatView({
   onNewSession: () => void;
   onRoundDone?: () => void;
 }) {
-  const { messages, streamingText, steps, busy, ready, error, send, stop } = useChatStream(sessionId, onRoundDone);
+  const { messages, streamingText, reasoning, steps, busy, ready, error, usage, elapsedMs, send, stop } = useChatStream(
+    sessionId,
+    onRoundDone,
+  );
   const [input, setInput] = useState('');
   const [sendError, setSendError] = useState('');
   const [quizzing, setQuizzing] = useState(false);
@@ -40,12 +45,9 @@ export function ChatView({
   const [rememberMsg, setRememberMsg] = useState('');
   const [mixTip, setMixTip] = useState('');
   const [quizNote, setQuizNote] = useState('');
-  const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length, steps.length, streamingText]);
+  /** 滚动锚定：贴底才跟随流式输出；离底时不打断用户上翻，改显示「回到底部」 */
+  const { scrollRef, showJump, onScroll, jumpToBottom } = useScrollAnchor([messages.length, steps.length, streamingText]);
 
   /** 出题配比是全局设置（设置页改的），本视图只展示摘要；拉取失败静默——服务端仍按库内配比出题 */
   useEffect(() => {
@@ -57,6 +59,8 @@ export function ChatView({
 
   const blocked = ready !== 'open' || busy;
   const isEmpty = messages.length === 0 && steps.length === 0 && !streamingText;
+  /** 轮次元信息只在收口后显示：生成过程中显示「已用 x tokens」会随流式跳动，且中途的数没有意义 */
+  const roundMeta = busy ? '' : formatRoundMeta(usage, elapsedMs);
   const statusHint =
     sessionId === null ? '' : ready === 'reconnecting' ? '连接已断开，正在重连…' : ready === 'connecting' ? '正在建立连接…' : '';
 
@@ -127,7 +131,7 @@ export function ChatView({
 
   return (
     <div className="chat-view">
-      <div className="chat-scroll">
+      <div className="chat-scroll" ref={scrollRef} onScroll={onScroll}>
         {isEmpty && <Welcome onPick={pick} />}
         {messages.map((m, i) =>
           m.quizBlock ? (
@@ -157,12 +161,13 @@ export function ChatView({
             </div>
           ) : null,
         )}
+        {reasoning && <ThoughtPanel text={reasoning} streaming={busy} />}
         {steps.length > 0 && (
           <div className="chat-steps">
             {steps.map((s, i) => (
               <div key={i} className={`chat-step ${s.status}`}>
                 <SearchIcon size={14} />
-                <span className="chat-step-name">{TOOL_LABELS[s.tool] ?? s.tool}</span>
+                <span className="chat-step-name">{toolLabel(s.tool)}</span>
                 <span className="chat-step-state">{STEP_STATE[s.status]}</span>
                 {s.detail && <span className="chat-step-detail">{s.detail}</span>}
               </div>
@@ -179,10 +184,15 @@ export function ChatView({
         )}
         {(error || sendError) && <div className="chat-error">⚠ {error || sendError}</div>}
         {rememberMsg && <div className="chat-remember-msg">{rememberMsg}</div>}
-        <div ref={bottomRef} />
+        {roundMeta && <div className="chat-round-meta">{roundMeta}</div>}
       </div>
 
       <div className="chat-composer-wrap">
+        {showJump && (
+          <button type="button" className="chat-jump" onClick={jumpToBottom}>
+            ↓ 回到最新
+          </button>
+        )}
         {statusHint && <div className="chat-conn-hint">{statusHint}</div>}
         {mixTip && sessionId && (
           <div className="chat-quiz-mix">
@@ -231,6 +241,9 @@ export function ChatView({
             }
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
+              // 输入法组字期间的回车是「选词确认」而不是「发送」：没有这道判断，
+              // 中文用户打完拼音按回车上屏的瞬间就会把半成品发出去（keydown 仍会触发）
+              if (e.nativeEvent.isComposing) return;
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 void submit();

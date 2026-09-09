@@ -1,0 +1,89 @@
+/* chat-extras.css —— 对话页新增交互的样式（思考面板 / 回到底部 / 轮次元信息）。
+   为什么单开文件而不是改 chat.css：chat.css 正被在途批次（文档模式 pill）改动中，
+   并行编辑同一文件会撞车（多会话施工红线 R1）。等该批提交后合并回 chat.css 即可。 */
+
+/* ---------- 思考过程（reasoning） ---------- */
+.chat-thought {
+  max-width: 78%;
+  margin: 0 0 var(--sb-sp-3);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  background: var(--sb-surface);
+  overflow: hidden;
+}
+.chat-thought-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  width: 100%;
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+  text-align: left;
+}
+.chat-thought-head:hover { color: var(--sb-ink); }
+.chat-thought-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sb-ink-tertiary);
+  flex: none;
+}
+/* 进行中：呼吸灯（只动 opacity，不做位移，尊重 prefers-reduced-motion 的降级由系统处理） */
+.chat-thought-dot.live {
+  background: var(--sb-primary);
+  animation: chat-thought-pulse 1.2s ease-in-out infinite;
+}
+@keyframes chat-thought-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+.chat-thought-title { flex: 1; }
+.chat-thought-toggle { color: var(--sb-ink-tertiary); font-size: var(--sb-fs-xs); }
+.chat-thought-body {
+  padding: 0 var(--sb-sp-3) var(--sb-sp-3);
+  font-size: var(--sb-fs-sm);
+  line-height: 1.7;
+  color: var(--sb-ink-secondary);
+  /* 思考是模型草稿：整段原样展示（保留换行），不按 Markdown 解析 */
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow-y: auto;
+  border-top: 1px solid var(--sb-line);
+  padding-top: var(--sb-sp-2);
+  margin-top: 2px;
+}
+
+/* ---------- 轮次元信息（token / 耗时） ---------- */
+.chat-round-meta {
+  padding: 0 var(--sb-sp-1) var(--sb-sp-3);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+/* ---------- 回到底部 ---------- */
+/* 不做浮层：滚动容器内的 absolute 会随内容一起滚走，而 .chat-view 的高度里
+   composer 是不定高的。放成 composer 上方的常规流元素，位置永远对。 */
+.chat-jump {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 auto var(--sb-sp-2);
+  padding: 6px 12px;
+  border: 1px solid var(--sb-line);
+  border-radius: 999px;
+  background: var(--sb-surface);
+  box-shadow: var(--sb-shadow-2);
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-xs);
+  cursor: pointer;
+}
+.chat-jump:hover {
+  color: var(--sb-primary);
+  border-color: var(--sb-primary);
+}

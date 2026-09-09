@@ -43,6 +43,22 @@ sessionsRouter.delete('/:id', (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+sessionsRouter.patch('/:id/pinned', (req: Request, res: Response) => {
+  const { pinned } = req.body as { pinned?: boolean };
+  if (typeof pinned !== 'boolean') {
+    res.status(400).json({ error: 'pinned 必须是布尔值' });
+    return;
+  }
+  const r = getDb()
+    .prepare(`UPDATE sessions SET pinned = ? WHERE id = ? AND deleted_at IS NULL`)
+    .run(pinned ? 1 : 0, (req.params.id ?? ''));
+  if (r.changes === 0) {
+    res.status(404).json({ error: '会话不存在' });
+    return;
+  }
+  res.json({ ok: true, pinned });
+});
+
 sessionsRouter.get('/:id/messages', (req: Request, res: Response) => {
   const rows = getDb()
     .prepare(`SELECT id, role, content, created_at FROM messages WHERE session_id = ? ORDER BY created_at, rowid`)

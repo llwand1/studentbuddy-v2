@@ -3,7 +3,15 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/*.cjs', '**/*.mjs'],
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/*.cjs',
+      '**/*.mjs',
+      // 约定：下划线前缀 = 会话级临时诊断脚本，不进构建、不进 lint（如 _tidydiag*.ts）
+      '**/_*.ts',
+      '**/_*.tsx',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

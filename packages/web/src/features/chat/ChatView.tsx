@@ -8,7 +8,8 @@ import { useScrollAnchor } from './useScrollAnchor';
 import { ThoughtPanel } from './ThoughtPanel';
 import { MessageFoot } from './MessageFoot';
 import { formatRoundMeta, toolLabel } from './chat-meta';
-import { SendIcon, QuizIcon, SearchIcon, CardsIcon } from '../../components/icons';
+import { SendIcon, QuizIcon, SearchIcon, CardsIcon, DownloadIcon } from '../../components/icons';
+import { buildExportMarkdown, downloadText, exportFilename } from './chat-export';
 import { QuizCard } from '../quiz/QuizCard';
 import { mixSummary, imageNote } from '../quiz/mix-report';
 import type { QuizImageReport, AnswerStyle } from '@sb/shared';
@@ -28,10 +29,13 @@ const STEP_STATE: Record<'running' | 'done' | 'error', string> = {
 
 export function ChatView({
   sessionId,
+  sessionTitle,
   onNewSession,
   onRoundDone,
 }: {
   sessionId: string | null;
+  /** 当前会话标题：导出文件与文档首行用它（App 持有会话列表，这里只收结果） */
+  sessionTitle?: string;
   onNewSession: () => void;
   onRoundDone?: () => void;
 }) {
@@ -65,6 +69,13 @@ export function ChatView({
   const doRegen = async (): Promise<void> => {
     const r = await regenerate();
     if (!r.ok && r.error) setSendError(r.error);
+  };
+
+  /** 导出当前对话为 Markdown：学习笔记的原料。格式与文件名规则在 chat-export.ts（纯函数已测） */
+  const doExport = (): void => {
+    if (messages.length === 0) return;
+    const title = sessionTitle?.trim() || '对话';
+    downloadText(exportFilename(title), buildExportMarkdown(title, messages));
   };
   const statusHint =
     sessionId === null ? '' : ready === 'reconnecting' ? '连接已断开，正在重连…' : ready === 'connecting' ? '正在建立连接…' : '';
@@ -238,6 +249,14 @@ export function ChatView({
             onClick={() => void rememberTerms()}
           >
             <CardsIcon /> {remembering ? '收集中…' : '存入记忆'}
+          </button>
+          <button
+            className="chat-quiz-btn"
+            title="把当前对话导出为 Markdown（含时间与角色，可直接贴进笔记）"
+            disabled={!sessionId || messages.length === 0}
+            onClick={doExport}
+          >
+            <DownloadIcon /> 导出
           </button>
           <textarea
             ref={inputRef}

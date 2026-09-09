@@ -104,3 +104,42 @@
   display: flex;
   flex-direction: column;
 }
+
+/* 会话搜索：轻量前端过滤（单机量级不值得上服务端搜索） */
+.sb-session-search {
+  margin: 0 var(--sb-sp-2) var(--sb-sp-2);
+  padding: 5px 8px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  font-size: var(--sb-fs-xs);
+  background: var(--sb-surface);
+  color: var(--sb-ink);
+  outline: none;
+  min-width: 0;
+}
+.sb-session-search:focus { border-color: var(--sb-primary); }
+.sb-session-search::placeholder { color: var(--sb-ink-tertiary); }
+
+/* 置顶按钮：hover 才显形；已置顶的常显品牌色，让「这条被置顶了」一眼可见 */
+.sb-session-pin {
+  border: none;
+  background: none;
+  padding: 2px;
+  display: inline-flex;
+  flex: none;
+  color: var(--sb-ink-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.sb-session:hover .sb-session-pin,
+.sb-session-pin.pinned { opacity: 1; }
+.sb-session-pin.pinned { color: var(--sb-primary); }
+.sb-session-pin:hover { color: var(--sb-primary); }
+
+.sb-session-empty {
+  padding: var(--sb-sp-2);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+  text-align: center;
+}

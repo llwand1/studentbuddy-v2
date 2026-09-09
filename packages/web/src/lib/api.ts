@@ -34,6 +34,12 @@ export const api = {
     list: () => request<Session[]>('/api/sessions'),
     create: () => request<Session>('/api/sessions', { method: 'POST' }),
     remove: (id: string) => request<{ ok: boolean }>(`/api/sessions/${id}`, { method: 'DELETE' }),
+    /** 置顶/取消置顶：列表已按 pinned DESC 排序（服务端），这里只切值 */
+    pin: (id: string, pinned: boolean) =>
+      request<{ ok: boolean; pinned: boolean }>(`/api/sessions/${id}/pinned`, {
+        method: 'PATCH',
+        body: JSON.stringify({ pinned }),
+      }),
     messages: (id: string) => request<Array<{ id: string; role: string; content: string; created_at: string }>>(`/api/sessions/${id}/messages`),
   },
 

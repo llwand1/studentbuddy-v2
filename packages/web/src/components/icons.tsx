@@ -106,3 +106,21 @@ export function SearchIcon(props: IconProps) {
     </svg>
   );
 }
+
+/** 导出（对话 → Markdown 文件） */
+export function DownloadIcon(props: IconProps) {
+  return (
+    <svg {...base(props.size, props)}>
+      <path d="M12 4v11M7 10l5 5 5-5M5 19h14" />
+    </svg>
+  );
+}
+
+/** 置顶（会话列表） */
+export function PinIcon(props: IconProps) {
+  return (
+    <svg {...base(props.size, props)}>
+      <path d="M9 4h6l-1 6 4 3v2h-5v5l-1 1-1-1v-5H6v-2l4-3z" />
+    </svg>
+  );
+}

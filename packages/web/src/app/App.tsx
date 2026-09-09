@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@sb/shared';
-import { ChatIcon, QuizIcon, CardsIcon, StatsIcon, SettingsIcon, PlusIcon } from '../components/icons';
+import { ChatIcon, QuizIcon, CardsIcon, StatsIcon, SettingsIcon, PlusIcon, PinIcon } from '../components/icons';
 import { api } from '../lib/api';
 import { ChatView } from '../features/chat/ChatView';
 import { SettingsView } from '../features/settings/SettingsView';
@@ -28,6 +28,8 @@ export function App() {
   const [view, setView] = useState<View>('chat');
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
+  /** 会话标题过滤（纯前端，服务端列表本就 ≤ 单机量级）；空串 = 不过滤 */
+  const [query, setQuery] = useState('');
 
   const reloadSessions = useCallback(async () => {
     try {
@@ -64,14 +66,28 @@ export function App() {
     await reloadSessions();
   };
 
+  const togglePin = async (s: Session) => {
+    await api.sessions.pin(s.id, !s.pinned).catch(() => undefined);
+    await reloadSessions();
+  };
+
+  const q = query.trim().toLowerCase();
+  const visible = q ? sessions.filter((s) => s.title.toLowerCase().includes(q)) : sessions;
+
   return (
     <div className="sb-shell">
       <aside className="sb-sidebar">
         <button className="sb-new-chat" onClick={() => void newSession()}>
           <PlusIcon /> 新对话
         </button>
+        <input
+          className="sb-session-search"
+          placeholder="搜索会话"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
         <div className="sb-session-list">
-          {sessions.map((s) => (
+          {visible.map((s) => (
             <div
               key={s.id}
               className={currentId === s.id && view === 'chat' ? 'sb-session active' : 'sb-session'}
@@ -81,6 +97,16 @@ export function App() {
               onKeyDown={(e) => e.key === 'Enter' && openSession(s.id)}
             >
               <span className="sb-session-title">{s.title || '新对话'}</span>
+              <button
+                className={s.pinned ? 'sb-session-pin pinned' : 'sb-session-pin'}
+                title={s.pinned ? '取消置顶' : '置顶'}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void togglePin(s);
+                }}
+              >
+                <PinIcon size={13} />
+              </button>
               <button
                 className="sb-session-del"
                 title="删除"
@@ -93,6 +119,7 @@ export function App() {
               </button>
             </div>
           ))}
+          {visible.length === 0 && q && <div className="sb-session-empty">没有匹配的会话</div>}
         </div>
         <nav className="sb-nav sb-nav-bottom">
           {NAV.map(({ key, label, icon: Icon }) => (
@@ -114,7 +141,12 @@ export function App() {
       </aside>
       <main className="sb-main">
         {view === 'chat' && (
-          <ChatView sessionId={currentId} onNewSession={() => void newSession()} onRoundDone={() => void reloadSessions()} />
+          <ChatView
+            sessionId={currentId}
+            sessionTitle={sessions.find((s) => s.id === currentId)?.title}
+            onNewSession={() => void newSession()}
+            onRoundDone={() => void reloadSessions()}
+          />
         )}
         {view === 'quiz' && <QuizBankPage />}
         {view === 'terms' && <TermsPage />}

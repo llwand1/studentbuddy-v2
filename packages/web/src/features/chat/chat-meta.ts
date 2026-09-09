@@ -56,7 +56,8 @@ export function formatRoundMeta(
  * 直接 `new Date(...)` 会按浏览器本地时区解析 → 在东八区差 8 小时。故统一补 Z 按 UTC 解析；
  * 已经是 ISO（带 T / Z / ±hh:mm）的原样交给 Date。
  */
-function parseMsgDate(ts: string | number): Date | null {
+/** 解析消息时间（SQLite UTC 串或 ISO 或时间戳）；导出场景也要用，故对外可见 */
+export function parseMsgDate(ts: string | number): Date | null {
   if (typeof ts === 'number') {
     const d = new Date(ts);
     return Number.isNaN(d.getTime()) ? null : d;

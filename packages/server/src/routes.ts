@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { getDb } from './storage/db.js';
 import { handleMessage } from './chat/flow.js';
+import { planRegenerate } from './chat/regenerate.js';
 import { snapshot } from './chat/sse-bus.js';
 import { subscribe, startHeartbeat } from './chat/sse-bus.js';
 import { getProviders, seedIfEmpty, MODEL_ROLES } from './llm/router.js';
@@ -73,6 +74,28 @@ chatRouter.post('/send', (req: Request, res: Response) => {
     .finally(() => {
     if (aborters.get(sessionId) === controller) aborters.delete(sessionId);
   });
+  res.json({ ok: true });
+});
+
+chatRouter.post('/regenerate', (req: Request, res: Response) => {
+  const { sessionId } = req.body as { sessionId?: string };
+  if (!sessionId) {
+    res.status(400).json({ error: 'sessionId 必填' });
+    return;
+  }
+  const plan = planRegenerate(sessionId);
+  if (!plan.ok || !plan.text) {
+    res.status(400).json({ error: plan.error ?? '无法重新生成' });
+    return;
+  }
+  const controller = new AbortController();
+  aborters.set(sessionId, controller);
+  // skipUserPersist：提问仍在库里（planRegenerate 只删它之后的产物），不能再插一条
+  handleMessage({ sessionId, text: plan.text, signal: controller.signal, skipUserPersist: true })
+    .catch(() => undefined)
+    .finally(() => {
+      if (aborters.get(sessionId) === controller) aborters.delete(sessionId);
+    });
   res.json({ ok: true });
 });
 

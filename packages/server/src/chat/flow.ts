@@ -42,6 +42,8 @@ export interface ChatOptions {
   text: string;
   role?: ModelRole;
   signal?: AbortSignal;
+  /** 重新生成：提问已在库里，跳过 user 落库（否则一轮出现两条相同提问） */
+  skipUserPersist?: boolean;
 }
 
 export interface ChatResult {
@@ -65,9 +67,12 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   const { sessionId } = opts;
   const db = getDb();
 
-  // 用户消息落库（新会话以首句生成标题）
-  db.prepare(`INSERT INTO messages (id, session_id, role, content, tokens) VALUES (?, ?, 'user', ?, ?)`)
-    .run(randomUUID(), sessionId, opts.text, estimateTokens(opts.text));
+  // 用户消息落库（新会话以首句生成标题）。
+  // skipUserPersist：重新生成走这条路——提问本来就在库里（regenerate.ts 只删它之后的产物），再插一条就成了重复提问
+  if (!opts.skipUserPersist) {
+    db.prepare(`INSERT INTO messages (id, session_id, role, content, tokens) VALUES (?, ?, 'user', ?, ?)`)
+      .run(randomUUID(), sessionId, opts.text, estimateTokens(opts.text));
+  }
   const sessionTitle = (
     db.prepare('SELECT title FROM sessions WHERE id = ?').get(sessionId) as { title: string } | undefined
   )?.title;

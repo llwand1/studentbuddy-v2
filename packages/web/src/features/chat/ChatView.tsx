@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useChatStream } from './useChatStream';
 import { useScrollAnchor } from './useScrollAnchor';
 import { ThoughtPanel } from './ThoughtPanel';
+import { MessageFoot } from './MessageFoot';
 import { formatRoundMeta, toolLabel } from './chat-meta';
 import { SendIcon, QuizIcon, SearchIcon, CardsIcon } from '../../components/icons';
 import { QuizCard } from '../quiz/QuizCard';
@@ -34,10 +35,8 @@ export function ChatView({
   onNewSession: () => void;
   onRoundDone?: () => void;
 }) {
-  const { messages, streamingText, reasoning, steps, busy, ready, error, usage, elapsedMs, send, stop } = useChatStream(
-    sessionId,
-    onRoundDone,
-  );
+  const { messages, streamingText, reasoning, steps, busy, ready, error, usage, elapsedMs, send, stop, regenerate } =
+    useChatStream(sessionId, onRoundDone);
   const [input, setInput] = useState('');
   const [sendError, setSendError] = useState('');
   const [quizzing, setQuizzing] = useState(false);
@@ -61,6 +60,12 @@ export function ChatView({
   const isEmpty = messages.length === 0 && steps.length === 0 && !streamingText;
   /** 轮次元信息只在收口后显示：生成过程中显示「已用 x tokens」会随流式跳动，且中途的数没有意义 */
   const roundMeta = busy ? '' : formatRoundMeta(usage, elapsedMs);
+  /** 「重新生成」只给最后一条回答：对中间某条重生成的语义是分叉，本版不做（会牵扯历史改写） */
+  const lastAssistantIdx = messages.reduce((acc, m, i) => (m.role === 'assistant' ? i : acc), -1);
+  const doRegen = async (): Promise<void> => {
+    const r = await regenerate();
+    if (!r.ok && r.error) setSendError(r.error);
+  };
   const statusHint =
     sessionId === null ? '' : ready === 'reconnecting' ? '连接已断开，正在重连…' : ready === 'connecting' ? '正在建立连接…' : '';
 
@@ -158,6 +163,13 @@ export function ChatView({
                   <Markdown text={m.content} />
                 </div>
               )}
+              <MessageFoot
+                ts={m.ts}
+                content={m.content}
+                canRegen={m.role === 'assistant' && i === lastAssistantIdx}
+                regenDisabled={busy}
+                onRegen={() => void doRegen()}
+              />
             </div>
           ) : null,
         )}

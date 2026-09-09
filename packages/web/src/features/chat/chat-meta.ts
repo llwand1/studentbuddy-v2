@@ -52,6 +52,34 @@ export function formatRoundMeta(
 }
 
 /**
+ * SQLite 的 `datetime('now')` 产出的是 **UTC 且不带时区标记**（`'2026-09-09 07:52:03'`），
+ * 直接 `new Date(...)` 会按浏览器本地时区解析 → 在东八区差 8 小时。故统一补 Z 按 UTC 解析；
+ * 已经是 ISO（带 T / Z / ±hh:mm）的原样交给 Date。
+ */
+function parseMsgDate(ts: string | number): Date | null {
+  if (typeof ts === 'number') {
+    const d = new Date(ts);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const s = ts.trim();
+  if (!s) return null;
+  const hasZone = /[TZ]/.test(s) || /[+-]\d{2}:?\d{2}$/.test(s);
+  const d = new Date(hasZone ? s : `${s.replace(' ', 'T')}Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** 消息时间：今天只显示 `HH:mm`，跨天补 `M月D日`。解析不出时间返回空串（调用方据此不渲染） */
+export function formatMsgTime(ts: string | number | undefined, now: Date = new Date()): string {
+  const d = ts === undefined || ts === null ? null : parseMsgDate(ts);
+  if (!d) return '';
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const sameDay =
+    d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  return sameDay ? `${hh}:${mm}` : `${d.getMonth() + 1}月${d.getDate()}日 ${hh}:${mm}`;
+}
+
+/**
  * 是否跟随滚动：距底 ≤ 阈值才算「用户在看最新」。
  * 阈值给 80px 而不是 0：smooth 滚动与块级渲染（表格/图片进场会顶高）都会让距离在几十像素内抖动，
  * 用严格 0 会出现「明明贴着底却不跟随」的假阴性。

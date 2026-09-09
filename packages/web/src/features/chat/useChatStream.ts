@@ -11,6 +11,8 @@ import { api } from '../../lib/api';
 export interface StreamMessage {
   role: 'user' | 'assistant';
   content: string;
+  /** 消息时间：历史消息取库内 created_at（SQLite UTC 串），本轮新消息取本地 ISO */
+  ts?: string;
   streaming?: boolean;
   quizBlock?: { blockId: string; quiz: { title?: string; questions: import('@sb/shared').QuizQuestion[] }; quizId?: string };
 }
@@ -91,7 +93,7 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
         setMessages(
           rows
             .filter((r) => r.role === 'user' || r.role === 'assistant')
-            .map((r) => ({ role: r.role as 'user' | 'assistant', content: r.content })),
+            .map((r) => ({ role: r.role as 'user' | 'assistant', content: r.content, ts: r.created_at })),
         );
       })
       .catch(() => setMessages([]))
@@ -143,7 +145,12 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
         if (startedAtRef.current) setElapsedMs(Date.now() - startedAtRef.current);
         setStreamingText((t) => {
           // 屏上文本与库内文本逐字一致（服务端保证）：/messages 晚于本轮落库返回时尾条已是这段字，不能再补一遍
-          if (t) setMessages((ms) => (ms.at(-1)?.role === 'assistant' && ms.at(-1)?.content === t ? ms : [...ms, { role: 'assistant', content: t }]));
+          if (t)
+            setMessages((ms) =>
+              ms.at(-1)?.role === 'assistant' && ms.at(-1)?.content === t
+                ? ms
+                : [...ms, { role: 'assistant', content: t, ts: new Date().toISOString() }],
+            );
           return '';
         });
         // reasoning 刻意不清：学习场景下「它刚才是怎么想的」是答案的一部分，用户要能回看；
@@ -193,7 +200,7 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
       setUsage(null);
       setElapsedMs(0);
       startedAtRef.current = Date.now();
-      setMessages((ms) => [...ms, { role: 'user', content: text }]);
+      setMessages((ms) => [...ms, { role: 'user', content: text, ts: new Date().toISOString() }]);
       try {
         await api.chat.send(sessionId, text);
         setBusy(true);
@@ -211,5 +218,40 @@ export function useChatStream(sessionId: string | null, onRoundDone?: () => void
     if (sessionId) await api.chat.abort(sessionId).catch(() => undefined);
   }, [sessionId]);
 
-  return { messages, streamingText, reasoning, steps, busy, ready, error, usage, elapsedMs, send, stop };
+  /**
+   * 重新生成：服务端已把最后一条提问之后的产物删掉（含工具轮与中止半截），
+   * 屏上按**同一口径**同步撤——只保留最后一条提问及其之前，否则新回答会接在旧回答后面。
+   */
+  const regenerate = useCallback(
+    async (): Promise<{ ok: boolean; error?: string }> => {
+      if (!sessionId) return { ok: false, error: '无会话' };
+      if (ready !== 'open')
+        return { ok: false, error: `连接${ready === 'reconnecting' ? '重连中' : '建立中'}，稍候再试` };
+      if (busy) return { ok: false, error: '生成中，请先停止' };
+      setError('');
+      resetTokens();
+      setStreamingText('');
+      setReasoning('');
+      setUsage(null);
+      setElapsedMs(0);
+      setSteps([]);
+      startedAtRef.current = Date.now();
+      setMessages((ms) => {
+        const lastUser = ms.reduce((acc, m, i) => (m.role === 'user' ? i : acc), -1);
+        return lastUser >= 0 ? ms.slice(0, lastUser + 1) : ms;
+      });
+      try {
+        await api.chat.regenerate(sessionId);
+        setBusy(true);
+        return { ok: true };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(msg);
+        return { ok: false, error: msg };
+      }
+    },
+    [sessionId, ready, busy, resetTokens],
+  );
+
+  return { messages, streamingText, reasoning, steps, busy, ready, error, usage, elapsedMs, send, stop, regenerate };
 }

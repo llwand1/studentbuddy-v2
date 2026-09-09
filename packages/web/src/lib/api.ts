@@ -48,6 +48,12 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ sessionId }),
       }),
+    /** 重新生成：服务端作废最后一条提问之后的全部产物并重跑（提问不重复落库） */
+    regenerate: (sessionId: string) =>
+      request<{ ok: boolean }>('/api/chat/regenerate', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId }),
+      }),
   },
 
   providers: {

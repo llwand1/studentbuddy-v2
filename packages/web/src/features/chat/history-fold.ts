@@ -1,0 +1,97 @@
+/**
+ * history-fold —— 把 GET /sessions/:id/messages 的原始行折成前端消息流。
+ *
+ * 为什么要折：库里一次问答写成多条行——user → assistant(空正文, tool_calls) → tool(结果)
+ * → …（可多轮）→ assistant(正文)。后三类是「这一次回答的过程 + 正文」，不是三条独立消息。
+ * 主流（Claude / ChatGPT）把过程归属于那条回答；本模块按同一口径，把工具轮配对成 steps
+ * 挂到紧随其后的那条 assistant 正文上，从而让重开会话能原样回放工具过程。
+ *
+ * 纯函数：吃原始行、吐 StreamMessage[]，不碰 DOM 也不碰 React，可直接单测。
+ */
+import type { StreamMessage, ToolStep } from './useChatStream';
+
+/** /messages 下发的原始行（口径见服务端 routes.ts 的 SELECT；多出的字段这里不用） */
+export interface HistoryRow {
+  id: string;
+  role: string;
+  content: string;
+  /** 该行是工具调用轮时：JSON 串 [{id,name,arguments}] */
+  tool_calls?: string | null;
+  /** 该行是工具结果时：它回填给哪个 call */
+  tool_call_id?: string | null;
+  created_at: string;
+}
+
+/** tool_calls JSON 的元素形状（弱模型/历史数据可能缺字段，故全部可选） */
+interface RawCall {
+  id?: string;
+  name?: string;
+  arguments?: string;
+}
+
+/** 工具结果摘要截断：与流式期 SSE step.result 同口径（flow.ts 侧同为 400） */
+const RESULT_CAP = 400;
+
+function parseCalls(raw: string | null | undefined): RawCall[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw) as unknown;
+    return Array.isArray(v) ? (v as RawCall[]) : [];
+  } catch {
+    return []; // 坏 JSON 视作没有工具调用：不让一行脏数据毁掉整段历史
+  }
+}
+
+export function foldToolRounds(rows: HistoryRow[]): StreamMessage[] {
+  const out: StreamMessage[] = [];
+  /** 正在累积的一轮工具步骤：遇到正文 assistant 时整体挂给它 */
+  let pending: ToolStep[] = [];
+  /** tool_call_id → 步骤对象引用，用于把 tool 结果回填到对应步骤 */
+  const byCallId = new Map<string, ToolStep>();
+
+  for (const r of rows) {
+    if (r.role === 'user') {
+      // 上一轮若留下悬空步骤（异常中断），不跨轮污染：直接丢弃未收口的 pending
+      pending = [];
+      byCallId.clear();
+      out.push({ role: 'user', content: r.content, ts: r.created_at });
+      continue;
+    }
+
+    if (r.role === 'assistant') {
+      const calls = parseCalls(r.tool_calls);
+      if (calls.length > 0) {
+        // 工具轮：正文恒为空，不产出可见消息，只把每个 call 展开成一条 running 步骤
+        for (const c of calls) {
+          const step: ToolStep = { tool: c.name ?? 'unknown', status: 'running', args: c.arguments };
+          if (c.id) byCallId.set(c.id, step);
+          pending.push(step);
+        }
+        continue;
+      }
+      // 正文 assistant：把累积的过程挂给它（无工具轮则 steps 为 undefined）
+      out.push({
+        role: 'assistant',
+        content: r.content,
+        ts: r.created_at,
+        steps: pending.length > 0 ? pending : undefined,
+      });
+      pending = [];
+      byCallId.clear();
+      continue;
+    }
+
+    if (r.role === 'tool') {
+      const step = r.tool_call_id ? byCallId.get(r.tool_call_id) : undefined;
+      if (step) {
+        step.status = 'done';
+        step.result = r.content.slice(0, RESULT_CAP);
+      }
+    }
+  }
+
+  // 收尾：有工具轮但这一轮没写出正文（被停止 / 纯工具轮）→ 单独留一条空正文消息。
+  // 过程不能因为「没有正文」就丢掉；渲染层对「正文为空但有 steps」的消息照样渲染。
+  if (pending.length > 0) out.push({ role: 'assistant', content: '', steps: pending });
+  return out;
+}

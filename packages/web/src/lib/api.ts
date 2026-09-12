@@ -51,7 +51,18 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ pinned }),
       }),
-    messages: (id: string) => request<Array<{ id: string; role: string; content: string; created_at: string }>>(`/api/sessions/${id}/messages`),
+    /** 历史消息：tool_calls / tool_call_id 是过程卡片（step）的唯一持久化来源，必须一并下发 */
+    messages: (id: string) =>
+      request<
+        Array<{
+          id: string;
+          role: string;
+          content: string;
+          tool_calls: string | null;
+          tool_call_id: string | null;
+          created_at: string;
+        }>
+      >(`/api/sessions/${id}/messages`),
   },
 
   chat: {

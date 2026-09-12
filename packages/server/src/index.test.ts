@@ -130,3 +130,27 @@ describe('html 预览通道（CSP sandbox 隔离）', () => {
     expect(res.headers['access-control-allow-origin']).toBeUndefined();
   });
 });
+
+describe('历史消息接口（过程卡片唯一的数据来源）', () => {
+  it('GET /api/sessions/:id/messages 必须下发 tool_calls 与 tool_call_id', async () => {
+    const { getDb } = await import('./storage/db.js');
+    const db = getDb();
+    const sid = 'sess-history-fold';
+    db.prepare(`INSERT INTO sessions (id, title) VALUES (?, '过程回放')`).run(sid);
+    db.prepare(`INSERT INTO messages (id, session_id, role, content) VALUES ('h-u1', ?, 'user', '搜一下')`).run(sid);
+    db.prepare(
+      `INSERT INTO messages (id, session_id, role, content, tool_calls) VALUES ('h-a1', ?, 'assistant', '', ?)`,
+    ).run(sid, JSON.stringify([{ id: 'c1', name: 'search_web', arguments: '{"query":"新闻"}' }]));
+    db.prepare(
+      `INSERT INTO messages (id, session_id, role, content, tool_call_id) VALUES ('h-t1', ?, 'tool', '结果摘要', 'c1')`,
+    ).run(sid);
+    db.prepare(`INSERT INTO messages (id, session_id, role, content) VALUES ('h-a2', ?, 'assistant', '正文')`).run(sid);
+
+    const res = await request(app).get(`/api/sessions/${sid}/messages`).expect(200);
+    const rows = res.body as Array<{ role: string; tool_calls: string | null; tool_call_id: string | null }>;
+    // 工具轮必须原样透传，前端才能把 step 配对折回那条回答上
+    expect(rows.map((r) => r.role)).toEqual(['user', 'assistant', 'tool', 'assistant']);
+    expect(rows[1]?.tool_calls).toContain('search_web');
+    expect(rows[2]?.tool_call_id).toBe('c1');
+  });
+});

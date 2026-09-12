@@ -8,11 +8,10 @@ import { useScrollAnchor } from './useScrollAnchor';
 import { ThoughtPanel } from './ThoughtPanel';
 import { ToolSteps } from './ToolSteps';
 import { TaskPanel } from './TaskPanel';
-import { MessageFoot } from './MessageFoot';
+import { MessageRow } from './MessageRow';
 import { formatRoundMeta } from './chat-meta';
 import { SendIcon, StopIcon, QuizIcon, CardsIcon, DownloadIcon } from '../../components/icons';
 import { buildExportMarkdown, downloadText, exportFilename } from './chat-export';
-import { QuizCard } from '../quiz/QuizCard';
 import { mixSummary, imageNote } from '../quiz/mix-report';
 import type { QuizImageReport, AnswerStyle } from '@sb/shared';
 import { Markdown } from './Markdown';
@@ -150,43 +149,18 @@ export function ChatView({
     <div className="chat-view">
       <div className="chat-scroll" ref={scrollRef} onScroll={onScroll} role="log" aria-live="polite" aria-busy={busy}>
         {isEmpty && <Welcome onPick={pick} />}
-        {messages.map((m, i) =>
-          m.quizBlock ? (
-            <QuizCard
-              key={i}
-              title={m.quizBlock.quiz.title ?? '练习'}
-              questions={m.quizBlock.quiz.questions}
-              quizId={m.quizBlock.quizId}
-              onAnswer={(qi, correct) => {
-                if (m.quizBlock?.quizId) {
-                  void api.request('/api/quiz/stats/record', {
-                    method: 'POST',
-                    body: JSON.stringify({ quizId: m.quizBlock.quizId, questionIndex: qi, correct }),
-                  });
-                }
-              }}
-            />
-          ) : m.content ? (
-            <div key={i} className={m.role === 'user' ? 'chat-row user' : 'chat-row'}>
-              {m.role === 'user' ? (
-                <div className="chat-bubble user">{m.content}</div>
-              ) : (
-                <div className="chat-bubble md">
-                  <Markdown text={m.content} />
-                </div>
-              )}
-              <MessageFoot
-                ts={m.ts}
-                content={m.content}
-                canRegen={m.role === 'assistant' && i === lastAssistantIdx}
-                regenDisabled={busy}
-                onRegen={() => void doRegen()}
-              />
-            </div>
-          ) : null,
-        )}
+        {messages.map((m, i) => (
+          <MessageRow
+            key={i}
+            m={m}
+            canRegen={m.role === 'assistant' && i === lastAssistantIdx}
+            regenDisabled={busy}
+            onRegen={() => void doRegen()}
+          />
+        ))}
         {reasoning && <ThoughtPanel text={reasoning} streaming={busy} />}
         {tasks.length > 0 && <TaskPanel items={tasks} streaming={busy} />}
+        {/* 当前轮的工具步骤：流式中挂在这里（回答还没落成消息），done 时归并进上面对应的消息里 */}
         <ToolSteps steps={steps} />
         {/* 回复中动画：发起后到首 token 落屏前（含纯工具执行期）的空窗，三点弹跳补位；
             正文一开始流就退场（气泡内已有闪烁光标），不与内容抢屏 */}

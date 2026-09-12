@@ -59,9 +59,17 @@ sessionsRouter.patch('/:id/pinned', (req: Request, res: Response) => {
   res.json({ ok: true, pinned });
 });
 
+/**
+ * 历史消息。
+ * ★ 必须带上 tool_calls / tool_call_id：工具轮的「工具名 + 入参 + 结果」是过程卡片（step）
+ * 唯一的持久化来源——少了这两列，前端重开会话就再也无法重建工具过程（数据在库里却被接口挡住）。
+ * 前端负责把 tool 轮配对折成 steps（features/chat/history-fold.ts），本接口只做透传不加工。
+ */
 sessionsRouter.get('/:id/messages', (req: Request, res: Response) => {
   const rows = getDb()
-    .prepare(`SELECT id, role, content, created_at FROM messages WHERE session_id = ? ORDER BY created_at, rowid`)
+    .prepare(
+      `SELECT id, role, content, tool_calls, tool_call_id, created_at FROM messages WHERE session_id = ? ORDER BY created_at, rowid`,
+    )
     .all((req.params.id ?? ''));
   res.json(rows);
 });

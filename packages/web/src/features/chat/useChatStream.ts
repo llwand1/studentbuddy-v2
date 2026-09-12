@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SseEvent, TokenUsage } from '@sb/shared';
 import { connectSse, type SseReadyState } from '../../lib/sse-client';
 import { api } from '../../lib/api';
+import { foldToolRounds } from './history-fold';
 
 export interface StreamMessage {
   role: 'user' | 'assistant';
@@ -15,6 +16,13 @@ export interface StreamMessage {
   ts?: string;
   streaming?: boolean;
   quizBlock?: { blockId: string; quiz: { title?: string; questions: import('@sb/shared').QuizQuestion[] }; quizId?: string };
+  /**
+   * 这条回答的执行过程（工具卡片）。★ 归属到消息而非页面：
+   * 历史消息由 history-fold 从库里重建（tool_calls 展开 + tool 结果回填），
+   * 本轮消息由 step 事件累积、在 done 时归并进来。正文为空但有 steps 的消息同样要渲染
+   * （纯工具轮 / 被停止的半轮），否则过程又丢了。
+   */
+  steps?: ToolStep[];
 }
 
 export interface ToolStep {
@@ -43,6 +51,15 @@ export function useChatStream(
   const [streamingText, setStreamingText] = useState('');
   const [reasoning, setReasoning] = useState('');
   const [steps, setSteps] = useState<ToolStep[]>([]);
+  /**
+   * steps 的真相源。done 事件要把「本轮步骤」并进那条回答消息，而 SSE 事件回调的闭包捕获的是
+   * 创建时的 state（恒为空数组），读不到最新值——所以所有更新一律走 commitSteps 同步写 ref。
+   */
+  const stepsRef = useRef<ToolStep[]>([]);
+  const commitSteps = useCallback((next: ToolStep[]) => {
+    stepsRef.current = next;
+    setSteps(next);
+  }, []);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState<SseReadyState>('connecting');
@@ -112,11 +129,8 @@ export function useChatStream(
       .messages(sessionId)
       .then((rows) => {
         if (!alive) return;
-        setMessages(
-          rows
-            .filter((r) => r.role === 'user' || r.role === 'assistant')
-            .map((r) => ({ role: r.role as 'user' | 'assistant', content: r.content, ts: r.created_at })),
-        );
+        // 工具轮（assistant.tool_calls + tool 结果）不当作独立消息，配对成 steps 挂回那条回答
+        setMessages(foldToolRounds(rows));
       })
       .catch(() => setMessages([]))
       .finally(() => {
@@ -132,9 +146,11 @@ export function useChatStream(
     if (!sessionId) return;
     setError('');
     setStreamingText('');
-    setSteps([]);
+    commitSteps([]);
     setTasks([]);
-    // 切会话即换轮：上一轮的 token/耗时不能跟着漂到新会话的页面上
+    // 切会话即换轮：上一轮的思考/步骤/token/耗时都不能漂到新会话的页面上。
+    // reasoning 此前漏清，而 ChatView 是「非空即渲染」——切到别的会话会看到上一轮的思考面板（串轮）。
+    setReasoning('');
     setUsage(null);
     setElapsedMs(0);
     const client = connectSse(sessionId);
@@ -148,17 +164,29 @@ export function useChatStream(
         setReasoning((r) => r + ev.content);
       } else if (ev.type === 'step') {
         setBusy(true);
-        setSteps((prev) => {
-          if (ev.status === 'running') return [...prev, { tool: ev.tool, status: ev.status, detail: ev.detail }];
-          const next = [...prev];
+        if (ev.status === 'running') {
+          commitSteps([...stepsRef.current, { tool: ev.tool, status: ev.status, detail: ev.detail }]);
+        } else {
+          const next = [...stepsRef.current];
+          const settled: ToolStep = {
+            tool: ev.tool,
+            status: ev.status,
+            detail: ev.detail,
+            args: ev.args,
+            result: ev.result,
+          };
+          let hit = -1;
           for (let i = next.length - 1; i >= 0; i--) {
             if (next[i]?.tool === ev.tool && next[i]?.status === 'running') {
-              next[i] = { tool: ev.tool, status: ev.status, detail: ev.detail, args: ev.args, result: ev.result };
-              return next;
+              hit = i;
+              break;
             }
           }
-          return [...next, { tool: ev.tool, status: ev.status, detail: ev.detail, args: ev.args, result: ev.result }];
-        });
+          // 配不上 running（重连补发的终态、或 running 帧丢失）就新开一条：过程宁可多一条也不丢
+          if (hit >= 0) next[hit] = settled;
+          else next.push(settled);
+          commitSteps(next);
+        }
       } else if (ev.type === 'tasks') {
         // 任务清单是全量覆盖语义：面板整表替换，模型每次 update_tasks 都发完整列表
         setBusy(true);
@@ -167,20 +195,30 @@ export function useChatStream(
         // 合批残留必须先落屏：buffer 里可能压着最后一帧没 flush 的字，丢了就是尾巴少一段
         flushTokens();
         setBusy(false);
-        // steps 刻意不清（与 reasoning 同策略）：过程卡片是这轮回答的执行痕迹，用户要能回看；
-        // 清空点在下一轮 send/regenerate 与切会话，保证不串轮
+        // 本轮步骤在收口这一刻归位到那条回答消息上（过程属于消息，不属于页面）：
+        // 屏上位置从「流式气泡上方」变成「回答内部」，内容连续；重开会话时由 history-fold 再重建一次。
+        const roundSteps = stepsRef.current;
         if (ev.usage) setUsage(ev.usage);
         if (startedAtRef.current) setElapsedMs(Date.now() - startedAtRef.current);
         setStreamingText((t) => {
-          // 屏上文本与库内文本逐字一致（服务端保证）：/messages 晚于本轮落库返回时尾条已是这段字，不能再补一遍
-          if (t)
-            setMessages((ms) =>
-              ms.at(-1)?.role === 'assistant' && ms.at(-1)?.content === t
-                ? ms
-                : [...ms, { role: 'assistant', content: t, ts: new Date().toISOString() }],
-            );
+          const hasSteps = roundSteps.length > 0;
+          // 纯工具轮 / 被停止的半轮：没有正文但有过程，也要留一条消息，否则过程就丢了
+          if (!t && !hasSteps) return '';
+          setMessages((ms) => {
+            const last = ms[ms.length - 1];
+            // 屏上文本与库内文本逐字一致（服务端保证）：/messages 晚于本轮落库返回时尾条已是这段字，
+            // 此时只把步骤补进去，不再插一条重复正文
+            if (t && last?.role === 'assistant' && last.content === t) {
+              return hasSteps ? [...ms.slice(0, -1), { ...last, steps: roundSteps }] : ms;
+            }
+            return [
+              ...ms,
+              { role: 'assistant', content: t, ts: new Date().toISOString(), steps: hasSteps ? roundSteps : undefined },
+            ];
+          });
           return '';
         });
+        commitSteps([]); // 已归位到消息内，清空「当前轮」，避免底部与消息内重复显示
         // reasoning 刻意不清：学习场景下「它刚才是怎么想的」是答案的一部分，用户要能回看；
         // 清空点放在下一轮 send（本文件的 send 里已清），保证不串轮
         onRoundDone?.();
@@ -199,7 +237,11 @@ export function useChatStream(
         // 出错也要把已流出的字落屏：服务端会把这半截落库（flow.ts catch 分支），屏上不能比库里少
         flushTokens();
         setBusy(false);
-        setSteps((prev) => prev.map((s) => (s.status === 'running' ? { ...s, status: 'error', detail: '已中断' } : s)));
+        // 本轮步骤标红后仍留在「当前轮」区显示。错误轮不做归并（不吸进消息流）：
+        // 半截正文会落库、过程则随重试整轮重来，避免把一次失败执行固化进历史。
+        commitSteps(
+          stepsRef.current.map((s) => (s.status === 'running' ? { ...s, status: 'error', detail: '已中断' } : s)),
+        );
         setError(ev.message);
       }
     });
@@ -210,7 +252,7 @@ export function useChatStream(
       client.close();
       clientRef.current = null;
     };
-  }, [sessionId, flushTokens, pushTokens, resetTokens]);
+  }, [sessionId, flushTokens, pushTokens, resetTokens, commitSteps]);
 
   /** 发送：SSE 未就绪时拒绝并提示（修 F1 竞态——绝不静默吞） */
   const send = useCallback(
@@ -224,8 +266,8 @@ export function useChatStream(
       resetTokens();
       setStreamingText('');
       setReasoning('');
-      setSteps([]);
-    setTasks([]);
+      commitSteps([]);
+      setTasks([]);
       setUsage(null);
       setElapsedMs(0);
       startedAtRef.current = Date.now();
@@ -263,8 +305,8 @@ export function useChatStream(
       setReasoning('');
       setUsage(null);
       setElapsedMs(0);
-      setSteps([]);
-    setTasks([]);
+      commitSteps([]);
+      setTasks([]);
       startedAtRef.current = Date.now();
       setMessages((ms) => {
         const lastUser = ms.reduce((acc, m, i) => (m.role === 'user' ? i : acc), -1);

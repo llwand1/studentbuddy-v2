@@ -1,0 +1,132 @@
+import { describe, it, expect } from 'vitest';
+import { foldToolRounds, type HistoryRow } from './history-fold';
+
+let seq = 0;
+const row = (o: Partial<HistoryRow> & { role: string; content: string }): HistoryRow => ({
+  id: `m${++seq}`,
+  created_at: '2026-09-12 03:00:00',
+  tool_calls: null,
+  tool_call_id: null,
+  ...o,
+});
+
+/** 造 tool_calls 的 JSON 串（与 flow.ts 落库形状一致） */
+const calls = (...items: Array<[string, string, string]>): string =>
+  JSON.stringify(items.map(([id, name, args]) => ({ id, name, arguments: args })));
+
+describe('foldToolRounds', () => {
+  it('单轮工具：工具轮不产出消息，步骤折到后面那条正文上', () => {
+    const out = foldToolRounds([
+      row({ role: 'user', content: '搜一下' }),
+      row({ role: 'assistant', content: '', tool_calls: calls(['c1', 'search_web', '{"query":"新闻"}']) }),
+      row({ role: 'tool', content: '搜索结果摘要', tool_call_id: 'c1' }),
+      row({ role: 'assistant', content: '根据搜索…' }),
+    ]);
+    expect(out.map((m) => m.role)).toEqual(['user', 'assistant']);
+    expect(out[1]?.content).toBe('根据搜索…');
+    expect(out[1]?.steps).toEqual([
+      { tool: 'search_web', status: 'done', args: '{"query":"新闻"}', result: '搜索结果摘要' },
+    ]);
+  });
+
+  it('多轮工具累积到同一条正文，结果按各自 call id 回填', () => {
+    const out = foldToolRounds([
+      row({ role: 'user', content: '查两件事' }),
+      row({ role: 'assistant', content: '', tool_calls: calls(['a', 'search_web', '{"query":"x"}']) }),
+      row({ role: 'tool', content: 'X 结果', tool_call_id: 'a' }),
+      row({ role: 'assistant', content: '', tool_calls: calls(['b', 'manage_terms', '{"action":"add"}']) }),
+      row({ role: 'tool', content: 'Y 结果', tool_call_id: 'b' }),
+      row({ role: 'assistant', content: '都查完了' }),
+    ]);
+    expect(out).toHaveLength(2);
+    const last = out[1];
+    expect(last?.content).toBe('都查完了');
+    expect(last?.steps?.map((s) => [s.tool, s.result])).toEqual([
+      ['search_web', 'X 结果'],
+      ['manage_terms', 'Y 结果'],
+    ]);
+    expect(last?.steps?.every((s) => s.status === 'done')).toBe(true);
+  });
+
+  it('一轮内并列多个 call 全部进 steps', () => {
+    const out = foldToolRounds([
+      row({
+        role: 'assistant',
+        content: '',
+        tool_calls: calls(['a', 'search_web', '{}'], ['b', 'tidy_terms', '{}']),
+      }),
+      row({ role: 'tool', content: 'RA', tool_call_id: 'a' }),
+      row({ role: 'tool', content: 'RB', tool_call_id: 'b' }),
+      row({ role: 'assistant', content: '结果' }),
+    ]);
+    expect(out[0]?.steps?.map((s) => s.tool)).toEqual(['search_web', 'tidy_terms']);
+    expect(out[0]?.steps?.map((s) => s.result)).toEqual(['RA', 'RB']);
+  });
+
+  it('无工具轮的普通问答不带 steps', () => {
+    const out = foldToolRounds([
+      row({ role: 'user', content: '你好' }),
+      row({ role: 'assistant', content: '你好呀' }),
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out[1]?.steps).toBeUndefined();
+  });
+
+  it('有工具轮但没写完正文（被停止 / 纯工具轮）→ 保一条空正文消息，过程不丢', () => {
+    const out = foldToolRounds([
+      row({ role: 'user', content: '整理词条' }),
+      row({ role: 'assistant', content: '', tool_calls: calls(['t1', 'tidy_terms', '{"action":"auto"}']) }),
+      row({ role: 'tool', content: '已合并 3 条', tool_call_id: 't1' }),
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out[1]?.content).toBe('');
+    expect(out[1]?.steps?.[0]).toEqual({
+      tool: 'tidy_terms',
+      status: 'done',
+      args: '{"action":"auto"}',
+      result: '已合并 3 条',
+    });
+  });
+
+  it('tool_calls 是坏 JSON → 当没有工具调用，不抛错也不吞消息', () => {
+    const out = foldToolRounds([row({ role: 'assistant', content: '{oops', tool_calls: 'not json' })]);
+    expect(out).toHaveLength(1);
+    expect(out[0]?.content).toBe('{oops');
+    expect(out[0]?.steps).toBeUndefined();
+  });
+
+  it('tool_call_id 配不上任何 call → 无副作用（孤儿结果不凭空造步骤）', () => {
+    const out = foldToolRounds([
+      row({ role: 'user', content: 'q' }),
+      row({ role: 'tool', content: '孤儿结果', tool_call_id: 'nope' }),
+      row({ role: 'assistant', content: 'a' }),
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out[1]?.steps).toBeUndefined();
+  });
+
+  it('工具结果截断到 400 字（与流式期 step.result 同口径）', () => {
+    const out = foldToolRounds([
+      row({ role: 'assistant', content: '', tool_calls: calls(['c1', 'search_web', '{}']) }),
+      row({ role: 'tool', content: 'x'.repeat(1000), tool_call_id: 'c1' }),
+      row({ role: 'assistant', content: 'done' }),
+    ]);
+    expect(out[0]?.steps?.[0]?.result).toHaveLength(400);
+  });
+
+  it('新提问清掉未收口的步骤，不跨轮污染', () => {
+    const out = foldToolRounds([
+      row({ role: 'assistant', content: '', tool_calls: calls(['c1', 'search_web', '{}']) }), // 悬空
+      row({ role: 'user', content: '下一个问题' }),
+      row({ role: 'assistant', content: '回答' }),
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out[0]?.content).toBe('下一个问题');
+    expect(out[1]?.steps).toBeUndefined();
+  });
+
+  it('时间戳与角色原样透传', () => {
+    const out = foldToolRounds([row({ role: 'user', content: 'hi', created_at: '2026-09-12 03:11:22' })]);
+    expect(out[0]).toEqual({ role: 'user', content: 'hi', ts: '2026-09-12 03:11:22' });
+  });
+});

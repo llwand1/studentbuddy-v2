@@ -97,6 +97,15 @@ export function SendIcon(props: IconProps) {
   );
 }
 
+/** 停止生成：实心方块（主流范式），base 的 fill:none 只作用于描边路径 */
+export function StopIcon(props: IconProps) {
+  return (
+    <svg {...base(props.size, props)}>
+      <rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 /** 联网搜索（工具步骤/搜索设置） */
 export function SearchIcon(props: IconProps) {
   return (

@@ -10,7 +10,7 @@ import { ToolSteps } from './ToolSteps';
 import { TaskPanel } from './TaskPanel';
 import { MessageFoot } from './MessageFoot';
 import { formatRoundMeta } from './chat-meta';
-import { SendIcon, QuizIcon, CardsIcon, DownloadIcon } from '../../components/icons';
+import { SendIcon, StopIcon, QuizIcon, CardsIcon, DownloadIcon } from '../../components/icons';
 import { buildExportMarkdown, downloadText, exportFilename } from './chat-export';
 import { QuizCard } from '../quiz/QuizCard';
 import { mixSummary, imageNote } from '../quiz/mix-report';
@@ -20,6 +20,7 @@ import { Welcome } from './Welcome';
 import { DocModeControl } from './DocModeControl';
 import { AskStyleCard, useAskStyle } from './AskStyleCard';
 import { api } from '../../lib/api';
+import { useAutoResize } from './useAutoResize';
 import './chat.css';
 
 export function ChatView({
@@ -49,6 +50,8 @@ export function ChatView({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   /** 滚动锚定：贴底才跟随流式输出；离底时不打断用户上翻，改显示「回到底部」 */
   const { scrollRef, showJump, onScroll, jumpToBottom } = useScrollAnchor([messages.length, steps.length, tasks.length, streamingText]);
+  /** 输入框随内容自增高：高度写进 CSS 变量 --ta-h（chat.css），上限 200px 后内滚 */
+  useAutoResize(inputRef, input);
 
   /** 出题配比是全局设置（设置页改的），本视图只展示摘要；拉取失败静默——服务端仍按库内配比出题 */
   useEffect(() => {
@@ -145,7 +148,7 @@ export function ChatView({
 
   return (
     <div className="chat-view">
-      <div className="chat-scroll" ref={scrollRef} onScroll={onScroll}>
+      <div className="chat-scroll" ref={scrollRef} onScroll={onScroll} role="log" aria-live="polite" aria-busy={busy}>
         {isEmpty && <Welcome onPick={pick} />}
         {messages.map((m, i) =>
           m.quizBlock ? (
@@ -279,11 +282,10 @@ export function ChatView({
                 void submit();
               }
             }}
-            rows={2}
           />
           {busy ? (
-            <button className="chat-stop" onClick={() => void stop()} title="停止生成">
-              ■
+            <button className="chat-stop" onClick={() => void stop()} title="停止生成" aria-label="停止生成">
+              <StopIcon size={14} />
             </button>
           ) : (
             <button className="chat-send" disabled={!input.trim() || blocked} onClick={() => void submit()} title="发送">

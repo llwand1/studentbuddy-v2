@@ -38,9 +38,13 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，诚实记账）**：本批在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（**现基线：45 文件 / 596 例全绿，2026-09-12 实测于 Node 22.23.2 全量 `npm run check`**；上一基线 44 文件 / 586 例，同日 PK P0-1 批实测）
+## 3. 用例清单（**现基线：47 文件 / 624 例全绿，2026-09-13 实测于 Node 22.23.2 全量 `npm run check`**；上一基线 45 文件 / 596 例，2026-09-12 PK P0-3a 批）
 
-> **本批（PK P0-3a）增量**：文件 44→**45**、例 586→**596**（**+10**，全部来自新 `web/features/pk/pk-view.test.ts`）。
+> **本批（PK P0-2+PVE）增量**：文件 45→**47**、例 596→**624**（**+28**：新 `routes/pk-match.test.ts` 15 +
+> 新 `routes/pk-pve.test.ts` 7 + `web/features/pk/pk-view.test.ts` 10→16 的 +6）。
+> 分节小计重算：shared 52（不变）/ server **401**（379+22）/ web **171**（165+6）。
+
+> **上批（PK P0-3a）增量**：文件 44→**45**、例 586→**596**（**+10**，全部来自新 `web/features/pk/pk-view.test.ts`）。
 > 分节小计：shared 52 / server 379（均不变）/ web **165**。
 
 > **本批（PK P0-1 收尾）增量**：文件 43→**44**、例 567→**586**（**+19**，全部来自新 `routes/pk-room.test.ts`；
@@ -106,6 +110,8 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `src/storage/db.test.ts` | 7 | 建表齐全 + `schema_version` 记录 + 幂等（重复打开不改动）；`messages(session_id, created_at)` 索引第一天就有；外键生效。**★ 认知进化批 v8 迁移 4 例**：`evolution_session`/`evolution_event` 两表与 `term_id+created_at`、`session_id+created_at` 两索引齐备；`term_library` 新列 `evo_level`/`best_level` 默认 0、`evo_updated_at` 默认 NULL；**`evolution_event` 刻意无外键**——已删词条的链节点必须写得进（append-only 历史若抗删 = 功能缺陷）；`probe_first`/`status` 默认值在位（契约 v1.1.1 勘误补的列得有持久化载体） | [DONE] 7 passed（实测，Node 22.23.2 全量 check——v8 真库迁移的 `probe_first` 默认值、无外键 append-only 链、`term_library` 三列均验通）|
 | `src/routes/pk-auth.test.ts` | 11 | **PK 登录 P0-1（契约 PK-SPEC §2.1；★ 本批补登——登录批 `e02d67a` 交付时漏登，例数本次实跑复核）**：首登建号——`nickname` **trim 后入库**（`'  团子  '` → `'团子'`）、`openid === mock_<userId>`、且**账号真落了库**（查 `pk_users` 核对，不只看响应）；携已有 `userId` 再登 = **找回原账号**并可顺带改名、`openid` 不变；携**不存在**的 userId → 走新建（**不复活幽灵账号**）；四类非法昵称（缺字段／纯空白／超 20 字／非字符串）→ 400 **且 `pk_users` 行数不变**（失败一字不落库）；20 字恰好通过（边界不误伤）；`/auth/me` 命中回身份、未知账号与缺参 → 404（前端据此清 localStorage） | [DONE] 11 passed（实测，Node 22.23.2 全量 check） |
 | `src/routes/pk-room.test.ts` | 19 | **PK 房间 P0-1（契约 PK-SPEC §2.1/§2.2/§4，本批新建）**：建房得 6 位**纯数字**房号（要能被人口头念出来）、建房人即房主且初始零分、`endsAt=0`（未开局没有时钟）、`questions=[]`（P0-1 不出题）；**重复建房幂等**（同 roomId/roomCode，不制造第二间）；未登录／不存在的 userId → 401；**建房用服务端昵称**（请求体塞 `nickname` 不生效——防冒名）；第二人入房后状态仍 `waiting`；**重复入房幂等**（玩家不被放进两次）；房号不存在 404、缺房号 400；**满员 409 且房内仍 2 人**（失败不入房，事后查 state 复核）；**换房时旧 waiting 房被回收**（每人只占一间，不留空壳房号）；**开局 → active 且 `endsAt` 落在 `[请求前+8min, 响应后+8min]`**（服务端算的时钟）；对手未进房 409 `ROOM_NOT_READY`、非房主 403 `NOT_ROOM_OWNER`、**重复开局 409 且 `endsAt` 不被重置**；房间不存在 404；`GET state` 快照字段与 404；`stream` 缺 roomId 400／房不存在 404（不让人挂永远安静的长连接）；**★ 频道隔离**：建房广播落在 `pk:<roomId>`（`snapshot` 得 1 条 `pk-state`）而**裸 roomId 空间为空** ⇒ 与聊天 sessionId 的串台防护实测生效；入房与开局各再广播一次（前端靠推、不靠轮询） | [DONE] 19 passed（实测，Node 22.23.2 全量 check） |
+| `src/routes/pk-match.test.ts` | 15 | **PK 计分引擎 P0-2（契约 PK-SPEC §1 计分全表逐行 + §2 端点映射，本批新建）**：出题 +1 且**快照与 pk-question 广播双层不含 answer 键**、`nextQuizAt` 落 CD、`deadlineAt = now+45s`；CD 内 429 `QUIZ_ON_COOLDOWN`、CD 一过即可再出；**答对 +2**（correct/answered 计数 + `chosen` 回填 + 答案揭示 + pk-verdict 带 `byUserId`）/ **答错 −1**（可为负）；**超时 −1**（假时钟直调 `tickMatches`——时间驱动收口一处，不起真定时器；题目置 timeout、之后再答 409）；**怠慢 −1 可累计**（120s 窗口锚点前移）＋**成功出题重置锚点**（答题不重置，对手照罚）；**结算三级**：分高者胜 / 平分比答对数 / 全平不下 winner，`pk-end` 广播；答题四守卫逐码（NOT_YOURS/NOT_FOUND/CHOICE_INVALID/DONE）；HTTP 映射：200/429/400/409/403/404/**502 生成失败且 CD 回滚＝免费重试立即成功**。手法：mock `generateQuiz`（固定单选 answer=[1]）＋假时钟锚定 `Date.now()` 手动推进 | [DONE] 15 passed（实测，Node 22.23.2 全量 check） |
+| `src/routes/pk-pve.test.ts` | 7 | **PK PVE AI 对手（2026-09-12 老板拍板：AI 与人完全同口径答题 / 人机对称出题）**：建房即占 AI 座位（`ai-<roomId>`）+ 主题方向入库 + 房主免等人直接开局 + 人再输码入房 409 + **默认 pvp 不占座回归**；AI 出题由 `tickMatches` 假时钟到点触发——+1 同口径、prompt=「主题：X」、**复用 `PK_QUIZ_MIX` 配比**（断言 generateQuiz 入参）、下一题按 60s CD 排程；失败不扣分不占 CD、10s 后重试；AI 答题走 mock 的 `routeRole('solver')` **独立调用**（假 chat 流吐字母）——答 B 即 +2（verdict `byUserId`＝AI 座位）、答 A 即 −1 **无特权**；**没配模型不乱猜**：题挂 pending 到超时由 ticker 同规则 −1 | [DONE] 7 passed（实测，Node 22.23.2 全量 check） |
 
 ### web（155 例，本次对数重算；段内仍缺行见 §3 顶注「账目缺口」）
 
@@ -118,7 +124,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `src/lib/preview-api.test.ts` | 5 | `uploadPreview` 成功返 `/api/preview/:id`；400 抛服务端原文；响应非 JSON 退化成 HTTP 状态码（不抛 SyntaxError）；200 缺 id 仍判失败；`pickTitle` 取 `<title>` 否则回落 | [DONE] |
 | `src/lib/preview-store.test.ts` | 4 | 初始无预览；同 url 重复开 → nonce 递增（强制重载）不同 url 归零；**快照引用稳定**（`useSyncExternalStore` 防死循环）；close 幂等；无预览时 refresh 空操作 | [DONE] |
 | `src/features/chat/Mascot.test.ts` | 3 | 点阵与类名映射自洽、16×16 齐边且档位齐、眨眼合帧只压眼位不改身体轮廓 | [DONE] |
-| `src/features/pk/pk-view.test.ts` | 10 | **PK 页面纯逻辑回归锁（P0-3a，契约 `docs/PK-SPEC.md` §5）**：房号输入归一（非数字剔除／截到 `PK_ROOM_CODE_LEN` 6 位／纯非数字归空串）；对局时钟**钳 0 不出负数**（`remainingMs` 到点与已过点均 0）＋ `formatClock` m:ss 补零（7:35／0:00／8:00、59,999ms→0:59、负数安全）——「客户端时间只作展示」的最后一道屏；房主恒为 `players[0]`（契约 §2.1）、不在房内 `myIndex` 返 −1、单人 waiting 房同样成立。组件（PkApp/PkLobby/PkRoom）不进测链路（本仓 .tsx 无测试环境，先例 doc-name.ts），判定逻辑全部下沉本文件 | [DONE] |
+| `src/features/pk/pk-view.test.ts` | 16 | **PK 页面纯逻辑回归锁（P0-3a 建 10 例 + P0-2 批 +6，契约 `docs/PK-SPEC.md` §5）**：房号输入归一（非数字剔除／截到 `PK_ROOM_CODE_LEN` 6 位／纯非数字归空串）；对局时钟**钳 0 不出负数**（`remainingMs` 到点与已过点均 0）＋ `formatClock` m:ss 补零（7:35／0:00／8:00、59,999ms→0:59、负数安全）——「客户端时间只作展示」的最后一道屏；房主恒为 `players[0]`（契约 §2.1）、不在房内 `myIndex` 返 −1、单人 waiting 房同样成立。**★ P0-2 批新增 6 例**：`cdRemainingMs`（未落 CD 返 0／未来时刻返剩余 ms）；`myPendingQuestion`（只认发给自己的 pending 题，答过/超时/别人的题都不算）；`pendingToOpponent`（我出的题还在等对方答）；`optionLetter`（下标→A-D）；`verdictText`（+2/−1/超时三类判分文案）。组件（PkApp/PkLobby/PkRoom/PkMatch）不进测链路（本仓 .tsx 无测试环境，先例 doc-name.ts），判定逻辑全部下沉本文件 | [DONE] 16 passed（实测，Node 22.23.2 全量 check） |
 
 ## 4. 已发现 Bug（登记簿）
 

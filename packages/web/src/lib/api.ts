@@ -48,11 +48,11 @@ export const api = {
       }),
     /** 启动时校验本地登录态；404（账号不存在）由调用方按需清除 */
     me: (userId: string) => request<PkIdentity>(`/api/pk/auth/me?userId=${encodeURIComponent(userId)}`),
-    /** 建房：已在某 waiting 房则服务端幂等返回原房 */
-    createRoom: (userId: string) =>
+    /** 建房：已在某 waiting 房则服务端幂等返回原房；mode='pve' 为 AI 对战（第二座位自动归 AI） */
+    createRoom: (userId: string, mode: 'pvp' | 'pve' = 'pvp', aiTopic?: string) =>
       request<{ roomId: string; roomCode: string; state: PkRoomState }>('/api/pk/rooms', {
         method: 'POST',
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ userId, mode, ...(aiTopic ? { aiTopic } : {}) }),
       }),
     /** 按房号入房：404 房不存在 / 409 房满或已开局 */
     joinRoom: (roomCode: string, userId: string) =>
@@ -69,6 +69,18 @@ export const api = {
     /** 全量快照（轮询兜底 / 断线重连对齐用）；404 = 房不存在或已被 TTL 回收 */
     roomState: (roomId: string) =>
       request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/state`),
+    /** 出题（AI 生成耗时数秒为正常）；429 = CD 内，502 = AI 失败（CD 已回滚，免费重试） */
+    submitQuiz: (roomId: string, userId: string, prompt: string) =>
+      request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/quiz`, {
+        method: 'POST',
+        body: JSON.stringify({ userId, prompt }),
+      }),
+    /** 答题：立即判分 { correct, delta, score }；409 = 已答/已超时 */
+    submitAnswer: (roomId: string, userId: string, questionId: string, choice: number) =>
+      request<{ correct: boolean; delta: number; score: number }>(
+        `/api/pk/rooms/${encodeURIComponent(roomId)}/answer`,
+        { method: 'POST', body: JSON.stringify({ userId, questionId, choice }) },
+      ),
   },
 
   sessions: {

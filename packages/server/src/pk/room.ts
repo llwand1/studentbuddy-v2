@@ -12,12 +12,15 @@
  */
 import { randomUUID } from 'node:crypto';
 import {
+  AI_FIRST_QUIZ_DELAY_MS,
+  AI_USER_PREFIX,
   PK_FINISHED_KEEP_MS,
   PK_MATCH_MS,
   PK_MAX_PLAYERS,
   PK_ROOM_CODE_LEN,
   PK_ROOM_TTL_MS,
   type PkIdentity,
+  type PkMode,
   type PkPlayer,
   type PkQuestion,
   type PkRoomError,
@@ -25,17 +28,36 @@ import {
   type PkRoomStatus,
 } from '@sb/shared';
 
-interface Room {
+/** 房内题目：快照形状 + 服务端私有的正确答案。`answer` **永不**进任何对外载荷（契约 §1） */
+export interface PkRoomQuestion extends PkQuestion {
+  answer: number;
+}
+
+export interface Room {
   roomId: string;
   /** 6 位房号；与 roomId 分离——房号要能被人口头念出来，roomId 不必 */
   code: string;
   status: PkRoomStatus;
+  /** pvp / pve（PVE 的第二座位在建房时即由 AI 占据） */
+  mode: PkMode;
+  /** PVE 可选主题方向；空 = AI 自选轮换 */
+  aiTopic?: string;
   /** 按入房顺序，`[0]` 即房主 */
   players: PkPlayer[];
   endsAt: number;
+  /** 开局时刻：怠慢惩罚的初始锚点（首 120s 宽限从开局起算） */
+  startedAt: number;
+  /** 各玩家怠慢惩罚锚点：距锚 ≥ IDLE_PENALTY_MS 且无成功出题 → −1，锚前移一个窗口（可累计） */
+  idleAnchor: Record<string, number>;
   /** P0-1 恒空；P0-2 出题后填充（结构先定，前端零改动） */
-  questions: PkQuestion[];
+  questions: PkRoomQuestion[];
   nextQuizAt: Record<string, number>;
+  /** PVE：AI 下一题时刻；出题失败 = now + AI_RETRY_DELAY_MS（失败不计 CD 不扣分） */
+  aiNextQuizAt: number;
+  /** PVE：AI 出题在途标志（防 1s ticker 重复触发） */
+  aiBusy: boolean;
+  /** PVE：AI 自选主题的轮换游标（随机起点） */
+  aiTopicIdx: number;
   winner?: string;
   /** 最近一次状态变更时刻（ms）：TTL 回收判据 */
   lastActivity: number;
@@ -87,17 +109,37 @@ function toPlayer(identity: PkIdentity): PkPlayer {
   };
 }
 
-/** 派生对外快照：players/questions 逐层复制，防调用方改到内部状态 */
-function toState(room: Room): PkRoomState {
+/** 派生对外快照：players/questions 逐层复制，防调用方改到内部状态。
+ *  ★ `answer` 只在题目已判定（answered/timeout）时以 `answerRevealed` 名义下发；
+ *    pending 题连键都没有——「正确答案永不下发」在结构层面成立（契约 §1）。 */
+export function snapshotRoom(room: Room): PkRoomState {
   const state: PkRoomState = {
     roomId: room.roomId,
     roomCode: room.code,
     status: room.status,
+    mode: room.mode,
     players: room.players.map((p) => ({ ...p })),
     nextQuizAt: { ...room.nextQuizAt },
     endsAt: room.endsAt,
-    questions: room.questions.map((q) => ({ ...q, options: [...q.options] })),
+    questions: room.questions.map((q) => {
+      const base: PkQuestion = {
+        id: q.id,
+        roomId: q.roomId,
+        fromUserId: q.fromUserId,
+        toUserId: q.toUserId,
+        prompt: q.prompt,
+        stem: q.stem,
+        options: [...q.options],
+        createdAt: q.createdAt,
+        deadlineAt: q.deadlineAt,
+        status: q.status,
+      };
+      if (q.chosen !== undefined) base.chosen = q.chosen;
+      if (q.status !== 'pending') base.answerRevealed = q.answer;
+      return base;
+    }),
   };
+  if (room.aiTopic) state.aiTopic = room.aiTopic;
   if (room.winner) state.winner = room.winner;
   return state;
 }
@@ -144,28 +186,47 @@ function requireRoom(roomIdRaw: unknown): Room {
 /**
  * 建房。幂等：已在某 waiting 房（含自己建的、或已入的）则**返回原房**而不是报错——
  * 重复点「建房」是误触不是意图，报错只会让人以为坏了（产品取向：体验感优先）。
+ * PVE（mode='pve'）：第二个座位建房即由 AI 占据（`ai-<roomId>`），此后人再输码入房会被满员挡下——
+ * 人机局天然只有一个人。
  */
-export function createRoom(identity: PkIdentity): PkRoomState {
+export function createRoom(identity: PkIdentity, mode: PkMode = 'pvp', aiTopic?: string): PkRoomState {
   const now = Date.now();
   sweepExpired(now);
   const existing = findWaitingRoomOf(identity.userId);
   if (existing) {
     existing.lastActivity = now;
-    return toState(existing);
+    return snapshotRoom(existing);
   }
   const room: Room = {
     roomId: `r-${randomUUID()}`,
     code: genCode(),
     status: 'waiting',
+    mode,
     players: [toPlayer(identity)],
     endsAt: 0,
+    startedAt: 0,
+    idleAnchor: {},
     questions: [],
     nextQuizAt: {},
+    aiNextQuizAt: 0,
+    aiBusy: false,
+    aiTopicIdx: Math.floor(Math.random() * 32),
     lastActivity: now,
   };
+  if (mode === 'pve') {
+    if (aiTopic?.trim()) room.aiTopic = aiTopic.trim().slice(0, 50);
+    room.players.push({
+      userId: `${AI_USER_PREFIX}${room.roomId}`,
+      nickname: 'AI 对手',
+      score: 0,
+      correct: 0,
+      answered: 0,
+      lastQuizAt: 0,
+    });
+  }
   rooms.set(room.roomId, room);
   codes.set(room.code, room.roomId);
-  return toState(room);
+  return snapshotRoom(room);
 }
 
 /**
@@ -181,14 +242,14 @@ export function joinRoom(roomCodeRaw: unknown, identity: PkIdentity): PkRoomStat
   if (!room) fail('ROOM_NOT_FOUND');
   if (room.players.some((p) => p.userId === identity.userId)) {
     room.lastActivity = now;
-    return toState(room);
+    return snapshotRoom(room);
   }
   if (room.status !== 'waiting') fail('ROOM_NOT_WAITING');
   if (room.players.length >= PK_MAX_PLAYERS) fail('ROOM_FULL');
   leaveWaitingRooms(identity.userId);
   room.players.push(toPlayer(identity));
   room.lastActivity = now;
-  return toState(room);
+  return snapshotRoom(room);
 }
 
 /**
@@ -206,8 +267,14 @@ export function startRoom(roomIdRaw: unknown, identity: PkIdentity): PkRoomState
   if (room.players.length < PK_MAX_PLAYERS) fail('ROOM_NOT_READY');
   room.status = 'active';
   room.endsAt = now + PK_MATCH_MS;
+  room.startedAt = now;
+  // 怠慢锚点从开局起算：双方开局后都有 120s 宽限去完成第一次成功出题
+  for (const p of room.players) room.idleAnchor[p.userId] = now;
+  // PVE：AI 第一题在开局 + AI_FIRST_QUIZ_DELAY_MS（ticker 到点触发）
+  room.aiNextQuizAt = room.mode === 'pve' ? now + AI_FIRST_QUIZ_DELAY_MS : 0;
+  room.aiBusy = false;
   room.lastActivity = now;
-  return toState(room);
+  return snapshotRoom(room);
 }
 
 /** 读房间快照（断线重连对齐用）；不存在/已回收 → null（路由转 404） */
@@ -215,7 +282,25 @@ export function getRoomState(roomIdRaw: unknown): PkRoomState | null {
   sweepExpired();
   const roomId = typeof roomIdRaw === 'string' ? roomIdRaw : '';
   const room = rooms.get(roomId);
-  return room ? toState(room) : null;
+  return room ? snapshotRoom(room) : null;
+}
+
+// ── 内部访问器（仅供同包 match/ai-bot 与测试使用；路由层一律走快照）────────
+
+/** 取内部 Room（含 answer 等私有字段）；不存在即抛 ROOM_NOT_FOUND */
+export function requireRoomInternal(roomIdRaw: unknown): Room {
+  return requireRoom(roomIdRaw);
+}
+
+/** 内部房是否存在（AI 异步回写前的防悬挂检查：房可能已被 TTL 回收） */
+export function hasActiveRoom(roomId: string): boolean {
+  const room = rooms.get(roomId);
+  return room !== undefined && room.status === 'active';
+}
+
+/** 全部内部房（ticker 遍历用） */
+export function allRoomsInternal(): Room[] {
+  return [...rooms.values()];
 }
 
 /** 测试辅助：清空全部房间（进程内单例，用例间必须隔离） */

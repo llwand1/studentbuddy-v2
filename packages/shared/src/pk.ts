@@ -1,9 +1,9 @@
 /**
  * pk — AI 出题 PK 契约（docs/PK-SPEC.md，先登记再实现）。
  *
- * 批次节奏：P0-1 ＝ 登录 + 房间（建房 / 入房 / start）+ SSE `pk:` 频道（本文件当前覆盖范围）；
- * 计分相关（出题 CD / 答题时限 / 怠慢惩罚）的类型与常量随 P0-2 追加登记——
- * **不提前登记用不上的常量**，未实现的常量只会成为下一个漂移源。
+ * 批次节奏：P0-1 ＝ 登录 + 房间（建房 / 入房 / start）+ SSE `pk:` 频道；
+ * P0-2 ＝ 计分（本文件现覆盖：CD/答题时限/怠慢三常量 + PVE 模式 + 对局错误码）——
+ * 2026-09-12 老板拍板「P0-2 与 PVE AI 对战一体做」，三口子见 `PkMode` 注释。
  *
  * 单一事实源：常量 / 类型 / 频道键一律在此定义，server 与 web 只引用不复制。
  */
@@ -31,6 +31,32 @@ export const PK_MATCH_MS = 8 * 60_000;
 export const PK_ROOM_TTL_MS = 30 * 60_000;
 /** 结束后快照保留时长：供双方回看题目（契约 §4） */
 export const PK_FINISHED_KEEP_MS = 10 * 60_000;
+
+// ── 计分常量（P0-2，契约 §1；此前刻意未登记，随计分逻辑同批落地）────────
+
+/** 出题冷却：同一玩家两次成功出题的最小间隔；CD 内提交 → 429 且不扣分 */
+export const QUIZ_CD_MS = 60_000;
+/** 答题时限：超时未答由服务端判罚 −1，之后该题作废（含 AI——人机同口径） */
+export const ANSWER_TIME_MS = 45_000;
+/** 怠慢惩罚窗口：对局进行中每这么久无一次成功出题 → −1，可累计 */
+export const IDLE_PENALTY_MS = 120_000;
+/** PVE 开局后 AI 的第一题延迟（秒开显得假，给一点「进入状态」的时间） */
+export const AI_FIRST_QUIZ_DELAY_MS = 5_000;
+/** AI 出题失败后的重试间隔（失败不计 CD、不扣分，契约 §3） */
+export const AI_RETRY_DELAY_MS = 10_000;
+/** 出题提示词上限（契约 §2.1，服务端截断前的硬校验） */
+export const PK_PROMPT_MAX = 300;
+
+// ── 对战模式（PVE，2026-09-12 老板拍板三口子：一体做计分+PVE／AI 与人同口径答题／人机对称出题）──
+
+export type PkMode = 'pvp' | 'pve';
+
+/** AI 座位 userId 前缀：PVE 房的第二个座位由 AI 占据，`ai-<roomId>` */
+export const AI_USER_PREFIX = 'ai-';
+
+export function isAiUserId(userId: string): boolean {
+  return userId.startsWith(AI_USER_PREFIX);
+}
 
 /**
  * SSE 频道键：PK 一律走 `pk:` 前缀。
@@ -81,6 +107,14 @@ export interface PkQuestion {
   /** createdAt + 答题时限；超时由服务端判罚，之后该题作废不可再答 */
   deadlineAt: number;
   status: 'pending' | 'answered' | 'timeout';
+  /** 答题方的最终选择（选项下标）。**判定后才回填下发**；pending 时无此字段 */
+  chosen?: number;
+  /**
+   * 正确选项下标——**判定后（答对/答错/超时）才回填下发**。
+   * 此前这个字段绝不出现在任何载荷（契约 §1「正确答案永不下发」的实现口径：
+   * pending 阶段快照里连键都没有，不是「值为 null」——不给手滑留口子）。
+   */
+  answerRevealed?: number;
 }
 
 /** 对局快照（GET /api/pk/rooms/:id/state 响应 / SSE `pk-state` 载荷） */
@@ -89,6 +123,10 @@ export interface PkRoomState {
   /** 6 位房号：入房凭证（房号与 roomId 分离，房号可被人念出来） */
   roomCode: string;
   status: PkRoomStatus;
+  /** pvp = 双人对战；pve = 人机对战（第二座位是 AI，见 `isAiUserId`） */
+  mode: PkMode;
+  /** PVE 建房时可选的「主题方向」；空 = AI 自选主题轮换 */
+  aiTopic?: string;
   /** 按入房顺序，`players[0]` 即房主——唯一有权 start 的人 */
   players: PkPlayer[];
   /** 各玩家 CD 解锁时刻（ms）；P0-1 恒空对象，P0-2 起填 */
@@ -119,6 +157,24 @@ export type PkRoomError =
   | 'ROOM_NOT_READY'
   /** 非房主无权 start → 403 */
   | 'NOT_ROOM_OWNER'
+  /** 对局未进行中（waiting/finished 时出题或答题）→ 409 */
+  | 'ROOM_NOT_ACTIVE'
+  /** 操作者不在房内 → 403 */
+  | 'NOT_A_PLAYER'
+  /** 出题 CD 内（`now < nextQuizAt`）→ 429，不扣分 */
+  | 'QUIZ_ON_COOLDOWN'
+  /** 出题提示词非法（空 / 超 `PK_PROMPT_MAX`）→ 400 */
+  | 'PROMPT_INVALID'
+  /** 题不存在（id 错或已被清理）→ 404 */
+  | 'QUESTION_NOT_FOUND'
+  /** 该题不是发给你的 → 403 */
+  | 'QUESTION_NOT_YOURS'
+  /** 该题已被答 / 已判超时 → 409 */
+  | 'QUESTION_DONE'
+  /** 答案选项下标非法 → 400 */
+  | 'CHOICE_INVALID'
+  /** AI 出题失败（模型不可用 / 输出不合法）→ 502，不计 CD 不扣分 */
+  | 'AI_GENERATION_FAILED'
   /** 房号生成连续碰撞（理论不可达，兜底不静默）→ 500 */
   | 'ROOM_CODE_EXHAUSTED';
 

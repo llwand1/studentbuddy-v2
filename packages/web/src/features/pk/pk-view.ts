@@ -4,7 +4,7 @@
  * 判定逻辑一律放这里、组件只负责挂——本仓 .tsx 无测试环境（先例 doc-name.ts），
  * 纯函数才能进测链路。全部无副作用、无时钟依赖：now 一律由调用方传入。
  */
-import { PK_ROOM_CODE_LEN, type PkRoomState } from '@sb/shared';
+import { PK_ROOM_CODE_LEN, type PkQuestion, type PkRoomState } from '@sb/shared';
 
 /** 房号输入归一：只留数字、截到 6 位（contract §2.1 roomCode = 6 位数字） */
 export function normalizeRoomCode(raw: string): string {
@@ -32,4 +32,30 @@ export function myIndex(state: PkRoomState, userId: string): number {
 /** 我是不是房主（唯一有权开局的人） */
 export function isOwner(state: PkRoomState, userId: string): boolean {
   return myIndex(state, userId) === 0;
+}
+
+/** 我的出题 CD 剩余毫秒（未设过 = 已解锁）；钳 0，真判罚在服务端 */
+export function cdRemainingMs(state: PkRoomState, userId: string, now: number): number {
+  const unlockAt = state.nextQuizAt[userId] ?? 0;
+  return Math.max(0, unlockAt - now);
+}
+
+/** 发给我的、还没答也没判超时的那道题（没有则 null） */
+export function myPendingQuestion(state: PkRoomState, userId: string): PkQuestion | null {
+  return state.questions.find((q) => q.toUserId === userId && q.status === 'pending') ?? null;
+}
+
+/** 我刚出给对手、还没被答/判超时的题（PVE 显示「对手思考中」用） */
+export function pendingToOpponent(state: PkRoomState, userId: string): PkQuestion | null {
+  return state.questions.find((q) => q.fromUserId === userId && q.toUserId !== userId && q.status === 'pending') ?? null;
+}
+
+/** 选项字母（A-D）；超范围返回空串（单选最多 4 项） */
+export function optionLetter(i: number): string {
+  return ['A', 'B', 'C', 'D'][i] ?? '';
+}
+
+/** 判定结果一行文案（含正负分，契约 §1 计分表口径） */
+export function verdictText(correct: boolean, delta: number): string {
+  return correct ? `答对 ${delta >= 0 ? '+' : ''}${delta}` : `答错 ${delta}`;
 }

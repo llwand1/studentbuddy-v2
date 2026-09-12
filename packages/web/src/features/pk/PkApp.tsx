@@ -104,19 +104,22 @@ export function PkApp() {
     }
   }, []);
 
-  const createRoom = useCallback(async () => {
-    if (!identity) return;
-    setBusy(true);
-    setError('');
-    try {
-      const r = await api.pk.createRoom(identity.userId);
-      setRoom(r.state);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '建房失败，请重试');
-    } finally {
-      setBusy(false);
-    }
-  }, [identity]);
+  const createRoom = useCallback(
+    async (mode: 'pvp' | 'pve', aiTopic?: string) => {
+      if (!identity) return;
+      setBusy(true);
+      setError('');
+      try {
+        const r = await api.pk.createRoom(identity.userId, mode, aiTopic);
+        setRoom(r.state);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '建房失败，请重试');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [identity],
+  );
 
   const joinRoom = useCallback(
     async (roomCode: string) => {

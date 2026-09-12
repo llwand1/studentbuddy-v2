@@ -60,6 +60,8 @@ export type SseEvent =
       seq: number;
       roomId: string;
       questionId: string;
+      /** 被判分的是谁（答题方）——PVE 后 AI 也走同一条判分路径，前端要分清是谁的分数在动 */
+      byUserId: string;
       correct: boolean;
       /** 本题分数变化（答错 / 超时各 −1） */
       delta: number;

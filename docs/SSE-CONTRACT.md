@@ -97,7 +97,9 @@
 | GET | `/api/pk/auth/me?userId=` | 本地登录态校验（前端启动时过一遍）；账号不存在 → 404，前端据此清 localStorage |
 | POST | `/api/pk/rooms` | `{ userId }` → `{ roomId, roomCode, state }`（201）。**幂等**：已在某 waiting 房则返回原房而不新建。房号 6 位数字 |
 | POST | `/api/pk/rooms/join` | `{ roomCode, userId }` → `{ roomId, state }`。房不存在 404／满员 409／已开局 409；**重复入同一间房幂等**；入房成功会把自己从其它 waiting 房摘掉 |
-| POST | `/api/pk/rooms/:id/start` | `{ userId }` 仅房主（`players[0]`）。双方已进房 → `active`、`endsAt = 服务端 now + 8 分钟`。非房主 403／对手未到 409／重复开局 409 |
+| POST | `/api/pk/rooms/:id/start` | `{ userId }` 仅房主（`players[0]`）。双方已进房 → `active`、`endsAt = 服务端 now + 8 分钟`。非房主 403／对手未到 409／重复开局 409；PVE 房 AI 座位已占、房主可直接开。成功后启动 1s ticker（超时/怠慢/结算/AI 出题统一时间驱动，无 active 房自停） |
+| POST | `/api/pk/rooms/:id/quiz` | `{ userId, prompt }` → `{ state }`。先落 CD 并广播（前端立刻见倒计时）→ AI 生成 → 成功建题出题人 +1；CD 内 429 不扣分；生成失败 502 且 **CD 已回滚＝免费重试**。PVE 时题发给 AI 并触发其答题 |
+| POST | `/api/pk/rooms/:id/answer` | `{ userId, questionId, choice }` → `{ correct, delta, score }` 即时判分（+2/−1）；已答/超时 409、别人的题 403、选项越界 400 |
 | GET | `/api/pk/rooms/:id/state` | 房间快照（断线重连对齐用）；不存在或已被 TTL 回收 → 404 |
 | GET | `/api/pk/stream?roomId=&userId=&since=` | 房间 SSE 频道，语义见 §2.1 |
 

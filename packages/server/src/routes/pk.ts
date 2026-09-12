@@ -1,14 +1,15 @@
 /**
  * routes/pk — AI 出题 PK 薄路由（契约 docs/PK-SPEC.md，先契约后实现）。
  *
- * P0-1 覆盖：登录两端点 + 房间四端点 + SSE 频道。计分端点（出题/答题）随 P0-2 追加到同一 router。
+ * 覆盖：登录两端点 + 房间四端点 + 计分两端点（P0-2）+ SSE 频道；PVE 建房参数（mode/aiTopic）。
  * 路由只做三件事：参数校验、调域层、把域层错误码映射成 HTTP——业务规则一律不在这一层。
  */
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { pkChannel, type PkIdentity, type PkRoomError, type PkRoomState } from '@sb/shared';
+import { pkChannel, type PkIdentity, type PkMode, type PkRoomError, type PkRoomState } from '@sb/shared';
 import { getIdentity, loginOrRegister } from '../pk/auth.js';
 import { createRoom, getRoomState, joinRoom, startRoom } from '../pk/room.js';
+import { ensureTicker, submitAnswer, submitQuiz } from '../pk/match.js';
 import { publish, subscribe } from '../chat/sse-bus.js';
 
 export const pkRouter = Router();
@@ -20,6 +21,15 @@ const ERROR_STATUS: Record<PkRoomError, number> = {
   ROOM_NOT_WAITING: 409,
   ROOM_NOT_READY: 409,
   NOT_ROOM_OWNER: 403,
+  ROOM_NOT_ACTIVE: 409,
+  NOT_A_PLAYER: 403,
+  QUIZ_ON_COOLDOWN: 429,
+  PROMPT_INVALID: 400,
+  QUESTION_NOT_FOUND: 404,
+  QUESTION_NOT_YOURS: 403,
+  QUESTION_DONE: 409,
+  CHOICE_INVALID: 400,
+  AI_GENERATION_FAILED: 502,
   ROOM_CODE_EXHAUSTED: 500,
 };
 
@@ -30,6 +40,15 @@ const ERROR_TEXT: Record<PkRoomError, string> = {
   ROOM_NOT_WAITING: '这局已经开始或结束了，不能加入',
   ROOM_NOT_READY: '还要等对手进房才能开始',
   NOT_ROOM_OWNER: '只有房主能开始对局',
+  ROOM_NOT_ACTIVE: '对局不在进行中',
+  NOT_A_PLAYER: '你不在这间房里',
+  QUIZ_ON_COOLDOWN: '出题冷却中，稍等几秒再出',
+  PROMPT_INVALID: '出题提示词不能为空',
+  QUESTION_NOT_FOUND: '题目不存在',
+  QUESTION_NOT_YOURS: '这道题不是发给你答的',
+  QUESTION_DONE: '这道题已经被答过或已超时',
+  CHOICE_INVALID: '选项不合法',
+  AI_GENERATION_FAILED: 'AI 出题失败，可免费重试（不计冷却不扣分）',
   ROOM_CODE_EXHAUSTED: '房号分配失败，请重试',
 };
 
@@ -95,12 +114,14 @@ pkRouter.get('/auth/me', (req: Request, res: Response) => {
 
 // ── 房间（P0-1，契约 §2.1）──────────────────────────────────
 
-/** 建房：{ userId } → { roomId, roomCode, state }。已在某 waiting 房则**返回原房**（幂等）。 */
+/** 建房：{ userId, mode?, aiTopic? } → { roomId, roomCode, state }。已在某 waiting 房则**返回原房**（幂等）。 */
 pkRouter.post('/rooms', (req: Request, res: Response) => {
   const identity = requireIdentity(req.body?.userId, res);
   if (!identity) return;
+  const mode: PkMode = req.body?.mode === 'pve' ? 'pve' : 'pvp';
+  const aiTopic = typeof req.body?.aiTopic === 'string' ? req.body.aiTopic : undefined;
   try {
-    const state = createRoom(identity);
+    const state = createRoom(identity, mode, aiTopic);
     broadcast(state);
     res.status(201).json({ roomId: state.roomId, roomCode: state.roomCode, state });
   } catch (e) {
@@ -126,14 +147,45 @@ pkRouter.post('/rooms/join', (req: Request, res: Response) => {
   }
 });
 
-/** 开局（仅房主、双方已进房）：{ userId } → { state }；置 active 并给出 endsAt。 */
+/** 开局（仅房主、双方已进房）：{ userId } → { state }；置 active 并给出 endsAt。PVE 房 AI 座位已占，房主可直接开。 */
 pkRouter.post('/rooms/:id/start', (req: Request, res: Response) => {
   const identity = requireIdentity(req.body?.userId, res);
   if (!identity) return;
   try {
     const state = startRoom(req.params.id, identity);
     broadcast(state);
+    ensureTicker(); // 1s ticker：结算/超时/怠慢/AI 出题统一时间驱动（无 active 房时自停）
     res.json({ state });
+  } catch (e) {
+    fail(res, e);
+  }
+});
+
+/**
+ * 出题：{ userId, prompt } → { state }。AI 生成耗时数秒为正常（同步返回最终快照）；
+ * CD 内 429 不扣分；AI 失败 502 已回滚 CD（免费重试）。
+ */
+pkRouter.post('/rooms/:id/quiz', (req: Request, res: Response) => {
+  const identity = requireIdentity(req.body?.userId, res);
+  if (!identity) return;
+  void (async () => {
+    try {
+      const state = await submitQuiz(String(req.params.id ?? ''), identity.userId, req.body?.prompt);
+      res.json({ state });
+    } catch (e) {
+      fail(res, e);
+    }
+  })();
+});
+
+/** 答题：{ userId, questionId, choice } → { correct, delta, score }（契约 §2.1）。 */
+pkRouter.post('/rooms/:id/answer', (req: Request, res: Response) => {
+  const identity = requireIdentity(req.body?.userId, res);
+  if (!identity) return;
+  try {
+    const choice = typeof req.body?.choice === 'number' ? req.body.choice : Number(req.body?.choice);
+    const r = submitAnswer(String(req.params.id ?? ''), identity.userId, req.body?.questionId, choice);
+    res.json(r);
   } catch (e) {
     fail(res, e);
   }

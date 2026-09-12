@@ -38,19 +38,19 @@
 - **结算**：对局时钟归零 → 分高者胜；平分比正确率（答对数），再平判为平局。
 - 所有计时（CD / 答题时限 / 怠慢惩罚 / 对局时钟）**全部在服务端**，客户端时间只作展示——单一事实源，防作弊。
 - **正确答案永不下发给答题方**（含 SSE 事件），直到该题被答或超时。
-- **常量归属**：本批（P0-1）已在 `shared/src/pk.ts` 登记 `PK_MATCH_MS`（8 分钟）／`PK_MAX_PLAYERS`／
-  `PK_ROOM_CODE_LEN`／`PK_ROOM_TTL_MS`／`PK_FINISHED_KEEP_MS`。
-  ★ `QUIZ_CD_MS`（60s）／`ANSWER_TIME_MS`（45s）／`IDLE_PENALTY_MS`（120s）**尚未登记**——P0-1 用不到，
-  按「**不提前登记用不上的常量**」原则留到 P0-2 与计分逻辑同批落地（未实现的常量只会成为下一个漂移源）。
+- **常量归属**：P0-1 登记 `PK_MATCH_MS`（8 分钟）／`PK_MAX_PLAYERS`／`PK_ROOM_CODE_LEN`／`PK_ROOM_TTL_MS`／
+  `PK_FINISHED_KEEP_MS`；**P0-2 已补登记** `QUIZ_CD_MS`（60s）／`ANSWER_TIME_MS`（45s）／`IDLE_PENALTY_MS`（120s）／
+  `PK_PROMPT_MAX`（300）＋ PVE 三常量 `AI_USER_PREFIX`（`'ai-'`）／`AI_FIRST_QUIZ_DELAY_MS`（5s）／`AI_RETRY_DELAY_MS`（10s），
+  全在 `shared/src/pk.ts`（§8）。
 
 ## 2. 数据契约（先在 `packages/shared/src/pk.ts` 登记再实现）
 
 ```ts
-/** 题目（对答题方隐藏 answer） */
+/** 题目（对答题方隐藏 answer；判定后回填 chosen 并以 answerRevealed 揭示） */
 interface PkQuestion {
   id: string;            // pq-<roomId>-<seq>
   roomId: string;
-  fromUserId: string;    // 出题人
+  fromUserId: string;    // 出题人（PVE 时可为 AI 座位 ai-<roomId>）
   toUserId: string;      // 答题人
   prompt: string;        // 出题提示词原文（≤300 字，服务端截断）
   stem: string;          // 题干
@@ -58,6 +58,8 @@ interface PkQuestion {
   createdAt: number;
   deadlineAt: number;    // createdAt + ANSWER_TIME_MS
   status: 'pending' | 'answered' | 'timeout';
+  chosen?: number;       // 判定后回填：答题人选的选项下标
+  answerRevealed?: number; // 仅判定后（answered/timeout）出现——pending 连键都没有
 }
 
 /** 对局快照（GET state / SSE 全量对齐用） */
@@ -65,12 +67,14 @@ interface PkRoomState {
   roomId: string;
   roomCode: string;      // 6 位数字，入房凭证
   status: 'waiting' | 'active' | 'finished';
+  mode: 'pvp' | 'pve';   // PVE 建房即占 AI 座位（§8）
   players: { userId: string; nickname: string; score: number;
              correct: number; answered: number; lastQuizAt: number }[];
   nextQuizAt: Record<string, number>;   // 各玩家 CD 解锁时刻
   endsAt: number;                       // 对局截止（active 时有效）
   questions: PkQuestion[];              // 答题方视角：answer 字段剥离
-  winner?: string;                      // finished 时
+  aiTopic?: string;                     // PVE 可选主题方向
+  winner?: string;                      // finished 时（全平不下发）
 }
 ```
 
@@ -141,10 +145,12 @@ interface PkRoomState {
 | P0-3 | 前端三页面 + App.tsx 占位接入 + 轮询兜底 | **真机端到端**：两台手机同 WiFi 微信内打开，完整打完一局（QUIZ-IMAGE-SPEC 教训：单测全绿≠落地，必须真机跑通） |
 | P1 | 公网部署（HTTPS 域名）→ 微信公众号网页授权替换模拟登录 → 战绩落库/排行 → 题型拓展（判断/简答+verdict.ts 判分） | 真机微信授权回流测试 |
 
-> **进度对账**：P0-1 ✅ **2026-09-12 完成**（登录 + 房间 + SSE 频道；`routes/pk-auth.test.ts` 11 例 +
-> `routes/pk-room.test.ts` 19 例，全量 44 文件 586 例全绿）。P0-2 / P0-3 / P1 未开工——
-> **P0-1 的验收按契约是「单测：建房/入房/满员/隔离」，已完成；但 P0-3 才做前端页面，
-> 所以现在还没有任何界面能点**（`/pk` 路由与三页面属 P0-3）。
+> **进度对账（2026-09-13）**：P0-1 ✅ 2026-09-12 完成（登录 + 房间 + SSE 频道）。P0-3a ✅ 2026-09-12 完成
+> （`#/pk` 路由 + 大厅/等待/对局实时视图，SSE 活水 + 轮询兜底）。**P0-2 ✅ 2026-09-13 完成**
+> （计分全表 + 出题/答题端点 + ticker 时间驱动；测试 `routes/pk-match.test.ts` 15 例 + `routes/pk-pve.test.ts` 7 例，
+> 全量 47 文件 624 例全绿）。**PVE ✅ 同批完成**（§8）。**P0-2 验收按契约 §6 是「计分全表每行一测 + fake timer」——已完成**；
+> **P0-3 收尾欠真机验收**：两台手机同 WiFi 微信内完整打完一局的目检（人机与人人两条路径），待老板有空跑。
+> P1 未开工。
 
 ## 7. 可行性与难度评估（老板自定义问题，2026-09-09 答）
 

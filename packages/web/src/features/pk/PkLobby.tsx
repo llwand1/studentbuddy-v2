@@ -13,7 +13,7 @@ interface Props {
   error: string;
   busy: boolean;
   onLogin: (nickname: string) => void;
-  onCreate: () => void;
+  onCreate: (mode: 'pvp' | 'pve', aiTopic?: string) => void;
   onJoin: (roomCode: string) => void;
 }
 
@@ -21,6 +21,10 @@ export function PkLobby({ identity, error, busy, onLogin, onCreate, onJoin }: Pr
   const [nickname, setNickname] = useState(identity?.nickname ?? '');
   const [code, setCode] = useState('');
   const [localErr, setLocalErr] = useState('');
+  /** 建房模式：pvp 双人 / pve 人机（AI 对手） */
+  const [mode, setMode] = useState<'pvp' | 'pve'>('pvp');
+  /** PVE 主题方向（可选，空 = AI 自选轮换） */
+  const [aiTopic, setAiTopic] = useState('');
 
   const submitLogin = useCallback(() => {
     const name = nickname.trim();
@@ -75,8 +79,45 @@ export function PkLobby({ identity, error, busy, onLogin, onCreate, onJoin }: Pr
     <>
       <section className="sb-pk-card">
         <h2 className="sb-pk-h2">建房开战</h2>
-        <p className="sb-pk-hint">建好后把 6 位房号念给对手，等 TA 输码进房</p>
-        <button type="button" className="sb-pk-btn primary" disabled={busy} onClick={onCreate}>
+        <div className="sb-pk-modes">
+          <button
+            type="button"
+            className={mode === 'pvp' ? 'sb-pk-mode active' : 'sb-pk-mode'}
+            onClick={() => setMode('pvp')}
+          >
+            双人对战
+            <small>同一 WiFi 输房号入座</small>
+          </button>
+          <button
+            type="button"
+            className={mode === 'pve' ? 'sb-pk-mode active' : 'sb-pk-mode'}
+            onClick={() => setMode('pve')}
+          >
+            AI 对战
+            <small>与 AI 互出题互答题</small>
+          </button>
+        </div>
+        {mode === 'pvp' && <p className="sb-pk-hint">建好后把 6 位房号念给对手，等 TA 输码进房</p>}
+        {mode === 'pve' && (
+          <p className="sb-pk-hint">
+            AI 与你同规则：互出题（+1）、答题（±2/−1）、45 秒时限、8 分钟结算。AI 用「设置 → 模型」里你配的服务商答题。
+          </p>
+        )}
+        {mode === 'pve' && (
+          <input
+            className="sb-pk-input"
+            placeholder="主题方向（可选，如：世界历史）"
+            maxLength={50}
+            value={aiTopic}
+            onChange={(e) => setAiTopic(e.target.value)}
+          />
+        )}
+        <button
+          type="button"
+          className="sb-pk-btn primary"
+          disabled={busy}
+          onClick={() => onCreate(mode, mode === 'pve' ? aiTopic.trim() || undefined : undefined)}
+        >
           建房
         </button>
       </section>

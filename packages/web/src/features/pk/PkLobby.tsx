@@ -1,0 +1,112 @@
+/**
+ * PkLobby — PK 大厅（契约 docs/PK-SPEC.md §5：昵称→登录→建房/输码入房）。
+ *
+ * 两态：未登录只给昵称表单；已登录给「建房」与「输码入房」。
+ * 判定逻辑在 pk-view.ts（本文件只挂 UI）；错误统一走 PkApp 的 error 位（ADR-5 三态）。
+ */
+import { useCallback, useState } from 'react';
+import type { PkIdentity } from '@sb/shared';
+import { normalizeRoomCode } from './pk-view';
+
+interface Props {
+  identity: PkIdentity | null;
+  error: string;
+  busy: boolean;
+  onLogin: (nickname: string) => void;
+  onCreate: () => void;
+  onJoin: (roomCode: string) => void;
+}
+
+export function PkLobby({ identity, error, busy, onLogin, onCreate, onJoin }: Props) {
+  const [nickname, setNickname] = useState(identity?.nickname ?? '');
+  const [code, setCode] = useState('');
+  const [localErr, setLocalErr] = useState('');
+
+  const submitLogin = useCallback(() => {
+    const name = nickname.trim();
+    if (!name || name.length > 20) {
+      setLocalErr('昵称 1~20 字');
+      return;
+    }
+    setLocalErr('');
+    onLogin(name);
+  }, [nickname, onLogin]);
+
+  const submitJoin = useCallback(() => {
+    const normalized = normalizeRoomCode(code);
+    if (normalized.length !== 6) {
+      setLocalErr('房号是 6 位数字');
+      return;
+    }
+    setLocalErr('');
+    onJoin(normalized);
+  }, [code, onJoin]);
+
+  if (!identity) {
+    return (
+      <section className="sb-pk-card">
+        <h2 className="sb-pk-h2">先取个名字</h2>
+        <p className="sb-pk-hint">昵称会显示在对战双方比分条上（1~20 字）</p>
+        <form
+          className="sb-pk-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submitLogin();
+          }}
+        >
+          <input
+            className="sb-pk-input"
+            placeholder="输入昵称（1~20 字）"
+            value={nickname}
+            maxLength={20}
+            autoFocus
+            onChange={(e) => setNickname(e.target.value)}
+          />
+          {(localErr || error) && <div className="sb-pk-error">{localErr || error}</div>}
+          <button type="submit" className="sb-pk-btn primary" disabled={busy || !nickname.trim()}>
+            登录
+          </button>
+        </form>
+      </section>
+    );
+  }
+
+  return (
+    <>
+      <section className="sb-pk-card">
+        <h2 className="sb-pk-h2">建房开战</h2>
+        <p className="sb-pk-hint">建好后把 6 位房号念给对手，等 TA 输码进房</p>
+        <button type="button" className="sb-pk-btn primary" disabled={busy} onClick={onCreate}>
+          建房
+        </button>
+      </section>
+      <section className="sb-pk-card">
+        <h2 className="sb-pk-h2">输码入房</h2>
+        <form
+          className="sb-pk-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submitJoin();
+          }}
+        >
+          <input
+            className="sb-pk-input code"
+            placeholder="6 位房号"
+            inputMode="numeric"
+            autoComplete="off"
+            value={code}
+            onChange={(e) => setCode(normalizeRoomCode(e.target.value))}
+          />
+          <button type="submit" className="sb-pk-btn primary" disabled={busy || code.length !== 6}>
+            进房
+          </button>
+        </form>
+      </section>
+      {(localErr || error) && <div className="sb-pk-error">{localErr || error}</div>}
+      <div className="sb-pk-me">
+        当前身份：{identity.nickname}
+        <span className="sb-pk-me-id">{identity.userId.slice(0, 8)}</span>
+      </div>
+    </>
+  );
+}

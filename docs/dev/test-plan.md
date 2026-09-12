@@ -38,7 +38,10 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，诚实记账）**：本批在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（**现基线：44 文件 / 586 例全绿，2026-09-12 实测于 Node 22.23.2 全量 `npm run check`**；上一基线 31 文件 / 382 例，2026-09-06 23:42 实测）
+## 3. 用例清单（**现基线：45 文件 / 596 例全绿，2026-09-12 实测于 Node 22.23.2 全量 `npm run check`**；上一基线 44 文件 / 586 例，同日 PK P0-1 批实测）
+
+> **本批（PK P0-3a）增量**：文件 44→**45**、例 586→**596**（**+10**，全部来自新 `web/features/pk/pk-view.test.ts`）。
+> 分节小计：shared 52 / server 379（均不变）/ web **165**。
 
 > **本批（PK P0-1 收尾）增量**：文件 43→**44**、例 567→**586**（**+19**，全部来自新 `routes/pk-room.test.ts`；
 > 同批把 `routes/pk-auth.test.ts` 的 11 例补进表——它是登录批 `e02d67a` 交付的，此前与 PK 整条线一样漏登）。
@@ -115,6 +118,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `src/lib/preview-api.test.ts` | 5 | `uploadPreview` 成功返 `/api/preview/:id`；400 抛服务端原文；响应非 JSON 退化成 HTTP 状态码（不抛 SyntaxError）；200 缺 id 仍判失败；`pickTitle` 取 `<title>` 否则回落 | [DONE] |
 | `src/lib/preview-store.test.ts` | 4 | 初始无预览；同 url 重复开 → nonce 递增（强制重载）不同 url 归零；**快照引用稳定**（`useSyncExternalStore` 防死循环）；close 幂等；无预览时 refresh 空操作 | [DONE] |
 | `src/features/chat/Mascot.test.ts` | 3 | 点阵与类名映射自洽、16×16 齐边且档位齐、眨眼合帧只压眼位不改身体轮廓 | [DONE] |
+| `src/features/pk/pk-view.test.ts` | 10 | **PK 页面纯逻辑回归锁（P0-3a，契约 `docs/PK-SPEC.md` §5）**：房号输入归一（非数字剔除／截到 `PK_ROOM_CODE_LEN` 6 位／纯非数字归空串）；对局时钟**钳 0 不出负数**（`remainingMs` 到点与已过点均 0）＋ `formatClock` m:ss 补零（7:35／0:00／8:00、59,999ms→0:59、负数安全）——「客户端时间只作展示」的最后一道屏；房主恒为 `players[0]`（契约 §2.1）、不在房内 `myIndex` 返 −1、单人 waiting 房同样成立。组件（PkApp/PkLobby/PkRoom）不进测链路（本仓 .tsx 无测试环境，先例 doc-name.ts），判定逻辑全部下沉本文件 | [DONE] |
 
 ## 4. 已发现 Bug（登记簿）
 

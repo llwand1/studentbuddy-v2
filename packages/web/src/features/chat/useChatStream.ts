@@ -190,7 +190,7 @@ export function useChatStream(
     clearReasoning();
     setUsage(null);
     setElapsedMs(0);
-    const client = connectSse(sessionId);
+    const client = connectSse(`/api/chat/stream?sessionId=${encodeURIComponent(sessionId)}`);
     clientRef.current = client;
     const offState = client.onStateChange(setReady);
     const offEvent = client.onEvent((ev: SseEvent) => {

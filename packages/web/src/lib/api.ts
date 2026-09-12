@@ -1,7 +1,16 @@
 /**
  * api — REST 封装（同源经 vite proxy；错误统一抛 ApiError，UI 层可见可重试，ADR-5）。
  */
-import type { StatusResponse, Session, Provider, ModelRole, QuizMix, AnswerStyle, PkIdentity } from '@sb/shared';
+import type {
+  StatusResponse,
+  Session,
+  Provider,
+  ModelRole,
+  QuizMix,
+  AnswerStyle,
+  PkIdentity,
+  PkRoomState,
+} from '@sb/shared';
 
 export class ApiError extends Error {
   constructor(
@@ -30,7 +39,7 @@ export const api = {
 
   status: () => request<StatusResponse>('/api/status'),
 
-  /** PK 登录（契约 docs/PK-SPEC.md §2.1）：P0 模拟实现，P1 换真微信授权时这两个签名不变 */
+  /** PK 登录与房间（契约 docs/PK-SPEC.md §2.1）：P0 模拟登录，P1 换真微信授权时签名不变 */
   pk: {
     login: (nickname: string, userId?: string) =>
       request<PkIdentity>('/api/pk/auth/login', {
@@ -39,6 +48,27 @@ export const api = {
       }),
     /** 启动时校验本地登录态；404（账号不存在）由调用方按需清除 */
     me: (userId: string) => request<PkIdentity>(`/api/pk/auth/me?userId=${encodeURIComponent(userId)}`),
+    /** 建房：已在某 waiting 房则服务端幂等返回原房 */
+    createRoom: (userId: string) =>
+      request<{ roomId: string; roomCode: string; state: PkRoomState }>('/api/pk/rooms', {
+        method: 'POST',
+        body: JSON.stringify({ userId }),
+      }),
+    /** 按房号入房：404 房不存在 / 409 房满或已开局 */
+    joinRoom: (roomCode: string, userId: string) =>
+      request<{ roomId: string; state: PkRoomState }>('/api/pk/rooms/join', {
+        method: 'POST',
+        body: JSON.stringify({ roomCode, userId }),
+      }),
+    /** 开局（仅房主、双方已进房） */
+    startRoom: (roomId: string, userId: string) =>
+      request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/start`, {
+        method: 'POST',
+        body: JSON.stringify({ userId }),
+      }),
+    /** 全量快照（轮询兜底 / 断线重连对齐用）；404 = 房不存在或已被 TTL 回收 */
+    roomState: (roomId: string) =>
+      request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/state`),
   },
 
   sessions: {

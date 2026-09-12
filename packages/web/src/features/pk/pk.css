@@ -1,0 +1,220 @@
+/* PK 对战页（#/pk）——移动优先（≥375px），视觉 token 全走 tokens.css（禁内联 style）。 */
+
+.sb-pk {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: var(--sb-sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-4);
+  min-height: 100%;
+}
+
+.sb-pk-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-3);
+}
+
+.sb-pk-back {
+  color: var(--sb-ink-secondary);
+  text-decoration: none;
+  font-size: var(--sb-fs-sm);
+}
+
+.sb-pk-title {
+  font-size: var(--sb-fs-lg);
+  font-weight: 600;
+}
+
+.sb-pk-boot {
+  color: var(--sb-ink-secondary);
+  text-align: center;
+  padding: var(--sb-sp-6) 0;
+}
+
+.sb-pk-card {
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  box-shadow: var(--sb-shadow-1);
+  padding: var(--sb-sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+}
+
+.sb-pk-h2 {
+  font-size: var(--sb-fs-lg);
+  font-weight: 600;
+}
+
+.sb-pk-hint {
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-sm);
+}
+
+.sb-pk-form {
+  display: flex;
+  gap: var(--sb-sp-2);
+}
+
+.sb-pk-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: 9px var(--sb-sp-3);
+  font-size: var(--sb-fs-md);
+  font-family: inherit;
+  background: var(--sb-surface);
+  color: var(--sb-ink);
+}
+
+.sb-pk-input:focus {
+  outline: none;
+  border-color: var(--sb-primary);
+}
+
+.sb-pk-input.code {
+  letter-spacing: 6px;
+  text-align: center;
+  font-size: var(--sb-fs-xl);
+}
+
+.sb-pk-btn {
+  border-radius: var(--sb-radius-sm);
+  padding: 9px var(--sb-sp-4);
+  font-size: var(--sb-fs-md);
+  background: var(--sb-sidebar);
+  color: var(--sb-ink);
+}
+
+.sb-pk-btn.primary {
+  background: var(--sb-primary);
+  color: #fff;
+}
+
+.sb-pk-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sb-pk-error {
+  background: var(--sb-primary-weak);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  color: var(--sb-danger);
+  font-size: var(--sb-fs-sm);
+}
+
+.sb-pk-me {
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-xs);
+  text-align: center;
+}
+
+.sb-pk-me-id {
+  margin-left: var(--sb-sp-2);
+}
+
+/* 房号展示 */
+.sb-pk-code-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sb-sp-3);
+}
+
+.sb-pk-code-label {
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-sm);
+}
+
+.sb-pk-code {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-pk-link {
+  margin-left: auto;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.sb-pk-link.ok {
+  color: var(--sb-success);
+}
+
+/* 玩家座位 */
+.sb-pk-player {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-3);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+}
+
+.sb-pk-player.pending {
+  color: var(--sb-ink-tertiary);
+  border-style: dashed;
+}
+
+.sb-pk-seat {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+}
+
+.sb-pk-nick {
+  font-weight: 600;
+}
+
+/* 对局：时钟 + 比分条 */
+.sb-pk-clock {
+  font-size: 40px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-pk-score {
+  display: flex;
+  gap: var(--sb-sp-3);
+}
+
+.sb-pk-side {
+  flex: 1;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sb-sp-1);
+}
+
+.sb-pk-side.me {
+  border-color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+}
+
+.sb-pk-score-num {
+  font-size: var(--sb-fs-xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-pk-todo {
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-xs);
+  text-align: center;
+}
+
+.sb-pk-winner {
+  font-size: var(--sb-fs-xl);
+  font-weight: 600;
+  text-align: center;
+  color: var(--sb-primary);
+}

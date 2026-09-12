@@ -16,7 +16,13 @@ export interface SseClient {
   close(): void;
 }
 
-export function connectSse(sessionId: string): SseClient {
+/**
+ * connectSse — 建立一条 SSE 长连接。
+ * @param streamUrl 流地址（可带 query，`since` 由本函数自动续接）。
+ *                  聊天传 `/api/chat/stream?sessionId=...`，PK 传 `/api/pk/stream?roomId=...`
+ *                  ——同一套重连/就绪门控服务两条频道（PK 侧契约 docs/PK-SPEC.md §2.2）。
+ */
+export function connectSse(streamUrl: string): SseClient {
   let state: SseReadyState = 'connecting';
   let since = 0;
   let es: EventSource | null = null;
@@ -33,7 +39,7 @@ export function connectSse(sessionId: string): SseClient {
 
   const connect = () => {
     if (closed) return;
-    es = new EventSource(`/api/chat/stream?sessionId=${encodeURIComponent(sessionId)}&since=${since}`);
+    es = new EventSource(`${streamUrl}${streamUrl.includes('?') ? '&' : '?'}since=${since}`);
     es.onopen = () => {
       retry = 0;
       setState('open');

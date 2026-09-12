@@ -54,6 +54,22 @@ export function useChatStream(
   const [messages, setMessages] = useState<StreamMessage[]>([]);
   const [streamingText, setStreamingText] = useState('');
   /**
+   * 流式正文也以 **ref 为真相源**：done 时要拿「已上屏的全文」去和库内文本比对后归位到消息上，
+   * 而 bufRef 只装尚未 flush 的尾巴、state 在 SSE 回调闭包里是创建时的过期值——只有 ref 读得到当前全文。
+   * 顺带根治一个隐患：归并消息原先写在 setStreamingText 的 updater 内部（updater 里做副作用），
+   * 而 main.tsx 开了 StrictMode ⇒ 开发期 updater 会被调用两次 ⇒ setMessages 入队两次 ⇒ 回答重复一条。
+   * 副作用移出 updater 后，updater 只剩纯赋值，双调用无害。
+   */
+  const streamingRef = useRef('');
+  const commitStreaming = useCallback((next: string) => {
+    streamingRef.current = next;
+    setStreamingText(next);
+  }, []);
+  const appendStreaming = useCallback((chunk: string) => {
+    streamingRef.current += chunk;
+    setStreamingText(streamingRef.current);
+  }, []);
+  /**
    * 「本轮过程」三件套（reasoning / steps / tasks）一律以 **ref 为真相源、state 只作渲染镜像**。
    * 原因：done 事件要把本轮过程整块归位到那条回答消息上，而 SSE 事件回调的闭包捕获的是
    * 创建时的 state（恒为空），读不到最新值——只有 ref 能读到。
@@ -108,8 +124,8 @@ export function useChatStream(
     rafRef.current = null;
     const chunk = bufRef.current;
     bufRef.current = '';
-    if (chunk) setStreamingText((t) => t + chunk);
-  }, []);
+    if (chunk) appendStreaming(chunk);
+  }, [appendStreaming]);
 
   /** token 入缓冲：同帧内的多个 token 合成一次 setState */
   const pushTokens = useCallback(
@@ -164,12 +180,14 @@ export function useChatStream(
   useEffect(() => {
     if (!sessionId) return;
     setError('');
-    setStreamingText('');
+    commitStreaming('');
+    // 切会话即换轮：上一轮的思考/步骤/任务/耗时都不能漂到新会话的页面上。
+    // reasoning 此前漏清，而渲染层是「非空即渲染」——切到别的会话会看到上一轮的思考面板（串轮）。
+    // v11 起「本轮过程」以 ref 为真相源：清空必须走 clearReasoning/commit* 把 ref 一起清掉，
+    // 只 setXxx('')/setXxx([]) 清的是渲染镜像，ref 里仍留着旧值，下一轮 done 会把它当本轮过程归并。
     commitSteps([]);
-    setTasks([]);
-    // 切会话即换轮：上一轮的思考/步骤/token/耗时都不能漂到新会话的页面上。
-    // reasoning 此前漏清，而 ChatView 是「非空即渲染」——切到别的会话会看到上一轮的思考面板（串轮）。
-    setReasoning('');
+    commitTasks([]);
+    clearReasoning();
     setUsage(null);
     setElapsedMs(0);
     const client = connectSse(sessionId);
@@ -216,6 +234,7 @@ export function useChatStream(
         setBusy(false);
         // 「本轮过程」三件套在收口这一刻整块归位到那条回答消息上（过程属于消息，不属于页面）：
         // 屏上位置从「流式气泡上方」变成「回答内部」，内容连续；重开会话时由 history-fold 再重建一次。
+        const t = streamingRef.current; // 已上屏全文（ref，非闭包里的过期 state）
         const roundSteps = stepsRef.current;
         const roundReasoning = reasoningRef.current;
         const roundTasks = tasksRef.current;
@@ -228,9 +247,8 @@ export function useChatStream(
         const hasProc = Object.keys(proc).length > 0;
         if (ev.usage) setUsage(ev.usage);
         if (startedAtRef.current) setElapsedMs(Date.now() - startedAtRef.current);
-        setStreamingText((t) => {
-          // 纯工具轮 / 被停止的半轮：没有正文但有过程，也要留一条消息，否则过程就丢了
-          if (!t && !hasProc) return '';
+        // 纯工具轮 / 被停止的半轮：没有正文但有过程，也要留一条消息，否则过程就丢了
+        if (t || hasProc) {
           setMessages((ms) => {
             const last = ms[ms.length - 1];
             // 屏上文本与库内文本逐字一致（服务端保证）：/messages 晚于本轮落库返回时尾条已是这段字，
@@ -240,9 +258,9 @@ export function useChatStream(
             }
             return [...ms, { role: 'assistant', content: t, ts: new Date().toISOString(), ...proc }];
           });
-          return '';
-        });
+        }
         // 已归位到消息内：清空「当前轮」（ref 与镜像一起清），否则底部与消息里会重复显示一整份过程
+        commitStreaming('');
         commitSteps([]);
         commitTasks([]);
         clearReasoning();
@@ -277,7 +295,7 @@ export function useChatStream(
       client.close();
       clientRef.current = null;
     };
-  }, [sessionId, flushTokens, pushTokens, resetTokens, commitSteps]);
+  }, [sessionId, flushTokens, pushTokens, resetTokens, commitSteps, commitTasks, clearReasoning, pushReasoning, commitStreaming]);
 
   /** 发送：SSE 未就绪时拒绝并提示（修 F1 竞态——绝不静默吞） */
   const send = useCallback(
@@ -289,7 +307,7 @@ export function useChatStream(
       setError('');
       // 上一轮残留必须归零：终止帧丢失时，新 token 否则会拼到旧半句后面
       resetTokens();
-      setStreamingText('');
+      commitStreaming('');
       // 过程三件套一律走 ref 感知的 setter（只 setState 清不掉 ref，会串到新一轮的 done 归并里）
       clearReasoning();
       commitSteps([]);
@@ -308,7 +326,7 @@ export function useChatStream(
         return { ok: false, error: msg };
       }
     },
-    [sessionId, ready, busy, resetTokens, clearReasoning, commitSteps, commitTasks],
+    [sessionId, ready, busy, resetTokens, clearReasoning, commitSteps, commitTasks, commitStreaming],
   );
 
   const stop = useCallback(async () => {
@@ -327,7 +345,7 @@ export function useChatStream(
       if (busy) return { ok: false, error: '生成中，请先停止' };
       setError('');
       resetTokens();
-      setStreamingText('');
+      commitStreaming('');
       clearReasoning();
       setUsage(null);
       setElapsedMs(0);
@@ -348,7 +366,7 @@ export function useChatStream(
         return { ok: false, error: msg };
       }
     },
-    [sessionId, ready, busy, resetTokens],
+    [sessionId, ready, busy, resetTokens, clearReasoning, commitSteps, commitTasks, commitStreaming],
   );
 
   return { messages, streamingText, reasoning, steps, tasks, busy, ready, error, usage, elapsedMs, send, stop, regenerate };

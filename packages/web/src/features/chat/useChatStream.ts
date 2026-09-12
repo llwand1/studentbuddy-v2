@@ -4,10 +4,11 @@
  * 输入框 UI 在 Composer——单一关注点（ADR-3 的前端落地）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SseEvent, TokenUsage } from '@sb/shared';
+import type { SseEvent, TaskItem, TokenUsage } from '@sb/shared';
 import { connectSse, type SseReadyState } from '../../lib/sse-client';
 import { api } from '../../lib/api';
 import { foldToolRounds } from './history-fold';
+export type { TaskItem, TaskStatus } from '@sb/shared';
 
 export interface StreamMessage {
   role: 'user' | 'assistant';
@@ -39,11 +40,10 @@ export interface ToolStep {
   result?: string;
 }
 
-/** 任务清单条目（SSE tasks 事件，标准 CoT 进度面板） */
-export interface TaskItem {
-  text: string;
-  status: 'pending' | 'done';
-}
+/**
+ * 任务清单条目（SSE tasks 事件）：**契约在 @sb/shared**（三态 pending/in_progress/done），
+ * 本文件只转发，渲染层不必关心它住哪——单一事实源见 shared/src/task-list.ts。
+ */
 
 export function useChatStream(
   sessionId: string | null,

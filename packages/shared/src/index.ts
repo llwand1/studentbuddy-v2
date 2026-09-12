@@ -11,3 +11,4 @@ export * from './doc-rag.js';
 export * from './api.js';
 export * from './domain.js';
 export * from './pk.js';
+export * from './task-list.js';

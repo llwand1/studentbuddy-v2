@@ -17,7 +17,8 @@ import { estimateTokens, truncateHistoryToBudget, getContextLimit } from './cont
 import { toolDefinitions, runTool } from './tools.js';
 import type { ToolContext, ToolResult } from './tools.js';
 import { runToolCalls, type StepPayload } from './tool-exec.js';
-import { TASKS_TOOL, parseTaskList, type TaskItem } from './task-list.js';
+import { TASKS_TOOL, parseTaskArgs, applyTaskPatch, formatTaskList, type TaskItem } from './task-list.js';
+import { SYSTEM_PROMPT } from './system-prompt.js';
 import { getRelevantTerms, saveTerms, extractTerms, countUsage } from '../learning/terms.js';
 import { getSessionDoc, buildDocBlock } from '../learning/document.js';
 import type { ChatMessage, ToolCall } from '../llm/types.js';
@@ -32,16 +33,6 @@ import type { ChatMessage, ToolCall } from '../llm/types.js';
 const MAX_TOOL_TURNS = 15;
 /** 单条工具结果回灌上限（v1 语义：多轮工具调用会把上下文撑爆） */
 const MAX_TOOL_RESULT_CHARS = 14_000;
-
-const SYSTEM_PROMPT = [
-  '你是 studentbuddy，你的专属学习助手。',
-  '帮助学习者完成「学→练→析→忆→反馈」闭环：讲解概念耐心分步，给出题时遵循协议，',
-  '回答简洁好用、讲人话；不确定就说不确定。用户是单机学习者，回答默认中文。',
-  '需要展示数据对比/趋势/占比时，用 ```chart 围栏输出单个 JSON：',
-  '{"type":"bar|line|pie","title":"标题","labels":["类目"],"values":[非负数值]}；labels 与 values 一一对应，柱/折线最多31项，饼图2-8项。',
-  '做可交互演示（动画/模拟器/小工具）时，用 ```html 围栏输出单个完整可独立运行的 HTML 文档：CSS 与 JS 全部内联、不引 CDN，用户点卡片按钮在新标签页打开。',
-  '处理多步骤任务（制定计划、查资料对比、系统性讲解等需要多个环节的请求）时，先调用 update_tasks 工具列出任务清单（≤10 条），每完成一个关键环节就再次调用更新对应条目为 done；一步能答完的简单问题不要用它。',
-].join('\n');
 
 /** 同会话串行锁：并发消息排队执行，绝不交错（v1 修复语义） */
 const locks = new Map<string, Promise<unknown>>();
@@ -154,7 +145,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
    * 「它刚才是怎么想的」在学习场景里是答案的一部分，故与正文同等持久化（v11 迁移加列）。
    */
   let reasoningAcc = '';
-  /** 本轮的最终任务清单：update_tasks 是全量覆盖语义，只留最后一次即可 */
+  /** 本轮的最终任务清单：patch 模式基于它增量合并，收口时随消息落库 */
   let latestTasks: TaskItem[] = [];
   let usage: { promptTokens: number; completionTokens: number } | undefined;
 
@@ -188,15 +179,25 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       result: payload?.result,
     });
   };
-  /** 任务清单工具执行器：发 tasks 事件 + 回灌确认（与注册表工具同构的 ToolResult 口径） */
+  /**
+   * 任务清单工具执行器：两种模式（全量 tasks / 增量 updates）→ 合并当前清单 →
+   * 发 tasks 事件（**恒为完整清单**，前端整表替换）→ 回灌带序号的清单确认。
+   * 回灌必须带序号：patch 模式靠 index 定位，模型看不到序号下一次就会错位。
+   */
   const execTool = (name: string, argsJson: string, ctx: ToolContext): Promise<ToolResult> => {
     if (name !== 'update_tasks') return runTool(name, argsJson, ctx);
-    const r = parseTaskList(argsJson);
-    if (r.ok) {
-      latestTasks = r.items; // 全量覆盖语义：留最后一次，收口时随消息落库
-      publish(sessionId, { type: 'tasks', sessionId, items: r.items });
+    const parsed = parseTaskArgs(argsJson);
+    if (!parsed.ok) return Promise.resolve({ content: parsed.content });
+    if (parsed.mode === 'replace') {
+      latestTasks = parsed.items;
+    } else {
+      const applied = applyTaskPatch(latestTasks, parsed.ops);
+      // 整批原子：任一条非法就整批不生效，把「当前清单 + 序号」回灌给模型自纠
+      if (!applied.ok) return Promise.resolve({ content: applied.content });
+      latestTasks = applied.items;
     }
-    return Promise.resolve({ content: r.content });
+    publish(sessionId, { type: 'tasks', sessionId, items: latestTasks });
+    return Promise.resolve({ content: formatTaskList(latestTasks) });
   };
   /** 工具轮攒到最终答案确认后一并落库：中途失败/中止不留孤儿 tool 消息（v1 语义） */
   const rounds: Array<{ calls: ToolCall[]; results: ChatMessage[] }> = [];

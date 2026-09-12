@@ -42,6 +42,13 @@
   50% { opacity: 1; }
 }
 .chat-thought-title { flex: 1; }
+/* 体量摘要（收口后才有）：字数不是状态，用弱化的 tertiary 色，不跟标题抢视线 */
+.chat-thought-meta {
+  flex: none;
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
 .chat-thought-toggle { color: var(--sb-ink-tertiary); font-size: var(--sb-fs-xs); }
 .chat-thought-body {
   padding: 0 var(--sb-sp-3) var(--sb-sp-3);
@@ -202,13 +209,28 @@
   margin-bottom: var(--sb-sp-2);
   max-width: 420px;
 }
+/* 标题行是 button（全部完成后可点击收起清单），故按按钮重置外观 */
 .chat-tasks-head {
   display: flex;
   align-items: center;
   gap: var(--sb-sp-2);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
   font-size: var(--sb-fs-sm);
   font-weight: 600;
   color: var(--sb-ink-secondary);
+  text-align: left;
+}
+.chat-tasks-head:not(:disabled) { cursor: pointer; }
+.chat-tasks-head:not(:disabled):hover { color: var(--sb-ink); }
+.chat-tasks-caret {
+  flex: none;
+  font-size: var(--sb-fs-xs);
+  font-weight: 400;
+  color: var(--sb-ink-tertiary);
 }
 .chat-tasks-dot {
   width: 8px;
@@ -271,6 +293,24 @@
 .chat-task.done .chat-task-text {
   color: var(--sb-ink-tertiary);
   text-decoration: line-through;
+}
+/* 进行中：圈内转环（复用工具卡片同款 spinner）+ 文字回到主色加粗——
+   长任务里「现在正在做哪条」是用户唯一的过程锚点，必须比待办更显眼 */
+.chat-task.in_progress .chat-task-mark {
+  border-color: var(--sb-primary);
+  color: var(--sb-primary);
+}
+.chat-task.in_progress .chat-task-text {
+  color: var(--sb-ink);
+  font-weight: 500;
+}
+.chat-task-spinner {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  animation: chat-step-spin 0.8s linear infinite;
 }
 
 /* ===== 回复中三点弹跳（发起后到首 token 落屏前的空窗补位） ===== */

@@ -281,6 +281,67 @@ describe('单轨工具循环', () => {
     expect(JSON.parse(last?.tasks ?? '[]')).toEqual([{ text: '第一步', status: 'pending' }]);
   });
 
+  it('update_tasks 增量模式：按序号改 + 追加，服务端下发并落库合并后的完整清单', async () => {
+    const sid = newSession();
+    const call = (id: string, args: unknown): TokenChunk[] => [
+      { content: '', done: false, toolCalls: [{ id, name: 'update_tasks', arguments: JSON.stringify(args) }] },
+    ];
+    stub.turns = [
+      call('q1', { tasks: [{ text: '查资料', status: 'pending' }, { text: '写大纲', status: 'pending' }] }),
+      call('q2', { updates: [{ index: 1, status: 'done' }, { index: 2, status: 'in_progress' }, { text: '排版' }] }),
+      [{ content: '做完了', done: true }],
+    ];
+
+    const r = await handleMessage({ sessionId: sid, text: '帮我做' });
+    expect(r.ok).toBe(true);
+
+    const merged = [
+      { text: '查资料', status: 'done' },
+      { text: '写大纲', status: 'in_progress' },
+      { text: '排版', status: 'pending' },
+    ];
+    // 事件恒为完整清单（前端整表替换，不做本地合并）
+    const evs = snapshot(sid).filter((e) => e.type === 'tasks');
+    expect(evs).toHaveLength(2);
+    expect(evs.at(-1)?.items).toEqual(merged);
+    // 落库的也是合并结果，不是最后那次的增量片段
+    expect(JSON.parse(rows(sid).at(-1)?.tasks ?? '[]')).toEqual(merged);
+    // 回灌带序号：模型下一次 patch 才知道第二条是哪条（两次调用各回灌一次，取最后那次）
+    const toolRows = rows(sid).filter((x) => x.role === 'tool' && x.content.includes('任务清单已更新'));
+    expect(toolRows).toHaveLength(2);
+    expect(toolRows.at(-1)?.content).toContain('2. [>] 写大纲');
+  });
+
+  it('update_tasks 增量序号越界：整批不生效（清单保持原样），回灌附当前清单供自纠', async () => {
+    const sid = newSession();
+    const call = (id: string, args: unknown): TokenChunk[] => [
+      { content: '', done: false, toolCalls: [{ id, name: 'update_tasks', arguments: JSON.stringify(args) }] },
+    ];
+    stub.turns = [
+      call('q1', { tasks: [{ text: '查资料', status: 'pending' }, { text: '写大纲', status: 'pending' }] }),
+      call('q2', { updates: [{ index: 1, status: 'done' }, { index: 9, status: 'done' }] }),
+      [{ content: '好', done: true }],
+    ];
+
+    const r = await handleMessage({ sessionId: sid, text: 'q' });
+    expect(r.ok).toBe(true);
+
+    // 越界的那批一条也不生效：只有首次的 tasks 事件，没有第二个
+    const evs = snapshot(sid).filter((e) => e.type === 'tasks');
+    expect(evs).toHaveLength(1);
+    expect(evs[0]?.items).toEqual([
+      { text: '查资料', status: 'pending' },
+      { text: '写大纲', status: 'pending' },
+    ]);
+    expect(JSON.parse(rows(sid).at(-1)?.tasks ?? '[]')).toEqual([
+      { text: '查资料', status: 'pending' },
+      { text: '写大纲', status: 'pending' },
+    ]);
+    // 回灌说明越界原因 + 当前清单（含序号），模型据此改对
+    const bad = rows(sid).find((x) => x.role === 'tool' && x.content.includes('超出范围'));
+    expect(bad?.content).toContain('1. [ ] 查资料');
+  });
+
   it('达轮次上限 → 已执行工具轮仍落库，收尾仍是 assistant 正文', async () => {
     const sid = newSession();
     // 造的比上限多一轮：上限 15（flow.ts MAX_TOOL_TURNS），16 个工具轮才能撞到它

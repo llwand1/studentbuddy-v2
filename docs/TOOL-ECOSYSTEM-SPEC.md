@@ -25,7 +25,7 @@
 | 2 | 引擎白写却没接进来 | `learning/quiz.ts`（`generateQuiz`/`listQuiz`/`analyzeWeakPoints`）、`learning/terms.ts`（`getRelevantTerms`/`saveTerms`）、`learning/document.ts`、`learning/activity.ts` | 只能靠前端按钮触发（`ChatView.tsx` `quickQuiz` → `/api/quiz/generate`） |
 | 3 | 物理天花板 | `chat/tools.ts` 现 158 行，门禁 server ≤400（`tools/gates/check.mjs:30`） | **再加 5 个工具必破红线** → 扩展前必须先拆目录 |
 | 4 | 工具定义不计预算 | `chat/flow.ts:105-127`：`systemPromptTokens` 只算基础提示 + 词条/资料/偏好三段，**不含 tools JSON**；`tools` 在 :145 全量下发 | 工具越多发，窗口越算不准——正是 AGENTS.md:36 点名的「资料越长越会撑爆窗口」同类坑，工具版 |
-| 5 | 无超时 | `chat/flow.ts:197` 裸 `await runTool(...)`；`search` 免 key 兜底已知挂 ~20s（AGENTS.md 已知约束） | 8 轮最坏让用户干等 160s，且「停止」按钮无反应 |
+| 5 | 无超时 | `chat/flow.ts:197` 裸 `await runTool(...)`；`search` 免 key 兜底已知挂 ~20s（AGENTS.md 已知约束） | **15 轮**最坏让用户干等 300s，且「停止」按钮无反应（★ 2026-09-10 上限由 8 提到 15，最坏等待同步从 160s 放大到 300s，`flow.ts:236` 的并行执行 + signal 已能中止，但单工具超时仍未设） |
 | 6 | 取消不进工具 | `flow.ts:151-153,198`：`abortIfNeeded` 只在执行**前后**查，`opts.signal` 未传进 `tool.run` | 长工具（真接 MCP 后常见）停不掉 |
 | 7 | 参数校验靠手写 | `tools.ts:144-150` 只 `JSON.parse`，逐字段 `String()/slice()` | 小模型乱填时既无纠错、也无法给外部工具复用 |
 | 8 | 写库无确认门，且**无规模上限** | `tools.ts:98-100`（`action=auto` 直接改库）；`tidy.ts:284-287`（`tidyTerms()` 拿方案就 `applyTidy`，中间无停顿） | 一次 `auto` 可波及全库（真库实测 116 条；09-04 单日自动入库曾达 58 条），方案错一次即用户资产受损，且**无撤销路径**——`terms.ts:270` `removeTerm` 是物理 DELETE |

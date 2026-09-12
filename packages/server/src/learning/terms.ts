@@ -266,6 +266,24 @@ export function domainStats(): { total: number; domains: Array<{ domain: string;
   return { total, domains, today };
 }
 
+/**
+ * 按词条名查行（对话工具用：模型手里只有词条名没有 id）。
+ * 大小写不敏感；term 精确命中优先，其次别名命中（AI 整理判定的同一概念）。
+ * 多条同名时取最近更新的那条。找不到返回 null。
+ */
+export function findTermByName(name: string): TermRow | null {
+  const n = name.trim().toLowerCase();
+  if (!n) return null;
+  const rows = getDb()
+    .prepare('SELECT * FROM term_library ORDER BY updated_at DESC')
+    .all() as TermRow[];
+  return (
+    rows.find((r) => r.term.toLowerCase() === n) ??
+    rows.find((r) => parseAliases(r.aliases).some((a) => a.toLowerCase() === n)) ??
+    null
+  );
+}
+
 /** 删除词条。 */
 export function removeTerm(id: string): void {
   getDb().prepare('DELETE FROM term_library WHERE id = ?').run(id);

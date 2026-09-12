@@ -22,8 +22,14 @@ import { getRelevantTerms, saveTerms, extractTerms, countUsage } from '../learni
 import { getSessionDoc, buildDocBlock } from '../learning/document.js';
 import type { ChatMessage, ToolCall } from '../llm/types.js';
 
-/** 工具循环上限（v1 语义：模型连续发起工具调用时最多 8 轮，防死循环） */
-const MAX_TOOL_TURNS = 8;
+/**
+ * 工具循环上限（v1 语义：模型连续发起工具调用时的轮次天花板，防死循环）。
+ * 8 → 15（2026-09-10 老板指示：「8 轮少了」）：八轮在多步任务（查资料→对比→出清单）上
+ * 常被截断在半途，硬上限反而制造「工具调用已达上限」的劣质收尾。
+ * 死循环防护不靠这个数——`toolBudget` 每轮回灌后核对窗口占用，超了立即 break（见下），
+ * 真正的兜底是预算而不是轮数；轮数只防「模型反复调工具但每次都只吃一点点窗口」。
+ */
+const MAX_TOOL_TURNS = 15;
 /** 单条工具结果回灌上限（v1 语义：多轮工具调用会把上下文撑爆） */
 const MAX_TOOL_RESULT_CHARS = 14_000;
 
@@ -129,7 +135,8 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   // 偏好段恒非空（默认值也有话要说），故不加条件；多段 system 由适配器全量合并（B-001）
   messages.push({ role: 'system', content: styleBlock });
   // 工具循环预算：窗口 − 系统提示（含词条/资料/偏好三段）− 已载历史 − 预留。每轮工具回灌后核对，
-  // 接近上限提前收口——小上下文模型 8 轮 × MAX_TOOL_RESULT_CHARS 会撑爆窗口。
+  // 接近上限提前收口——小上下文模型 15 轮 × MAX_TOOL_RESULT_CHARS 会撑爆窗口
+  // （轮数上限由 8 提到 15 后，这条预算闸是唯一的窗口守门人，别把它当摆设）。
   const toolBudget = Math.max(
     0,
     getContextLimit(target.model) -

@@ -222,7 +222,8 @@ describe('单轨工具循环', () => {
 
   it('达轮次上限 → 已执行工具轮仍落库，收尾仍是 assistant 正文', async () => {
     const sid = newSession();
-    stub.turns = Array.from({ length: 12 }, () => toolCallTurn(''));
+    // 造的比上限多一轮：上限 15（flow.ts MAX_TOOL_TURNS），16 个工具轮才能撞到它
+    stub.turns = Array.from({ length: 16 }, () => toolCallTurn(''));
 
     const r = await handleMessage({ sessionId: sid, text: 'q' });
     expect(r.ok).toBe(true);
@@ -231,8 +232,8 @@ describe('单轨工具循环', () => {
     expect(list.at(-1)?.role).toBe('assistant');
     expect(list.at(-1)?.content).toContain('工具调用已达上限');
     expect(streamed(sid)).toBe(list.at(-1)?.content); // 上限提示同样上屏
-    expect(list.filter((x) => x.tool_calls).length).toBe(8);
-    expect(list.filter((x) => x.role === 'tool').length).toBe(8);
+    expect(list.filter((x) => x.tool_calls).length).toBe(15); // = flow.ts MAX_TOOL_TURNS（8 → 15）
+    expect(list.filter((x) => x.role === 'tool').length).toBe(15);
   });
 
   it('工具回灌逼近预算 → 提前收口并提示「上下文预算已满」（而非轮次上限）', async () => {

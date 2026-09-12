@@ -1,15 +1,17 @@
 /* Markdown 正文与 SVG 卡片样式（全部走 tokens，禁组件内联 style） */
 
-/* 助手气泡改用 Markdown 渲染：取消 pre-wrap（换行由解析器负责），并放宽容器 */
+/* 助手正文不套卡片。
+   主流范式（Claude / ChatGPT / 豆包）：助手消息无边框、无底色、无阴影，直接铺满正文列；
+   卡片只留给代码块、图表这类「内容块」。此前 .md 继承了 .chat-bubble 的白卡片样式，
+   一屏下来像「卡片流」而不是「对话」——这是最直观的 Demo 感来源。 */
 .chat-bubble.md {
   white-space: normal;
-  max-width: 88%;
-  padding: var(--sb-sp-2) var(--sb-sp-4);
-}
-/* 含卡片（SVG/代码块）时整宽，图才看得清 */
-.chat-bubble.md:has(.chat-svg-card),
-.chat-bubble.md:has(.md-pre) {
   max-width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .md-root {
@@ -44,6 +46,17 @@
 }
 .md-list li {
   margin-bottom: 2px;
+}
+
+/* GFM 任务列表：品牌蓝勾选框；.md-task 去掉默认圆点（框本身就是标记） */
+.md-task {
+  list-style: none;
+  margin-left: -18px; /* 抵回 list-style 让出的空位，checkbox 与正文左缘对齐 */
+}
+.md-task-box {
+  accent-color: var(--sb-primary);
+  margin-right: 6px;
+  vertical-align: -1px;
 }
 
 .md-quote {
@@ -91,10 +104,13 @@
   padding: 1px 5px;
 }
 
+/* 代码块用比页面底色更深的 --sb-sidebar：助手气泡去卡片后正文直接铺在 --sb-bg 上，
+   若沿用 --sb-surface（白）会与页面糊成一片，代码块反而看不出是代码块。
+   head 保持白色，与 body 形成一层浅浅的分界。 */
 .md-pre {
   border: 1px solid var(--sb-line);
   border-radius: var(--sb-radius-sm);
-  background: var(--sb-surface);
+  background: var(--sb-sidebar);
   overflow: hidden;
 }
 .md-pre-head {
@@ -103,6 +119,7 @@
   justify-content: space-between;
   padding: 4px 8px 4px 10px;
   border-bottom: 1px solid var(--sb-line);
+  background: var(--sb-surface);
 }
 .md-pre-lang {
   font-size: var(--sb-fs-xs);
@@ -117,6 +134,10 @@
   padding: 1px 8px;
   cursor: pointer;
 }
+.md-pre-actions {
+  display: flex;
+  gap: 4px;
+}
 .md-pre pre {
   margin: 0;
   padding: var(--sb-sp-2) var(--sb-sp-3);
@@ -124,6 +145,41 @@
   font-size: var(--sb-fs-sm);
   line-height: 1.6;
 }
+/* 折叠态：限高裁切，底部渐隐提示下面还有内容 */
+.md-pre-folded {
+  max-height: 260px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, #000 78%, transparent);
+  mask-image: linear-gradient(180deg, #000 78%, transparent);
+}
+.md-pre-toggle {
+  display: block;
+  width: 100%;
+  padding: 5px 0;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  text-align: center;
+  border-top: 1px solid var(--sb-line);
+  background: var(--sb-surface);
+  cursor: pointer;
+}
+.md-pre-toggle:hover { color: var(--sb-primary); }
+
+/* 高亮配色 = GitHub Light（与浅色极简调性一致）；x 类是普通文本不上色 */
+.hl-kw { color: #cf222e; font-weight: 600; }
+.hl-str { color: #0a3069; }
+.hl-com { color: #6e7781; font-style: italic; }
+.hl-num { color: #0550ae; }
+.hl-fn { color: #8250df; }
+.hl-key { color: #0550ae; }
+.hl-tag { color: #116329; }
+.hl-var { color: #953800; }
+/* diff 三态：增行绿 / 删行红 / 定位头灰。只改字色，与上面 9 类保持同一套调性，
+   不做整行底色——span 级背景只覆盖文字宽度，反而截断成色块，不如纯字色干净。 */
+.hl-add { color: #116329; }
+.hl-del { color: #cf222e; }
+.hl-hunk { color: #6e7781; font-weight: 600; }
+
 .md-pre code {
   font-family: ui-monospace, Consolas, Menlo, monospace;
 }

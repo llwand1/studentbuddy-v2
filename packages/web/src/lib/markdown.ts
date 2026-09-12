@@ -1,23 +1,41 @@
-// markdown.ts —— 零依赖正文解析（块级切分 + 行内标记），渲染在 features/chat/Markdown.tsx。
+// markdown.ts —— 零依赖正文解析（块级切分 + 递归行内标记），渲染在 features/chat/Markdown.tsx。
 // 设计约束：纯字符串进、数据结构出，node 环境可单测；```svg / ```chart / ```html 围栏识别成专用块。
+// 批次二（2026-09-10）：行内递归下降（修 **a *b* c** 错乱）、GFM 任务列表、嵌套列表、列表续行、自动链接、stableCut。
+// 批次三（2026-09-12）：流式修补 remedy 升级为 remend 的 handler 体系（lib/remend.ts，移植
+// Vercel streamdown/packages/remend）：补斜体 / 粗斜体 / 半截 HTML 标签，并修正原「全局奇偶」
+// 在 `***`、词内记号、列表标记上的误判。仍零外部依赖（remend 是本仓内的纯函数模块）。
+
+import { remend } from './remend';
 
 export type Inline =
   | { t: 'text'; v: string }
-  | { t: 'strong'; v: string }
-  | { t: 'em'; v: string }
-  | { t: 'del'; v: string }
+  | { t: 'strong'; children: Inline[] }
+  | { t: 'em'; children: Inline[] }
+  | { t: 'del'; children: Inline[] }
   | { t: 'code'; v: string }
-  | { t: 'a'; v: string; href: string }
+  | { t: 'a'; children: Inline[]; href: string }
   | { t: 'br' };
+
+/** 列表项：checked 非空 = GFM 任务列表项；children = 缩进更深的子列表 */
+export interface ListItem {
+  inline: Inline[];
+  checked?: boolean;
+  children?: ListTree[];
+}
+/** 一层列表：ordered 决定渲染 ul 还是 ol（子层可与父层不同类型） */
+export interface ListTree {
+  ordered: boolean;
+  items: ListItem[];
+}
 
 export type Block =
   | { kind: 'heading'; level: number; inline: Inline[] }
   | { kind: 'para'; inline: Inline[] }
-  | { kind: 'ul'; items: Inline[][] }
-  | { kind: 'ol'; items: Inline[][] }
+  | { kind: 'ul'; items: ListItem[] }
+  | { kind: 'ol'; items: ListItem[] }
   | { kind: 'quote'; lines: Inline[][] }
   | { kind: 'table'; head: Inline[][]; rows: Inline[][][] }
-  | { kind: 'code'; lang: string; text: string }
+  | { kind: 'code'; lang: string; text: string; closed: boolean }
   | { kind: 'svg'; code: string; closed: boolean }
   | { kind: 'chart'; code: string; closed: boolean }
   | { kind: 'html'; code: string; closed: boolean }
@@ -28,6 +46,9 @@ const FENCE = /^ {0,3}```([+\-\w]*)\s*$/;
 /** 捕获组兜空：tsconfig 开了 noUncheckedIndexedAccess，正则结果一律显式取值。 */
 const g = (m: RegExpExecArray, k: number): string => m[k] ?? '';
 
+/** 子串出现次数：split 长度减一，省掉 match 的正则编译与中间数组。 */
+const countOf = (s: string, sub: string): number => s.split(sub).length - 1;
+
 /** 链接白名单：只放行 http/https/mailto 与站内锚点，javascript:/data: 直接降级为纯文本。 */
 function safeHref(raw: string): string | null {
   const href = raw.trim();
@@ -35,7 +56,53 @@ function safeHref(raw: string): string | null {
   return null;
 }
 
-/** 行内标记：`code` / **strong** / *em* / ~~del~~ / [文本](链接)；未识别的记号原样保留。 */
+// ── 行内标记：递归下降 ──
+// 旧实现是「一组平坦正则顺序吞」，**a *b* c** 会因 * 定界符打架解析错乱；
+// 现改为先匹配最外层定界符、内部递归 parseInline，嵌套标记天然正确。code 内容是唯一不递归的例外。
+const INLINE_RULES: Array<{ re: RegExp; make: (m: RegExpExecArray) => Inline }> = [
+  { re: /^`([^`\n]+)`/, make: (m) => ({ t: 'code', v: g(m, 1) }) },
+  { re: /^\*\*(.+?)\*\*/, make: (m) => ({ t: 'strong', children: parseInline(g(m, 1)) }) },
+  { re: /^\*(.+?)\*/, make: (m) => ({ t: 'em', children: parseInline(g(m, 1)) }) },
+  { re: /^~~(.+?)~~/, make: (m) => ({ t: 'del', children: parseInline(g(m, 1)) }) },
+  { re: /^_([^_\n]+)_/, make: (m) => ({ t: 'em', children: parseInline(g(m, 1)) }) },
+  {
+    re: /^\[([^\]\n]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/,
+    make: (m) => {
+      const href = safeHref(g(m, 2));
+      // 危险协议不产出 <a>，也不吞字：整段原文回落成纯文本
+      if (!href) return { t: 'text', v: m[0] ?? '' };
+      return { t: 'a', children: parseInline(g(m, 1)), href };
+    },
+  },
+];
+
+/** 裸 URL（无 [文本](…) 包裹）：匹配后剥掉尾部粘住的标点，标点留给下一轮当普通字符。 */
+const AUTOLINK = /^https?:\/\/[^\s<>"]+/;
+
+function trimUrlTail(u: string): string {
+  let s = u;
+  while (s.length > 0) {
+    const ch = s[s.length - 1] ?? '';
+    // 右括号只有在数量不平衡（这个 ) 不是 URL 的一部分）时才剥，保住 Wikipedia 式链接
+    if (ch === ')') {
+      if (countOf(s, ')') > countOf(s, '(')) {
+        s = s.slice(0, -1);
+        continue;
+      }
+      break;
+    }
+    // URL 本体只可能是 ASCII：中文/全角字符紧贴 URL 时必须剥掉，否则半句中文被吞进 href；
+    // 尾部英文标点同理（URL 后粘逗号句号几乎总是标点）
+    if (ch.charCodeAt(0) > 127 || '.,;:!?]}。，；：！？、」』）】'.includes(ch)) {
+      s = s.slice(0, -1);
+      continue;
+    }
+    break;
+  }
+  return s;
+}
+
+/** 行内标记入口：`code` / **strong** / *em* / ~~del~~ / [文本](链接) / 裸 URL；未识别的记号原样保留。 */
 export function parseInline(text: string): Inline[] {
   const out: Inline[] = [];
   let buf = '';
@@ -46,39 +113,36 @@ export function parseInline(text: string): Inline[] {
   };
   while (i < text.length) {
     const rest = text.slice(i);
-    const hit: Array<{ re: RegExp; push: (m: RegExpExecArray) => Inline }> = [
-      { re: /^`([^`\n]+)`/, push: (m) => ({ t: 'code', v: g(m, 1) }) },
-      { re: /^\*\*([^*\n]+)\*\*/, push: (m) => ({ t: 'strong', v: g(m, 1) }) },
-      { re: /^\*([^*\n]+)\*/, push: (m) => ({ t: 'em', v: g(m, 1) }) },
-      { re: /^_([^_\n]+)_/, push: (m) => ({ t: 'em', v: g(m, 1) }) },
-      { re: /^~~([^~\n]+)~~/, push: (m) => ({ t: 'del', v: g(m, 1) }) },
-    ];
-    const matched = hit.find((h) => h.re.test(rest));
-    if (matched) {
-      const m = matched.re.exec(rest);
+    let matched = false;
+    for (const rule of INLINE_RULES) {
+      const m = rule.re.exec(rest);
       if (m) {
         flush();
-        out.push(matched.push(m));
+        out.push(rule.make(m));
         i += m[0].length;
-        continue;
+        matched = true;
+        break;
       }
     }
-    const link = /^\[([^\]\n]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/.exec(rest);
-    if (link) {
-      const href = safeHref(g(link, 2));
-      if (href) {
+    if (matched) continue;
+    const al = AUTOLINK.exec(rest);
+    if (al) {
+      const url = trimUrlTail(g(al, 0));
+      if (url) {
         flush();
-        out.push({ t: 'a', v: g(link, 1) || href, href });
-        i += link[0].length;
+        out.push({ t: 'a', children: [{ t: 'text', v: url }], href: url });
+        i += url.length; // 只消费 URL 本体，剥下来的尾部标点回到下一轮按普通字符走
         continue;
       }
     }
-    buf += text[i];
+    buf += text[i] ?? '';
     i += 1;
   }
   flush();
   return out;
 }
+
+// ── 块级 ──
 
 function splitRow(line: string): string[] {
   return line
@@ -94,12 +158,14 @@ const isTableStart = (line: string, next: string): boolean => cellRow(line) && i
 
 const HEADING = /^(#{1,6})\s+(.*)$/;
 const QUOTE = /^\s*>\s?/;
-const UL = /^\s*[-*+]\s+/;
-const OL = /^\s*\d+[.)]\s+/;
 const HR = /^\s*([-*_])\s*(?:\1\s*){2,}$/;
+/** 列表行：捕获缩进与标记，嵌套层级由缩进决定，有序/无序由标记决定 */
+const LIST_MARK = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
+/** GFM 任务列表前缀：- [ ] 未完成 / - [x] 已完成 */
+const TASK_BOX = /^\[([ xX])\]\s+/;
 
 function isBlockStart(line: string): boolean {
-  return !!(FENCE.test(line) || HEADING.test(line) || QUOTE.test(line) || UL.test(line) || OL.test(line) || HR.test(line));
+  return !!(FENCE.test(line) || HEADING.test(line) || QUOTE.test(line) || LIST_MARK.test(line) || HR.test(line));
 }
 
 /** 段内逐行 → inline 序列（行间插 br，行内标记各自解析）。 */
@@ -110,6 +176,77 @@ function joinPara(para: string[]): Inline[] {
     out.push(...parseInline(p));
   });
   return out;
+}
+
+/**
+ * 收集一个（可能嵌套的）列表块，返回树与结束行号。缩进比当前层深 → 下钻成子列表；浅 → 弹栈回层。
+ * 列表项后面缩进 ≥2 的非结构行是「续行」，并入最近那个列表项（行间 br）。
+ */
+function collectList(lines: string[], start: number): { tree: ListTree; next: number } {
+  const stack: Array<{ indent: number; tree: ListTree }> = [];
+  let i = start;
+  const topOf = (): { indent: number; tree: ListTree } | undefined => stack[stack.length - 1];
+
+  while (i < lines.length) {
+    const line = lines[i] ?? '';
+    if (!line.trim()) break;
+
+    const mark = LIST_MARK.exec(line);
+    if (mark) {
+      const indent = g(mark, 1).length;
+      const ordered = /\d/.test(g(mark, 2));
+      let content = g(mark, 3);
+      const box = TASK_BOX.exec(content);
+      const checked = box ? g(box, 1).toLowerCase() === 'x' : undefined;
+      if (box) content = content.slice(box[0].length);
+      const item: ListItem = { inline: parseInline(content.trim()) };
+      if (checked !== undefined) item.checked = checked;
+
+      const top = topOf();
+      if (!top || indent > top.indent) {
+        const tree: ListTree = { ordered, items: [item] };
+        // 挂到上一层最后一项的 children（top 存在时才可能走到这里）
+        if (top) {
+          const last = top.tree.items[top.tree.items.length - 1];
+          if (last) (last.children ??= []).push(tree);
+        }
+        stack.push({ indent, tree });
+      } else {
+        while (stack.length > 1 && indent < (topOf()?.indent ?? 0)) stack.pop();
+        const cur = topOf();
+        // 有序/无序混排（- a 后紧跟 1. b）＝两个独立列表，结束当前块让外层重开，
+        // 否则会像旧版那样把「1. x」吞进无序列表，丢掉编号语义
+        if (cur && cur.tree.ordered !== ordered) break;
+        if (cur) {
+          cur.tree.items.push(item);
+          cur.indent = indent; // 同层允许轻微缩进抖动，对齐到最新值
+        }
+      }
+      i += 1;
+      continue;
+    }
+
+    // 续行：缩进 ≥2 的普通行并入最深层列表项；顶格/结构行/表格行都算列表结束
+    const cur = topOf();
+    const trimmed = line.trim();
+    if (
+      cur &&
+      /^ {2,}\S/.test(line) &&
+      !isBlockStart(trimmed) &&
+      !isTableStart(trimmed, lines[i + 1] ?? '')
+    ) {
+      const last = cur.tree.items[cur.tree.items.length - 1];
+      if (last) {
+        last.inline.push({ t: 'br' });
+        last.inline.push(...parseInline(trimmed));
+      }
+      i += 1;
+      continue;
+    }
+    break;
+  }
+
+  return { tree: stack[0]?.tree ?? { ordered: false, items: [] }, next: i };
 }
 
 /** 按行切块：围栏优先（未闭合的 ```svg 也算 svg 块，交渲染层出"正在绘制"占位）。 */
@@ -145,7 +282,7 @@ export function parseBlocks(src: string): Block[] {
       if (lang === 'svg') blocks.push({ kind: 'svg', code: text, closed });
       else if (lang === 'chart') blocks.push({ kind: 'chart', code: text, closed });
       else if (lang === 'html' || lang === 'htm') blocks.push({ kind: 'html', code: text, closed });
-      else blocks.push({ kind: 'code', lang, text });
+      else blocks.push({ kind: 'code', lang, text, closed });
       i = closed ? j + 1 : lines.length;
       continue;
     }
@@ -163,20 +300,20 @@ export function parseBlocks(src: string): Block[] {
       continue;
     }
 
-    const grouped: Array<{ re: RegExp; kind: 'quote' | 'ul' | 'ol'; strip: RegExp }> = [
-      { re: QUOTE, kind: 'quote', strip: QUOTE },
-      { re: UL, kind: 'ul', strip: UL },
-      { re: OL, kind: 'ol', strip: OL },
-    ];
-    const grp = grouped.find((cand) => cand.re.test(line));
-    if (grp) {
+    if (LIST_MARK.test(line)) {
+      const { tree, next } = collectList(lines, i);
+      blocks.push(tree.ordered ? { kind: 'ol', items: tree.items } : { kind: 'ul', items: tree.items });
+      i = next;
+      continue;
+    }
+
+    if (QUOTE.test(line)) {
       const items: string[] = [];
-      while (i < lines.length && grp.re.test(at(i))) {
-        items.push(at(i).replace(grp.strip, ''));
+      while (i < lines.length && QUOTE.test(at(i))) {
+        items.push(at(i).replace(QUOTE, ''));
         i++;
       }
-      if (grp.kind === 'quote') blocks.push({ kind: 'quote', lines: items.map(parseInline) });
-      else blocks.push({ kind: grp.kind, items: items.map(parseInline) });
+      blocks.push({ kind: 'quote', lines: items.map(parseInline) });
       continue;
     }
 
@@ -202,4 +339,32 @@ export function parseBlocks(src: string): Block[] {
   }
 
   return blocks;
+}
+
+/**
+ * 流式未闭合记号修复（remedy）—— 只喂给渲染层，不改数据源。
+ * 实现已升级为 remend 的 handler 体系（lib/remend.ts，移植 Vercel streamdown/packages/remend）：
+ * 从「全局奇偶计数 + 正则剥离代码区」改为「按优先级串行 handler + 代码区线性查表判定」，
+ * 并补齐斜体 / 粗斜体 / 半截 HTML 标签三类此前完全没处理的情况。
+ * 调用约定不变：仅流式渲染时调用。落库、导出、复制一律用原文——补出来的尾巴进历史就是数据污染。
+ */
+export function remedy(src: string): string {
+  return remend(src);
+}
+
+/**
+ * stableCut —— 流式增量解析的稳定切点：从右往左找第一个「围栏平衡的空行」，
+ * 返回 head = src.slice(0, 返回值) 的长度，0 表示暂无稳定前缀（比如整段还在围栏里）。
+ * 用途见 Markdown.tsx：head 的块已闭合可缓存复用，每帧只重解析 tail，流式从 O(n²) 降到 O(n·块长)。
+ * 正确性前提：切点落在空行（块边界）时 parseBlocks(head)+parseBlocks(tail) 与全量逐块等价；
+ * 围栏平衡检查保证绝不把代码块从中间劈开。
+ */
+export function stableCut(src: string): number {
+  let from = src.length;
+  for (;;) {
+    const idx = src.lastIndexOf('\n\n', from - 1);
+    if (idx <= 0) return 0;
+    if (countOf(src.slice(0, idx), '```') % 2 === 0) return idx + 2;
+    from = idx;
+  }
 }

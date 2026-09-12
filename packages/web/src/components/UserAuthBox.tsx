@@ -77,7 +77,11 @@ export function UserAuthBox() {
           <span className="sb-user-hint">{auth ? auth.userId.slice(0, 8) : '点击登录'}</span>
         </span>
       )}
-      {!formOpen && <span className="sb-login-tag">微信登录</span>}
+      {!formOpen && (
+        <span className="sb-login-tag" title="P0 模拟登录（昵称）；真微信授权在 P1 接入">
+          昵称登录
+        </span>
+      )}
       {formOpen && (
         <form
           className="sb-user-form"

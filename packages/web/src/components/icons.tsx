@@ -153,7 +153,7 @@ export function ClockIcon(props: IconProps) {
   );
 }
 
-/** 用户（侧栏头像占位，预留微信登录） */
+/** 用户（侧栏头像） */
 export function UserIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>

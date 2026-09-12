@@ -2,13 +2,14 @@
  * history-fold —— 把 GET /sessions/:id/messages 的原始行折成前端消息流。
  *
  * 为什么要折：库里一次问答写成多条行——user → assistant(空正文, tool_calls) → tool(结果)
- * → …（可多轮）→ assistant(正文)。后三类是「这一次回答的过程 + 正文」，不是三条独立消息。
- * 主流（Claude / ChatGPT）把过程归属于那条回答；本模块按同一口径，把工具轮配对成 steps
- * 挂到紧随其后的那条 assistant 正文上，从而让重开会话能原样回放工具过程。
+ * → …（可多轮）→ assistant(正文, reasoning, tasks)。前面几类都是「这一次回答的过程」，
+ * 不是独立消息。主流（Claude / ChatGPT）把过程归属于那条回答；本模块按同一口径，把工具轮
+ * 配对成 steps 挂到紧随其后的那条 assistant 正文上，思考链与任务清单则直接读该行的列
+ * （v11 起随消息落库），从而让重开会话能原样回放整段过程。
  *
  * 纯函数：吃原始行、吐 StreamMessage[]，不碰 DOM 也不碰 React，可直接单测。
  */
-import type { StreamMessage, ToolStep } from './useChatStream';
+import type { StreamMessage, TaskItem, ToolStep } from './useChatStream';
 
 /** /messages 下发的原始行（口径见服务端 routes.ts 的 SELECT；多出的字段这里不用） */
 export interface HistoryRow {
@@ -19,6 +20,10 @@ export interface HistoryRow {
   tool_calls?: string | null;
   /** 该行是工具结果时：它回填给哪个 call */
   tool_call_id?: string | null;
+  /** 该行是回答时：本轮思考链原文（v11 起随消息落库） */
+  reasoning?: string | null;
+  /** 该行是回答时：update_tasks 最后一次全量的 JSON 串（v11 起随消息落库） */
+  tasks?: string | null;
   created_at: string;
 }
 
@@ -39,6 +44,17 @@ function parseCalls(raw: string | null | undefined): RawCall[] {
     return Array.isArray(v) ? (v as RawCall[]) : [];
   } catch {
     return []; // 坏 JSON 视作没有工具调用：不让一行脏数据毁掉整段历史
+  }
+}
+
+/** 任务清单同样按 JSON 存（v11），坏数据视作没有清单 */
+function parseTasks(raw: string | null | undefined): TaskItem[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const v = JSON.parse(raw) as unknown;
+    return Array.isArray(v) && v.length > 0 ? (v as TaskItem[]) : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -69,12 +85,15 @@ export function foldToolRounds(rows: HistoryRow[]): StreamMessage[] {
         }
         continue;
       }
-      // 正文 assistant：把累积的过程挂给它（无工具轮则 steps 为 undefined）
+      // 正文 assistant：把累积的过程整块挂给它（无工具轮则 steps 为 undefined；
+      // reasoning / tasks 是 v11 起直接存在这条行上的列，一并对上）
       out.push({
         role: 'assistant',
         content: r.content,
         ts: r.created_at,
         steps: pending.length > 0 ? pending : undefined,
+        reasoning: r.reasoning || undefined,
+        tasks: parseTasks(r.tasks),
       });
       pending = [];
       byCallId.clear();

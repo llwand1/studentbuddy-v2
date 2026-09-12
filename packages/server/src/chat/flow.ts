@@ -17,7 +17,7 @@ import { estimateTokens, truncateHistoryToBudget, getContextLimit } from './cont
 import { toolDefinitions, runTool } from './tools.js';
 import type { ToolContext, ToolResult } from './tools.js';
 import { runToolCalls, type StepPayload } from './tool-exec.js';
-import { TASKS_TOOL, parseTaskList } from './task-list.js';
+import { TASKS_TOOL, parseTaskList, type TaskItem } from './task-list.js';
 import { getRelevantTerms, saveTerms, extractTerms, countUsage } from '../learning/terms.js';
 import { getSessionDoc, buildDocBlock } from '../learning/document.js';
 import type { ChatMessage, ToolCall } from '../llm/types.js';
@@ -148,6 +148,14 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   let budgetExceeded = false;
 
   let acc = '';
+  /**
+   * 本轮思考链：与 acc 同策略——边流边攒、收口时随消息一起落库。
+   * 此前只 publish 不落库（见下方 chunk.reasoning 分支的原注释），刷新即永久丢失；
+   * 「它刚才是怎么想的」在学习场景里是答案的一部分，故与正文同等持久化（v11 迁移加列）。
+   */
+  let reasoningAcc = '';
+  /** 本轮的最终任务清单：update_tasks 是全量覆盖语义，只留最后一次即可 */
+  let latestTasks: TaskItem[] = [];
   let usage: { promptTokens: number; completionTokens: number } | undefined;
 
   /**
@@ -184,7 +192,10 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   const execTool = (name: string, argsJson: string, ctx: ToolContext): Promise<ToolResult> => {
     if (name !== 'update_tasks') return runTool(name, argsJson, ctx);
     const r = parseTaskList(argsJson);
-    if (r.ok) publish(sessionId, { type: 'tasks', sessionId, items: r.items });
+    if (r.ok) {
+      latestTasks = r.items; // 全量覆盖语义：留最后一次，收口时随消息落库
+      publish(sessionId, { type: 'tasks', sessionId, items: r.items });
+    }
     return Promise.resolve({ content: r.content });
   };
   /** 工具轮攒到最终答案确认后一并落库：中途失败/中止不留孤儿 tool 消息（v1 语义） */
@@ -212,7 +223,8 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       })) {
         abortIfNeeded();
         if (chunk.reasoning) {
-          // 推理内容仅流式呈现（不落库）
+          // 边流式呈现、边累积落库（v11）：只发布不落库的话刷新即丢，重开会话看不到当时怎么想的
+          reasoningAcc += chunk.reasoning;
           publish(sessionId, { type: 'reasoning', sessionId, content: chunk.reasoning });
         }
         if (chunk.content) {
@@ -268,7 +280,10 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       publish(sessionId, { type: 'chat-error', sessionId, message: capMsg });
     }
 
-    const assistantId = persistRounds(sessionId, rounds, acc, usage?.completionTokens ?? estimateTokens(acc));
+    const assistantId = persistRounds(sessionId, rounds, acc, usage?.completionTokens ?? estimateTokens(acc), {
+      reasoning: reasoningAcc,
+      tasks: latestTasks,
+    });
     db.prepare(`INSERT INTO token_usage (session_id, model, prompt_tokens, completion_tokens, source) VALUES (?, ?, ?, ?, ?)`)
       .run(
         sessionId,
@@ -304,8 +319,18 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     // 工具轮仍不落，绝不留孤儿 tool 消息。
     if (acc) {
       appendFinal(`（${aborted ? '已停止' : '生成中断'}）`);
-      db.prepare(`INSERT INTO messages (id, session_id, role, content, tokens) VALUES (?, ?, 'assistant', ?, ?)`)
-        .run(randomUUID(), sessionId, acc, estimateTokens(acc));
+      // 中断也把已攒下的思考与任务清单带上：工具轮不落（防孤儿 tool 消息），
+      // 但过程文本本身无害且有用——「它刚才想到哪一步」正是中断后最想看的
+      db.prepare(
+        `INSERT INTO messages (id, session_id, role, content, tokens, reasoning, tasks) VALUES (?, ?, 'assistant', ?, ?, ?, ?)`,
+      ).run(
+        randomUUID(),
+        sessionId,
+        acc,
+        estimateTokens(acc),
+        reasoningAcc || null,
+        latestTasks.length > 0 ? JSON.stringify(latestTasks) : null,
+      );
     }
     publish(sessionId, { type: 'chat-error', sessionId, message: aborted ? '已停止' : `生成失败：${msg}` });
     // 失败也要收口：缓冲里留下终止帧，切回会话时不会重放这半截死流
@@ -317,12 +342,14 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
 /**
  * 工具轮 + 最终回答原子落库（v1 语义）：中途失败/中止时整体不落，历史里不会
  * 出现以孤立 tool 消息结尾的轮次（OpenAI 要求 tool 消息前必有对应 assistant tool_calls）。
+ * v11 起同时落「思考」与「任务清单」——过程归属于这条回答，重开会话由 history-fold 回放。
  */
 function persistRounds(
   sessionId: string,
   rounds: Array<{ calls: ToolCall[]; results: ChatMessage[] }>,
   finalContent: string,
   tokens: number,
+  proc: { reasoning: string; tasks: TaskItem[] },
 ): string {
   const db = getDb();
   const assistantId = randomUUID();
@@ -335,8 +362,16 @@ function persistRounds(
           .run(randomUUID(), sessionId, t.content, t.toolCallId ?? null);
       }
     }
-    db.prepare(`INSERT INTO messages (id, session_id, role, content, tokens) VALUES (?, ?, 'assistant', ?, ?)`)
-      .run(assistantId, sessionId, finalContent, tokens);
+    db.prepare(
+      `INSERT INTO messages (id, session_id, role, content, tokens, reasoning, tasks) VALUES (?, ?, 'assistant', ?, ?, ?, ?)`,
+    ).run(
+      assistantId,
+      sessionId,
+      finalContent,
+      tokens,
+      proc.reasoning || null,
+      proc.tasks.length > 0 ? JSON.stringify(proc.tasks) : null,
+    );
   });
   apply();
   return assistantId;

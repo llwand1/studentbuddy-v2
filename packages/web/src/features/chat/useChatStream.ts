@@ -23,6 +23,10 @@ export interface StreamMessage {
    * （纯工具轮 / 被停止的半轮），否则过程又丢了。
    */
   steps?: ToolStep[];
+  /** 这条回答的思考链原文（v11 起落库；历史由 history-fold 读列、本轮由 done 归并） */
+  reasoning?: string;
+  /** 这条回答最终声明的任务清单（同上；update_tasks 是全量覆盖语义） */
+  tasks?: TaskItem[];
 }
 
 export interface ToolStep {
@@ -49,18 +53,33 @@ export function useChatStream(
 ) {
   const [messages, setMessages] = useState<StreamMessage[]>([]);
   const [streamingText, setStreamingText] = useState('');
-  const [reasoning, setReasoning] = useState('');
-  const [steps, setSteps] = useState<ToolStep[]>([]);
   /**
-   * steps 的真相源。done 事件要把「本轮步骤」并进那条回答消息，而 SSE 事件回调的闭包捕获的是
-   * 创建时的 state（恒为空数组），读不到最新值——所以所有更新一律走 commitSteps 同步写 ref。
+   * 「本轮过程」三件套（reasoning / steps / tasks）一律以 **ref 为真相源、state 只作渲染镜像**。
+   * 原因：done 事件要把本轮过程整块归位到那条回答消息上，而 SSE 事件回调的闭包捕获的是
+   * 创建时的 state（恒为空），读不到最新值——只有 ref 能读到。
    */
+  const [reasoning, setReasoning] = useState('');
+  const reasoningRef = useRef('');
+  const pushReasoning = useCallback((s: string) => {
+    reasoningRef.current += s;
+    setReasoning(reasoningRef.current);
+  }, []);
+  const clearReasoning = useCallback(() => {
+    reasoningRef.current = '';
+    setReasoning('');
+  }, []);
+  const [steps, setSteps] = useState<ToolStep[]>([]);
   const stepsRef = useRef<ToolStep[]>([]);
   const commitSteps = useCallback((next: ToolStep[]) => {
     stepsRef.current = next;
     setSteps(next);
   }, []);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const tasksRef = useRef<TaskItem[]>([]);
+  const commitTasks = useCallback((next: TaskItem[]) => {
+    tasksRef.current = next;
+    setTasks(next);
+  }, []);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState<SseReadyState>('connecting');
   const [error, setError] = useState('');
@@ -161,7 +180,7 @@ export function useChatStream(
         pushTokens(ev.content);
         setBusy(true);
       } else if (ev.type === 'reasoning') {
-        setReasoning((r) => r + ev.content);
+        pushReasoning(ev.content);
       } else if (ev.type === 'step') {
         setBusy(true);
         if (ev.status === 'running') {
@@ -190,37 +209,43 @@ export function useChatStream(
       } else if (ev.type === 'tasks') {
         // 任务清单是全量覆盖语义：面板整表替换，模型每次 update_tasks 都发完整列表
         setBusy(true);
-        setTasks(ev.items);
+        commitTasks(ev.items);
       } else if (ev.type === 'done') {
         // 合批残留必须先落屏：buffer 里可能压着最后一帧没 flush 的字，丢了就是尾巴少一段
         flushTokens();
         setBusy(false);
-        // 本轮步骤在收口这一刻归位到那条回答消息上（过程属于消息，不属于页面）：
+        // 「本轮过程」三件套在收口这一刻整块归位到那条回答消息上（过程属于消息，不属于页面）：
         // 屏上位置从「流式气泡上方」变成「回答内部」，内容连续；重开会话时由 history-fold 再重建一次。
         const roundSteps = stepsRef.current;
+        const roundReasoning = reasoningRef.current;
+        const roundTasks = tasksRef.current;
+        /** 只挂有内容的那几项，别给每条普通回答塞一堆 undefined 键（导出/序列化都会带上） */
+        const proc: Pick<StreamMessage, 'steps' | 'reasoning' | 'tasks'> = {
+          ...(roundSteps.length > 0 ? { steps: roundSteps } : {}),
+          ...(roundReasoning ? { reasoning: roundReasoning } : {}),
+          ...(roundTasks.length > 0 ? { tasks: roundTasks } : {}),
+        };
+        const hasProc = Object.keys(proc).length > 0;
         if (ev.usage) setUsage(ev.usage);
         if (startedAtRef.current) setElapsedMs(Date.now() - startedAtRef.current);
         setStreamingText((t) => {
-          const hasSteps = roundSteps.length > 0;
           // 纯工具轮 / 被停止的半轮：没有正文但有过程，也要留一条消息，否则过程就丢了
-          if (!t && !hasSteps) return '';
+          if (!t && !hasProc) return '';
           setMessages((ms) => {
             const last = ms[ms.length - 1];
             // 屏上文本与库内文本逐字一致（服务端保证）：/messages 晚于本轮落库返回时尾条已是这段字，
-            // 此时只把步骤补进去，不再插一条重复正文
+            // 此时只把过程补进去，不再插一条重复正文
             if (t && last?.role === 'assistant' && last.content === t) {
-              return hasSteps ? [...ms.slice(0, -1), { ...last, steps: roundSteps }] : ms;
+              return hasProc ? [...ms.slice(0, -1), { ...last, ...proc }] : ms;
             }
-            return [
-              ...ms,
-              { role: 'assistant', content: t, ts: new Date().toISOString(), steps: hasSteps ? roundSteps : undefined },
-            ];
+            return [...ms, { role: 'assistant', content: t, ts: new Date().toISOString(), ...proc }];
           });
           return '';
         });
-        commitSteps([]); // 已归位到消息内，清空「当前轮」，避免底部与消息内重复显示
-        // reasoning 刻意不清：学习场景下「它刚才是怎么想的」是答案的一部分，用户要能回看；
-        // 清空点放在下一轮 send（本文件的 send 里已清），保证不串轮
+        // 已归位到消息内：清空「当前轮」（ref 与镜像一起清），否则底部与消息里会重复显示一整份过程
+        commitSteps([]);
+        commitTasks([]);
+        clearReasoning();
         onRoundDone?.();
       } else if (ev.type === 'block') {
         // 内容块流（演进③）：quiz 块以可交互卡片进入消息流
@@ -265,9 +290,10 @@ export function useChatStream(
       // 上一轮残留必须归零：终止帧丢失时，新 token 否则会拼到旧半句后面
       resetTokens();
       setStreamingText('');
-      setReasoning('');
+      // 过程三件套一律走 ref 感知的 setter（只 setState 清不掉 ref，会串到新一轮的 done 归并里）
+      clearReasoning();
       commitSteps([]);
-      setTasks([]);
+      commitTasks([]);
       setUsage(null);
       setElapsedMs(0);
       startedAtRef.current = Date.now();
@@ -282,7 +308,7 @@ export function useChatStream(
         return { ok: false, error: msg };
       }
     },
-    [sessionId, ready, busy],
+    [sessionId, ready, busy, resetTokens, clearReasoning, commitSteps, commitTasks],
   );
 
   const stop = useCallback(async () => {
@@ -302,11 +328,11 @@ export function useChatStream(
       setError('');
       resetTokens();
       setStreamingText('');
-      setReasoning('');
+      clearReasoning();
       setUsage(null);
       setElapsedMs(0);
       commitSteps([]);
-      setTasks([]);
+      commitTasks([]);
       startedAtRef.current = Date.now();
       setMessages((ms) => {
         const lastUser = ms.reduce((acc, m, i) => (m.role === 'user' ? i : acc), -1);

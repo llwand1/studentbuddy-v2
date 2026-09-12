@@ -139,8 +139,17 @@ function newSession(): string {
 
 function rows(sessionId: string) {
   return getDb()
-    .prepare(`SELECT role, content, tool_calls, tool_call_id FROM messages WHERE session_id = ? ORDER BY created_at, rowid`)
-    .all(sessionId) as Array<{ role: string; content: string; tool_calls: string | null; tool_call_id: string | null }>;
+    .prepare(
+      `SELECT role, content, tool_calls, tool_call_id, reasoning, tasks FROM messages WHERE session_id = ? ORDER BY created_at, rowid`,
+    )
+    .all(sessionId) as Array<{
+    role: string;
+    content: string;
+    tool_calls: string | null;
+    tool_call_id: string | null;
+    reasoning: string | null;
+    tasks: string | null;
+  }>;
 }
 
 /** 屏上真正出现过的文本（token 事件按序拼接）——用于钉死「流什么就存什么」 */
@@ -218,6 +227,58 @@ describe('单轨工具循环', () => {
     const evs = snapshot(sid);
     expect(evs.at(-1)?.type).toBe('done'); // 死流也必须收口，否则切回会话重放半截
     expect(evs.some((e) => e.type === 'chat-error')).toBe(true);
+  });
+
+  it('v11：思考链与任务清单随消息落库（重开会话由 history-fold 回放）', async () => {
+    const sid = newSession();
+    stub.turns = [
+      [
+        {
+          reasoning: '先看看要几步。',
+          content: '',
+          done: false,
+          toolCalls: [{ id: 'q1', name: 'update_tasks', arguments: JSON.stringify({ tasks: [{ text: '查资料', status: 'pending' }] }) }],
+        },
+      ],
+      [{ reasoning: '资料到手，可以作答了。', content: '答案', done: false }, { content: '', done: true }],
+    ];
+
+    const r = await handleMessage({ sessionId: sid, text: '做个计划' });
+    expect(r.ok).toBe(true);
+
+    const last = rows(sid).at(-1);
+    expect(last?.role).toBe('assistant');
+    expect(last?.content).toBe('答案');
+    // 思考跨轮累积（两轮各自发过 reasoning），收口时一次落库
+    expect(last?.reasoning).toBe('先看看要几步。资料到手，可以作答了。');
+    expect(JSON.parse(last?.tasks ?? '[]')).toEqual([{ text: '查资料', status: 'pending' }]);
+    // 中途的工具轮不落 reasoning/tasks（过程只挂在最终回答那一条上）
+    expect(rows(sid).filter((x) => x.tool_calls).every((x) => x.reasoning === null && x.tasks === null)).toBe(true);
+  });
+
+  it('v11：生成中断也把已攒的思考与清单带上（过程不因失败而丢）', async () => {
+    const sid = newSession();
+    stub.turns = [
+      [
+        {
+          reasoning: '我打算先列个清单。',
+          content: '半截正文',
+          done: false,
+          toolCalls: [{ id: 'q1', name: 'update_tasks', arguments: JSON.stringify({ tasks: [{ text: '第一步', status: 'pending' }] }) }],
+        },
+      ],
+      new Error('上游 500'),
+    ];
+
+    const r = await handleMessage({ sessionId: sid, text: 'q' });
+    expect(r.ok).toBe(false);
+
+    const list = rows(sid);
+    expect(list.filter((x) => x.tool_calls || x.role === 'tool')).toHaveLength(0); // 仍不留孤儿 tool 消息
+    const last = list.at(-1);
+    expect(last?.content).toContain('半截正文');
+    expect(last?.reasoning).toBe('我打算先列个清单。');
+    expect(JSON.parse(last?.tasks ?? '[]')).toEqual([{ text: '第一步', status: 'pending' }]);
   });
 
   it('达轮次上限 → 已执行工具轮仍落库，收尾仍是 assistant 正文', async () => {

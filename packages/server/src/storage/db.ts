@@ -295,6 +295,19 @@ MIGRATIONS.push({
   ],
 });
 
+// v11：过程回放（2026-09-12）——把「思考」与「任务清单」随消息一起落库。
+// 此前两者只活在 SSE 流里（flow.ts 原注释：「推理内容仅流式呈现（不落库）」），
+// 刷新或重开会话即永久丢失；主流（Claude / ChatGPT）把过程归属于那条回答并持久化回放。
+// 与 v1 的 tool_calls 同一口径：**过程属于消息，不属于页面**。
+// reasoning 存原文（思考链是学习场景的答案组成部分）；tasks 存 update_tasks 最后一次的全量 JSON。
+MIGRATIONS.push({
+  version: 11,
+  statements: [
+    `ALTER TABLE messages ADD COLUMN reasoning TEXT`,
+    `ALTER TABLE messages ADD COLUMN tasks TEXT`,
+  ],
+});
+
 export function getDb(): Database.Database {
   if (db) return db;
   fs.mkdirSync(DATA_DIR, { recursive: true });

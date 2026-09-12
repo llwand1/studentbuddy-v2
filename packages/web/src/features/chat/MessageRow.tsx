@@ -3,13 +3,15 @@
  *
  * 抽出的两个理由：
  * ① ChatView 卡在 300 行门禁上（299/300），把消息渲染搬出去才有空间做过程归属；
- * ② 过程卡片（steps）从此**属于这条消息**：挂在回答气泡下面，随消息一起渲染，
- *    重开会话也能原样回放（数据来自 history-fold 或流式 done 时的归并）。
+ * ② 过程（思考 / 任务清单 / 工具卡片）从此**属于这条消息**：挂在回答气泡上下文渲染，
+ *    随消息一起回放（数据来自 history-fold，或流式 done 时的归并），重开会话不丢。
  *
- * 渲染条件：正文为空但带 steps 的消息**照样渲染**（纯工具轮 / 被停止的半轮），
- * 否则「没有正文」会把过程一起吞掉。
+ * 渲染条件：正文为空但带过程的 assistant 消息**照样渲染**（纯工具轮 / 被停止的半轮），
+ * 否则「没有正文」会把整段过程一起吞掉。
  */
 import type { StreamMessage } from './useChatStream';
+import { ThoughtPanel } from './ThoughtPanel';
+import { TaskPanel } from './TaskPanel';
 import { ToolSteps } from './ToolSteps';
 import { MessageFoot } from './MessageFoot';
 import { Markdown } from './Markdown';
@@ -47,8 +49,10 @@ export function MessageRow({
   }
 
   const hasSteps = (m.steps?.length ?? 0) > 0;
+  const hasTasks = (m.tasks?.length ?? 0) > 0;
+  const hasReasoning = !!m.reasoning;
   // 无正文又无过程的 assistant 空行不渲染（工具轮的中间行会落到这里）
-  if (!m.content && !hasSteps) return null;
+  if (!m.content && !hasSteps && !hasTasks && !hasReasoning) return null;
 
   return (
     <div className={m.role === 'user' ? 'chat-row user' : 'chat-row'}>
@@ -56,12 +60,17 @@ export function MessageRow({
         <div className="chat-bubble user">{m.content}</div>
       ) : (
         <>
+          {/* 过程区一律排在回答之前，顺序与流式期一致（思考 → 任务 → 工具 → 正文）：
+              收口瞬间过程从「页面级」挪进「消息内」，位置不变，不会跳到正文下面；
+              重开会话时 history-fold 从库内重建同一份过程，渲染完全一致 → 刷新前后不跳版。 */}
+          {hasReasoning && <ThoughtPanel text={m.reasoning ?? ''} streaming={false} />}
+          {hasTasks && <TaskPanel items={m.tasks ?? []} streaming={false} />}
+          {hasSteps && <ToolSteps steps={m.steps ?? []} />}
           {m.content && (
             <div className="chat-bubble md">
               <Markdown text={m.content} />
             </div>
           )}
-          {hasSteps && <ToolSteps steps={m.steps ?? []} />}
         </>
       )}
       {/* 操作条只挂在有正文的消息上：空正文的过程行不该带一份「复制/重新生成」 */}

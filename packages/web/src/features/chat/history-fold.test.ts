@@ -129,4 +129,52 @@ describe('foldToolRounds', () => {
     const out = foldToolRounds([row({ role: 'user', content: 'hi', created_at: '2026-09-12 03:11:22' })]);
     expect(out[0]).toEqual({ role: 'user', content: 'hi', ts: '2026-09-12 03:11:22' });
   });
+
+  // —— v11：思考链与任务清单随消息落库，重开会话要能一起回放 ——
+
+  it('reasoning/tasks 列折到那条正文消息上（与 steps 并存）', () => {
+    const out = foldToolRounds([
+      row({ role: 'user', content: '帮我做个计划' }),
+      row({ role: 'assistant', content: '', tool_calls: calls(['t1', 'update_tasks', '{"tasks":[]}']) }),
+      row({ role: 'tool', content: '任务清单已更新：共 2 项', tool_call_id: 't1' }),
+      row({
+        role: 'assistant',
+        content: '按这三步做…',
+        reasoning: '先拆解需求，再排顺序。',
+        tasks: JSON.stringify([
+          { text: '拆解需求', status: 'done' },
+          { text: '排顺序', status: 'pending' },
+        ]),
+      }),
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out[1]?.content).toBe('按这三步做…');
+    expect(out[1]?.reasoning).toBe('先拆解需求，再排顺序。');
+    expect(out[1]?.tasks).toEqual([
+      { text: '拆解需求', status: 'done' },
+      { text: '排顺序', status: 'pending' },
+    ]);
+    expect(out[1]?.steps?.[0]?.tool).toBe('update_tasks');
+  });
+
+  it('纯思考轮（无工具、无清单）只带 reasoning 也算过程', () => {
+    const out = foldToolRounds([
+      row({ role: 'user', content: '为什么' }),
+      row({ role: 'assistant', content: '因为…', reasoning: '让我先想想前因后果。' }),
+    ]);
+    expect(out[1]?.reasoning).toBe('让我先想想前因后果。');
+    expect(out[1]?.tasks).toBeUndefined();
+    expect(out[1]?.steps).toBeUndefined();
+  });
+
+  it('reasoning 为空串 / tasks 为空数组或坏 JSON → 一律不挂（不留空壳键）', () => {
+    const out = foldToolRounds([
+      row({ role: 'assistant', content: 'a', reasoning: '' }),
+      row({ role: 'assistant', content: 'b', tasks: '[]' }),
+      row({ role: 'assistant', content: 'c', tasks: 'not json' }),
+      row({ role: 'assistant', content: 'd', reasoning: null, tasks: null }),
+    ]);
+    expect(out.map((m) => m.reasoning)).toEqual([undefined, undefined, undefined, undefined]);
+    expect(out.map((m) => m.tasks)).toEqual([undefined, undefined, undefined, undefined]);
+  });
 });

@@ -51,7 +51,10 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ pinned }),
       }),
-    /** 历史消息：tool_calls / tool_call_id 是过程卡片（step）的唯一持久化来源，必须一并下发 */
+    /**
+     * 历史消息：过程字段（tool_calls/tool_call_id = 工具卡片；reasoning/tasks = 思考与任务清单）
+     * 是过程式 UI 唯一的持久化来源，必须一并下发。
+     */
     messages: (id: string) =>
       request<
         Array<{
@@ -60,6 +63,8 @@ export const api = {
           content: string;
           tool_calls: string | null;
           tool_call_id: string | null;
+          reasoning: string | null;
+          tasks: string | null;
           created_at: string;
         }>
       >(`/api/sessions/${id}/messages`),

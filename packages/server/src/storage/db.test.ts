@@ -92,3 +92,31 @@ describe('storage/db — v8 认知进化迁移（COGNITIVE-EVOLUTION-SPEC §5，
     db.close();
   });
 });
+
+describe('storage/db — v11 过程回放迁移（思考链 / 任务清单随消息落库）', () => {
+  const cols = (db: ReturnType<typeof openIsolated>): string[] =>
+    (db.prepare(`PRAGMA table_info(messages)`).all() as Array<{ name: string }>).map((c) => c.name);
+
+  it('新库的 messages 含 reasoning / tasks 两列', () => {
+    const db = openIsolated(tmp());
+    expect(cols(db)).toEqual(expect.arrayContaining(['reasoning', 'tasks']));
+    db.close();
+  });
+
+  it('老库升级：删列并把版本退回 10，重开后两列自动补回（旧用户不掉过程）', () => {
+    const dir = tmp();
+    const v10 = openIsolated(dir);
+    v10.exec(`ALTER TABLE messages DROP COLUMN reasoning`);
+    v10.exec(`ALTER TABLE messages DROP COLUMN tasks`);
+    v10.prepare('DELETE FROM schema_version WHERE version = 11').run();
+    expect(cols(v10)).not.toContain('reasoning');
+    v10.close();
+
+    const upgraded = openIsolated(dir);
+    expect(cols(upgraded)).toEqual(expect.arrayContaining(['reasoning', 'tasks']));
+    expect((upgraded.prepare('SELECT MAX(version) AS v FROM schema_version').get() as { v: number }).v).toBeGreaterThanOrEqual(
+      11,
+    );
+    upgraded.close();
+  });
+});

@@ -132,7 +132,7 @@ describe('html 预览通道（CSP sandbox 隔离）', () => {
 });
 
 describe('历史消息接口（过程卡片唯一的数据来源）', () => {
-  it('GET /api/sessions/:id/messages 必须下发 tool_calls 与 tool_call_id', async () => {
+  it('GET /api/sessions/:id/messages 必须下发 tool_calls / tool_call_id / reasoning / tasks', async () => {
     const { getDb } = await import('./storage/db.js');
     const db = getDb();
     const sid = 'sess-history-fold';
@@ -144,13 +144,24 @@ describe('历史消息接口（过程卡片唯一的数据来源）', () => {
     db.prepare(
       `INSERT INTO messages (id, session_id, role, content, tool_call_id) VALUES ('h-t1', ?, 'tool', '结果摘要', 'c1')`,
     ).run(sid);
-    db.prepare(`INSERT INTO messages (id, session_id, role, content) VALUES ('h-a2', ?, 'assistant', '正文')`).run(sid);
+    // 过程三件套的另一半（v11）：思考链与任务清单同样必须随历史下发，否则重开会话它们就没了
+    db.prepare(
+      `INSERT INTO messages (id, session_id, role, content, reasoning, tasks) VALUES ('h-a2', ?, 'assistant', '正文', ?, ?)`,
+    ).run(sid, '先搜索再作答。', JSON.stringify([{ text: '搜索', status: 'done' }]));
 
     const res = await request(app).get(`/api/sessions/${sid}/messages`).expect(200);
-    const rows = res.body as Array<{ role: string; tool_calls: string | null; tool_call_id: string | null }>;
+    const rows = res.body as Array<{
+      role: string;
+      tool_calls: string | null;
+      tool_call_id: string | null;
+      reasoning: string | null;
+      tasks: string | null;
+    }>;
     // 工具轮必须原样透传，前端才能把 step 配对折回那条回答上
     expect(rows.map((r) => r.role)).toEqual(['user', 'assistant', 'tool', 'assistant']);
     expect(rows[1]?.tool_calls).toContain('search_web');
     expect(rows[2]?.tool_call_id).toBe('c1');
+    expect(rows[3]?.reasoning).toBe('先搜索再作答。');
+    expect(rows[3]?.tasks).toContain('搜索');
   });
 });

@@ -4,3 +4,9 @@ dist/
 test-results/
 .runtime/
 .vite/
+
+# 约定（对齐 eslint.config.mjs 第 11 行）：下划线前缀 = 会话级临时诊断脚本。
+# eslint 与 tsconfig 早已排除它们，但此前漏了 git ⇒ 临时脚本会以未跟踪状态长期污染
+# `git status`（本仓曾积压 7 个 `_tidydiag*.ts`）。这条把约定补齐到 git 层。
+**/_*.ts
+**/_*.tsx

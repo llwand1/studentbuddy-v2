@@ -149,8 +149,9 @@ tools/gates     — 工程门禁：行数上限 / 禁内联样式 / 禁 any
 ```bash
 npm install          # workspaces 三包一次装齐（装依赖的 Node = 以后跑的 Node）
 npm run check        # lint(tsc×3 + eslint) + test(vitest) + gates —— 全绿基线
-npm run dev:server   # api :18791（端口被占时 SB_PORT=18792）
-npm run dev:web      # web :5173（代理目标 SB_PROXY_TARGET 可配）
+npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 一起停）
+npm run dev:server   # 只起 api :18791（端口被占时 SB_PORT=18792）
+npm run dev:web      # 只起 web :5173（代理目标 SB_PROXY_TARGET 可配）
 ```
 
 浏览器打开 **http://localhost:5173**（vite 监听 IPv6 `::1`，用 localhost 而非 127.0.0.1）。

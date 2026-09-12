@@ -11,7 +11,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev -w @sb/server & npm run dev -w @sb/web",
+    "dev": "node tools/dev.mjs",
     "dev:server": "npm run dev -w @sb/server",
     "dev:web": "npm run dev -w @sb/web",
     "build": "npm run build -w @sb/web",

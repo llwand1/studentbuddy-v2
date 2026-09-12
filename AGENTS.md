@@ -72,6 +72,7 @@
 | `packages/web/src/features/chat/Markdown.tsx` | 助手正文渲染器（注入点只有 SvgPreviewCard / ChartCard 里净化后的 SVG，其余走 React 转义） |
 | `packages/web/src/features/chat/Welcome.tsx` + `Mascot.tsx` | 空会话欢迎页（「未选会话」与「新会话无消息」共用一套；建议卡只填输入框不自动发送）；吉祥物是 **16×16 像素点阵**（`SPRITE` + 眨眼合帧 `LID` 由 `toRuns()` 并成 `<rect>`，`crispEdges` 且只按 4× 整数倍放大）；配色档位与 `steps()` 动效时序在 `chat.css`（组件内不写内联 style），`Mascot.test.ts` 用 `spriteErrors()` 钉住点阵自洽（行宽／字母登记／合帧必须正压眼位） |
 | `tools/gates/check.mjs` | 行数/内联样式/any 门禁 |
+| `tools/dev.mjs` | **一条命令并行拉起前后端 dev**（`npm run dev` 的载体，2026-09-12 新增）。替代原先 `npm run dev:server & npm run dev:web`——`&` 在 Windows 的 cmd 里是顺序而非后台，`tsx watch` 不退出 ⇒ 前端永远起不来。这里用 `spawn` 真并行、`stdio: inherit`、任一退出即收掉另一个并透传退出码（防空壳半跑）。零依赖 |
 | `tools/probes/doc-rag-bm25.mjs` + `.result.txt` | **首个入库探针**（与同目录 `doc-rag-bm25.result.txt` 一起）：量切块/BM25 在 72k~716k 字资料上的召回、耗时、内存与 k 拐点，`docs/DOC-RAG-SPEC.md` §8 的每个数字都出自它。**纯 JS 不碰 DB 也不联网，Node 20/22 都可跑**；改 `doc-rag.ts` 里任何常量前重跑它。★ 它**不 import 仓内实现**（复刻同参数算法），两边的关联靠 `doc-retrieve.test.ts` 的召回锁；计时与内存行天然浮动，可复现的是召回与块数 |
 | `docs/DOC-RAG-SPEC.md` | **文档检索契约**（2026-09-06 对 L1 5.0 §5.1「整篇直塞」的改判）：分流规则、三种消费方口径（对话按提问检索／出题按主题检索／抽词条按位置均匀覆盖）、常量取值理由、**两条被实测否掉的阈值方案**、已知局限与未验账 |
 | `docs/dev/test-plan.md` | **§0.8 的强制载体**：测试策略/基线用例数/逐文件不变量/已发现 bug 登记。改代码不同步本表即违规 |
@@ -96,7 +97,7 @@
 - **文档模式：短文档直塞、长文档 BM25 检索**（2026-09-06 改判，契约 `docs/DOC-RAG-SPEC.md`）：≤ `MAX_DOC_CHARS=60_000` **逐字等价整篇直塞**；> 60k 才切块 + 按提问取 Top-12 段落（带段号、必须声明非全文）。**仍没有的：embedding 向量、跨会话资料库、持久化索引、pdf/docx 解析、可点击溯源**——要加这些需**先改契约（L1 5.0 §5.1 + L3 DOC-RAG-SPEC）再改码**，不得先写实现再补文档。词法路线的已知天花板：改写型提问（用户不用资料里的词）在 700k 字规模召回收敛在 **8/13 ≈ 62%**，多给块救不回来
 - **免 key 兜底在本机网络不可用**：2026-08-27 实测 `lite.duckduckgo.com` 与 `api.duckduckgo.com` 均超时（直连被阻断，baidu/agnes 正常 200/401）→ 三路全挂约 20s 且零结果。要让 `search_web` 真出结果必须在设置页配 key（智谱国产可达，优先试）；挂代理另议
 - vite 监听 IPv6 `::1`：本机验证用 `http://localhost:5173`（127.0.0.1 不通）
-- **起 dev 请分两条命令跑，不要指望 `npm run dev`**：该脚本写的是 `dev -w @sb/server & dev -w @sb/web`，Windows 下 npm 把脚本交给 cmd 执行，而 cmd 的 `&` 是**命令分隔符、不是 shell 后台运算符**，前半个 `tsx watch` 又不退出 ⇒ 不能指望这一条同时把两端拉起。实测可行的做法=分两个后台进程跑 `npm run dev:server`（:18791）与 `npm run dev:web`（:5173），两条共 15s 内各自输出就绪行；未实测的一侧：单跑 `npm run dev` 的确切失败形态（本机 5173/18791 已被占用会先触发 vite `strictPort` 报错，干扰判读）
+- **`npm run dev` 已能一条命令拉起两端**（2026-09-12 修，载体 `tools/dev.mjs`）：原脚本 `dev -w @sb/server & dev -w @sb/web` 里的 `&`，在 Windows 下 npm 把脚本交给 cmd 执行、而 cmd 的 `&` 是**命令分隔符、不是 shell 后台运算符**，前半个 `tsx watch` 又不退出 ⇒ 不能指望这一条同时把两端拉起（前端永远起不来）。现改为 `node tools/dev.mjs`：`spawn` 真并行 + `stdio: inherit` + 任一退出即收掉另一个并透传退出码。单端调试仍可分别跑 `npm run dev:server`（:18791）/ `npm run dev:web`（:5173）。历史坑留存：改前若误用 `npm run dev`，本机 5173/18791 已被占用时会先触发 vite `strictPort` 报错、干扰判读
 - **行内公式不渲染**：`$a^2+b^2=c^2$` 按原文显示（未引 katex，保持 @sb/web 零运行时依赖）
 - **转义修复只补「漏根」，不修「错命令」**：`repairJsonEscapes` 能把 LaTeX 单根反斜杠构成的非法 JSON 转义补成两根（真机 502 的主因，统计与复验见 `docs/ANSWER-STYLE-SPEC.md` §8.3）；但 `\theta` / `\nu` 这类恰好等于合法转义（`\t` / `\n`）的写法**无法与真制表符/换行区分，故意不修**——命中时该题仍走逐题回退，最坏丢那一题不连坐整组
 - **重型图库仍未实现**：`mermaid` / `echarts` 围栏照旧降级代码块（刻意不引库）；数据图走自绘 ```chart，交互动画走 ```html 沙箱预览（2026-08-28 已上，真机验证预览文档源为 `null`、应用侧读不到其 DOM、读写接口均被拒）

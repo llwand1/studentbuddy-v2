@@ -37,6 +37,23 @@
 | `done` | usage? | 本轮收口；usage.source=provider/estimated |
 | `ping` | — | 心跳 |
 
+### 2.1 PK 频道事件（AI 出题双人对战，契约 `docs/PK-SPEC.md` §2.2）
+
+**频道键：** `pk:<roomId>`（`shared/pk.ts` 的 `pkChannel()`，前端订阅用同一函数、不手抄前缀）。
+★ 与上面的 `sessionId` **不是同一个命名空间**——两者共用 sse-bus 实现，**只有前缀能防串台**（v1 教训）。
+故本组事件用 `roomId` 字段而非 `sessionId`：字段名不同，才不会有人把房间号当会话 ID 传进聊天通道。
+
+| type | 载荷 | 语义 |
+|------|------|------|
+| `pk-state` | roomId / state | 房间状态变化（建房 / 入房 / 开局 / 结束）。**P0-1 已实现**：建房、入房、start 各主动广播一次 |
+| `pk-question` | roomId / question | 新题到达（载荷本就无 answer）。**待 P0-2** |
+| `pk-verdict` | roomId / questionId / correct / delta / score | 某题判分结果（含超时判罚）。**待 P0-2** |
+| `pk-end` | roomId / winner? / state | 结算。**待 P0-2** |
+
+- seq 单调去重 / 15s 心跳 / 断链回收与聊天通道**同机制**（同一 sse-bus），但缓冲按频道键独立。
+- **订阅前服务端先验房间是否存在**，否则 404——好过让前端挂一条永远安静的长连接。
+- **载荷永不含正确答案**（契约 §1 硬约束）：判分权只在服务端，`PkQuestion` 类型层面就没有 `answer` 字段。
+
 ## 3. REST 端点（M1）
 
 | 方法 | 路径 | 说明 |
@@ -69,6 +86,27 @@
 | `/api/preview` | `routes/preview.ts` | `POST /`（暂存 html 换 id）、`GET /:id`（带 `CSP: sandbox` 出页，无 `allow-same-origin`） |
 | `/api/activity` | `routes/activity.ts` | `GET /today`、`GET /week`、`GET /summary` |
 
+### 3.2 PK 端点（P0-1，契约 `docs/PK-SPEC.md`）
+
+> 前缀 `/api/pk`（`routes/pk.ts`）。写操作同样过 Origin 闸门；**所有端点只认服务端账号**——
+> `userId` 必须命中 `pk_users`，否则 401。房内显示名从库里取，**不信客户端自报**（防冒名）。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/pk/auth/login` | `{ nickname, userId? }` → `PkIdentity`。**P0 模拟实现**（`openid = mock_<userId>`）；携已有 userId = 找回账号并可改名，不命中则新建。P1 换微信公众号网页授权后**响应结构不变、前端零改动** |
+| GET | `/api/pk/auth/me?userId=` | 本地登录态校验（前端启动时过一遍）；账号不存在 → 404，前端据此清 localStorage |
+| POST | `/api/pk/rooms` | `{ userId }` → `{ roomId, roomCode, state }`（201）。**幂等**：已在某 waiting 房则返回原房而不新建。房号 6 位数字 |
+| POST | `/api/pk/rooms/join` | `{ roomCode, userId }` → `{ roomId, state }`。房不存在 404／满员 409／已开局 409；**重复入同一间房幂等**；入房成功会把自己从其它 waiting 房摘掉 |
+| POST | `/api/pk/rooms/:id/start` | `{ userId }` 仅房主（`players[0]`）。双方已进房 → `active`、`endsAt = 服务端 now + 8 分钟`。非房主 403／对手未到 409／重复开局 409 |
+| GET | `/api/pk/rooms/:id/state` | 房间快照（断线重连对齐用）；不存在或已被 TTL 回收 → 404 |
+| GET | `/api/pk/stream?roomId=&userId=&since=` | 房间 SSE 频道，语义见 §2.1 |
+
+- **错误体统一**：域层抛错误码，薄路由映射状态码与文案，响应为 `{ error, code }`（如 `code: 'ROOM_FULL'`）。
+  域错误码 → 状态：`ROOM_NOT_FOUND` 404／`ROOM_FULL`·`ROOM_NOT_WAITING`·`ROOM_NOT_READY` 409／`NOT_ROOM_OWNER` 403／
+  `ROOM_CODE_EXHAUSTED` 500。映射表只此一处（`routes/pk.ts`），域层不碰 HTTP。
+- **P0 存储是全内存**（契约 §4）：无落库、无 schema 改动，进程重启即丢局；房间 TTL 惰性回收
+  （waiting 30 分钟 / finished 10 分钟 / active 取「对局时钟 + 保留期」）。
+
 **已注册工具（单轨 function-calling，`chat/tools.ts`）**：`search_web` 一个；多路 provider 聚合语义见 `search/index.ts`（Exa/Tavily/智谱按 key 并行，三家全无 key → DuckDuckGo 免 key 兜底）。
 
 **安全语义**：写操作（POST/PUT/DELETE）强制 Origin 校验（无 Origin / 恶意 Origin → 403）；请求体上限 2MB；服务仅绑 127.0.0.1。
@@ -84,3 +122,4 @@
 | 2026-08-27（复审） | 屏上==库内扩到收尾语（上限提示、中断标记均走 token）；失败轮补发终止 `done`；搜索 `providers` 只报真出结果的一家、缓存键含 provider 组合、自检跳缓存；PUT 先校验后写 + 单值 300 字上限；前端 `done` 判重（历史尾条同字不再追加）——真机 reload 复验单气泡 |
 | 2026-09-02 | 新增文档模式三端点 `GET/POST/DELETE /api/doc`（只回元信息、正文不落盘、会话绑定）；补登 §3.1 此前漏登的 quiz/terms/preview/activity 路由；加**多段 system 必须全量合并**的适配器契约（B-001 教训） |
 | 2026-09-06 | 认知进化 v1.1 契约登记（WBS 任务 1）：`BlockKind` 增 `'verdict'`（payload=Verdict 含 `met`）；`DomainEvent` 增 `evolution_levelup`（server/events/bus.ts）；shared/domain.ts 落 `Verdict`/`EvolutionTermState`/`EvolutionState`/`EvolutionEventRow` 四类型 |
+| 2026-09-12 | **PK 频道登记**（契约 `docs/PK-SPEC.md` P0-1）：`pk-state`/`pk-question`/`pk-verdict`/`pk-end` 四事件进 `shared/sse-events.ts`——字段用 `roomId`（不是 `sessionId`），频道键 `pk:<roomId>`，与聊天空间严格隔离；新增 §2.1（频道语义）与 §3.2（登录+房间端点含错误码映射）。P0-1 实际只发 `pk-state`，后三个按契约先登记、待 P0-2 启用 |

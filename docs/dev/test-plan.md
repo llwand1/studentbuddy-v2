@@ -1,7 +1,10 @@
 # studentbuddy v2 · 测试方案（test-plan）
 
-> 版本：v0.2.7 | 状态：[活跃] | 更新：2026-09-06 23:42（Node 22 全量复验回写；上一版为认知进化 WBS 任务 1-3）
-> ★ **本版基线是实测数**：Node 22.23.2（ABI 127，与 `node_modules` 产物一致）跑全量 `npm run check` → **31 文件 / 382 例全绿**，tsc×3／eslint／gates 均 0 错。v0.2.5、v0.2.6 挂着的 13 例「账面数」欠账全部清偿，详见 §3 顶注。
+> 版本：v0.2.8 | 状态：[活跃] | 更新：2026-09-12（PK P0-1 批回写 + **基线数全量对账**；上一版 v0.2.7 = 2026-09-06 认知进化 WBS 任务 1-3）
+> ★ **本版基线是实测数**：Node 22.23.2（ABI 127，与 `node_modules` 产物一致）跑全量 `npm run check` → **44 文件 / 586 例全绿**，tsc×3／eslint／gates 均 0 错。
+> ★ **分节小计同批按行重算**（不拿总数倒推）：shared **52** / server **379** / web **155**（52+379+155=586，与汇总行一致）。
+> ⚠️ **表头与分节小计此前滞后了 4 个批次**（v0.2.7 写「31 文件 / 382 例、server 283、web 47」，实际已到 44 / 586）——
+> 属 §0.8 回写欠账，本次一并校正；**仍未成行的文件已在 §3 顶注「账目缺口」逐条点名并给出实测例数**，不复述为已完成。
 > （表头版本号此前滞后一格——`§8` 已记到 v0.2.2 而表头仍写 v0.2.1，本次一并校正。）
 > 依据：个人开发文档 `AI-DEVELOPMENT-GUIDE.md` §0.8（测试同步）／§0.15 第 5 步（登记）、《计划重写文档》§10.4。
 > **本表是 §0.8 的强制载体**：改了代码 → 跑测试 → 更新本表，缺一即违规。此前本仓无本文件，属流程欠账（2026-09-02 随「文档模式」批次补齐）。
@@ -35,7 +38,21 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，诚实记账）**：本批在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（**现基线：31 文件 / 382 例全绿，2026-09-06 23:42 实测于 Node 22.23.2 全量 `npm run check`**；上一基线 26 文件 / 302 例，2026-09-04 22:31 实测于 Node 20、2026-09-05 09:07 迁 Node 22 复验同数）
+## 3. 用例清单（**现基线：44 文件 / 586 例全绿，2026-09-12 实测于 Node 22.23.2 全量 `npm run check`**；上一基线 31 文件 / 382 例，2026-09-06 23:42 实测）
+
+> **本批（PK P0-1 收尾）增量**：文件 43→**44**、例 567→**586**（**+19**，全部来自新 `routes/pk-room.test.ts`；
+> 同批把 `routes/pk-auth.test.ts` 的 11 例补进表——它是登录批 `e02d67a` 交付的，此前与 PK 整条线一样漏登）。
+> 分节小计同批重算：shared 52（不变）/ server **379**（原表写 283，滞后 4 批）/ web **155**（原表写 47，滞后多批）。
+>
+> ⚠️ **账目缺口（本次对账实测出的「有测试无行 / 行内例数过期」，留给下一批清理，不在本批范围内）**：
+> ① **完全未成行**（7 个文件，共 85 例）：`chat/task-list.test.ts` 25、`chat/tool-exec.test.ts` 10、
+> `chat/tools.test.ts` 11（manage_terms）、`chat/regenerate.test.ts` 5、`storage/resolve-datadir.test.ts` 4、
+> `routes/pk-auth.test.ts` 11（**本批已补行，见下表**）、`routes/pk-room.test.ts` 19（**本批已补行**）；
+> ② **表内例数与实测不符**（同一批都没人复核）：`index.test.ts` 15→**16**、`flow.test.ts` 18→**22**（含任务清单增量那 2 例）、
+> `sse-bus.test.ts` 5→**6**、`tidy.test.ts` 17→**20**、`db.test.ts` 7→**9**；web 侧 `markdown.test.ts` 9→**29**、
+> 且 web 段还缺 `history-fold` 13／`highlight` 23／`chat-meta` 18／`remend` 20／`chat-export` 8／`doc-name` 6 等行。
+> ⇒ **这些数字是本次逐文件跑 `vitest` 数出来的**（不是估算），下一批照单补行即可，不必重新测量。
+> 根因同 §3 末注那条老账：**基线数只在有人回写时才动**，4 个批次没人回写就静默落后。
 
 > ✅ **2026-09-06 23:42 已用 Node 22.23.2 跑完全量 `npm run check`：31 文件 / 382 例全绿，tsc×3／eslint／gates 均 0 错**。前两批挂着的复验账（DOC-RAG 的 `document.test.ts` +8／`flow.test.ts` +1，认知进化的 `db.test.ts` v8 新 4 例）**全部实测通过**，账面数就此转实测数。叠加过程留痕：DOC-RAG +1 文件/+37 例 → 27 文件/339 例；认知进化 WBS 1-3 +3 文件/+39 例（新 `shared/domain.test.ts` 7、新 `learning/verdict.test.ts` 18、新 `learning/verdict-gate.test.ts` 10、`storage/db.test.ts` 3→7）→ 30 文件/378 例。
 > **★ 复验时另发现本表漏登 1 文件 / 4 例**：`src/storage/obs.test.ts`（并行「可观测地基」批 `53b7ce0 feat(obs)` 的 v9 `event_log` 测试，随该批进仓却没回写本表）→ 补行后才是 **31 文件 / 382 例**。这与 v0.2.3 那次「小计与自家表格不符」同源：**基线数长期没被逐行复核**，交付方不回填本表就没人发现。顺带核实迁移序列 **v1..v9 版本号无重复**（本批 v8=evolution 与 obs 批 v9=`event_log` 共存）——版本号撞车会被 `schema_version` 静默跳过，属涉库功能的致命漏。
@@ -60,7 +77,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `src/quiz-mix.test.ts` | 19 | `stepQuizMix` **编辑期钳住**：加档只动目标档位、减档不越 0、单题型到 10 停住不绕回、总额到 20 后加不进任何题型且已有档位一格不动；**先减后加这条路径要通**；一步跨多档只加到能加的位置；不改入参（`delta=0` 也返回新副本）。`setQuizMix` **数字直输同源钳位**：直输只动目标档、0=关题型、负数→0/小数取整/NaN→0、超 10 钳 10、**总满场景只给「其他档占用后剩余额度」且别的档一格不动**、全 0 起可直输、不改入参。与 `normalizeQuizMix` 的分工：编辑态钳住的配比落库后原样不变（**所见即所存**，不再被从后往前削）、绕过 `stepQuizMix` 硬造的超限配比仍由 `normalizeQuizMix` 兜底削到总上限 | [DONE] |
 | `src/domain.test.ts` | 7 | **认知进化类型登记编译锁（COGNITIVE-EVOLUTION-SPEC v1.1 §6.1/§8/§9.1）**：`Verdict` 必填仅 `term/level/verdict`，v1.1 的 `met?` 与 `gaps`/`nextGoal`/`evidence` 全可选（**v1 老形状与 v1.1 完整形状都必须可构造**，`met: []` 诚实档与字段缺失同形）；`ContentBlock<'verdict'>` 的 payload 收窄为 `Verdict`（`const p: Verdict = b.payload` —— payload 若退回 `GenericPayload` 这行编译即红）、`BlockKind` 联合含 `'verdict'`；`EvolutionState`（`active` + `level`/`bestLevel` 双级）与 `EvolutionEventRow`（`termText` 抗删快照、`gaps` 已是解析后的 `string[]`）字段形状与 §5 表列对齐——**改字段名即 tsc 红**，运行期 expect 只防手滑改名 | **[DONE] 7 passed（实测，Node 20：纯类型/编译锁，不碰 DB）** |
 
-### server（283 例，全部实测：210 + DOC-RAG 批 37 + 认知进化批 32 + 补登 obs 批 4）
+### server（379 例，全部实测；本次对数重算——未成行文件的计数见 §3 顶注「账目缺口」）
 
 | 文件 | 例数 | 锁死的不变量 | 状态 |
 |------|------|--------------|------|
@@ -84,8 +101,10 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `src/search/search.test.ts` | 10 | 三家无 key 走 DDG 兜底、单路挂另一路兜底、双路挂失败原因逐路冒泡不静默；配 Exa key 只发 Exa；一家失败只跳过 + 跨家 URL 去重；24h 缓存命中不真发、**缓存键含 provider 组合**（配 key 后不吃旧免 key 缓存）、`skipCache` 强制真发；key 密文落库读取解密、空串删除；`resultsToContext` 带来源编号与 URL | [DONE] |
 | `src/storage/obs.test.ts` | 4 | **可观测地基（迁移 v9 `event_log`）——★ 本表补登，非认知进化批交付**（并行批 `53b7ce0 feat(obs)` 随仓进件却漏回写本表）：v9 建 `event_log` 表与 `idx_event_log_kind_ts`/`idx_event_log_ts` 双索引；`recordObsEvent`/`listObsEvents` 字段回读（payload JSON 还原、未传字段为 null、id 倒序）；`list` 过滤三态（kind 精确、`sinceId` 增量、`limit` 钳 1..200）；`wireObsEvents` 订阅幂等且**只落 `obs` 事件**（`chat_done` 不得混入）。与本表 `db.test.ts` 的 v8 同库共存，迁移序列 v1..v9 无重复版本号 | [DONE] 4 passed（实测，Node 22.23.2） |
 | `src/storage/db.test.ts` | 7 | 建表齐全 + `schema_version` 记录 + 幂等（重复打开不改动）；`messages(session_id, created_at)` 索引第一天就有；外键生效。**★ 认知进化批 v8 迁移 4 例**：`evolution_session`/`evolution_event` 两表与 `term_id+created_at`、`session_id+created_at` 两索引齐备；`term_library` 新列 `evo_level`/`best_level` 默认 0、`evo_updated_at` 默认 NULL；**`evolution_event` 刻意无外键**——已删词条的链节点必须写得进（append-only 历史若抗删 = 功能缺陷）；`probe_first`/`status` 默认值在位（契约 v1.1.1 勘误补的列得有持久化载体） | [DONE] 7 passed（实测，Node 22.23.2 全量 check——v8 真库迁移的 `probe_first` 默认值、无外键 append-only 链、`term_library` 三列均验通）|
+| `src/routes/pk-auth.test.ts` | 11 | **PK 登录 P0-1（契约 PK-SPEC §2.1；★ 本批补登——登录批 `e02d67a` 交付时漏登，例数本次实跑复核）**：首登建号——`nickname` **trim 后入库**（`'  团子  '` → `'团子'`）、`openid === mock_<userId>`、且**账号真落了库**（查 `pk_users` 核对，不只看响应）；携已有 `userId` 再登 = **找回原账号**并可顺带改名、`openid` 不变；携**不存在**的 userId → 走新建（**不复活幽灵账号**）；四类非法昵称（缺字段／纯空白／超 20 字／非字符串）→ 400 **且 `pk_users` 行数不变**（失败一字不落库）；20 字恰好通过（边界不误伤）；`/auth/me` 命中回身份、未知账号与缺参 → 404（前端据此清 localStorage） | [DONE] 11 passed（实测，Node 22.23.2 全量 check） |
+| `src/routes/pk-room.test.ts` | 19 | **PK 房间 P0-1（契约 PK-SPEC §2.1/§2.2/§4，本批新建）**：建房得 6 位**纯数字**房号（要能被人口头念出来）、建房人即房主且初始零分、`endsAt=0`（未开局没有时钟）、`questions=[]`（P0-1 不出题）；**重复建房幂等**（同 roomId/roomCode，不制造第二间）；未登录／不存在的 userId → 401；**建房用服务端昵称**（请求体塞 `nickname` 不生效——防冒名）；第二人入房后状态仍 `waiting`；**重复入房幂等**（玩家不被放进两次）；房号不存在 404、缺房号 400；**满员 409 且房内仍 2 人**（失败不入房，事后查 state 复核）；**换房时旧 waiting 房被回收**（每人只占一间，不留空壳房号）；**开局 → active 且 `endsAt` 落在 `[请求前+8min, 响应后+8min]`**（服务端算的时钟）；对手未进房 409 `ROOM_NOT_READY`、非房主 403 `NOT_ROOM_OWNER`、**重复开局 409 且 `endsAt` 不被重置**；房间不存在 404；`GET state` 快照字段与 404；`stream` 缺 roomId 400／房不存在 404（不让人挂永远安静的长连接）；**★ 频道隔离**：建房广播落在 `pk:<roomId>`（`snapshot` 得 1 条 `pk-state`）而**裸 roomId 空间为空** ⇒ 与聊天 sessionId 的串台防护实测生效；入房与开局各再广播一次（前端靠推、不靠轮询） | [DONE] 19 passed（实测，Node 22.23.2 全量 check） |
 
-### web（47 例）
+### web（155 例，本次对数重算；段内仍缺行见 §3 顶注「账目缺口」）
 
 | 文件 | 例数 | 锁死的不变量 | 状态 |
 |------|------|--------------|------|
@@ -159,6 +178,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-09-12 | v0.2.8 | **PK P0-1 批回写 + 基线数全量对账**：基线 43 文件／567 例 → **44 文件 / 586 例**（+19，全部来自新 `routes/pk-room.test.ts`；同批把登录批 `e02d67a` 交付却漏登的 `routes/pk-auth.test.ts` 11 例补进表）。**★ 本次对账实测出本表已滞后 4 个批次**——表头与小节仍写「31 文件／382 例、server 283、web 47」，实际早已到 44／586；分节按行重算为 shared **52**／server **379**／web **155**（52+379+155=586，与汇总行一致）。**已把缺口按实测逐文件计数点名**（§3 顶注）：未成行 5 个文件共 55 例（`chat/task-list` 25／`chat/tool-exec` 10／`chat/tools` 11／`chat/regenerate` 5／`storage/resolve-datadir` 4）；行内例数过期 5 处（`index` 15→16／`flow` 18→22／`sse-bus` 5→6／`tidy` 17→20／`db` 7→9）；web 段另缺 `history-fold` 13／`highlight` 23／`chat-meta` 18／`remend` 20／`chat-export` 8／`doc-name` 6 等行，且 `markdown` 行 9→29。**这些数字是逐文件跑 vitest 数出来的，下一批照单补行即可，不必重新测量**。本批新增两条 PK 行的不变量锁见上表（登录 11 例／房间 19 例，后者含**频道隔离实测**：`pk:<roomId>` 有事件而裸 roomId 空间为空）。⇒ 立一条新约定（§7）：**新增用例回写本表时必须同时核对「同批还有哪些文件漏登」**，否则每次回写都在复制「小计与自家表格不符」这个老账 |
 | 2026-09-06 | v0.2.7 | **Node 22 全量复验回写（基线由账面转实测）**：本机 `C:\nodejs22\node-v22.23.2-win-x64`（ABI 127，与已装 `node_modules` 产物一致）就位后跑通全量 `npm run check` → **31 文件 / 382 例全绿**，tsc×3／eslint／gates 均 0 错。v0.2.5 与 v0.2.6 挂账的 13 例全部清偿（`document.test.ts` 19、`routes/document.test.ts` 13、`flow.test.ts` 18、`db.test.ts` 7——含 v8 真库迁移的 `probe_first` 默认值、无外键 append-only 链、`term_library` 三列）。**顺带补登本表漏登的 `storage/obs.test.ts` 4 例**（并行可观测批 `53b7ce0 feat(obs)` 交付却未回写本表，与 v0.2.3 那次小计不符同源），小计随之 server 279→**283**、总账面 378→实测 **382**。**核实迁移序列 v1..v9 版本号无重复**（本批 v8=evolution 与 obs 批 v9=`event_log` 共存）——撞号会被 `schema_version` 静默跳过。§2 补一条环境事实：IDE/沙箱 shell 的 `PATH` 可能只挂 Node 20，红测先 `node --version` 再归因，别把环境问题写成代码缺陷；现役版本号校正 22.22.2→22.23.2（同 22 大版本、ABI 一致）。§3 顶注两段 ⚠️ 改 ✅ 留痕，§6 DOC-RAG ① 清账、② T9 真机端到端仍欠。**复验证据补记**：`npm run check` 退出码 **0**（不只汇总行绿）；另以只读探针 `tools/probes/db-isolation-check.mjs` 证实全量测试**未写真实数据目录**（无人操作窗口内跑前跑后快照逐字段一致；隔几分钟再跑数字变了是**用户在线使用**所致，不是污染——详见 §7 该条复跑注意），真库 schema 已到 v9、evolution 两表在位且为空（dev server 启动时应用了本批 v8，属预期生效）|
 | 2026-09-06 | v0.2.6 | 认知进化 WBS 任务 1-3 批回写（契约 `docs/COGNITIVE-EVOLUTION-SPEC.md` v1.1 落码首三单）：账面 27 文件／339 例 → **30 文件 / 378 例**（新 `shared/domain.test.ts` 7、新 `learning/verdict.test.ts` 18、新 `learning/verdict-gate.test.ts` 10、`storage/db.test.ts` 3→7），小计随之改 shared 45→**52**、server 247→**279**、web 47 不变；**35 例已在 Node 20 实测绿**（三个新文件不碰 DB；同期实测 `tsc×3` 0 错、eslint 0 错、gates 全绿），**4 例（db v8）待 Node 22 复验**，DOC-RAG 欠的 9 例同账未清。交付：① shared 类型登记（`Verdict.met?` / `EvolutionState` / `EvolutionEventRow` / `BlockKind` 加 `'verdict'` 且 payload 条件收窄）② DB 迁移 v8（`evolution_session`、`evolution_event` 无外键 append-only 链、`term_library` 三列）③ `learning/verdict.ts`（`VerdictGate` 流式闸门 + `parseVerdictBlock` 容错阶梯 + `normalizeVerdict` 含 **met 三态**与**双空兜底**）。落码中自查出并回写契约两处：① **v1.1.1 勘误**——§8 的 `probeFirst` 无持久化载体，v8 建表补 `probe_first` 列；连带定档 `met` **不落链**（只作 SSE 即时反馈）② 写测试时逮住 `VerdictGate` 的 CLOSE 跨 chunk 真 bug（已立 §7 那条新约定） |
 | 2026-09-06 | v0.2.5 | 文档检索批（DOC-RAG）回写：新 `learning/doc-retrieve.test.ts` **28 例实测全绿**（不碰 DB 故 Node 20 可跑）、`learning/document.test.ts` 11→19（★ 删掉与新契约冲突的旧断言“超长只注入前 MAX 字符并自报截断”）、`chat/flow.test.ts` 17→18（T7 接线锁）→ 账面 **27 文件 / 339 例**，但 §3 顶注已标明其中 9 例未跑、**本版不声称全绿**。§5 命令行加基线欠账注；§6 新挂一条 P1（DOC-RAG 欠的两条账：Node 22 复验 + T9 真机）；§7 新立两条：「结论写进契约的探针必须进仓」（本批首次把探针入库 `tools/probes/doc-rag-bm25.mjs`，并如实声明它是复刻不是 import 仓内实现）／「预算截断与要覆盖面不能直接拼」（`pickUniformChunks` 静默退化成只覆盖开头）。配套契约 `docs/DOC-RAG-SPEC.md` 新建（含两条被实测否掉的阈值方案） |

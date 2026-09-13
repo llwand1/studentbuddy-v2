@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SseEvent, TaskItem, TokenUsage } from '@sb/shared';
 import { connectSse, type SseReadyState } from '../../lib/sse-client';
 import { api } from '../../lib/api';
+import { createTokenDrain, type TokenDrain } from './stream-smooth';
 import { foldToolRounds } from './history-fold';
 export type { TaskItem, TaskStatus } from '@sb/shared';
 
@@ -113,43 +114,79 @@ export function useChatStream(
     busyCbRef.current?.(busy, sessionId);
   }, [busy, sessionId]);
   /**
-   * 流式合批：token 先进 buffer，每帧只 flush 一次。
-   * 不做合批时每个 token 触发一次 setState → Markdown 全量重解析，长回答是 O(n²) 且越流越卡。
+   * 流式上屏走打字机平滑（stream-smooth）：token 先进积压，每帧放行 max(2, 积压/48)——
+   * 池中 AI（once）整块到达的答案也匀速吐出（任意积压 ~0.8s 内排空），正常流式几乎零附加延迟。
+   * done 收口因此分两步：有积压时先存 pendingDone，等排空回调再归并——归并用「已上屏全文」
+   * 与库内文本判等，半截归并会把答案截断在屏上且判等必失败。
    */
-  const bufRef = useRef('');
-  const rafRef = useRef<number | null>(null);
-
-  /** 把攒下的字一次性推上屏（每帧至多一次） */
-  const flushTokens = useCallback(() => {
-    rafRef.current = null;
-    const chunk = bufRef.current;
-    bufRef.current = '';
-    if (chunk) appendStreaming(chunk);
-  }, [appendStreaming]);
-
-  /** token 入缓冲：同帧内的多个 token 合成一次 setState */
-  const pushTokens = useCallback(
-    (s: string) => {
-      bufRef.current += s;
-      if (rafRef.current !== null) return;
-      // 无 rAF 的环境（老浏览器/测试容器）直接同步落，不丢字
-      if (typeof requestAnimationFrame !== 'function') {
-        flushTokens();
-        return;
+  type DoneEvent = Extract<SseEvent, { type: 'done' }>;
+  const pendingDoneRef = useRef<DoneEvent | null>(null);
+  const finalizeRef = useRef<(ev: DoneEvent) => void>(() => undefined);
+  const drainRef = useRef<TokenDrain | null>(null);
+  if (!drainRef.current) {
+    drainRef.current = createTokenDrain(appendStreaming, () => {
+      const pending = pendingDoneRef.current;
+      if (pending) {
+        pendingDoneRef.current = null;
+        finalizeRef.current(pending);
       }
-      rafRef.current = requestAnimationFrame(flushTokens);
-    },
-    [flushTokens],
-  );
+    });
+  }
+  const pushTokens = useCallback((s: string) => drainRef.current?.push(s), []);
+  const flushTokens = useCallback(() => drainRef.current?.flushAll(), []);
 
-  /** 丢弃缓冲并把 pending 帧取消：新一轮/卸载时防旧字拼到新句子后面 */
+  /** 丢弃缓冲：新一轮开始前调用；上一轮若还有待收口的 done，先强制归并（新发送不能吃掉上轮收口） */
   const resetTokens = useCallback(() => {
-    if (rafRef.current !== null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
+    const pending = pendingDoneRef.current;
+    pendingDoneRef.current = null;
+    if (pending) {
+      finalizeRef.current(pending);
+      return;
     }
-    bufRef.current = '';
+    drainRef.current?.cancel();
   }, []);
+
+  /**
+   * done 收口：过程三件套整块归位到那条回答消息上（过程属于消息，不属于页面），清「当前轮」。
+   * 由 done 事件（无积压时）或排空回调（有积压时）调用；也兜底强制收口（resetTokens 里 pending）。
+   */
+  const finalizeRound = (ev: DoneEvent) => {
+    // 残留未上屏的字先落屏：屏上文本与库内文本逐字一致是判等前提
+    drainRef.current?.flushAll();
+    setBusy(false);
+    const t = streamingRef.current; // 已上屏全文（ref，非闭包里的过期 state）
+    const roundSteps = stepsRef.current;
+    const roundReasoning = reasoningRef.current;
+    const roundTasks = tasksRef.current;
+    /** 只挂有内容的那几项，别给每条普通回答塞一堆 undefined 键（导出/序列化都会带上） */
+    const proc: Pick<StreamMessage, 'steps' | 'reasoning' | 'tasks'> = {
+      ...(roundSteps.length > 0 ? { steps: roundSteps } : {}),
+      ...(roundReasoning ? { reasoning: roundReasoning } : {}),
+      ...(roundTasks.length > 0 ? { tasks: roundTasks } : {}),
+    };
+    const hasProc = Object.keys(proc).length > 0;
+    if (ev.usage) setUsage(ev.usage);
+    if (startedAtRef.current) setElapsedMs(Date.now() - startedAtRef.current);
+    // 纯工具轮 / 被停止的半轮：没有正文但有过程，也要留一条消息，否则过程就丢了
+    if (t || hasProc) {
+      setMessages((ms) => {
+        const last = ms[ms.length - 1];
+        // 屏上文本与库内文本逐字一致（服务端保证）：/messages 晚于本轮落库返回时尾条已是这段字，
+        // 此时只把过程补进去，不再插一条重复正文
+        if (t && last?.role === 'assistant' && last.content === t) {
+          return hasProc ? [...ms.slice(0, -1), { ...last, ...proc }] : ms;
+        }
+        return [...ms, { role: 'assistant', content: t, ts: new Date().toISOString(), ...proc }];
+      });
+    }
+    // 已归位到消息内：清空「当前轮」（ref 与镜像一起清），否则底部与消息里会重复显示一整份过程
+    commitStreaming('');
+    commitSteps([]);
+    commitTasks([]);
+    clearReasoning();
+    onRoundDone?.();
+  };
+  finalizeRef.current = finalizeRound;
 
   // 载入历史
   useEffect(() => {
@@ -233,42 +270,12 @@ export function useChatStream(
         setBusy(true);
         commitTasks(ev.items);
       } else if (ev.type === 'done') {
-        // 合批残留必须先落屏：buffer 里可能压着最后一帧没 flush 的字，丢了就是尾巴少一段
-        flushTokens();
-        setBusy(false);
-        // 「本轮过程」三件套在收口这一刻整块归位到那条回答消息上（过程属于消息，不属于页面）：
-        // 屏上位置从「流式气泡上方」变成「回答内部」，内容连续；重开会话时由 history-fold 再重建一次。
-        const t = streamingRef.current; // 已上屏全文（ref，非闭包里的过期 state）
-        const roundSteps = stepsRef.current;
-        const roundReasoning = reasoningRef.current;
-        const roundTasks = tasksRef.current;
-        /** 只挂有内容的那几项，别给每条普通回答塞一堆 undefined 键（导出/序列化都会带上） */
-        const proc: Pick<StreamMessage, 'steps' | 'reasoning' | 'tasks'> = {
-          ...(roundSteps.length > 0 ? { steps: roundSteps } : {}),
-          ...(roundReasoning ? { reasoning: roundReasoning } : {}),
-          ...(roundTasks.length > 0 ? { tasks: roundTasks } : {}),
-        };
-        const hasProc = Object.keys(proc).length > 0;
-        if (ev.usage) setUsage(ev.usage);
-        if (startedAtRef.current) setElapsedMs(Date.now() - startedAtRef.current);
-        // 纯工具轮 / 被停止的半轮：没有正文但有过程，也要留一条消息，否则过程就丢了
-        if (t || hasProc) {
-          setMessages((ms) => {
-            const last = ms[ms.length - 1];
-            // 屏上文本与库内文本逐字一致（服务端保证）：/messages 晚于本轮落库返回时尾条已是这段字，
-            // 此时只把过程补进去，不再插一条重复正文
-            if (t && last?.role === 'assistant' && last.content === t) {
-              return hasProc ? [...ms.slice(0, -1), { ...last, ...proc }] : ms;
-            }
-            return [...ms, { role: 'assistant', content: t, ts: new Date().toISOString(), ...proc }];
-          });
+        // 有积压（含池中一次性整块答案）时延迟收口：等打字机吐完再归并，否则半截文本判等必失败
+        if (drainRef.current?.hasBacklog()) {
+          pendingDoneRef.current = ev;
+          return;
         }
-        // 已归位到消息内：清空「当前轮」（ref 与镜像一起清），否则底部与消息里会重复显示一整份过程
-        commitStreaming('');
-        commitSteps([]);
-        commitTasks([]);
-        clearReasoning();
-        onRoundDone?.();
+        finalizeRound(ev);
       } else if (ev.type === 'block') {
         // 内容块流（演进③）：quiz 块以可交互卡片进入消息流
         const p = ev.payload as { kind?: string; blockId?: string; payload?: unknown };
@@ -293,13 +300,15 @@ export function useChatStream(
       }
     });
     return () => {
-      resetTokens();
+      // 切会话/卸载：丢弃积压与待收口帧——不 finalize（历史消息接口随后重载，库内文本是权威）
+      pendingDoneRef.current = null;
+      drainRef.current?.cancel();
       offState();
       offEvent();
       client.close();
       clientRef.current = null;
     };
-  }, [sessionId, flushTokens, pushTokens, resetTokens, commitSteps, commitTasks, clearReasoning, pushReasoning, commitStreaming]);
+  }, [sessionId, flushTokens, pushTokens, commitSteps, commitTasks, clearReasoning, pushReasoning, commitStreaming]);
 
   /**
    * 新一轮公共前置：清上一轮残留（token 缓冲 / 流式文本 / 过程三件套 / 用量耗时）并计时。
@@ -344,10 +353,6 @@ export function useChatStream(
     if (sessionId) await api.chat.abort(sessionId).catch(() => undefined);
   }, [sessionId]);
 
-  /**
-   * 重新生成：服务端已把最后一条提问之后的产物删掉（含工具轮与中止半截），
-   * 屏上按**同一口径**同步撤——只保留最后一条提问及其之前，否则新回答会接在旧回答后面。
-   */
   /**
    * 重跑类动作公共体：regenerate（原样重跑）与 resend（编辑重发）只有两处不同——
    * 服务端端点、以及「最后一条提问是否就地换文案」。撤屏口径完全一致：

@@ -22,3 +22,36 @@ export function formatElapsed(ms: number): string {
   if (totalSec < 60) return `${(ms / 1000).toFixed(1)}s`;
   return `${Math.floor(totalSec / 60)}分${String(totalSec % 60).padStart(2, '0')}秒`;
 }
+
+/**
+ * 阶段感知的状态文案（v13 体验升级 P0）：不再盲转——
+ * 有工具在跑就说真话（「联网搜索：闭包」），思考链在流就说「深度思考中」，
+ * 都没有才回落到轮播短语池。数据全部来自已有的 step / reasoning 事件，零新事件。
+ */
+export interface PhaseStep {
+  tool: string;
+  status: string;
+  detail?: string;
+}
+
+/** 工具名 → 用户视角动作（与 chat/tools.ts 注册表对应；未知工具名原样展示） */
+export const TOOL_LABELS: Record<string, string> = {
+  search_web: '联网搜索',
+  tidy_terms: '整理词条库',
+  manage_terms: '维护词条库',
+  update_tasks: '规划任务',
+};
+
+/** detail 展示上限：状态行不能被长 query 撑爆 */
+const DETAIL_MAX_CHARS = 24;
+
+export function phaseStatus(steps: PhaseStep[], reasoningLen: number, elapsedMs: number): string {
+  const running = [...steps].reverse().find((s) => s.status === 'running');
+  if (running) {
+    const label = TOOL_LABELS[running.tool] ?? running.tool;
+    const detail = (running.detail ?? '').trim();
+    return detail ? `${label}：${detail.slice(0, DETAIL_MAX_CHARS)}${detail.length > DETAIL_MAX_CHARS ? '…' : ''}` : `${label}中`;
+  }
+  if (reasoningLen > 0) return '深度思考中';
+  return thinkingPhrase(elapsedMs);
+}

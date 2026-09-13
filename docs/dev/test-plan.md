@@ -46,7 +46,16 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，诚实记账）**：本批在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（**现基线：59 文件 / 725 例全绿（另 1 例 skipped），2026-09-13 实测于全量 vitest**；上一基线 55 文件 / 703 例，同日对话体验升级批前）
+## 3. 用例清单（**现基线：61 文件 / 742 例全绿（另 1 例 skipped），2026-09-13 实测于全量 vitest**；上一基线 59 文件 / 725 例，同日对话体验升级批）
+
+> **本批（主流观感三件套）增量**：文件 59→**61**、例 725→**742**（**+17**：新 `stream-smooth.test.ts` 8 +
+> 新 `process-summary.test.ts` 5 + `thinking-status.test.ts` 4→8（+4 phaseStatus））。
+> 分节小计重算：shared 52（不变）/ server 479（不变）/ web **211**（194+17）。
+> ★ 核心不变量：**排空不丢字**（打字机平滑逐段拼接===原文，「屏上==库内」铁律的前端半边）；
+> **任意积压在 48 帧预算内排空**（放行量=积压/剩余帧数——不能用积压/常数，长积压会拖尾 ~3s，测试逮住过）；
+> **done 延迟收口**（有积压先存 pendingDone、排空回调再归并，半截归并把答案截断在屏上且与库内判等必失败）；
+> **状态行不撒谎**（阶段感知：有工具在跑报真实动作、思考链在流报深度思考中，都无才轮播中性短语）；
+> **摘要是忠实计数不是删数据**（收口后过程折一行，点开全量展开，数据一个不丢）。
 
 > **本批（对话体验升级 v13）增量**：文件 55→**59**、例 703→**725**（**+22**：新 `llm/anthropic-thinking.test.ts` 7 +
 > 新 `llm/openai.test.ts` 3（**§6 挂了两月的 P1 出站体欠账就此清偿**）+ 新 `chat/resend.test.ts` 4 +
@@ -169,7 +178,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `src/chat/resend.test.ts` | 4 | **编辑重发的数据侧 `planResend`（v13 新建）**：**更新**最后一条提问内容（就地更新不是追加第二条 user）并删掉它之后的全部产物（与 regenerate 同一 rowid 划界口径，防秒级 created_at 误删）、更早轮次原样保留；纯空白文案拒绝且**拒绝时不许动库**；无提问时如实报 `ok:false`（调用方据此 400） | [DONE] |
 | `src/storage/resolve-datadir.test.ts` | 4 | **数据目录解析优先级（根治「反复启动后没数据」）**：`SB_DATA_DIR` 最高优先级直接返回且不被候选逻辑覆盖；APPDATA 存在且无现存库时落 `APPDATA/studentbuddy-v2`；**无 APPDATA 时若 `homedir/AppData/Roaming` 已有库则优先真实库**，而不是 homedir 兜底空壳；所有候选都无库文件时回退首个候选且不抛（首次启动新建场景） | [DONE] |
 
-### web（194 例，2026-09-13 对话体验升级批重算）
+### web（211 例，2026-09-13 主流观感批重算）
 
 | 文件 | 例数 | 锁死的不变量 | 状态 |
 |------|------|--------------|------|
@@ -190,7 +199,9 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `src/features/chat/chat-meta.test.ts` | 18 | **元信息文案（ADR-5：不静默、不编造）**：`toolLabel` 已登记给中文名、**未登记的新工具回退原 key**（宁可露英文也不把「有工具在跑」藏掉）、空串回退空串而非 undefined（进 JSX 会渲染出 "undefined" 字样）；`formatTokens` 三档（原样/一位小数 k/整数 k）、**脏数据不显示 NaN**（非有限值与负数一律归零）；`formatDuration` 毫秒/秒/分秒三档、整分钟不带「0 秒」、负数与非有限值返回空串；`formatRoundMeta` usage 与耗时齐备、`usage` 缺失时只显示耗时**不编造 token 数**、两者都无→空串（调用方据此整段不渲染，不显示「0 tokens」废话） | [DONE] |
 | `src/features/chat/doc-name.test.ts` | 6 | **文档 pill 文件名拆分**：常规中文名与英文名都拆出扩展名、多个点号只认最后一个、**无扩展名（粘贴资料的默认名）时 ext 是空串**（调用方据此不渲染该 span）、点号在首字符不算扩展名（`.gitignore` 整名即文件名，拆了会剩空 base）、空串进来不炸；**往返不变量：base + ext 必须逐字还原原名**，且 base 不为空时 ellipsis 才有东西可截 | [DONE] |
 | `src/features/chat/composer-status.test.ts` | 6 | **输入框「+」菜单的状态摘要 `menuStatus`（输入框折叠菜单批新建）**：联网开着**必须说**——这是把开关收进折叠菜单后唯一会失去可见性的状态，写错**界面不报错、只是少一句提示**，用户因此以为联网没开（最难被发现的那类退化）；联网关着**什么都不说**（关掉是用户的主动选择，不是需要提醒的异常，ADR-5 只禁静默不管无话找话）；已载入资料时报「资料 名字」（同样是收进菜单后失去可见性的会话状态）；超长资料名截断加省略号且整行 **< 20 字**（状态行不能把「+」撑成一整行）；**刚好 10 字不截断**（边界不多切一个字）；空串／纯空白／`null` 的资料名按「没有」处理，不产出「资料 」这种半截状态 | [DONE] 6 passed |
-| `src/features/chat/thinking-status.test.ts` | 4 | **「思考中」等待态文案（v13 新建）**：短语池轮播节奏 4s/条（起点与首 4s 显示「正在思考」——此刻什么都还没发生，不撒谎）、循环往复；已用时 <60s 显示 0.1s 精度、跨分钟换「分秒」口径且秒位补零 | [DONE] 4 passed |
+| `src/features/chat/thinking-status.test.ts` | 8 | **「思考中」等待态文案（v13 新建）**：短语池轮播节奏 4s/条（起点与首 4s 显示「正在思考」——此刻什么都还没发生，不撒谎）、循环往复；已用时 <60s 显示 0.1s 精度、跨分钟换「分秒」口径且秒位补零；**v13.1 +4 phaseStatus（阶段感知）**：有工具在跑报真实动作（「联网搜索：闭包」）、无 detail 报「xx中」、done 步骤不算在跑且取最近一条 running、detail 超 24 字截断加省略号、思考链在流报「深度思考中」、全无才回落轮播短语 | [DONE] 8 passed |
+| `src/features/chat/stream-smooth.test.ts` | 8 | **打字机平滑排空器（主流观感批新建）**：`drainRate` 倒计时帧预算口径（放行=积压/剩余帧数，剩余越少越快——**「积压/常数」会让 2000 字拖尾 183 帧 ≈3s，测试当场逮住后改为倒计时预算**）、小积压按每帧下限 2 跟走；整块到达匀速排空**拼接===原文不丢字**、onDrained 恰好一次；流式与积压混流字序不乱；flushAll 立即全量落屏（错误收口）；cancel 丢弃且不触发回调；空 push 不误触 onDrained | [DONE] 8 passed |
+| `src/features/chat/process-summary.test.ts` | 5 | **收口后过程一行摘要（主流观感批新建）**：全空兜底「查看过程」；思考链短报「已深度思考」、过千字带字数；**同工具多次调用合并计数**（联网搜索 ×3）、不同工具按出现顺序；未知工具名原样展示（注册表扩展后摘要不撒谎）；三类齐全按 思考·工具·任务 顺序拼一行 | [DONE] 5 passed |
 | `src/features/chat/history-fold.test.ts` | 13 | **历史折叠（把过程折到后面那条正文上）**：单轮/多轮工具不产出消息、步骤折到后一条正文并按各自 call id 回填、一轮内并列多 call 全部进 steps、无工具轮的普通问答不带 steps、**有工具轮但没写完正文（被停止/纯工具轮）时保一条空正文消息使过程不丢**；`tool_calls` 是坏 JSON 则当没有工具调用（不抛错也不吞消息）、孤儿 tool_call_id 无副作用（不凭空造步骤）、工具结果截断 400 字（与流式期 step.result 同口径）、**新提问清掉未收口步骤不跨轮污染**；`reasoning`/`tasks` 一并折上（纯思考轮只带 reasoning 也算过程）、两者为空值一律不挂（不留空壳键） | [DONE] |
 
 ## 4. 已发现 Bug（登记簿）
@@ -257,6 +268,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-09-13 | v0.2.15 | **主流观感三件套批回写**（老板看过差距清单后拍板 P0 批）：基线 59 文件／725 例 → **61 文件 / 742 例**（+17，明细见 §3 顶注）。① **打字机平滑**（新 `stream-smooth.ts`）：池中 AI 一次性回答整块到达也匀速逐字上屏——倒计时帧预算（48 帧 ≈0.8s）排空任意积压，正常流式按每帧下限跟走几乎零附加延迟；**done 延迟收口**（有积压先存 pendingDone、排空回调再 finalize），保住「屏上==库内」判等铁律；prefers-reduced-motion 跳过平滑。★ 开发中真实踩坑：第一版放行量写「积压/48」，2000 字实测拖尾 183 帧 ≈3s——对常数做除法不等于匀速，改成「积压/剩余帧数」倒计时预算后 49 帧排空（回归锁钉死）。② **完成态过程收拢**（新 `process-summary.ts` + MessageRow）：done 归并后有正文的回答把 思考/任务/工具 折成一行摘要（同工具合并计数），点开才展开；空正文过程行（纯工具轮/被停止的半轮）照常铺开。③ **阶段感知状态行**（`phaseStatus`）：思考中 UI 不再盲转——search_web running 时显示「联网搜索：闭包」（数据来自既有 step 事件，零新事件）、思考链在流显示「深度思考中」、都无才轮播中性短语。SSE 事件契约零变化 | 
 | 2026-09-13 | v0.2.14 | **对话体验升级批回写（v13 迁移）**：基线 55 文件／703 例 → **59 文件 / 725 例**（+22，明细见 §3 顶注）。产品口径（老板口述）：**原生 AI（Anthropic 原生协议）回答走全过程体验**——原生 thinking 思考链（适配器开 extended thinking，thinking_delta 以 reasoning 事件流式呈现并随消息落库）、任务清单、工具卡片齐全；**池中 AI（openai 兼容中转）保持「思考中 UI + 一次性回答」**——providers 加 `stream_mode` 列（v13 迁移，存量按 type 回填：openai→once、anthropic→stream），'once' 时适配器发非流式请求整块吐答案。其余升级：**编辑重发**（`POST /api/chat/resend`，只挂最后一条提问，与 regenerate 同 rowid 划界）；**停止生成真掐断工具内部 fetch**（signal 透传进 ToolContext，search 四家实现 `AbortSignal.any` 合并本地超时）；**SSE 重连后 /live 快照对齐接通**（契约半边补齐）+ **sse-client 入口 seq 去重拦死**（重叠帧二次上屏隐患）；**思考中 UI 升级**（轮播短语 + 已用时，`thinking-status.ts` 纯函数）；**listModels 真实现**（Anthropic /models 替换写死桩）+ `GET /api/providers/:id/models` 暴露 + 设置页「拉模型」按 datalist 供角色绑定挑选；设置页每服务商可切「回答形态」。SSE 事件契约零变化（无新事件类型），SSE-CONTRACT 补「一次性回答」呈现形态与 /live 客户端接线说明 | 
 | 2026-09-13 | v0.2.13 | **输入框「+」折叠菜单批回写**：基线 54 文件／698 例 → **55 文件 / 704 例**（**+6**，全部来自新 `web/features/chat/composer-status.test.ts`）。分节小计重算：shared 52／server 462／web **190**；**顺带校正 web 小节标题 181→190**（该节 16 行逐行相加是 184，差 3 是上一批 `mix-report.test.ts` 5→8 漏改小标题——**总数行改对了、标题行漏了**，正是「小计没人复核」这个老病根，v0.2.3／v0.2.8 两次同类账的第三次）。**本批无新 API、无新迁移、无 SSE 事件变化**，故 §5 那三条同步要求（SSE-CONTRACT／AGENTS／开发文档 §4）本轮均不触发。核心不变量：**把「联网开关」这类状态收进折叠菜单后，状态摘要不许丢**（`menuStatus` 6 例——写错不报错、只是少一句提示，用户因此以为联网没开）；**出题的来源清单是某一轮的产物，随本轮滚走、下一轮提问即清空**，不得像状态栏那样钉在输入框上方（老板实测指出）。★ 本批踩坑（已沉淀）：把输入区整段搬进新组件时，**原先散落在各按钮上的 `disabled` 条件会被一刀切**——最省事的写法是给菜单触发器一个 `disabled={blocked}`，那会把「生成中仍可导出对话」「连接未就绪仍可翻联网开关」这些既有的宽松行为静默收掉（ADR-5：能做的别藏着）。正确切法＝触发器只在 `sessionId === null` 时禁用（那时菜单里每一项确实都不可用），生成中只禁被真正影响的项。★ **门禁第二次实战生效**：新测试文件未登记 → `npm run gates` 直接红，补登本行后转绿 |
 | 2026-09-13 | v0.2.12 | **来源标注批回写**：基线 54 文件／684 例 → **54 文件 / 698 例**（+14，**无新文件**，全落在既有 3 文件：`learning/quiz-search.test.ts` 14→24、`routes/quiz-search.test.ts` 9→10、`web/features/quiz/mix-report.test.ts` 5→8）。核心不变量：**模型只许给编号、网址一律由服务端映射**（`mapQuizSources` 的 URL 只取自 `refs` 表——弱模型幻觉 URL 是常态，「来源指向不存在的网页」比「没有来源」更糟，用户点了 404 就不再相信任何标注）；**编号必须是整数且落在 `1..refs.length`**，越界/非数字/空表一律不填 `source`、多编号取第一个合法；**`refs` 字段无条件剥除**（不是 `QuizQuestion` 成员，留着会顺落库污染题库）；**检索结果按 url 去重**（编号必须一对一映射）。★ 同批修的测试可见行为：`quiz.ts` 联网判据 `online && report` → **`online`**（原写法使上一批声明的「PK 出题已接联网」从未生效——PK 传 `online=true` 但不传 report）。★ 本批踩坑（已沉淀）：**给已有契约加必填字段会打穿测试工厂**——`QuizSearchReport` 加 `refs` 后既有 `mix-report.test.ts` 的手写字面量缺键 → `tsc` TS2345；修法改走工厂函数（只写用例关心的字段），不是补一行字面量。★ 本批**未加测试文件**，故 gates 第 4 条登记闸门无新文件可拦，但改例数同样必须回写本表（否则基线静默落后，v0.2.8 教训） |

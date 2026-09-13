@@ -214,10 +214,10 @@ export function ChatView({
         {tasks.length > 0 && <TaskPanel items={tasks} streaming={busy} />}
         {/* 当前轮的工具步骤：流式中挂在这里（回答还没落成消息），done 时归并进上面对应的消息里 */}
         <ToolSteps steps={steps} />
-        {/* 回复中等待态（v13）：三点弹跳 + 轮播短语 + 已用时。
+        {/* 回复中等待态（v13）：三点弹跳 + 阶段感知状态行（有工具跑报真实动作）+ 已用时。
             覆盖发起后到首 token 落屏前的空窗（含纯工具执行期），以及池中 AI
             （stream_mode='once'）的整个生成期——它没有逐字流，等待态就是回答中的本体 */}
-        {busy && !streamingText && <Thinking />}
+        {busy && !streamingText && <Thinking steps={steps} reasoningLen={reasoning.length} />}
         {streamingText && (
           <div className="chat-row">
             <div className="chat-bubble md streaming">

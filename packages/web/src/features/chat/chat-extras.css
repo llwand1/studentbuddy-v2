@@ -426,3 +426,32 @@
   background: var(--sb-primary);
   color: #fff;
 }
+
+/* ===== 收口后过程摘要行（v13）：折成一行，点开才展开全过程 ===== */
+.proc-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  padding: 3px 8px;
+  font-size: 12px;
+  color: var(--sb-ink-secondary);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.proc-summary:hover {
+  background: var(--sb-primary-weak);
+  color: var(--sb-primary);
+}
+.proc-summary-chevron {
+  transition: transform 0.15s ease;
+}
+.proc-summary-chevron.open {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .proc-summary-chevron {
+    transition: none;
+  }
+}

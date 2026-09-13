@@ -18,7 +18,9 @@ import { ThoughtPanel } from './ThoughtPanel';
 import { TaskPanel } from './TaskPanel';
 import { ToolSteps } from './ToolSteps';
 import { MessageFoot } from './MessageFoot';
+import { processSummary } from './process-summary';
 import { Markdown } from './Markdown';
+import { ChevronDownIcon } from '../../components/icons';
 import { QuizCard } from '../quiz/QuizCard';
 import { api } from '../../lib/api';
 
@@ -44,6 +46,8 @@ export function MessageRow({
   /** 就地编辑态：点「编辑」后原气泡换成 textarea；保存把新文案交回 ChatView 走 resend */
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  /** 过程折叠态：收口后默认一行摘要（hook 必须在早退之前调用） */
+  const [procExpanded, setProcExpanded] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
 
   if (m.quizBlock) {
@@ -72,8 +76,12 @@ export function MessageRow({
   const hasSteps = (m.steps?.length ?? 0) > 0;
   const hasTasks = (m.tasks?.length ?? 0) > 0;
   const hasReasoning = !!m.reasoning;
+  const hasProc = hasSteps || hasTasks || hasReasoning;
   // 无正文又无过程的 assistant 空行不渲染（工具轮的中间行会落到这里）
-  if (!m.content && !hasSteps && !hasTasks && !hasReasoning) return null;
+  if (!m.content && !hasProc) return null;
+  /** 收口后的过程折叠：有正文的回答把过程折成一行摘要（主流口径），点开才展开。
+      空正文的过程行（纯工具轮/被停止的半轮）没有正文可读，过程就是全部内容，不折。 */
+  const collapsible = hasProc && !!m.content;
 
   return (
     <div className={m.role === 'user' ? 'chat-row user' : 'chat-row'}>
@@ -134,12 +142,28 @@ export function MessageRow({
         )
       ) : (
         <>
-          {/* 过程区一律排在回答之前，顺序与流式期一致（思考 → 任务 → 工具 → 正文）：
-              收口瞬间过程从「页面级」挪进「消息内」，位置不变，不会跳到正文下面；
-              重开会话时 history-fold 从库内重建同一份过程，渲染完全一致 → 刷新前后不跳版。 */}
-          {hasReasoning && <ThoughtPanel text={m.reasoning ?? ''} streaming={false} />}
-          {hasTasks && <TaskPanel items={m.tasks ?? []} streaming={false} />}
-          {hasSteps && <ToolSteps steps={m.steps ?? []} />}
+          {/* 过程区排在回答之前，顺序与流式期一致（思考 → 任务 → 工具 → 正文）：
+              收口瞬间过程从「页面级」挪进「消息内」。有正文的回答默认折成一行摘要
+              （process-summary），点开才展开——长对话里过程不再喧宾夺主；
+              空正文的过程行照常全量铺开（纯工具轮/被停止的半轮，过程就是全部内容）。 */}
+          {hasProc && (!collapsible || procExpanded) && (
+            <>
+              {hasReasoning && <ThoughtPanel text={m.reasoning ?? ''} streaming={false} />}
+              {hasTasks && <TaskPanel items={m.tasks ?? []} streaming={false} />}
+              {hasSteps && <ToolSteps steps={m.steps ?? []} />}
+            </>
+          )}
+          {collapsible && (
+            <button
+              type="button"
+              className="proc-summary"
+              aria-expanded={procExpanded}
+              onClick={() => setProcExpanded((v) => !v)}
+            >
+              <ChevronDownIcon size={13} className={`proc-summary-chevron${procExpanded ? ' open' : ''}`} />
+              <span>{procExpanded ? '收起过程' : processSummary({ reasoning: m.reasoning, tasks: m.tasks, steps: m.steps })}</span>
+            </button>
+          )}
           {m.content && (
             <div className="chat-bubble md">
               <Markdown text={m.content} />

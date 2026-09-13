@@ -35,7 +35,7 @@ export interface ToolCall {
 }
 
 /** 学习角色（演进①）：各环节独立绑定 provider+模型，未配置落默认 */
-export type ModelRole = 'explain' | 'quiz-generator' | 'solver' | 'analyzer' | 'summarizer';
+export type ModelRole = 'explain' | 'quiz-generator' | 'solver' | 'analyzer' | 'summarizer' | 'judge';
 
 export interface RoleBinding {
   role: ModelRole;

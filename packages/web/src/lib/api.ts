@@ -12,12 +12,19 @@ import type {
   QuizNoteSummary,
   PkIdentity,
   PkRoomState,
+  PkJudgeAdvice,
+  PkQuestion,
 } from '@sb/shared';
 
 export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /**
+     * 服务端响应体原文。**P0-7 起必需**：跑题时裁判给的建议走 `extra` 随错误一起回，
+     * 前端要把它显示出来——只留 message 的话，等于让玩家看到一句「跑题了」却不知道该往哪改。
+     */
+    public body?: unknown,
   ) {
     super(message);
   }
@@ -30,7 +37,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string };
-    throw new ApiError(res.status, body.error ?? `HTTP ${res.status}`);
+    throw new ApiError(res.status, body.error ?? `HTTP ${res.status}`, body);
   }
   return (await res.json()) as T;
 }
@@ -50,11 +57,14 @@ export const api = {
       }),
     /** 启动时校验本地登录态；404（账号不存在）由调用方按需清除 */
     me: (userId: string) => request<PkIdentity>(`/api/pk/auth/me?userId=${encodeURIComponent(userId)}`),
-    /** 建房：已在某 waiting 房则服务端幂等返回原房；mode='pve' 为 AI 对战（第二座位自动归 AI） */
-    createRoom: (userId: string, mode: 'pvp' | 'pve' = 'pvp', aiTopic?: string) =>
+    /**
+     * 建房：已在某 waiting 房则服务端幂等返回原房；mode='pve' 为 AI 对战（第二座位自动归 AI）。
+     * P0-7：`topic` = 建房人选定的**对战主题**（入房的人走 `setTopic` 端点补选自己的）。
+     */
+    createRoom: (userId: string, mode: 'pvp' | 'pve' = 'pvp', aiTopic?: string, topic?: string) =>
       request<{ roomId: string; roomCode: string; state: PkRoomState }>('/api/pk/rooms', {
         method: 'POST',
-        body: JSON.stringify({ userId, mode, ...(aiTopic ? { aiTopic } : {}) }),
+        body: JSON.stringify({ userId, mode, ...(aiTopic ? { aiTopic } : {}), ...(topic ? { topic } : {}) }),
       }),
     /** 按房号入房：404 房不存在 / 409 房满或已开局 */
     joinRoom: (roomCode: string, userId: string) =>
@@ -82,6 +92,24 @@ export const api = {
       request<{ correct: boolean; delta: number; score: number }>(
         `/api/pk/rooms/${encodeURIComponent(roomId)}/answer`,
         { method: 'POST', body: JSON.stringify({ userId, questionId, choice }) },
+      ),
+    /** 选定本人对战主题（仅开局前可改）：400 主题为空 / 409 已开局 */
+    setTopic: (roomId: string, userId: string, topic: string) =>
+      request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/topic`, {
+        method: 'POST',
+        body: JSON.stringify({ userId, topic }),
+      }),
+    /** 求助道具（每局 1 个）：裁判当场联网搜索，给建议 + 知识输出（**不给答案**）；409 = 已用完 */
+    useHelp: (roomId: string, userId: string, questionId: string) =>
+      request<{ advice: PkJudgeAdvice; state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/help`, {
+        method: 'POST',
+        body: JSON.stringify({ userId, questionId }),
+      }),
+    /** 错题二次机会（3 分钟 CD）：给现场解析 + 同主题类似题；429 = CD 中，502 = 裁判不可用 */
+    requestRetry: (roomId: string, userId: string, questionId: string) =>
+      request<{ explanation: string; question: PkQuestion | null; state: PkRoomState }>(
+        `/api/pk/rooms/${encodeURIComponent(roomId)}/retry`,
+        { method: 'POST', body: JSON.stringify({ userId, questionId }) },
       ),
   },
 

@@ -16,6 +16,8 @@ export const MODEL_ROLES: Array<{ role: ModelRole; label: string }> = [
   { role: 'solver', label: '题解' },
   { role: 'analyzer', label: '薄弱点分析' },
   { role: 'summarizer', label: '总结' },
+  // P0-7 新增：PK 裁判（出理解题/判贴合度/给建议）。数组驱动 ⇒ 默认绑定 INSERT 与设置页渲染都自动带上，无需迁移
+  { role: 'judge', label: '裁判（PK 判题）' },
 ];
 
 const adapters: Record<'openai' | 'anthropic', LLMAdapter> = {

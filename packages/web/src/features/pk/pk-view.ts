@@ -59,3 +59,37 @@ export function optionLetter(i: number): string {
 export function verdictText(correct: boolean, delta: number): string {
   return correct ? `答对 ${delta >= 0 ? '+' : ''}${delta}` : `答错 ${delta}`;
 }
+
+// ── P0-7：主题轮转 / 道具 / 二次机会 ─────────────────────────
+
+/**
+ * 当前轮次主题的归属文案（「你的主题」/「XX 的主题」）；还没开局返回空串。
+ * ★ 主题不区分「该谁出题」——**谁出题都要贴合它**，这里只是告诉玩家这轮考谁选的领域。
+ */
+export function topicOwnerLabel(state: PkRoomState, userId: string): string {
+  const owner = state.players.find((p) => p.userId === state.topicOwnerId);
+  if (!owner) return '';
+  return owner.userId === userId ? '你的主题' : `${owner.nickname} 的主题`;
+}
+
+/** 我的剩余求助道具数；不在房内返 0（不该发生，但不给默认值造假） */
+export function myHelpLeft(state: PkRoomState, userId: string): number {
+  return state.players.find((p) => p.userId === userId)?.helpLeft ?? 0;
+}
+
+/** 二次机会剩余冷却毫秒；从未用过 = 0（立即可用） */
+export function retryRemainingMs(state: PkRoomState, userId: string, now: number): number {
+  return Math.max(0, (state.retryNextAt[userId] ?? 0) - now);
+}
+
+/**
+ * 可用于二次机会的错题：**我答的**且**没答对**的题。
+ * 判据＝题已判定（非 pending）＋ 收题人是我 ＋ 所选 ≠ 正确答案；
+ * 超时未答时 `chosen` 是 undefined，同样算「没答对」。
+ */
+export function myWrongQuestions(state: PkRoomState, userId: string): PkQuestion[] {
+  return state.questions.filter((q) => {
+    if (q.toUserId !== userId || q.status === 'pending') return false;
+    return q.chosen === undefined || q.chosen !== q.answerRevealed;
+  });
+}

@@ -39,7 +39,7 @@ const { app } = await import('../index.js');
 const { closeDb } = await import('../storage/db.js');
 const { resetRooms, requireRoomInternal } = await import('../pk/room.js');
 const { resetMatchState, submitQuiz, tickMatches } = await import('../pk/match.js');
-const { PK_QUIZ_MIX } = await import('../pk/match.js');
+const { PK_QUIZ_MIX } = await import('@sb/shared');
 const { generateQuiz } = await import('../learning/quiz.js');
 const { routeRole } = await import('../llm/router.js');
 const { snapshot } = await import('../chat/sse-bus.js');
@@ -88,7 +88,8 @@ async function login(nickname: string): Promise<{ userId: string; nickname: stri
 /** 建 PVE 房（可选主题方向）并直接开局（AI 座位已占，无需等人） */
 async function makePveRoom(aiTopic?: string) {
   const alice = await login('甲');
-  const body: Record<string, unknown> = { userId: alice.userId, mode: 'pve' };
+  // P0-7：人的主题建房时定；AI 座位开局时自动兜底（PK_DEFAULT_AI_TOPIC），不需要人替它填
+  const body: Record<string, unknown> = { userId: alice.userId, mode: 'pve', topic: '历史' };
   if (aiTopic) body.aiTopic = aiTopic;
   const created = await post('/api/pk/rooms').send(body);
   expect(created.status).toBe(201);
@@ -142,12 +143,15 @@ describe('AI 出题（ticker 到点触发，与人同口径）', () => {
     if (!q) throw new Error('AI 未出题');
     expect(q.fromUserId).toBe(aiId);
     expect(q.toUserId).toBe(alice.userId);
-    expect(q.prompt).toBe('主题：世界历史');
+    // P0-7：AI 同样遵守主题轮转——开局首轮是房主（甲）的主题「历史」，AI 出题也贴合它，不搞双重标准。
+    // （建房填的 aiTopic 是 AI **自己**的主题，要等轮次切到 AI 那轮才会用到。）
+    expect(q.prompt).toBe('主题：历史');
     expect(q.status).toBe('pending');
     expect(scoreOf(roomId, aiId)).toBe(1); // 出题 +1，与人一致
     // 末三参：report / styleArg 不传（AI 出题不需要出题报告与回答偏好），online=true
     // ——2026-09-13 老板拍板「PK 出题也接联网」，AI 与人同口径，两条路径都传 true
-    expect(vi.mocked(generateQuiz)).toHaveBeenCalledWith('世界历史', undefined, PK_QUIZ_MIX, undefined, undefined, true);
+    // P0-7：首轮出题用「当前轮次主题」＝房主（甲）的主题，AI 与人同规则
+    expect(vi.mocked(generateQuiz)).toHaveBeenCalledWith('历史', undefined, PK_QUIZ_MIX, undefined, undefined, true);
     expect(room.aiBusy).toBe(false); // 在途结束
     const now = Date.now();
     expect(room.aiNextQuizAt).toBeLessThanOrEqual(now + 60_000);

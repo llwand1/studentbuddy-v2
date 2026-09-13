@@ -8,8 +8,9 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { pkChannel, type PkIdentity, type PkMode, type PkRoomError, type PkRoomState } from '@sb/shared';
 import { getIdentity, loginOrRegister } from '../pk/auth.js';
-import { createRoom, getRoomState, joinRoom, startRoom } from '../pk/room.js';
+import { createRoom, getRoomState, joinRoom, setTopic, startRoom } from '../pk/room.js';
 import { ensureTicker, submitAnswer, submitQuiz } from '../pk/match.js';
+import { requestRetry, useHelp } from '../pk/power.js';
 import { publish, subscribe } from '../chat/sse-bus.js';
 
 export const pkRouter = Router();
@@ -31,6 +32,14 @@ const ERROR_STATUS: Record<PkRoomError, number> = {
   CHOICE_INVALID: 400,
   AI_GENERATION_FAILED: 502,
   ROOM_CODE_EXHAUSTED: 500,
+  TOPIC_INVALID: 400,
+  TOPIC_NOT_SET: 409,
+  TOPIC_MISMATCH: 422,
+  HELP_EXHAUSTED: 409,
+  RETRY_ON_COOLDOWN: 429,
+  RETRY_NO_TARGET: 404,
+  RETRY_NOT_YOURS: 403,
+  JUDGE_UNAVAILABLE: 502,
 };
 
 /** 域错误码 → 人话文案（ADR-5：失败必须可读、可重试，不裸抛码） */
@@ -50,6 +59,14 @@ const ERROR_TEXT: Record<PkRoomError, string> = {
   CHOICE_INVALID: '选项不合法',
   AI_GENERATION_FAILED: 'AI 出题失败，可免费重试（不计冷却不扣分）',
   ROOM_CODE_EXHAUSTED: '房号分配失败，请重试',
+  TOPIC_INVALID: '主题不能为空（上限 20 字）',
+  TOPIC_NOT_SET: '还有人没选定主题，选好才能开局',
+  TOPIC_MISMATCH: '这道题跑题了，不符合当前轮次主题',
+  HELP_EXHAUSTED: '求助道具已经用掉了（每局只有 1 个）',
+  RETRY_ON_COOLDOWN: '二次机会冷却中（3 分钟一次）',
+  RETRY_NO_TARGET: '还没有答错的题，暂时用不了二次机会',
+  RETRY_NOT_YOURS: '那道错题不是你答的',
+  JUDGE_UNAVAILABLE: '裁判 AI 这会儿不可用（去设置页给「裁判」角色绑个模型）',
 };
 
 /** 域层错误 → HTTP 响应；非域错误一律 500（不把内部异常当业务错误外泄） */
@@ -59,7 +76,10 @@ function fail(res: Response, e: unknown): void {
     res.status(500).json({ error: '服务器内部错误' });
     return;
   }
-  res.status(ERROR_STATUS[code]).json({ error: ERROR_TEXT[code], code });
+  // extra：域层随错误回传的附加数据（典型是跑题时裁判给的建议）。
+  // ★ 只有域层显式带了才回——普通错误多带一个空字段，只会让前端契约变模糊。
+  const extra = (e as { extra?: unknown }).extra;
+  res.status(ERROR_STATUS[code]).json({ error: ERROR_TEXT[code], code, ...(extra ? { extra } : {}) });
 }
 
 /**
@@ -120,8 +140,9 @@ pkRouter.post('/rooms', (req: Request, res: Response) => {
   if (!identity) return;
   const mode: PkMode = req.body?.mode === 'pve' ? 'pve' : 'pvp';
   const aiTopic = typeof req.body?.aiTopic === 'string' ? req.body.aiTopic : undefined;
+  const topic = typeof req.body?.topic === 'string' ? req.body.topic : undefined;
   try {
-    const state = createRoom(identity, mode, aiTopic);
+    const state = createRoom(identity, mode, aiTopic, topic);
     broadcast(state);
     res.status(201).json({ roomId: state.roomId, roomCode: state.roomCode, state });
   } catch (e) {
@@ -189,6 +210,57 @@ pkRouter.post('/rooms/:id/answer', (req: Request, res: Response) => {
   } catch (e) {
     fail(res, e);
   }
+});
+
+/**
+ * P0-7：选定本人对战主题（仅 waiting 期可改，开局后改主题＝中途改规则）：
+ * `{ userId, topic }` → `{ state }`。主题不参与胜负，只决定「轮到这一轮该出什么题」。
+ */
+pkRouter.post('/rooms/:id/topic', (req: Request, res: Response) => {
+  const identity = requireIdentity(req.body?.userId, res);
+  if (!identity) return;
+  try {
+    const state = setTopic(String(req.params.id ?? ''), identity, req.body?.topic);
+    broadcast(state);
+    res.json({ state });
+  } catch (e) {
+    fail(res, e);
+  }
+});
+
+/**
+ * P0-7：求助道具（每局每人 1 个，用完即止）：`{ userId, questionId }` → `{ advice, state }`。
+ * 裁判**当场联网搜索**后给建议与知识输出；**不给答案**（那条硬规矩写在 judge 的提示词里）。
+ */
+pkRouter.post('/rooms/:id/help', (req: Request, res: Response) => {
+  const identity = requireIdentity(req.body?.userId, res);
+  if (!identity) return;
+  void (async () => {
+    try {
+      const r = await useHelp(String(req.params.id ?? ''), identity.userId, req.body?.questionId);
+      res.json(r);
+    } catch (e) {
+      fail(res, e);
+    }
+  })();
+});
+
+/**
+ * P0-7：错题二次机会（3 分钟 CD）：`{ userId, questionId }` → `{ explanation, question, state }`。
+ * 选一道自己答错（或超时）的题 → 裁判给现场解析 + 按同一主题出一道类似题；
+ * 类似题答对 +2（走既有 `/answer`，原错题的 −1 不撤销）。出题失败时 `question` 为 null 但解析照给。
+ */
+pkRouter.post('/rooms/:id/retry', (req: Request, res: Response) => {
+  const identity = requireIdentity(req.body?.userId, res);
+  if (!identity) return;
+  void (async () => {
+    try {
+      const r = await requestRetry(String(req.params.id ?? ''), identity.userId, req.body?.questionId);
+      res.json(r);
+    } catch (e) {
+      fail(res, e);
+    }
+  })();
 });
 
 /** 房间快照（断线重连对齐用）：不存在/已回收 → 404。 */

@@ -8,6 +8,8 @@
  * 单一事实源：常量 / 类型 / 频道键一律在此定义，server 与 web 只引用不复制。
  */
 
+import type { QuizMix } from './content-blocks.js';
+
 // ── 登录（P0-1）────────────────────────────────────────────
 
 /** 登录身份（POST /api/pk/auth/login 响应 / GET /api/pk/auth/me 响应主体） */
@@ -46,6 +48,37 @@ export const AI_FIRST_QUIZ_DELAY_MS = 5_000;
 export const AI_RETRY_DELAY_MS = 10_000;
 /** 出题提示词上限（契约 §2.1，服务端截断前的硬校验） */
 export const PK_PROMPT_MAX = 300;
+
+/**
+ * PK 出题固定「一道单选」——系统约束层直接用配比表达，不另写提示词分支。
+ * ★ P0-7 下沉到 shared 的原因：裁判 AI（pk/judge.ts）出「二次机会的类似题」也要用同一配比，
+ *   而 judge 被 match 依赖，若配比留在 match 里就会形成 judge ↔ match 循环依赖。
+ *   配比只有一个事实源，人出题与裁判出题才不会有一天跑偏成两种题量。
+ */
+export const PK_QUIZ_MIX: QuizMix = { single: 1, multiple: 0, fill: 0, essay: 0 };
+
+// ── 主题轮转 / 道具 / 二次机会（P0-7，2026-09-13 老板点单）────────────
+
+/** 主题字数上限：太长则判不出贴合度，也显示不下（服务端截断前硬校验） */
+export const TOPIC_MAX = 20;
+/** PVE 建房未指定方向时，AI 座位的兜底主题（AI 不会自己去填表单，不该拿这个卡住房主开局） */
+export const PK_DEFAULT_AI_TOPIC = '通用知识';
+/**
+ * 裁判 AI 出题时的 `fromUserId`（二次机会的类似题由裁判出，不是任何一方出的）。
+ * 固定值而非真账号——裁判不是玩家，不参与计分、不占座位，前端据此显示「裁判出题」。
+ */
+export const JUDGE_USER_ID = 'judge';
+/**
+ * 出题连续失败到几次扣 1 分。**累计满 3 次扣 1 分，扣完计数清零**——
+ * 用累计而非「连续」是因为：中间成功一次就清零会让「反复试探边界」零成本。
+ */
+export const QUIZ_FAIL_STRIKE = 3;
+/** 二次机会冷却：3 分钟（老板原话「有 3 分钟 cd」），防止刷错题补救分 */
+export const RETRY_CD_MS = 3 * 60_000;
+/** 每局每人的「求助 AI」道具数（用完即止，不随对局时间恢复） */
+export const HELP_PER_MATCH = 1;
+/** 二次机会的类似题答对得分：与答对对手题同档（+2），原错题的 −1 **不撤销**（老板拍板） */
+export const RETRY_CORRECT_DELTA = 2;
 
 // ── 对战模式（PVE，2026-09-12 老板拍板三口子：一体做计分+PVE／AI 与人同口径答题／人机对称出题）──
 
@@ -87,6 +120,15 @@ export interface PkPlayer {
   answered: number;
   /** 上一次成功出题时刻（ms）；P0-2 起用于出题 CD 判定 */
   lastQuizAt: number;
+  /** 本人选定的对战主题（≤ `TOPIC_MAX` 字）；未选为空串。PVE 的 AI 座位由建房主题填充 */
+  topic: string;
+  /** 剩余「求助 AI」道具数（`HELP_PER_MATCH` 起，用完为 0） */
+  helpLeft: number;
+  /**
+   * 出题失败累计次数（主题不符 / AI 生成失败都算）。
+   * 每满 `QUIZ_FAIL_STRIKE` 扣 1 分并清零；成功出题时**也清零**（成功即证明已回到正轨）。
+   */
+  failStreak: number;
 }
 
 /**
@@ -115,6 +157,12 @@ export interface PkQuestion {
    * pending 阶段快照里连键都没有，不是「值为 null」——不给手滑留口子）。
    */
   answerRevealed?: number;
+  /** P0-7：本题所属主题（即出这道题时的「当前轮次主题」） */
+  topic?: string;
+  /** P0-7：二次机会来源题 id——仅由「二次机会」生成的类似题带此字段 */
+  retryOf?: string;
+  /** P0-7：是否为二次机会的类似题（前端据此标注「补救题」，答对 +2） */
+  isRetry?: boolean;
 }
 
 /** 对局快照（GET /api/pk/rooms/:id/state 响应 / SSE `pk-state` 载荷） */
@@ -135,8 +183,30 @@ export interface PkRoomState {
   endsAt: number;
   /** 答题方视角的题目列表 */
   questions: PkQuestion[];
+  /** P0-7：当前轮次主题——**谁出题都必须贴合它**，每成功出一道题就切到另一方的主题 */
+  currentTopic: string;
+  /** P0-7：当前轮次主题归属的玩家 userId（决定下一次切给谁） */
+  topicOwnerId: string;
+  /** P0-7：已成功出题计数（轮次游标；偶数轮 = players[0] 的主题，奇数轮 = players[1] 的） */
+  topicTurn: number;
+  /** P0-7：各玩家二次机会解锁时刻（ms）；未用过则无此键 */
+  retryNextAt: Record<string, number>;
   /** finished 时的胜者 userId；平局则无此字段 */
   winner?: string;
+}
+
+/**
+ * P0-7：裁判 AI 的一次输出（失败建议 / 道具求助共用形状）。
+ * ★ `advice` 与 `knowledge` 分开给——前者是「怎么出」的选型建议，后者是「相关知识」补全，
+ *   混成一段会让玩家读完不知道下一步该干嘛。
+ */
+export interface PkJudgeAdvice {
+  /** 贴合主题的出题选型建议（3 条以内，每条可直接抄去当提示词） */
+  advice: string[];
+  /** 该主题的相关知识要点（联网检索后整理；无检索结果时退回模型知识） */
+  knowledge: string;
+  /** 参考来源（联网命中才有）；前端渲染成链接清单，与题库来源同一套口径 */
+  refs: { n: number; title: string; url: string; provider: string }[];
 }
 
 // ── 域错误码（域层 throw，路由层映射 HTTP 状态）────────────
@@ -176,5 +246,22 @@ export type PkRoomError =
   /** AI 出题失败（模型不可用 / 输出不合法）→ 502，不计 CD 不扣分 */
   | 'AI_GENERATION_FAILED'
   /** 房号生成连续碰撞（理论不可达，兜底不静默）→ 500 */
-  | 'ROOM_CODE_EXHAUSTED';
+  | 'ROOM_CODE_EXHAUSTED'
+  // ── P0-7：主题轮转 / 道具 / 二次机会 ──
+  /** 主题非法（空 / 超 `TOPIC_MAX`）→ 400 */
+  | 'TOPIC_INVALID'
+  /** 还没选定主题就想开局或出题 → 409 */
+  | 'TOPIC_NOT_SET'
+  /** 出的题不贴合当前轮次主题 → 422，不占 CD 可重试，失败计数 +1 */
+  | 'TOPIC_MISMATCH'
+  /** 道具已用完（每局 `HELP_PER_MATCH` 个）→ 409 */
+  | 'HELP_EXHAUSTED'
+  /** 二次机会冷却中（距上次 `RETRY_CD_MS`）→ 429 */
+  | 'RETRY_ON_COOLDOWN'
+  /** 没有可用于二次机会的错题（没有答错过的题）→ 404 */
+  | 'RETRY_NO_TARGET'
+  /** 那道错题不是你答的 → 403 */
+  | 'RETRY_NOT_YOURS'
+  /** 裁判 AI 不可用（judge 角色没绑模型 / 调用失败）→ 502，不阻断对局 */
+  | 'JUDGE_UNAVAILABLE';
 

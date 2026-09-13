@@ -5,6 +5,7 @@
  * 客户端不发明状态。active 委派给 PkMatch（出题/答题双动作区）；
  * finished 回看题目——`chosen`/`answerRevealed` 只在判定后由服务端下发。
  */
+import { useState } from 'react';
 import { isAiUserId } from '@sb/shared';
 import type { PkRoomState } from '@sb/shared';
 import type { SseReadyState } from '../../lib/sse-client';
@@ -15,7 +16,10 @@ interface Props {
   state: PkRoomState;
   userId: string;
   link: SseReadyState;
+  busy: boolean;
   onStart: () => void;
+  /** P0-7：选定本人的对战主题（仅 waiting 期可改——开局后改主题＝中途改规则） */
+  onSetTopic: (topic: string) => void;
   onLeave: () => void;
 }
 
@@ -26,9 +30,13 @@ const LINK_TEXT: Record<SseReadyState, string> = {
   closed: '轮询同步',
 };
 
-export function PkRoom({ state, userId, link, onStart, onLeave }: Props) {
+export function PkRoom({ state, userId, link, busy, onStart, onSetTopic, onLeave }: Props) {
   const owner = state.players[0]?.userId === userId;
   const full = state.players.length >= 2;
+  /** P0-7：我自己还没定主题（AI 座位不需要人填，故除外） */
+  const me = state.players.find((p) => p.userId === userId);
+  const needTopic = state.status === 'waiting' && !isAiUserId(userId) && !me?.topic.trim();
+  const [topicDraft, setTopicDraft] = useState('');
 
   return (
     <>
@@ -63,9 +71,33 @@ export function PkRoom({ state, userId, link, onStart, onLeave }: Props) {
                 {p.nickname}
                 {isAiUserId(p.userId) && <span className="sb-pk-ai-tag">AI</span>}
               </span>
+              <span className={p.topic ? 'sb-pk-sub' : 'sb-pk-sub dim'}>
+                {p.topic ? `主题：${p.topic}` : '未选主题'}
+              </span>
             </div>
           ))}
           {!full && <div className="sb-pk-player pending">等待对手进房…</div>}
+          {needTopic && (
+            <form
+              className="sb-pk-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!topicDraft.trim()) return;
+                onSetTopic(topicDraft.trim());
+              }}
+            >
+              <input
+                className="sb-pk-input"
+                placeholder="你的对战主题（如：光合作用）"
+                maxLength={20}
+                value={topicDraft}
+                onChange={(e) => setTopicDraft(e.target.value)}
+              />
+              <button type="submit" className="sb-pk-btn primary" disabled={busy || !topicDraft.trim()}>
+                选定主题
+              </button>
+            </form>
+          )}
           {owner ? (
             <button type="button" className="sb-pk-btn primary" disabled={!full} onClick={onStart}>
               {full ? '开局（8 分钟）' : '还要等对手进房'}

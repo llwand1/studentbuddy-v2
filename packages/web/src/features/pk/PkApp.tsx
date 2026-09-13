@@ -105,12 +105,12 @@ export function PkApp() {
   }, []);
 
   const createRoom = useCallback(
-    async (mode: 'pvp' | 'pve', aiTopic?: string) => {
+    async (mode: 'pvp' | 'pve', aiTopic?: string, topic?: string) => {
       if (!identity) return;
       setBusy(true);
       setError('');
       try {
-        const r = await api.pk.createRoom(identity.userId, mode, aiTopic);
+        const r = await api.pk.createRoom(identity.userId, mode, aiTopic, topic);
         setRoom(r.state);
       } catch (e) {
         setError(e instanceof Error ? e.message : '建房失败，请重试');
@@ -152,6 +152,24 @@ export function PkApp() {
     }
   }, [identity, room]);
 
+  /** P0-7：选定/修改本人的对战主题（仅 waiting 期可改——开局后改主题等于中途改规则） */
+  const pickTopic = useCallback(
+    async (topic: string) => {
+      if (!identity || !room) return;
+      setBusy(true);
+      setError('');
+      try {
+        const r = await api.pk.setTopic(room.roomId, identity.userId, topic);
+        setRoom(r.state);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '选主题失败，请重试');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [identity, room],
+  );
+
   const backToLobby = useCallback(() => {
     // 只回视图不删房：waiting 房由服务端 TTL 回收；再点「建房」幂等返回原房
     setRoom(null);
@@ -169,7 +187,15 @@ export function PkApp() {
       {identity === undefined ? (
         <div className="sb-pk-boot">正在恢复登录态…</div>
       ) : room && identity ? (
-        <PkRoom state={room} userId={identity.userId} link={link} onStart={startRoom} onLeave={backToLobby} />
+        <PkRoom
+          state={room}
+          userId={identity.userId}
+          link={link}
+          busy={busy}
+          onStart={startRoom}
+          onSetTopic={pickTopic}
+          onLeave={backToLobby}
+        />
       ) : (
         <PkLobby identity={identity} error={error} busy={busy} onLogin={login} onCreate={createRoom} onJoin={joinRoom} />
       )}

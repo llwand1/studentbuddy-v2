@@ -74,10 +74,12 @@ async function login(nickname: string): Promise<{ userId: string; nickname: stri
 async function makeActiveRoom() {
   const alice = await login('甲');
   const bob = await login('乙');
-  const created = await post('/api/pk/rooms').send({ userId: alice.userId });
+  // P0-7：建房时带甲方主题；乙方入房后补选自己的（开局前双方都必须有主题，否则 409 TOPIC_NOT_SET）
+  const created = await post('/api/pk/rooms').send({ userId: alice.userId, topic: '历史' });
   expect(created.status).toBe(201);
   const { roomId, roomCode } = created.body as { roomId: string; roomCode: string };
   expect((await post('/api/pk/rooms/join').send({ roomCode, userId: bob.userId })).status).toBe(200);
+  expect((await post(`/api/pk/rooms/${roomId}/topic`).send({ userId: bob.userId, topic: '地理' })).status).toBe(200);
   const started = await post(`/api/pk/rooms/${roomId}/start`).send({ userId: alice.userId });
   expect(started.status).toBe(200);
   const state = (started.body as { state: PkRoomState }).state;

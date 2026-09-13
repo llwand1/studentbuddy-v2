@@ -11,11 +11,11 @@
  *    `submitAnswer` 判分（+2/−1/超时 −1 全同人）。模型没配/太慢/解析不出 →
  *    不乱猜，交给 ticker 按超时判罚——AI 没有特权。
  */
-import { isAiUserId } from '@sb/shared';
+import { PK_QUIZ_MIX, isAiUserId } from '@sb/shared';
 import type { QuizPayload } from '@sb/shared';
 import { generateQuiz } from '../learning/quiz.js';
 import { routeRole } from '../llm/router.js';
-import { PK_QUIZ_MIX, pushGeneratedQuestion, scheduleNextAiQuiz, submitAnswer } from './match.js';
+import { pushGeneratedQuestion, scheduleNextAiQuiz, submitAnswer } from './match.js';
 import { requireRoomInternal, type PkRoomQuestion, type Room } from './room.js';
 
 /** AI 自选主题池（建房未指定「主题方向」时轮换；覆盖通用知识面） */
@@ -51,7 +51,9 @@ export async function runAiQuiz(roomId: string): Promise<void> {
     scheduleNextAiQuiz(room, false, now);
     return;
   }
-  const topic = room.aiTopic ?? AI_TOPICS[room.aiTopicIdx % AI_TOPICS.length] ?? '通用知识';
+  // P0-7：AI 出题也按「当前轮次主题」——人出题要贴合它，AI 不贴合就成了双重标准。
+  // 轮转由 match 侧统一推进（AI 出题成功同样走 advanceTopic），此处只读不写。
+  const topic = room.currentTopic || room.aiTopic || AI_TOPICS[room.aiTopicIdx % AI_TOPICS.length] || '通用知识';
   room.aiTopicIdx += 1;
 
   let payload: QuizPayload | null = null;
@@ -65,7 +67,7 @@ export async function runAiQuiz(roomId: string): Promise<void> {
   // LLM 在途期间对局可能已结束：结算后的房间不再收题
   if (room.status !== 'active') return;
   const generated = payload?.questions.find((x) => x.type === 'single');
-  const ok = pushGeneratedQuestion(room, author.userId, opponent.userId, `主题：${topic}`, generated, Date.now());
+  const ok = pushGeneratedQuestion(room, author.userId, opponent.userId, `主题：${topic}`, generated, Date.now(), topic);
   scheduleNextAiQuiz(room, ok, Date.now());
 }
 

@@ -53,7 +53,8 @@ async function login(nickname: string): Promise<Identity> {
 }
 
 async function createRoom(userId: string): Promise<{ roomId: string; roomCode: string; state: StateLite }> {
-  const res = await post('/api/pk/rooms').send({ userId });
+  // P0-7：建房人顺带定自己的主题（入房的人在 makeFullRoom 里补选）
+  const res = await post('/api/pk/rooms').send({ userId, topic: '历史' });
   expect(res.status).toBe(201);
   return res.body as { roomId: string; roomCode: string; state: StateLite };
 }
@@ -65,6 +66,8 @@ async function makeFullRoom() {
   const room = await createRoom(alice.userId);
   const joined = await post('/api/pk/rooms/join').send({ roomCode: room.roomCode, userId: bob.userId });
   expect(joined.status).toBe(200);
+  // P0-7：乙方入房后补选自己的主题（开局前双方都得有）
+  expect((await post(`/api/pk/rooms/${room.roomId}/topic`).send({ userId: bob.userId, topic: '地理' })).status).toBe(200);
   return { alice, bob, room, joinedState: joined.body.state as StateLite };
 }
 
@@ -246,10 +249,12 @@ describe('频道隔离（契约 §2.2：pk: 前缀 vs 聊天 sessionId）', () =
     const room = await createRoom(alice.userId);
     await post('/api/pk/rooms/join').send({ roomCode: room.roomCode, userId: bob.userId });
     expect(snapshot(pkChannel(room.roomId))).toHaveLength(2);
+    // P0-7：乙方补选主题同样广播一次（开局前双方都得有主题，否则开局 409）
+    await post(`/api/pk/rooms/${room.roomId}/topic`).send({ userId: bob.userId, topic: '地理' });
     await post(`/api/pk/rooms/${room.roomId}/start`).send({ userId: alice.userId });
     const evs = snapshot(pkChannel(room.roomId));
-    expect(evs).toHaveLength(3);
-    expect(evs[2]?.type).toBe('pk-state');
+    expect(evs).toHaveLength(4);
+    expect(evs[3]?.type).toBe('pk-state');
   });
 });
 

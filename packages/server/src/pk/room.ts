@@ -14,11 +14,15 @@ import { randomUUID } from 'node:crypto';
 import {
   AI_FIRST_QUIZ_DELAY_MS,
   AI_USER_PREFIX,
+  HELP_PER_MATCH,
+  PK_DEFAULT_AI_TOPIC,
   PK_FINISHED_KEEP_MS,
   PK_MATCH_MS,
   PK_MAX_PLAYERS,
   PK_ROOM_CODE_LEN,
   PK_ROOM_TTL_MS,
+  TOPIC_MAX,
+  isAiUserId,
   type PkIdentity,
   type PkMode,
   type PkPlayer,
@@ -58,6 +62,14 @@ export interface Room {
   aiBusy: boolean;
   /** PVE：AI 自选主题的轮换游标（随机起点） */
   aiTopicIdx: number;
+  /** P0-7：当前轮次主题——**谁出题都必须贴合它**；每成功出一道题切到另一方的主题 */
+  currentTopic: string;
+  /** P0-7：当前主题归属的 userId（决定下次切给谁） */
+  topicOwnerId: string;
+  /** P0-7：已成功出题数（主题轮转游标） */
+  topicTurn: number;
+  /** P0-7：各玩家二次机会解锁时刻（ms）；未用过无此键 */
+  retryNextAt: Record<string, number>;
   winner?: string;
   /** 最近一次状态变更时刻（ms）：TTL 回收判据 */
   lastActivity: number;
@@ -98,7 +110,8 @@ export function sweepExpired(now = Date.now()): number {
   return removed;
 }
 
-function toPlayer(identity: PkIdentity): PkPlayer {
+/** 建座位。P0-7 起带三件新状态：本人主题（开局前可改）、求助道具余额、出题失败计数 */
+function toPlayer(identity: PkIdentity, topic = ''): PkPlayer {
   return {
     userId: identity.userId,
     nickname: identity.nickname,
@@ -106,6 +119,9 @@ function toPlayer(identity: PkIdentity): PkPlayer {
     correct: 0,
     answered: 0,
     lastQuizAt: 0,
+    topic,
+    helpLeft: HELP_PER_MATCH,
+    failStreak: 0,
   };
 }
 
@@ -136,8 +152,15 @@ export function snapshotRoom(room: Room): PkRoomState {
       };
       if (q.chosen !== undefined) base.chosen = q.chosen;
       if (q.status !== 'pending') base.answerRevealed = q.answer;
+      if (q.topic) base.topic = q.topic;
+      if (q.retryOf) base.retryOf = q.retryOf;
+      if (q.isRetry) base.isRetry = true;
       return base;
     }),
+    currentTopic: room.currentTopic,
+    topicOwnerId: room.topicOwnerId,
+    topicTurn: room.topicTurn,
+    retryNextAt: { ...room.retryNextAt },
   };
   if (room.aiTopic) state.aiTopic = room.aiTopic;
   if (room.winner) state.winner = room.winner;
@@ -189,7 +212,7 @@ function requireRoom(roomIdRaw: unknown): Room {
  * PVE（mode='pve'）：第二个座位建房即由 AI 占据（`ai-<roomId>`），此后人再输码入房会被满员挡下——
  * 人机局天然只有一个人。
  */
-export function createRoom(identity: PkIdentity, mode: PkMode = 'pvp', aiTopic?: string): PkRoomState {
+export function createRoom(identity: PkIdentity, mode: PkMode = 'pvp', aiTopic?: string, topic?: string): PkRoomState {
   const now = Date.now();
   sweepExpired(now);
   const existing = findWaitingRoomOf(identity.userId);
@@ -202,7 +225,8 @@ export function createRoom(identity: PkIdentity, mode: PkMode = 'pvp', aiTopic?:
     code: genCode(),
     status: 'waiting',
     mode,
-    players: [toPlayer(identity)],
+    // 建房时顺带定主题：省掉「建房→再调一次 setTopic」的往返（入房的人走 setTopic 端点补选）
+    players: [toPlayer(identity, topic?.trim().slice(0, TOPIC_MAX) ?? '')],
     endsAt: 0,
     startedAt: 0,
     idleAnchor: {},
@@ -211,18 +235,18 @@ export function createRoom(identity: PkIdentity, mode: PkMode = 'pvp', aiTopic?:
     aiNextQuizAt: 0,
     aiBusy: false,
     aiTopicIdx: Math.floor(Math.random() * 32),
+    currentTopic: '',
+    topicOwnerId: '',
+    topicTurn: 0,
+    retryNextAt: {},
     lastActivity: now,
   };
   if (mode === 'pve') {
     if (aiTopic?.trim()) room.aiTopic = aiTopic.trim().slice(0, 50);
-    room.players.push({
-      userId: `${AI_USER_PREFIX}${room.roomId}`,
-      nickname: 'AI 对手',
-      score: 0,
-      correct: 0,
-      answered: 0,
-      lastQuizAt: 0,
-    });
+    // AI 座位也是一个「玩家」：主题用建房填的方向（空串则由开局的主题缺省逻辑兜底）
+    room.players.push(
+      toPlayer({ userId: `${AI_USER_PREFIX}${room.roomId}`, openid: '', nickname: 'AI 对手' }, room.aiTopic?.slice(0, TOPIC_MAX) ?? ''),
+    );
   }
   rooms.set(room.roomId, room);
   codes.set(room.code, room.roomId);
@@ -253,6 +277,24 @@ export function joinRoom(roomCodeRaw: unknown, identity: PkIdentity): PkRoomStat
 }
 
 /**
+ * P0-7：选定本人对战主题（仅 waiting 期可改——开局后改主题等于中途改规则）。
+ * 主题不参与胜负，只决定「轮到这一轮时你该出什么题」：当前轮次主题在你与对方的两主题之间交替，
+ * **谁出题都必须贴合它**，跑题判失败（判罚与重试见 match.ts）。
+ */
+export function setTopic(roomIdRaw: unknown, identity: PkIdentity, rawTopic: unknown): PkRoomState {
+  const now = Date.now();
+  sweepExpired(now);
+  const room = requireRoom(roomIdRaw);
+  const me = room.players.find((p) => p.userId === identity.userId);
+  if (!me) fail('NOT_A_PLAYER');
+  if (room.status !== 'waiting') fail('ROOM_NOT_WAITING');
+  if (typeof rawTopic !== 'string' || !rawTopic.trim()) fail('TOPIC_INVALID');
+  me.topic = rawTopic.trim().slice(0, TOPIC_MAX);
+  room.lastActivity = now;
+  return snapshotRoom(room);
+}
+
+/**
  * 开局。仅房主可开（`players[0]`），且双方都已进房才置 active、`endsAt = now + 8 分钟`。
  * ★ 「双方在线」在 P0 的实现口径＝**两人已在房内**（不追连接态）：内存模型里没有心跳，
  *   真做在线判定要等 P1 落库 + 连接追踪，届时应替换此处判据而不是加个假标志位。
@@ -265,9 +307,20 @@ export function startRoom(roomIdRaw: unknown, identity: PkIdentity): PkRoomState
   if (room.players[0]?.userId !== identity.userId) fail('NOT_ROOM_OWNER');
   if (room.status !== 'waiting') fail('ROOM_NOT_WAITING');
   if (room.players.length < PK_MAX_PLAYERS) fail('ROOM_NOT_READY');
+  // P0-7：没主题就无从判定「出题是否跑题」⇒ 开局前双方必须都选定。
+  // AI 座位是例外——它不会自己去填表单，建房没指定方向时给个通用主题，不拿这个卡住房主。
+  for (const p of room.players) {
+    if (p.topic.trim()) continue;
+    if (isAiUserId(p.userId)) p.topic = PK_DEFAULT_AI_TOPIC;
+    else fail('TOPIC_NOT_SET');
+  }
   room.status = 'active';
   room.endsAt = now + PK_MATCH_MS;
   room.startedAt = now;
+  // 首轮用房主（players[0]）的主题；每成功出一道题由 match 侧切到另一方
+  room.topicTurn = 0;
+  room.topicOwnerId = room.players[0]?.userId ?? '';
+  room.currentTopic = room.players[0]?.topic ?? '';
   // 怠慢锚点从开局起算：双方开局后都有 120s 宽限去完成第一次成功出题
   for (const p of room.players) room.idleAnchor[p.userId] = now;
   // PVE：AI 第一题在开局 + AI_FIRST_QUIZ_DELAY_MS（ticker 到点触发）

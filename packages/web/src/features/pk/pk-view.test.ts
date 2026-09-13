@@ -17,6 +17,10 @@ import {
   remainingMs,
   verdictText,
   normalizeRoomCode,
+  topicOwnerLabel,
+  myHelpLeft,
+  retryRemainingMs,
+  myWrongQuestions,
 } from './pk-view';
 
 function state(players: Array<{ userId: string; nickname: string }>): PkRoomState {
@@ -25,10 +29,23 @@ function state(players: Array<{ userId: string; nickname: string }>): PkRoomStat
     roomCode: '123456',
     status: 'waiting',
     mode: 'pvp',
-    players: players.map((p) => ({ ...p, score: 0, correct: 0, answered: 0, lastQuizAt: 0 })),
+    players: players.map((p) => ({
+      ...p,
+      score: 0,
+      correct: 0,
+      answered: 0,
+      lastQuizAt: 0,
+      topic: '',
+      helpLeft: 1,
+      failStreak: 0,
+    })),
     nextQuizAt: {},
     endsAt: 0,
     questions: [],
+    currentTopic: '',
+    topicOwnerId: '',
+    topicTurn: 0,
+    retryNextAt: {},
   };
 }
 
@@ -160,5 +177,65 @@ describe('P0-2/PVE 动作区辅助（CD / 待答 / 选项字母 / 判定文案�
   it('verdictText：答对带 + 号，答错为负', () => {
     expect(verdictText(true, 2)).toBe('答对 +2');
     expect(verdictText(false, -1)).toBe('答错 -1');
+  });
+});
+
+describe('P0-7 · 主题轮转 / 道具 / 二次机会（纯函数）', () => {
+  function two() {
+    const s = state([
+      { userId: 'a', nickname: '甲' },
+      { userId: 'b', nickname: '乙' },
+    ]);
+    return s;
+  }
+
+  /** 造一道题：默认「发给 a、已判答错」，用例按需覆盖 */
+  function q(over: Partial<PkQuestion>): PkQuestion {
+    return {
+      id: 'q1',
+      roomId: 'r-1',
+      fromUserId: 'b',
+      toUserId: 'a',
+      prompt: '',
+      stem: '',
+      options: ['x', 'y'],
+      createdAt: 0,
+      deadlineAt: 0,
+      status: 'answered',
+      chosen: 1,
+      answerRevealed: 0,
+      ...over,
+    };
+  }
+
+  it('topicOwnerLabel：归我 → 你的主题；归对手 → 昵称；没开局 → 空', () => {
+    expect(topicOwnerLabel({ ...two(), topicOwnerId: 'a' }, 'a')).toBe('你的主题');
+    expect(topicOwnerLabel({ ...two(), topicOwnerId: 'b' }, 'a')).toBe('乙 的主题');
+    expect(topicOwnerLabel(two(), 'a')).toBe('');
+  });
+
+  it('myHelpLeft：在房内读快照，不在房内返 0（不造假默认值）', () => {
+    expect(myHelpLeft(two(), 'a')).toBe(1);
+    expect(myHelpLeft(two(), 'ghost')).toBe(0);
+  });
+
+  it('retryRemainingMs：没用过 = 0 立即可用；CD 内为正且到点钳 0', () => {
+    expect(retryRemainingMs(two(), 'a', 1000)).toBe(0);
+    expect(retryRemainingMs({ ...two(), retryNextAt: { a: 5000 } }, 'a', 3000)).toBe(2000);
+    expect(retryRemainingMs({ ...two(), retryNextAt: { a: 5000 } }, 'a', 9000)).toBe(0);
+  });
+
+  it('myWrongQuestions：只收「我答的且没答对」——答对/pending/别人的都不算', () => {
+    const s = {
+      ...two(),
+      questions: [
+        q({ id: 'wrong' }),
+        q({ id: 'right', chosen: 0 }), // 答对
+        q({ id: 'timeout', status: 'timeout', chosen: undefined }), // 超时未答，也算错
+        q({ id: 'others', toUserId: 'b' }), // 不是我答的
+        q({ id: 'pending', status: 'pending', chosen: undefined, answerRevealed: undefined }), // 还没判
+      ],
+    };
+    expect(myWrongQuestions(s, 'a').map((x) => x.id)).toEqual(['wrong', 'timeout']);
   });
 });

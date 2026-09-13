@@ -13,7 +13,8 @@ interface Props {
   error: string;
   busy: boolean;
   onLogin: (nickname: string) => void;
-  onCreate: (mode: 'pvp' | 'pve', aiTopic?: string) => void;
+  /** P0-7：`topic` = 建房人自己的对战主题；入房的人进房后在等待房补选 */
+  onCreate: (mode: 'pvp' | 'pve', aiTopic?: string, topic?: string) => void;
   onJoin: (roomCode: string) => void;
 }
 
@@ -25,6 +26,8 @@ export function PkLobby({ identity, error, busy, onLogin, onCreate, onJoin }: Pr
   const [mode, setMode] = useState<'pvp' | 'pve'>('pvp');
   /** PVE 主题方向（可选，空 = AI 自选轮换） */
   const [aiTopic, setAiTopic] = useState('');
+  /** P0-7：我的对战主题（建房时一起提交；开局前还能在等待房改） */
+  const [topic, setTopic] = useState('');
 
   const submitLogin = useCallback(() => {
     const name = nickname.trim();
@@ -112,11 +115,21 @@ export function PkLobby({ identity, error, busy, onLogin, onCreate, onJoin }: Pr
             onChange={(e) => setAiTopic(e.target.value)}
           />
         )}
+        <input
+          className="sb-pk-input"
+          placeholder="你的对战主题（如：二次函数、三国历史）"
+          maxLength={20}
+          value={topic}
+          onChange={(e) => setTopic(e.target.value)}
+        />
+        <p className="sb-pk-hint">
+          双方各选一个主题，出题轮次在两个主题之间交替——谁出题都要贴合当前主题，跑题会被裁判判失败
+        </p>
         <button
           type="button"
           className="sb-pk-btn primary"
-          disabled={busy}
-          onClick={() => onCreate(mode, mode === 'pve' ? aiTopic.trim() || undefined : undefined)}
+          disabled={busy || !topic.trim()}
+          onClick={() => onCreate(mode, mode === 'pve' ? aiTopic.trim() || undefined : undefined, topic.trim())}
         >
           建房
         </button>

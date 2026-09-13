@@ -211,6 +211,9 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       abortIfNeeded();
       let turnText = '';
       let turnToolCalls: ToolCall[] | undefined;
+      /** 本轮思考链：全局累积（落库）之外按轮另记一份——anthropic thinking + 工具循环时，
+          assistant(tool_use) 轮必须把它那轮的思考块原样回灌，适配器从这里取（types.ChatMessage.reasoning） */
+      let turnReasoning = '';
       for await (const chunk of target.adapter.chat({
         model: target.model,
         apiKey: target.apiKey,
@@ -221,10 +224,14 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         // 显式传输出上限（B 系列防御）：不再依赖适配器 ?? getMaxOutputTokens 兜底，
         // 新增适配器漏写兜底时 Anthropic 会直接 400——类型层由 ChatRequest.maxTokens 承载。
         maxTokens: getMaxOutputTokens(target.model),
+        // 池中 AI（stream_mode='once'）一次性回答；原生 AI 开思考链（仅 anthropic 适配器响应此开关）
+        streamMode: target.streamMode,
+        thinking: target.adapter.type === 'anthropic',
       })) {
         abortIfNeeded();
         if (chunk.reasoning) {
           // 边流式呈现、边累积落库（v11）：只发布不落库的话刷新即丢，重开会话看不到当时怎么想的
+          turnReasoning += chunk.reasoning;
           reasoningAcc += chunk.reasoning;
           publish(sessionId, { type: 'reasoning', sessionId, content: chunk.reasoning });
         }
@@ -259,7 +266,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         results.push({ role: 'tool', content: o.content.slice(0, MAX_TOOL_RESULT_CHARS), toolCallId: o.id });
       }
       rounds.push({ calls: turnToolCalls, results });
-      messages.push({ role: 'assistant', content: '', toolCalls: turnToolCalls }, ...results);
+      messages.push({ role: 'assistant', content: '', toolCalls: turnToolCalls, reasoning: turnReasoning || undefined }, ...results);
       toolTokens +=
         estimateTokens(JSON.stringify(turnToolCalls)) + results.reduce((s, r) => s + estimateTokens(r.content), 0);
       if (turnText) {

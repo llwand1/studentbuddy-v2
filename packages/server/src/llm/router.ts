@@ -28,24 +28,43 @@ export interface RoutedTarget {
   model: string;
   apiKey: string;
   baseUrl: string;
+  /** 回答呈现形态（v13）：stream=逐字流式（原生 AI 全过程）；once=一次性回答（池中 AI） */
+  streamMode: 'stream' | 'once';
+}
+
+/** stream_mode 缺省按 type 定位：anthropic 原生协议=流式；openai 兼容（中转池）=一次性 */
+function normalizeStreamMode(raw: string | null | undefined, type: string): 'stream' | 'once' {
+  if (raw === 'stream' || raw === 'once') return raw;
+  return type === 'anthropic' ? 'stream' : 'once';
 }
 
 export function getProviders(): Provider[] {
   const rows = getDb()
-    .prepare('SELECT id, name, base_url, api_key, type, enabled FROM providers ORDER BY created_at')
-    .all() as Array<{ id: string; name: string; base_url: string; api_key: string; type: string; enabled: number }>;
+    .prepare('SELECT id, name, base_url, api_key, type, enabled, stream_mode FROM providers ORDER BY created_at')
+    .all() as Array<{
+    id: string;
+    name: string;
+    base_url: string;
+    api_key: string;
+    type: string;
+    enabled: number;
+    stream_mode: string | null;
+  }>;
   return rows.map((r) => ({
     id: r.id,
     name: r.name,
     baseUrl: r.base_url,
     enabled: r.enabled === 1,
+    streamMode: normalizeStreamMode(r.stream_mode, r.type),
   }));
 }
 
 function providerById(id: string) {
   return getDb()
-    .prepare('SELECT id, name, base_url, api_key, type, enabled FROM providers WHERE id = ?')
-    .get(id) as { id: string; name: string; base_url: string; api_key: string; type: string; enabled: number } | undefined;
+    .prepare('SELECT id, name, base_url, api_key, type, enabled, stream_mode FROM providers WHERE id = ?')
+    .get(id) as
+    | { id: string; name: string; base_url: string; api_key: string; type: string; enabled: number; stream_mode: string | null }
+    | undefined;
 }
 
 /** 默认目标：第一个 enabled 的 provider（兼容未配置角色绑定的开箱路径）。 */
@@ -67,6 +86,7 @@ function targetFromProvider(providerId: string): RoutedTarget | null {
     model: '', // model 由角色绑定或 provider 默认给出
     apiKey: decryptSecret(p.api_key),
     baseUrl: p.base_url,
+    streamMode: normalizeStreamMode(p.stream_mode, p.type),
   };
 }
 
@@ -86,6 +106,18 @@ export function routeRole(role: ModelRole, fallbackModel?: string): RoutedTarget
     .prepare('SELECT model FROM role_bindings WHERE role = ?')
     .get(role) as { model: string } | undefined;
   return { ...def, model: defBinding?.model || fallbackModel || '' };
+}
+
+/**
+ * 角色目标可用性：供各域在失败时区分「**没配**」与「跑挂了」，好让报错说真话（ADR-5）。
+ * 2026-09-13 新增——出题曾把「模型没配」与「输出没解析出来」混成一句「模型不可用，可重试」，
+ * 用户照着不停重试，永远调不到点子上。
+ */
+export function roleReady(role: ModelRole): { ok: boolean; reason: string } {
+  const t = routeRole(role);
+  if (!t) return { ok: false, reason: '没有启用的服务商' };
+  if (!t.model) return { ok: false, reason: '该角色还没绑定模型' };
+  return { ok: true, reason: '' };
 }
 
 /** 空库种子：无 provider 时注入 openai-default（apiKey 留空待用户填，开箱不 500）。 */

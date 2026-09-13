@@ -1,0 +1,37 @@
+/* RefList 自带样式（与 online-toggle.css 同例：组件不依赖调用方已加载某个 css） */
+.quiz-refs {
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+  margin-bottom: var(--sb-sp-3);
+}
+.quiz-refs > summary {
+  cursor: pointer;
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-sm);
+}
+.quiz-refs ul {
+  margin: var(--sb-sp-1) 0 0;
+  padding-left: var(--sb-sp-4);
+  list-style: none;
+}
+.quiz-refs li {
+  margin-bottom: 2px;
+  line-height: 1.6;
+}
+.quiz-refs .n {
+  color: var(--sb-ink-tertiary);
+  margin-right: 4px;
+}
+.quiz-refs a {
+  color: var(--sb-primary);
+  text-decoration: none;
+  word-break: break-all;
+}
+.quiz-refs a:hover {
+  text-decoration: underline;
+}
+.quiz-refs .p {
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-xs);
+  margin-left: 6px;
+}

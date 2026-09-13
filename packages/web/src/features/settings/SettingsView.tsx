@@ -1,5 +1,8 @@
 /**
  * SettingsView — 服务商 CRUD + 角色模型绑定（演进①的配置面）+ 联网搜索 key 配置。
+ * v13（对话体验升级）：每个服务商可切「回答形态」（流式逐字 / 一次性回答——池中 AI 形态），
+ * 并可拉取该服务商的真实模型列表（此前 listModels 是无路由暴露的半成品），拉到的模型
+ * 填进角色绑定的输入框 datalist 供挑选，手填仍然可用。
  */
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
@@ -10,7 +13,7 @@ import { QuizMixCard } from './QuizMixCard';
 import { QuizImageCard } from './QuizImageCard';
 import { AnswerStyleCard } from './AnswerStyleCard';
 
-type ProviderRow = { id: string; name: string; baseUrl: string; enabled: boolean };
+type ProviderRow = { id: string; name: string; baseUrl: string; enabled: boolean; streamMode?: 'stream' | 'once' };
 type RoleBindingRow = { role: string; provider_id: string; model: string };
 
 export function SettingsView() {
@@ -19,6 +22,8 @@ export function SettingsView() {
   const [bindings, setBindings] = useState<RoleBindingRow[]>([]);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
+  /** 各服务商已拉到的模型列表（datalist 供角色绑定挑选；拉不到为空，手填不受影响） */
+  const [modelsMap, setModelsMap] = useState<Record<string, string[]>>({});
 
   // 新增表单
   const [name, setName] = useState('');
@@ -86,6 +91,26 @@ export function SettingsView() {
     }
   };
 
+  const setStreamMode = async (id: string, streamMode: string) => {
+    try {
+      await api.providers.update(id, { streamMode });
+      flash(true, streamMode === 'once' ? '已切换：一次性回答（思考中 → 整块上屏）' : '已切换：流式逐字输出');
+      await reload();
+    } catch (e) {
+      flash(false, e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const fetchModels = async (id: string) => {
+    try {
+      const r = await api.providers.models(id);
+      setModelsMap((m) => ({ ...m, [id]: r.models }));
+      flash(r.models.length > 0, r.models.length > 0 ? `拉到 ${r.models.length} 个模型，绑定模型时可选` : '没拉到模型列表（检查 baseUrl/key），仍可手填');
+    } catch (e) {
+      flash(false, e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const removeProvider = async (id: string) => {
     try {
       await api.providers.remove(id);
@@ -110,6 +135,7 @@ export function SettingsView() {
             <tr>
               <th>名称</th>
               <th>baseUrl</th>
+              <th>回答形态</th>
               <th>状态</th>
               <th />
             </tr>
@@ -119,8 +145,20 @@ export function SettingsView() {
               <tr key={p.id}>
                 <td>{p.name}</td>
                 <td className="mono">{p.baseUrl}</td>
+                <td>
+                  <select
+                    value={p.streamMode ?? 'stream'}
+                    onChange={(e) => void setStreamMode(p.id, e.target.value)}
+                  >
+                    <option value="stream">流式逐字</option>
+                    <option value="once">一次性回答</option>
+                  </select>
+                </td>
                 <td>{p.enabled ? '启用' : '停用'}</td>
                 <td>
+                  <button className="settings-add" onClick={() => void fetchModels(p.id)}>
+                    拉模型
+                  </button>
                   <button className="settings-del" onClick={() => void removeProvider(p.id)}>
                     删除
                   </button>
@@ -164,6 +202,7 @@ export function SettingsView() {
                   key={r.role}
                   label={r.label}
                   providers={providers}
+                  modelsMap={modelsMap}
                   initialProvider={b?.provider_id ?? ''}
                   initialModel={b?.model ?? ''}
                   onBind={(pid, model) => void bindRole(r.role, pid, model)}
@@ -185,18 +224,21 @@ export function SettingsView() {
 function RoleRow({
   label,
   providers,
+  modelsMap,
   initialProvider,
   initialModel,
   onBind,
 }: {
   label: string;
   providers: ProviderRow[];
+  modelsMap: Record<string, string[]>;
   initialProvider: string;
   initialModel: string;
   onBind: (providerId: string, model: string) => void;
 }) {
   const [pid, setPid] = useState(initialProvider || providers[0]?.id || '');
   const [model, setModel] = useState(initialModel);
+  const models = modelsMap[pid] ?? [];
   return (
     <tr>
       <td>{label}</td>
@@ -210,7 +252,17 @@ function RoleRow({
         </select>
       </td>
       <td>
-        <input placeholder="模型名（如 agnes-2.5-flash）" value={model} onChange={(e) => setModel(e.target.value)} />
+        <input
+          placeholder="模型名（可手填或从列表选）"
+          value={model}
+          list={`models-${pid}`}
+          onChange={(e) => setModel(e.target.value)}
+        />
+        <datalist id={`models-${pid}`}>
+          {models.map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
       </td>
       <td>
         <button

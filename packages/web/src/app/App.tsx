@@ -4,12 +4,15 @@
  * 2026-09-09 侧栏改版（老板口述定稿）：功能列表从上到下、历史列表可展开收起、
  * 底部用户框为 PK 昵称登录入口（P0 模拟登录；真微信授权 P1 接入）；「对话」不再占导航项——logo 与新对话即入口。
  * 会话搜索框保留（批次 3 交付项），收进历史对话区内。
+ * 2026-09-13：功能列表补「对战」一项（老板实测「找不到入口」）——PK 页仍是独立页，
+ * 这一项只负责把 hash 改成 `#/pk`，见下方 NAV 注释。
  */
 import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@sb/shared';
 import { UserAuthBox } from '../components/UserAuthBox';
 import {
   QuizIcon,
+  VsIcon,
   CardsIcon,
   NoteIcon,
   StatsIcon,
@@ -32,13 +35,26 @@ import './app.css';
 
 type View = 'chat' | 'quiz' | 'notes' | 'terms' | 'summary' | 'settings';
 
-const NAV: Array<{ key: View; label: string; icon: typeof QuizIcon }> = [
+/**
+ * 侧栏功能列表。`pk` 是个**例外项**：PK 页是 `#/pk` 上的独立移动优先页面（契约 PK-SPEC §5，
+ * 与主壳互不嵌套），所以它不进 `View` 联合、也不 `setView`，只改 hash 交给 `main.tsx` 换根。
+ *
+ * 为什么要有这一项（2026-09-13 老板实测）：「对战出题」原先只有 `#/pk` 这个手输地址，
+ * 前端任何地方都点不到——功能在、入口不在，等于用户以为它不存在。
+ */
+type NavKey = View | 'pk';
+
+const NAV: Array<{ key: NavKey; label: string; icon: typeof QuizIcon }> = [
   { key: 'quiz', label: '题库', icon: QuizIcon },
+  { key: 'pk', label: '对战', icon: VsIcon },
   { key: 'notes', label: '笔记', icon: NoteIcon },
   { key: 'terms', label: '词条', icon: CardsIcon },
   { key: 'summary', label: '今日总结', icon: StatsIcon },
   { key: 'settings', label: '设置', icon: SettingsIcon },
 ];
+
+/** PK 独立页的 hash（与 `main.tsx` 的 `isPkHash()` 同一口径） */
+const PK_HASH = '#/pk';
 
 export function App() {
   const [view, setView] = useState<View>('chat');
@@ -129,6 +145,11 @@ export function App() {
               key={key}
               className={view === key ? 'sb-nav-item active' : 'sb-nav-item'}
               onClick={() => {
+                // PK 页不在本壳内：改 hash 让 main.tsx 换根渲染（返回时 PkApp 的「← 学习助手」把 hash 置回 #/）
+                if (key === 'pk') {
+                  window.location.hash = PK_HASH;
+                  return;
+                }
                 setView(key);
                 if (key === 'notes') setNotesQuizId(null);
               }}

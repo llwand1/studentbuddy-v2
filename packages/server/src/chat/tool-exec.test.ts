@@ -145,3 +145,29 @@ describe('runToolCalls — 取消与失败', () => {
     expect(out[1]).toMatchObject({ name: 'bad', ok: false });
   });
 });
+
+describe('runToolCalls — signal 透传（v13 体验升级）', () => {
+  it('会话级 signal 原样进工具执行上下文：工具内部 fetch 据此真掐断，不再只是丢弃结果', async () => {
+    const controller = new AbortController();
+    let seen: AbortSignal | undefined;
+    await runToolCalls([call('1', 'search_web')], { onStep: () => undefined }, {
+      exec: async (_n, _a, ctx) => {
+        seen = ctx.signal;
+        return { content: 'ok' };
+      },
+      signal: controller.signal,
+    });
+    expect(seen).toBe(controller.signal);
+  });
+
+  it('不给 signal 时 ctx.signal 为 undefined（老调用方零改动）', async () => {
+    let seen: AbortSignal | undefined | null = null;
+    await runToolCalls([call('1', 't')], { onStep: () => undefined }, {
+      exec: async (_n, _a, ctx) => {
+        seen = ctx.signal;
+        return { content: 'ok' };
+      },
+    });
+    expect(seen).toBeUndefined();
+  });
+});

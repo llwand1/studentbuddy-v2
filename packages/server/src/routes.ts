@@ -7,9 +7,12 @@ import type { Request, Response } from 'express';
 import { getDb } from './storage/db.js';
 import { handleMessage } from './chat/flow.js';
 import { planRegenerate } from './chat/regenerate.js';
+import { planResend } from './chat/resend.js';
 import { snapshot } from './chat/sse-bus.js';
 import { subscribe, startHeartbeat } from './chat/sse-bus.js';
 import { getProviders, seedIfEmpty, MODEL_ROLES } from './llm/router.js';
+import { OpenAICompatibleAdapter } from './llm/openai.js';
+import { AnthropicAdapter } from './llm/anthropic.js';
 import { encryptSecret, decryptSecret, isEncrypted } from './storage/crypto.js';
 import { searchWeb, listKeyStatus, saveProviderKey, KEYED_PROVIDERS } from './search/index.js';
 import { loadQuizMix, saveQuizMix, loadQuizImage, saveQuizImage } from './learning/quiz.js';
@@ -124,6 +127,32 @@ chatRouter.post('/regenerate', (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+/**
+ * 编辑重发（v13 体验升级）：把最后一条提问改成新文案后重跑。
+ * planResend 已删掉旧提问之后的全部产物并更新提问内容，故同样走 skipUserPersist。
+ * 屏上同步口径由前端负责（与 regenerate 一致：保留最后一条提问及其之前）。
+ */
+chatRouter.post('/resend', (req: Request, res: Response) => {
+  const { sessionId, text } = req.body as { sessionId?: string; text?: string };
+  if (!sessionId || typeof text !== 'string' || !text.trim()) {
+    res.status(400).json({ error: 'sessionId 与 text 必填' });
+    return;
+  }
+  const plan = planResend(sessionId, text);
+  if (!plan.ok || !plan.text) {
+    res.status(400).json({ error: plan.error ?? '无法编辑重发' });
+    return;
+  }
+  const controller = new AbortController();
+  aborters.set(sessionId, controller);
+  handleMessage({ sessionId, text: plan.text, signal: controller.signal, skipUserPersist: true })
+    .catch(() => undefined)
+    .finally(() => {
+      if (aborters.get(sessionId) === controller) aborters.delete(sessionId);
+    });
+  res.json({ ok: true });
+});
+
 chatRouter.post('/abort', (req: Request, res: Response) => {
   const { sessionId } = req.body as { sessionId?: string };
   if (sessionId) aborters.get(sessionId)?.abort();
@@ -151,33 +180,49 @@ providersRouter.get('/', (_req, res) => {
 });
 
 providersRouter.post('/', (req: Request, res: Response) => {
-  const { name, baseUrl, apiKey, type } = req.body as { name?: string; baseUrl?: string; apiKey?: string; type?: string };
+  const { name, baseUrl, apiKey, type, streamMode } = req.body as {
+    name?: string;
+    baseUrl?: string;
+    apiKey?: string;
+    type?: string;
+    streamMode?: string;
+  };
   if (!name || !baseUrl) {
     res.status(400).json({ error: 'name 与 baseUrl 必填' });
     return;
   }
   const id = `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const t = type === 'anthropic' ? 'anthropic' : 'openai';
+  // stream_mode 缺省按 type 定位（池中=一次性，原生=流式）；显式传入则尊重
+  const mode = streamMode === 'stream' || streamMode === 'once' ? streamMode : t === 'anthropic' ? 'stream' : 'once';
   getDb()
-    .prepare(`INSERT INTO providers (id, name, base_url, api_key, type, enabled) VALUES (?, ?, ?, ?, ?, 1)`)
-    .run(id, name, baseUrl, encryptSecret(apiKey ?? ''), type === 'anthropic' ? 'anthropic' : 'openai');
+    .prepare(`INSERT INTO providers (id, name, base_url, api_key, type, enabled, stream_mode) VALUES (?, ?, ?, ?, ?, 1, ?)`)
+    .run(id, name, baseUrl, encryptSecret(apiKey ?? ''), t, mode);
   res.status(201).json({ id, name, baseUrl });
 });
 
 providersRouter.put('/:id', (req: Request, res: Response) => {
-  const { name, baseUrl, apiKey, enabled } = req.body as { name?: string; baseUrl?: string; apiKey?: string; enabled?: boolean };
+  const { name, baseUrl, apiKey, enabled, streamMode } = req.body as {
+    name?: string;
+    baseUrl?: string;
+    apiKey?: string;
+    enabled?: boolean;
+    streamMode?: string;
+  };
   const db = getDb();
   const cur = db.prepare('SELECT id FROM providers WHERE id = ?').get((req.params.id ?? '')) as { id: string } | undefined;
   if (!cur) {
     res.status(404).json({ error: 'provider 不存在' });
     return;
   }
+  const mode = streamMode === 'stream' || streamMode === 'once' ? streamMode : null;
   // apiKey 传空/缺省 = 不修改；传明文 = 更新密文（幂等：已是密文则原样）
   if (apiKey === undefined || apiKey === '') {
-    db.prepare(`UPDATE providers SET name = COALESCE(?, name), base_url = COALESCE(?, base_url), enabled = COALESCE(?, enabled) WHERE id = ?`)
-      .run(name ?? null, baseUrl ?? null, enabled === undefined ? null : enabled ? 1 : 0, (req.params.id ?? ''));
+    db.prepare(`UPDATE providers SET name = COALESCE(?, name), base_url = COALESCE(?, base_url), stream_mode = COALESCE(?, stream_mode), enabled = COALESCE(?, enabled) WHERE id = ?`)
+      .run(name ?? null, baseUrl ?? null, mode, enabled === undefined ? null : enabled ? 1 : 0, (req.params.id ?? ''));
   } else {
-    db.prepare(`UPDATE providers SET name = COALESCE(?, name), base_url = COALESCE(?, base_url), api_key = ?, enabled = COALESCE(?, enabled) WHERE id = ?`)
-      .run(name ?? null, baseUrl ?? null, encryptSecret(apiKey), enabled === undefined ? null : enabled ? 1 : 0, (req.params.id ?? ''));
+    db.prepare(`UPDATE providers SET name = COALESCE(?, name), base_url = COALESCE(?, base_url), api_key = ?, stream_mode = COALESCE(?, stream_mode), enabled = COALESCE(?, enabled) WHERE id = ?`)
+      .run(name ?? null, baseUrl ?? null, encryptSecret(apiKey), mode, enabled === undefined ? null : enabled ? 1 : 0, (req.params.id ?? ''));
   }
   res.json({ ok: true });
 });
@@ -206,9 +251,25 @@ providersRouter.put('/roles/:role', (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+/**
+ * 模型列表（v13 接入半成品能力）：按 provider 类型实例化适配器，透传 baseUrl + 解密后的
+ * apiKey 拉取该服务商的真实可用模型。失败返回空数组（前端保持手填输入框可用）。
+ */
+providersRouter.get('/:id/models', async (req: Request, res: Response) => {
+  const row = getDb()
+    .prepare('SELECT type, base_url, api_key FROM providers WHERE id = ?')
+    .get((req.params.id ?? '')) as { type: string; base_url: string; api_key: string } | undefined;
+  if (!row) {
+    res.status(404).json({ error: 'provider 不存在' });
+    return;
+  }
+  const adapter = row.type === 'anthropic' ? new AnthropicAdapter() : new OpenAICompatibleAdapter();
+  const models = await adapter.listModels({ baseUrl: row.base_url, apiKey: decryptSecret(row.api_key) });
+  res.json({ models });
+});
+
 /** 开发辅助：验证密钥加解密往返（密文状态自查，不回显明文）。 */
-providersRouter.get('/:id/key-status', (req: Request, res: Response) => {
-  const row = getDb().prepare('SELECT api_key FROM providers WHERE id = ?').get((req.params.id ?? '')) as { api_key: string } | undefined;
+providersRouter.get('/:id/key-status', (req: Request, res: Response) => {  const row = getDb().prepare('SELECT api_key FROM providers WHERE id = ?').get((req.params.id ?? '')) as { api_key: string } | undefined;
   if (!row) {
     res.status(404).json({ error: 'not found' });
     return;

@@ -89,11 +89,32 @@ export function SettingsIcon(props: IconProps) {
   );
 }
 
-/** 新对话 */
+/** 新对话 / 输入框「+」展开菜单的触发器 */
 export function PlusIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
       <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+/** 勾选（菜单里的开关项「已开」标记） */
+export function CheckIcon(props: IconProps) {
+  return (
+    <svg {...base(props.size, props)}>
+      <path d="M5 12.5l4.5 4.5L19 7" />
+    </svg>
+  );
+}
+
+/** 对战（双人相向）——PK 入口。刻意不画交叉剑：那在 18px 下会糊成一个叉号，像「关闭」 */
+export function VsIcon(props: IconProps) {
+  return (
+    <svg {...base(props.size, props)}>
+      <circle cx="7" cy="7" r="2.6" />
+      <path d="M2.6 19.4c0-2.4 2-4.4 4.4-4.4s4.4 2 4.4 4.4" />
+      <circle cx="17" cy="7" r="2.6" />
+      <path d="M12.6 19.4c0-2.4 2-4.4 4.4-4.4s4.4 2 4.4 4.4" />
     </svg>
   );
 }

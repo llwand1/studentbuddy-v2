@@ -43,6 +43,9 @@ export interface RoleBinding {
   model: string;
 }
 
+/** 一轮回答的呈现形态：stream=逐字流式（原生 AI 全过程体验）；once=思考中 UI + 整块上屏（池中 AI） */
+export type StreamMode = 'stream' | 'once';
+
 export interface Provider {
   id: string;
   name: string;
@@ -50,6 +53,8 @@ export interface Provider {
   /** 密文（DPAPI+AES-GCM），永不出现在 API 响应中 */
   apiKeyCipher?: string;
   enabled: boolean;
+  /** v13 起随 provider 落库；缺省按 type：anthropic=stream，openai=once */
+  streamMode?: StreamMode;
 }
 
 /** 词条库条目（忆域 v2：AI 自动词条库；废弃 MemorizeItem/SRS 翻卡，2026-09-01 契约） */

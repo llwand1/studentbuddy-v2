@@ -69,12 +69,12 @@ export function saveProviderKey(type: KeyedProvider, plain: string): void {
 
 // ── 三家实现（各 ~20 行独立函数，简单组合原则）──
 
-async function exaSearch(query: string, apiKey: string): Promise<SearchResult[]> {
+async function exaSearch(query: string, apiKey: string, signal?: AbortSignal): Promise<SearchResult[]> {
   const res = await fetchSafe('https://api.exa.ai/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
     body: JSON.stringify({ query, numResults: 6, type: 'auto' }),
-    signal: AbortSignal.timeout(12_000),
+    signal: combineSignals(signal, 12_000),
   });
   if (!res.ok) throw new Error(`Exa ${res.status}`);
   const data = (await res.json()) as { results?: Array<{ title?: string; url?: string; text?: string }> };
@@ -86,12 +86,12 @@ async function exaSearch(query: string, apiKey: string): Promise<SearchResult[]>
   }));
 }
 
-async function tavilySearch(query: string, apiKey: string): Promise<SearchResult[]> {
+async function tavilySearch(query: string, apiKey: string, signal?: AbortSignal): Promise<SearchResult[]> {
   const res = await fetchSafe('https://api.tavily.com/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({ query, max_results: 6, search_depth: 'basic' }),
-    signal: AbortSignal.timeout(12_000),
+    signal: combineSignals(signal, 12_000),
   });
   if (!res.ok) throw new Error(`Tavily ${res.status}`);
   const data = (await res.json()) as { results?: Array<{ title?: string; url?: string; content?: string }> };
@@ -104,12 +104,12 @@ async function tavilySearch(query: string, apiKey: string): Promise<SearchResult
 }
 
 /** 智谱 web-search-pro（国产兜底：字段名接入前以实测为准，失败自动跳过不阻塞降级链） */
-async function zhipuSearch(query: string, apiKey: string): Promise<SearchResult[]> {
+async function zhipuSearch(query: string, apiKey: string, signal?: AbortSignal): Promise<SearchResult[]> {
   const res = await fetchSafe('https://open.bigmodel.cn/api/paas/v4/web_search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({ query, count: 6 }),
-    signal: AbortSignal.timeout(12_000),
+    signal: combineSignals(signal, 12_000),
   });
   if (!res.ok) throw new Error(`Zhipu ${res.status}`);
   const data = (await res.json()) as {
@@ -124,15 +124,27 @@ async function zhipuSearch(query: string, apiKey: string): Promise<SearchResult[
   }));
 }
 
-const IMPL: Record<string, (q: string, key: string) => Promise<SearchResult[]>> = {
+const IMPL: Record<string, (q: string, key: string, signal?: AbortSignal) => Promise<SearchResult[]>> = {
   exa: exaSearch,
   tavily: tavilySearch,
   zhipu: zhipuSearch,
-  duckduckgo: (q) => duckduckgoSearch(q),
+  duckduckgo: (q, _key, signal) => duckduckgoSearch(q, signal),
 };
 
 function errText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * 外部取消信号与单请求超时合并：用户「停止生成」要能真正掐断搜索的 HTTP 请求，
+ * 而不只是让结果被上层丢弃（v13 体验升级：signal 透传进工具内部）。
+ * AbortSignal.any 不可用时退化为仅超时（老 Node 仍然能跑，只是少了取消）。
+ */
+function combineSignals(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  if (!signal) return timeout;
+  if (typeof AbortSignal.any !== 'function') return timeout;
+  return AbortSignal.any([signal, timeout]);
 }
 
 // ── DuckDuckGo 免费通道（无 key 兜底；port from v1 core/search 双通道）──
@@ -158,10 +170,10 @@ function decodeUrl(raw: string): string {
 }
 
 /** lite 版 HTML 抓真实网页结果（结果面比 instant API 宽）。 */
-async function ddgLite(query: string): Promise<SearchResult[]> {
+async function ddgLite(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
   const res = await fetchSafe(`https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`, {
     headers: { 'User-Agent': DDG_UA },
-    signal: AbortSignal.timeout(5_000),
+    signal: combineSignals(signal, 5_000),
   });
   if (!res.ok) throw new Error(`DuckDuckGo Lite ${res.status}`);
   const html = await res.text();
@@ -179,10 +191,10 @@ async function ddgLite(query: string): Promise<SearchResult[]> {
 }
 
 /** instant API：结构化摘要，lite 挂了时的兜底（百科类词条命中率高）。 */
-async function ddgInstant(query: string): Promise<SearchResult[]> {
+async function ddgInstant(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
   const res = await fetchSafe(
     `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`,
-    { headers: { 'User-Agent': DDG_UA }, signal: AbortSignal.timeout(5_000) },
+    { headers: { 'User-Agent': DDG_UA }, signal: combineSignals(signal, 5_000) },
   );
   if (!res.ok) throw new Error(`DuckDuckGo ${res.status}`);
   const data = (await res.json()) as {
@@ -204,14 +216,14 @@ async function ddgInstant(query: string): Promise<SearchResult[]> {
   return out.filter((r) => r.url.startsWith('http')).slice(0, 6);
 }
 
-async function duckduckgoSearch(query: string): Promise<SearchResult[]> {
+async function duckduckgoSearch(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
   const failed: string[] = [];
   for (const [name, run] of [
     ['lite', ddgLite],
     ['instant', ddgInstant],
   ] as const) {
     try {
-      const results = await run(query);
+      const results = await run(query, signal);
       if (results.length > 0) return results;
       failed.push(`${name}: 空结果`);
     } catch (err) {
@@ -245,7 +257,7 @@ function cacheSet(key: string, results: SearchResult[]): void {
 /** 聚合入口：并行发起有 key 的 provider，失败跳过，URL 去重合并。 */
 export async function searchWeb(
   query: string,
-  opts: { skipCache?: boolean } = {},
+  opts: { skipCache?: boolean; signal?: AbortSignal } = {},
 ): Promise<{ results: SearchResult[]; providers: string[]; failed: string[] }> {
   const keyed = (
     [
@@ -263,7 +275,9 @@ export async function searchWeb(
   const cached = opts.skipCache ? null : cacheGet(cacheKey);
   if (cached) return { results: cached, providers: ['cache'], failed: [] };
 
-  const settled = await Promise.allSettled(active.map((p) => IMPL[p.type]!(query, getProviderKey(p.type))));
+  const settled = await Promise.allSettled(
+    active.map((p) => IMPL[p.type]!(query, getProviderKey(p.type), opts.signal)),
+  );
   const failed: string[] = [];
   const byUrl = new Map<string, SearchResult>();
   const used: string[] = [];

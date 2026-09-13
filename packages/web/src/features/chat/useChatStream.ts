@@ -190,7 +190,11 @@ export function useChatStream(
     clearReasoning();
     setUsage(null);
     setElapsedMs(0);
-    const client = connectSse(`/api/chat/stream?sessionId=${encodeURIComponent(sessionId)}`);
+    const client = connectSse(`/api/chat/stream?sessionId=${encodeURIComponent(sessionId)}`, {
+      // 断线重连成功后拉 /live 快照对齐（契约「断线恢复」的客户端半边，v13 接通）：
+      // 重连回放与快照的重叠帧由 sse-client 的 seq 去重拦下
+      reconcileUrl: `/api/sessions/${encodeURIComponent(sessionId)}/live`,
+    });
     clientRef.current = client;
     const offState = client.onStateChange(setReady);
     const offEvent = client.onEvent((ev: SseEvent) => {
@@ -297,6 +301,22 @@ export function useChatStream(
     };
   }, [sessionId, flushTokens, pushTokens, resetTokens, commitSteps, commitTasks, clearReasoning, pushReasoning, commitStreaming]);
 
+  /**
+   * 新一轮公共前置：清上一轮残留（token 缓冲 / 流式文本 / 过程三件套 / 用量耗时）并计时。
+   * 过程三件套一律走 ref 感知的 setter（只 setState 清不掉 ref，会串到新一轮的 done 归并里）；
+   * 终止帧丢失时不清缓冲，新 token 会拼到旧半句后面。
+   */
+  const beginRound = useCallback(() => {
+    resetTokens();
+    commitStreaming('');
+    clearReasoning();
+    commitSteps([]);
+    commitTasks([]);
+    setUsage(null);
+    setElapsedMs(0);
+    startedAtRef.current = Date.now();
+  }, [resetTokens, clearReasoning, commitSteps, commitTasks, commitStreaming]);
+
   /** 发送：SSE 未就绪时拒绝并提示（修 F1 竞态——绝不静默吞） */
   const send = useCallback(
     async (text: string): Promise<{ ok: boolean; error?: string }> => {
@@ -305,16 +325,7 @@ export function useChatStream(
       if (busy) return { ok: false, error: '生成中，请先停止' };
       if (!historyLoadedRef.current) return { ok: false, error: '历史加载中，稍候再发' };
       setError('');
-      // 上一轮残留必须归零：终止帧丢失时，新 token 否则会拼到旧半句后面
-      resetTokens();
-      commitStreaming('');
-      // 过程三件套一律走 ref 感知的 setter（只 setState 清不掉 ref，会串到新一轮的 done 归并里）
-      clearReasoning();
-      commitSteps([]);
-      commitTasks([]);
-      setUsage(null);
-      setElapsedMs(0);
-      startedAtRef.current = Date.now();
+      beginRound();
       setMessages((ms) => [...ms, { role: 'user', content: text, ts: new Date().toISOString() }]);
       try {
         await api.chat.send(sessionId, text);
@@ -326,7 +337,7 @@ export function useChatStream(
         return { ok: false, error: msg };
       }
     },
-    [sessionId, ready, busy, resetTokens, clearReasoning, commitSteps, commitTasks, commitStreaming],
+    [sessionId, ready, busy, beginRound],
   );
 
   const stop = useCallback(async () => {
@@ -337,27 +348,31 @@ export function useChatStream(
    * 重新生成：服务端已把最后一条提问之后的产物删掉（含工具轮与中止半截），
    * 屏上按**同一口径**同步撤——只保留最后一条提问及其之前，否则新回答会接在旧回答后面。
    */
-  const regenerate = useCallback(
-    async (): Promise<{ ok: boolean; error?: string }> => {
+  /**
+   * 重跑类动作公共体：regenerate（原样重跑）与 resend（编辑重发）只有两处不同——
+   * 服务端端点、以及「最后一条提问是否就地换文案」。撤屏口径完全一致：
+   * 只保留最后一条提问及其之前（resend 再把该提问内容替换成新文案），否则新回答会接在旧回答后面。
+   */
+  const rerun = useCallback(
+    async (mode: 'regen' | 'resend', text?: string): Promise<{ ok: boolean; error?: string }> => {
       if (!sessionId) return { ok: false, error: '无会话' };
       if (ready !== 'open')
         return { ok: false, error: `连接${ready === 'reconnecting' ? '重连中' : '建立中'}，稍候再试` };
       if (busy) return { ok: false, error: '生成中，请先停止' };
       setError('');
-      resetTokens();
-      commitStreaming('');
-      clearReasoning();
-      setUsage(null);
-      setElapsedMs(0);
-      commitSteps([]);
-      commitTasks([]);
-      startedAtRef.current = Date.now();
+      beginRound();
       setMessages((ms) => {
         const lastUser = ms.reduce((acc, m, i) => (m.role === 'user' ? i : acc), -1);
-        return lastUser >= 0 ? ms.slice(0, lastUser + 1) : ms;
+        if (lastUser < 0) return ms;
+        const kept = ms.slice(0, lastUser);
+        const last = ms[lastUser];
+        // resend：提问内容就地替换（服务端 planResend 同一口径：更新内容、作废其后产物）
+        const edited = mode === 'resend' && last ? ({ ...last, content: text } as StreamMessage) : last;
+        return edited ? [...kept, edited] : kept;
       });
       try {
-        await api.chat.regenerate(sessionId);
+        if (mode === 'resend') await api.chat.resend(sessionId, text ?? '');
+        else await api.chat.regenerate(sessionId);
         setBusy(true);
         return { ok: true };
       } catch (err) {
@@ -366,8 +381,13 @@ export function useChatStream(
         return { ok: false, error: msg };
       }
     },
-    [sessionId, ready, busy, resetTokens, clearReasoning, commitSteps, commitTasks, commitStreaming],
+    [sessionId, ready, busy, beginRound],
   );
 
-  return { messages, streamingText, reasoning, steps, tasks, busy, ready, error, usage, elapsedMs, send, stop, regenerate };
+  /** 重新生成：服务端已把最后一条提问之后的产物删掉（含工具轮与中止半截）后原样重跑 */
+  const regenerate = useCallback(() => rerun('regen'), [rerun]);
+  /** 编辑重发（v13 体验升级）：把最后一条提问改成新文案后重跑（只挂最后一条提问，改写更早的是分叉，不做） */
+  const resend = useCallback((text: string) => rerun('resend', text), [rerun]);
+
+  return { messages, streamingText, reasoning, steps, tasks, busy, ready, error, usage, elapsedMs, send, stop, regenerate, resend };
 }

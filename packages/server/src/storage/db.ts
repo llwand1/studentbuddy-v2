@@ -332,6 +332,19 @@ MIGRATIONS.push({
   ],
 });
 
+// v13：对话体验升级（2026-09-13）——providers.stream_mode 决定一轮回答的呈现形态：
+// 'stream' = 逐字流式（原生 AI，含思考链 / 任务 / 工具全过程）；'once' = 一次性回答
+//（池中 AI：等待期只有「思考中」UI，答案整块上屏）。
+// 存量回填按 type 定位：anthropic（原生协议）保持 'stream'，openai 兼容（中转池）落 'once'
+//——中转池大量按非流式聚合转发，逐字流式体验本就残缺，一次性回答是它们的真实形态。
+MIGRATIONS.push({
+  version: 13,
+  statements: [
+    `ALTER TABLE providers ADD COLUMN stream_mode TEXT NOT NULL DEFAULT 'stream'`,
+    `UPDATE providers SET stream_mode = 'once' WHERE type = 'openai'`,
+  ],
+});
+
 export function getDb(): Database.Database {
   if (db) return db;
   fs.mkdirSync(DATA_DIR, { recursive: true });

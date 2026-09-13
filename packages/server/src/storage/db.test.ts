@@ -103,11 +103,14 @@ describe('storage/db — v11 过程回放迁移（思考链 / 任务清单随消
     db.close();
   });
 
-  it('老库升级：删列并把版本退回 10，重开后两列自动补回（旧用户不掉过程）', () => {
+  it('老库升级：删列并把版本退回 10，重开后各版本列自动补回（旧用户不掉过程/配置）', () => {
     const dir = tmp();
     const v10 = openIsolated(dir);
+    // 列随 v11（messages 过程回放）/ v13（providers.stream_mode）新增：退版本时连列一起退，
+    // 重开后整条迁移链重放，两处都必须自动补回
     v10.exec(`ALTER TABLE messages DROP COLUMN reasoning`);
     v10.exec(`ALTER TABLE messages DROP COLUMN tasks`);
+    v10.exec(`ALTER TABLE providers DROP COLUMN stream_mode`);
     v10.prepare('DELETE FROM schema_version WHERE version > 10').run();
     expect(cols(v10)).not.toContain('reasoning');
     v10.close();
@@ -117,6 +120,38 @@ describe('storage/db — v11 过程回放迁移（思考链 / 任务清单随消
     expect((upgraded.prepare('SELECT MAX(version) AS v FROM schema_version').get() as { v: number }).v).toBeGreaterThanOrEqual(
       11,
     );
+    upgraded.close();
+  });
+});
+
+describe('storage/db — v13 回答形态迁移（providers.stream_mode）', () => {
+  it('新库 providers 含 stream_mode 列', () => {
+    const db = openIsolated(tmp());
+    const cols = (db.prepare(`PRAGMA table_info(providers)`).all() as Array<{ name: string }>).map((c) => c.name);
+    expect(cols).toContain('stream_mode');
+    db.close();
+  });
+
+  it('老库回填按 type 定位：openai 兼容（池中）→ once，anthropic（原生）→ stream', () => {
+    const dir = tmp();
+    const old = openIsolated(dir);
+    old.prepare(`INSERT INTO providers (id, name, base_url, type, enabled) VALUES ('p-ai', '池', 'https://relay/v1', 'openai', 1)`).run();
+    old.prepare(
+      `INSERT INTO providers (id, name, base_url, type, enabled) VALUES ('p-native', '原生', 'https://api.anthropic.com/v1', 'anthropic', 1)`,
+    ).run();
+    old.exec(`ALTER TABLE providers DROP COLUMN stream_mode`);
+    old.prepare('DELETE FROM schema_version WHERE version > 12').run();
+    old.close();
+
+    const upgraded = openIsolated(dir);
+    const modes = upgraded.prepare('SELECT id, stream_mode FROM providers ORDER BY id').all() as Array<{
+      id: string;
+      stream_mode: string;
+    }>;
+    expect(modes).toEqual([
+      { id: 'p-ai', stream_mode: 'once' },
+      { id: 'p-native', stream_mode: 'stream' },
+    ]);
     upgraded.close();
   });
 });

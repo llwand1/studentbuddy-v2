@@ -56,7 +56,9 @@ export async function runAiQuiz(roomId: string): Promise<void> {
 
   let payload: QuizPayload | null = null;
   try {
-    payload = await generateQuiz(topic, undefined, PK_QUIZ_MIX);
+    // 末参 online=true（2026-09-13 老板拍板）：AI 出题也联网，与人出题同口径（match.ts 那侧同样开了）。
+    // 失败不阻断：搜不到就退回模型知识，AI 出题失败本就按 CD 不变、可免费重试处理，计分不受影响。
+    payload = await generateQuiz(topic, undefined, PK_QUIZ_MIX, undefined, undefined, true);
   } catch {
     payload = null;
   }

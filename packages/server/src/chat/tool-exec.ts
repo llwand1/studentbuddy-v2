@@ -7,7 +7,8 @@
  * 能力边界（如实标注，不假装做全）：
  * - 并行：`Promise.allSettled`，结果**按调用顺序**回灌（顺序稳定性＝回归锁可钉）。
  * - 超时：到点后不再等待、不把结果回灌；被放弃的那次调用仍在后台跑完——
- *   真正的中断需要 `signal` 透传进工具内部（改 `ToolContext`，下一步，本批不做）。
+ *   中断路径（v13 起）已把 `signal` 透传进 `ToolContext`，联网工具内部 fetch 真被掐断，
+ *   「停止生成」不再干等；非联网工具（DB 类）本身秒回，无需取消。
  * - 取消：中止后**不再干等**，立刻按「已停止」结算（见 `abortRaceOf`）；已在跑的调用同样只是「不等它」。
  * - 未做（需要 `kind` 字段，属 S1 后半）：同轮去重、network 失败重试 1 次。
  *
@@ -136,6 +137,8 @@ export async function runToolCalls(
           }
           terminal = { status, detail };
         },
+        // signal 透传进工具内部：联网工具据此真掐断 HTTP 请求（v13 体验升级）
+        signal,
       };
 
       let timer: ReturnType<typeof setTimeout> | undefined;

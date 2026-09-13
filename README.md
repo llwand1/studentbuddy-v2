@@ -56,7 +56,10 @@
 ## 功能总览
 
 ### 学 · 对话核
-- **SSE 流式输出**：token 级流式上屏，屏上文本与库内文本逐字一致；断线指数退避重连 + 事件序号回放去重
+- **SSE 流式输出**：token 级流式上屏，屏上文本与库内文本逐字一致；断线指数退避重连 + 事件序号回放去重 + 重连后 `/live` 快照对齐（重叠帧由序号去重在入口拦死）
+- **回答呈现形态按服务商可配**：原生 AI（Anthropic 原生协议）走逐字流式全过程——**原生思考链**（extended thinking 流式上屏并随消息落库）+ 任务清单 + 工具卡片；池中 AI（OpenAI 兼容中转）默认「思考中 UI + 一次性回答」（非流式请求整块上屏）；设置页按服务商切换（`stream_mode`）
+- **思考中等待态**：三点弹跳 + 轮播短语 + 已用时计时（首 token 前空窗与池中 AI 整个生成期共用）
+- **消息操作**：复制 / 重新生成（最后一条回答）/ **编辑重发**（最后一条提问，改完重跑、旧回答作废）
 - **单轨工具循环**：原生 function-calling 循环（15 轮上限 / 14k 回灌截断 / 逐轮预算检查 / 工具轮原子落库，无孤儿 tool 消息）
 - **联网搜索**：Exa / Tavily / 智谱按 key 并行聚合 + 跨家 URL 去重 + 24h 缓存；三家无 key 走 DuckDuckGo 兜底；出网带 SSRF 护栏
 - **工具调用可视化**：`step` 事件三态进度芯片上屏（进行中 / 完成 / 失败），搜索溯源可见
@@ -270,6 +273,7 @@ CHANGELOG.md               项目改动登记册（代码/文档/测试同批登
 |------|------|
 | [`SSE-CONTRACT.md`](docs/SSE-CONTRACT.md) | SSE 事件与 HTTP 接口契约（前端对接核心） |
 | [`QUIZ-IMAGE-SPEC.md`](docs/QUIZ-IMAGE-SPEC.md) | 出题配图契约（字段加法 / 丢图保题 / 提示词口径） |
+| [`QUIZ-SEARCH-SPEC.md`](docs/QUIZ-SEARCH-SPEC.md) | 出题联网检索契约（三入口开关 / 素材不是指令 / 失败不阻断不静默 / 出题专用模型参数） |
 | [`ANSWER-STYLE-SPEC.md`](docs/ANSWER-STYLE-SPEC.md) | 回答方式偏好契约（L0/L1 行为、默认档等价性） |
 | [`TERM-TIDY-SPEC.md`](docs/TERM-TIDY-SPEC.md) | 词条库 AI 整理契约（归一规则 / 别名防分裂） |
 | [`DOC-RAG-SPEC.md`](docs/DOC-RAG-SPEC.md) | 文档检索契约（短文档直塞 / 长文档 BM25 Top-K / 常量取值依据与被否掉的两条阈值方案） |

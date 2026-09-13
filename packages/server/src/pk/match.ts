@@ -121,7 +121,9 @@ export async function submitQuiz(
 
   let payload: QuizPayload | null = null;
   try {
-    payload = await generateQuiz(prompt, undefined, PK_QUIZ_MIX);
+    // 末参 online=true（2026-09-13 老板拍板）：PK 出题也走联网检索，出的题能是最新事实。
+    // 联网失败不阻断（quiz-search 内部降级），最多多花几秒——CD 60s 足够覆盖，计分口径零改动。
+    payload = await generateQuiz(prompt, undefined, PK_QUIZ_MIX, undefined, undefined, true);
   } catch {
     payload = null;
   }

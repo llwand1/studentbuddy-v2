@@ -131,14 +131,22 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ sessionId }),
       }),
+    /** 编辑重发：把最后一条提问改成新文案后重跑（旧回答及工具轮作废） */
+    resend: (sessionId: string, text: string) =>
+      request<{ ok: boolean }>('/api/chat/resend', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, text }),
+      }),
   },
 
   providers: {
     list: () => request<Array<Provider & { id: string }>>('/api/providers'),
-    create: (p: { name: string; baseUrl: string; apiKey?: string; type?: string }) =>
+    create: (p: { name: string; baseUrl: string; apiKey?: string; type?: string; streamMode?: string }) =>
       request<{ id: string }>('/api/providers', { method: 'POST', body: JSON.stringify(p) }),
-    update: (id: string, patch: { name?: string; baseUrl?: string; apiKey?: string; enabled?: boolean }) =>
+    update: (id: string, patch: { name?: string; baseUrl?: string; apiKey?: string; enabled?: boolean; streamMode?: string }) =>
       request<{ ok: boolean }>(`/api/providers/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
+    /** 该服务商的真实可用模型列表（拉取失败/不支持时为空数组，前端保留手填） */
+    models: (id: string) => request<{ models: string[] }>(`/api/providers/${id}/models`),
     remove: (id: string) => request<{ ok: boolean }>(`/api/providers/${id}`, { method: 'DELETE' }),
     roles: () =>
       request<{

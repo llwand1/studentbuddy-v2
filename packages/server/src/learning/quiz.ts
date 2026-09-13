@@ -14,28 +14,36 @@ import {
   SETTING_KEY_QUIZ_MIX,
   normalizeQuizMix,
   mixTotal,
-  SETTING_KEY_QUIZ_IMAGE,
-  DEFAULT_QUIZ_IMAGE,
   normalizeQuizSvg,
   emptyQuizImageReport,
+  emptyQuizSearchReport,
   buildAnswerStyleBlock,
   MAX_DOC_CHARS,
 } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { loadAnswerStyle } from '../storage/answer-style.js';
 import { routeRole } from '../llm/router.js';
+import { QUIZ_TEMPERATURE, getQuizMaxOutputTokens } from '../llm/model-limits.js';
 import { repairJsonBrackets, repairJsonEscapes } from './quiz-json-repair.js';
+import { loadQuizImage, buildImageInstruction } from './quiz-image.js';
+import { buildQuizSearchBlock, mapQuizSources } from './quiz-search.js';
+
+// 配图三件的实现已搬到 quiz-image.ts（本文件行数红线所迫，见该文件头注）。
+// 这里原样转出，既有调用方 routes.ts / quiz.test.ts / quiz-image.test.ts 的 import 路径零改动。
+export { loadQuizImage, saveQuizImage, buildImageInstruction } from './quiz-image.js';
 
 /**
  * 出题协议。v1.1 的关键修正：**svg 进字段清单、进示例**（四个题对象一个给真图、三个给 ""）。
  * v1.0 的示例里没有 svg，配图说明追加在末尾——flash 级模型照示例办事，压不过去，
  * 结果就是「题干写根据图示…结构①，但一个图也不产」（实测 0/4，详见契约 §2.7）。
+ * 2026-09-13 同法加 `refs`（来源标注，契约 QUIZ-SEARCH-SPEC §2.8）：字段进清单、进示例，
+ * 否则弱模型同样不产出。refs 只填编号——**网址由 quiz-search.ts 按编号翻译**，模型写网址一律丢弃。
  * 导出只为给单测钉住「示例里必须带 svg」这一条——它不是风格问题，而是配图 0 产率的直接根因。
  */
 export const QUIZ_PROTOCOL = `你是一个出题引擎。根据给定材料出一组练习题，严格按以下 JSON 格式输出，输出外围包一对 [QUIZ]...[/QUIZ] 标记。
-每个题目对象的字段固定为：type、question、options（只有选择题才给）、answer、explanation、svg。svg 是字符串，值为该题示意图的完整 SVG 源码；该题不需要示意图时给空字符串 ""，但不要省略这个字段。
-[QUIZ]{"title":"标题","questions":[{"type":"single","question":"单选题干","options":["A","B","C","D"],"answer":[0],"explanation":"解析","svg":"<svg viewBox='0 0 120 90'><rect x='25' y='15' width='60' height='60' fill='none' stroke='#555'/><text x='18' y='12'>A</text></svg>"},{"type":"multiple","question":"多选题干","options":["A","B","C"],"answer":[0,2],"explanation":"解析","svg":""},{"type":"fill","question":"填空题干，空位用____","answer":["答案1"],"explanation":"解析","svg":""},{"type":"essay","question":"解答题干","answer":"参考要点","solution":"完整解答","svg":""}]}[/QUIZ]
-规则：single 的 answer 是正确选项下标数组（一个元素）；multiple 可多元素；fill 的 answer 按空位顺序；essay 不判分只给参考。题目必须源于给定材料，不得编造。题目类型与数量严格按下文「本次出题数量要求」执行。svg 怎么写照下文「配图要求」，但上面格式示例里那个方框只是演示字段怎么写——照抄进题目等于没配图。除该 JSON 外不要输出任何其他文字。`;
+每个题目对象的字段固定为：type、question、options（只有选择题才给）、answer、explanation、svg、refs。svg 是字符串，值为该题示意图的完整 SVG 源码；该题不需要示意图时给空字符串 ""，但不要省略这个字段。refs 是数组，填本题参考到的资料编号（只有下文给了「互联网参考资料」时才有编号可填），没参考就填 []。
+[QUIZ]{"title":"标题","questions":[{"type":"single","question":"单选题干","options":["A","B","C","D"],"answer":[0],"explanation":"解析","svg":"<svg viewBox='0 0 120 90'><rect x='25' y='15' width='60' height='60' fill='none' stroke='#555'/><text x='18' y='12'>A</text></svg>","refs":[1]},{"type":"multiple","question":"多选题干","options":["A","B","C"],"answer":[0,2],"explanation":"解析","svg":"","refs":[]},{"type":"fill","question":"填空题干，空位用____","answer":["答案1"],"explanation":"解析","svg":"","refs":[]},{"type":"essay","question":"解答题干","answer":"参考要点","solution":"完整解答","svg":"","refs":[]}]}[/QUIZ]
+规则：single 的 answer 是正确选项下标数组（一个元素）；multiple 可多元素；fill 的 answer 按空位顺序；essay 不判分只给参考。题目必须源于给定材料，不得编造。题目类型与数量严格按下文「本次出题数量要求」执行。svg 怎么写照下文「配图要求」，但上面格式示例里那个方框只是演示字段怎么写——照抄进题目等于没配图。refs 只填编号数字，**绝不要填网址或标题**（网址由系统按编号补全，你写的网址一律作废）。除该 JSON 外不要输出任何其他文字。`;
 
 /**
  * 定位 svg 字段的整个值（含值内未转义的裸引号）——漏转义时值里会有 `"`，
@@ -233,7 +241,10 @@ export function applyQuizMix(
 
 /**
  * 一键出题（基于主题/对话材料），返回 QuizPayload 或 null（降级由调用方处理）。
- * `report` 是可选出参：开关状态、丢图数、是否截断回填进去，路由据此如实上报（契约 §2.4）。
+ * `report` 是可选出参：开关状态、丢图数、是否截断、**联网检索结果**都回填进去，路由据此如实上报
+ * （配图契约 §2.4；联网部分见 docs/QUIZ-SEARCH-SPEC.md §2.2/§2.4）。
+ * `online` 是本次是否联网。**默认 false**——历史调用点不传即行为不变；三条面向用户的入口才显式开。
+ * 联网失败绝不阻断出题（ADR-4）：搜不到、没 key、超时都退回模型知识，照常出题。
  */
 export async function generateQuiz(
   topic: string,
@@ -241,20 +252,37 @@ export async function generateQuiz(
   mix?: QuizMix,
   report?: QuizImageReport,
   styleArg?: AnswerStyle, // 省略＝读库内回答方式偏好（契约 ANSWER-STYLE §3；本行不留余量，故不另起一段注释）
+  online = false,
 ): Promise<QuizPayload | null> {
   const target = routeRole('quiz-generator');
-  if (!target || !target.model) return null;
+  if (!target || !target.model) {
+    // 真因写进 report（契约 QUIZ-SEARCH-SPEC §2.5）：路由据此报「去设置页绑模型」而不是「可重试」
+    if (report) report.failure = 'no-model';
+    return null;
+  }
   let acc = '';
   const wanted = mix ?? loadQuizMix();
   // 开关只读一次：提示词与解析硬门必须同源，否则会出现「叫模型画、画完又剥掉」的自相矛盾
   const imageOn = loadQuizImage();
   if (report) report.on = imageOn;
-  const prompt = `${QUIZ_PROTOCOL}\n${buildMixInstruction(wanted)}\n${buildImageInstruction(imageOn)}\n${buildAnswerStyleBlock(styleArg ?? loadAnswerStyle(), 'quiz')}\n\n材料：\n${material ? material.slice(0, MAX_DOC_CHARS) : `主题：${topic}`}`;
+  // 联网只由 online 决定；report 只是「要不要记账」的可选出参。★ 别再写成 `online && report`——
+  // 那样 PK 这类不传 report 的入口会静默退化成不联网（2026-09-13 真机核查抓到的实际 bug）。
+  const searchReport = online ? emptyQuizSearchReport(true) : undefined;
+  if (report && searchReport) report.search = searchReport;
+  // 检索先于出题（拿到资料才可能出时效题）；失败返回空段，下面的提示词与旧版逐字一致
+  const found = searchReport
+    ? await buildQuizSearchBlock(topic, material, searchReport)
+    : { block: '', refs: [] };
+  const refsBlock = found.block;
+  const prompt = `${QUIZ_PROTOCOL}\n${buildMixInstruction(wanted)}\n${buildImageInstruction(imageOn)}\n${buildAnswerStyleBlock(styleArg ?? loadAnswerStyle(), 'quiz')}\n${refsBlock}${refsBlock ? '\n' : ''}\n材料：\n${material ? material.slice(0, MAX_DOC_CHARS) : `主题：${topic}`}`;
   for await (const chunk of target.adapter.chat({
     model: target.model,
     apiKey: target.apiKey,
     baseUrl: target.baseUrl,
     messages: [{ role: 'user', content: prompt }],
+    // 出题专用参数：温度低于聊天的 0.7（题目与 JSON 都要稳），输出上限单列（一次十题+SVG 常撞通用表）
+    temperature: QUIZ_TEMPERATURE,
+    maxTokens: getQuizMaxOutputTokens(target.model),
   })) {
     acc += chunk.content;
     if (chunk.done) {
@@ -263,54 +291,12 @@ export async function generateQuiz(
       break;
     }
   }
-  return parseQuizBlock(acc, report, imageOn);
-}
-
-// ── 出题配图开关（契约 docs/QUIZ-IMAGE-SPEC.md §2.2）──
-
-/** 库里只认真值 true/'true'，其余一律按关处理（数据容错，ADR-6） */
-function normalizeImageFlag(input: unknown): boolean {
-  return input === true || input === 'true';
-}
-
-/** 读设置；未配过/配置损坏都回退默认（与 loadQuizMix 同一套路） */
-export function loadQuizImage(): boolean {
-  const row = getDb()
-    .prepare('SELECT value FROM app_settings WHERE key = ?')
-    .get(SETTING_KEY_QUIZ_IMAGE) as { value: string } | undefined;
-  if (!row) return DEFAULT_QUIZ_IMAGE;
-  try {
-    return normalizeImageFlag(JSON.parse(row.value) as unknown);
-  } catch {
-    return DEFAULT_QUIZ_IMAGE;
-  }
-}
-
-/** 存设置；落库前先归一化，库里永远是干净值 */
-export function saveQuizImage(on: boolean): boolean {
-  const clean = normalizeImageFlag(on);
-  getDb()
-    .prepare(
-      'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-    )
-    .run(SETTING_KEY_QUIZ_IMAGE, JSON.stringify(clean));
-  return clean;
-}
-
-/**
- * 配图指令（v1.1 重写，实测结论见契约 §2.7）。
- * flash 级模型只认「正面强制 + 留合法出口」：v1.0 那套「只有当…才画 / 文字说得清不要配图 /
- * 不要为凑数画图」的劝说式负面措辞等于送模型免费逃逸口——同一模型同一材料，改前 0 图、改后 2~3 图/组。
- */
-export function buildImageInstruction(on: boolean): string {
-  if (!on) return '本次出题不配图：所有题目的 svg 一律给空字符串 ""，一题也不要画。';
-  return [
-    '配图要求：凡题干涉及「如图、见图、图形、图像、结构、装置、几何体、光路、受力、电路、流程」的题目，必须给 svg 字段画出对应的示意图，不能只在文字里写「如图」却不给图；',
-    '确实不需要示意图的题，svg 给空字符串 ""。每组最多 3 道题配图，其余一律留空——图越多输出越长，越容易撞到模型单次输出的长度上限而被截断。',
-    `SVG 写法：属性一律用单引号，例如 <svg viewBox='0 0 120 90'><circle cx='60' cy='45' r='30' fill='none' stroke='#555'/></svg>；这样 SVG 里不出现双引号，不必在 JSON 字符串里做转义。`,
-    'SVG 硬约束：根标记必须带 viewBox，宽度不超过 680；禁止 <image> 外链与 <script>；线条与文字不要用纯黑纯白（会按主题替换）；图形元素控制在 20 个以内。',
-    'SVG 内容要求：图要把该题给出的条件与所求画明白，标注用 <text>，坐标自己算准——学习软件里一张对不上的错图比没图更坏。',
-  ].join('');
+  const parsed = parseQuizBlock(acc, report, imageOn);
+  // 走到这儿还解不出＝模型确有输出但不成题组（含配比裁剪后为空的上游情形），与「没配模型」是两条路
+  if (!parsed && report) report.failure = 'parse';
+  // 来源标注（契约 QUIZ-SEARCH-SPEC §2.8）：把模型给的编号翻译成真实 title/url 填 source。
+  // 网址一律取自 found.refs（真实检索结果），模型写什么都丢——这是「来源不可幻觉」的唯一保证。
+  return parsed ? mapQuizSources(parsed, found.refs) : null;
 }
 
 // ── 题库 ──

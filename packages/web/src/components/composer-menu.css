@@ -1,0 +1,103 @@
+/* ComposerMenu：输入框的「+」展开菜单。视觉与 .sb-online-pill / .chat-quiz-btn 同一套 token，
+   不再自造第三套按钮语言（浅色极简，无渐变无阴影堆叠）。 */
+.composer-menu {
+  position: relative;
+  flex-shrink: 0;
+  margin-bottom: 4px;
+}
+
+.composer-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sb-sp-1);
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-xs);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.composer-menu-btn:hover:not(:disabled) {
+  color: var(--sb-primary);
+  border-color: var(--sb-primary);
+}
+.composer-menu-btn:disabled {
+  color: var(--sb-ink-tertiary);
+  cursor: not-allowed;
+}
+.composer-menu-btn.open {
+  color: var(--sb-primary);
+  border-color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+}
+/* 「+」展开时转 45° 变「×」——与主流同款的一眼可关反馈，纯 CSS 不换图标 */
+.composer-menu-btn svg {
+  transition: transform 0.18s ease;
+}
+.composer-menu-btn.open svg {
+  transform: rotate(45deg);
+}
+
+.composer-menu-status {
+  white-space: nowrap;
+}
+
+.composer-menu-panel {
+  position: absolute;
+  bottom: calc(100% + var(--sb-sp-2));
+  left: 0;
+  z-index: 20;
+  min-width: 168px;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sb-sp-1);
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  box-shadow: var(--sb-shadow-2);
+}
+
+.composer-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  width: 100%;
+  padding: var(--sb-sp-2);
+  border-radius: var(--sb-radius-sm);
+  color: var(--sb-ink);
+  font-size: var(--sb-fs-sm);
+  text-align: left;
+}
+.composer-menu-item:hover:not(:disabled) {
+  background: var(--sb-bg);
+  color: var(--sb-primary);
+}
+.composer-menu-item:disabled {
+  color: var(--sb-ink-tertiary);
+  cursor: not-allowed;
+}
+.composer-menu-item.on {
+  color: var(--sb-primary);
+}
+
+/* 图标位固定宽：开关项在「已开」时才渲染勾，不留固定宽度会让两态文字左右跳动 */
+.composer-menu-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.composer-menu-label {
+  flex: 1;
+}
+
+.composer-menu-state {
+  flex-shrink: 0;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+.composer-menu-item.on .composer-menu-state {
+  color: var(--sb-primary);
+}

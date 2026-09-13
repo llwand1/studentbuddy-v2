@@ -1,11 +1,18 @@
 /**
- * llm/anthropic — Anthropic Messages API 流式适配器。
+ * llm/anthropic — Anthropic Messages API 流式适配器（原生 AI 形态）。
  * port from v1: src/core/adapter/anthropic.ts（审查搬运）：
  * system 拆分 / tool_use 增量合并 / tool→user(tool_result) 回灌格式 / AbortSignal 桥接 /
  * max_tokens 强制（Anthropic 缺失即 400）。
+ * v13（对话体验升级）新增：
+ * - 原生思考链：req.thinking 开启 extended thinking，thinking_delta 以 reasoning 增量吐出，
+ *   思考块随 assistant 轮回灌（Anthropic 契约：thinking + tool 循环不回传思考块会 400）；
+ * - listModels 走真实 /models 端点（此前是写死三个型号的桩）。
  */
 import type { ChatRequest, LLMAdapter, ModelListRequest, TokenChunk, ToolCall } from './types.js';
 import { getMaxOutputTokens } from './model-limits.js';
+
+/** 思考预算（tokens）：≥1024 是 Anthropic 硬下限；max_tokens 必须大于它 */
+const THINKING_BUDGET_TOKENS = 4096;
 
 export class AnthropicAdapter implements LLMAdapter {
   type = 'anthropic' as const;
@@ -30,6 +37,7 @@ export class AnthropicAdapter implements LLMAdapter {
     }
 
     try {
+      const maxTokens = req.maxTokens ?? getMaxOutputTokens(req.model);
       const body: Record<string, unknown> = {
         model: req.model,
         messages: nonSystemMsgs.map((m) => {
@@ -37,6 +45,9 @@ export class AnthropicAdapter implements LLMAdapter {
             return {
               role: 'assistant',
               content: [
+                // 思考块回灌：thinking + tool 循环时 Anthropic 强制要求 assistant 轮
+                // 带上它上一轮的思考块（缺了直接 400）。无 thinking 请求里 m.reasoning 恒 undefined。
+                ...(req.thinking && m.reasoning ? [{ type: 'thinking' as const, thinking: m.reasoning }] : []),
                 ...(m.content ? [{ type: 'text' as const, text: m.content }] : []),
                 ...m.toolCalls.map((tc: ToolCall) => ({
                   type: 'tool_use' as const,
@@ -57,9 +68,14 @@ export class AnthropicAdapter implements LLMAdapter {
         }),
         system: systemBlocks.filter(Boolean).join('\n\n') || undefined,
         temperature: req.temperature ?? 0.7,
-        max_tokens: req.maxTokens ?? getMaxOutputTokens(req.model),
+        max_tokens: req.thinking ? Math.max(maxTokens, THINKING_BUDGET_TOKENS + 8192) : maxTokens,
         stream: true,
       };
+      if (req.thinking) {
+        body.thinking = { type: 'enabled', budget_tokens: THINKING_BUDGET_TOKENS };
+        // Anthropic 契约：thinking 开启时 temperature 只允许 1（或干脆不传）——不传最稳
+        delete body.temperature;
+      }
       if (req.tools && req.tools.length > 0) {
         body.tools = req.tools.map((t) => ({
           name: t.function.name,
@@ -106,6 +122,10 @@ export class AnthropicAdapter implements LLMAdapter {
           }
           try {
             const parsed = JSON.parse(data);
+            // 思考链增量（req.thinking 时）：与正文同一通道下发，flow 按 reasoning 累积落库
+            if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'thinking_delta' && parsed.delta.thinking) {
+              yield { content: '', done: false, reasoning: parsed.delta.thinking };
+            }
             if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
               yield { content: parsed.delta.text, done: false };
             }
@@ -153,8 +173,22 @@ export class AnthropicAdapter implements LLMAdapter {
     }
   }
 
-  async listModels(_config?: ModelListRequest): Promise<string[]> {
-    return ['claude-sonnet-4-5', 'claude-opus-4-1', 'claude-haiku-4-5'];
+  async listModels(config?: ModelListRequest): Promise<string[]> {
+    try {
+      const baseUrl = config?.baseUrl || 'https://api.anthropic.com/v1';
+      const response = await fetch(`${baseUrl}/models?limit=100`, {
+        headers: {
+          'x-api-key': config?.apiKey || '',
+          'anthropic-version': '2023-06-01',
+        },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) return [];
+      const data = (await response.json()) as { data?: Array<{ id?: string; display_name?: string }> };
+      return (data.data ?? []).map((m) => m.id || '').filter(Boolean);
+    } catch {
+      return [];
+    }
   }
 }
 

@@ -18,9 +18,16 @@
 - **流什么就存什么（逐字成立）**：服务端补进最终文本的每一段（轮间分隔、上限提示、中断标记）都同步作为 `token` 下发，故 `assistant.content` === 该轮 token 拼接；失败/中止同样收口（补 `done`，半截正文带标记落库，工具轮仍不落）。前端 `done` 据此判重：历史尾条与流式文本同字时不再追加（防 `/messages` 晚于落库返回时双份气泡）。
 - **心跳**：每 15s 一条 `{ "type": "ping" }`（不占 seq、不进缓冲）；destroyed 连接自动移除。
 
-**断线恢复（客户端 sse-client 实现）**：
+**断线恢复（客户端 sse-client 实现，2026-09-13 两半全接通）**：
 1. `onerror` → 关闭连接 → 指数退避（1s→2s→4s…封顶 15s）重建连接（携带最新 since）；
-2. 重连成功后如需完整状态，`GET /api/sessions/:id/live` 拉事件快照对齐。
+2. 重连成功后 `GET /api/sessions/:id/live` 拉事件快照对齐（此前只有服务端半边，前端从未调用）；
+   快照与重连回放的重叠帧由 **seq 单调去重在事件入口处拦死**（`ev.seq <= since` 直接丢弃）——
+   客户端此前只前移 since 不拦旧帧，重叠时同一 token 帧会进回调两次（文字翻倍），v13 起在入口拦死。
+
+**回答呈现形态（2026-09-13 对话体验升级）**：SSE 事件契约不变（无新事件类型），形态由 provider 的
+`stream_mode` 决定——`'stream'`（原生 AI）逐字 token 全过程；`'once'`（池中 AI）适配器发非流式请求、
+完整答案作为一个 token 帧整块下发，「流什么就存什么」铁律照旧成立（落库口径零改动），前端首 token
+前的空窗即「思考中」等待态（`Thinking` 组件：轮播短语 + 已用时）。
 
 **发送门控（修 v1 F1 竞态）**：`ready !== 'open'`（connecting/reconnecting）或生成中时，composer 禁发并显示状态提示——**绝不静默吞消息**。
 
@@ -124,4 +131,5 @@
 | 2026-08-27（复审） | 屏上==库内扩到收尾语（上限提示、中断标记均走 token）；失败轮补发终止 `done`；搜索 `providers` 只报真出结果的一家、缓存键含 provider 组合、自检跳缓存；PUT 先校验后写 + 单值 300 字上限；前端 `done` 判重（历史尾条同字不再追加）——真机 reload 复验单气泡 |
 | 2026-09-02 | 新增文档模式三端点 `GET/POST/DELETE /api/doc`（只回元信息、正文不落盘、会话绑定）；补登 §3.1 此前漏登的 quiz/terms/preview/activity 路由；加**多段 system 必须全量合并**的适配器契约（B-001 教训） |
 | 2026-09-06 | 认知进化 v1.1 契约登记（WBS 任务 1）：`BlockKind` 增 `'verdict'`（payload=Verdict 含 `met`）；`DomainEvent` 增 `evolution_levelup`（server/events/bus.ts）；shared/domain.ts 落 `Verdict`/`EvolutionTermState`/`EvolutionState`/`EvolutionEventRow` 四类型 |
+| 2026-09-13 | **对话体验升级**：断线恢复第 2 步（/live 快照）接通 + seq 去重入口拦死；呈现形态语义登记（stream/once，见上）；新增 `POST /api/chat/resend`（编辑重发：更新最后一条提问内容并作废其后产物后重跑，与 regenerate 同 rowid 划界）；`GET /api/providers/:id/models` 暴露适配器 `listModels`；停止生成 signal 透传进工具内部（search 真掐断） |
 | 2026-09-12 | **PK 频道登记**（契约 `docs/PK-SPEC.md` P0-1）：`pk-state`/`pk-question`/`pk-verdict`/`pk-end` 四事件进 `shared/sse-events.ts`——字段用 `roomId`（不是 `sessionId`），频道键 `pk:<roomId>`，与聊天空间严格隔离；新增 §2.1（频道语义）与 §3.2（登录+房间端点含错误码映射）。P0-1 实际只发 `pk-state`，后三个按契约先登记、待 P0-2 启用 |

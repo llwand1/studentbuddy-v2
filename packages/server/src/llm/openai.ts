@@ -31,6 +31,13 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
   type = 'openai' as const;
 
   async *chat(req: ChatRequest): AsyncIterable<TokenChunk> {
+    // 一次性回答（v13，池中 AI 形态）：不发流式请求，等完整 JSON 回来整块吐出。
+    // 等待期由前端「思考中」UI 覆盖（首 token 前的空窗）；中转池大量按非流式聚合转发，
+    // 对它们逐字流式只是把残缺体验拉长，不如一次到位。
+    if (req.streamMode === 'once') {
+      yield* this.chatOnce(req);
+      return;
+    }
     const baseUrl = req.baseUrl || 'https://api.openai.com/v1';
     const url = `${baseUrl}/chat/completions`;
 
@@ -139,6 +146,93 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
         }
       }
       yield { content: '', done: true };
+    } finally {
+      if (fallback) clearTimeout(fallback);
+      if (req.signal) req.signal.removeEventListener('abort', onExternalAbort);
+    }
+  }
+
+  /**
+   * 一次性回答分支：与流式分支同源的 abort 桥接与 tool_calls 解析，
+   * 差异仅在 body.stream=false、响应是一次完整 JSON（choices[0].message 而非 delta）。
+   * reasoning 多字段兼容口径与流式分支一致（中转池字段名不统一是常态）。
+   */
+  private async *chatOnce(req: ChatRequest): AsyncIterable<TokenChunk> {
+    const baseUrl = req.baseUrl || 'https://api.openai.com/v1';
+    const url = `${baseUrl}/chat/completions`;
+
+    const controller = new AbortController();
+    let fallback: ReturnType<typeof setTimeout> | undefined;
+    const onExternalAbort = () => controller.abort();
+    if (req.signal) {
+      if (req.signal.aborted) controller.abort();
+      else req.signal.addEventListener('abort', onExternalAbort, { once: true });
+    } else {
+      fallback = setTimeout(() => controller.abort(), 120_000);
+    }
+
+    try {
+      const body: Record<string, unknown> = {
+        model: req.model,
+        messages: toOpenAIMessages(req.messages),
+        temperature: req.temperature ?? 0.7,
+        max_tokens: req.maxTokens ?? getMaxOutputTokens(req.model),
+        stream: false,
+      };
+      if (req.tools && req.tools.length > 0) {
+        body.tools = req.tools;
+        body.tool_choice = 'auto';
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${req.apiKey}` },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`OpenAI API error ${response.status}: ${errText}`);
+      }
+      const parsed = (await response.json()) as {
+        choices?: Array<{
+          message?: {
+            content?: string | null;
+            reasoning_content?: string;
+            reasoning?: string;
+            thinking?: string;
+            tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }>;
+          };
+          finish_reason?: string | null;
+        }>;
+        usage?: { prompt_tokens?: number; completion_tokens?: number };
+      };
+      const choice = parsed.choices?.[0];
+      const msg = choice?.message;
+      const reasoning = msg?.reasoning_content || msg?.reasoning || msg?.thinking || '';
+      if (reasoning) yield { content: '', done: false, reasoning };
+      const toolCalls: ToolCall[] | undefined =
+        msg?.tool_calls && msg.tool_calls.length > 0
+          ? msg.tool_calls
+              .filter((tc) => tc.function?.name)
+              .map((tc, i) => ({
+                id: tc.id || `call_${i}_${Math.random().toString(36).slice(2, 8)}`,
+                name: tc.function?.name ?? '',
+                arguments: tc.function?.arguments || '{}',
+              }))
+          : undefined;
+      yield {
+        content: msg?.content || '',
+        done: true,
+        finishReason: choice?.finish_reason || 'stop',
+        usage: parsed.usage
+          ? {
+              promptTokens: parsed.usage.prompt_tokens || 0,
+              completionTokens: parsed.usage.completion_tokens || 0,
+            }
+          : undefined,
+        ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
+      };
     } finally {
       if (fallback) clearTimeout(fallback);
       if (req.signal) req.signal.removeEventListener('abort', onExternalAbort);

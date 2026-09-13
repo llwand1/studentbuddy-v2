@@ -145,7 +145,9 @@ describe('AI 出题（ticker 到点触发，与人同口径）', () => {
     expect(q.prompt).toBe('主题：世界历史');
     expect(q.status).toBe('pending');
     expect(scoreOf(roomId, aiId)).toBe(1); // 出题 +1，与人一致
-    expect(vi.mocked(generateQuiz)).toHaveBeenCalledWith('世界历史', undefined, PK_QUIZ_MIX);
+    // 末三参：report / styleArg 不传（AI 出题不需要出题报告与回答偏好），online=true
+    // ——2026-09-13 老板拍板「PK 出题也接联网」，AI 与人同口径，两条路径都传 true
+    expect(vi.mocked(generateQuiz)).toHaveBeenCalledWith('世界历史', undefined, PK_QUIZ_MIX, undefined, undefined, true);
     expect(room.aiBusy).toBe(false); // 在途结束
     const now = Date.now();
     expect(room.aiNextQuizAt).toBeLessThanOrEqual(now + 60_000);

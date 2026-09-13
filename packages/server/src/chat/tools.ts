@@ -11,6 +11,11 @@ import { saveOneTerm, updateTerm, removeTerm, findTermByName } from '../learning
 export interface ToolContext {
   /** 工具步骤回调（step 事件上屏） */
   onStep: (tool: string, status: 'running' | 'done' | 'error', detail?: string) => void;
+  /**
+   * 会话级中止信号（v13 体验升级）：透传进工具内部 fetch，「停止生成」真掐断联网请求，
+   * 不再只是把结果丢弃后干等超时。工具实现自行与本地超时合并（search 用 AbortSignal.any）。
+   */
+  signal?: AbortSignal;
 }
 
 export interface ToolResult {
@@ -45,7 +50,7 @@ registry.set('search_web', {
       return { content: '搜索词为空，请带 query 重新调用 search_web。' };
     }
     ctx.onStep('search_web', 'running', query);
-    const { results, providers, failed } = await searchWeb(query);
+    const { results, providers, failed } = await searchWeb(query, { signal: ctx.signal });
     if (results.length === 0) {
       const noKey = !Object.values(listKeyStatus()).some(Boolean);
       const guide = noKey

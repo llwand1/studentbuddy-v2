@@ -33,6 +33,12 @@ export interface QuizQuestion {
   answer?: number[] | string[] | string;
   explanation?: string;
   solution?: string;
+  /**
+   * 该题的来源（契约 `docs/QUIZ-SEARCH-SPEC.md` §2.8）。
+   * **服务端按模型给的编号映射后回填，URL 永远来自真实检索结果**：模型只许给编号、
+   * 不许写网址（幻觉 URL 是弱模型常态，"来源写错"比"没有来源"更糟）。
+   * 模型没给编号或编号越界 → 不填此字段，由套题级来源清单兜底。历史题无此键 → 不渲染。
+   */
   source?: { kind: 'web' | 'ai'; title: string; url?: string };
   /**
    * 配图：SVG 源码（契约 docs/QUIZ-IMAGE-SPEC.md）。模型自决——需要示意图才给，看得懂文字就不给。
@@ -182,6 +188,19 @@ export interface QuizImageReport {
   droppedSvg: number;
   /** 输出撞 token 上限、靠逐题回退才保住前缀：尾部不完整题已丢弃，题组可用但不全 */
   truncated: boolean;
+  /**
+   * 出题联网检索报告（2026-09-13 新增）。**可选**：没要求联网的调用方不填。
+   * 挂在同一份出题报告上而不是给 `generateQuiz` 开第 7 个参数——两份报告同族、同生共死，
+   * 分开传只会让签名继续膨胀。
+   */
+  search?: QuizSearchReport;
+  /**
+   * 出题失败的**真因**（2026-09-13）：`'no-model'`＝出题角色没绑模型（怎么重试都没用，要去设置页）；
+   * `'parse'`＝模型给了输出但解不出题组（可重试/换模型）。由**确实知道原因的一方**（出题引擎）填写，
+   * 路由只据此选文案——不靠反向探测「模型配没配」来猜，那种猜法在被 mock 的测试里、在角色绑定
+   * 存在但 provider 被停用的边缘态里都会判错。
+   */
+  failure?: 'no-model' | 'parse';
 }
 
 /** 零值报告：路由出题前先建好，传给 generateQuiz 当出参（避开 undefined 分支） */
@@ -195,4 +214,48 @@ export function emptyQuizImageReport(on = false): QuizImageReport {
  */
 export function countQuizImages(quiz: QuizPayload | null | undefined): number {
   return quiz ? quiz.questions.filter((q) => q.svg).length : 0;
+}
+
+// ── 出题联网检索（契约 docs/QUIZ-SEARCH-SPEC.md v1.1；2026-09-13 老板点单）──
+
+/**
+ * 一条联网参考来源（契约 `docs/QUIZ-SEARCH-SPEC.md` §2.8）。
+ * **URL 只由服务端填，来自真实检索结果**；`n` 与注入提示词里的 `[n]` 一一对应，
+ * 前端据此渲染可点击的来源清单，模型给的题目级编号也靠它翻译成 `source`。
+ */
+export interface QuizRef {
+  /** 1 基编号，与注入段的 `[n]` 一致 */
+  n: number;
+  /** 标题；检索源没给标题时回退成 URL */
+  title: string;
+  /** 真实网址（空串表示该条无链接，前端只显示标题文本） */
+  url: string;
+  /** 来自哪家检索源（exa / tavily / zhipu / duckduckgo…） */
+  provider: string;
+}
+
+/**
+ * 出题检索报告：本次是否联网、命中几条、哪几家出的、谁失败了。
+ * 与 QuizImageReport 同族——都是「缺了什么就说什么」的出参，前端只念不判（ADR-5）。
+ * 没有它的话，「没开联网」与「开了但一条也没搜到」在界面上长得一模一样，等于静默。
+ */
+export interface QuizSearchReport {
+  /** 本次请求是否要求联网（false 时 count/providers 恒空，不算失败） */
+  on: boolean;
+  /** 真正进了提示词的参考条数（去重后） */
+  count: number;
+  /** 真正产出结果的来源（exa / tavily / zhipu / duckduckgo-lite / duckduckgo 等；缓存命中时为 cache） */
+  providers: string[];
+  /** 失败的来源摘要；联网开着却一条没拿到时，这是唯一的解释 */
+  failed: string[];
+  /**
+   * 本次参考来源清单（可点击 URL，前端渲染用；模型给的题目级编号也由它翻译）。
+   * 条数与 `count` 一致——`count` 是「几条」，它是「哪几条」。
+   */
+  refs: QuizRef[];
+}
+
+/** 零值报告：出题前先建好，传给 generateQuiz 当出参（避开 undefined 分支） */
+export function emptyQuizSearchReport(on = false): QuizSearchReport {
+  return { on, count: 0, providers: [], failed: [], refs: [] };
 }

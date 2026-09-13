@@ -1,128 +1,58 @@
 /**
- * DocModeControl — 文档模式控件（挂在 composer 上方）。
- * 三态齐备（ADR-5）：未载入（只有按钮）｜载入中（按钮变「载入中…」并禁用）｜
- * 已载入（pill：文件名 · 字数 · 超长标记 · 清除）。
- * 正文只随会话存服务端，刷新后靠 GET meta 复原——长资料也没必要反复过网络。
+ * DocModeControl — 文档模式的状态 pill 与载入面板（挂在 composer 上方）。
+ *
+ * 2026-09-13 改版（老板口述「把这几个功能按键集中放进一个可展开折叠的按键」）：
+ * 原来那个「文档模式 / 换资料」**触发器**已搬进输入框的「+」折叠菜单，本组件只留两件
+ * **不能折进菜单**的东西——
+ * ① **pill**：本会话载入了哪篇、多少字、要不要按提问检索段落、可清除。这是**会话状态**，
+ *    藏进菜单等于把状态藏了（与「联网开关」同一处理：动作可折叠，状态不藏）；
+ * ② **面板**：粘贴正文 / 选文件的输入区，折进 168px 宽的菜单里根本没法用。
+ * 触发器与面板因此分居两处，但必须共用同一份状态 ⇒ 状态升到 `useDocMode`，本组件只消费。
+ *
+ * 三态齐备（ADR-5）：未载入（只有 hint 位）｜载入中（`busy`：面板按钮与 pill 清除一并禁）｜
+ * 已载入（pill）。正文只随会话存服务端，刷新后靠 GET meta 复原——长资料没必要反复过网络。
  */
-import { useEffect, useState } from 'react';
-import { DocIcon } from '../../components/icons';
-import { api, type DocMeta } from '../../lib/api';
-import { splitDocName } from './doc-name';
 import { MAX_DOC_CHARS } from '@sb/shared';
-
-/** 服务端 express.json 上限 2mb，留余量给 JSON 转义膨胀 */
-const MAX_FILE_BYTES = 1_900_000;
-const ACCEPT = '.txt,.md,.markdown,text/plain,text/markdown';
+import { ACCEPT, type DocMode } from './useDocMode';
 
 const num = (n: number): string => n.toLocaleString('zh-CN');
 
-export function DocModeControl({ sessionId, blocked }: { sessionId: string | null; blocked: boolean }) {
-  const [meta, setMeta] = useState<DocMeta | null>(null);
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [hint, setHint] = useState('');
-
-  // 切会话即重取：上一会话的资料绝不串台（会话绑定语义）
-  useEffect(() => {
-    setMeta(null);
-    setPanelOpen(false);
-    setHint('');
-    if (!sessionId) return;
-    let alive = true;
-    api.doc
-      .get(sessionId)
-      .then((r) => {
-        if (alive) setMeta(r.doc);
-      })
-      .catch(() => {
-        // 会话不存在或服务未就绪：按「未载入」呈现，不弹错误（ADR-4）
-      });
-    return () => {
-      alive = false;
-    };
-  }, [sessionId]);
-
-  const submit = async (docName: string, docText: string): Promise<void> => {
-    if (!sessionId || busy) return;
-    setBusy(true);
-    setHint('');
-    try {
-      const r = await api.doc.set(sessionId, docName, docText);
-      setMeta(r.doc);
-      setName('');
-      setText('');
-      setPanelOpen(false);
-      setHint('已载入，从下一轮回答起生效');
-    } catch (e) {
-      setHint(`载入失败：${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onPickFile = async (file: File | undefined): Promise<void> => {
-    if (!file || !sessionId) return;
-    if (file.size > MAX_FILE_BYTES) {
-      setHint('文件过大：正文上限约 1.9 MB');
-      return;
-    }
-    const body = await file.text();
-    await submit(file.name, body);
-  };
-
-  const clear = async (): Promise<void> => {
-    if (!sessionId || busy) return;
-    setBusy(true);
-    try {
-      await api.doc.clear(sessionId);
-      setMeta(null);
-      setHint('已清除资料');
-    } catch (e) {
-      setHint(`清除失败：${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const overCap = text.length > MAX_DOC_CHARS;
-  const dn = meta ? splitDocName(meta.name) : null;
+/** 面板是否展开由调用方持有：触发器在「+」菜单里，点过之后才拉得开这个面板 */
+export function DocModeControl({
+  doc,
+  open,
+  onClose,
+}: {
+  doc: DocMode;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { meta, dn, name, setName, text, setText, busy, hint, overCap, submit, onPickFile, clear } = doc;
 
   return (
     <div className="chat-doc">
-      <div className="chat-doc-bar">
-        <button
-          className="chat-quiz-btn"
-          title={
-            meta
-              ? `换资料：载入新资料会替换本会话当前的「${meta.name}」。回答优先依据资料，超长资料按提问检索段落`
-              : '文档模式：为本会话载入一篇 txt/md 资料，回答优先依据它（超长资料按提问检索段落；每次一份，可替换/清除）'
-          }
-          disabled={!sessionId || busy || blocked}
-          onClick={() => setPanelOpen((v) => !v)}
-        >
-          <DocIcon /> {busy ? '载入中…' : meta ? '换资料' : '文档模式'}
-        </button>
-        {meta && dn && (
-          <span className="chat-doc-pill">
-            <span className="chat-doc-filename">
-              <span className="chat-doc-name" title={meta.name}>
-                {dn.base}
+      {(meta || hint) && (
+        <div className="chat-doc-bar">
+          {meta && dn && (
+            <span className="chat-doc-pill">
+              <span className="chat-doc-filename">
+                <span className="chat-doc-name" title={meta.name}>
+                  {dn.base}
+                </span>
+                {dn.ext && <span className="chat-doc-ext">{dn.ext}</span>}
               </span>
-              {dn.ext && <span className="chat-doc-ext">{dn.ext}</span>}
+              <span className="chat-doc-chars">{num(meta.chars)} 字</span>
+              {meta.truncated && <span className="chat-doc-warn">超 {num(MAX_DOC_CHARS)} 字 · 按提问检索段落</span>}
+              <button className="chat-doc-clear" disabled={busy} onClick={() => void clear()} title="清除本会话资料">
+                清除
+              </button>
             </span>
-            <span className="chat-doc-chars">{num(meta.chars)} 字</span>
-            {meta.truncated && <span className="chat-doc-warn">超 {num(MAX_DOC_CHARS)} 字 · 按提问检索段落</span>}
-            <button className="chat-doc-clear" disabled={busy} onClick={() => void clear()} title="清除本会话资料">
-              清除
-            </button>
-          </span>
-        )}
-        {hint && <span className="chat-doc-hint">{hint}</span>}
-      </div>
+          )}
+          {hint && <span className="chat-doc-hint">{hint}</span>}
+        </div>
+      )}
 
-      {panelOpen && (
+      {open && (
         <div className="chat-doc-panel">
           <div className="chat-doc-note">
             每次一份，载入新资料会替换当前的。超过 {num(MAX_DOC_CHARS)} 字不再整篇送入模型，而是按你的提问检索相关段落来回答。
@@ -166,7 +96,7 @@ export function DocModeControl({ sessionId, blocked }: { sessionId: string | nul
             >
               载入粘贴内容
             </button>
-            <button className="chat-quiz-btn" onClick={() => setPanelOpen(false)}>
+            <button className="chat-quiz-btn" onClick={onClose}>
               收起
             </button>
           </div>

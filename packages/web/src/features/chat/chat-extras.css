@@ -346,3 +346,83 @@
     opacity: 1;
   }
 }
+
+/* ===== 思考中状态行（v13 体验升级）：短语轮播 + 已用时，接在三点弹跳后 ===== */
+.chat-typing-status {
+  margin-left: 4px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--sb-ink-tertiary);
+}
+.chat-typing-elapsed {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+/* 用户气泡上的「编辑」入口：默认隐形，悬停浮现（不打扰阅读） */
+.msg-edit-trigger {
+  margin-top: 4px;
+  align-self: flex-end;
+  border: none;
+  background: none;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: var(--sb-ink-tertiary);
+  cursor: pointer;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.chat-row.user:hover .msg-edit-trigger,
+.msg-edit-trigger:focus-visible {
+  opacity: 1;
+}
+.msg-edit-trigger:hover {
+  color: var(--sb-primary);
+}
+/* 编辑重发的就地编辑态：替换原气泡 */
+.msg-editing {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(560px, 100%);
+}
+.msg-editing textarea {
+  width: 100%;
+  min-height: 72px;
+  max-height: 200px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--sb-primary);
+  border-radius: 14px;
+  background: var(--sb-surface, #fff);
+  color: var(--sb-ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+}
+.msg-editing-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.msg-editing-actions button {
+  border: 1px solid var(--sb-line, #e5e5e5);
+  background: var(--sb-surface, #fff);
+  color: var(--sb-ink);
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.msg-editing-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.msg-editing-actions .primary {
+  border-color: var(--sb-primary);
+  background: var(--sb-primary);
+  color: #fff;
+}

@@ -15,6 +15,7 @@ import {
   applyQuizMix,
 } from '../learning/quiz.js';
 import { normalizeQuizMix, normalizeAnswerStyle, mixTotal, emptyQuizImageReport, countQuizImages } from '@sb/shared';
+import { roleReady } from '../llm/router.js';
 import { getSessionDoc, buildDocMaterial } from '../learning/document.js';
 import { upsertNoteFromAnswer } from '../learning/notes.js';
 import { getDb } from '../storage/db.js';
@@ -30,12 +31,14 @@ export const quizRouter = Router();
  * 出不够不静默补题、图没出也不静默：响应带 mix / images 两份报告，UI 如实告知（ADR-5）。
  */
 quizRouter.post('/generate', async (req: Request, res: Response) => {
-  const { topic, material, sessionId, mix, style, save = true } = req.body as {
+  const { topic, material, sessionId, mix, style, search, save = true } = req.body as {
     topic?: string;
     material?: string;
     sessionId?: string;
     mix?: unknown;
     style?: unknown;
+    /** 本次是否联网检索（省略＝不联网；两条 UI 入口与 PK 显式传，契约 docs/QUIZ-SEARCH-SPEC.md §2.2） */
+    search?: boolean;
     save?: boolean;
   };
   // 文档模式回退（契约 5.0 §5.1-5 + §5.1.1）：未显式给材料时用本会话载入的资料出题，
@@ -54,10 +57,17 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
     // 未显式给风格时传 undefined，由 generateQuiz 自己读库内偏好（只读一处，不在此提前定级）
     const styleArg = style === undefined ? undefined : normalizeAnswerStyle(style);
     const images = emptyQuizImageReport();
-    const raw = await generateQuiz(topic ?? '综合', effectiveMaterial, requested, images, styleArg);
+    const raw = await generateQuiz(topic ?? '综合', effectiveMaterial, requested, images, styleArg, search === true);
     // 502 按**真因**分开说：v1.0 把「模型不可用 / JSON 解不出 / 配比裁空」混成一句，照着重试永远调不对（契约 §2.4）
     if (!raw) {
-      res.status(502).json({ error: '出题失败：出题模型不可用，或模型输出没能解析成题目（可重试）' });
+      // 2026-09-13 再拆一层：「出题模型压根没配」与「配了但输出没解析出来」是两条完全不同的行动指引。
+      // 判定用引擎回填的 failure 真因，不在路由反推（反推在角色绑定存在但 provider 被停用等边缘态会判错）。
+      const notConfigured = images.failure === 'no-model';
+      res.status(502).json({
+        error: notConfigured
+          ? `出题失败：${roleReady('quiz-generator').reason || '出题模型没配好'}——请到「设置」→「角色模型绑定」为「出题」绑定模型后再试`
+          : '出题失败：模型输出没能解析成题目（可重试；若反复失败，到设置页给「出题」换一个更强的模型）',
+      });
       return;
     }
     const applied = applyQuizMix(raw, requested);

@@ -2,11 +2,13 @@
  * QuizBankPage — 题库页：一键出题 + 题库列表 + 练习 + 薄弱点。
  */
 import { useCallback, useEffect, useState } from 'react';
-import type { QuizPayload, QuizMixReport, QuizImageReport, AnswerStyle } from '@sb/shared';
+import type { QuizPayload, QuizMixReport, QuizImageReport, QuizRef, AnswerStyle } from '@sb/shared';
 import { api } from '../../lib/api';
 import { QuizCard } from './QuizCard';
 import { AskStyleCard, useAskStyle } from '../chat/AskStyleCard';
-import { mixSummary, shortfallText, imageNote } from './mix-report';
+import { OnlineToggle } from '../../components/OnlineToggle';
+import { RefList } from './RefList';
+import { mixSummary, shortfallText, imageNote, searchNote, refsList } from './mix-report';
 import './quiz.css';
 
 type BankItem = { id: string; title: string; source: string; count: number; created_at: string };
@@ -15,9 +17,13 @@ export function QuizBankPage({ onOpenNotes }: { onOpenNotes?: (quizId?: string) 
   const [bank, setBank] = useState<BankItem[]>([]);
   const [topic, setTopic] = useState('');
   const [generating, setGenerating] = useState(false);
+  /** 联网开关：默认开（题库页是主出题口，时效性题目要靠它）；只作用于本次请求，不落库 */
+  const [online, setOnline] = useState(true);
   const [err, setErr] = useState('');
   const [mixTip, setMixTip] = useState('');
   const [note, setNote] = useState('');
+  /** 本次出题的参考来源清单（可点击，契约 QUIZ-SEARCH-SPEC §2.8）；没联网/没命中即空数组 */
+  const [refs, setRefs] = useState<QuizRef[]>([]);
   const [practicing, setPracticing] = useState<{ quizId: string; quiz: QuizPayload; weak?: string } | null>(null);
 
   const reload = useCallback(async () => {
@@ -54,10 +60,21 @@ export function QuizBankPage({ onOpenNotes }: { onOpenNotes?: (quizId?: string) 
         images?: QuizImageReport;
       }>('/api/quiz/generate', {
         method: 'POST',
-        body: JSON.stringify({ topic: topic.trim(), style }),
+        body: JSON.stringify({ topic: topic.trim(), style, search: online }),
       });
-      // 缺题与缺图同一套「缺了就说什么」口径，都挂在 note 上（不新开文案通道，免两端各说一套）
-      setNote([r.mix ? shortfallText(r.mix) : null, imageNote(r.images)].filter((s): s is string => s !== null).join(' '));
+      // 缺题、缺图、联网三件事同一套「缺了就说什么」口径，都挂在 note 上（不新开文案通道）；
+      // 有来源清单时改由清单承担告知（可展开、可点），note 只留「没取到参考」那两种——避免说两遍
+      const found = refsList(r.images?.search);
+      setRefs(found);
+      setNote(
+        [
+          r.mix ? shortfallText(r.mix) : null,
+          imageNote(r.images),
+          found.length === 0 ? searchNote(r.images?.search) : null,
+        ]
+          .filter((s): s is string => s !== null)
+          .join(' '),
+      );
       if (r.quizId) setPracticing({ quizId: r.quizId, quiz: r.quiz });
       setTopic('');
       await reload();
@@ -105,6 +122,9 @@ export function QuizBankPage({ onOpenNotes }: { onOpenNotes?: (quizId?: string) 
           ← 返回题库
         </button>
         <QuizCard title={practicing.quiz.title ?? '练习'} questions={practicing.quiz.questions} onAnswer={answer} />
+        {/* 出题后立即进练习视图，故 note/来源清单必须在这里也渲染——只在列表视图渲染＝用户永远看不到（真机实测） */}
+        {note && <div className="quiz-note">{note}</div>}
+        <RefList refs={refs} />
         <div className="quiz-practice-actions">
           <button className="quiz-gen-btn" onClick={() => void analyze()}>
             薄弱点分析
@@ -123,6 +143,7 @@ export function QuizBankPage({ onOpenNotes }: { onOpenNotes?: (quizId?: string) 
       <h2>题库</h2>
       <div className="quiz-gen-form">
         <input placeholder="输入主题一键出题（如：二重积分 / 英语虚拟语气）" value={topic} onChange={(e) => setTopic(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ask.tap()} />
+        <OnlineToggle on={online} disabled={generating} onToggle={setOnline} />
         <button className="quiz-gen-btn" disabled={!topic.trim() || generating} onClick={() => ask.tap()}>
           {generating ? '出题中…' : '一键出题'}
         </button>
@@ -131,6 +152,7 @@ export function QuizBankPage({ onOpenNotes }: { onOpenNotes?: (quizId?: string) 
       {ask.card && <AskStyleCard {...ask.card} busy={generating} />}
       {mixTip && <div className="quiz-mix-tip">本次出题配比：{mixTip}{ask.summary && <>｜回答方式：{ask.summary}</>}（设置页可改）</div>}
       {note && <div className="quiz-note">{note}</div>}
+      <RefList refs={refs} />
       {err && <div className="quiz-explain">{err}</div>}
       {bank.map((b) => (
         <div key={b.id} className="quiz-bank-item" onClick={() => void openPractice(b.id)} role="button" tabIndex={0}>

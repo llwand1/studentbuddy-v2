@@ -123,7 +123,18 @@ function QuestionItem({
             </>
           )}
           {(q.explanation || q.solution) && <div className="quiz-explain-body">{q.explanation ?? q.solution}</div>}
-          {q.source && <div className="quiz-source">来源：{q.source.title}{q.source.url ? ` · ${q.source.url}` : ''}</div>}
+          {q.source && (
+            <div className="quiz-source">
+              来源：
+              {q.source.url ? (
+                <a href={q.source.url} target="_blank" rel="noreferrer noopener">
+                  {q.source.title}
+                </a>
+              ) : (
+                q.source.title
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

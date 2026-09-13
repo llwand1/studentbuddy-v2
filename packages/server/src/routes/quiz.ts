@@ -16,6 +16,7 @@ import {
 } from '../learning/quiz.js';
 import { normalizeQuizMix, normalizeAnswerStyle, mixTotal, emptyQuizImageReport, countQuizImages } from '@sb/shared';
 import { getSessionDoc, buildDocMaterial } from '../learning/document.js';
+import { upsertNoteFromAnswer } from '../learning/notes.js';
 import { getDb } from '../storage/db.js';
 import { publishEvent } from '../events/bus.js';
 import { publish } from '../chat/sse-bus.js';
@@ -113,12 +114,23 @@ quizRouter.delete('/bank/:id', (req: Request, res: Response) => {
 });
 
 quizRouter.post('/stats/record', (req: Request, res: Response) => {
-  const { quizId, questionIndex, correct } = req.body as { quizId?: string; questionIndex?: number; correct?: boolean };
+  const { quizId, questionIndex, correct, answer } = req.body as {
+    quizId?: string;
+    questionIndex?: number;
+    correct?: boolean;
+    answer?: unknown;
+  };
   if (!quizId || typeof questionIndex !== 'number' || typeof correct !== 'boolean') {
     res.status(400).json({ error: 'quizId/questionIndex/correct 必填' });
     return;
   }
   recordAnswer(quizId, questionIndex, correct);
+  // 刷题笔记（QUIZ-NOTES-SPEC）：提交答案即落草稿。answer 可选（老客户端不传 = 只记对错），
+  // 只收可序列化的下标数组/文本，其余形状丢弃（不可信输入不进快照）。
+  let snapshot: number[] | string | undefined;
+  if (Array.isArray(answer) && answer.every((a) => typeof a === 'number')) snapshot = answer as number[];
+  else if (typeof answer === 'string') snapshot = answer.slice(0, 2000);
+  upsertNoteFromAnswer(quizId, questionIndex, correct, snapshot ?? null);
   res.json({ ok: true });
 });
 

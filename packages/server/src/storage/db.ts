@@ -308,6 +308,30 @@ MIGRATIONS.push({
   ],
 });
 
+// v12：刷题笔记（2026-09-13 契约 docs/QUIZ-NOTES-SPEC.md）——每道题一篇结构化笔记。
+// 提交答案即落草稿：question_data/quiz_title 为快照、不设外键，题库删除后笔记仍自洽可读
+//（与 evolution_event 冗余 term_text 同一手法的镜像决策）。心得 body 由用户补写，
+// 重复作答只刷新对错与作答快照，绝不覆盖已写的心得。
+MIGRATIONS.push({
+  version: 12,
+  statements: [
+    `CREATE TABLE IF NOT EXISTS quiz_notes (
+      id TEXT PRIMARY KEY,
+      quiz_id TEXT NOT NULL,
+      question_index INTEGER NOT NULL,
+      quiz_title TEXT NOT NULL DEFAULT '',
+      question_data TEXT NOT NULL,
+      my_answer TEXT,
+      correct INTEGER NOT NULL DEFAULT 0,
+      body TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(quiz_id, question_index)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_quiz_notes_updated ON quiz_notes(updated_at)`,
+  ],
+});
+
 export function getDb(): Database.Database {
   if (db) return db;
   fs.mkdirSync(DATA_DIR, { recursive: true });

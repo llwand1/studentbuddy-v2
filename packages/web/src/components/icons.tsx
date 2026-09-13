@@ -69,6 +69,16 @@ export function DocIcon(props: IconProps) {
   );
 }
 
+/** 刷题笔记（练环沉淀） */
+export function NoteIcon(props: IconProps) {
+  return (
+    <svg {...base(props.size, props)}>
+      <rect x="5" y="4" width="14" height="16" rx="2" />
+      <path d="M9 4v16M12.5 9.5h3.5M12.5 13h3.5" />
+    </svg>
+  );
+}
+
 /** 设置 */
 export function SettingsIcon(props: IconProps) {
   return (

@@ -16,7 +16,8 @@ export function QuizCard({
   title: string;
   questions: QuizQuestion[];
   quizId?: string;
-  onAnswer?: (index: number, correct: boolean) => void;
+  /** answer：作答快照（选择=下标数组、填空=文本），随 stats/record 落进刷题笔记（QUIZ-NOTES-SPEC）；essay 无快照 */
+  onAnswer?: (index: number, correct: boolean, answer?: number[] | string) => void;
 }) {
   return (
     <div className="quiz-card">
@@ -28,7 +29,15 @@ export function QuizCard({
   );
 }
 
-function QuestionItem({ index, q, onAnswer }: { index: number; q: QuizQuestion; onAnswer?: (i: number, c: boolean) => void }) {
+function QuestionItem({
+  index,
+  q,
+  onAnswer,
+}: {
+  index: number;
+  q: QuizQuestion;
+  onAnswer?: (i: number, c: boolean, answer?: number[] | string) => void;
+}) {
   const [picked, setPicked] = useState<number[]>([]);
   const [fillText, setFillText] = useState('');
   const [revealed, setRevealed] = useState(false);
@@ -44,14 +53,17 @@ function QuestionItem({ index, q, onAnswer }: { index: number; q: QuizQuestion; 
   const submit = () => {
     setRevealed(true);
     let correct = false;
+    let answer: number[] | string | undefined;
     if (q.type === 'single' || q.type === 'multiple') {
       const ans = answerArr.map(Number).sort();
       correct = picked.length === ans.length && picked.every((p) => ans.includes(p));
+      answer = picked;
     } else if (q.type === 'fill') {
       const expects = answerArr.map(String);
       correct = expects.length > 0 && expects.some((e) => fillText.trim().includes(e.slice(0, Math.max(4, e.length - 2))));
+      answer = fillText.trim();
     }
-    onAnswer?.(index, correct);
+    onAnswer?.(index, correct, answer);
   };
 
   return (

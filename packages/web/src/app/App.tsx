@@ -11,6 +11,7 @@ import { UserAuthBox } from '../components/UserAuthBox';
 import {
   QuizIcon,
   CardsIcon,
+  NoteIcon,
   StatsIcon,
   SettingsIcon,
   PlusIcon,
@@ -23,15 +24,17 @@ import { ChatView } from '../features/chat/ChatView';
 import { Mascot } from '../features/chat/Mascot';
 import { SettingsView } from '../features/settings/SettingsView';
 import { QuizBankPage } from '../features/quiz/QuizBankPage';
+import { NotesPage } from '../features/notes/NotesPage';
 import { TermsPage } from '../features/terms/TermsPage';
 import { DailySummaryPage } from '../features/summary/DailySummaryPage';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
 import './app.css';
 
-type View = 'chat' | 'quiz' | 'terms' | 'summary' | 'settings';
+type View = 'chat' | 'quiz' | 'notes' | 'terms' | 'summary' | 'settings';
 
 const NAV: Array<{ key: View; label: string; icon: typeof QuizIcon }> = [
   { key: 'quiz', label: '题库', icon: QuizIcon },
+  { key: 'notes', label: '笔记', icon: NoteIcon },
   { key: 'terms', label: '词条', icon: CardsIcon },
   { key: 'summary', label: '今日总结', icon: StatsIcon },
   { key: 'settings', label: '设置', icon: SettingsIcon },
@@ -47,6 +50,14 @@ export function App() {
   const [busySid, setBusySid] = useState<string | null>(null);
   /** 历史对话列表展开/收起（默认展开） */
   const [historyOpen, setHistoryOpen] = useState(true);
+  /** 笔记页的套题过滤（题库页「本套笔记」入口带入；从导航点「笔记」时清除） */
+  const [notesQuizId, setNotesQuizId] = useState<string | null>(null);
+
+  /** 题库页 → 笔记页的跨页入口：带 quizId 过滤直达本套题的笔记 */
+  const openNotes = useCallback((quizId?: string) => {
+    setNotesQuizId(quizId ?? null);
+    setView('notes');
+  }, []);
 
   const reloadSessions = useCallback(async () => {
     try {
@@ -117,7 +128,10 @@ export function App() {
             <button
               key={key}
               className={view === key ? 'sb-nav-item active' : 'sb-nav-item'}
-              onClick={() => setView(key)}
+              onClick={() => {
+                setView(key);
+                if (key === 'notes') setNotesQuizId(null);
+              }}
             >
               <Icon /> {label}
             </button>
@@ -199,7 +213,10 @@ export function App() {
             onBusyChange={handleBusyChange}
           />
         )}
-        {view === 'quiz' && <QuizBankPage />}
+        {view === 'quiz' && <QuizBankPage onOpenNotes={openNotes} />}
+        {view === 'notes' && (
+          <NotesPage quizId={notesQuizId} onClearQuiz={() => setNotesQuizId(null)} />
+        )}
         {view === 'terms' && <TermsPage />}
         {view === 'summary' && <DailySummaryPage />}
         {view === 'settings' && <SettingsView />}

@@ -36,11 +36,16 @@ export function MessageRow({
         title={m.quizBlock.quiz.title ?? '练习'}
         questions={m.quizBlock.quiz.questions}
         quizId={m.quizBlock.quizId}
-        onAnswer={(qi, correct) => {
+        onAnswer={(qi, correct, ans) => {
           if (m.quizBlock?.quizId) {
             void api.request('/api/quiz/stats/record', {
               method: 'POST',
-              body: JSON.stringify({ quizId: m.quizBlock.quizId, questionIndex: qi, correct }),
+              body: JSON.stringify({
+                quizId: m.quizBlock.quizId,
+                questionIndex: qi,
+                correct,
+                ...(ans !== undefined ? { answer: ans } : {}),
+              }),
             });
           }
         }}

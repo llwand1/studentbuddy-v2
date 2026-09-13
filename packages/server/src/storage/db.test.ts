@@ -108,7 +108,7 @@ describe('storage/db — v11 过程回放迁移（思考链 / 任务清单随消
     const v10 = openIsolated(dir);
     v10.exec(`ALTER TABLE messages DROP COLUMN reasoning`);
     v10.exec(`ALTER TABLE messages DROP COLUMN tasks`);
-    v10.prepare('DELETE FROM schema_version WHERE version = 11').run();
+    v10.prepare('DELETE FROM schema_version WHERE version > 10').run();
     expect(cols(v10)).not.toContain('reasoning');
     v10.close();
 
@@ -118,5 +118,29 @@ describe('storage/db — v11 过程回放迁移（思考链 / 任务清单随消
       11,
     );
     upgraded.close();
+  });
+});
+
+describe('storage/db — v12 刷题笔记迁移（docs/QUIZ-NOTES-SPEC.md）', () => {
+  it('新库含 quiz_notes 表：UNIQUE(quiz_id, question_index) 与 updated_at 索引就位', () => {
+    const db = openIsolated(tmp());
+    const cols = (db.prepare(`PRAGMA table_info(quiz_notes)`).all() as Array<{ name: string }>).map((c) => c.name);
+    expect(cols).toEqual(
+      expect.arrayContaining(['id', 'quiz_id', 'question_index', 'quiz_title', 'question_data', 'my_answer', 'correct', 'body']),
+    );
+    // UNIQUE 冲突目标存在，upsert（ON CONFLICT(quiz_id, question_index)）才有落点
+    expect(() =>
+      db
+        .prepare(`INSERT INTO quiz_notes (id, quiz_id, question_index, question_data) VALUES ('n1', 'q1', 0, '{}')`)
+        .run(),
+    ).not.toThrow();
+    expect(() =>
+      db
+        .prepare(`INSERT INTO quiz_notes (id, quiz_id, question_index, question_data) VALUES ('n2', 'q1', 0, '{}')`)
+        .run(),
+    ).toThrow(/UNIQUE/);
+    const idx = db.prepare(`PRAGMA index_list(quiz_notes)`).all() as Array<{ name: string }>;
+    expect(idx.map((i) => i.name)).toContain('idx_quiz_notes_updated');
+    db.close();
   });
 });

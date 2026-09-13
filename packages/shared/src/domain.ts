@@ -2,6 +2,7 @@
  * 领域模型：会话 / 消息 / 服务商与角色绑定（演进①）/ 词条（SRS 字段·演进④）。
  * M0 登记骨架字段，M1/M3 随实现扩容并保持与 storage 层一致。
  */
+import type { QuizQuestion } from './content-blocks.js';
 
 export interface Session {
   id: string;
@@ -127,6 +128,34 @@ export interface EvolutionTermState {
 export interface EvolutionState {
   active: boolean;
   terms: EvolutionTermState[];
+}
+
+// ── 刷题笔记（QUIZ-NOTES-SPEC，2026-09-13 契约）──
+// 提交答案即自动落一篇结构化草稿（题目/我的作答/对错/解析为快照），心得手写补全。
+// 快照字段（quizTitle/questionData）刻意冗余、不设外键：题库删除后笔记仍自洽可读。
+
+/** 笔记列表行（GET /api/notes） */
+export interface QuizNoteSummary {
+  id: string;
+  quizId: string;
+  questionIndex: number;
+  quizTitle: string;
+  /** 题干快照（列表展示用，取自 questionData） */
+  question: string;
+  /** 最近一次作答是否正确 */
+  correct: boolean;
+  /** 心得是否已写（草稿态 = false） */
+  hasBody: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 笔记详情（GET /api/notes/:id；questionData 为整题快照，svg 含在内） */
+export interface QuizNote extends QuizNoteSummary {
+  questionData: QuizQuestion;
+  /** 用户作答快照：single/multiple 为选项下标数组，fill 为文本，essay 未作答为 null */
+  myAnswer: number[] | string | null;
+  body: string;
 }
 
 /** 进化链节点行（evolution_event 表 API 形状；termText 为抗删快照，§5/§8） */

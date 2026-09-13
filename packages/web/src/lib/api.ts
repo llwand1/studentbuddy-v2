@@ -8,6 +8,8 @@ import type {
   ModelRole,
   QuizMix,
   AnswerStyle,
+  QuizNote,
+  QuizNoteSummary,
   PkIdentity,
   PkRoomState,
 } from '@sb/shared';
@@ -180,6 +182,25 @@ export const api = {
     /** 恢复默认＝删键，回到「没配过」态（不是把四维写成默认值，那样 configured 仍为 true） */
     resetAnswerStyle: () =>
       request<{ style: AnswerStyle; configured: boolean }>('/api/settings/answer-style', { method: 'DELETE' }),
+  },
+
+  /** 刷题笔记（契约 docs/QUIZ-NOTES-SPEC.md）：草稿由 stats/record 自动落，这里只读/写心得/删 */
+  notes: {
+    list: (params?: { quizId?: string; wrong?: boolean }) => {
+      const q = new URLSearchParams();
+      if (params?.quizId) q.set('quizId', params.quizId);
+      if (params?.wrong) q.set('wrong', '1');
+      const qs = q.toString();
+      return request<QuizNoteSummary[]>(`/api/notes${qs ? `?${qs}` : ''}`);
+    },
+    get: (id: string) => request<QuizNote>(`/api/notes/${encodeURIComponent(id)}`),
+    saveBody: (id: string, body: string) =>
+      request<{ ok: boolean }>(`/api/notes/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ body }),
+      }),
+    remove: (id: string) =>
+      request<{ ok: boolean }>(`/api/notes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   },
 
   terms: {

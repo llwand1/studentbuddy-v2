@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -47,6 +47,25 @@ describe('server 骨架与安全（v1 回归语义）', () => {
 
 describe('搜索 key 接口（密钥永不回显，v2 P1）', () => {
   const origin = 'http://localhost:5173';
+
+  /**
+   * ★ 密钥加密的**一次性热身**（2026-09-14 实测补）。
+   *
+   * 本组用例都要落 key，而落 key 走 AES-256-GCM，主密钥由 `storage/crypto.ts` 的
+   * `initCrypto()` **冷启一个 powershell.exe 子进程调 DPAPI** 来包（Windows）。
+   * 实测拆解（同轮探针）：
+   *   ① 开隔离库 + 跑完全部迁移（v1~v15）＝ **16 ms**；
+   *   ② **首次** `encryptSecret`（PowerShell 冷启动 + `Add-Type -AssemblyName System.Security`）＝ **5519 ms**；
+   *   ③ 第二次 ＝ **1 ms**。
+   * 也就是说这 5.5s 与 DB/业务无关，纯是 OS 级一次性成本；不热身的话它会**压在该组第一条真落库的用例上**，
+   * 恰好越过 vitest 默认 5000ms 超时（2026-09-14 实际红过：「保存后 GET 只回已配置状态」）。
+   * ⇒ 把它显式提到这里，给足预算（30s），用例本身恢复成「只测行为、不测 PowerShell 冷启动」。
+   *   这不是放宽断言，是把**归因搞清之后**把成本放到该付它的地方。
+   */
+  beforeAll(async () => {
+    const { encryptSecret } = await import('./storage/crypto.js');
+    encryptSecret('warmup-not-a-real-key');
+  }, 30_000);
 
   beforeEach(() => {
     // getProviderKey 环境变量优先于库：不清会让真机上的"未配置"断言变脆

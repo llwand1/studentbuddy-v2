@@ -1,7 +1,7 @@
 # studentbuddy v2
 
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![tests](https://img.shields.io/badge/tests-64%20files%20%2F%20791%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-67%20files%20%2F%20839%20cases-brightgreen)
 ![coverage](https://img.shields.io/badge/coverage-51.4%25%20lines%20%2F%2079.8%25%20branch-f59e0b)
 ![api](https://img.shields.io/badge/REST%20endpoints-48-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-39%20types-8a63f6)
@@ -47,7 +47,7 @@
 | **AI 输出可靠性工程** | 模型不听话不塌系统：出题五级解析阶梯（补括号 → 剥图重试 → 截断逐题回退…）、丢图保题、`\theta` 类非法转义修复、SSE 屏上文本与库内文本逐字一致 | 每个对策都对应一次真实故障的根因登记与回归锁（`docs/dev/bug-ledger.md` + CHANGELOG 09-04 两批） |
 | **模型产出敢真跑** | ```html 围栏产出的网页在 `CSP: sandbox` + iframe 双层沙箱里运行，页面源为 `null`；SVG 净化剥 `<image>` 外链（防外链信标泄露 IP） | 真机实测沙箱页调写接口 / 读数据全被拒；净化有 `web/svg-utils.test.ts` 锁 |
 | **前端零第三方库** | 无 UI 库 · 无 markdown 库 · 无图表库：Markdown 解析、数据图自绘 SVG、SVG 净化自愈全部自写——供应链攻击面与包体积同时趋零、行为完全可控 | `packages/web/package.json` 运行时依赖只有 react / react-dom / `@sb/shared` |
-| **791 例测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉 | 一条命令本地/CI 复验；基线 **64 文件 / 791 例（790 passed + 1 skipped）**，2026-09-14 于 Node 22 全量 vitest 实测；**权威口径与逐文件对账见 `docs/dev/test-plan.md` §3**（本格数字仅为快照，随批次变动，勿据此判现状） |
+| **839 例测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉 | 一条命令本地/CI 复验；基线 **67 文件 / 839 例（838 passed + 1 skipped）**，2026-09-14 于 Node 22 全量 vitest 实测；**权威口径与逐文件对账见 `docs/dev/test-plan.md` §3**（本格数字仅为快照，随批次变动，勿据此判现状） |
 | **契约先行的可维护性** | `@sb/shared` 是 SSE 事件 / 内容块 / REST / 领域模型的单一事实源，前后端不允许各写一套；先登记再实现 | shared 契约文件头注释即纪律；四条固定扩展模式见 §开发指南 |
 | **不锁定供应商** | OpenAI 兼容 + Anthropic 双适配；搜索 Exa / Tavily / 智谱三家并行聚合 + DDG 兜底——换模型换服务商只动设置页 | 适配器有出站请求体断言测试，且当场逮出过真缺陷 B-001（多条 system 在 Anthropic 型上静默丢失） |
 
@@ -216,7 +216,7 @@ CHANGELOG.md               项目改动登记册（代码/文档/测试同批登
 - 单文件行数：server ≤ 400 行 / web 组件 ≤ 300 行
 - 禁内联 `style={{…}}`（一律走 tokens.css 的 token）；禁 `any`；测试也禁 `!` 非空断言
 
-**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**64 测试文件 / 791 用例**（2026-09-14 实测；**权威口径见 `docs/dev/test-plan.md` §3**，此处仅为快照）。
+**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**67 测试文件 / 839 用例**（2026-09-14 实测；**权威口径见 `docs/dev/test-plan.md` §3**，此处仅为快照）。
 
 **提交纪律**：
 

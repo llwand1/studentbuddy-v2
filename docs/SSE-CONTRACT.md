@@ -40,6 +40,9 @@
 | `block` | blockId/payload/done | 结构化内容块（演进③；M2 起启用，payload 见 shared/content-blocks）。**2026-09-06 登记 `kind:'verdict'`**：认知进化判定块（COGNITIVE-EVOLUTION-SPEC §9.1），payload=`Verdict`（shared/domain，v1.1 含 `met`），`blockId='evo-<termId>-<ts>'`；由 flow 端 `[VERDICT]` 流式闸门吞掉正文后发射——判定块不上屏、不落 messages，「屏上文本==库内文本」铁律不破 |
 | `step` | tool/status/detail/args?/result? | 工具执行进度：`running`（detail=入参摘要）→ `done`（detail=结果概览）/ `error`（detail=失败原因，不静默）；前端渲染为过程卡片。**2026-09-09 增强**：终态事件附 `args`（工具入参原文 JSON 串）与 `result`（结果摘要截 ~400 字），前端点击卡片展开查看输入/输出；终态由 tool-exec 调度器统一发射（每张卡片有且只有一个终态）。生成完成后 steps 不再清空（与 reasoning 同策略），清空点在下一轮 send/regenerate 与切会话 |
 | `tasks` | items | **2026-09-09 登记（标准 CoT 任务清单）**：模型经 `update_tasks` 工具（不在 tools.ts 注册表，flow.ts exec 注入接入）。**2026-09-12 修订**：items 恒为**服务端合并后的完整清单** `TaskItem[]`（三态 `pending`/`in_progress`/`done`，≤10 条，类型单一事实源＝`shared/src/task-list.ts`）；模型入参有两种模式（`tasks` 全量覆盖 / `updates` 按 1 基序号增量），**合并永远在服务端做**，事件侧只有「全量下发」一种语义——前端仍整表替换、不做本地合并；前端渲染为打勾进度面板（n/m 计数，`in_progress` 当前条目高亮转环），全部完成后默认收起、done 后保留可回看 |
+| `choice-asked` | sessionId / request | **2026-09-14 登记（方案选择框，契约 `docs/ASK-CHOICE-SPEC.md`）**：AI 调 `ask_choice` 工具请求学习者拍板，UI 在输入框上方弹浮层。`request` 为 `AskChoiceRecord`（唯一事实源 `shared/choice.ts`）。前端按 `request.id` 幂等——断线重连会回放同一帧，覆盖而非二次入队。归 `sessionId` 频道，**不经** `pk:` 前缀隔离 |
+| `choice-replied` | sessionId / requestId / reply | 答复已落库（本端点的答复、别的客户端的答复都走这条路——服务端是唯一事实源）。前端切已选态但**不出队**：首 token 常有延迟，卡片凭空消失会让人以为没点成功 |
+| `choice-cancelled` | sessionId / requestId / reason | 提问作废（逃生口：停止生成 / 删会话 / 进程重启清理，见 SPEC §5）。前端切作废态如实告知，不静默消失 |
 | `chat-error` | message | 本轮失败（用户中止为「已停止」） |
 | `done` | usage? | 本轮收口；usage.source=provider/estimated |
 | `ping` | — | 心跳 |
@@ -81,6 +84,8 @@
 | GET | `/api/doc?sessionId=` | 文档模式：读该会话当前资料元信息 → `{ doc: { name, chars, truncated } | null }`。**永不回原文**（正文只在 POST 时过一次网络，前端刷新重绘不需要 60k 文本）；缺 `sessionId` → 400 |
 | POST | `/api/doc` | `{ sessionId, name?, text }` 载入/整篇替换该会话的资料 → `{ doc: DocMeta }`。`text` 空/纯空白 → 400；会话不存在 → 404。**不落盘**（进 `sessions.doc_text`，故无 multer/上传目录/路径穿越面）；**扩展名不在此校验**（粘贴文本本无文件名，txt/md 约束留在 UI 的 `accept`） |
 | DELETE | `/api/doc?sessionId=` | 清除该会话资料（两列置 NULL，不碰标题与消息）→ `{ ok: true }`；会话不存在 → 404 |
+| GET | `/api/choices?sessionId=` | **2026-09-14 新增（方案选择框）**：挂起中的提问清单，前端加载会话/重连后捞回浮层卡片用（无挂起 → `[]`；缺 `sessionId` → 400）。存在的理由：挂起态在后端是内存 Promise、SSE 缓冲 60s 无订阅即回收，重开页面后回放流可能已空，只有查库才恢复得出来 |
+| POST | `/api/choices/:id/reply` | `{ optionId?, custom? }` 至少给一个。**404** 提问不存在／**409** 已被答复或作废（并发双端点击的第二只手，不覆盖首答）／**400** 参数不合法（选项不属于本条 / `custom` 超 1000 字 / 本条未开放自由输入）。状态码由 `chat/choice.ts` 给出，路由只透传 |
 
 ### 3.1 此前漏登的端点（2026-09-02 对账补登，非本批新增）
 
@@ -116,7 +121,7 @@
 - **P0 存储是全内存**（契约 §4）：无落库、无 schema 改动，进程重启即丢局；房间 TTL 惰性回收
   （waiting 30 分钟 / finished 10 分钟 / active 取「对局时钟 + 保留期」）。
 
-**已注册工具（单轨 function-calling，`chat/tools.ts`）**：`search_web` 一个；多路 provider 聚合语义见 `search/index.ts`（Exa/Tavily/智谱按 key 并行，三家全无 key → DuckDuckGo 免 key 兜底）。
+**已注册工具（单轨 function-calling，`chat/tools.ts`）**：`search_web`（多路 provider 聚合语义见 `search/index.ts`——Exa/Tavily/智谱按 key 并行，三家全无 key → DuckDuckGo 免 key 兜底）、`tidy_terms` / `manage_terms`（词条库）、`ask_choice`（**方案选择框**，契约 `docs/ASK-CHOICE-SPEC.md`）。★ `ask_choice` 是**长等待工具**：它在 `flow.ts` 的 `runToolCalls` 里登记进 `noTimeout`，豁免 30s 默认工具超时——它等的是「人点一下」，挂 timer 会把等待本身掐死（见 `chat/tool-exec.ts` 的 `noTimeout` 注释）。
 
 **安全语义**：写操作（POST/PUT/DELETE）强制 Origin 校验（无 Origin / 恶意 Origin → 403）；请求体上限 2MB；服务仅绑 127.0.0.1。
 
@@ -126,6 +131,7 @@
 
 | 日期 | 变更 |
 |------|------|
+| 2026-09-14 | **方案选择框**（契约 `docs/ASK-CHOICE-SPEC.md`）：新增 3 个 SSE 事件（`choice-asked` / `choice-replied` / `choice-cancelled`，归 `sessionId` 频道）+ 2 个端点（`GET /api/choices`、`POST /api/choices/:id/reply`）+ `ask_choice` 工具（**长等待**：在 `flow.ts` 的 `runToolCalls` 里登记 `noTimeout`，豁免 30s 默认工具超时）；迁移 v14 建 `ask_choices` 表；已注册工具清单同步更新 |
 | 2026-08-23 | M1 首版（SSE/会话/发送/中止/服务商+角色绑定） |
 | 2026-08-27 | `step` 事件随单轨工具循环上线（search_web）；新增 `/api/settings/search-keys`（GET/PUT）与 `/api/settings/search/test`；订阅回放语义收紧——已完结的一轮只补 `done`，修重复气泡 |
 | 2026-08-27（复审） | 屏上==库内扩到收尾语（上限提示、中断标记均走 token）；失败轮补发终止 `done`；搜索 `providers` 只报真出结果的一家、缓存键含 provider 组合、自检跳缓存；PUT 先校验后写 + 单值 300 字上限；前端 `done` 判重（历史尾条同字不再追加）——真机 reload 复验单气泡 |

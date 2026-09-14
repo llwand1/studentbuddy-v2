@@ -47,8 +47,25 @@ export function ChatView({
   /** 生成状态上报：App 侧栏在生成中的会话项上显示「回复中」提示 */
   onBusyChange?: (busy: boolean, sessionId: string | null) => void;
 }) {
-  const { messages, streamingText, reasoning, steps, tasks, busy, ready, error, usage, elapsedMs, send, stop, regenerate, resend } =
-    useChatStream(sessionId, onRoundDone, onBusyChange);
+  const {
+    messages,
+    streamingText,
+    reasoning,
+    steps,
+    tasks,
+    busy,
+    ready,
+    error,
+    usage,
+    elapsedMs,
+    send,
+    stop,
+    regenerate,
+    resend,
+    pendingChoice,
+    replyChoice,
+    dismissChoice,
+  } = useChatStream(sessionId, onRoundDone, onBusyChange);
   const [input, setInput] = useState('');
   const [sendError, setSendError] = useState('');
   const [quizzing, setQuizzing] = useState(false);
@@ -262,6 +279,9 @@ export function ChatView({
         askSummary={ask.summary}
         askHint={ask.hint}
         askCard={ask.card}
+        choiceCard={pendingChoice}
+        onChoiceReply={replyChoice}
+        onDismissChoice={dismissChoice}
       />
     </div>
   );

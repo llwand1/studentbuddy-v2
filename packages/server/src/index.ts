@@ -6,6 +6,8 @@ import express from 'express';
 import cors from 'cors';
 import { securityHeaders, originCheck, isAllowedOrigin } from './security.js';
 import { sessionsRouter, chatRouter, providersRouter, settingsRouter, initChatInfra } from './routes.js';
+import { choiceRouter } from './routes/choice.js';
+import { sweepStaleChoices } from './chat/choice.js';
 import { quizRouter } from './routes/quiz.js';
 import { notesRouter } from './routes/notes.js';
 import { termsRouter } from './routes/terms.js';
@@ -57,6 +59,7 @@ app.use('/api/obs', obsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/preview', previewRouter);
 app.use('/api/pk', pkRouter);
+app.use('/api/choices', choiceRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
@@ -75,6 +78,11 @@ if (process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('index.js
   initChatInfra();
   wireActivityEvents();
   wireObsEvents();
+  // 逃生口③（启动清理）：重启后内存里挂起的 Promise 已随进程消失，库里遗留的 pending
+  // 方案选择永远等不到答复——不清就会变成前端能捞到、却怎么点都没反应的死卡。
+  const swept = sweepStaleChoices();
+  // eslint-disable-next-line no-console -- 进程启动日志，与下面的启动横幅同类
+  if (swept > 0) console.log(`[sb-server] 已作废 ${swept} 条重启前挂起的方案选择`);
   startServer();
   // eslint-disable-next-line no-console -- 启动横幅是进程日志，非调试输出
   console.log(`[sb-server] listening on http://${HOST}:${PORT} (v${VERSION})`);

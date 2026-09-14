@@ -20,7 +20,9 @@
 import type { ComponentProps, RefObject } from 'react';
 import { ComposerMenu, type ComposerMenuItem } from '../../components/ComposerMenu';
 import { QuizIcon, CardsIcon, DownloadIcon, DocIcon, SendIcon, StopIcon } from '../../components/icons';
+import type { AskChoiceRecord } from '@sb/shared';
 import { AskStyleCard } from './AskStyleCard';
+import { ChoiceCard } from './ChoiceCard';
 import { DocModeControl } from './DocModeControl';
 import { menuStatus } from './composer-status';
 import type { DocMode } from './useDocMode';
@@ -55,6 +57,9 @@ export function ChatComposer({
   askSummary,
   askHint,
   askCard,
+  choiceCard,
+  onChoiceReply,
+  onDismissChoice,
 }: {
   sessionId: string | null;
   /** 门控：连接未就绪或正在生成（textarea 与部分动作据此禁用） */
@@ -84,6 +89,10 @@ export function ChatComposer({
   askSummary: string;
   askHint: string;
   askCard: AskCardProps | null;
+  /** 挂起的方案选择（浮层，显示在输入框上方）；无挂起时为 null */
+  choiceCard: AskChoiceRecord | null;
+  onChoiceReply: (requestId: string, reply: { optionId?: string; custom?: string }) => void;
+  onDismissChoice: () => void;
 }) {
   const items: ComposerMenuItem[] = [
     {
@@ -155,6 +164,7 @@ export function ChatComposer({
       )}
       {askHint && <div className="ask-style-hint">{askHint}</div>}
       {askCard && <AskStyleCard {...askCard} busy={quizzing} />}
+      {choiceCard && <ChoiceCard request={choiceCard} onReply={onChoiceReply} onDismiss={onDismissChoice} />}
       <DocModeControl doc={doc} open={docOpen} onClose={() => setDocOpen(false)} />
       <div className="chat-composer">
         <ComposerMenu

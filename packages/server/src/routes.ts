@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { getDb } from './storage/db.js';
 import { handleMessage } from './chat/flow.js';
+import { cancelChoicesBySession } from './chat/choice.js';
 import { planRegenerate } from './chat/regenerate.js';
 import { planResend } from './chat/resend.js';
 import { snapshot } from './chat/sse-bus.js';
@@ -42,7 +43,11 @@ sessionsRouter.post('/', (req: Request, res: Response) => {
 });
 
 sessionsRouter.delete('/:id', (req: Request, res: Response) => {
-  getDb().prepare(`UPDATE sessions SET deleted_at = datetime('now') WHERE id = ?`).run((req.params.id ?? ''));
+  const id = req.params.id ?? '';
+  // 逃生口②：删会话连带作废挂起的方案选择。会话都没了，那张卡再也无人能点，
+  // 不作废则对应的 ask_choice 永久悬挂（与「停止生成」同源处置，见 chat/flow.ts）。
+  cancelChoicesBySession(id, '会话已删除');
+  getDb().prepare(`UPDATE sessions SET deleted_at = datetime('now') WHERE id = ?`).run(id);
   res.json({ ok: true });
 });
 

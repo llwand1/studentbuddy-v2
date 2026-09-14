@@ -7,6 +7,7 @@ import type { TidySummary } from '@sb/shared';
 import { searchWeb, resultsToContext, listKeyStatus } from '../search/index.js';
 import { tidyTerms, mergeTerms, renameDomain } from '../learning/tidy.js';
 import { saveOneTerm, updateTerm, removeTerm, findTermByName } from '../learning/terms.js';
+import { CHOICE_TOOL, runChoiceTool } from './choice-tool.js';
 
 export interface ToolContext {
   /** 工具步骤回调（step 事件上屏） */
@@ -16,6 +17,11 @@ export interface ToolContext {
    * 不再只是把结果丢弃后干等超时。工具实现自行与本地超时合并（search 用 AbortSignal.any）。
    */
   signal?: AbortSignal;
+  /**
+   * 所属会话 id（2026-09-14，方案选择框）：`ask_choice` 要把提问绑到当前会话，答复才能续回这一轮。
+   * 可选——不依赖会话的工具（搜索 / 词条）无需关心它，既有工具桩也不必改。
+   */
+  sessionId?: string;
 }
 
 export interface ToolResult {
@@ -246,6 +252,10 @@ registry.set('manage_terms', {
     return { content: 'manage_terms 的 action 只能是 add / update / delete，请重新调用。' };
   },
 });
+
+// 方案选择框（2026-09-14 契约 docs/ASK-CHOICE-SPEC.md）：AI 主动提问 → 学习者点选 → 同轮继续。
+// 定义与执行在 chat/choice-tool.ts，本文件只做注册——工具清单的唯一入口仍在这里，不开第二份。
+registry.set('ask_choice', { definition: CHOICE_TOOL, run: runChoiceTool });
 
 export function toolDefinitions(): ToolDefinition[] {
   return [...registry.values()].map((t) => t.definition);

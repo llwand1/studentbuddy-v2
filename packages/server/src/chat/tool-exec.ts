@@ -32,9 +32,18 @@ export interface ToolOutcome {
 export interface ToolExecOptions {
   /** 单工具超时，缺省 30s（契约 §4.2 默认；network/external 的 15s 待 kind 字段落地后再分档） */
   timeoutMs?: number;
+  /**
+   * 不参与超时的工具名（长等待类）。`ask_choice` 要等学习者点选，可能远超 30s，
+   * 且**契约不设超时**（老板拍板：不选就一直等）——给它挂 30s timer 会直接掐断等待
+   * 并回灌「本工具超时，请勿重复调用」，功能等于废掉。豁免的工具仍受 abort 约束
+   * （「停止生成」照样能解除挂起），只是不再被时间淘汰。
+   */
+  noTimeout?: string[];
   /** 执行器注入点，缺省用真实 runTool */
   exec?: ToolExecFn;
   signal?: AbortSignal;
+  /** 透传进 ToolContext 的会话 id（需要绑会话的工具用，如 ask_choice） */
+  sessionId?: string;
 }
 
 /** 过程卡片可展开的载荷（SSE 契约 2026-09-09）：入参原文 + 结果摘要 */
@@ -112,6 +121,7 @@ export async function runToolCalls(
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS;
   const exec = opts.exec ?? runTool;
   const signal = opts.signal;
+  const noTimeout = opts.noTimeout ?? [];
   const done = new AbortController();
   const abortRace = abortRaceOf(signal, done);
 
@@ -139,16 +149,22 @@ export async function runToolCalls(
         },
         // signal 透传进工具内部：联网工具据此真掐断 HTTP 请求（v13 体验升级）
         signal,
+        // 会话 id 透传进工具：ask_choice 据此把提问绑到当前会话（方案选择框）
+        sessionId: opts.sessionId,
       };
 
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
         const racers: Array<Promise<ToolResult>> = [exec(call.name, call.arguments, callCtx)];
-        racers.push(
-          new Promise<never>((_, reject) => {
-            timer = setTimeout(() => reject(new ToolTimeoutError(timeoutMs)), timeoutMs);
-          }),
-        );
+        // 长等待工具豁免超时：只留 exec + abortRace。ask_choice 等的是「人」，30s 上限
+        // 会把等待本身掐死（契约不设超时），故按 noTimeout 名单跳过 timer 那一支。
+        if (!noTimeout.includes(call.name)) {
+          racers.push(
+            new Promise<never>((_, reject) => {
+              timer = setTimeout(() => reject(new ToolTimeoutError(timeoutMs)), timeoutMs);
+            }),
+          );
+        }
         if (abortRace) racers.push(abortRace);
         const r = await Promise.race(racers);
         // 工具内部已自判 error 却正常返回（如搜索词为空）：如实重发 error，不再补 done

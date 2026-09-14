@@ -17,6 +17,8 @@ import { estimateTokens, truncateHistoryToBudget, getContextLimit } from './cont
 import { toolDefinitions, runTool } from './tools.js';
 import type { ToolContext, ToolResult } from './tools.js';
 import { runToolCalls, type StepPayload } from './tool-exec.js';
+import { persistRounds, loadHistory } from './persist.js';
+import { cancelChoicesBySession } from './choice.js';
 import { TASKS_TOOL, parseTaskArgs, applyTaskPatch, formatTaskList, type TaskItem } from './task-list.js';
 import { SYSTEM_PROMPT } from './system-prompt.js';
 import { getRelevantTerms, saveTerms, extractTerms, countUsage } from '../learning/terms.js';
@@ -260,7 +262,14 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       // 并行执行 + 单工具超时 + 中止即停（契约 §4.3）：原来是 for 循环裸 await，
       // 多工具时耗时叠加，且长工具期间「停止」按钮形同虚设（signal 没进执行环节）。
       // 结果按调用顺序回灌，顺序稳定性＝回归锁可钉（见 chat/tool-exec.test.ts）。
-      const outcomes = await runToolCalls(turnToolCalls, { onStep }, { signal: opts.signal, exec: execTool });
+      const outcomes = await runToolCalls(turnToolCalls, { onStep }, {
+        signal: opts.signal,
+        exec: execTool,
+        // 会话 id 透传：ask_choice 据此把提问绑到当前会话（方案选择框）
+        sessionId,
+        // ask_choice 要等学习者点选、契约不设超时——不豁免就会被 30s 默认超时掐断（见 tool-exec.ts）
+        noTimeout: ['ask_choice'],
+      });
       abortIfNeeded();
       for (const o of outcomes) {
         results.push({ role: 'tool', content: o.content.slice(0, MAX_TOOL_RESULT_CHARS), toolCallId: o.id });
@@ -323,6 +332,10 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   } catch (err) {
     const aborted = opts.signal?.aborted === true;
     const msg = err instanceof Error ? err.message : String(err);
+    // 逃生口①：本轮异常 / 被停止时连带作废本会话挂起的方案选择。
+    // 必做——挂起的 ask_choice 不在 signal 的掐断路径上，它等的是「人点一下」；
+    // 用户既然选了停止，就再没人会点那张卡，不作废工具会永久悬挂（会话锁也一起卡住）。
+    cancelChoicesBySession(sessionId, aborted ? '用户已停止生成' : '本轮生成中断');
     // 流什么就存什么：已上屏的字不留白（中止与中途失败同样收口）。
     // 工具轮仍不落，绝不留孤儿 tool 消息。
     if (acc) {
@@ -347,53 +360,5 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   }
 }
 
-/**
- * 工具轮 + 最终回答原子落库（v1 语义）：中途失败/中止时整体不落，历史里不会
- * 出现以孤立 tool 消息结尾的轮次（OpenAI 要求 tool 消息前必有对应 assistant tool_calls）。
- * v11 起同时落「思考」与「任务清单」——过程归属于这条回答，重开会话由 history-fold 回放。
- */
-function persistRounds(
-  sessionId: string,
-  rounds: Array<{ calls: ToolCall[]; results: ChatMessage[] }>,
-  finalContent: string,
-  tokens: number,
-  proc: { reasoning: string; tasks: TaskItem[] },
-): string {
-  const db = getDb();
-  const assistantId = randomUUID();
-  const apply = db.transaction(() => {
-    for (const r of rounds) {
-      db.prepare(`INSERT INTO messages (id, session_id, role, content, tool_calls) VALUES (?, ?, 'assistant', '', ?)`)
-        .run(randomUUID(), sessionId, JSON.stringify(r.calls));
-      for (const t of r.results) {
-        db.prepare(`INSERT INTO messages (id, session_id, role, content, tool_call_id) VALUES (?, ?, 'tool', ?, ?)`)
-          .run(randomUUID(), sessionId, t.content, t.toolCallId ?? null);
-      }
-    }
-    db.prepare(
-      `INSERT INTO messages (id, session_id, role, content, tokens, reasoning, tasks) VALUES (?, ?, 'assistant', ?, ?, ?, ?)`,
-    ).run(
-      assistantId,
-      sessionId,
-      finalContent,
-      tokens,
-      proc.reasoning || null,
-      proc.tasks.length > 0 ? JSON.stringify(proc.tasks) : null,
-    );
-  });
-  apply();
-  return assistantId;
-}
-
-function loadHistory(sessionId: string): ChatMessage[] {
-  const rows = getDb()
-    // created_at 只到秒，同秒内的工具轮必须靠 rowid 保住 assistant→tool 的先后
-    .prepare(`SELECT role, content, tool_calls, tool_call_id FROM messages WHERE session_id = ? ORDER BY created_at, rowid`)
-    .all(sessionId) as Array<{ role: string; content: string; tool_calls: string | null; tool_call_id: string | null }>;
-  return rows.map((r) => ({
-    role: r.role as ChatMessage['role'],
-    content: r.content,
-    toolCalls: r.tool_calls ? (JSON.parse(r.tool_calls) as ToolCall[]) : undefined,
-    toolCallId: r.tool_call_id ?? undefined,
-  }));
-}
+// persistRounds / loadHistory 已搬至 chat/persist.ts
+// （2026-09-14 为方案选择框接线腾 400 行门禁空间，零行为改动）

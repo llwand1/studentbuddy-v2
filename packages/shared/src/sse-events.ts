@@ -6,6 +6,7 @@
  */
 import type { TaskItem } from './task-list.js';
 import type { PkQuestion, PkRoomState } from './pk.js';
+import type { AskChoiceRecord, AskChoiceReply } from './choice.js';
 
 
 /** 服务端按会话推送的事件（seq 单调递增，新一轮对话从 1 重新计数） */
@@ -69,6 +70,13 @@ export type SseEvent =
       score: number;
     }
   | { type: 'pk-end'; seq: number; roomId: string; winner?: string; state: PkRoomState }
+  // ── 方案选择框（AI 主动提问 → 用户点选 → 同轮继续，契约 docs/ASK-CHOICE-SPEC.md）──
+  // ★ 归 `sessionId` 空间（与聊天事件同频道，不是独立频道）：选择的答案直接续进这一轮对话，
+  //   因此不经 `pk:` 那套前缀隔离。三个事件覆盖一个提问的完整生命周期：
+  //   asked（弹卡）→ replied（切已选态）/ cancelled（切作废态，逃生口触发）。
+  | { type: 'choice-asked'; seq: number; sessionId: string; request: AskChoiceRecord }
+  | { type: 'choice-replied'; seq: number; sessionId: string; requestId: string; reply: AskChoiceReply }
+  | { type: 'choice-cancelled'; seq: number; sessionId: string; requestId: string; reason: string }
   | { type: 'ping' };
 
 export interface TokenUsage {

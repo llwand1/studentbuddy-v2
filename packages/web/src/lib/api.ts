@@ -14,6 +14,7 @@ import type {
   PkRoomState,
   PkJudgeAdvice,
   PkQuestion,
+  AskChoiceRecord,
 } from '@sb/shared';
 
 export class ApiError extends Error {
@@ -164,6 +165,21 @@ export const api = {
       request<{ ok: boolean }>('/api/chat/resend', {
         method: 'POST',
         body: JSON.stringify({ sessionId, text }),
+      }),
+  },
+
+  /**
+   * 方案选择框（契约 docs/ASK-CHOICE-SPEC.md）：AI 主动提问、学习者点选、同轮继续。
+   * `pending` 是「捞回挂起卡」的兜底——SSE 缓冲 60s 无订阅即回收，重开页面后回放流里
+   * 可能已经什么都没有，只有主动查库才能把卡片恢复出来（详见 chat/choice.ts 的注释）。
+   */
+  choices: {
+    pending: (sessionId: string) =>
+      request<AskChoiceRecord[]>(`/api/choices?sessionId=${encodeURIComponent(sessionId)}`),
+    reply: (requestId: string, reply: { optionId?: string; custom?: string }) =>
+      request<AskChoiceRecord>(`/api/choices/${encodeURIComponent(requestId)}/reply`, {
+        method: 'POST',
+        body: JSON.stringify(reply),
       }),
   },
 

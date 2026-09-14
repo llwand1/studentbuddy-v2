@@ -1,0 +1,132 @@
+/**
+ * choice.css — 方案选择框浮层样式（自包含）。
+ *
+ * 与 ask-style.css 同规（各自带 css，不蹭 chat.css）：这一族卡片要在多处内联出现，
+ * 蹭某页的样式表会在另一页裸奔。色板沿用全局变量，不新增颜色。
+ */
+.choice-card {
+  display: grid;
+  gap: var(--sb-sp-2);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  background: var(--sb-surface);
+  padding: var(--sb-sp-3);
+  margin-bottom: var(--sb-sp-2);
+}
+
+.choice-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+}
+.choice-ico { display: inline-flex; color: var(--sb-ink-tertiary); }
+.choice-ico.ok { color: var(--sb-primary); }
+.choice-title {
+  font-size: var(--sb-fs-md);
+  font-weight: 600;
+  color: var(--sb-ink);
+}
+.choice-state {
+  margin-left: auto;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.choice-q {
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink);
+  line-height: 1.5;
+}
+
+.choice-opts { display: grid; gap: var(--sb-sp-1); }
+
+.choice-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sb-sp-2);
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-bg);
+  padding: var(--sb-sp-2);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.choice-opt:hover:not(:disabled) { border-color: var(--sb-primary); }
+.choice-opt:disabled { opacity: 0.55; cursor: default; }
+.choice-opt.custom { color: var(--sb-ink-secondary); }
+.choice-opt.custom.open { border-color: var(--sb-primary); }
+
+/* 勾标默认隐形，悬停才浮出来：静态列表不带勾，视线先落在文字上 */
+.choice-mk {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sb-primary);
+  opacity: 0;
+}
+.choice-opt:hover:not(:disabled) .choice-mk { opacity: 1; }
+.choice-opt.custom .choice-mk { opacity: 1; color: var(--sb-ink-tertiary); }
+
+.choice-body { display: grid; gap: 2px; }
+.choice-label {
+  font-size: var(--sb-fs-sm);
+  font-weight: 500;
+  color: var(--sb-ink);
+}
+.choice-desc {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+  line-height: 1.45;
+}
+
+.choice-custom-row { display: flex; gap: var(--sb-sp-2); }
+.choice-input {
+  flex: 1;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-bg);
+  padding: var(--sb-sp-2);
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink);
+}
+.choice-send {
+  border: 1px solid var(--sb-primary);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-primary);
+  color: #fff;
+  font-size: var(--sb-fs-sm);
+  font-weight: 600;
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+}
+.choice-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.choice-foot {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+  line-height: 1.5;
+}
+.choice-foot svg { flex: none; margin-top: 2px; }
+
+.choice-done-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sb-sp-2);
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+.choice-dismiss {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-primary);
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+}
+.choice-card.cancelled .choice-title { color: var(--sb-ink-secondary); }

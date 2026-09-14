@@ -2,6 +2,9 @@
  * useChatStream — 对话流订阅与发送编排（拆自 v1 1114 行巨 hook 的关注点之一）。
  * 职责边界：SSE 生命周期 / 流式文本累积 / 错误呈现 / 停止；会话管理在 useSessions，
  * 输入框 UI 在 Composer——单一关注点（ADR-3 的前端落地）。
+ *
+ * 2026-09-14：方案选择框（契约 docs/ASK-CHOICE-SPEC.md）的挂起队列抽到 `useChoiceQueue`，
+ * 本文件只在事件入口做一次转发——本文件此前已 398/400 行，装不下那 90 行（AGENTS 行数红线）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SseEvent, TaskItem, TokenUsage } from '@sb/shared';
@@ -9,6 +12,8 @@ import { connectSse, type SseReadyState } from '../../lib/sse-client';
 import { api } from '../../lib/api';
 import { createTokenDrain, type TokenDrain } from './stream-smooth';
 import { foldToolRounds } from './history-fold';
+import { useChoiceQueue } from './useChoiceQueue';
+import { useSendActions } from './useSendActions';
 export type { TaskItem, TaskStatus } from '@sb/shared';
 
 export interface StreamMessage {
@@ -100,6 +105,17 @@ export function useChatStream(
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState<SseReadyState>('connecting');
   const [error, setError] = useState('');
+  /**
+   * 方案选择框（契约 docs/ASK-CHOICE-SPEC.md）：挂起队列与答复动作全在 `useChoiceQueue`，
+   * 本 hook 只负责把 SSE 事件转发给它、并在新一轮/换会话时通知它清场。
+   */
+  const {
+    pendingChoice,
+    applyEvent: applyChoiceEvent,
+    reset: resetChoices,
+    replyChoice,
+    dismissChoice,
+  } = useChoiceQueue(sessionId, setError);
   const [usage, setUsage] = useState<TokenUsage | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const clientRef = useRef<ReturnType<typeof connectSse> | null>(null);
@@ -235,6 +251,9 @@ export function useChatStream(
     clientRef.current = client;
     const offState = client.onStateChange(setReady);
     const offEvent = client.onEvent((ev: SseEvent) => {
+      // 方案选择框的三种帧（asked/replied/cancelled）由 useChoiceQueue 自行消化；
+      // 消化掉就 return，其余事件照旧往下分发
+      if (applyChoiceEvent(ev)) return;
       if (ev.type === 'token') {
         pushTokens(ev.content);
         setBusy(true);
@@ -308,7 +327,17 @@ export function useChatStream(
       client.close();
       clientRef.current = null;
     };
-  }, [sessionId, flushTokens, pushTokens, commitSteps, commitTasks, clearReasoning, pushReasoning, commitStreaming]);
+  }, [
+    sessionId,
+    flushTokens,
+    pushTokens,
+    commitSteps,
+    commitTasks,
+    clearReasoning,
+    pushReasoning,
+    commitStreaming,
+    applyChoiceEvent,
+  ]);
 
   /**
    * 新一轮公共前置：清上一轮残留（token 缓冲 / 流式文本 / 过程三件套 / 用量耗时）并计时。
@@ -321,78 +350,43 @@ export function useChatStream(
     clearReasoning();
     commitSteps([]);
     commitTasks([]);
+    // 方案选择框：上一轮遗留的卡片（含已选/已作废的确认态）退场——它属于上一轮，不该漂过来
+    resetChoices();
     setUsage(null);
     setElapsedMs(0);
     startedAtRef.current = Date.now();
-  }, [resetTokens, clearReasoning, commitSteps, commitTasks, commitStreaming]);
+  }, [resetTokens, clearReasoning, commitSteps, commitTasks, commitStreaming, resetChoices]);
 
-  /** 发送：SSE 未就绪时拒绝并提示（修 F1 竞态——绝不静默吞） */
-  const send = useCallback(
-    async (text: string): Promise<{ ok: boolean; error?: string }> => {
-      if (!sessionId) return { ok: false, error: '无会话' };
-      if (ready !== 'open') return { ok: false, error: `连接${ready === 'reconnecting' ? '重连中' : '建立中'}，稍候再发` };
-      if (busy) return { ok: false, error: '生成中，请先停止' };
-      if (!historyLoadedRef.current) return { ok: false, error: '历史加载中，稍候再发' };
-      setError('');
-      beginRound();
-      setMessages((ms) => [...ms, { role: 'user', content: text, ts: new Date().toISOString() }]);
-      try {
-        await api.chat.send(sessionId, text);
-        setBusy(true);
-        return { ok: true };
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setError(msg);
-        return { ok: false, error: msg };
-      }
-    },
-    [sessionId, ready, busy, beginRound],
-  );
+  // 发送 / 重跑 / 停止这组动作在 useSendActions（2026-09-14 拆出：本文件触 400 行红线）。
+  // 它们只发请求与撤屏，不认识流式事件；本文件专心管 SSE 呈现。
+  const { send, stop, regenerate, resend } = useSendActions({
+    sessionId,
+    ready,
+    busy,
+    beginRound,
+    setError,
+    setBusy,
+    setMessages,
+    historyLoadedRef,
+  });
 
-  const stop = useCallback(async () => {
-    if (sessionId) await api.chat.abort(sessionId).catch(() => undefined);
-  }, [sessionId]);
-
-  /**
-   * 重跑类动作公共体：regenerate（原样重跑）与 resend（编辑重发）只有两处不同——
-   * 服务端端点、以及「最后一条提问是否就地换文案」。撤屏口径完全一致：
-   * 只保留最后一条提问及其之前（resend 再把该提问内容替换成新文案），否则新回答会接在旧回答后面。
-   */
-  const rerun = useCallback(
-    async (mode: 'regen' | 'resend', text?: string): Promise<{ ok: boolean; error?: string }> => {
-      if (!sessionId) return { ok: false, error: '无会话' };
-      if (ready !== 'open')
-        return { ok: false, error: `连接${ready === 'reconnecting' ? '重连中' : '建立中'}，稍候再试` };
-      if (busy) return { ok: false, error: '生成中，请先停止' };
-      setError('');
-      beginRound();
-      setMessages((ms) => {
-        const lastUser = ms.reduce((acc, m, i) => (m.role === 'user' ? i : acc), -1);
-        if (lastUser < 0) return ms;
-        const kept = ms.slice(0, lastUser);
-        const last = ms[lastUser];
-        // resend：提问内容就地替换（服务端 planResend 同一口径：更新内容、作废其后产物）
-        const edited = mode === 'resend' && last ? ({ ...last, content: text } as StreamMessage) : last;
-        return edited ? [...kept, edited] : kept;
-      });
-      try {
-        if (mode === 'resend') await api.chat.resend(sessionId, text ?? '');
-        else await api.chat.regenerate(sessionId);
-        setBusy(true);
-        return { ok: true };
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setError(msg);
-        return { ok: false, error: msg };
-      }
-    },
-    [sessionId, ready, busy, beginRound],
-  );
-
-  /** 重新生成：服务端已把最后一条提问之后的产物删掉（含工具轮与中止半截）后原样重跑 */
-  const regenerate = useCallback(() => rerun('regen'), [rerun]);
-  /** 编辑重发（v13 体验升级）：把最后一条提问改成新文案后重跑（只挂最后一条提问，改写更早的是分叉，不做） */
-  const resend = useCallback((text: string) => rerun('resend', text), [rerun]);
-
-  return { messages, streamingText, reasoning, steps, tasks, busy, ready, error, usage, elapsedMs, send, stop, regenerate, resend };
+  return {
+    messages,
+    streamingText,
+    reasoning,
+    steps,
+    tasks,
+    busy,
+    ready,
+    error,
+    usage,
+    elapsedMs,
+    send,
+    stop,
+    regenerate,
+    resend,
+    pendingChoice,
+    replyChoice,
+    dismissChoice,
+  };
 }

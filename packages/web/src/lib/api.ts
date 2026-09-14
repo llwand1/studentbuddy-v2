@@ -154,6 +154,12 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ sessionId }),
       }),
+    /**
+     * 正在生成回复的会话 id（侧栏「回复中」提示的事实源）。
+     * ★ 必须问服务端：生成**不随页面切换中止**（断开 SSE 只摘订阅者，flow 照跑照落库），
+     * 客户端只知道「当前挂载的会话」在不在流，切走的那间无从判断。
+     */
+    active: () => request<{ sessionIds: string[] }>('/api/chat/active'),
     /** 重新生成：服务端作废最后一条提问之后的全部产物并重跑（提问不重复落库） */
     regenerate: (sessionId: string) =>
       request<{ ok: boolean }>('/api/chat/regenerate', {

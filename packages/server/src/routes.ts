@@ -164,6 +164,22 @@ chatRouter.post('/abort', (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+/**
+ * 正在生成回复的会话 id 列表（前端侧栏「回复中」提示的唯一事实源）。
+ *
+ * ★ 为什么这件事必须由服务端说：**生成不随页面切换而中止**——断开 SSE 只是在
+ *   `sse-bus.subscribe` 的 `res.on('close')` 里把订阅者摘掉（实测该处只 `clients.delete`，
+ *   不碰任何 AbortController），`handleMessage` 照跑照落库。而前端只能感知「当前挂载的那个会话」，
+ *   一切走就再也无从知道原会话是否还在生成 ⇒ 只能问服务端。
+ * ★ 为什么用 `aborters` 当真相：send / regenerate / resend 三条发起路径都在开跑前登记、
+ *   在 `finally` 里摘除，它就是「正在生成」的完整集合，不需要再造一份状态（避免双真相源漂移）。
+ * ★ 为什么不做成 SSE 事件：那要引入跨会话的全局频道，而本仓 sse-bus 的隔离设计正是
+ *   「按 sessionId 分隔、禁通配订阅」（v1 串台教训）。为此破例不划算，2s 轮询足够。
+ */
+chatRouter.get('/active', (_req, res) => {
+  res.json({ sessionIds: [...aborters.keys()] });
+});
+
 chatRouter.get('/stream', (req: Request, res: Response) => {
   const sessionId = String(req.query.sessionId ?? '');
   if (!sessionId) {

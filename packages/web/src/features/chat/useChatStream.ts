@@ -234,6 +234,11 @@ export function useChatStream(
     if (!sessionId) return;
     setError('');
     commitStreaming('');
+    // ★ 切会话必须清 busy：它的语义是「**这个**会话在生成」，换了 sessionId 后旧值已不属于新会话。
+    //   不清则：① 侧栏徽标漂到刚点开的那项（老板 2026-09-14 实测报的 bug，根因详见 bug-ledger）；
+    //   ② 新会话凭空长出「思考中」气泡；③ blocked = busy ⇒ 新会话输入框被禁用到下次切页。
+    //   切走后原会话的徽标改由服务端 /api/chat/active 兜（生成本就没中止）。
+    setBusy(false);
     // 切会话即换轮：上一轮的思考/步骤/任务/耗时都不能漂到新会话的页面上。
     // reasoning 此前漏清，而渲染层是「非空即渲染」——切到别的会话会看到上一轮的思考面板（串轮）。
     // v11 起「本轮过程」以 ref 为真相源：清空必须走 clearReasoning/commit* 把 ref 一起清掉，

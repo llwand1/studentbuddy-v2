@@ -24,6 +24,7 @@ import {
 } from '../components/icons';
 import { api } from '../lib/api';
 import { ChatView } from '../features/chat/ChatView';
+import { useActiveSessions } from '../features/chat/useActiveSessions';
 import { Mascot } from '../features/chat/Mascot';
 import { SettingsView } from '../features/settings/SettingsView';
 import { QuizBankPage } from '../features/quiz/QuizBankPage';
@@ -62,8 +63,14 @@ export function App() {
   const [currentId, setCurrentId] = useState<string | null>(null);
   /** 会话标题过滤（纯前端，服务端列表本就 ≤ 单机量级）；空串 = 不过滤 */
   const [query, setQuery] = useState('');
-  /** 正在生成回复的会话 id：侧栏在该会话项上显示「回复中」提示（busy 上报自 ChatView） */
-  const [busySid, setBusySid] = useState<string | null>(null);
+  /**
+   * 「回复中」徽标的两个信号源（2026-09-14 修 bug：原先只有前者，且它会被错标到刚点开的会话上）：
+   * ① `localBusySid` —— **当前挂载的那间**在不在流（ChatView 上报，token 级零延迟）；
+   * ② 服务端 `/api/chat/active` —— 生成不随切页中止（断开 SSE 只摘订阅者），
+   *    切走的那间只能问服务端，2s 轮询兜住。两者都以正确的会话 id 标注、取并集见 `useActiveSessions`。
+   */
+  const [localBusySid, setLocalBusySid] = useState<string | null>(null);
+  const busy = useActiveSessions(localBusySid);
   /** 历史对话列表展开/收起（默认展开） */
   const [historyOpen, setHistoryOpen] = useState(true);
   /** 笔记页的套题过滤（题库页「本套笔记」入口带入；从导航点「笔记」时清除） */
@@ -117,7 +124,7 @@ export function App() {
 
   /** 稳定引用：ChatView 的 useEffect 以它为依赖，箭头函数每次新建会导致 effect 反复触发 */
   const handleBusyChange = useCallback((busy: boolean, sid: string | null) => {
-    setBusySid(busy ? sid : null);
+    setLocalBusySid(busy ? sid : null);
   }, []);
 
   const q = query.trim().toLowerCase();
@@ -190,7 +197,7 @@ export function App() {
               onKeyDown={(e) => e.key === 'Enter' && openSession(s.id)}
             >
               <span className="sb-session-title">{s.title || '新对话'}</span>
-              {busySid === s.id && (
+              {busy.has(s.id) && (
                 <span className="sb-session-busy" role="status">
                   <span className="sb-session-busy-dot" />
                   回复中

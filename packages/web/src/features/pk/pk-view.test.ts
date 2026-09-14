@@ -8,13 +8,19 @@ import { describe, it, expect } from 'vitest';
 import { PK_ROOM_CODE_LEN, type PkQuestion, type PkRoomState } from '@sb/shared';
 import {
   cdRemainingMs,
+  finishTitle,
   formatClock,
+  formatEndedAt,
   isOwner,
   myIndex,
+  myOutcome,
   myPendingQuestion,
   optionLetter,
+  outcomeLabel,
   pendingToOpponent,
+  reasonLabel,
   remainingMs,
+  reviewVerdict,
   verdictText,
   normalizeRoomCode,
   topicOwnerLabel,
@@ -237,5 +243,92 @@ describe('P0-7 · 主题轮转 / 道具 / 二次机会（纯函数）', () => {
       ],
     };
     expect(myWrongQuestions(s, 'a').map((x) => x.id)).toEqual(['wrong', 'timeout']);
+  });
+});
+
+describe('P0-8 · 投降 / 对战历史（纯函数）', () => {
+  /** 造一道题：默认「发给 a、已判定答对」，用例按需覆盖 */
+  function q(over: Partial<PkQuestion>): PkQuestion {
+    return {
+      id: 'q1',
+      roomId: 'r-1',
+      fromUserId: 'b',
+      toUserId: 'a',
+      prompt: '',
+      stem: '',
+      options: ['x', 'y'],
+      createdAt: 0,
+      deadlineAt: 0,
+      status: 'answered',
+      chosen: 0,
+      answerRevealed: 0,
+      ...over,
+    };
+  }
+
+  function finished(over: Partial<PkRoomState> = {}): PkRoomState {
+    return {
+      ...state([
+        { userId: 'a', nickname: '甲' },
+        { userId: 'b', nickname: '乙' },
+      ]),
+      status: 'finished',
+      ...over,
+    };
+  }
+
+  it('★ reviewVerdict：还没答的题（chosen 与 answerRevealed 双双 undefined）必须显示「未作答」', () => {
+    // 这条是回归锁：旧写法 `chosen === answerRevealed` 在两个 undefined 时恰好为 true，
+    // 屏幕上把「对局结束时还没答的题」显示成「答对 +2」（2026-09-14 随历史回看一并修掉）
+    expect(reviewVerdict(q({ status: 'pending', chosen: undefined, answerRevealed: undefined }))).toEqual({
+      text: '未作答',
+      ok: false,
+    });
+  });
+
+  it('reviewVerdict：超时 −1 / 答对 +2 / 答错 −1 三态互不串台', () => {
+    expect(reviewVerdict(q({ status: 'timeout', chosen: undefined, answerRevealed: 1 }))).toEqual({
+      text: '超时 −1',
+      ok: false,
+    });
+    expect(reviewVerdict(q({ chosen: 1, answerRevealed: 1 }))).toEqual({ text: '答对 +2', ok: true });
+    expect(reviewVerdict(q({ chosen: 0, answerRevealed: 1 }))).toEqual({ text: '答错 −1', ok: false });
+  });
+
+  it('outcomeLabel：胜 / 负 / 平', () => {
+    expect(outcomeLabel('win')).toBe('胜');
+    expect(outcomeLabel('lose')).toBe('负');
+    expect(outcomeLabel('draw')).toBe('平');
+  });
+
+  it('reasonLabel：认输必须与「时间到」分开说，且分敌我措辞', () => {
+    expect(reasonLabel('timeup', 'win')).toBe('时间到');
+    expect(reasonLabel('timeup', 'draw')).toBe('时间到 · 平局');
+    expect(reasonLabel('forfeit', 'win')).toBe('对方认输');
+    expect(reasonLabel('forfeit', 'lose')).toBe('自己认输');
+  });
+
+  it('myOutcome：我赢 / 我输 / 无 winner 即平', () => {
+    expect(myOutcome(finished({ winner: 'a' }), 'a')).toBe('win');
+    expect(myOutcome(finished({ winner: 'b' }), 'a')).toBe('lose');
+    expect(myOutcome(finished(), 'a')).toBe('draw');
+  });
+
+  it('finishTitle：认输换文案（「对局结束」看不出是谁点了投降）；时间到仍是老三样', () => {
+    expect(finishTitle(finished({ winner: 'a', endReason: 'forfeit' }), 'a')).toBe('对方认输');
+    expect(finishTitle(finished({ winner: 'b', endReason: 'forfeit' }), 'a')).toBe('自己认输');
+    expect(finishTitle(finished({ winner: 'a' }), 'a')).toBe('对局结束');
+    expect(finishTitle(finished(), 'a')).toBe('平局');
+  });
+
+  it('formatEndedAt：非法/缺失返空串（宁可空着也不显示 Invalid Date）', () => {
+    expect(formatEndedAt(Number.NaN)).toBe('');
+    expect(formatEndedAt(0)).toBe('');
+    expect(formatEndedAt(-1)).toBe('');
+  });
+
+  it('formatEndedAt：MM-DD HH:mm 且补零（用本地时间构造，避开时区差异）', () => {
+    expect(formatEndedAt(new Date(2026, 0, 5, 9, 7).getTime())).toBe('01-05 09:07');
+    expect(formatEndedAt(new Date(2026, 11, 31, 23, 59).getTime())).toBe('12-31 23:59');
   });
 });

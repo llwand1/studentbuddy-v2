@@ -8,14 +8,22 @@
  *
  * ★ 动作区（出题/答题）的端点属 P0-2，本批不放假按钮——对局页只有真实数据：
  *   比分、双方昵称、对局时钟（服务端 endsAt，客户端只作展示）。
+ *
+ * P0-8（2026-09-14）加两处：① 对局中的**投降**（`PkForfeit` 两段确认 → `forfeit`；
+ * 成功后**留在房里**看结算页，不回大厅——双方都该看见这局怎么结束的）；
+ * ② **对战历史**（`PkHistory`：大厅入口 → 列表 → 点开回看该局题目）。
+ * ★ 历史与房间是**两个视图互斥**：`room` 有值时房间优先（对局永远盖过历史），
+ *   历史只在大厅态打开——所以 `historyOpen` 不必与 `room` 做互斥判断。
  */
 import { useCallback, useEffect, useState } from 'react';
-import type { PkIdentity, PkRoomState } from '@sb/shared';
+import type { PkMatchDetail, PkMatchRecord, PkRoomState } from '@sb/shared';
 import { api, ApiError } from '../../lib/api';
 import { connectSse, type SseReadyState } from '../../lib/sse-client';
-import { clearLocalAuth, loadLocalAuth, saveLocalAuth } from '../../lib/auth';
+import { saveLocalAuth } from '../../lib/auth';
+import { usePkIdentity } from './usePkIdentity';
 import { PkLobby } from './PkLobby';
 import { PkRoom } from './PkRoom';
+import { PkHistory } from './PkHistory';
 import './pk.css';
 
 /** SSE 连续重连失败达到该次数即降级轮询（契约 §2.2：3 次） */
@@ -23,33 +31,17 @@ const POLL_AFTER_FAILS = 3;
 const POLL_INTERVAL_MS = 2000;
 
 export function PkApp() {
-  /** undefined = 正在恢复登录态；null = 未登录；PkIdentity = 已登录 */
-  const [identity, setIdentity] = useState<PkIdentity | null | undefined>(undefined);
+  /** 登录态（恢复逻辑在 `usePkIdentity`：undefined = 恢复中 / null = 未登录） */
+  const [identity, setIdentity] = usePkIdentity();
   const [room, setRoom] = useState<PkRoomState | null>(null);
   const [link, setLink] = useState<SseReadyState>('connecting');
   /** 大厅动作错误（建房/入房/开局/登录共用一条错误位，ADR-5 禁静默） */
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-
-  // 启动恢复登录态：本地记着 userId 就过一遍 /auth/me，账号已不存在则静默清除
-  useEffect(() => {
-    const local = loadLocalAuth();
-    if (!local) {
-      setIdentity(null);
-      return;
-    }
-    let alive = true;
-    api.pk
-      .me(local.userId)
-      .then((me) => alive && setIdentity(me))
-      .catch(() => {
-        clearLocalAuth();
-        if (alive) setIdentity(null);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
+  /** P0-8：对战历史是否打开。`records === null` = 还没拉到（与「拉到空表」是两件事，不合并） */
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [records, setRecords] = useState<PkMatchRecord[] | null>(null);
+  const [detail, setDetail] = useState<PkMatchDetail | null>(null);
 
   const roomId = room?.roomId ?? null;
 
@@ -176,6 +168,67 @@ export function PkApp() {
     setError('');
   }, []);
 
+  /** P0-8：打开历史。**每次打开都重拉**——刚打完的那局必须立刻出现，不在客户端拼缓存 */
+  const openHistory = useCallback(async () => {
+    if (!identity) return;
+    setHistoryOpen(true);
+    setDetail(null);
+    setBusy(true);
+    setError('');
+    try {
+      const r = await api.pk.matches(identity.userId);
+      setRecords(r.matches);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '读取对战历史失败');
+    } finally {
+      setBusy(false);
+    }
+  }, [identity]);
+
+  const closeHistory = useCallback(() => {
+    setHistoryOpen(false);
+    setDetail(null);
+    setError('');
+  }, []);
+
+  const closeDetail = useCallback(() => setDetail(null), []);
+
+  /** 点开某一局看回看（详情按 id + userId 取，服务端对别人的记录一律 404） */
+  const openMatch = useCallback(
+    async (id: string) => {
+      if (!identity) return;
+      setBusy(true);
+      setError('');
+      try {
+        const r = await api.pk.matchDetail(id, identity.userId);
+        setDetail(r.match);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '读取对局详情失败');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [identity],
+  );
+
+  /**
+   * P0-8：认输。成功**不回大厅**——留在房里看结算页（双方都该看见这局是怎么结束的）。
+   * 失败如实抛给 error 位（409 = 这局其实已经结束了，刷新即见真状态）。
+   */
+  const forfeit = useCallback(async () => {
+    if (!identity || !room) return;
+    setBusy(true);
+    setError('');
+    try {
+      const r = await api.pk.forfeit(room.roomId, identity.userId);
+      setRoom(r.state);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '认输失败，请重试');
+    } finally {
+      setBusy(false);
+    }
+  }, [identity, room]);
+
   return (
     <div className="sb-pk">
       <header className="sb-pk-head">
@@ -194,12 +247,31 @@ export function PkApp() {
           busy={busy}
           onStart={startRoom}
           onSetTopic={pickTopic}
+          onForfeit={forfeit}
           onLeave={backToLobby}
         />
+      ) : historyOpen && identity ? (
+        <PkHistory
+          userId={identity.userId}
+          records={records}
+          detail={detail}
+          loading={busy}
+          onOpen={openMatch}
+          onCloseDetail={closeDetail}
+          onBack={closeHistory}
+        />
       ) : (
-        <PkLobby identity={identity} error={error} busy={busy} onLogin={login} onCreate={createRoom} onJoin={joinRoom} />
+        <PkLobby
+          identity={identity}
+          error={error}
+          busy={busy}
+          onLogin={login}
+          onCreate={createRoom}
+          onJoin={joinRoom}
+          onHistory={openHistory}
+        />
       )}
-      {room && error && <div className="sb-pk-error">{error}</div>}
+      {(room || historyOpen) && error && <div className="sb-pk-error">{error}</div>}
     </div>
   );
 }

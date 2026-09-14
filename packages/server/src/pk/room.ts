@@ -23,6 +23,7 @@ import {
   PK_ROOM_TTL_MS,
   TOPIC_MAX,
   isAiUserId,
+  type PkEndReason,
   type PkIdentity,
   type PkMode,
   type PkPlayer,
@@ -71,6 +72,8 @@ export interface Room {
   /** P0-7：各玩家二次机会解锁时刻（ms）；未用过无此键 */
   retryNextAt: Record<string, number>;
   winner?: string;
+  /** P0-8：仅 `forfeit`（认输）时置位——`timeup` 不写，保持「老字段语义不变」 */
+  endReason?: PkEndReason;
   /** 最近一次状态变更时刻（ms）：TTL 回收判据 */
   lastActivity: number;
 }
@@ -164,6 +167,7 @@ export function snapshotRoom(room: Room): PkRoomState {
   };
   if (room.aiTopic) state.aiTopic = room.aiTopic;
   if (room.winner) state.winner = room.winner;
+  if (room.endReason) state.endReason = room.endReason;
   return state;
 }
 

@@ -193,6 +193,11 @@ export interface PkRoomState {
   retryNextAt: Record<string, number>;
   /** finished 时的胜者 userId；平局则无此字段 */
   winner?: string;
+  /**
+   * P0-8：结束原因（仅 finished 有）。`timeup` 缺省不写——老字段语义不变（时钟归零），
+   * 只有 `forfeit` 这种「非时间到」的结束才需要显式标注，前端据此换文案。
+   */
+  endReason?: PkEndReason;
 }
 
 /**
@@ -207,6 +212,55 @@ export interface PkJudgeAdvice {
   knowledge: string;
   /** 参考来源（联网命中才有）；前端渲染成链接清单，与题库来源同一套口径 */
   refs: { n: number; title: string; url: string; provider: string }[];
+}
+
+// ── P0-8：投降 + 对战历史（2026-09-14 老板点单，契约 §12）──────────
+
+/**
+ * 对局结束原因。`timeup` = 8 分钟时钟归零结算；`forfeit` = 一方认输。
+ * ★ 前端必须据此把结果说成「对方认输」/「你已认输」——只写「对局结束」，
+ *   投降的人不确定自己那一步到底生效没有（原地怀疑按钮坏了）。
+ */
+export type PkEndReason = 'timeup' | 'forfeit';
+
+/** 我的视角胜负。平局只可能来自 `timeup`——投降必分胜负。 */
+export type PkOutcome = 'win' | 'lose' | 'draw';
+
+/** 历史列表默认返回条数（客户端不传 limit 时） */
+export const PK_HISTORY_LIMIT = 20;
+/** 历史列表单次上限：传超大 limit 也钳到这里（防一次把库拉空，那是「打不开页面」而不是「看得多」） */
+export const PK_HISTORY_MAX = 100;
+/**
+ * 每人保留的历史条数：超出即删最旧（房间有 TTL 防内存无界增长，历史同理——快照一局几 KB）。
+ * ★ 与 `PK_HISTORY_MAX` **刻意同档 100**：还没有分页，比单页上限更旧的记录根本拉不出来，
+ *   留更多只是占盘（本仓不做「提前造用不到的东西」）。
+ * ★ 硬约束：**保留量必须 ≥ 单页上限**，否则列表永远填不满。要抬就两个一起抬。
+ */
+export const PK_HISTORY_KEEP = 100;
+
+/**
+ * 历史列表一行（**我的视角**：对手是谁、我赢还是输都已经折算好）。
+ * 存的是视角行而不是「一局一行 + 两个玩家字段」——见 `pk/history.ts` 文件头的取舍说明。
+ */
+export interface PkMatchRecord {
+  id: string;
+  roomId: string;
+  mode: PkMode;
+  opponentId: string;
+  /** 对手昵称**快照**：对手后来改了名，历史里仍应显示当时对战的名字 */
+  opponentNickname: string;
+  myScore: number;
+  oppScore: number;
+  outcome: PkOutcome;
+  reason: PkEndReason;
+  /** 该局生成过的题目总数（含结束时仍未作答的） */
+  quizCount: number;
+  endedAt: number;
+}
+
+/** 历史详情 ＝ 列表行 + 该局末快照（题目回看：题干/选项/我选了什么/正确答案都在里面） */
+export interface PkMatchDetail extends PkMatchRecord {
+  snapshot: PkRoomState;
 }
 
 // ── 域错误码（域层 throw，路由层映射 HTTP 状态）────────────
@@ -263,5 +317,12 @@ export type PkRoomError =
   /** 那道错题不是你答的 → 403 */
   | 'RETRY_NOT_YOURS'
   /** 裁判 AI 不可用（judge 角色没绑模型 / 调用失败）→ 502，不阻断对局 */
-  | 'JUDGE_UNAVAILABLE';
+  | 'JUDGE_UNAVAILABLE'
+  // ── P0-8：投降 / 对战历史 ──
+  /**
+   * 历史那条记录不存在**或不属于你** → 404。
+   * ★ 两种情况**故意合成一个码**：分开（403「不是你的」/404「不存在」）等于把
+   *   「这个 id 存在」告诉了一个没权限的人——别人的对局是否存在，不关你的事。
+   */
+  | 'MATCH_NOT_FOUND';
 

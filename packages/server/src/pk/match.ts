@@ -26,6 +26,7 @@ import { generateQuiz } from '../learning/quiz.js';
 import { allRoomsInternal, requireRoomInternal, snapshotRoom, type PkRoomQuestion, type Room } from './room.js';
 import { runAiAnswer, runAiQuiz } from './ai-bot.js';
 import { buildTopicAdvice, judgeTopicFit } from './judge.js';
+import { settleRoom } from './settle.js';
 
 /**
  * 域错误。`message` 仍是错误码本身（路由层据此查状态码，与既有写法兼容），
@@ -283,25 +284,15 @@ export function submitAnswer(
   return { correct, delta, score: answerer.score };
 }
 
-/** 结算：分高者胜 → 平分比答对数 → 仍平为平局（契约 §1）。finished 后快照保留 10 分钟供回看。 */
-export function settleRoom(room: Room, now = Date.now()): void {
-  if (room.status !== 'active') return;
-  const ranked = [...room.players].sort((a, b) => b.score - a.score || b.correct - a.correct);
-  const top = ranked[0];
-  const second = ranked[1];
-  const tie = top !== undefined && second !== undefined && top.score === second.score && top.correct === second.correct;
-  room.status = 'finished';
-  if (!tie && top) room.winner = top.userId;
-  room.aiBusy = false;
-  room.lastActivity = now;
-  publish(pkChannel(room.roomId), {
-    type: 'pk-end',
-    roomId: room.roomId,
-    ...(room.winner ? { winner: room.winner } : {}),
-    state: snapshotRoom(room),
-  });
-  stopTickerIfIdle();
-}
+/**
+ * 结算与投降的**实现已搬到 `pk/settle.ts`**（P0-8，2026-09-14）。
+ * 搬出理由：① 本文件当时 389/400 行，再往这里加收尾必撞 AGENTS 红线；
+ * ② 路由层要能调 `forfeit`，不该 import 本文件的私有收尾。
+ * 依赖方向单向：`match → settle`，`settle` **不**回头 import 本文件（不成环）。
+ * ★ 兑现在 `settle.ts` 导出（`settleRoom`/`finishRoom`/`forfeitRoom`）——这里不再转出，
+ *   免得同一函数有两个导出点（既有引用已核：`settleRoom` 只被本文件的 `tickMatches` 用）。
+ */
+
 
 /**
  * 1s ticker 的时间驱动逻辑（唯一入口，测试直接调）：

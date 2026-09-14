@@ -14,6 +14,8 @@ import type {
   PkRoomState,
   PkJudgeAdvice,
   PkQuestion,
+  PkMatchRecord,
+  PkMatchDetail,
   AskChoiceRecord,
 } from '@sb/shared';
 
@@ -111,6 +113,22 @@ export const api = {
       request<{ explanation: string; question: PkQuestion | null; state: PkRoomState }>(
         `/api/pk/rooms/${encodeURIComponent(roomId)}/retry`,
         { method: 'POST', body: JSON.stringify({ userId, questionId }) },
+      ),
+    /** P0-8 认输：对手直接胜、比分定格；403 = 你不在房里，409 = 对局已不在进行中 */
+    forfeit: (roomId: string, userId: string) =>
+      request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/forfeit`, {
+        method: 'POST',
+        body: JSON.stringify({ userId }),
+      }),
+    /** P0-8 我的对战历史（最近的在前）；limit 由服务端归一（缺省 20 / 上限 100） */
+    matches: (userId: string, limit?: number) =>
+      request<{ matches: PkMatchRecord[] }>(
+        `/api/pk/matches?userId=${encodeURIComponent(userId)}${limit ? `&limit=${limit}` : ''}`,
+      ),
+    /** P0-8 历史详情（含末快照，供题目回看）；不存在或不是你的 → 404 */
+    matchDetail: (id: string, userId: string) =>
+      request<{ match: PkMatchDetail }>(
+        `/api/pk/matches/${encodeURIComponent(id)}?userId=${encodeURIComponent(userId)}`,
       ),
   },
 

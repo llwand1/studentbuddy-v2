@@ -4,7 +4,7 @@
  * 判定逻辑一律放这里、组件只负责挂——本仓 .tsx 无测试环境（先例 doc-name.ts），
  * 纯函数才能进测链路。全部无副作用、无时钟依赖：now 一律由调用方传入。
  */
-import { PK_ROOM_CODE_LEN, type PkQuestion, type PkRoomState } from '@sb/shared';
+import { PK_ROOM_CODE_LEN, type PkEndReason, type PkOutcome, type PkQuestion, type PkRoomState } from '@sb/shared';
 
 /** 房号输入归一：只留数字、截到 6 位（contract §2.1 roomCode = 6 位数字） */
 export function normalizeRoomCode(raw: string): string {
@@ -92,4 +92,60 @@ export function myWrongQuestions(state: PkRoomState, userId: string): PkQuestion
     if (q.toUserId !== userId || q.status === 'pending') return false;
     return q.chosen === undefined || q.chosen !== q.answerRevealed;
   });
+}
+
+// ── P0-8：投降 / 对战历史（契约 §12）─────────────────────────
+
+/**
+ * 回看一题的判词。
+ * ★ 必须**显式**处理 `pending`：对局在时钟归零那一刻可能还有题没答也没判超时，
+ *   此时 `chosen` 与 `answerRevealed` **双双 undefined**，而旧写法 `chosen === answerRevealed`
+ *   恰好为 true ⇒ 屏幕上把「还没答」显示成「答对 +2」（2026-09-14 随历史回看一并修掉；
+ *   `PkRoom` 的 finished 回看与历史详情共用本函数，两边不会再各判一套）。
+ */
+export function reviewVerdict(q: PkQuestion): { text: string; ok: boolean } {
+  if (q.status === 'pending') return { text: '未作答', ok: false };
+  if (q.status === 'timeout') return { text: '超时 −1', ok: false };
+  const ok = q.chosen !== undefined && q.chosen === q.answerRevealed;
+  return { text: ok ? '答对 +2' : '答错 −1', ok };
+}
+
+/** 历史行的胜负文案（我的视角） */
+export function outcomeLabel(outcome: PkOutcome): string {
+  if (outcome === 'win') return '胜';
+  if (outcome === 'lose') return '负';
+  return '平';
+}
+
+/** 我在**这一份快照**里的结果（无 winner = 平）。房间结算页与历史详情共用同一判据。 */
+export function myOutcome(state: PkRoomState, userId: string): PkOutcome {
+  if (!state.winner) return 'draw';
+  return state.winner === userId ? 'win' : 'lose';
+}
+
+/**
+ * 结算页标题。认输必须单独说：只写「对局结束」，输了的人看不出「是我点了投降」
+ * 还是「时间到了我分低」——那是两种完全不同的心情。
+ */
+export function finishTitle(state: PkRoomState, userId: string): string {
+  if (state.endReason === 'forfeit') return reasonLabel('forfeit', myOutcome(state, userId));
+  return state.winner ? '对局结束' : '平局';
+}
+
+/**
+ * 这一局是怎么结束的（我的视角）。
+ * ★ 认输必须与「时间到」分开说：赢的一方看到「对方认输」才知道是对方点了投降、
+ *   而不是自己这局白打了 8 分钟；输的一方也才知道「自己认输」那一步真的生效了。
+ */
+export function reasonLabel(reason: PkEndReason, outcome: PkOutcome): string {
+  if (reason === 'forfeit') return outcome === 'win' ? '对方认输' : '自己认输';
+  return outcome === 'draw' ? '时间到 · 平局' : '时间到';
+}
+
+/** 结束时刻 → 本地「MM-DD HH:mm」；非法/缺失返空串（宁可空着，也不给用户看 Invalid Date） */
+export function formatEndedAt(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return '';
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }

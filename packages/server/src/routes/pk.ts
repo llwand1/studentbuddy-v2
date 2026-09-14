@@ -11,6 +11,8 @@ import { getIdentity, loginOrRegister } from '../pk/auth.js';
 import { createRoom, getRoomState, joinRoom, setTopic, startRoom } from '../pk/room.js';
 import { ensureTicker, submitAnswer, submitQuiz } from '../pk/match.js';
 import { requestRetry, useHelp } from '../pk/power.js';
+import { forfeitRoom } from '../pk/settle.js';
+import { getMatchDetail, listMatches } from '../pk/history.js';
 import { publish, subscribe } from '../chat/sse-bus.js';
 
 export const pkRouter = Router();
@@ -40,6 +42,7 @@ const ERROR_STATUS: Record<PkRoomError, number> = {
   RETRY_NO_TARGET: 404,
   RETRY_NOT_YOURS: 403,
   JUDGE_UNAVAILABLE: 502,
+  MATCH_NOT_FOUND: 404,
 };
 
 /** 域错误码 → 人话文案（ADR-5：失败必须可读、可重试，不裸抛码） */
@@ -67,6 +70,7 @@ const ERROR_TEXT: Record<PkRoomError, string> = {
   RETRY_NO_TARGET: '还没有答错的题，暂时用不了二次机会',
   RETRY_NOT_YOURS: '那道错题不是你答的',
   JUDGE_UNAVAILABLE: '裁判 AI 这会儿不可用（去设置页给「裁判」角色绑个模型）',
+  MATCH_NOT_FOUND: '这条对战记录不存在',
 };
 
 /** 域层错误 → HTTP 响应；非域错误一律 500（不把内部异常当业务错误外泄） */
@@ -80,6 +84,14 @@ function fail(res: Response, e: unknown): void {
   // ★ 只有域层显式带了才回——普通错误多带一个空字段，只会让前端契约变模糊。
   const extra = (e as { extra?: unknown }).extra;
   res.status(ERROR_STATUS[code]).json({ error: ERROR_TEXT[code], code, ...(extra ? { extra } : {}) });
+}
+
+/**
+ * 构造一个「与域层抛出等价」的 Error：路由**自己**判定的失败（典型：历史记录查不到）
+ * 也走 `fail()` 那条唯一映射，免得在这里手写一遍响应体形状。
+ */
+function domainError(code: PkRoomError): Error {
+  return new Error(code);
 }
 
 /**
@@ -263,6 +275,24 @@ pkRouter.post('/rooms/:id/retry', (req: Request, res: Response) => {
   })();
 });
 
+/**
+ * P0-8：认输（契约 §12.1）：`{ userId }` → `{ state }`。对手直接胜、**比分定格**（不额外扣分）。
+ * ★ 服务端**不加二次确认门**：该端点是幂等的状态转换，重复调用只会撞 409 `ROOM_NOT_ACTIVE`。
+ *   防误触是前端的活（`PkForfeit` 两段点选）——把「确认」做成服务端规则，代价是用户
+ *   以为功能不存在（本仓已吃过这个亏）。
+ */
+pkRouter.post('/rooms/:id/forfeit', (req: Request, res: Response) => {
+  const identity = requireIdentity(req.body?.userId, res);
+  if (!identity) return;
+  try {
+    const state = forfeitRoom(String(req.params.id ?? ''), identity);
+    broadcast(state);
+    res.json({ state });
+  } catch (e) {
+    fail(res, e);
+  }
+});
+
 /** 房间快照（断线重连对齐用）：不存在/已回收 → 404。 */
 pkRouter.get('/rooms/:id/state', (req: Request, res: Response) => {
   const state = getRoomState(req.params.id);
@@ -271,6 +301,39 @@ pkRouter.get('/rooms/:id/state', (req: Request, res: Response) => {
     return;
   }
   res.json({ state });
+});
+
+// ── 对战历史（P0-8，契约 §12.2）──────────────────────────────
+
+/**
+ * 我的对战历史（最近的在前）：`?userId=&limit=` → `{ matches }`。
+ * limit 由 `clampHistoryLimit` 归一（缺省 20 / 上限 100）——客户端传超大值不该把库拉空。
+ */
+pkRouter.get('/matches', (req: Request, res: Response) => {
+  const identity = requireIdentity(req.query.userId, res);
+  if (!identity) return;
+  res.json({ matches: listMatches(identity.userId, req.query.limit) });
+});
+
+/**
+ * 历史详情（含该局末快照，供题目回看）：`?userId=` → `{ match }`。
+ * ★ 「查不到」与「不是你的」都是 404：不向无权限的人泄露「这个 id 存在」。
+ * ★ 快照 JSON 解析失败会抛非域错误 → `fail()` 映射成 500。**不返回一份空局兜底**：
+ *   坏数据装成正常的一局，比报错更难查。
+ */
+pkRouter.get('/matches/:id', (req: Request, res: Response) => {
+  const identity = requireIdentity(req.query.userId, res);
+  if (!identity) return;
+  try {
+    const match = getMatchDetail(req.params.id, identity.userId);
+    if (!match) {
+      fail(res, domainError('MATCH_NOT_FOUND'));
+      return;
+    }
+    res.json({ match });
+  } catch (e) {
+    fail(res, e);
+  }
 });
 
 /**

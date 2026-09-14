@@ -25,10 +25,15 @@ import {
 } from './pk-view';
 import { PkTopicBar } from './PkTopicBar';
 import { PkJudgePanel } from './PkJudgePanel';
+import { PkForfeit } from './PkForfeit';
 
 interface Props {
   state: PkRoomState;
   userId: string;
+  /** P0-8：投降请求在途（PkApp 的全局 busy）——按钮据此防重复提交 */
+  busy: boolean;
+  /** P0-8：认输（对手胜、本局比分定格）；两段确认在 `PkForfeit` 内部 */
+  onForfeit: () => void;
 }
 
 /** 裁判面板三态之一（跑题建议 / 求助结果 / 二次机会解析，一次只显示一个） */
@@ -48,7 +53,7 @@ function adviceOf(e: unknown): PkJudgeAdvice | null {
   return extra?.advice ?? null;
 }
 
-export function PkMatch({ state, userId }: Props) {
+export function PkMatch({ state, userId, busy, onForfeit }: Props) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 500);
@@ -271,6 +276,8 @@ export function PkMatch({ state, userId }: Props) {
             </div>
           ))}
       </section>
+
+      <PkForfeit busy={busy} onForfeit={onForfeit} />
     </>
   );
 }

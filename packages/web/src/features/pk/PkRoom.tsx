@@ -9,8 +9,9 @@ import { useState } from 'react';
 import { isAiUserId } from '@sb/shared';
 import type { PkRoomState } from '@sb/shared';
 import type { SseReadyState } from '../../lib/sse-client';
-import { optionLetter } from './pk-view';
+import { finishTitle } from './pk-view';
 import { PkMatch } from './PkMatch';
+import { PkReviewList } from './PkReviewList';
 
 interface Props {
   state: PkRoomState;
@@ -20,6 +21,8 @@ interface Props {
   onStart: () => void;
   /** P0-7：选定本人的对战主题（仅 waiting 期可改——开局后改主题＝中途改规则） */
   onSetTopic: (topic: string) => void;
+  /** P0-8：认输（对手胜、比分定格） */
+  onForfeit: () => void;
   onLeave: () => void;
 }
 
@@ -30,7 +33,7 @@ const LINK_TEXT: Record<SseReadyState, string> = {
   closed: '轮询同步',
 };
 
-export function PkRoom({ state, userId, link, busy, onStart, onSetTopic, onLeave }: Props) {
+export function PkRoom({ state, userId, link, busy, onStart, onSetTopic, onForfeit, onLeave }: Props) {
   const owner = state.players[0]?.userId === userId;
   const full = state.players.length >= 2;
   /** P0-7：我自己还没定主题（AI 座位不需要人填，故除外） */
@@ -111,11 +114,13 @@ export function PkRoom({ state, userId, link, busy, onStart, onSetTopic, onLeave
         </section>
       )}
 
-      {state.status === 'active' && <PkMatch state={state} userId={userId} />}
+      {state.status === 'active' && (
+        <PkMatch state={state} userId={userId} busy={busy} onForfeit={onForfeit} />
+      )}
 
       {state.status === 'finished' && (
         <section className="sb-pk-card">
-          <h2 className="sb-pk-h2">{state.winner ? '对局结束' : '平局'}</h2>
+          <h2 className="sb-pk-h2">{finishTitle(state, userId)}</h2>
           {state.winner && (
             <p className="sb-pk-winner">
               {state.players.find((p) => p.userId === state.winner)?.nickname ?? '对手'} 获胜
@@ -141,34 +146,7 @@ export function PkRoom({ state, userId, link, busy, onStart, onSetTopic, onLeave
       {state.status === 'finished' && state.questions.length > 0 && (
         <section className="sb-pk-card">
           <h2 className="sb-pk-h2">回看题目</h2>
-          {state.questions.map((q, qi) => (
-            <div key={q.id} className="sb-pk-review">
-              <div className="sb-pk-q-head">
-                <span className="sb-pk-seat">第 {qi + 1} 题 · {isAiUserId(q.fromUserId) ? 'AI 出' : '对手出'}</span>
-                <span className={q.chosen === q.answerRevealed ? 'sb-pk-verdict ok' : 'sb-pk-verdict'}>
-                  {q.status === 'timeout' ? '超时 −1' : q.chosen === q.answerRevealed ? '答对 +2' : '答错 −1'}
-                </span>
-              </div>
-              <p className="sb-pk-stem">{q.stem}</p>
-              <div className="sb-pk-review-opts">
-                {q.options.map((opt, i) => (
-                  <div
-                    key={i}
-                    className={
-                      i === q.answerRevealed
-                        ? 'sb-pk-review-opt correct'
-                        : i === q.chosen
-                          ? 'sb-pk-review-opt wrong'
-                          : 'sb-pk-review-opt'
-                    }
-                  >
-                    {optionLetter(i)}. {opt}
-                    {i === q.chosen && ' ← 已选'}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+          <PkReviewList questions={state.questions} userId={userId} />
           <button type="button" className="sb-pk-btn" onClick={onLeave}>
             返回大厅
           </button>

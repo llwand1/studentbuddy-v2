@@ -317,6 +317,38 @@ export const MIGRATIONS: Array<{ version: number; statements: string[] }> = [
       `CREATE INDEX IF NOT EXISTS idx_ask_choices_pending ON ask_choices(session_id, status)`,
     ],
   },
+  // v15：对战历史（2026-09-14 契约 docs/PK-SPEC.md §12.2，P0-8）——**P0 里第一处让对局落库**。
+  // 房间状态机仍是全内存（room.ts 口径不变）：房间是**过程**（进程内活着就够），
+  // 历史是**结果**（重启后还得能查）。只有「已经结束的一局」被摘成行写进来。
+  //
+  // ★ 视角行（每人一行）而非「一局一行 + 两个玩家字段」：历史永远是「按人查」的
+  //   （WHERE user_id=? ORDER BY ended_at DESC），视角行让这条查询直接走索引、前端也不必自己算
+  //   「我是哪一侧」。代价是 PVP 一局两行、快照 JSON 各存一份（一局几 KB）——
+  //   与 quiz_notes 冗余 quiz_title 同一取向：**快照冗余换查询简单**。
+  // ★ UNIQUE(room_id, user_id)：落库幂等由库保证，不靠调用方记得只调一次。
+  // ★ opponent_nickname 存快照不设外键：对手改名后历史仍显示当时对战的名字。
+  {
+    version: 15,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS pk_matches (
+        id TEXT PRIMARY KEY,
+        room_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        opponent_id TEXT NOT NULL,
+        opponent_nickname TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        my_score INTEGER NOT NULL,
+        opp_score INTEGER NOT NULL,
+        outcome TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        quiz_count INTEGER NOT NULL,
+        snapshot_json TEXT NOT NULL,
+        ended_at INTEGER NOT NULL,
+        UNIQUE(room_id, user_id)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_pk_matches_user ON pk_matches(user_id, ended_at)`,
+    ],
+  },
 ];
 
 /** 逐版本幂等应用：已应用过的（≤ current）跳过；每版一个事务，失败即整体回滚。 */

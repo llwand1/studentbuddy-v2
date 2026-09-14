@@ -16,9 +16,11 @@ interface Props {
   /** P0-7：`topic` = 建房人自己的对战主题；入房的人进房后在等待房补选 */
   onCreate: (mode: 'pvp' | 'pve', aiTopic?: string, topic?: string) => void;
   onJoin: (roomCode: string) => void;
+  /** P0-8：打开对战历史（已打完的局，含认输的） */
+  onHistory: () => void;
 }
 
-export function PkLobby({ identity, error, busy, onLogin, onCreate, onJoin }: Props) {
+export function PkLobby({ identity, error, busy, onLogin, onCreate, onJoin, onHistory }: Props) {
   const [nickname, setNickname] = useState(identity?.nickname ?? '');
   const [code, setCode] = useState('');
   const [localErr, setLocalErr] = useState('');
@@ -155,6 +157,13 @@ export function PkLobby({ identity, error, busy, onLogin, onCreate, onJoin }: Pr
             进房
           </button>
         </form>
+      </section>
+      <section className="sb-pk-card">
+        <h2 className="sb-pk-h2">战绩</h2>
+        <p className="sb-pk-hint">打完的对局都记在这里（含认输的），点开能回看题目</p>
+        <button type="button" className="sb-pk-btn" disabled={busy} onClick={onHistory}>
+          对战历史
+        </button>
       </section>
       {(localErr || error) && <div className="sb-pk-error">{localErr || error}</div>}
       <div className="sb-pk-me">

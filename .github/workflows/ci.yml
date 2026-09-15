@@ -1,9 +1,29 @@
 name: ci
 
+# 抄 Shiori-Agent 的优点 #4：AI 助手堆叠 PR 也要跑完整 CI。
+#
+# 注意语义：pull_request.branches 匹配的是 PR 的**目标分支(base)**，不是来源分支。
+#   - main：常规 PR（AI 助手的 PR 通常直接合 main，被这条覆盖）
+#   - ai/**、agent/**、bot/**、feat/**、fix/**：AI 助手连锁堆叠 PR 时，后一个 PR 的 base
+#     是前一个分支，靠这些前缀保证堆叠链上每一环都跑完整 CI，而不是只跑最外层。
+# concurrency：同 ref 的旧运行自动取消，避免 AI 高频堆叠 PR 把队列塞爆。
 on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - "ai/**"
+      - "agent/**"
+      - "bot/**"
+      - "feat/**"
+      - "fix/**"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
@@ -12,14 +32,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 与 .nvmrc(22.22.2) / engines(>=22.11.0) 对齐：原先写 20，低于项目要求
+          node-version: 22
           cache: npm
       - run: npm ci
-      - name: lint（tsc + eslint）
+      - name: lint（tsc + eslint，零警告门禁）
         run: npm run lint
       - name: test（vitest）
         run: npm run test
-      - name: gates（行数/内联样式/any）
+      - name: gates（行数/内联样式/any/测试登记）
         run: npm run gates
       - name: build
         run: npm run build

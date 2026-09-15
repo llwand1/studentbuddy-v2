@@ -15,7 +15,7 @@
     "dev:server": "npm run dev -w @sb/server",
     "dev:web": "npm run dev -w @sb/web",
     "build": "npm run build -w @sb/web",
-    "lint": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/server && tsc --noEmit -p packages/web && eslint packages",
+    "lint": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/server && tsc --noEmit -p packages/web && eslint packages --max-warnings 0",
     "test": "vitest run",
     "gates": "node tools/gates/check.mjs",
     "check": "npm run lint && npm run test && npm run gates"

@@ -31,13 +31,13 @@ interface QuizRef {
   n: number;         // 1 基编号，与注入段的 [n] 一致
   title: string;     // 标题；检索源没给标题时回退成 URL
   url: string;       // 真实网址（空串＝该条无链接，前端只显示标题文本）
-  provider: string;  // exa / tavily / zhipu / duckduckgo…
+  provider: string;  // exa / tavily / zhipu / bing…
 }
 
 interface QuizSearchReport {
   on: boolean;          // 本次请求是否要求联网（false 时 count/providers 恒空，不算失败）
   count: number;        // 真正进了提示词的参考条数
-  providers: string[];  // 真正产出结果的来源（exa/tavily/zhipu/duckduckgo-lite/...；缓存命中为 cache）
+  providers: string[];  // 真正产出结果的来源（exa/tavily/zhipu/bing/bing-html/...；缓存命中为 cache）
   failed: string[];     // 失败的来源摘要；联网开着却一条没拿到时，这是唯一的解释
   refs: QuizRef[];      // ★ v1.1：本次参考来源清单（count 是「几条」，它是「哪几条」）
 }
@@ -62,7 +62,7 @@ function emptyQuizSearchReport(on = false): QuizSearchReport;
 | PK 出题 | `generateQuiz(..., true)` **硬编码联网** | 老板明确要求 PK 出题也联网（AI 与人同口径）；PK 不面向用户、不传 report。★ **v1.0 因判据写成 `online && report` 而从未真正生效**（不传 report ⇒ 判为不联网），v1.1 修为只看 `online`（详见 §4 第 4 条与 §5.2） |
 
 **默认开**的理由：出题踩事实坑的代价（错题）高于联网的延迟与 token 成本；
-不配搜索 key 时 `searchWeb` 内部走 DuckDuckGo 免费兜底，**不需要用户先配 key 才能用**。
+不配搜索 key 时 `searchWeb` 内部走 Bing 免费通道兜底（cn.bing.com，RSS 主 + HTML 兜底），**不需要用户先配 key 才能用**。
 
 ### 2.3 检索词派生（`buildQuizQuery(topic, material)`）
 

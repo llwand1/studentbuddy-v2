@@ -55,7 +55,7 @@
 ALTER TABLE term_library ADD COLUMN aliases TEXT NOT NULL DEFAULT '[]';
 ```
 
-- 认知进化契约（`COGNITIVE-EVOLUTION-SPEC.md`，待评审未实现）原定 v7，本功能实现**在前**、占用 v7，该契约已同步改 v8。
+- 深度理解契约（`DEEP-UNDERSTANDING-SPEC.md`，待评审未实现）原定 v7，本功能实现**在前**、占用 v7，该契约已同步改 v8。
 - tidy 状态（上次整理时间/统计）落既有 `app_settings`（键 `term_tidy_state`），不建表。
 
 ## 5. `[TIDY]` 输出协议（模型侧）

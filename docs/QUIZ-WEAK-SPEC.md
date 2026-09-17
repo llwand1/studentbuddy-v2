@@ -1,0 +1,192 @@
+# QUIZ-WEAK-SPEC — 薄弱点分析（AI 实时生成）v1.1
+
+> 契约先行（AGENTS.md 工程红线）。状态：**2026-09-15 立**，码已落地。
+> 上游需求：老板实测指出「题库的薄弱点分析是一段提前固定的文本，而不是 AI 实时分析的」。
+> **变更 v1.0 → v1.1（2026-09-15）**：① 新增 **§10 验收状态**（三分支探针证据 + 明确「观感未验收」）；
+> ② **更正 §9** 的 `quiz.ts` 一行——原写「re-export 保持既有 import 路径零改动」是**被放弃的方案**，
+> 实况为**刻意不做 re-export**（`quiz-weak.ts` 反过来 import `quiz.ts` 的 `getQuiz`，re-export 会构成循环依赖）。
+> **§1~§8 的规范内容一字未动**，本次是「补验收 + 勘误」。
+
+## §1 改判动机（为什么必须改）
+
+旧实现 `learning/quiz.ts` 的 `analyzeWeakPoints()` 是**纯本地规则**，产出两条硬编码字符串：
+
+```ts
+topic: quiz.title ?? '本题库',
+reason: '正确率低于 60% 的题目',
+suggestion: '针对这些题重新练习，并阅读解析',
+```
+
+三条硬伤，缺一不可地说明它是「假 AI」：
+
+1. **文案固定**：不管错的是二重积分还是虚拟语气，`reason` 一字不变；
+2. **`fallback` 恒为 `true`**：函数返回值里这个字段永远是 `true`，等于自认「我永远是降级版」；
+3. **`analyzer` 角色纯空转**：`llm/router.ts` 的 `MODEL_ROLES` 里早就有 `{ role: 'analyzer', label: '薄弱点分析' }`，设置页能给它绑模型，`roleReady`/`routeRole` 也齐备——**但全仓没有一行代码调用它**。基础设施白建。
+
+函数上方注释写着「本地规则版（错题聚类）+ 可选 AI 报告（analyzer 角色）」——后半句从没实现过。
+
+**改判**：AI 实时生成是**主路径**，本地规则退为**降级路径**（ADR-4 失败不崩）。
+
+## §2 数据契约
+
+类型唯一事实源：`packages/shared/src/quiz-weak.ts`（前后端共用一份，前端不再手抄内联类型）。
+
+```ts
+interface WeakPoint {
+  topic: string;             // 薄弱主题名，由模型从题干聚类得出，不是题库标题
+  questionIndexes: number[]; // 0 基题号（前端展示 +1）
+  reason: string;            // 具体错因
+  suggestion: string;        // 针对性建议
+}
+
+type WeakFailure = 'no-model' | 'call-failed' | 'parse';
+
+interface WeakAnalysis {
+  weak: WeakPoint[];
+  fallback: boolean;   // true = 本地规则版，前端必须如实标注
+  failure?: WeakFailure; // 仅 fallback=true 时有值
+  analyzed: number;    // 参与分析的错题数；0 = 还没做题（正常空态，不是降级）
+}
+```
+
+### §2.1 `analyzed` 与 `fallback` 是两件事
+
+- `analyzed === 0`：用户还没做题（或全对）。**正常空态**，前端说「暂无薄弱点（先做题）」。
+- `fallback === true` 且 `analyzed > 0`：真出了错题，但模型没接上，**这是降级**。
+
+两者混成一句文案就会出现「模型挂了」被说成「你还没做题」——用户照着提示去做题，做完还是那句，永远调不到点子上（与 §2.5 出题失败真因同源的老病）。
+
+### §2.2 归一闸门
+
+`normalizeWeakPoints(raw, questionCount)` 是**唯一入口**，模型输出一律不可信。三道丢弃规则：
+
+| 规则 | 理由 |
+|---|---|
+| `topic`/`reason`/`suggestion` 缺一即丢 | 半成品条目在屏上就是一句空话 |
+| 越界/非整数题号过滤后**一条不剩**即丢 | 题号是分析唯一能落地的锚点，不指向任何题的「薄弱点」用户不知道去练哪几道 |
+| 跨条目去重（一道题只归一个主题） | 聚类是对错题的**划分**，一题归两处等于把划分作废 |
+
+部分越界时**只丢越界的那几个题号、保留整条**（丢整条代价太大，用户仍能照做）。
+全部条目非法 → 返回 `[]`，调用方据此判 `parse` 失败并降级，**不拿半成品糊弄用户**。
+
+## §3 数据来源（喂给模型什么）
+
+三个来源合流，这是「真洞察 vs 换个说法的废话」的分水岭：
+
+| 来源 | 表/函数 | 提供 |
+|---|---|---|
+| 逐题统计 | `quiz_stats` | 每题的 attempts / correct / streak |
+| 题目内容 | `getQuiz(quizId).questions` | 题干、选项、正确答案、解析 |
+| **用户错选** | `quiz_notes.my_answer` | 用户实际选了哪个（JSON 快照） |
+
+**错选快照为什么不可省**：只有它能让模型说出「你把定积分的上下限代反了」这类具体错因。
+没有它，模型只能对着题干和正确率泛泛而谈，产出基本等于换了说法的固定文本——正是本次要治的病。
+
+代价与边界（如实登记）：
+- 错选**只在用户经 `POST /quiz/stats/record` 带 `answer` 提交时才有**（`routes/quiz.ts` 的 `snapshot` 分支）。老客户端不传 `answer`、或用户从没提交过，则该题错选为 `null`，模型只能依据题干推断。
+- 笔记快照**不设外键**（`QUIZ-NOTES-SPEC`），题库删除后笔记仍在；但本分析以 `quiz_bank` 里的**实时题目**为准，题库没了就直接走空态。
+
+## §4 提示词口径
+
+`buildWeakPrompt(...)` 纯函数产出，三条硬约束：
+
+1. **只输出 JSON**，形状写死（`[{topic, questionIndexes, reason, suggestion}]`），便于 `normalizeWeakPoints` 收口；
+2. **题号必须是题干里标注的下标**（0 基），不许自造编号——越界题号会被归一闸门过滤掉，等于白给；
+3. **`reason` 要说清错在哪一步**，禁止写「正确率低」「需要多练习」这类把输入数据复述一遍的话；给不出具体错因就少给一条，不要凑数。
+
+模型参数：`temperature: WEAK_TEMPERATURE`(0.3)——比出题的 0.4 更低，分析要稳不要发挥。
+
+## §5 失败三层降级（ADR-4 / ADR-5）
+
+```
+analyzeWeakPoints(quizId)
+  ├─ 无错题           → { weak: [], fallback: false, analyzed: 0 }        ← 正常空态
+  ├─ 无模型           → 本地规则版 + failure: 'no-model'                  ← 引导去设置页
+  ├─ 调用抛错         → 本地规则版 + failure: 'call-failed'               ← 可重试
+  └─ 输出不成结构     → 本地规则版 + failure: 'parse'                     ← 可重试
+```
+
+**真因由域层填、路由不反推**（沿用出题那套 `report.failure` 口径）：谁真知道原因谁填。
+反推在「角色绑定存在但 provider 被停用」这类边缘态会判错——那种情况 `routeRole` 返回 null，属 `no-model`，不是「调用失败」。
+
+降级版 `localWeakPoints()` **保留且不得删**：它是 ADR-4「失败隔离」的落点，也是无模型开箱用户的兜底体验。
+其判据（`correct / attempts < WEAK_WRONG_RATE`，0.6）与旧实现逐字一致，行为零漂移。
+
+## §6 前端渲染口径
+
+### §6.1 三态（ADR-5 禁止静默）
+
+旧前端点「薄弱点分析」后**没有任何进行中反馈**——AI 要跑几秒，用户以为按钮坏了会连点。
+现在按钮三态：`薄弱点分析` → `分析中…`（disabled）→ 结果。
+
+### §6.2 `fallback` 必须如实标注
+
+降级时前端**必须**说明这是本地规则版并给出真因文案：
+
+| `failure` | 文案口径 |
+|---|---|
+| `no-model` | 模型未配置，这是本地规则版 → 引导去设置页绑「薄弱点分析」模型 |
+| `call-failed` | 模型调用失败，这是本地规则版 → 可重试 |
+| `parse` | 模型输出没读懂，这是本地规则版 → 可重试 |
+
+**不得**把降级结果渲染成 AI 分析。用户为此去设置页绑模型才是正解；装作成功等于让他永远调不到点子上。
+
+### §6.3 多主题列表
+
+旧前端只取 `weak[0]` 渲染成一句话，**多主题白算**。现在按列表渲染每条的
+`topic` + 题号（+1 展示）+ `reason` + `suggestion`。
+
+渲染文案由 `web/features/quiz/weak-report.ts` 纯函数产出（照 `mix-report.ts` 先例）——
+判定逻辑留在组件里就测不到，本仓 `.tsx` 无测试环境。
+
+## §7 常量取值理由
+
+| 常量 | 值 | 理由 |
+|---|---|---|
+| `WEAK_MAX_POINTS` | 4 | 超过 4 个说明模型在硬凑；用户一次抓不住 6 个重点，等于没有重点 |
+| `WEAK_TOPIC_MAX` | 40 | 主题名是标签，超过 40 字就不是主题而是句子 |
+| `WEAK_REASON_MAX` | 200 | 够说清一步错因；再长就是在写解析（解析已在题内） |
+| `WEAK_SUGGESTION_MAX` | 300 | 同上 |
+| `WEAK_WRONG_RATE` | 0.6 | **与旧本地规则逐字一致**，降级版行为零漂移 |
+| `WEAK_TEMPERATURE` | 0.3 | 低于出题的 0.4，分析要稳不要发挥 |
+
+## §8 本版未做（如实登记）
+
+- **不做缓存**：每次点都实时调用模型。理由——薄弱点随做题**实时变化**，缓存必然陈旧；
+  且用户主动点才触发，频率低，成本可接受。（对比：`todaySummary` 缓存是因为它按天聚合、天然稳定。）
+- **不走 SSE 流式**：接口仍是 `GET /api/quiz/analyze/:id` 一次性返回。这是「点一下出一份报告」，
+  不是对话，流式价值低而接线成本高（要动 SSE 事件契约）。
+  ⚠️ 已知取舍：GET 带 LLM 副作用（花 token），严格 REST 上应是 POST。
+  保持 GET 是为改动面最小（ADR-2 简洁优先）；单用户本地形态、非公开 API，风险可接受。
+- **不落库分析结果**：分析是瞬时的，不写新表、不新增迁移。
+- **不做跨题库分析**：只分析单套题，与旧实现同口径。
+
+## §9 影响面
+
+| 文件 | 动作 |
+|---|---|
+| `packages/shared/src/quiz-weak.ts` | **新建**（类型 + 归一 + 常量，前后端唯一事实源） |
+| `packages/server/src/learning/quiz-weak.ts` | **新建**（AI 主路径 + 本地降级；`quiz.ts` 已 383/400 行，照 `quiz-image.ts`/`quiz-search.ts` 先例单开） |
+| `packages/server/src/learning/quiz.ts` | 删旧实现与 `WeakPoint` 接口（回落 **366/400 行**）。★ **刻意不做 re-export**——`quiz-image.ts` 那套做法在这里会构成**循环依赖**（`quiz-weak.ts` 反过来 import 本文件的 `getQuiz`）⇒ 由 `routes/quiz.ts` 直接改指新路径。★ 本条曾一度写成「re-export 保持既有 import 路径零改动」（那是**被放弃的方案**），2026-09-15 按代码实况更正（§0.11） |
+| `packages/server/src/routes/quiz.ts` | `GET /analyze/:id` 改 async **+ 自备 try/catch**（Express **4.21.2** 不接管 async 路由的 rejection，漏了请求会永久挂起；域层已兜住模型调用，这里兜 DB/未知异常） |
+| `packages/web/src/features/quiz/weak-report.ts` | **新建**（渲染文案纯函数） |
+| `packages/web/src/features/quiz/QuizBankPage.tsx` | `weak` 状态由 `string` 改结构化 + 三态 + 多主题列表 |
+| `docs/dev/test-plan.md` · `AGENTS.md` · `CHANGELOG.md` | 同步（§0.8 / §0.11 防漂移） |
+
+## §10 验收状态（2026-09-15）
+
+| 项 | 状态 | 证据 |
+|---|---|---|
+| 归一闸门（三道丢弃规则） | ✅ | `shared/src/quiz-weak.test.ts` **13 例** |
+| AI 主路径 + 三层降级真因 | ✅ | `server/src/learning/quiz-weak.test.ts` **22 例** |
+| 渲染文案（含降级如实标注、空态与降级分开） | ✅ | `web/src/features/quiz/weak-report.test.ts` **11 例** |
+| **真机端到端（AI 主路径）** | ✅ | 18791 实机 + 真实模型：3 个主题聚类、`fallback:false`、`analyzed:4`，错因到「未准确记忆 GDP 增速 4.7%」数值级 |
+| **屏上渲染（三分支）** | ✅ | 探针 `tools/probes/weak-analysis-cdp.mjs`——AI 主路径 **17/17**、空态 **15/15**、降级三真因（`no-model`/`call-failed`/`parse`）全部 **EXIT=0**；**五次连跑 51s 全绿** |
+| **「算不算顺眼」**（卡片观感、三态切换手感） | ⏳ **未验收** | 属**体验类症状**，**判定权在老板**——探针只证明「屏上文本与节点对」，不证明「好看」，不替人做审美验收 |
+
+★ **降级分支是零副作用验出来的**：用 CDP **Fetch 域拦下** `/api/quiz/analyze/*` 并伪造该真因的响应
+（`SB_PROBE_DEGRADE=no-model|call-failed|parse`），**不去设置页解绑模型、不碰真实库、不花模型额度**。
+「要验降级就得解绑模型、而解绑会污染用户配置」正是此前把这条分支留成缺口的唯一原因——请求拦截把这道坎拆了。
+★ 降级断言必须打到「**文案与真因相符**」（三个真因三句不同的话），只断「有提示」不够：
+把「未配模型」显示成「模型调用失败」会让用户往错的方向修（该去设置页，却一直重试）。
+

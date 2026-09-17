@@ -1,19 +1,19 @@
-# 认知进化（Cognitive Evolution）功能契约 v1.1
+# 深度理解（Deep Understanding）功能契约 v1.1
 
 > 状态：**待评审**（写代码前的准备工作，尚未落任何实现代码）
-> 日期：2026-09-02 立 v1 · **2026-09-06 修订 v1.1**（反馈加强：证据式判定 + 词条直达进化·出题评估，老板拍板，全量纪要见 §16）· 适用仓库：`Desktop\studentbuddy-v2`（monorepo：server / shared / web）
+> 日期：2026-09-02 立 v1 · **2026-09-06 修订 v1.1**（反馈加强：证据式判定 + 词条直达深度理解·出题评估，老板拍板，全量纪要见 §16）· **2026-09-16 改名 v1.1.2**（对外名称由「认知进化」改为「深度理解」，文件随改名 `DEEP-UNDERSTANDING-SPEC.md`；内部标识符未动，见 §16.4）· 适用仓库：`Desktop\studentbuddy-v2`（monorepo：server / shared / web）
 > 铁律来源：`AGENTS.md`（六条 ADR + 工程红线）；本文是「先改契约再改码」（`AGENTS.md` §已知约束）要求的载体。
 
 ---
 
 ## 1. 目标与服务哪一环
 
-**一句话**：把「用户对一个词条的理解」从通俗到准确做成可累积的等级链，由 AI 在对话中判定等级；等级升则复习/出题难度随之升档，进化链本身即复习材料。
+**一句话**：把「用户对一个词条的理解」从通俗到准确做成可累积的等级链，由 AI 在对话中判定等级；等级升则复习/出题难度随之升档，理解链本身即复习材料。
 
 - 服务闭环：**忆（M3 词条库）→ 析（判定缺口）→ 练（难度联动）→ 反馈（XP）** 的合环，不新建第六环。
 - ADR-1 自检：不是「又一个功能」，而是让已有词条库从「存住」升级为「练准」。
 - 形态（老板 2026-09-02 拍板）：**不做独立页面**，做**对话页的一个模式**——开启前必须先选 1..N 个词条，开启后正常与 AI 对话，AI 每轮给出理解度判定。
-- 形态 v1.1 追加（老板 2026-09-06 拍板）：入口增加**词条直达**——词条行「进化」按钮一键就该词条开启进化对话，且**首轮 AI 直接对该词条出题**（`[QUIZ]` 单题水平探针）评估用户认知程度，答完转入追问；自由讲述方式照旧共存。仍不建第二个聊天壳（§16.2）。
+- 形态 v1.1 追加（老板 2026-09-06 拍板）：入口增加**词条直达**——词条行「深度理解」按钮一键就该词条开启深度理解对话，且**首轮 AI 直接对该词条出题**（`[QUIZ]` 单题水平探针）评估用户认知程度，答完转入追问；自由讲述方式照旧共存。仍不建第二个聊天壳（§16.2）。
 
 ---
 
@@ -22,17 +22,17 @@
 | 文件:行 | 现状 | 本功能要动的地方 |
 |---|---|---|
 | `packages/server/src/storage/db.ts:150-180` | 迁移体系 v1..v6（v6 给 sessions 加 doc 两列；**v7 已被词条库 AI 整理占用，2026-09-03**） | **新增 v8**（三张/四列，见 §5） |
-| `packages/server/src/chat/flow.ts:24-31` | `SYSTEM_PROMPT` 常量 | 进化模式下**替换**为教练版（不追加，见 §6.2） |
-| `packages/server/src/chat/flow.ts:92-108` | 词条段 / 资料段注入 + `systemPromptTokens` 收口 | 新增进化模式段，**必须计入** `systemPromptTokens`（`AGENTS.md:35` 明确要求，否则又是 v1 老坑） |
+| `packages/server/src/chat/flow.ts:24-31` | `SYSTEM_PROMPT` 常量 | 深度理解模式下**替换**为教练版（不追加，见 §6.2） |
+| `packages/server/src/chat/flow.ts:92-108` | 词条段 / 资料段注入 + `systemPromptTokens` 收口 | 新增深度理解模式段，**必须计入** `systemPromptTokens`（`AGENTS.md:35` 明确要求，否则又是 v1 老坑） |
 | `packages/server/src/chat/flow.ts:164-178` | token 流累积 → `publish` | 插入**流式闸门**：`[VERDICT]` 段不上屏不落库（见 §6.3） |
-| `packages/server/src/chat/flow.ts:225-232` | 收尾：抽词条 + `countUsage` | 进化模式下**跳过** `extractTerms`（训练内容不是新知识，避免脏词入库）；`countUsage` 保留 |
+| `packages/server/src/chat/flow.ts:225-232` | 收尾：抽词条 + `countUsage` | 深度理解模式下**跳过** `extractTerms`（训练内容不是新知识，避免脏词入库）；`countUsage` 保留 |
 | `packages/server/src/index.ts:44-52` | 路由挂载 | 加 `app.use('/api/evolution', evolutionRouter)` |
 | `packages/shared/src/content-blocks.ts:12-16` | `BlockKind` 登记 | 新增 `'verdict'`（先登记再实现，同步 `docs/SSE-CONTRACT.md`） |
 | `packages/server/src/events/bus.ts:6-10` | `DomainEvent` 联合类型 | 新增 `evolution_levelup`（接入 XP 反馈环） |
 | `packages/server/src/learning/activity.ts:9` | `XP_PER` 表 | 新增 `evolution_levelup: 6`（升级给最多 XP） |
 | `packages/web/src/features/chat/ChatView.tsx:160-162` | composer 上方挂 `DocModeControl` | 并列挂 `EvolutionModeControl`（同一模式控件范式） |
 | `packages/web/src/features/chat/ChatView.tsx:107-122` | `m.quizBlock` → `QuizCard` | 同构加 `m.verdictBlock` → `VerdictCard` |
-| `packages/web/src/features/terms/TermsPage.tsx:132-177` | 词条项 | 词条项加「进化链」展开（复用 `evolution_event` 快照）；**v1.1** 加「进化」直达按钮（点击 → 新会话预开进化模式并选定该词条 + `probeFirst`，经 app 级跳转参数由 ChatView 消费）。⚠ 行数风险：两项叠进后 TermsPage 若逼近 web 组件 ≤300 行红线，按钮与链展开一并抽入 `TermEvolutionActions.tsx` 小组件 |
+| `packages/web/src/features/terms/TermsPage.tsx:132-177` | 词条项 | 词条项加「理解链」展开（复用 `evolution_event` 快照）；**v1.1** 加「深度理解」直达按钮（点击 → 新会话预开深度理解模式并选定该词条 + `probeFirst`，经 app 级跳转参数由 ChatView 消费）。⚠ 行数风险：两项叠进后 TermsPage 若逼近 web 组件 ≤300 行红线，按钮与链展开一并抽入 `TermEvolutionActions.tsx` 小组件 |
 | `packages/web/src/lib/api.ts:86-106` | `api.terms` 分组 | 并列加 `api.evolution` 分组 |
 | `packages/web/src/components/icons.tsx` | SVG line-icon 基座 | 加 `EvoIcon`（自绘，禁 emoji） |
 
@@ -40,7 +40,7 @@
 
 ---
 
-## 3. 概念模型：5 级进化链（老板拍板）
+## 3. 概念模型：5 级理解链（老板拍板）
 
 | 级 | 名称 | 判定的正面证据（rubric） | 典型缺口 |
 |:--:|---|---|---|
@@ -60,21 +60,21 @@
 ## 4. 交互流程
 
 ```
-用户：点「认知进化」→ 选词面板（领域 Tab + 搜索，勾 1..N 个词条）→ 开启
+用户：点「深度理解」→ 选词面板（领域 Tab + 搜索，勾 1..N 个词条）→ 开启
           │  POST /api/evolution { sessionId, termIds }
           ▼
 服务端：写 evolution_session（会话绑定）→ 返回 { active:true, terms:[{…level}] }
           │
 用户：用自己的话讲（composer placeholder 引导：「用你自己的话说说 XX」）
           ▼
-flow.ts：system 注入【进化模式段】→ 模型点评 + 追问（正常文字上屏）
+flow.ts：system 注入【深度理解模式段】→ 模型点评 + 追问（正常文字上屏）
           └─ 末尾输出 [VERDICT]{…}[/VERDICT] → 流式闸门吞掉（不上屏/不落 messages）
                   ▼
           解析 → 写 evolution_event（链）→ 更新 term.evo_level/best_level
                 → SSE block 事件 kind='verdict' → 前端 VerdictCard
                 → publishEvent(evolution_levelup) → activity 记 XP
                   ▼
-用户继续答 → 下一轮判定 …… 词条页可展开完整进化链回顾
+用户继续答 → 下一轮判定 …… 词条页可展开完整理解链回顾
 ```
 
 无自动开场白（不额外调 LLM）：开启模式后由 UI placeholder 引导，AI 在首轮回复里自然承担「提问 + 判定」双重角色（靠 system 注入实现）。
@@ -84,8 +84,8 @@ flow.ts：system 注入【进化模式段】→ 模型点评 + 追问（正常�
 ## 5. 数据模型（DB 迁移 v8；原 v7 已被词条库 AI 整理占用，2026-09-03 改号）
 
 ```sql
--- v8：认知进化（2026-09-02 契约；版本号 2026-09-03 顺延）
--- 1) 会话的进化模式绑定：一个会话一套选题（与文档模式「生命周期随会话」同构）
+-- v8：深度理解（2026-09-02 契约；版本号 2026-09-03 顺延）
+-- 1) 会话的深度理解模式绑定：一个会话一套选题（与文档模式「生命周期随会话」同构）
 CREATE TABLE IF NOT EXISTS evolution_session (
   session_id TEXT PRIMARY KEY,
   term_ids   TEXT NOT NULL,                        -- JSON string[]（term_library.id）
@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS evolution_session (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- 2) 进化链：每次判定一条 append-only 记录（链 = 按 created_at 排序）
+-- 2) 理解链：每次判定一条 append-only 记录（链 = 按 created_at 排序）
 --    term 被删也要能回顾，故冗余 term_text 快照，不加外键。
 CREATE TABLE IF NOT EXISTS evolution_event (
   id         TEXT PRIMARY KEY,
@@ -135,7 +135,7 @@ ALTER TABLE term_library ADD COLUMN evo_updated_at TEXT;
 
 | 字段 | 类型 | 约束 |
 |---|---|---|
-| `term` | string | 必填；必须是本会话进化词条之一（服务端校验，不匹配则丢弃该块） |
+| `term` | string | 必填；必须是本会话深度理解词条之一（服务端校验，不匹配则丢弃该块） |
 | `level` | number | 必填；钳到 0..4，非数字 → 丢弃该块 |
 | `verdict` | string | 必填；面向用户的评语（≤500 字） |
 | `gaps` | string[] | 可选；缺缺口列表，空数组视为无 |
@@ -147,7 +147,7 @@ ALTER TABLE term_library ADD COLUMN evo_updated_at TEXT;
 
 ### 6.2 System 段注入（`flow.ts`）
 
-进化模式激活时，`SYSTEM_PROMPT` **替换**为 `EVOLUTION_SYSTEM_PROMPT`（不是追加——主提示「回答简洁好用」与「教练式追问+判定」语义冲突，追加会让模型左右摇摆）：
+深度理解模式激活时，`SYSTEM_PROMPT` **替换**为 `EVOLUTION_SYSTEM_PROMPT`（不是追加——主提示「回答简洁好用」与「教练式追问+判定」语义冲突，追加会让模型左右摇摆）：
 
 - 角色：严格但鼓励的教练，**不直接给答案**，先让用户自己说。
 - 输入：目标词条清单 + 每个词条当前等级 + 该等级的提问侧重（见 §10 难度表）+ 词条现有释义（AI 内部参考，**不许**原样念给用户）。
@@ -196,7 +196,7 @@ export function normalizeVerdict(v: Verdict, allowed: Set<string>): Verdict | nu
 | 方法 | 路径 | 请求 | 响应 | 失败 |
 |---|---|---|---|---|
 | GET | `/api/evolution?sessionId=` | — | `EvolutionState` | 缺参 400 |
-| POST | `/api/evolution` | `{ sessionId, termIds: string[], probeFirst?: boolean }`（**v1.1 加法**：直达入口传 true → 进化段提示词带提问式开场令；缺省 false，手动开启路径行为与 v1 完全一致） | `EvolutionState`（201） | 缺参/空数组 400；词条不存在 404；会话不存在 404 |
+| POST | `/api/evolution` | `{ sessionId, termIds: string[], probeFirst?: boolean }`（**v1.1 加法**：直达入口传 true → 深度理解段提示词带提问式开场令；缺省 false，手动开启路径行为与 v1 完全一致） | `EvolutionState`（201） | 缺参/空数组 400；词条不存在 404；会话不存在 404 |
 | DELETE | `/api/evolution?sessionId=` | — | `{ ok:true }` | 缺参 400 |
 | GET | `/api/evolution/chain/:termId` | `?limit=` 默认 50 | `EvolutionEventRow[]` | — |
 
@@ -233,7 +233,7 @@ export interface EvolutionEventRow {
 
 ## 10. 难度联动（等级 → 出题档位）
 
-`generateQuiz(topic, material, level)` 增加可选 `level`；`/api/quiz/generate` 透传。ChatView「出题」按钮在进化模式下自动带上目标词条的 `level`。
+`generateQuiz(topic, material, level)` 增加可选 `level`；`/api/quiz/generate` 透传。ChatView「出题」按钮在深度理解模式下自动带上目标词条的 `level`。
 
 | level | 提问侧重 | 题型配比 | QUIZ_PROTOCOL 追加指令 |
 |:--:|---|---|---|
@@ -251,9 +251,9 @@ export interface EvolutionEventRow {
 
 | 组件 | 文件 | 要点 | 预估行数 |
 |---|---|---|---|
-| 进化模式控件 | `features/chat/EvolutionModeControl.tsx` | 三态齐备（ADR-5）：未开（按钮）/ 开启中（禁用+「开启中…」）/ 已开（pill：进化中 · 词条 · 当前等级 · 关闭）。选词面板：领域 Tab + 搜索 + 多选（≥1 才可开启）。切会话重取（`alive` 防串台，照抄 `DocModeControl.tsx:28-45`） | ~260 |
+| 深度理解模式控件 | `features/chat/EvolutionModeControl.tsx` | 三态齐备（ADR-5）：未开（按钮）/ 开启中（禁用+「开启中…」）/ 已开（pill：深度理解中 · 词条 · 当前等级 · 关闭）。选词面板：领域 Tab + 搜索 + 多选（≥1 才可开启）。切会话重取（`alive` 防串台，照抄 `DocModeControl.tsx:28-45`） | ~260 |
 | 判定卡片 | `features/chat/VerdictCard.tsx` | 等级徽章 `L1 → L2`、升/降级配色、缺口列表、下一级目标；**v1.1**：顶部 5 格等级阶梯条（点亮至当前级、`best_level` 档浅色描边——「只增不减」字段的首个展示位）+ `met` ✅ 勾选清单（等级不动轮次的正反馈主渠道）；阶梯纯 CSS token 实现不引库 | ~180 |
-| 进化链 | `features/terms/TermEvolutionChain.tsx` | 时间轴（竖线 + 节点）：每级时间 / 等级变化 / 用户当时原话 / AI 评语 / 缺口 | ~190 |
+| 理解链 | `features/terms/TermEvolutionChain.tsx` | 时间轴（竖线 + 节点）：每级时间 / 等级变化 / 用户当时原话 / AI 评语 / 缺口 | ~190 |
 | 图标 | `components/icons.tsx` | `EvoIcon` 自绘 SVG line-icon（`currentColor`） | +12 |
 
 样式一律走 `tokens.css` token 与既有 `chat.css`/`terms.css` class，**不内联 style**（gates 会拦）。
@@ -268,8 +268,8 @@ export interface EvolutionEventRow {
 | 输出畸形 JSON / 字段缺失 | `parseVerdictBlock` 返回 `null` → 同上降级 |
 | `term` 不在本会话选题内 | 丢弃该块（防模型乱判别的词条） |
 | 闸门误吞正文 | 只拦 assistant 输出；`flush()` 兜底吐回；单测覆盖跨 chunk 与未闭合两种边界 |
-| 进化模式下词条自动抽取污染 | 进化模式跳过 `extractTerms`（`flow.ts:227`），`countUsage` 保留 |
-| 上下文膨胀 | 进化段计入 `systemPromptTokens`（`flow.ts:101`），与词条段/资料段同口径 |
+| 深度理解模式下词条自动抽取污染 | 深度理解模式跳过 `extractTerms`（`flow.ts:227`），`countUsage` 保留 |
+| 上下文膨胀 | 深度理解段计入 `systemPromptTokens`（`flow.ts:101`），与词条段/资料段同口径 |
 | 词条被删 | `evolution_event` 有 `term_text` 快照，链仍可读；`stateOf` 自动剔除已删词条 |
 | 一轮多词条 | 闸门支持多个块；每个块独立落链 |
 
@@ -284,7 +284,7 @@ export interface EvolutionEventRow {
 | `learning/evolution.test.ts` | 开启/关闭幂等；`applyVerdict` 写链 + `evo_level` 更新 + `best_level` 只增；降级路径；已删词条剔除 |
 | `routes/evolution.test.ts` | 缺参 400 / 空数组 400 / 会话不存在 404 / 开启后 GET 复原 |
 | `learning/verdict.test.ts`（v1.1 追加） | `met` 容错三态（非数组丢 / 超 3 截断 / 空数组合法）；双空兜底策略；示例 JSON 自带 `met` 字段可被解析（防「字段没进示例」老坑） |
-| `chat/flow.test.ts`（v1.1 追加） | 进化模式回复含 `[QUIZ]` 探针题时：quiz block 正常解析上卡、`[VERDICT]` 闸门不被探针题干扰（两协议共存回归）；`probeFirst` 段计入 `systemPromptTokens` |
+| `chat/flow.test.ts`（v1.1 追加） | 深度理解模式回复含 `[QUIZ]` 探针题时：quiz block 正常解析上卡、`[VERDICT]` 闸门不被探针题干扰（两协议共存回归）；`probeFirst` 段计入 `systemPromptTokens` |
 
 通过后同步 `docs/dev/test-plan.md` 的**基线用例数与不变量清单**（不同步即违规）；跑 `npm run check`（tsc×3 + eslint + vitest + gates）全绿。
 
@@ -299,14 +299,14 @@ export interface EvolutionEventRow {
 | 3 | `learning/verdict.ts`（闸门 + 解析）+ 两个测试文件 | 纯函数 + 单测绿灯 | 1 |
 | 4 | `learning/evolution.ts`（绑定 / 判定 / 链查询）+ 单测 | service + 单测绿灯 | 2,3 |
 | 5 | `routes/evolution.ts` + 挂到 `index.ts` + 路由单测 | 4 个端点 | 4 |
-| 6 | `flow.ts` 接入：进化段注入 + 闸门 + 收尾应用判定 + 跳过抽词 | 对话主链闭环 | 3,4 |
+| 6 | `flow.ts` 接入：深度理解段注入 + 闸门 + 收尾应用判定 + 跳过抽词 | 对话主链闭环 | 3,4 |
 | 7 | 前端 `EvolutionModeControl` + `VerdictCard` + api 分组 + `EvoIcon` | 对话页可用 | 5,6 |
 | 8 | 难度联动：`generateQuiz` 加 `level` + 出题按钮带档 | 练环联动 | 4 |
-| 9 | `TermEvolutionChain` 进化链回顾 | 忆环闭环 | 5 |
+| 9 | `TermEvolutionChain` 理解链回顾 | 忆环闭环 | 5 |
 | 10 | 反馈环：`evolution_levelup` → XP；同步 test-plan / CHANGELOG / AGENTS.md | 全环合上 | 4 |
 | 11 | **v1.1** `met` 管线：shared 类型 + `normalizeVerdict` 容错与双空兜底 + 提示词反馈纪律 + 单测 | 证据式判定协议就绪 | 1,3 |
 | 12 | **v1.1** VerdictCard 阶梯条 + `met` 勾选清单 + CSS token 阶梯样式 | 「没升级也有话」落地 | 11 |
-| 13 | **v1.1** 词条直达：TermsPage「进化」按钮（必要时抽 `TermEvolutionActions.tsx`）+ ChatView 跳转消费 + `probeFirst` 提问式开场 + 共存回归锁 | 一键评估入口 | 4,5,6,11 |
+| 13 | **v1.1** 词条直达：TermsPage「深度理解」按钮（必要时抽 `TermEvolutionActions.tsx`）+ ChatView 跳转消费 + `probeFirst` 提问式开场 + 共存回归锁 | 一键评估入口 | 4,5,6,11 |
 
 建议分批提交：1-2 → 3-4 → 5-6 → 7 → 8-10（每批 `npm run check` 全绿再提交）。
 
@@ -324,24 +324,24 @@ export interface EvolutionEventRow {
 
 **原提示词（逐字）**：
 
-> 「但是这个认知进化目前的反馈太弱了,所以需要加强」
+> 「但是这个深度理解目前的反馈太弱了,所以需要加强」
 > （方向选择时）「让用户可以直接在词条哪里展开对话,可以让ai直接对词条进行出题,然后评估用户的认知程度」
 
 ### 16.1 根因诊断（为什么 v1 设计会「反馈弱」）
 
 1. 判定纪律「宁判低不判高」是对的（反幻觉），但 v1 的反馈面只设计了升/降配色——**等级不动的轮次（多数轮）零正反馈**，用户体感＝问了半天没反应；
-2. 入口在对话页模式控件里，**开启前要自己选词**，链条长；词条页（用户刚看过答案的地方）反而没有进化入口；
+2. 入口在对话页模式控件里，**开启前要自己选词**，链条长；词条页（用户刚看过答案的地方）反而没有深度理解入口；
 3. 判定介质是自由讲述，冷启动靠 placeholder 引导——首轮没有结构化评估抓手。
 
 ### 16.2 v1.1 范围（两件事）
 
 - **A 证据式判定**：`[VERDICT]` 加 `met` 字段（§6.1）+ 反馈纪律「双空禁止」（§6.2）+ VerdictCard 阶梯条与勾选清单（§11）。核心不变式：**等级不动的轮次也必须输出证据增量或缺口**，判定严格度不降、反馈量上升。
-- **F 词条直达进化**：词条行「进化」按钮 → 新会话预开进化模式选定该词条 + `probeFirst=true` → 首轮 AI 出 `[QUIZ]` 单题水平探针（复用解析阶梯与渲染，零新协议零嵌套调用）→ 作答后转入追问。定档**开新会话**（进化链随会话隔离更干净，与文档模式「生命周期随会话」同构）；不建第二个聊天壳。
+- **F 词条直达深度理解**：词条行「深度理解」按钮 → 新会话预开深度理解模式选定该词条 + `probeFirst=true` → 首轮 AI 出 `[QUIZ]` 单题水平探针（复用解析阶梯与渲染，零新协议零嵌套调用）→ 作答后转入追问。定档**开新会话**（理解链随会话隔离更干净，与文档模式「生命周期随会话」同构）；不建第二个聊天壳。
 
 ### 16.3 本轮显式不做（候选池，老板未选，不悄悄扩权）
 
 - B 缺口一键复练（gaps 点击「针对这个出一道」+ 修复回写链节点）——依赖 A 落地后缺口数据已有，属纯加法，候选 v1.2；
-- C 本场结算卡 + 今日总结进化行；D XP 按跨度分档与 L4 成就；E 词条页 best_level 轨迹缩略图（v1.1 阶梯条已占用 `best_level` 展示位，E 剩「历史轨迹图」部分）；
+- C 本场结算卡 + 今日总结深度理解行；D XP 按跨度分档与 L4 成就；E 词条页 best_level 轨迹缩略图（v1.1 阶梯条已占用 `best_level` 展示位，E 剩「历史轨迹图」部分）；
 - 以上均**未写入正文契约**，落码批次若顺手的行（如 activity 费率函数化）也不得夹带——先回契约重新拍板（照 QUIZ-IMAGE-SPEC §4「显式划界」先例）。
 
 ### 16.4 版本记录
@@ -349,5 +349,6 @@ export interface EvolutionEventRow {
 | 日期 | 版本 | 变更 |
 |---|---|---|
 | 2026-09-02 | v1.0 | 建契约：5 级链、VERDICT 闸门、难度联动，评审前状态 |
-| 2026-09-06 | v1.1 | 反馈加强：`met` 证据式判定 + 双空禁令 + 阶梯条卡片；词条直达进化按钮 + `probeFirst` 提问式开场（`[QUIZ]` 探针复用）；WBS +11/12/13；候选池划界（B/C/D/E 不做） |
+| 2026-09-06 | v1.1 | 反馈加强：`met` 证据式判定 + 双空禁令 + 阶梯条卡片；词条直达深度理解按钮 + `probeFirst` 提问式开场（`[QUIZ]` 探针复用）；WBS +11/12/13；候选池划界（B/C/D/E 不做） |
 | 2026-09-06 | v1.1.1 勘误 | 落码时补 §5 `evolution_session.probe_first` 列（§8 `probeFirst` 的持久化载体，评审时漏随附建表 SQL；纯表结构补齐，协议与提示词行为不变）。同时定档：`met` 不落链——仅经 SSE verdict block 做会话内即时反馈，链回顾保持 v1 字段集 |
+| 2026-09-16 | v1.1.2 改名 | **对外名称「认知进化」→「深度理解」**（老板拍板：更接地气），文件同步改名 `COGNITIVE-EVOLUTION-SPEC.md` → `DEEP-UNDERSTANDING-SPEC.md`，全仓文档与代码注释 140 处引用一并更新（术语连带：进化链→理解链、进化模式→深度理解模式、进化段→深度理解段）。**本轮只改对外名称**：内部标识符（表 `evolution_session`/`evolution_event`、索引 `idx_evo_*`、列 `evo_level`/`evo_updated_at`、API `/api/evolution`、类型 `EvolutionTermState`/`EvolutionState`/`EvolutionEventRow`、事件 `evolution_levelup`）**保持原样**——**v8 迁移已在真实库生效**（实测 `%APPDATA%\studentbuddy-v2\studentbuddy.db`：`schema_version`=16、两表与三列在位、138 会话/1073 消息），就地改 v8 语句不会重放，只会让应用找不到表；要统一标识符必须**新开迁移版本做 RENAME + 先备份真库**，已单列待老板拍板 |

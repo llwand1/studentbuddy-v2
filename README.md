@@ -1,7 +1,7 @@
 # studentbuddy v2
 
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![tests](https://img.shields.io/badge/tests-67%20files%20%2F%20839%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-91%20files%20%2F%201232%20cases-brightgreen)
 ![coverage](https://img.shields.io/badge/coverage-51.4%25%20lines%20%2F%2079.8%25%20branch-f59e0b)
 ![api](https://img.shields.io/badge/REST%20endpoints-48-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-39%20types-8a63f6)
@@ -43,13 +43,13 @@
 | 优势 | 强在哪 | 可当场复验的证据 |
 |------|--------|------------------|
 | **真·本地优先** | 只绑 `127.0.0.1`、数据 SQLite 单文件、搜索密钥 AES-GCM 密文入库、零 AI 写盘——学习记录与 key 都不出本机 | `Origin: null` 写请求 → 403 有回归锁；沙箱页 `localStorage` 抛 SecurityError、读 sessions 被拒均真机实测（CHANGELOG 08-28） |
-| **学习域特化功能，不是大模型传声筒** | 练是一台自建出题引擎：`[QUIZ]` 结构化自动判分、四题型可配配比、模型特化 SVG 配图（真机生产口径 5/6 组出图）、五级解析阶梯让模型漏括号/坏图/撞顶都不塌整组；忆是一个自学词条库：加权相关性注入 + 对话自动沉淀 + AI 整理；理解的进化有 5 级认知进化链在契约中（如实标注：未实施），逐条见 §功能总览 | 已落地项各有测试基线与真机统计（CHANGELOG 09-04 出题两批 / 09-01·09-04 词条库批）；未落地项在 §忆 · 认知进化 小节标题即标状态 |
+| **学习域特化功能，不是大模型传声筒** | 练是一台自建出题引擎：`[QUIZ]` 结构化自动判分、四题型可配配比、模型特化 SVG 配图（真机生产口径 5/6 组出图）、五级解析阶梯让模型漏括号/坏图/撞顶都不塌整组；忆是一个自学词条库：加权相关性注入 + 对话自动沉淀 + AI 整理；深度理解有 5 级链在契约中（如实标注：未实施），逐条见 §功能总览 | 已落地项各有测试基线与真机统计（CHANGELOG 09-04 出题两批 / 09-01·09-04 词条库批）；未落地项在 §忆 · 深度理解 小节标题即标状态 |
 | **AI 输出可靠性工程** | 模型不听话不塌系统：出题五级解析阶梯（补括号 → 剥图重试 → 截断逐题回退…）、丢图保题、`\theta` 类非法转义修复、SSE 屏上文本与库内文本逐字一致 | 每个对策都对应一次真实故障的根因登记与回归锁（`docs/dev/bug-ledger.md` + CHANGELOG 09-04 两批） |
 | **模型产出敢真跑** | ```html 围栏产出的网页在 `CSP: sandbox` + iframe 双层沙箱里运行，页面源为 `null`；SVG 净化剥 `<image>` 外链（防外链信标泄露 IP） | 真机实测沙箱页调写接口 / 读数据全被拒；净化有 `web/svg-utils.test.ts` 锁 |
 | **前端零第三方库** | 无 UI 库 · 无 markdown 库 · 无图表库：Markdown 解析、数据图自绘 SVG、SVG 净化自愈全部自写——供应链攻击面与包体积同时趋零、行为完全可控 | `packages/web/package.json` 运行时依赖只有 react / react-dom / `@sb/shared` |
-| **839 例测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉 | 一条命令本地/CI 复验；基线 **67 文件 / 839 例（838 passed + 1 skipped）**，2026-09-14 于 Node 22 全量 vitest 实测；**权威口径与逐文件对账见 `docs/dev/test-plan.md` §3**（本格数字仅为快照，随批次变动，勿据此判现状） |
+| **1194 例测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；**交互层另有真机 CDP 探针**（`tools/probes/*-cdp.mjs`：PK 断点 9 档视口、编排画布缩放 31 条断言），补 `.tsx` 无 jsdom 的空白 | 一条命令本地/CI 复验；基线 **91 文件 / 1232 例（1231 passed + 1 skipped）**，2026-09-17 于 Node 22 全量 vitest 实测；**权威口径与逐文件对账见 `docs/dev/test-plan.md` §3**（本格数字仅为快照，随批次变动，勿据此判现状） |
 | **契约先行的可维护性** | `@sb/shared` 是 SSE 事件 / 内容块 / REST / 领域模型的单一事实源，前后端不允许各写一套；先登记再实现 | shared 契约文件头注释即纪律；四条固定扩展模式见 §开发指南 |
-| **不锁定供应商** | OpenAI 兼容 + Anthropic 双适配；搜索 Exa / Tavily / 智谱三家并行聚合 + DDG 兜底——换模型换服务商只动设置页 | 适配器有出站请求体断言测试，且当场逮出过真缺陷 B-001（多条 system 在 Anthropic 型上静默丢失） |
+| **不锁定供应商** | OpenAI 兼容 + Anthropic 双适配；搜索 Exa / Tavily / 智谱三家并行聚合 + Bing 免 key 兜底——换模型换服务商只动设置页 | 适配器有出站请求体断言测试，且当场逮出过真缺陷 B-001（多条 system 在 Anthropic 型上静默丢失） |
 
 > 一条隐性优势是**诚实的文档文化**：CHANGELOG 每批都有「未验（诚实记账）」段、推断不进验证列，§已知限制 明写哪些是缺陷哪些是定档边界——这份 README 的每个数字都能在仓库内对上出处。
 
@@ -62,7 +62,7 @@
 - **打字机平滑**：不管上游到达节奏多糙（含池中 AI 整块返回），上屏永远匀速逐字；**收口后过程折成一行摘要**（思考字数 · 工具次数 · 任务数），点开才展开——过程不喧宾夺主
 - **消息操作**：复制 / 重新生成（最后一条回答）/ **编辑重发**（最后一条提问，改完重跑、旧回答作废）
 - **单轨工具循环**：原生 function-calling 循环（15 轮上限 / 14k 回灌截断 / 逐轮预算检查 / 工具轮原子落库，无孤儿 tool 消息）
-- **联网搜索**：Exa / Tavily / 智谱按 key 并行聚合 + 跨家 URL 去重 + 24h 缓存；三家无 key 走 DuckDuckGo 兜底；出网带 SSRF 护栏
+- **联网搜索**：Exa / Tavily / 智谱按 key 并行聚合 + 跨家 URL 去重 + 24h 缓存；三家无 key 走 Bing 免费通道兜底（cn.bing.com，RSS 主 + HTML 兜底）；出网带 SSRF 护栏
 - **工具调用可视化**：`step` 事件三态进度芯片上屏（进行中 / 完成 / 失败），搜索溯源可见
 - **文档模式（RAG）**：给会话绑定一篇资料（粘贴 / .txt / .md）；**短文档（≤ 60k 字）整篇直塞，长文档走真检索**——零依赖词法 **BM25** 切块（800 字 / 重叠 120）后按本轮提问取 Top-12 段落注入，**带【段 n】段号可溯源**，并强制声明「这些段落是局部不是全文，没出现不代表资料里没有」；存储不丢字、换形状只发生在注入层；出题 / 抽词缺材料时自动回退用会话资料（出题按主题检索、抽词条无主题则按位置均匀覆盖）。实测：70 万字资料下旧直塞的内容覆盖率 **0/13**、新检索 **13/13**（关键词型），注入量从 60k 字降到 10.5k（契约 `docs/DOC-RAG-SPEC.md`）
 
@@ -84,15 +84,16 @@
 - **双通道抽词**：回复后 `[TERMS]` 协议 fire-and-forget 自动抽取（不阻塞对话、失败降级空列表）+ 对话页「存入记忆」手动通道；入库按 `UNIQUE(term,domain)` upsert 合并（同词保更高 importance、更新释义），并向模型注入已有领域 top-12 引导复用词表——防词条库分裂
 - **加权相关性注入**：回复前按「子串命中 2.0 / 词元互含 0.5 + importance×0.8 + 最近使用×0.3」加权检索，命中词条作第二条 system 软性注入（不强制、不污染正文）；回复后 usage 命中计数——**越用的词越容易被再注入**，记忆形成正反馈
 - **AI 整理**：对话内自然语言触发 `tidy_terms` 工具——自动分组、同义词归一、领域归一，单事务应用；只合并不删除，被并同义词挂主条 `aliases` 防再分裂（参照 Anki 查重 + Obsidian aliases 范式）
+- **领域与词条同等可管**（2026-09-17，迁移 v19）：领域此前只是 `term_library.domain` 这一列的**去重值**，于是**建不了空领域、改不了名、删不掉**（连「存在过」都没记录）；现建 `term_domain` 登记表把它升为一等实体——词条库页「管理领域」可**新建**（可零词条）、**改名**（该域词条批量随迁，目标域已存在则两域合一）、**写说明**、**删除**（词条**迁 general、一条不删**）；AI 侧 `tidy_terms` 同步支持 `domain_add` / `domain_remove`。★ 改名撞 `UNIQUE(term, domain)` 时自动并入（目标域已有同名词条），不报错
 
-### 忆 · 认知进化（契约 v1.1 · 待评审，**尚未落实现代码**）
+### 忆 · 深度理解（契约 v1.1 · 待评审，**尚未落实现代码**）
 
-把「用户对一个词条的理解」做成可累积的等级链：**L0 直觉 → L1 复述 → L2 准确 → L3 边界 → L4 迁移**，AI 在对话中承担教练角色每轮现场判定（判定纪律：宁判低不判高；不许把没讲过的内容算作已掌握）。设计取契约〔[`docs/COGNITIVE-EVOLUTION-SPEC.md`](docs/COGNITIVE-EVOLUTION-SPEC.md)〕实文：
+把「用户对一个词条的理解」做成可累积的等级链：**L0 直觉 → L1 复述 → L2 准确 → L3 边界 → L4 迁移**，AI 在对话中承担教练角色每轮现场判定（判定纪律：宁判低不判高；不许把没讲过的内容算作已掌握）。设计取契约〔[`docs/DEEP-UNDERSTANDING-SPEC.md`](docs/DEEP-UNDERSTANDING-SPEC.md)〕实文：
 - **`[VERDICT]` 协议 + 流式闸门**：判定数据由模型在回复末尾以隐藏标记输出，闸门吞段——不上屏、不落库，不破「屏上文本 == 库内文本」铁律；判定由主对话模型顺带产出，**零额外 LLM 调用**
-- **进化链本身就是复习材料**：每次判定 append-only 落链（含用户当时原话快照、评语、缺口清单、下一级目标），词条页可展开完整时间轴回顾「我当时是怎么说的」
+- **理解链本身就是复习材料**：每次判定 append-only 落链（含用户当时原话快照、评语、缺口清单、下一级目标），词条页可展开完整时间轴回顾「我当时是怎么说的」
 - **难度联动**：等级直接喂出题引擎——L0..L4 各档对应题型配比与干扰项侧重（L0 考直觉识别、L4 出新情境考迁移讲评）；允许降级（回退是真实信号不粉饰），但 `best_level` 只增不减，一次失手不会把复习难度打回原形
 - **合环不加环**：忆（词条库）→ 析（判定缺口）→ 练（难度随等级）→ 反馈（升级记 XP）四环合流，不新建第六环
-- **v1.1 反馈加强（2026-09-06 老板拍板）**：`met` 证据式判定——等级不动的轮次也必须列「本轮命中的 rubric 要素 / 还缺什么」，双空被禁，治「讲了半天没升级 = 没反馈」；**词条直达进化**——词条行一键开进化会话，首轮 AI 直接对该词条出 `[QUIZ]` 单题水平探针评估认知程度（复用既有出题引擎与解析阶梯，零新协议、零嵌套 LLM 调用）
+- **v1.1 反馈加强（2026-09-06 老板拍板）**：`met` 证据式判定——等级不动的轮次也必须列「本轮命中的 rubric 要素 / 还缺什么」，双空被禁，治「讲了半天没升级 = 没反馈」；**词条直达深度理解**——词条行一键开深度理解会话，首轮 AI 直接对该词条出 `[QUIZ]` 单题水平探针评估认知程度（复用既有出题引擎与解析阶梯，零新协议、零嵌套 LLM 调用）
 
 ### 反馈
 - 学 / 练 / 忆的每个动作经事件总线 `publishEvent` 落 XP（存题、添词条、对话各按费率表计分），驱动 XP 连签、今日总结、近 7 天趋势——学习闭环的成就感不靠用户自觉记账
@@ -122,7 +123,7 @@
 │   chat/flow     一轮对话编排：四段 system 注入 + 预算收口   │
 │     ├ chat/tools      工具注册表（search_web/tidy_terms）│
 │     ├ learning/*      quiz / terms / tidy / document    │
-│     ├ search/*        Exa·Tavily·智谱并行 → DDG 兜底     │
+│     ├ search/*        Exa·Tavily·智谱并行 → Bing 兜底    │
 │     ├ llm/*           openai / anthropic 双适配          │
 │     └ security.ts     Origin 校验 / 密钥加密 / SSRF 护栏  │
 └──────────────────────────┬─────────────────────────────┘
@@ -187,8 +188,8 @@ packages/
 │  ├─ index.ts              Express 入口（安全头 / CORS / originCheck / 2MB）
 │  ├─ chat/flow.ts          对话编排：四段 system 注入 + 上下文预算收口
 │  ├─ chat/tools.ts         单轨工具注册表
-│  ├─ learning/             quiz 出题引擎(+json-repair) / terms 词条库 / tidy 整理 / document 文档模式(+doc-retrieve BM25 检索) / activity
-│  ├─ search/               三路聚合 + DDG 兜底 + 24h 缓存 + SSRF 护栏
+│  ├─ learning/             quiz 出题引擎(+json-repair) / terms 词条库 / domains 领域库(登记册 v19) / tidy 整理 / document 文档模式(+doc-retrieve BM25 检索) / activity
+│  ├─ search/               三路聚合 + Bing 兜底 + 24h 缓存 + SSRF 护栏
 │  ├─ llm/                  openai / anthropic 双适配（system 全量合并）
 │  ├─ routes.ts             REST + settingsRouter
 │  ├─ storage/              better-sqlite3 封装 / 逐版本迁移 / 偏好读写
@@ -199,7 +200,7 @@ packages/
 │  ├─ features/preview/     内置浏览器面板（沙箱 iframe）
 │  ├─ features/settings/    搜索 key / 配比 / 配图 / 回答偏好 四张卡
 │  ├─ features/quiz·terms·summary/   题库 / 词条库 / 今日总结
-│  ├─ lib/                  svg-utils（净化+自愈）/ chart-utils（自绘图表）/ markdown（零依赖解析）/ api
+│  ├─ lib/                  svg-utils（净化+自愈）/ chart-utils（自绘图表）/ markdown（零依赖解析）/ api（领域组独立在 api-terms-domain）
 │  ├─ components/icons.tsx  SVG line-icon 基座（禁 emoji）
 │  └─ styles/tokens.css     设计 token 唯一事实源
 tools/
@@ -216,7 +217,7 @@ CHANGELOG.md               项目改动登记册（代码/文档/测试同批登
 - 单文件行数：server ≤ 400 行 / web 组件 ≤ 300 行
 - 禁内联 `style={{…}}`（一律走 tokens.css 的 token）；禁 `any`；测试也禁 `!` 非空断言
 
-**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**67 测试文件 / 839 用例**（2026-09-14 实测；**权威口径见 `docs/dev/test-plan.md` §3**，此处仅为快照）。
+**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**91 测试文件 / 1232 用例**（2026-09-17 实测；**权威口径见 `docs/dev/test-plan.md` §3**，此处仅为快照）。`.tsx` 渲染层与事件接线无 jsdom 兜底，改交互时跑真机探针：`node tools/probes/flow-canvas-zoom-cdp.mjs`（编排画布缩放/平移）、`node tools/probes/pk-breakpoint-cdp.mjs`（PK 断点）。
 
 **提交纪律**：
 
@@ -236,7 +237,7 @@ CHANGELOG.md               项目改动登记册（代码/文档/测试同批登
 | 配置 | 位置 | 说明 |
 |------|------|------|
 | AI 服务商 | 设置页（`providers` 表） | OpenAI 兼容协议；Anthropic 型走独立适配器（system 全量合并） |
-| 搜索 key | 设置页（AES-GCM 密文入库） | 推荐 Exa / Tavily / 智谱任一，按 key 并行聚合；**三路全无 key 走 DDG 兜底，但 DDG 在部分本机网络不可达**（实测直连超时），要真出结果请至少配一个 key，智谱国产可达 |
+| 搜索 key | 设置页（AES-GCM 密文入库） | 推荐 Exa / Tavily / 智谱任一，按 key 并行聚合；**三路全无 key 走 Bing 免费通道兜底**（cn.bing.com 实测直连 200，RSS 主 + HTML 兜底），不配 key 也能出结果；配 key 走托管三路质量更稳 |
 | 端口 | 环境变量 `SB_PORT`（默认 18791）、`SB_PROXY_TARGET` | 端口被 v1 占用时切 18792，**不杀 v1 进程** |
 | 数据目录 | 环境变量 `SB_DATA_DIR`（默认 `%APPDATA%/studentbuddy-v2`） | SQLite 单文件 `studentbuddy.db`（WAL），逐版本 schema 迁移 |
 
@@ -256,7 +257,7 @@ CHANGELOG.md               项目改动登记册（代码/文档/测试同批登
 - **行内公式不渲染**：`$…$` 按原文显示（未引 katex，保持 `@sb/web` 零运行时依赖）；`mermaid` / `echarts` 围栏降级代码块（刻意不引库，数据图由自绘 ```chart 覆盖）
 - **预览页只活内存**：服务重启即失效，无分享链接（本地单用户形态无场景）；内置面板无地址栏、宽度不可拖拽（只挂模型产出，是定档边界不是缺陷）
 - **文档模式：词法检索，不是语义检索**：≤ 60k 字整篇直塞（与旧实现逐字等价）；> 60k 才切块 + BM25 按提问取段落。**没有的：embedding 向量／跨会话资料库／持久化索引／pdf-docx 解析／可点击溯源**。已知天花板：用户**不用资料里的原词**改写提问时，70 万字规模下召回收敛在 **8/13 ≈ 62%**（多给段落救不回来，这是词法路线的性质，只能靠向量路线突破）；且**不靠分数阈值判「资料没写」**——两种阈值方案都被实测否掉（真命中区间与干扰项区间重叠），识别不到的权力交给模型如实说（契约 `docs/DOC-RAG-SPEC.md` §3.3）
-- **`search_web` 免 key 兜底在本机网络大概率不可用**：DDG 直连实测超时，至少配一个搜索 key
+- **`search_web` 免 key 兜底已换血为 Bing**：原 DDG 直连实测超时、不可用，已改为 Bing 免费通道（cn.bing.com，RSS + HTML 双通道）；仍建议至少配一个搜索 key 以获得更稳的托管质量
 - **security.ts 放行 localhost 任意端口**：单用户本地权衡，刻意保留
 - **转义修复只补「漏根」不修「错命令」**：`\theta` / `\nu` 这类恰好等于合法转义的写法无法与真制表符区分，故意不修（命中走逐题回退，最坏丢一题不连坐整组）
 
@@ -278,6 +279,7 @@ CHANGELOG.md               项目改动登记册（代码/文档/测试同批登
 | [`ANSWER-STYLE-SPEC.md`](docs/ANSWER-STYLE-SPEC.md) | 回答方式偏好契约（L0/L1 行为、默认档等价性） |
 | [`TERM-TIDY-SPEC.md`](docs/TERM-TIDY-SPEC.md) | 词条库 AI 整理契约（归一规则 / 别名防分裂） |
 | [`DOC-RAG-SPEC.md`](docs/DOC-RAG-SPEC.md) | 文档检索契约（短文档直塞 / 长文档 BM25 Top-K / 常量取值依据与被否掉的两条阈值方案） |
-| [`COGNITIVE-EVOLUTION-SPEC.md`](docs/COGNITIVE-EVOLUTION-SPEC.md) | 认知进化专题契约（v1.1：5 级链 / VERDICT 闸门 / 证据式判定 / 词条直达·出题评估） |
+| [`DEEP-UNDERSTANDING-SPEC.md`](docs/DEEP-UNDERSTANDING-SPEC.md) | 深度理解专题契约（v1.1：5 级链 / VERDICT 闸门 / 证据式判定 / 词条直达·出题评估） |
+| [`STUDY-FLOW-SPEC.md`](docs/STUDY-FLOW-SPEC.md) | **学习流契约 v1.0**（三层：步骤注册表 / 控制流 / 知识数据图；「图静态、流动态」；步进式运行器 + 定义快照 + 边出处分层） |
 | [`dev/test-plan.md`](docs/dev/test-plan.md) | 测试策略 / 基线用例数 / 逐文件不变量 |
 | [`dev/bug-ledger.md`](docs/dev/bug-ledger.md) | 反复 bug 台账（收敛计数驱动换根因假设） |

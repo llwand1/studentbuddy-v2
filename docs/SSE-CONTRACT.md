@@ -37,7 +37,7 @@
 |------|------|------|
 | `token` | content | 助手文本增量（前端按序追加） |
 | `reasoning` | content | 推理过程增量。**2026-09-12 修订（v11）**：已随后续消息落库（`messages.reasoning` 列）并在重开会话时回放——原「仅流式呈现不落库」的说法作废；该列存原文，历史由 `web/features/chat/history-fold.ts` 折回那条回答 |
-| `block` | blockId/payload/done | 结构化内容块（演进③；M2 起启用，payload 见 shared/content-blocks）。**2026-09-06 登记 `kind:'verdict'`**：认知进化判定块（COGNITIVE-EVOLUTION-SPEC §9.1），payload=`Verdict`（shared/domain，v1.1 含 `met`），`blockId='evo-<termId>-<ts>'`；由 flow 端 `[VERDICT]` 流式闸门吞掉正文后发射——判定块不上屏、不落 messages，「屏上文本==库内文本」铁律不破 |
+| `block` | blockId/payload/done | 结构化内容块（演进③；M2 起启用，payload 见 shared/content-blocks）。**2026-09-06 登记 `kind:'verdict'`**：深度理解判定块（DEEP-UNDERSTANDING-SPEC §9.1），payload=`Verdict`（shared/domain，v1.1 含 `met`），`blockId='evo-<termId>-<ts>'`；由 flow 端 `[VERDICT]` 流式闸门吞掉正文后发射——判定块不上屏、不落 messages，「屏上文本==库内文本」铁律不破 |
 | `step` | tool/status/detail/args?/result? | 工具执行进度：`running`（detail=入参摘要）→ `done`（detail=结果概览）/ `error`（detail=失败原因，不静默）；前端渲染为过程卡片。**2026-09-09 增强**：终态事件附 `args`（工具入参原文 JSON 串）与 `result`（结果摘要截 ~400 字），前端点击卡片展开查看输入/输出；终态由 tool-exec 调度器统一发射（每张卡片有且只有一个终态）。生成完成后 steps 不再清空（与 reasoning 同策略），清空点在下一轮 send/regenerate 与切会话 |
 | `tasks` | items | **2026-09-09 登记（标准 CoT 任务清单）**：模型经 `update_tasks` 工具（不在 tools.ts 注册表，flow.ts exec 注入接入）。**2026-09-12 修订**：items 恒为**服务端合并后的完整清单** `TaskItem[]`（三态 `pending`/`in_progress`/`done`，≤10 条，类型单一事实源＝`shared/src/task-list.ts`）；模型入参有两种模式（`tasks` 全量覆盖 / `updates` 按 1 基序号增量），**合并永远在服务端做**，事件侧只有「全量下发」一种语义——前端仍整表替换、不做本地合并；前端渲染为打勾进度面板（n/m 计数，`in_progress` 当前条目高亮转环），全部完成后默认收起、done 后保留可回看 |
 | `choice-asked` | sessionId / request | **2026-09-14 登记（方案选择框，契约 `docs/ASK-CHOICE-SPEC.md`）**：AI 调 `ask_choice` 工具请求学习者拍板，UI 在输入框上方弹浮层。`request` 为 `AskChoiceRecord`（唯一事实源 `shared/choice.ts`）。前端按 `request.id` 幂等——断线重连会回放同一帧，覆盖而非二次入队。归 `sessionId` 频道，**不经** `pk:` 前缀隔离 |
@@ -93,7 +93,7 @@
 
 | 前缀 | 路由文件 | 端点 |
 |------|----------|------|
-| `/api/quiz` | `routes/quiz.ts` | `POST /generate`（`{topic?,material?,sessionId?}`，`topic` 与 `material` 至少给一个否则 400；**`material` 缺省时回退用该会话已载入的资料**）、`GET /bank`、`GET /bank/:id`、`DELETE /bank/:id`、`POST /stats/record`、`GET /analyze/:id` |
+| `/api/quiz` | `routes/quiz.ts` | `POST /generate`（`{topic?,material?,sessionId?}`，`topic` 与 `material` 至少给一个否则 400；**`material` 缺省时回退用该会话已载入的资料**）、`GET /bank`、`GET /bank/:id`、`DELETE /bank/:id`、`POST /stats/record`、`GET /analyze/:id`（**响应形状 `WeakAnalysis` 见 `docs/QUIZ-WEAK-SPEC.md` §2**——本表只做索引，形状以契约为准） |
 | `/api/terms` | `routes/terms.ts` | `GET /`、`GET /domains`、`POST /`、`POST /extract`（`{text?,sessionId?}`，`text` 缺省时同样回退会话资料）、`PUT /:id`、`DELETE /:id` |
 | `/api/preview` | `routes/preview.ts` | `POST /`（暂存 html 换 id）、`GET /:id`（带 `CSP: sandbox` 出页，无 `allow-same-origin`） |
 | `/api/activity` | `routes/activity.ts` | `GET /today`、`GET /week`、`GET /summary` |
@@ -121,7 +121,7 @@
 - **P0 存储是全内存**（契约 §4）：无落库、无 schema 改动，进程重启即丢局；房间 TTL 惰性回收
   （waiting 30 分钟 / finished 10 分钟 / active 取「对局时钟 + 保留期」）。
 
-**已注册工具（单轨 function-calling，`chat/tools.ts`）**：`search_web`（多路 provider 聚合语义见 `search/index.ts`——Exa/Tavily/智谱按 key 并行，三家全无 key → DuckDuckGo 免 key 兜底）、`tidy_terms` / `manage_terms`（词条库）、`ask_choice`（**方案选择框**，契约 `docs/ASK-CHOICE-SPEC.md`）。★ `ask_choice` 是**长等待工具**：它在 `flow.ts` 的 `runToolCalls` 里登记进 `noTimeout`，豁免 30s 默认工具超时——它等的是「人点一下」，挂 timer 会把等待本身掐死（见 `chat/tool-exec.ts` 的 `noTimeout` 注释）。
+**已注册工具（单轨 function-calling，`chat/tools.ts`）**：`search_web`（多路 provider 聚合语义见 `search/index.ts`——Exa/Tavily/智谱按 key 并行，三家全无 key → Bing 免 key 兜底（cn.bing.com，RSS 主 + HTML 兜底））、`tidy_terms` / `manage_terms`（词条库）、`ask_choice`（**方案选择框**，契约 `docs/ASK-CHOICE-SPEC.md`）。★ `ask_choice` 是**长等待工具**：它在 `flow.ts` 的 `runToolCalls` 里登记进 `noTimeout`，豁免 30s 默认工具超时——它等的是「人点一下」，挂 timer 会把等待本身掐死（见 `chat/tool-exec.ts` 的 `noTimeout` 注释）。
 
 **安全语义**：写操作（POST/PUT/DELETE）强制 Origin 校验（无 Origin / 恶意 Origin → 403）；请求体上限 2MB；服务仅绑 127.0.0.1。
 
@@ -136,6 +136,6 @@
 | 2026-08-27 | `step` 事件随单轨工具循环上线（search_web）；新增 `/api/settings/search-keys`（GET/PUT）与 `/api/settings/search/test`；订阅回放语义收紧——已完结的一轮只补 `done`，修重复气泡 |
 | 2026-08-27（复审） | 屏上==库内扩到收尾语（上限提示、中断标记均走 token）；失败轮补发终止 `done`；搜索 `providers` 只报真出结果的一家、缓存键含 provider 组合、自检跳缓存；PUT 先校验后写 + 单值 300 字上限；前端 `done` 判重（历史尾条同字不再追加）——真机 reload 复验单气泡 |
 | 2026-09-02 | 新增文档模式三端点 `GET/POST/DELETE /api/doc`（只回元信息、正文不落盘、会话绑定）；补登 §3.1 此前漏登的 quiz/terms/preview/activity 路由；加**多段 system 必须全量合并**的适配器契约（B-001 教训） |
-| 2026-09-06 | 认知进化 v1.1 契约登记（WBS 任务 1）：`BlockKind` 增 `'verdict'`（payload=Verdict 含 `met`）；`DomainEvent` 增 `evolution_levelup`（server/events/bus.ts）；shared/domain.ts 落 `Verdict`/`EvolutionTermState`/`EvolutionState`/`EvolutionEventRow` 四类型 |
+| 2026-09-06 | 深度理解 v1.1 契约登记（WBS 任务 1）：`BlockKind` 增 `'verdict'`（payload=Verdict 含 `met`）；`DomainEvent` 增 `evolution_levelup`（server/events/bus.ts）；shared/domain.ts 落 `Verdict`/`EvolutionTermState`/`EvolutionState`/`EvolutionEventRow` 四类型 |
 | 2026-09-13 | **对话体验升级**：断线恢复第 2 步（/live 快照）接通 + seq 去重入口拦死；呈现形态语义登记（stream/once，见上）；新增 `POST /api/chat/resend`（编辑重发：更新最后一条提问内容并作废其后产物后重跑，与 regenerate 同 rowid 划界）；`GET /api/providers/:id/models` 暴露适配器 `listModels`；停止生成 signal 透传进工具内部（search 真掐断） |
 | 2026-09-12 | **PK 频道登记**（契约 `docs/PK-SPEC.md` P0-1）：`pk-state`/`pk-question`/`pk-verdict`/`pk-end` 四事件进 `shared/sse-events.ts`——字段用 `roomId`（不是 `sessionId`），频道键 `pk:<roomId>`，与聊天空间严格隔离；新增 §2.1（频道语义）与 §3.2（登录+房间端点含错误码映射）。P0-1 实际只发 `pk-state`，后三个按契约先登记、待 P0-2 启用 |

@@ -15,3 +15,9 @@ test-results/
 # 入库探针的正名不带下划线（如 `quiz-e2e-cdp.mjs`），不冲突。
 **/_*.mjs
 tools/probes/_e2e/
+
+# 2026-09-17 补：会话级临时诊断**目录**（下划线前缀约定的目录形态）。
+# `**/_*.mjs` 只匹配文件名，`_probe/` 里 `setup.mjs` 这类不带下划线的脚本仍会污染
+# `git status`；更要紧的是该目录会放真实库副本（`_probe/data/*.db`，含用户数据），
+# 一旦手滑 `git add -A` 就会把用户数据推进仓库。
+_probe/

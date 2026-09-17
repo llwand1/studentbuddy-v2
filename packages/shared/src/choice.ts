@@ -27,6 +27,15 @@ export interface ChoiceOption {
 /** 提问的生命周期三态 */
 export type ChoiceStatus = 'pending' | 'answered' | 'cancelled';
 
+/**
+ * grill-me 模式的两个阶段（v18，2026-09-16）。`undefined`＝普通 ask_choice（模型自发触发）。
+ * - `'pre'`：开场先问方向，**答复要回灌给模型**——模型据此决定这一轮讲什么。
+ * - `'post'`：收尾问下一步，**答复不回灌**（本轮已结束），前端把它作为下一轮提问自动发出。
+ *
+ * 两者语义相反，前端必须区分：pre 选完是「继续这一轮」，post 选完是「开新一轮」。
+ */
+export type GrillPhase = 'pre' | 'post';
+
 /** 方案选择请求（AI → 用户） */
 export interface AskChoiceRequest {
   id: string;
@@ -38,6 +47,8 @@ export interface AskChoiceRequest {
   allowCustom: boolean;
   /** 多选（v1 恒 false，字段预留——UI 与存储已按可多选设计） */
   multi: boolean;
+  /** grill-me 阶段（v18）：有值即本提问由 grill-me 强绑产生，见 `GrillPhase` */
+  grillPhase?: GrillPhase;
   ts: number;
 }
 

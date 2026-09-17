@@ -34,8 +34,9 @@ export interface ToolCall {
   arguments: string;
 }
 
-/** 学习角色（演进①）：各环节独立绑定 provider+模型，未配置落默认 */
-export type ModelRole = 'explain' | 'quiz-generator' | 'solver' | 'analyzer' | 'summarizer' | 'judge';
+/** 学习角色（演进①）：各环节独立绑定 provider+model，未配置落默认。
+ * v17 新增 'vision'：纯文本主模型借它「读图」（图→视觉模型→文字描述→塞回主模型上下文） */
+export type ModelRole = 'explain' | 'quiz-generator' | 'solver' | 'analyzer' | 'summarizer' | 'judge' | 'vision';
 
 export interface RoleBinding {
   role: ModelRole;
@@ -98,11 +99,11 @@ export interface TidySummary {
   message?: string;
 }
 
-// ── 认知进化（COGNITIVE-EVOLUTION-SPEC v1.1，2026-09-06 契约登记 · WBS 任务 1）──
+// ── 深度理解（DEEP-UNDERSTANDING-SPEC v1.1，2026-09-06 契约登记 · WBS 任务 1）──
 
 /** [VERDICT] 协议解析产物，亦 SSE verdict block 的 payload（§6.1 / §9.1） */
 export interface Verdict {
-  /** 必须是本会话进化词条之一（服务端白名单校验，不匹配丢弃该块） */
+  /** 必须是本会话深度理解词条之一（服务端白名单校验，不匹配丢弃该块） */
   term: string;
   /** 本次判定后该词条应处等级，0..4 离散（normalizeVerdict 钳制） */
   level: number;
@@ -117,7 +118,7 @@ export interface Verdict {
   met?: string[];
 }
 
-/** 进化会话里单个词条的状态（§8） */
+/** 深度理解会话里单个词条的状态（§8） */
 export interface EvolutionTermState {
   id: string;
   term: string;
@@ -163,7 +164,7 @@ export interface QuizNote extends QuizNoteSummary {
   body: string;
 }
 
-/** 进化链节点行（evolution_event 表 API 形状；termText 为抗删快照，§5/§8） */
+/** 理解链节点行（evolution_event 表 API 形状；termText 为抗删快照，§5/§8） */
 export interface EvolutionEventRow {
   id: string;
   sessionId: string;

@@ -1,5 +1,5 @@
 /**
- * 认知进化类型登记锁定（COGNITIVE-EVOLUTION-SPEC v1.1 §6.1/§8/§9.1 · WBS 任务 1）。
+ * 深度理解类型登记锁定（DEEP-UNDERSTANDING-SPEC v1.1 §6.1/§8/§9.1 · WBS 任务 1）。
  * 本文件多数断言在「编译即通过」层面生效——BlockKind 摘掉 'verdict'、
  * ContentBlock<'verdict'> 的 payload 退回 GenericPayload、met 被改成必填，
  * 都会让 tsc 直接红；运行期 expect 只锁字段名与形状，防手滑改名。
@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import type { ContentBlock } from './content-blocks.js';
 import type { Verdict, EvolutionState, EvolutionEventRow } from './domain.js';
 
-describe('认知进化类型登记 — Verdict（v1.1 含 met）', () => {
+describe('深度理解类型登记 — Verdict（v1.1 含 met）', () => {
   it('必填仅 term/level/verdict，gaps/nextGoal/evidence/met 全可选（v1 兼容形状可构造）', () => {
     const bare: Verdict = { term: '闭包', level: 2, verdict: '说清了捕获' };
     expect(bare.met).toBeUndefined();
@@ -36,7 +36,7 @@ describe('认知进化类型登记 — Verdict（v1.1 含 met）', () => {
   });
 });
 
-describe('认知进化类型登记 — BlockKind verdict（§9.1）', () => {
+describe('深度理解类型登记 — BlockKind verdict（§9.1）', () => {
   it("ContentBlock<'verdict'> 的 payload 收窄为 Verdict（退回 GenericPayload 则此编译不过）", () => {
     const b: ContentBlock<'verdict'> = {
       kind: 'verdict',
@@ -54,7 +54,7 @@ describe('认知进化类型登记 — BlockKind verdict（§9.1）', () => {
   });
 });
 
-describe('认知进化类型登记 — §8 shared 三件套', () => {
+describe('深度理解类型登记 — §8 shared 三件套', () => {
   it('EvolutionState：active + terms（level 当前级 / bestLevel 只增级并列）', () => {
     const s: EvolutionState = {
       active: true,

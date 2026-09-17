@@ -12,6 +12,7 @@ import {
   DEFAULT_QUIZ_MIX,
   MAX_QUIZ_PER_TYPE,
   MAX_QUIZ_TOTAL,
+  MAX_SCENARIO_PER_MIX,
   mixTotal,
   normalizeQuizMix,
   setQuizMix,
@@ -19,14 +20,15 @@ import {
 } from './content-blocks.js';
 
 const mix = (over: Partial<QuizMix> = {}): QuizMix => ({ ...DEFAULT_QUIZ_MIX, ...over });
+const SCEN = "scenario" as const;
 
 describe('stepQuizMix（设置页 +/− 编辑态钳位）', () => {
   it('加档：目标档位 +1，其他档位不动', () => {
-    expect(stepQuizMix(mix(), 'single', 1)).toEqual({ single: 3, multiple: 0, fill: 1, essay: 1 });
+    expect(stepQuizMix(mix(), 'single', 1)).toEqual({  single: 3, multiple: 0, fill: 1, essay: 1, scenario: 0 });
   });
 
   it('减档：目标档位 −1，其他档位不动', () => {
-    expect(stepQuizMix(mix(), 'fill', -1)).toEqual({ single: 2, multiple: 0, fill: 0, essay: 1 });
+    expect(stepQuizMix(mix(), 'fill', -1)).toEqual({  single: 2, multiple: 0, fill: 0, essay: 1, scenario: 0 });
   });
 
   it('减到 0 再减仍是 0（不越界成负数）', () => {
@@ -40,13 +42,13 @@ describe('stepQuizMix（设置页 +/− 编辑态钳位）', () => {
 
   it(`总题数到 ${MAX_QUIZ_TOTAL} 后加不进任何题型，且已有档位一格不动`, () => {
     // 显式写全四档：helper 基于默认配比覆盖，fill/essay 缺省是 1，会凑成 22 题
-    const full: QuizMix = { single: MAX_QUIZ_PER_TYPE, multiple: MAX_QUIZ_PER_TYPE, fill: 0, essay: 0 };
+    const full: QuizMix = { single: MAX_QUIZ_PER_TYPE, multiple: MAX_QUIZ_PER_TYPE, fill: 0, essay: 0, scenario: 0 };
     expect(mixTotal(full)).toBe(MAX_QUIZ_TOTAL);
     expect(stepQuizMix(full, 'fill', 1)).toEqual(full);
   });
 
   it('总满后先减一档，就能加进别的题型（先减后加这条路径要通）', () => {
-    const full: QuizMix = { single: MAX_QUIZ_PER_TYPE, multiple: MAX_QUIZ_PER_TYPE, fill: 0, essay: 0 };
+    const full: QuizMix = { single: MAX_QUIZ_PER_TYPE, multiple: MAX_QUIZ_PER_TYPE, fill: 0, essay: 0 , scenario: 0 }
     const after = stepQuizMix(stepQuizMix(full, 'multiple', -1), 'fill', 1);
     expect(after.multiple).toBe(MAX_QUIZ_PER_TYPE - 1);
     expect(after.fill).toBe(1);
@@ -60,7 +62,7 @@ describe('stepQuizMix（设置页 +/− 编辑态钳位）', () => {
   it('一个题型都不放过：四个档位轮番加，各自独立受上限约束', () => {
     let m: QuizMix = mix({ single: 0, multiple: 0, fill: 0, essay: 0 });
     for (const t of QUIZ_TYPES) m = stepQuizMix(m, t, 1);
-    expect(m).toEqual({ single: 1, multiple: 1, fill: 1, essay: 1 });
+    expect(m).toEqual({  single: 1, multiple: 1, fill: 1, essay: 1, scenario: 0 });
   });
 
   it('不改入参；delta=0 也返回新副本', () => {
@@ -75,12 +77,12 @@ describe('stepQuizMix（设置页 +/− 编辑态钳位）', () => {
 
 describe('setQuizMix（设置页数字直输编辑态钳位）', () => {
   it('直输：目标档位设为输入值，其他档位不动', () => {
-    expect(setQuizMix(mix(), 'single', 4)).toEqual({ single: 4, multiple: 0, fill: 1, essay: 1 });
+    expect(setQuizMix(mix(), 'single', 4)).toEqual({  single: 4, multiple: 0, fill: 1, essay: 1, scenario: 0 });
   });
 
   it('直输 0 = 关掉该题型（每档最少 0 题）', () => {
     expect(setQuizMix(mix(), 'fill', 0).fill).toBe(0);
-    expect(setQuizMix(mix(), 'essay', 0)).toEqual({ single: 2, multiple: 0, fill: 1, essay: 0 });
+    expect(setQuizMix(mix(), 'essay', 0)).toEqual({  single: 2, multiple: 0, fill: 1, essay: 0, scenario: 0 });
   });
 
   it('负数直输 → 0；小数取整；非数字 → 0', () => {
@@ -95,7 +97,7 @@ describe('setQuizMix（设置页数字直输编辑态钳位）', () => {
 
   it(`总题数超 ${MAX_QUIZ_TOTAL} 时只给到「其他档占用后的剩余额度」，不削别的档`, () => {
     // 全 0 起、其它三档已占 18：fill 直输 10 只能给 2（总额 20），multiple/essay/single 一格不动
-    const src: QuizMix = { single: 8, multiple: 10, fill: 0, essay: 0 };
+    const src: QuizMix = { single: 8, multiple: 10, fill: 0, essay: 0, scenario: 0 };
     const after = setQuizMix(src, 'fill', 10);
     expect(after.fill).toBe(2);
     expect(mixTotal(after)).toBe(MAX_QUIZ_TOTAL);
@@ -104,8 +106,8 @@ describe('setQuizMix（设置页数字直输编辑态钳位）', () => {
   });
 
   it('全 0 配比下仍可直输单档（0 题起步不锁死）', () => {
-    const zero: QuizMix = { single: 0, multiple: 0, fill: 0, essay: 0 };
-    expect(setQuizMix(zero, 'single', 3)).toEqual({ single: 3, multiple: 0, fill: 0, essay: 0 });
+    const zero: QuizMix = { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 };
+    expect(setQuizMix(zero, 'single', 3)).toEqual({  single: 3, multiple: 0, fill: 0, essay: 0, scenario: 0 });
   });
 
   it('不改入参；直输后配比仍是合法编辑态（normalize 兜底原样）', () => {
@@ -126,7 +128,7 @@ describe('stepQuizMix 与 normalizeQuizMix 的分工', () => {
   });
 
   it('总满时四个档位轮流加，都不会被静默削掉别的题型', () => {
-    const full: QuizMix = { single: 6, multiple: 6, fill: 4, essay: 4 };
+    const full: QuizMix = { single: 6, multiple: 6, fill: 4, essay: 4, scenario: 0 };
     expect(mixTotal(full)).toBe(MAX_QUIZ_TOTAL);
     let m = full;
     for (const t of QUIZ_TYPES) m = stepQuizMix(m, t, 1);
@@ -134,8 +136,45 @@ describe('stepQuizMix 与 normalizeQuizMix 的分工', () => {
   });
 
   it('绕过 stepQuizMix 硬造的超限配比，仍由 normalizeQuizMix 兜底削到总上限', () => {
-    const over: QuizMix = { single: 10, multiple: 10, fill: 10, essay: 10 };
+    const over: QuizMix = { single: 10, multiple: 10, fill: 10, essay: 10, scenario: 10 };
     const normalized = normalizeQuizMix(over);
     expect(mixTotal(normalized)).toBeLessThanOrEqual(MAX_QUIZ_TOTAL);
+  });
+});
+
+
+describe('第 5 档情景题（QuizMixKind，SCENARIO-SPEC §6.1）', () => {
+  it(`情景档单档上限 ${MAX_SCENARIO_PER_MIX}（一套=一次整页生成，比普通题贵一个量级）`, () => {
+    expect(setQuizMix(mix(), SCEN, 99)[SCEN]).toBe(MAX_SCENARIO_PER_MIX);
+    expect(stepQuizMix(mix({ scenario: MAX_SCENARIO_PER_MIX }), SCEN, 1)[SCEN]).toBe(MAX_SCENARIO_PER_MIX);
+  });
+
+  it('情景档计入总题数：总上限 20 对五档一体适用', () => {
+    const m = setQuizMix(mix(), SCEN, 3);
+    expect(mixTotal(m)).toBe(mixTotal(DEFAULT_QUIZ_MIX) + 3);
+    // 顶到总量上限后，任何档都加不进去
+    const full = setQuizMix(mix({ single: 10, multiple: 10, fill: 0, essay: 0 }), SCEN, MAX_SCENARIO_PER_MIX);
+    expect(mixTotal(full)).toBe(MAX_QUIZ_TOTAL);
+    expect(stepQuizMix(full, 'single', 1)).toEqual(full);
+  });
+
+  it('normalize 兜底：情景档钳到 3、缺失回 0（老配置无此键不炸）', () => {
+    expect(normalizeQuizMix({ scenario: 7 })[SCEN]).toBe(MAX_SCENARIO_PER_MIX);
+    expect(normalizeQuizMix({ single: 1 })[SCEN]).toBe(0);
+  });
+
+  it('硬造超限 → normalize 从后往前削：情景档排末位，先砍它（最贵）', () => {
+    const normalized = normalizeQuizMix({ single: 10, multiple: 10, fill: 10, essay: 10, scenario: 3 });
+    expect(normalized[SCEN]).toBe(0);
+    expect(mixTotal(normalized)).toBe(MAX_QUIZ_TOTAL);
+  });
+
+  it('纯情景配比（传统四档全 0 + 情景 >0）是合法配比，不会被「全 0 回默认」吞掉', () => {
+    const out = normalizeQuizMix({ single: 0, multiple: 0, fill: 0, essay: 0, scenario: 2 });
+    expect(out).toEqual({ single: 0, multiple: 0, fill: 0, essay: 0, scenario: 2 });
+  });
+
+  it('五档真全 0 → 才回默认（0 套题组没有意义）', () => {
+    expect(normalizeQuizMix({ single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 })).toEqual(DEFAULT_QUIZ_MIX);
   });
 });

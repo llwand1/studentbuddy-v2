@@ -55,7 +55,7 @@ export const PK_PROMPT_MAX = 300;
  *   而 judge 被 match 依赖，若配比留在 match 里就会形成 judge ↔ match 循环依赖。
  *   配比只有一个事实源，人出题与裁判出题才不会有一天跑偏成两种题量。
  */
-export const PK_QUIZ_MIX: QuizMix = { single: 1, multiple: 0, fill: 0, essay: 0 };
+export const PK_QUIZ_MIX: QuizMix = { single: 1, multiple: 0, fill: 0, essay: 0, scenario: 0 };
 
 // ── 主题轮转 / 道具 / 二次机会（P0-7，2026-09-13 老板点单）────────────
 
@@ -165,6 +165,26 @@ export interface PkQuestion {
   isRetry?: boolean;
 }
 
+/**
+ * UX 批（2026-09-15 老板点单）：**有人正在 AI 出题**。
+ *
+ * ★ 为什么必须有这个信号（不能纯前端猜）：出题要 `await generateQuiz` **数秒**，
+ *   这段时间任何一方都无从推断对手是不是点了出题——**没有它，答题方只能看着题目凭空出现**
+ *   （老板实测原话：「在玩家看来，对面出题就是突然题目出现了」）。
+ *
+ * ★ 为什么可以走 SSE（不违反决策⑫）：「谁在出题」是**公开事实**（跟比分一样双方都该看到），
+ *   不是「私有判定结果」——决策⑫限制的是后者（判分、正确答案），不是前者。
+ *
+ * ★ 只带「谁在出」+「何时开始」，**绝不预带题目内容**：题目生成完才进 `questions`，
+ *   提前下发等于把半成品（甚至是被裁判毙掉的跑题题）泄给答题方。
+ */
+export interface PkQuizPending {
+  /** 正在出题的人（可能是 AI 座位 `ai-<roomId>`）；前端据此显示「对手／AI 正在出题」 */
+  userId: string;
+  /** 出题开始时刻（ms）：前端据此算「已经出了多久」，超时未出可自行收敛文案（别一直转圈） */
+  at: number;
+}
+
 /** 对局快照（GET /api/pk/rooms/:id/state 响应 / SSE `pk-state` 载荷） */
 export interface PkRoomState {
   roomId: string;
@@ -198,6 +218,11 @@ export interface PkRoomState {
    * 只有 `forfeit` 这种「非时间到」的结束才需要显式标注，前端据此换文案。
    */
   endReason?: PkEndReason;
+  /**
+   * UX 批（2026-09-15 老板点单）：**正在 AI 出题的人**（无人出题则无此字段）。
+   * 见下方 `PkQuizPending`——出题要 `await` 数秒，这段时间不给信号，答题方只能看着题目凭空出现。
+   */
+  quizPending?: PkQuizPending;
 }
 
 /**

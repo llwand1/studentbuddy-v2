@@ -13,16 +13,17 @@ import type { Verdict } from './domain.js';
 
 export type BlockKind =
   | 'quiz' // [QUIZ] 协议题组（payload: QuizData）
+  | 'scenario' // 情景题卡片（payload: ScenarioPayload；blockId=scenario-<demoId>，SCENARIO-SPEC §8 M3）
   | 'chart' // 图表 DSL
   | 'actions' // 动作按钮组（已登记，尚未实现）
   | 'svg' // 内联 SVG 预览（经净化）
-  | 'verdict'; // 认知进化判定（payload: Verdict；COGNITIVE-EVOLUTION-SPEC §9.1，2026-09-06 登记，渲染器随任务 7）
+  | 'verdict'; // 深度理解判定（payload: Verdict；DEEP-UNDERSTANDING-SPEC §9.1，2026-09-06 登记，渲染器随任务 7）
 
 export interface ContentBlock<K extends BlockKind = BlockKind> {
   kind: K;
   /** 会话内唯一块 id，流式追加按 blockId 聚合 */
   blockId: string;
-  payload: K extends 'quiz' ? QuizPayload : K extends 'verdict' ? Verdict : GenericPayload;
+  payload: K extends 'quiz' ? QuizPayload : K extends 'scenario' ? import('./scenario.js').ScenarioPayload : K extends 'verdict' ? Verdict : GenericPayload;
 }
 
 export interface QuizQuestion {
@@ -70,13 +71,31 @@ export const QUIZ_TYPE_LABELS: Record<QuizType, string> = {
 };
 
 /** 四种题型各自的题数（0 = 本次不出该题型） */
-export type QuizMix = Record<QuizType, number>;
+export type QuizMix = Record<QuizMixKind, number>;
+
+// ── 配比档位（第 5 档情景题，SCENARIO-SPEC §6.1）：配比是「档位」概念——
+// scenario 不是 QuizQuestion 形状（情景题走独立引擎、一套=一个可玩 demo），不能混进 QuizType，
+// 但用户在设置页要的是同一张配比卡统一调，所以配比层把它并成第 5 档。
+export type QuizMixKind = QuizType | 'scenario';
+
+/** 档位顺序 = 出题执行顺序：传统四类走一道引擎出完，情景题排末位逐套生成（贵，砍单先砍它） */
+export const MIX_KINDS: readonly QuizMixKind[] = [...QUIZ_TYPES, 'scenario'];
+
+export const MIX_KIND_LABELS: Record<QuizMixKind, string> = { ...QUIZ_TYPE_LABELS, scenario: '情景题' };
+
+/** 情景题单档上限：一套 = 一次整页 demo 的 LLM 生成（比一道普通题贵一个量级），钳 3 */
+export const MAX_SCENARIO_PER_MIX = 3;
+
+/** 单档上限按档取：情景题用更紧的上限，其余题型维持 10 */
+export function mixKindCap(kind: QuizMixKind): number {
+  return kind === 'scenario' ? MAX_SCENARIO_PER_MIX : MAX_QUIZ_PER_TYPE;
+}
 
 /** 落 app_settings 的键名（server 读写，前端不直接碰库） */
 export const SETTING_KEY_QUIZ_MIX = 'quiz_mix';
 
-/** 默认配比：2 单选 + 1 填空 + 1 解答（M2 原固定行为，配出来是为了可改） */
-export const DEFAULT_QUIZ_MIX: QuizMix = { single: 2, multiple: 0, fill: 1, essay: 1 };
+/** 默认配比：2 单选 + 1 填空 + 1 解答，情景题默认关（0；老用户升级后行为零变化） */
+export const DEFAULT_QUIZ_MIX: QuizMix = { single: 2, multiple: 0, fill: 1, essay: 1, scenario: 0 };
 
 /** 单题型上限 10：再多是强模型也难一次出齐，且输出会长到撞上下文 */
 export const MAX_QUIZ_PER_TYPE = 10;
@@ -84,7 +103,7 @@ export const MAX_QUIZ_PER_TYPE = 10;
 export const MAX_QUIZ_TOTAL = 20;
 
 export function mixTotal(mix: QuizMix): number {
-  return QUIZ_TYPES.reduce((sum, t) => sum + mix[t], 0);
+  return MIX_KINDS.reduce((sum, t) => sum + mix[t], 0);
 }
 
 /** 出题结果报告：请求了什么配比、实际出了什么、是否出齐（前端据此如实告知，不静默） */
@@ -95,21 +114,30 @@ export interface QuizMixReport {
   matched: boolean;
 }
 
+/** 一次出题里情景题的逐套结果（SCENARIO-SPEC §6.1）：部分失败如实报，不静默、不整体作废 */
+export interface ScenarioMixResult {
+  ok: boolean;
+  quizId?: string;
+  demoId?: string;
+  /** 失败真因透传引擎 report（no-model / parse），UI 据此给不同指引 */
+  failure?: string;
+}
+
 /**
  * 配比归一化：非数字/负数→0，小数取整，单题型钳到 10，总超 20 从后往前削。
  * **全 0 回退默认**（一套 0 题的题组没有意义，宁可按默认出也不静默空手而归）。
  * 前端输入与服务端入参都过这一道，保证两端看到同一份配比。
  */
 export function normalizeQuizMix(input: unknown): QuizMix {
-  const src = (input ?? {}) as Partial<Record<QuizType, unknown>>;
+  const src = (input ?? {}) as Partial<Record<QuizMixKind, unknown>>;
   const out: QuizMix = { ...DEFAULT_QUIZ_MIX };
-  for (const t of QUIZ_TYPES) {
+  for (const t of MIX_KINDS) {
     const n = Number(src[t]);
-    out[t] = Number.isFinite(n) ? Math.min(MAX_QUIZ_PER_TYPE, Math.max(0, Math.trunc(n))) : 0;
+    out[t] = Number.isFinite(n) ? Math.min(mixKindCap(t), Math.max(0, Math.trunc(n))) : 0;
   }
   let over = mixTotal(out) - MAX_QUIZ_TOTAL;
-  for (let i = QUIZ_TYPES.length - 1; i >= 0 && over > 0; i--) {
-    const t = QUIZ_TYPES[i];
+  for (let i = MIX_KINDS.length - 1; i >= 0 && over > 0; i--) {
+    const t = MIX_KINDS[i];
     if (!t) continue;
     const cut = Math.min(out[t], over);
     out[t] -= cut;
@@ -125,10 +153,10 @@ export function normalizeQuizMix(input: unknown): QuizMix {
  * 前端用本函数先钳住，就不会出现「配到 30 题、保存后被服务端悄悄削掉」这种无法预期的闪变；
  * 服务端 normalize 因此只作兜底而非主路径。返回新对象，不改入参。
  */
-export function stepQuizMix(mix: QuizMix, type: QuizType, delta: number): QuizMix {
+export function stepQuizMix(mix: QuizMix, type: QuizMixKind, delta: number): QuizMix {
   if (delta === 0) return { ...mix };
   if (delta < 0) return { ...mix, [type]: Math.max(0, mix[type] + delta) };
-  const step = Math.min(delta, MAX_QUIZ_PER_TYPE - mix[type], MAX_QUIZ_TOTAL - mixTotal(mix));
+  const step = Math.min(delta, mixKindCap(type) - mix[type], MAX_QUIZ_TOTAL - mixTotal(mix));
   return { ...mix, [type]: mix[type] + Math.max(0, step) };
 }
 
@@ -138,9 +166,9 @@ export function stepQuizMix(mix: QuizMix, type: QuizType, delta: number): QuizMi
  * 只给到「其他档占用后剩余额度」（恒 ≥ 0），不牵连别的档位。
  * 非数字/NaN → 0；小数取整。返回新对象，不改入参。
  */
-export function setQuizMix(mix: QuizMix, type: QuizType, value: number): QuizMix {
+export function setQuizMix(mix: QuizMix, type: QuizMixKind, value: number): QuizMix {
   const others = mixTotal(mix) - mix[type];
-  const cap = Math.min(MAX_QUIZ_PER_TYPE, MAX_QUIZ_TOTAL - others);
+  const cap = Math.min(mixKindCap(type), MAX_QUIZ_TOTAL - others);
   const v = Number.isFinite(value) ? Math.trunc(value) : 0;
   return { ...mix, [type]: Math.min(Math.max(0, v), Math.max(0, cap)) };
 }
@@ -230,7 +258,7 @@ export interface QuizRef {
   title: string;
   /** 真实网址（空串表示该条无链接，前端只显示标题文本） */
   url: string;
-  /** 来自哪家检索源（exa / tavily / zhipu / duckduckgo…） */
+  /** 来自哪家检索源（exa / tavily / zhipu / bing…） */
   provider: string;
 }
 
@@ -244,7 +272,7 @@ export interface QuizSearchReport {
   on: boolean;
   /** 真正进了提示词的参考条数（去重后） */
   count: number;
-  /** 真正产出结果的来源（exa / tavily / zhipu / duckduckgo-lite / duckduckgo 等；缓存命中时为 cache） */
+  /** 真正产出结果的来源（exa / tavily / zhipu / bing / bing-html 等；缓存命中时为 cache） */
   providers: string[];
   /** 失败的来源摘要；联网开着却一条没拿到时，这是唯一的解释 */
   failed: string[];

@@ -13,3 +13,8 @@ export * from './api.js';
 export * from './domain.js';
 export * from './pk.js';
 export * from './task-list.js';
+export * from './quiz-weak.js';
+export * from './memory.js';
+export * from './study-flow.js';
+export * from './study-flow-params.js';
+export * from './scenario.js';

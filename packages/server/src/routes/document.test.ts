@@ -32,7 +32,6 @@ vi.mock('../learning/quiz.js', async (importOriginal) => ({
 
 vi.mock('../learning/terms.js', () => ({
   listTerms: () => [],
-  domainStats: () => ({ total: 0, domains: [], today: 0 }),
   saveOneTerm: () => ({}),
   saveTerms: () => 0,
   extractTerms: async (text: string) => {

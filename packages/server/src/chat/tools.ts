@@ -4,8 +4,10 @@
  */
 import type { ToolDefinition } from '../llm/types.js';
 import type { TidySummary } from '@sb/shared';
+import type { GrillPhase } from '@sb/shared';
 import { searchWeb, resultsToContext, listKeyStatus } from '../search/index.js';
 import { tidyTerms, mergeTerms, renameDomain } from '../learning/tidy.js';
+import { createDomain, removeDomain } from '../learning/domains.js';
 import { saveOneTerm, updateTerm, removeTerm, findTermByName } from '../learning/terms.js';
 import { CHOICE_TOOL, runChoiceTool } from './choice-tool.js';
 
@@ -22,6 +24,11 @@ export interface ToolContext {
    * 可选——不依赖会话的工具（搜索 / 词条）无需关心它，既有工具桩也不必改。
    */
   sessionId?: string;
+  /**
+   * grill-me 阶段（v18）：有值表示这次 `ask_choice` 是 grill-me 强绑产生的，
+   * 会随提问一起下发，前端据此决定「选完是续本轮还是开新一轮」。普通触发不带。
+   */
+  grillPhase?: GrillPhase;
 }
 
 export interface ToolResult {
@@ -76,21 +83,47 @@ function tidyResultContent(summary: TidySummary): string {
   return `词条库整理结果（请用简洁的自然语言向用户汇报要点，不要原样输出本 JSON）：${JSON.stringify(summary)}`;
 }
 
+/**
+ * 领域新建/删除的工具侧包装（v19：领域与词条 CRUD 对等）。
+ * 把域层异常转成 `TidySummary.error`——工具层的报错口径统一走 `tidyResultContent`，
+ * 不让 `DomainError`（带 HTTP status，是给路由用的）直接冒到工具层。
+ */
+function domainAdd(name: string, note: string): TidySummary {
+  try {
+    const { row, created } = createDomain(name, note.trim());
+    return { result: 'ok', message: created ? `已新建领域「${row.name}」` : `领域「${row.name}」已存在，未重复创建` };
+  } catch (err) {
+    return { result: 'error', message: err instanceof Error ? err.message : '新建领域失败' };
+  }
+}
+
+function domainRemove(name: string): TidySummary {
+  try {
+    const r = removeDomain(name);
+    return { result: 'ok', message: `已删除领域「${r.name}」，${r.moved} 条词条转入「${r.target}」（词条一条未删）` };
+  } catch (err) {
+    return { result: 'error', message: err instanceof Error ? err.message : '删除领域失败' };
+  }
+}
+
 registry.set('tidy_terms', {
   definition: {
     type: 'function',
     function: {
       name: 'tidy_terms',
       description:
-        '维护词条库（术语记忆库）。用户提到整理/清理词条库、词条太多太乱、合并同义词、领域归组/归类、给领域改名时调用。整理只合并不删除概念。',
+        '维护词条库（术语记忆库）。用户提到整理/清理词条库、词条太多太乱、合并同义词、领域归组/归类、' +
+        '给领域改名、新建或删除领域时调用。整理只合并不删除概念；删除领域也不删词条（词条转入 general）。',
       parameters: {
         type: 'object',
         properties: {
           action: {
             type: 'string',
-            enum: ['auto', 'merge', 'rename_domain'],
+            enum: ['auto', 'merge', 'rename_domain', 'domain_add', 'domain_remove'],
             description:
-              'auto=全量整理（AI 判断同义词合并与领域归一）；merge=把用户点名的几个词条合并成一条；rename_domain=领域改名',
+              'auto=全量整理（AI 判断同义词合并与领域归一）；merge=把用户点名的几个词条合并成一条；' +
+              'rename_domain=领域改名；domain_add=新建领域（可零词条，先建好领域再放词）；' +
+              'domain_remove=删除领域（**词条转入 general，不删词条**）',
           },
           terms: {
             type: 'array',
@@ -99,6 +132,8 @@ registry.set('tidy_terms', {
           },
           from: { type: 'string', description: 'rename_domain 时必填：旧领域名' },
           to: { type: 'string', description: 'rename_domain 时必填：新领域名' },
+          domain: { type: 'string', description: 'domain_add / domain_remove 时必填：领域名' },
+          note: { type: 'string', description: 'domain_add 可选：领域说明（一句话，也可留空）' },
         },
         required: ['action'],
       },
@@ -127,9 +162,27 @@ registry.set('tidy_terms', {
       }
       ctx.onStep('tidy_terms', 'running', `领域改名 ${from} → ${to}`);
       summary = renameDomain(from, to);
+    } else if (action === 'domain_add') {
+      const name = String(args.domain ?? '').trim();
+      if (!name) {
+        ctx.onStep('tidy_terms', 'error', '缺少领域名');
+        return { content: 'domain_add 需要 domain（新领域名），请重新调用 tidy_terms。' };
+      }
+      ctx.onStep('tidy_terms', 'running', `新建领域 ${name}`);
+      summary = domainAdd(name, String(args.note ?? ''));
+    } else if (action === 'domain_remove') {
+      const name = String(args.domain ?? '').trim();
+      if (!name) {
+        ctx.onStep('tidy_terms', 'error', '缺少领域名');
+        return { content: 'domain_remove 需要 domain（要删除的领域名），请重新调用 tidy_terms。' };
+      }
+      ctx.onStep('tidy_terms', 'running', `删除领域 ${name}`);
+      summary = domainRemove(name);
     } else {
       ctx.onStep('tidy_terms', 'error', '未知 action');
-      return { content: 'tidy_terms 的 action 只能是 auto / merge / rename_domain，请重新调用。' };
+      return {
+        content: 'tidy_terms 的 action 只能是 auto / merge / rename_domain / domain_add / domain_remove，请重新调用。',
+      };
     }
     const done =
       summary.message ??

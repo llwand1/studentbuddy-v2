@@ -1,0 +1,29 @@
+/**
+ * storage/migrations-list — 迁移清单**聚合出口**（唯一对外出口，`migrations.ts` 只认 `MIGRATIONS`）。
+ *
+ * 清单数据已按版本区间拆到两个分片文件（2026-09-16 二次拆分）：
+ *  · `migrations-list-v1-9.ts`  —— v1~v9  建库地基 / M2 练析 / M3 忆 / M4 反馈环 /
+ *                                M5 忆域重做 / 文档模式 / 词条整理 / 深度理解 / 可观测
+ *  · `migrations-list-v10.ts`   —— v10 及之后（PK 域 / 过程回放 / 刷题笔记 / 呈现形态 /
+ *                                方案选择框 / 对战历史 / 长期记忆 / 看图 / 学习流）
+ *
+ * **拆分理由**：清单是**只会单向增长**的数据。本文件 2026-09-14 从 `db.ts` 拆出（当时
+ * 404 行触 AGENTS.md「.ts ≤400 行」红线），拆完 387 行；2026-09-16 加 v18（学习流，七张表）
+ * 后再次触线。分片文件里原有注释写明的规矩是「**按版本区间再切，不要用「压注释」换行数**」
+ * ——那些注释记的是每张表**为什么这么建**，价值远高于行数，故本次严格照此办理。
+ *
+ * **零行为改动**：迁移语句与注释一字未改，只是换了文件放。执行器（`migrations.ts`）
+ * 一行未动，仍然只消费 `MIGRATIONS` 这一个数组。
+ *
+ * ★ 追加新迁移 ＝ 往 `migrations-list-v10.ts` 数组**尾部**加一项（v 号顺延），
+ *   **不要动既有项**——已应用的版本号是历史锚点，改了不会重跑，只会让新库与老库结构分叉。
+ * ⚠️ 回放迁移链的测试必须把**加列**也 DROP 掉（`ALTER TABLE ADD COLUMN` 不幂等，
+ *   本仓实测踩过 `duplicate column name: summary` / `: images`，见 `storage/db.test.ts`）。
+ */
+import { MIGRATIONS_V1_9 } from './migrations-list-v1-9.js';
+import { MIGRATIONS_V10 } from './migrations-list-v10.js';
+
+export const MIGRATIONS: Array<{ version: number; statements: string[] }> = [
+  ...MIGRATIONS_V1_9,
+  ...MIGRATIONS_V10,
+];

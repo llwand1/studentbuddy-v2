@@ -11,11 +11,15 @@ import { sweepStaleChoices } from './chat/choice.js';
 import { quizRouter } from './routes/quiz.js';
 import { notesRouter } from './routes/notes.js';
 import { termsRouter } from './routes/terms.js';
+import { memoryRouter } from './routes/memory.js';
 import { documentRouter } from './routes/document.js';
 import { activityRouter } from './routes/activity.js';
 import { obsRouter } from './routes/obs.js';
 import { previewRouter } from './routes/preview.js';
 import { pkRouter } from './routes/pk.js';
+import { studyFlowRouter } from './routes/study-flow.js';
+import { scenarioRouter } from './routes/scenario.js';
+import { registerDefaultExecutors } from './learning/flow-executors.js';
 import { wireActivityEvents } from './learning/activity.js';
 import { wireObsEvents } from './storage/obs.js';
 import { getDb } from './storage/db.js';
@@ -38,7 +42,17 @@ app.use(
     credentials: false,
   }),
 );
-app.use(express.json({ limit: '2mb' })); // 防大 payload DoS（继承 v1）
+// 防大 payload DoS（继承 v1）——但**只有发图那条路**需要放大：
+// `/api/chat/send` 走 base64 内联（零依赖、零静态服务），一张截图 base64 就 2~5MB，
+// 沿用 2mb 会让「点了发送没反应」——实测请求根本到不了路由就被 413 打回（v17 踩到）。
+// 故按路径分流：其余端点仍是 2mb 原封不动，只把承载图片的这一条抬到 24mb
+// （= 单张上限 5MB × 最多 4 张 + 余量，与 chat/vision.ts 的 MAX_DATAURL_CHARS 同一套账）。
+const jsonSmall = express.json({ limit: '2mb' });
+const jsonForImages = express.json({ limit: '24mb' });
+app.use((req, res, next) => {
+  const parser = req.path === '/api/chat/send' ? jsonForImages : jsonSmall;
+  parser(req, res, next);
+});
 app.use('/api', originCheck);
 
 app.get<never, StatusResponse>('/api/status', (_req, res) => {
@@ -53,6 +67,7 @@ app.use('/api/providers', providersRouter);
 app.use('/api/quiz', quizRouter);
 app.use('/api/notes', notesRouter);
 app.use('/api/terms', termsRouter);
+app.use('/api/memory', memoryRouter);
 app.use('/api/doc', documentRouter);
 app.use('/api/activity', activityRouter);
 app.use('/api/obs', obsRouter);
@@ -60,6 +75,8 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/preview', previewRouter);
 app.use('/api/pk', pkRouter);
 app.use('/api/choices', choiceRouter);
+app.use('/api/study-flow', studyFlowRouter);
+app.use('/api/scenario', scenarioRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
@@ -78,6 +95,9 @@ if (process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('index.js
   initChatInfra();
   wireActivityEvents();
   wireObsEvents();
+  // 学习流：注册六种「学习交互体验」的默认执行器（委派既有单轮编排，见 learning/flow-executors.ts）。
+  // ★ 必须在服务开始接请求前注册完——否则第一步推进就会撞「尚未接入执行器」而失败。
+  registerDefaultExecutors();
   // 逃生口③（启动清理）：重启后内存里挂起的 Promise 已随进程消失，库里遗留的 pending
   // 方案选择永远等不到答复——不清就会变成前端能捞到、却怎么点都没反应的死卡。
   const swept = sweepStaleChoices();

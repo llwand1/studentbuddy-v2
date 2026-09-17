@@ -24,6 +24,7 @@ import {
   TOPIC_MAX,
   isAiUserId,
   type PkEndReason,
+  type PkQuizPending,
   type PkIdentity,
   type PkMode,
   type PkPlayer,
@@ -74,6 +75,12 @@ export interface Room {
   winner?: string;
   /** P0-8：仅 `forfeit`（认输）时置位——`timeup` 不写，保持「老字段语义不变」 */
   endReason?: PkEndReason;
+  /**
+   * UX 批：正在 AI 出题的人（出题开始置位、生成完或失败即清除）。
+   * ★ 放房间状态里（而不是单发一条 SSE 事件）是为了**刷新回来仍在**——
+   *   事件是瞬时的，刷新就丢；状态是持久的，重连拿快照就知道「对手还在出题」。
+   */
+  quizPending?: PkQuizPending;
   /** 最近一次状态变更时刻（ms）：TTL 回收判据 */
   lastActivity: number;
 }
@@ -131,6 +138,25 @@ function toPlayer(identity: PkIdentity, topic = ''): PkPlayer {
 /** 派生对外快照：players/questions 逐层复制，防调用方改到内部状态。
  *  ★ `answer` 只在题目已判定（answered/timeout）时以 `answerRevealed` 名义下发；
  *    pending 题连键都没有——「正确答案永不下发」在结构层面成立（契约 §1）。 */
+// ── UX 批：出题中标记（2026-09-15 老板点单「对面出题能不能给个过渡」）────────
+
+/**
+ * 置「出题中」标记。**出题开始即调用**（在 `await` 生成之前），让答题方立刻看到提示。
+ * ★ 放 room.ts 而不是在 match.ts 内联：① 房间状态的操作该由状态机自己管；
+ *   ② `match.ts` 已贴 400 行门禁，内联会把它顶破。
+ */
+export function setQuizPending(room: Room, userId: string, at: number): void {
+  room.quizPending = { userId, at };
+}
+
+/**
+ * 清「出题中」标记。★ **跑题／生成失败／成功三条出口都必须调**——漏一条，
+ * 对手就会永远看到「正在出题」，那比当初干脆不给这个信号还糟（他会以为卡死了）。
+ */
+export function clearQuizPending(room: Room): void {
+  delete room.quizPending;
+}
+
 export function snapshotRoom(room: Room): PkRoomState {
   const state: PkRoomState = {
     roomId: room.roomId,
@@ -168,6 +194,8 @@ export function snapshotRoom(room: Room): PkRoomState {
   if (room.aiTopic) state.aiTopic = room.aiTopic;
   if (room.winner) state.winner = room.winner;
   if (room.endReason) state.endReason = room.endReason;
+  // UX 批：出题中（公开事实，双方都该看到「谁在出题」）
+  if (room.quizPending) state.quizPending = room.quizPending;
   return state;
 }
 

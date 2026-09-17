@@ -4,8 +4,34 @@
  * AbortSignal 桥接（停止生成真断流）/ tool_calls 增量合并 / 多推理字段兼容 /
  * 脏 SSE 行容错 / assistant(tool_calls) 的 content 用空串而非 null（部分网关拒绝 null）。
  */
-import type { ChatMessage, ChatRequest, LLMAdapter, ModelListRequest, TokenChunk, ToolCall } from './types.js';
+import type { ChatMessage, ChatRequest, ContentPart, LLMAdapter, ModelListRequest, TokenChunk, ToolCall } from './types.js';
 import { getMaxOutputTokens } from './model-limits.js';
+
+/**
+ * content 可能已是多模态段数组（视觉调用传图）。openai 视觉 API 认 `image_url` part，
+ * 与 OpenAI 多模态消息格式一致；纯文本主模型不会收到图片 part（蒸馏在 chat/vision.ts 完成）。
+ */
+function toOpenAIContent(content: string | ContentPart[]): string | Array<Record<string, unknown>> {
+  if (typeof content === 'string') return content;
+  return content.map((p: ContentPart) =>
+    p.type === 'text'
+      ? { type: 'text', text: p.text }
+      : { type: 'image_url', image_url: { url: p.image_url.url } },
+  );
+}
+
+/**
+ * 内部强绑口径 `{type:'function', name}` → OpenAI 出站规范 `{type:'function', function:{name}}`。
+ * 真机 500 实证（2026-09-17，grill-me 首用即炸）：OpenAI 严格按 spec 校验，
+ * 简写 `{type:'function',name}` 会被拒——"Invalid tool choice, ... Please ensure
+ * tool_choice follows the OpenAI spec"。此前误把简写当 OpenAI 口径原样透传。
+ */
+function toOpenAIToolChoice(
+  tc: ChatRequest['toolChoice'],
+): 'auto' | 'none' | { type: 'function'; function: { name: string } } {
+  if (!tc || tc === 'auto' || tc === 'none') return tc ?? 'auto';
+  return { type: 'function', function: { name: tc.name } };
+}
 
 function toOpenAIMessages(messages: ChatMessage[]): Record<string, unknown>[] {
   return messages.map((m) => {
@@ -23,7 +49,7 @@ function toOpenAIMessages(messages: ChatMessage[]): Record<string, unknown>[] {
     if (m.role === 'tool') {
       return { role: 'tool', tool_call_id: m.toolCallId, content: m.content };
     }
-    return { role: m.role, content: m.content };
+    return { role: m.role, content: toOpenAIContent(m.content) };
   });
 }
 
@@ -62,7 +88,8 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
       };
       if (req.tools && req.tools.length > 0) {
         body.tools = req.tools;
-        body.tool_choice = 'auto';
+        // v18.1：强绑工具（grill-me 必问）——出站前转 OpenAI 规范口径，默认仍是 'auto'
+        body.tool_choice = toOpenAIToolChoice(req.toolChoice);
       }
 
       const response = await fetch(url, {
@@ -181,7 +208,8 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
       };
       if (req.tools && req.tools.length > 0) {
         body.tools = req.tools;
-        body.tool_choice = 'auto';
+        // v18.1：强绑工具（grill-me 必问）——出站前转 OpenAI 规范口径，默认仍是 'auto'
+        body.tool_choice = toOpenAIToolChoice(req.toolChoice);
       }
 
       const response = await fetch(url, {

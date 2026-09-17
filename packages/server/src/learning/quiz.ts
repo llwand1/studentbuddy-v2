@@ -222,7 +222,7 @@ export function applyQuizMix(
   quiz: QuizPayload,
   mix: QuizMix,
 ): { quiz: QuizPayload | null; report: QuizMixReport } {
-  const actual: QuizMix = { single: 0, multiple: 0, fill: 0, essay: 0 };
+  const actual: QuizMix = { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 };
   const kept: QuizQuestion[] = [];
   for (const q of quiz.questions) {
     const t = q.type as QuizType;
@@ -315,7 +315,10 @@ export function listQuiz(): Array<{ id: string; title: string; source: string; c
   return rows.map((r) => {
     let count = 0;
     try {
-      count = (JSON.parse(r.data) as QuizPayload).questions.length;
+      // 情景题（契约 docs/SCENARIO-SPEC.md）的 data 是 ScenarioPayload：有 tasks 键按任务数计，
+      // 其余仍按传统题组的 questions 计——一份列表两种形状，解析只看键不猜 source。
+      const parsed = JSON.parse(r.data) as QuizPayload & { tasks?: unknown[] };
+      count = Array.isArray(parsed.tasks) ? parsed.tasks.length : (parsed.questions?.length ?? 0);
     } catch {
       count = 0;
     }
@@ -356,28 +359,11 @@ export function recordAnswer(quizId: string, index: number, correct: boolean): v
   ).run(quizId, index, attempts, correctCount, streak, best, correct ? 'correct' : 'wrong');
 }
 
-export interface WeakPoint {
-  topic: string;
-  questionIndexes: number[];
-  reason: string;
-  suggestion: string;
-}
-
-/** 薄弱点分析：本地规则版（错题聚类）+ 可选 AI 报告（analyzer 角色），失败降级本地版。 */
-export function analyzeWeakPoints(quizId: string): { weak: WeakPoint[]; fallback: boolean } {
-  const quiz = getQuiz(quizId);
-  const stats = getDb()
-    .prepare('SELECT question_index, attempts, correct, streak FROM quiz_stats WHERE quiz_id = ?')
-    .all(quizId) as Array<{ question_index: number; attempts: number; correct: number; streak: number }>;
-  const wrong = stats.filter((s) => s.attempts > 0 && s.correct / s.attempts < 0.6);
-  if (!quiz || wrong.length === 0) return { weak: [], fallback: true };
-  const weak: WeakPoint[] = [
-    {
-      topic: quiz.title ?? '本题库',
-      questionIndexes: wrong.map((w) => w.question_index),
-      reason: '正确率低于 60% 的题目',
-      suggestion: '针对这些题重新练习，并阅读解析',
-    },
-  ];
-  return { weak, fallback: true };
-}
+// ── 薄弱点分析已迁出（2026-09-15）──
+// 旧实现在此：纯本地规则，产出两句硬编码文案（'正确率低于 60% 的题目' / '针对这些题重新练习，并阅读解析'），
+// 且 fallback 恒为 true；函数上方注释写的「+ 可选 AI 报告（analyzer 角色）」从未实现过。
+// 现移到 `learning/quiz-weak.ts`（契约 docs/QUIZ-WEAK-SPEC.md）：AI 实时分析为主路径、本地规则为降级。
+// 迁出理由有二：① 本文件当时 383/400 行，触 AGENTS.md「再加任何逻辑前必须先开新文件」红线；
+// ② 分析要接 analyzer 角色调模型，与「出题引擎」是两种生命周期。
+// ★ 刻意**不在本文件 re-export**（`quiz-image.ts` 那套做法在这里会构成循环依赖：
+//   quiz-weak.ts 反过来 import 本文件的 getQuiz）。调用方 routes/quiz.ts 已直接改指新路径。

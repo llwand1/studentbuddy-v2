@@ -18,7 +18,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { describeChoiceReply, normalizeChoiceInput, normalizeChoiceReply } from '@sb/shared';
-import type { AskChoiceRecord, AskChoiceReply, ChoiceOption, ChoiceStatus } from '@sb/shared';
+import type { AskChoiceRecord, AskChoiceReply, ChoiceOption, ChoiceStatus, GrillPhase } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { publish } from './sse-bus.js';
 
@@ -145,6 +145,13 @@ export interface AskChoiceInput {
   options: unknown;
   allowCustom?: unknown;
   multi?: unknown;
+  /**
+   * grill-me 阶段（v18）。**刻意不落库**（`ask_choices` 表无此列）：
+   * 它只在内存与 SSE 下发里活——前端靠它决定「选完是续本轮还是开新一轮」。
+   * 代价：刷新后由 `listPendingChoices` 捞回的卡降级为普通卡（点选不自动发下一轮），
+   * 这个降级可接受——刷新页面时那张卡本身也已不在原语境里。
+   */
+  grillPhase?: GrillPhase;
 }
 
 export type AskChoiceResult = { ok: true; record: AskChoiceRecord } | { ok: false; error: string };
@@ -170,6 +177,7 @@ export async function askChoice(input: AskChoiceInput): Promise<AskChoiceResult>
     options: norm.options,
     allowCustom: norm.allowCustom,
     multi: norm.multi,
+    ...(input.grillPhase ? { grillPhase: input.grillPhase } : {}),
     ts: Date.now(),
     status: 'pending',
     reply: null,
@@ -184,6 +192,44 @@ export async function askChoice(input: AskChoiceInput): Promise<AskChoiceResult>
   const settled = await waited;
   waiters.delete(id);
   return { ok: true, record: settled };
+}
+
+/**
+ * **只提问、不等答复**（v18 grill-me 收尾专用）：落库 + 广播后立即返回，调用方不挂起。
+ *
+ * 为什么与 `askChoice` 分家：收尾那张卡问的是「下一步」，此时本轮回答已经给完了，
+ * 再 `await` 会把这一轮钉在 busy 上直到用户点一下——「可以跳过」就成了假承诺
+ * （不点＝卡住，点了＝才能继续）。用户点选后由**前端把选项文案作为新一轮提问发出**，
+ * 本轮不参与，也不回灌模型（回灌会让模型在本轮末尾再讲一遍）。
+ *
+ * 复用同一个 `waiters` 生态：用户答复走 `answerChoice`，照样能唤醒（本函数只是不 await）。
+ */
+export function offerChoice(input: AskChoiceInput): AskChoiceResult {
+  const norm = normalizeChoiceInput({
+    question: input.question,
+    options: input.options,
+    allowCustom: input.allowCustom,
+    multi: input.multi,
+  });
+  if (!norm.ok) return { ok: false, error: norm.error };
+
+  const id = randomUUID();
+  const record: AskChoiceRecord = {
+    id,
+    sessionId: input.sessionId,
+    question: norm.question,
+    options: norm.options,
+    allowCustom: norm.allowCustom,
+    multi: norm.multi,
+    ...(input.grillPhase ? { grillPhase: input.grillPhase } : {}),
+    ts: Date.now(),
+    status: 'pending',
+    reply: null,
+    answeredAt: null,
+  };
+  insertAsk(record);
+  publish(input.sessionId, { type: 'choice-asked', sessionId: input.sessionId, request: record });
+  return { ok: true, record };
 }
 
 export type AnswerResult = { ok: true; record: AskChoiceRecord } | { ok: false; status: number; error: string };

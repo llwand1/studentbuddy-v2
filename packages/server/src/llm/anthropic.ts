@@ -8,7 +8,7 @@
  *   思考块随 assistant 轮回灌（Anthropic 契约：thinking + tool 循环不回传思考块会 400）；
  * - listModels 走真实 /models 端点（此前是写死三个型号的桩）。
  */
-import type { ChatRequest, LLMAdapter, ModelListRequest, TokenChunk, ToolCall } from './types.js';
+import type { ChatRequest, ContentPart, LLMAdapter, ModelListRequest, TokenChunk, ToolCall } from './types.js';
 import { getMaxOutputTokens } from './model-limits.js';
 
 /** 思考预算（tokens）：≥1024 是 Anthropic 硬下限；max_tokens 必须大于它 */
@@ -64,6 +64,10 @@ export class AnthropicAdapter implements LLMAdapter {
               content: [{ type: 'tool_result' as const, tool_use_id: m.toolCallId, content: m.content }],
             };
           }
+          // 多模态段（v17 看图）：把 image_url dataURL 转成 Anthropic 的 base64 图片 block
+          if (Array.isArray(m.content)) {
+            return { role: m.role, content: m.content.map(partToAnthropic) };
+          }
           return { role: m.role, content: m.content };
         }),
         system: systemBlocks.filter(Boolean).join('\n\n') || undefined,
@@ -82,6 +86,11 @@ export class AnthropicAdapter implements LLMAdapter {
           description: t.function.description || '',
           input_schema: t.function.parameters || { type: 'object', properties: {} },
         }));
+        // v18：强绑工具（grill-me 必问）。**必须转换口径**——Anthropic 是 `{type:'tool',name}`，
+        // 与 OpenAI 的 `{type:'function',name}` 不同名，原样透传会 400。不传时 Anthropic 默认即 auto。
+        const tc = req.toolChoice;
+        if (tc === 'auto') body.tool_choice = { type: 'auto' };
+        else if (tc && tc !== 'none') body.tool_choice = { type: 'tool', name: tc.name };
       }
 
       const response = await fetch(url, {
@@ -199,4 +208,20 @@ function safeParse(s: string): Record<string, unknown> {
   } catch {
     return {};
   }
+}
+
+/**
+ * content-part → Anthropic content block。
+ * 视觉调用传的是 `data:image/<ext>;base64,...` 的 dataURL，Anthropic 要 base64 source 块
+ * （media_type 认 image/png|jpeg|gif|webp，jpg 归一成 jpeg）。
+ */
+function partToAnthropic(p: ContentPart): Record<string, unknown> {
+  if (p.type === 'text') return { type: 'text', text: p.text };
+  const m = /^data:image\/([a-zA-Z0-9.+-]+);base64,(.*)$/s.exec(p.image_url.url);
+  if (m) {
+    const sub = m[1] === 'jpg' ? 'jpeg' : m[1];
+    return { type: 'image', source: { type: 'base64', media_type: `image/${sub}`, data: m[2] } };
+  }
+  // 非 dataURL（罕见）退回 url source（Anthropic 远端图 beta）
+  return { type: 'image', source: { type: 'url', url: p.image_url.url } };
 }

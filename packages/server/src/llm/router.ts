@@ -18,6 +18,9 @@ export const MODEL_ROLES: Array<{ role: ModelRole; label: string }> = [
   { role: 'summarizer', label: '总结' },
   // P0-7 新增：PK 裁判（出理解题/判贴合度/给建议）。数组驱动 ⇒ 默认绑定 INSERT 与设置页渲染都自动带上，无需迁移
   { role: 'judge', label: '裁判（PK 判题）' },
+  // v17 新增：视觉（看图）。纯文本主模型借它「读图」——图→视觉模型→文字描述→塞回主模型上下文。
+  // 数组驱动 ⇒ 设置页「角色模型绑定」自动多出一列，无需额外写 UI；未绑定时 flow 给清晰报错。
+  { role: 'vision', label: '视觉（看图）' },
 ];
 
 const adapters: Record<'openai' | 'anthropic', LLMAdapter> = {

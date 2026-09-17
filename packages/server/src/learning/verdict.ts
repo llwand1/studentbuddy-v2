@@ -1,6 +1,6 @@
 /**
  * learning/verdict — [VERDICT] 协议：流式闸门 + 解析 + 归一化（纯函数、零 IO、可单测）。
- * COGNITIVE-EVOLUTION-SPEC v1.1 §6.1/§6.3（WBS 任务 3）。
+ * DEEP-UNDERSTANDING-SPEC v1.1 §6.1/§6.3（WBS 任务 3）。
  *
  * 闸门保证 [VERDICT] 段既不上屏也不落 messages——维持 flow.ts「屏上文本 == 库内文本」铁律；
  * parse/normalize 与 parseQuizBlock/parseTermsBlock 同族容错；met 字段为 v1.1 证据式判定，

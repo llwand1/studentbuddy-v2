@@ -136,10 +136,20 @@ export async function extractTerms(material: string): Promise<TermItem[]> {
   const target = routeRole('explain'); // 抽取复用讲解角色模型；契约留扩展点：可拆独立 extractor 角色
   if (!target || !target.model) return [];
   let acc = '';
-  // 防领域碎裂：注入已有领域 top-12，引导新词条优先归入既有领域（TERM-TIDY-SPEC §7.2）
-  const known = domainStats()
-    .domains.slice(0, 12)
-    .map((d) => d.domain);
+  // 防领域碎裂：注入已有领域 top-12，引导新词条优先归入既有领域（TERM-TIDY-SPEC §7.2）。
+  // 领域清单**直查 `term_domain`**，不 import `learning/domains.ts`——那会成
+  // `terms → domains → tidy → terms` 环（见 domains.ts 头注释的依赖方向说明）。
+  // 排序仍按词条数降序（与 v19 前 `domainStats().domains.slice(0,12)` 的口径一致）；
+  // 空领域（count=0）排在最末，只在领域总数不足 12 时才进引导——它没有词条作例证，引导力弱。
+  const known = (
+    getDb()
+      .prepare(
+        `SELECT d.name AS name FROM term_domain d
+           LEFT JOIN term_library t ON t.domain = d.name
+          GROUP BY d.name ORDER BY COUNT(t.id) DESC, d.name ASC LIMIT 12`,
+      )
+      .all() as Array<{ name: string }>
+  ).map((r) => r.name);
   const guide = known.length > 0 ? `\n已有领域（优先复用，确实不属于再新建）：${known.join('、')}` : '';
   const prompt = `${TERMS_PROTOCOL}${guide}\n\n材料：\n${material.slice(0, 30000)}`;
   try {
@@ -184,10 +194,16 @@ export function saveTerms(items: TermItem[], sourceSessionId?: string | null): n
      WHERE id = ?`,
   );
   const index = buildTermIndex();
+  // ★ 不变式（v19）：`term_library.domain ⊆ term_domain.name`——落词条前先登记领域。
+  // 为什么放在**写入侧**而不是靠人工同步：`extractTerms` 的提示词只做「优先复用已有领域」的
+  // 软引导，不做白名单硬拦（硬拦会把还没归好类的词条憋回去），所以模型随时会吐出全新领域名；
+  // 登记册若靠人同步就必然滞后 ⇒ 领域 Tab 漏项。幂等交给库约束（同 v10 `UNIQUE(kind, content)` 手法）。
+  const ensureDomain = db.prepare('INSERT OR IGNORE INTO term_domain (name) VALUES (?)');
   const tx = db.transaction(() => {
     for (const t of norm) {
       const imp = t.importance ?? 0.5;
       const domain = t.domain ?? 'general'; // normalizeTerms 已兜底，类型收口
+      ensureDomain.run(domain);
       const hit = index.find(t.term, domain);
       if (hit) {
         // 并入已有行：与 ON CONFLICT 同语义（importance 不低于现值才覆盖释义）
@@ -209,6 +225,8 @@ export function saveOneTerm(term: string, definition: string, domain?: string): 
   const db = getDb();
   const d = (domain ?? '').trim().toLowerCase().slice(0, 30) || 'general';
   const t = term.trim();
+  // 同 saveTerms：先登记领域再落词条（v19 不变式）——列表页「添加」与对话工具 manage_terms 都走这里
+  db.prepare('INSERT OR IGNORE INTO term_domain (name) VALUES (?)').run(d);
   const hit = buildTermIndex().find(t, d);
   let rowId = hit;
   if (hit) {
@@ -251,19 +269,6 @@ export function listTerms(domain?: string, keyword?: string): Array<TermApiRow &
     )
     .all(...args) as Array<TermRow & { source_title: string | null }>;
   return rows.map((r) => ({ ...r, aliases: parseAliases(r.aliases) }));
-}
-
-/** 领域统计（前端 Tab + 顶部统计）。 */
-export function domainStats(): { total: number; domains: Array<{ domain: string; count: number }>; today: number } {
-  const db = getDb();
-  const total = (db.prepare('SELECT COUNT(*) AS c FROM term_library').get() as { c: number }).c;
-  const domains = db
-    .prepare('SELECT domain, COUNT(*) AS count FROM term_library GROUP BY domain ORDER BY count DESC')
-    .all() as Array<{ domain: string; count: number }>;
-  const today = (
-    db.prepare("SELECT COUNT(*) AS c FROM term_library WHERE created_at >= date('now')").get() as { c: number }
-  ).c;
-  return { total, domains, today };
 }
 
 /**

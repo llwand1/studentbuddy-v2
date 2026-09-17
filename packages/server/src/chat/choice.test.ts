@@ -22,6 +22,7 @@ import {
   listPendingChoices,
   sweepStaleChoices,
 } from './choice.js';
+import { CHOICE_NUDGE, choiceNudge } from './choice-nudge.js';
 
 let tmpDir = '';
 
@@ -235,5 +236,54 @@ describe('listPendingChoices 与回灌文案', () => {
     const hint = choiceToolHint(rec!);
     expect(hint).toContain('已作废');
     expect(hint).toContain('不要再次调用 ask_choice');
+  });
+});
+
+describe('触发增强 choiceNudge（词表：宁可漏，不可误）', () => {
+  it('明显的二选一 / 规划 / 求助选择 → 命中', () => {
+    for (const t of [
+      '我想学动态规划，先学背包还是线性DP？',
+      '帮我选一下，是先补基础还是直接刷题',
+      '期末周快到了，怎么安排复习？',
+      '不知道从哪开始，帮我拿个主意',
+      '这个知识点要不要现在就深入？',
+      '给我列个学习计划',
+      '期末只剩两周，帮我定个复习计划',
+      '按概念整理还是按题型整理',
+    ]) {
+      expect(choiceNudge(t), t).not.toBeNull();
+    }
+  });
+
+  it('求讲解 / 求排错 → 不命中（误弹比漏弹更伤体验）', () => {
+    for (const t of [
+      '什么是动态规划？',
+      '快排和归并的区别是什么',
+      '为什么这段代码会报错',
+      '讲一下热力学第二定律',
+      '怎么用二分查找实现 sqrt',
+      '这道选择题选什么', // 含"选"但它是题目本身，不是让 AI 给方案
+      '二叉树遍历有哪些方法', // 求列举讲解，不是索要方案
+      '线程和进程哪个优先级高', // 知识问答，不是求助选择
+      '这个公式我还是不懂', // 追问态，不是在做选择
+    ]) {
+      expect(choiceNudge(t), t).toBeNull();
+    }
+  });
+
+  it('排除表优先于信号表：同一句里两者都出现时不弹', () => {
+    expect(choiceNudge('DP 和贪心的区别是什么，我该选哪个学？')).toBeNull();
+  });
+
+  it('过短输入不判断（闲聊/追问不该弹框）', () => {
+    expect(choiceNudge('在吗')).toBeNull();
+    expect(choiceNudge('')).toBeNull();
+    expect(choiceNudge('   ')).toBeNull();
+  });
+
+  it('命中返回的是固定硬指令文本（flow 据此注入并事后精确摘除）', () => {
+    const n = choiceNudge('帮我选一个学习路线');
+    expect(n).toBe(CHOICE_NUDGE);
+    expect(n).toContain('ask_choice');
   });
 });

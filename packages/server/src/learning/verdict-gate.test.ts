@@ -1,5 +1,5 @@
 /**
- * learning/verdict-gate.test.ts — [VERDICT] 流式闸门边界（COGNITIVE-EVOLUTION-SPEC v1 §6.3 · §13 清单行 2）。
+ * learning/verdict-gate.test.ts — [VERDICT] 流式闸门边界（DEEP-UNDERSTANDING-SPEC v1 §6.3 · §13 清单行 2）。
  * 锁死：跨 chunk 标记切分不吞文、未闭合 flush 原样吐回、一轮多块、闭合后正文继续。
  */
 import { describe, it, expect } from 'vitest';

@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { openIsolated, closeDb } from '../storage/db.js';
 import { getDb } from '../storage/db.js';
-import { parseTermsBlock, normalizeTerms, saveTerms, saveOneTerm, listTerms, domainStats, removeTerm, updateTerm, getRelevantTerms, countUsage, extractTerms } from './terms.js';
+import { parseTermsBlock, normalizeTerms, saveTerms, saveOneTerm, listTerms, removeTerm, updateTerm, getRelevantTerms, countUsage, extractTerms } from './terms.js';
 
 // extractTerms 的 LLM 调用走 mock（捕获出站提示词；本文件其余用例不触 LLM）
 let lastPrompt = '';
@@ -106,17 +106,6 @@ describe('learning/terms — 入库与合并', () => {
     expect(listTerms()).toHaveLength(0);
   });
 
-  it('domainStats 统计总数/领域分布/今日新增', () => {
-    saveTerms([
-      { term: 'a', definition: 'a', domain: 'english', importance: 0.5 },
-      { term: 'b', definition: 'b', domain: 'english', importance: 0.5 },
-      { term: 'c', definition: 'c', domain: 'math', importance: 0.5 },
-    ]);
-    const s = domainStats();
-    expect(s.total).toBe(3);
-    expect(s.domains.find((d) => d.domain === 'english')?.count).toBe(2);
-    expect(s.today).toBe(3);
-  });
 });
 
 describe('learning/terms — 防再分裂（TERM-TIDY-SPEC §7）', () => {

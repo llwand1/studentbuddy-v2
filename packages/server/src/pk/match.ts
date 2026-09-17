@@ -23,7 +23,15 @@ import {
 import type { PkQuestion, QuizPayload, QuizQuestion } from '@sb/shared';
 import { publish } from '../chat/sse-bus.js';
 import { generateQuiz } from '../learning/quiz.js';
-import { allRoomsInternal, requireRoomInternal, snapshotRoom, type PkRoomQuestion, type Room } from './room.js';
+import {
+  allRoomsInternal,
+  clearQuizPending,
+  requireRoomInternal,
+  setQuizPending,
+  snapshotRoom,
+  type PkRoomQuestion,
+  type Room,
+} from './room.js';
 import { runAiAnswer, runAiQuiz } from './ai-bot.js';
 import { buildTopicAdvice, judgeTopicFit } from './judge.js';
 import { settleRoom } from './settle.js';
@@ -134,6 +142,8 @@ export async function submitQuiz(
   author.lastQuizAt = now;
   room.idleAnchor[userId] = now;
   room.lastActivity = now;
+  // UX 批：先广播「我在出题」——生成要数秒，答题方此刻就该看到提示，而不是干等题目凭空出现
+  setQuizPending(room, userId, now);
   publishState(room);
 
   /** 回滚 CD：跑题与 AI 失败都不算「用掉了出题额度」——不回滚就等于罚人 60 秒，他不明白自己错在哪 */
@@ -173,6 +183,7 @@ export async function submitQuiz(
     // ② 只有扣分时才让裁判出建议——每次跑题都调一次模型，既烧额度又把建议说廉价了
     const advice = struck ? await buildTopicAdvice(topic) : null;
     rollbackCd();
+    clearQuizPending(room);
     room.lastActivity = now;
     publishState(room);
     fail('TOPIC_MISMATCH', {
@@ -183,6 +194,9 @@ export async function submitQuiz(
     });
   }
 
+  // ★ 必须在 pushGeneratedQuestion **之前**清：它内部成功后会立刻 publishState，
+  //   清晚了对手收到的就是「题目已到 + 我还在出题」这种自相矛盾的状态。
+  clearQuizPending(room);
   const ok = pushGeneratedQuestion(room, userId, opponent.userId, prompt, generated, now, topic);
   if (!ok) {
     rollbackCd();

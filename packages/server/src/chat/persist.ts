@@ -49,12 +49,36 @@ export function persistRounds(
   return assistantId;
 }
 
-export function loadHistory(sessionId: string): ChatMessage[] {
+/**
+ * 历史消息 + 它在 `messages` 表里的 `rowid`。
+ *
+ * 为什么把 rowid 带到上层：长期记忆的压缩需要一个**单调、可比较、删除后不复用**的锚点
+ * 来记住「摘要覆盖到哪一条了」（契约 `docs/MEMORY-SPEC.md` §3.1）。`created_at` 只到秒，
+ * 同秒内的多条消息无法区分先后，做不了锚点。
+ *
+ * 做成 `ChatMessage` 的**子类型**而非给 `ChatMessage` 加字段：`llm/types.ts` 是
+ * **适配器契约**，混进 DB 概念不干净；子类型让既有调用方（`truncateHistoryToBudget`
+ * 等收 `ChatMessage[]` 的地方）零改动即可接收。
+ */
+export interface HistoryMessage extends ChatMessage {
+  rowid: number;
+}
+
+export function loadHistory(sessionId: string): HistoryMessage[] {
   const rows = getDb()
     // created_at 只到秒，同秒内的工具轮必须靠 rowid 保住 assistant→tool 的先后
-    .prepare(`SELECT role, content, tool_calls, tool_call_id FROM messages WHERE session_id = ? ORDER BY created_at, rowid`)
-    .all(sessionId) as Array<{ role: string; content: string; tool_calls: string | null; tool_call_id: string | null }>;
+    .prepare(
+      `SELECT rowid, role, content, tool_calls, tool_call_id FROM messages WHERE session_id = ? ORDER BY created_at, rowid`,
+    )
+    .all(sessionId) as Array<{
+    rowid: number;
+    role: string;
+    content: string;
+    tool_calls: string | null;
+    tool_call_id: string | null;
+  }>;
   return rows.map((r) => ({
+    rowid: r.rowid,
     role: r.role as ChatMessage['role'],
     content: r.content,
     toolCalls: r.tool_calls ? (JSON.parse(r.tool_calls) as ToolCall[]) : undefined,

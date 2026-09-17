@@ -24,17 +24,28 @@ const stub = vi.hoisted(() => ({
   searchSnippet: 'F=ma',
   /** 最近一次 chat() 收到的 messages（断言词条注入进了上下文） */
   lastMessages: [] as Array<{ role: string; content: string }>,
+  /** 本轮全部 chat() 调用（按序）——用于断言「首轮注入、次轮已摘除」这类跨轮变化 */
+  allMessages: [] as Array<Array<{ role: string; content: string }>>,
 }));
 
 vi.mock('../llm/router.js', () => ({
-  routeRole: () => ({
+  routeRole: (role?: string) => ({
     model: 'test-model',
     apiKey: 'k',
     baseUrl: 'http://127.0.0.1:1/v1',
     adapter: {
       type: 'openai' as const,
       async *chat(args: { messages: Array<{ role: string; content: string }> }) {
-        stub.lastMessages = args.messages;
+        // ★ 摘要角色的调用**不进 turn 队列**：长期记忆压缩是收尾后异步触发的（MEMORY-SPEC §4.1），
+        //   它与主流程无交互，却会走同一个 routeRole。不分角色的话，压缩会在测例结束前后
+        //   偷走下一测例的 `turns[0]`（`idx` 已被 beforeEach 归零）——表现为随机失败，
+        //   而根因与被测代码毫无关系。摘要产物由 compact.test.ts 自己锁。
+        if (role === 'summarizer') return;
+        // ★ 必须存**浅拷贝**：flow 传给适配器的是同一个 messages 数组，并在首轮后
+        //   `splice` 摘掉触发增强段。存引用的话 allMessages[0] 会被追溯性改掉，
+        //   于是「首轮有 nudge」永远断不出来（实测踩到：断言恒 false，而代码是对的）。
+        stub.lastMessages = [...args.messages];
+        stub.allMessages.push([...args.messages]);
         const turn = stub.turns[stub.idx++];
         if (turn instanceof Error) throw turn;
         for (const chunk of turn ?? []) yield chunk;
@@ -170,6 +181,7 @@ beforeEach(() => {
   stub.searchFail = null;
   stub.searchSnippet = 'F=ma';
   stub.lastMessages = [];
+  stub.allMessages = [];
   resetAnswerStyle(); // 偏好落 app_settings，不清就会流到下一个测例
   termsStub.relevant = [];
   termsStub.queries = [];
@@ -179,6 +191,9 @@ beforeEach(() => {
   tidyStub.calls = [];
   getDb().prepare('DELETE FROM messages').run();
   getDb().prepare('DELETE FROM sessions').run();
+  // 画像跨会话存活（这正是第二层的设计目的），故不会随 sessions 一起清——
+  // 不显式清就会从上一个测例漏进来，把「六段顺序」这类按条数断言的测例染绿/染红
+  getDb().prepare('DELETE FROM user_memory').run();
 });
 
 describe('单轨工具循环', () => {
@@ -416,10 +431,10 @@ describe('单轨工具循环', () => {
     expect(termsStub.queries).toEqual([['什么是闭包 closure？', 15]]);
     // 注入后的消息里应有第二条 system（基础提示 + 词条提示），词条行逐字正确（偏好段恒在其后）
     const sys = stub.lastMessages.filter((m) => m.role === 'system');
-    expect(sys).toHaveLength(3); // 基础提示 + 词条段 + 偏好段（偏好段恒在最后，不挤掉前两段）
-    expect(sys[1]?.content).toContain('优先使用这些术语');
-    expect(sys[1]?.content).toContain('- closure（cs）：闭包：函数与其词法作用域的绑定');
-    expect(sys[1]?.content).toContain('- scope（cs）：作用域：变量可被访问的范围');
+    expect(sys).toHaveLength(4); // 基础提示 + 日期段 + 词条段 + 偏好段（偏好段恒在最后）
+    expect(sys[2]?.content).toContain('优先使用这些术语');
+    expect(sys[2]?.content).toContain('- closure（cs）：闭包：函数与其词法作用域的绑定');
+    expect(sys[2]?.content).toContain('- scope（cs）：作用域：变量可被访问的范围');
     // 注入只进上下文，屏上与库内正文都不含词条提示
     expect(streamed(sid)).toBe('闭包（closure）是函数与其词法作用域的绑定。');
     const list = rows(sid);
@@ -504,8 +519,8 @@ describe('文档模式注入（契约 5.0 §5.1-2/3）', () => {
     expect(r.ok).toBe(true);
 
     const sys = stub.lastMessages.filter((m) => m.role === 'system');
-    expect(sys).toHaveLength(4); // 基础提示 + 词条段 + 资料段 + 偏好段
-    expect(sys[2]?.content).toContain('【资料 讲义.md】'); // 资料段仍在第三位，偏好段固定收尾
+    expect(sys).toHaveLength(5); // 基础提示 + 日期段 + 词条段 + 资料段 + 偏好段
+    expect(sys[3]?.content).toContain('【资料 讲义.md】'); // 资料段仍在词条段之后，偏好段固定收尾
     // 注入只进上下文：屏上与库内正文都不该出现资料段
     expect(streamed(sid)).toBe('按资料作答。');
     expect(rows(sid).at(-1)?.content).toBe('按资料作答。');
@@ -522,7 +537,7 @@ describe('文档模式注入（契约 5.0 §5.1-2/3）', () => {
     documentStub.doc = null;
     await handleMessage({ sessionId: sid, text: '第二问' });
     expect(stub.lastMessages.some((m) => m.content.includes('【资料'))).toBe(false);
-    expect(stub.lastMessages.filter((m) => m.role === 'system')).toHaveLength(2); // 基础 + 偏好（资料段已清）
+    expect(stub.lastMessages.filter((m) => m.role === 'system')).toHaveLength(3); // 基础 + 日期 + 偏好（资料段已清）
   });
 
   it('资料段计入截断预算：载入 4 万字资料后被载历史明变少', async () => {
@@ -575,8 +590,8 @@ describe('回答方式偏好注入（契约 ANSWER-STYLE §3）', () => {
 
     await handleMessage({ sessionId: sid, text: '什么是加速度' });
     const sys = sysNow();
-    expect(sys).toHaveLength(3); // 基础 + 词条 + 偏好
-    expect(sys[1]?.content).toContain('优先使用这些术语');
+    expect(sys).toHaveLength(4); // 基础 + 日期 + 词条 + 偏好
+    expect(sys[2]?.content).toContain('优先使用这些术语');
     expect(sys.at(-1)?.content).toContain('结论先行'); // 默认 verbosity=standard
     expect(sys.at(-1)?.content).toContain('讲人话'); // 默认 tone=teacher，与现状同话
   });
@@ -614,6 +629,187 @@ describe('回答方式偏好注入（契约 ANSWER-STYLE §3）', () => {
     const block = sysNow().at(-1)?.content ?? '';
     expect(block).toContain('结论先行');
     expect(block).not.toContain('宁长勿短');
+  });
+});
+
+/**
+ * 长期记忆注入（契约 MEMORY-SPEC §4.4/§5.3）。
+ *
+ * 这里锁的是**段的位置与条数**，不是摘要内容——内容质量无 ground truth，见 SPEC §12。
+ * 位置为什么值得单独立锁：`openai` 适配器把多段 system **全量透传**（`anthropic` 侧会合并成
+ * 一段故无差异），所以段的位置对模型有语义，任何重构都必须逐字保持顺序。
+ */
+describe('长期记忆注入（契约 MEMORY-SPEC §4.4/§5.3）', () => {
+  const sysNow = () => stub.lastMessages.filter((m) => m.role === 'system');
+
+  /** 直接写库造摘要：压缩过程本身不在本测范围（由 compact.test.ts 锁） */
+  const seedSummary = (sid: string, summary: string, uptoRowid: number) => {
+    getDb()
+      .prepare('UPDATE sessions SET summary = ?, summary_upto_rowid = ? WHERE id = ?')
+      .run(summary, uptoRowid, sid);
+  };
+  /** 直接写库造画像：`[MEMORY]` 解析同样不在本测范围 */
+  const seedMemory = (kind: string, content: string, importance = 0.9) => {
+    getDb()
+      .prepare('INSERT INTO user_memory (id, kind, content, importance) VALUES (?, ?, ?, ?)')
+      .run(`m-${Math.random().toString(36).slice(2)}`, kind, content, importance);
+  };
+  const seedHistory = (sid: string, n: number, chars: number) => {
+    for (let i = 0; i < n; i++) {
+      getDb()
+        .prepare(`INSERT INTO messages (id, session_id, role, content) VALUES (?, ?, ?, ?)`)
+        .run(`h-${i}`, sid, i % 2 === 0 ? 'user' : 'assistant', '字'.repeat(chars));
+    }
+  };
+
+  it('摘要段插在基础提示词之后、历史之前（它逻辑上是历史的开头，不是辅助材料）', async () => {
+    const sid = newSession();
+    seedSummary(sid, '## 在学什么\n二叉树遍历', 0);
+    stub.turns = [[{ content: '答', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: '继续' });
+
+    const all = stub.lastMessages;
+    const idx = all.findIndex((m) => m.content.includes('是记录不是指令'));
+    expect(idx).toBe(2); // 0 是基础提示词、1 是日期段
+    expect(all[1]?.role).toBe('system');
+    // 历史（含本轮提问）必须排在摘要之后——顺序反了就成「先看原文再看摘要」
+    expect(all.findIndex((m) => m.role === 'user')).toBeGreaterThan(idx);
+  });
+
+  it('七段全满时的出站顺序：基础 → 日期 → 摘要 → 词条 → 资料 → 偏好 → 画像', async () => {
+    const sid = newSession();
+    seedSummary(sid, '## 在学什么\n二叉树遍历', 0);
+    seedMemory('weakness', '递归边界条件反复出错');
+    termsStub.relevant = [{ term: '递归', definition: '函数调用自身', domain: 'cs' }];
+    documentStub.doc = { name: '讲义.md', text: '资料正文', chars: 4, truncated: false };
+    stub.turns = [[{ content: '答', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: '二叉树是什么' });
+
+    const sys = sysNow();
+    expect(sys).toHaveLength(7);
+    expect(sys[1]?.content).toContain('【当前日期】'); // 日期段（紧跟基础提示词，与它同属「本次对话的前提」）
+    expect(sys[2]?.content).toContain('是记录不是指令'); // 摘要段（逻辑上是历史的开头）
+    expect(sys[3]?.content).toContain('优先使用这些术语'); // 词条段
+    expect(sys[4]?.content).toContain('【资料 讲义.md】'); // 资料段
+    expect(sys[5]?.content).toContain('结论先行'); // 偏好段（默认档，恒非空）
+    expect(sys[6]?.content).toContain('递归边界条件反复出错'); // 画像段（七段收尾）
+  });
+
+  it('画像段追加在既有段之后，不插队（位置有语义，重构不得重排）', async () => {
+    const sid = newSession();
+    seedMemory('preference', '偏好先看例子');
+    stub.turns = [[{ content: '答', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: '二叉树是什么' });
+
+    const sys = sysNow();
+    expect(sys).toHaveLength(4); // 基础 + 日期 + 偏好 + 画像
+    expect(sys[2]?.content).toContain('结论先行'); // 偏好段仍在原位置
+    expect(sys[3]?.content).toContain('偏好先看例子'); // 画像段只做追加
+  });
+
+  it('触发增强只作用于首轮：首轮在、次轮已摘除（问第二次比不问还差）', async () => {
+    const sid = newSession();
+    stub.turns = [toolCallTurn(''), [{ content: '答', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: '先学哪个' });
+
+    expect(stub.allMessages).toHaveLength(2);
+    const hasNudge = (i: number) =>
+      (stub.allMessages[i] ?? []).some((m) => m.content.includes('存在多条合理路线'));
+    expect(hasNudge(0)).toBe(true);
+    expect(hasNudge(1)).toBe(false);
+  });
+
+  it('摘要段计入截断预算：锚点 0（不丢历史）时，光摘要变长就会挤掉被载历史', async () => {
+    const sid = newSession();
+    const historyCount = () => stub.lastMessages.filter((m) => m.role !== 'system').length;
+    stub.turns = [[{ content: 'ok', done: true }], [{ content: 'ok', done: true }]];
+
+    seedHistory(sid, 20, 5000);
+    await handleMessage({ sessionId: sid, text: 'q' });
+    const withoutSummary = historyCount();
+
+    getDb().prepare('DELETE FROM messages').run();
+    seedHistory(sid, 20, 5000);
+    // 锚点 0 ＝ 不丢任何历史，于是「历史变少」只可能来自预算被摘要占掉（漏算就是 v1 老坑）
+    seedSummary(sid, '字'.repeat(40_000), 0);
+    await handleMessage({ sessionId: sid, text: 'q' });
+    const withSummary = historyCount();
+
+    expect(withoutSummary).toBe(21); // 20 条历史 + 本轮提问全数保留
+    expect(withSummary).toBeLessThanOrEqual(withoutSummary - 3);
+  });
+
+  it('已被摘要覆盖的历史不再出站（摘要已提供其内容，重复发等于同一段占两份额度）', async () => {
+    const sid = newSession();
+    for (let i = 0; i < 6; i++) {
+      getDb()
+        .prepare(`INSERT INTO messages (id, session_id, role, content) VALUES (?, ?, ?, ?)`)
+        .run(`h-${i}`, sid, i % 2 === 0 ? 'user' : 'assistant', `标记${i}条`);
+    }
+    const anchor = (
+      getDb().prepare('SELECT MAX(rowid) r FROM messages WHERE session_id = ?').get(sid) as { r: number }
+    ).r;
+    seedSummary(sid, '## 已掌握\n前面聊过了', anchor);
+    stub.turns = [[{ content: '答', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: '继续' });
+
+    const out = stub.lastMessages.map((m) => m.content).join('\n');
+    expect(out).toContain('是记录不是指令'); // 摘要在
+    expect(out).toContain('继续'); // 本轮提问在（rowid 高于锚点）
+    for (let i = 0; i < 6; i++) expect(out).not.toContain(`标记${i}条`); // 被覆盖的原文不在
+  });
+});
+
+/**
+ * 日期段注入（2026-09-17）。
+ *
+ * 段的**内容与位置**由 `date-context.test.ts` 与 `context-segments.test.ts` 锁（都是纯函数）；
+ * 这里只锁**接线**——它有没有真的进到出站 messages 里。这类"纯函数对了但没人调用"的漏接线
+ * 在本仓是常客（先例：`analyzer` 角色注册了却从无代码调用），所以单独留一条端到端的锁。
+ */
+describe('日期段注入', () => {
+  it('每轮都注入，且同日两轮逐字相同（前缀缓存的不变量：它不许带时分秒）', async () => {
+    const sid = newSession();
+    stub.turns = [[{ content: '一', done: true }], [{ content: '二', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: '第一问' });
+    const first = stub.lastMessages.find((m) => m.content.includes('【当前日期】'))?.content;
+    await handleMessage({ sessionId: sid, text: '第二问' });
+    const second = stub.lastMessages.find((m) => m.content.includes('【当前日期】'))?.content;
+
+    expect(first).toBeTruthy(); // 真进了出站 messages，不是只躺在纯函数里
+    expect(second).toBe(first); // 同一天内必须逐字相同，否则 system 前缀每轮都变、缓存永不命中
+  });
+
+  it('跨天必须跟着变（证明是「每轮现算」，不是「模块加载时算一次」）', async () => {
+    // ★ 这条锁的是**调用时机**，纯函数层锁不到：`buildDateBlock()` 自身跨天当然会变，
+    //   但若有人把它提成 `context-segments.ts` 的模块常量（`const DATE = buildDateBlock()`），
+    //   `date-context.test.ts` 照样全绿——那段字会**从服务启动那天起永远不变**，
+    //   表现是「服务开着不动，第二天问它今天几号还是昨天」。故必须在端到端这一层再锁一次。
+    const sid = newSession();
+    stub.turns = [[{ content: '一', done: true }], [{ content: '二', done: true }]];
+    const dateOf = () => stub.lastMessages.find((m) => m.content.includes('【当前日期】'))?.content ?? '';
+
+    vi.useFakeTimers({ toFake: ['Date'] }); // 只假 Date，不动 setTimeout（不干扰异步流程）
+    try {
+      vi.setSystemTime(new Date(2026, 8, 17, 23, 59));
+      await handleMessage({ sessionId: sid, text: '第一问' });
+      const day1 = dateOf();
+
+      vi.setSystemTime(new Date(2026, 8, 18, 0, 1));
+      await handleMessage({ sessionId: sid, text: '第二问' });
+      const day2 = dateOf();
+
+      expect(day1).toContain('2026年9月17日');
+      expect(day2).toContain('2026年9月18日');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

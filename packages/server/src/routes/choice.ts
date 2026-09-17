@@ -12,7 +12,7 @@
  */
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { answerChoice, listPendingChoices } from '../chat/choice.js';
+import { answerChoice, listPendingChoices, cancelChoice } from '../chat/choice.js';
 
 export const choiceRouter = Router();
 
@@ -38,4 +38,22 @@ choiceRouter.post('/:id/reply', (req: Request, res: Response) => {
     return;
   }
   res.json(r.record);
+});
+
+/**
+ * **跳过**（v18 grill-me，2026-09-16）：把挂起的提问作废并唤醒等待中的工具。
+ *
+ * 为什么必须有这个端点：前端原来的「收起」只动本地 state，后端的 `askChoice`
+ * Promise 还在等——grill-me 开场那张卡是**阻塞整轮**的，不真取消工具就永远悬挂，
+ * 「可以跳过」就成了空话。作废后 `choiceToolHint` 会告诉模型「学习者没选，请直接作答」，
+ * 本轮照常出正文。
+ */
+choiceRouter.post('/:id/cancel', (req: Request, res: Response) => {
+  const reason = (req.body as { reason?: unknown })?.reason;
+  const rec = cancelChoice(req.params.id ?? '', typeof reason === 'string' && reason ? reason : '学习者跳过');
+  if (!rec) {
+    res.status(409).json({ error: '提问不存在或已结束' });
+    return;
+  }
+  res.json(rec);
 });

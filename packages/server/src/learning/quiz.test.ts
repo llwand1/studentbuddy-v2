@@ -61,7 +61,7 @@ afterEach(() => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-const MIX: QuizMix = { single: 2, multiple: 0, fill: 1, essay: 1 };
+const MIX: QuizMix = { single: 2, multiple: 0, fill: 1, essay: 1, scenario: 0 };
 
 /** 造题：选择题给足选项（否则 normalize 会丢），填空给数组答案 */
 const q = (type: QuizQuestion['type'], i: number): QuizQuestion =>
@@ -107,7 +107,7 @@ describe('learning/quiz — [QUIZ] 协议解析（AI 输出容错）', () => {
 describe('learning/quiz — 题型配比归一化（契约由 shared 收口）', () => {
   it('负数/小数/非数字 → 钳到 0 或取整，单题型不超上限', () => {
     const out = normalizeQuizMix({ single: -3, multiple: 2.9, fill: 'x', essay: 99 });
-    expect(out).toEqual({ single: 0, multiple: 2, fill: 0, essay: MAX_QUIZ_PER_TYPE });
+    expect(out).toEqual({  single: 0, multiple: 2, fill: 0, essay: MAX_QUIZ_PER_TYPE, scenario: 0 });
   });
 
   it('总题数超上限时从后往前削，先保单选与多选', () => {
@@ -166,7 +166,7 @@ describe('learning/quiz — 配比指令与裁剪（模型不数数时的兜底�
   it('裁完 0 题返回 null（调用方走 502，不发空题组）', () => {
     const { quiz, report } = applyQuizMix(payload('judge' as QuizQuestion['type']), MIX);
     expect(quiz).toBeNull();
-    expect(report.actual).toEqual({ single: 0, multiple: 0, fill: 0, essay: 0 });
+    expect(report.actual).toEqual({  single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 });
   });
 });
 

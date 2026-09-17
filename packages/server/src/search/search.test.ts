@@ -37,9 +37,16 @@ function mockFetch(handler: (url: string) => Fake) {
   );
 }
 
-const DDG_HTML = `
-<a href="https://newton.example/law" class="result-link">牛顿第二定律</a><td class="result-snippet">F 等于 ma</td>
-<a href="https://other.example?a=1&amp;b=2" class="result-link">动量</a><td class="result-snippet">p=mv</td>`;
+const BING_RSS = `<?xml version="1.0" encoding="utf-8" ?>
+<rss version="2.0"><channel><title>必应：牛顿第二定律</title>
+<item><title>牛顿第二定律_百度百科</title><link>https://baike.example/newton</link><description>F 等于 ma，动量 p=mv</description></item>
+<item><title>动量守恒定律</title><link>https://other.example?a=1&amp;b=2</link><description>p=mv</description></item>
+</channel></rss>`;
+
+const BING_HTML = `<ol id="b_results">
+<li class="b_algo" data-id iid=SERP.5336><h2 class=""><a target="_blank" href="https://baike.example/newton" h="ID=SERP,5128.2"><strong>牛顿第二</strong>运动<strong>定律</strong>_百度百科</a></h2><div class="b_caption"><p class="b_lineclamp2" data-rslinkclamp-iid="">F 等于 ma</p></div></li>
+<li class="b_algo" data-id iid=SERP.5337><h2 class=""><a target="_blank" href="https://other.example/q" h="ID=SERP,5144.2">动量守恒</a></h2><div class="b_caption"><p class="b_lineclamp2">p=mv</p></div></li>
+<li class="b_pag"></li></ol>`;
 
 beforeEach(() => {
   calls.length = 0;
@@ -51,33 +58,29 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('search 聚合', () => {
-  it('三家都没 key → 走 DuckDuckGo 免费通道兜底', async () => {
-    mockFetch((url) => (url.includes('lite.duckduckgo') ? { text: DDG_HTML } : { json: {} }));
-    const r = await searchWeb('ddg-nokey');
-    expect(r.providers).toEqual(['duckduckgo']);
-    expect(r.results.map((x) => x.title)).toEqual(['牛顿第二定律', '动量']);
+  it('三家都没 key → 走 Bing 免费通道兜底（RSS 主通道）', async () => {
+    mockFetch((url) => (url.includes('format=rss') ? { text: BING_RSS } : { text: BING_HTML }));
+    const r = await searchWeb('bing-nokey');
+    expect(r.providers).toEqual(['bing']);
+    expect(r.results.map((x) => x.title)).toEqual(['牛顿第二定律_百度百科', '动量守恒定律']);
     expect(r.results[1]?.url).toBe('https://other.example?a=1&b=2'); // &amp; 实体还原
   });
 
-  it('lite 挂了 → instant 兜底，结果按 source 标注实际路由', async () => {
-    mockFetch((url) =>
-      url.includes('lite.duckduckgo')
-        ? { status: 599 }
-        : { json: { AbstractText: '经典力学', AbstractURL: 'https://ddgo.example/newton', Headline: '牛顿第二定律' } },
-    );
-    const r = await searchWeb('ddg-fallback');
-    expect(r.results[0]?.snippet).toBe('经典力学');
-    expect(r.results[0]?.source).toBe('duckduckgo'); // instant 路由
-    expect(calls.some((u) => u.includes('api.duckduckgo.com'))).toBe(true);
+  it('RSS 挂了 → HTML 兜底，结果按 source 标注实际路由', async () => {
+    mockFetch((url) => (url.includes('format=rss') ? { status: 599 } : { text: BING_HTML }));
+    const r = await searchWeb('bing-fallback');
+    expect(r.results[0]?.title).toBe('牛顿第二运动定律_百度百科');
+    expect(r.results[0]?.source).toBe('bing-html'); // HTML 兜底路由
+    expect(calls.some((u) => u.includes('format=rss'))).toBe(true);
     expect(r.failed).toEqual([]); // 单路软降级不算失败，双路全挂才报
   });
 
-  it('lite 与 instant 双路都挂 → 失败原因不静默，逐路冒泡', async () => {
-    mockFetch((url) => (url.includes('lite.duckduckgo') ? { status: 599 } : { status: 500 }));
-    const r = await searchWeb('ddg-dead');
+  it('RSS 与 HTML 双路都挂 → 失败原因不静默，逐路冒泡', async () => {
+    mockFetch((url) => (url.includes('format=rss') ? { status: 599 } : { status: 500 }));
+    const r = await searchWeb('bing-dead');
     expect(r.results).toEqual([]);
-    expect(r.failed.join()).toContain('lite: DuckDuckGo Lite 599');
-    expect(r.failed.join()).toContain('instant: DuckDuckGo 500');
+    expect(r.failed.join()).toContain('rss: Bing RSS 599');
+    expect(r.failed.join()).toContain('html: Bing HTML 500');
   });
 
   it('配了 Exa key → 只发 Exa 请求并解析结果', async () => {
@@ -105,7 +108,7 @@ describe('search 聚合', () => {
   });
 
   it('同查询 24h 内命中缓存，不再发起外部请求', async () => {
-    mockFetch(() => ({ text: DDG_HTML }));
+    mockFetch(() => ({ text: BING_RSS }));
     const first = await searchWeb('cached-q');
     const n = calls.length;
     const second = await searchWeb('cached-q');
@@ -116,8 +119,8 @@ describe('search 聚合', () => {
   });
 
   it('缓存按 provider 组合隔离：配了 key 不再吃免 key 时期的旧缓存', async () => {
-    mockFetch(() => ({ text: DDG_HTML }));
-    expect((await searchWeb('sig-q')).providers).toEqual(['duckduckgo']);
+    mockFetch(() => ({ text: BING_RSS }));
+    expect((await searchWeb('sig-q')).providers).toEqual(['bing']);
 
     process.env.EXA_API_KEY = 'env-exa';
     mockFetch(() => ({ json: { results: [{ title: 'E', url: 'https://exa.example/e', text: 'ee' }] } }));
@@ -127,7 +130,7 @@ describe('search 聚合', () => {
   });
 
   it('skipCache 强制真发（连通自检不能被缓存冒充）', async () => {
-    mockFetch(() => ({ text: DDG_HTML }));
+    mockFetch(() => ({ text: BING_RSS }));
     await searchWeb('live-q');
     const n = calls.length;
     await searchWeb('live-q', { skipCache: true });

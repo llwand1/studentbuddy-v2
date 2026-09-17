@@ -10,11 +10,21 @@ import {
   getQuiz,
   deleteQuiz,
   recordAnswer,
-  analyzeWeakPoints,
   loadQuizMix,
   applyQuizMix,
 } from '../learning/quiz.js';
-import { normalizeQuizMix, normalizeAnswerStyle, mixTotal, emptyQuizImageReport, countQuizImages } from '@sb/shared';
+import { analyzeWeakPoints } from '../learning/quiz-weak.js';
+import { announceScenarioToSession, generateScenario } from '../learning/scenario.js';
+import { emptyScenarioGenReport } from '../learning/scenario-protocol.js';
+import { deleteScenarioDemoByQuiz } from '../learning/scenario.js';
+import {
+  normalizeQuizMix,
+  normalizeAnswerStyle,
+  mixTotal,
+  emptyQuizImageReport,
+  countQuizImages,
+  type ScenarioMixResult,
+} from '@sb/shared';
 import { roleReady } from '../llm/router.js';
 import { getSessionDoc, buildDocMaterial } from '../learning/document.js';
 import { upsertNoteFromAnswer } from '../learning/notes.js';
@@ -54,9 +64,43 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
   }
   try {
     const requested = mix === undefined ? loadQuizMix() : normalizeQuizMix(mix);
+    // 情景档（SCENARIO-SPEC §6.1）：五档一张配比卡，但传统四类走一道引擎、情景题走独立引擎
+    const scenarioCount = requested.scenario;
+    const tradTotal = mixTotal(requested) - scenarioCount;
+
+    /** 逐套生成情景题：每套成功即广播+进会话流，失败如实记账不整体作废（ADR-5） */
+    const genScenarios = async (count: number): Promise<ScenarioMixResult[]> => {
+      const results: ScenarioMixResult[] = [];
+      for (let i = 0; i < count; i++) {
+        const report = emptyScenarioGenReport();
+        const gen = await generateScenario(topic ?? '综合', effectiveMaterial, report);
+        if (!gen) {
+          results.push({ ok: false, failure: report.failure ?? 'parse' });
+          continue;
+        }
+        publishEvent({ type: 'quiz_generated', quizId: gen.quizId });
+        if (sessionId) announceScenarioToSession(sessionId, gen);
+        results.push({ ok: true, quizId: gen.quizId, demoId: gen.demoId });
+      }
+      return results;
+    };
+
+    // 纯情景配比：传统四档全 0 时不跑传统引擎——喂全 0 配比只会得到空题组 → 假 502
+    if (tradTotal === 0) {
+      const scenarios = await genScenarios(scenarioCount);
+      const zeros = { single: 0, multiple: 0, fill: 0, essay: 0 };
+      res.json({
+        scenarios,
+        images: emptyQuizImageReport(),
+        mix: { requested: { ...zeros }, actual: { ...zeros }, matched: true },
+      });
+      return;
+    }
+
+    const images = emptyQuizImageReport();
+
     // 未显式给风格时传 undefined，由 generateQuiz 自己读库内偏好（只读一处，不在此提前定级）
     const styleArg = style === undefined ? undefined : normalizeAnswerStyle(style);
-    const images = emptyQuizImageReport();
     const raw = await generateQuiz(topic ?? '综合', effectiveMaterial, requested, images, styleArg, search === true);
     // 502 按**真因**分开说：v1.0 把「模型不可用 / JSON 解不出 / 配比裁空」混成一句，照着重试永远调不对（契约 §2.4）
     if (!raw) {
@@ -96,7 +140,9 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
         .prepare(`INSERT INTO messages (id, session_id, role, content, tokens) VALUES (?, ?, 'assistant', ?, ?)`)
         .run(`m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, sessionId, `[QUIZ]${JSON.stringify(quiz)}[/QUIZ]`, 0);
     }
-    res.json({ quizId, quiz, mix: applied.report, images });
+    // 情景档在传统题之后逐套出（顺序即 MIX_KINDS 档位序）；每套成败如实进响应
+    const scenarios = scenarioCount > 0 ? await genScenarios(scenarioCount) : undefined;
+    res.json({ quizId, quiz, mix: applied.report, images, ...(scenarios ? { scenarios } : {}) });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
@@ -120,6 +166,8 @@ quizRouter.get('/bank/:id', (req: Request, res: Response) => {
 
 quizRouter.delete('/bank/:id', (req: Request, res: Response) => {
   deleteQuiz(req.params.id ?? '');
+  // 情景题连带删 demo 行（quiz_bank 无外键，1:1 关系靠这里维持；普通题删零行幂等）
+  deleteScenarioDemoByQuiz(req.params.id ?? '');
   res.json({ ok: true });
 });
 
@@ -144,6 +192,17 @@ quizRouter.post('/stats/record', (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
-quizRouter.get('/analyze/:id', (req: Request, res: Response) => {
-  res.json(analyzeWeakPoints(req.params.id ?? ''));
+/**
+ * 薄弱点分析（契约 docs/QUIZ-WEAK-SPEC.md）：**AI 实时生成**，走 analyzer 角色。
+ * ★ 必须 try/catch：Express 4 不接管 async 路由的 rejection，漏了会让请求永久挂起
+ *   （域层已兜住模型调用，这里兜的是 DB / 未知异常，ADR-4 失败隔离）。
+ * ★ 失败真因由域层填（`fallback` / `failure`），本路由只透传、**不反推**——
+ *   反推在「角色绑定存在但 provider 被停用」这类边缘态会判错。
+ */
+quizRouter.get('/analyze/:id', async (req: Request, res: Response) => {
+  try {
+    res.json(await analyzeWeakPoints(req.params.id ?? ''));
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
 });

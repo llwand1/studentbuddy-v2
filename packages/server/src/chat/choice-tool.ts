@@ -12,18 +12,20 @@
  */
 import type { ToolDefinition } from '../llm/types.js';
 import type { ToolContext, ToolResult } from './tools.js';
-import { askChoice, choiceToolHint } from './choice.js';
+import { askChoice, offerChoice, choiceToolHint } from './choice.js';
 
 export const CHOICE_TOOL: ToolDefinition = {
   type: 'function',
   function: {
     name: 'ask_choice',
     description:
-      '当需要学习者在若干方案中拍板时使用：方案对比、二选一、需要人工决定的关键岔路' +
-      '（例如「先补基础还是先刷题」「按概念还是按题型整理」「这次讲多深」）。' +
-      '调用后界面会弹出选择框并**等待**学习者点选，返回他的选择，你据此在同一轮里继续。' +
-      '不要在只需告知结论时使用；不要用它问开放式问题（要开放内容直接在回复里问即可）。' +
-      '一次只问一件事，2~4 个选项，每个选项给一句话取舍说明。',
+      '提出方案让学习者拍板，并**等待**他的选择——界面会弹出选择框，他点哪个你就拿到哪个，据此在同一轮继续。' +
+      '适用：方案对比、二选一、讲多深/按什么顺序、学习计划这类「存在多条合理路线、选错会浪费他时间」的岔路。' +
+      '示例：用户说「想学动态规划」→ 调本工具问「① 从背包入手 ② 从线性 DP 入手 ③ 直接刷题」，他选完你再开讲。' +
+      '要求：2~4 个选项，每个配一句取舍说明；**本轮第一个动作就是它**（先写一段正文再问，他会以为已经讲完了）。' +
+      '可以**多轮连问**：每次只聚焦一个分歧点，拿到答复后若出现新岔路（方向→深度→形式），就再次调用本工具接着问，' +
+      '不要把多个分歧塞进同一个选择框。界面会自动附一个「自己写」的自由输入选项，你不必为开放式回答留口。' +
+      '不适用的情况：只是要你讲解某个概念、答案唯一确定——这些直接在回复里处理。',
     parameters: {
       type: 'object',
       properties: {
@@ -50,28 +52,46 @@ export const CHOICE_TOOL: ToolDefinition = {
   },
 };
 
+/** 执行模式（v18）：默认挂起等待；`offerOnly` 用于 grill-me 收尾——只提问不等待 */
+export interface ChoiceToolMode {
+  offerOnly?: boolean;
+}
+
 /**
  * 执行：挂起等待学习者点选。**本工具会阻塞整轮**（直到 answered / cancelled），
  * 因此必须同时在 `flow.ts` 的 `runToolCalls` 里登记进 `noTimeout`——
  * 否则 30s 默认超时会把等待掐断（见 tool-exec.ts 的注释）。
+ *
+ * v18 `mode.offerOnly`：走 `offerChoice` 只提问不等待（grill-me 收尾用）。
+ * 那时本轮回答已给完，再挂起会把这一轮钉在 busy 上，用户「不点就跳不过去」。
  */
-export async function runChoiceTool(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+export async function runChoiceTool(
+  args: Record<string, unknown>,
+  ctx: ToolContext,
+  mode?: ChoiceToolMode,
+): Promise<ToolResult> {
   if (!ctx.sessionId) {
     ctx.onStep('ask_choice', 'error', '缺少会话上下文');
     return { content: '当前没有会话上下文，无法弹出选择框，请直接作答。' };
   }
-  ctx.onStep('ask_choice', 'running', '等待学习者选择');
-  const res = await askChoice({
+  ctx.onStep('ask_choice', 'running', mode?.offerOnly ? '给出下一步选项' : '等待学习者选择');
+  const ask = mode?.offerOnly ? offerChoice : askChoice;
+  const res = await ask({
     sessionId: ctx.sessionId,
     question: args.question,
     options: args.options,
     allowCustom: args.allowCustom,
     multi: args.multi,
-  });
+    grillPhase: ctx.grillPhase,
+  } as Parameters<typeof askChoice>[0]);
   if (!res.ok) {
     // 参数不合法属模型可自纠的错：如实回灌「怎么改对」，不中断整轮（契约 §4.2 纠错口径）
     ctx.onStep('ask_choice', 'error', res.error);
     return { content: `ask_choice 参数不合法：${res.error}。请修正后重新调用，或直接作答。` };
+  }
+  if (mode?.offerOnly) {
+    ctx.onStep('ask_choice', 'done', '已给出下一步选项（不等选择）');
+    return { content: '已向学习者列出下一步选项，本轮到此结束。' };
   }
   const cancelled = res.record.status === 'cancelled';
   ctx.onStep('ask_choice', 'done', cancelled ? '学习者未选择（已作废）' : '学习者已拍板');

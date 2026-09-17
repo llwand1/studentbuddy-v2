@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { getDb } from './storage/db.js';
 import { handleMessage } from './chat/flow.js';
+import { parseIncomingImages } from './chat/vision.js';
 import { cancelChoicesBySession } from './chat/choice.js';
 import { planRegenerate } from './chat/regenerate.js';
 import { planResend } from './chat/resend.js';
@@ -77,7 +78,7 @@ sessionsRouter.patch('/:id/pinned', (req: Request, res: Response) => {
 sessionsRouter.get('/:id/messages', (req: Request, res: Response) => {
   const rows = getDb()
     .prepare(
-      `SELECT id, role, content, tool_calls, tool_call_id, reasoning, tasks, created_at FROM messages WHERE session_id = ? ORDER BY created_at, rowid`,
+      `SELECT id, role, content, tool_calls, tool_call_id, reasoning, tasks, images, created_at FROM messages WHERE session_id = ? ORDER BY created_at, rowid`,
     )
     .all((req.params.id ?? ''));
   res.json(rows);
@@ -94,15 +95,32 @@ export const chatRouter = Router();
 const aborters = new Map<string, AbortController>();
 
 chatRouter.post('/send', (req: Request, res: Response) => {
-  const { sessionId, text } = req.body as { sessionId?: string; text?: string };
-  if (!sessionId || typeof text !== 'string' || !text.trim()) {
+  const { sessionId, text, images, grillMe } = req.body as {
+    sessionId?: string;
+    text?: string;
+    images?: Array<{ dataUrl?: string; name?: string }>;
+    grillMe?: boolean;
+  };
+  // v17 看图：闸门在 chat/vision.ts；空提问＝「字和图都没有」（纯图片提问正当，别在这 400）
+  const parsed = parseIncomingImages(images);
+  if (!parsed.ok) {
+    res.status(400).json({ error: parsed.error });
+    return;
+  }
+  if (!sessionId || typeof text !== 'string' || (!text.trim() && parsed.images.length === 0)) {
     res.status(400).json({ error: 'sessionId 与 text 必填' });
     return;
   }
   const controller = new AbortController();
   aborters.set(sessionId, controller);
   // 异步执行，立即返回（流式走 SSE）
-  handleMessage({ sessionId, text, signal: controller.signal })
+  handleMessage({
+    sessionId,
+    text,
+    images: parsed.images.length > 0 ? parsed.images : undefined,
+    grillMe: grillMe === true,
+    signal: controller.signal,
+  })
     .catch(() => undefined) // 异常经 sse-bus 上报，此处吞掉防 unhandled rejection
     .finally(() => {
     if (aborters.get(sessionId) === controller) aborters.delete(sessionId);

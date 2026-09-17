@@ -1,22 +1,33 @@
 /**
  * routes/terms — 词条库薄路由（忆域 v2：AI 自动词条库）。
- * 列表/领域统计/手动存/按文本抽取/编辑/删除。
+ * 词条：列表 / 手动存 / 按文本抽取 / 编辑 / 删除。
+ * 领域（v19 起与词条 CRUD 对等）：统计 / 新建 / 改说明与改名 / 删除。
+ *
+ * ★ 薄路由纪律：状态码由域层（`DomainError.status`）**直通**，本文件不翻译不包装
+ *   （同 `routes/choice.ts` 的头注释）。词条侧的历史写法是硬编码 400/404，未一并重构——
+ *   本批只保证新增的领域口子口径统一。
  */
 import { Router } from 'express';
 import type { Request, Response } from 'express';
+import { listTerms, saveOneTerm, saveTerms, extractTerms, removeTerm, updateTerm } from '../learning/terms.js';
 import {
-  listTerms,
+  createDomain,
+  updateDomain,
+  renameDomainEntry,
+  removeDomain,
   domainStats,
-  saveOneTerm,
-  saveTerms,
-  extractTerms,
-  removeTerm,
-  updateTerm,
-} from '../learning/terms.js';
+  DomainError,
+} from '../learning/domains.js';
 import { getSessionDoc, buildDocMaterial } from '../learning/document.js';
 import { DOC_EXTRACT_BUDGET_CHARS } from '@sb/shared';
 
 export const termsRouter = Router();
+
+/** 领域操作统一错误应答：域层给状态码，这里只落 HTTP。 */
+function fail(res: Response, err: unknown): void {
+  const status = err instanceof DomainError ? err.status : 500;
+  res.status(status).json({ error: err instanceof Error ? err.message : String(err) });
+}
 
 termsRouter.get('/', (req: Request, res: Response) => {
   const domain = typeof req.query.domain === 'string' ? req.query.domain : undefined;
@@ -24,8 +35,64 @@ termsRouter.get('/', (req: Request, res: Response) => {
   res.json(listTerms(domain, keyword));
 });
 
+/** 领域统计（前端 Tab + 顶部统计）：含**空领域**（count=0），v19 起以登记册为准。 */
 termsRouter.get('/domains', (_req, res) => {
   res.json(domainStats());
+});
+
+/**
+ * 新建领域（**可零词条**）。已存在则 200 + 既有行（不覆盖 note），新建成功 201。
+ * 幂等语义让「点两次新建」不会报错，UI 不必先查再建。
+ */
+termsRouter.post('/domains', (req: Request, res: Response) => {
+  const { name, note } = req.body as { name?: string; note?: string };
+  if (!name?.trim()) {
+    res.status(400).json({ error: 'name 必填' });
+    return;
+  }
+  try {
+    const { row, created } = createDomain(name, note ?? '');
+    res.status(created ? 201 : 200).json(row);
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
+/**
+ * 改领域：带 `name` ⇒ **改名**（词条批量迁到新领域，目标已存在则两域合一）；只带 `note` ⇒ 改说明。
+ * ⚠️ `:name` 是**领域名本身**（可含中文/空格），Express 已对路径参数做过解码，
+ *   不要再 `decodeURIComponent`（会二次解码，含 `%` 的领域名直接炸）。
+ */
+termsRouter.put('/domains/:name', (req: Request, res: Response) => {
+  const from = req.params.name ?? '';
+  const { name, note } = req.body as { name?: string; note?: string };
+  try {
+    if (name?.trim()) {
+      res.json(renameDomainEntry(from, name));
+      return;
+    }
+    if (note === undefined) {
+      res.status(400).json({ error: 'name（改名）或 note（改说明）至少给一个' });
+      return;
+    }
+    const row = updateDomain(from, note);
+    if (!row) {
+      res.status(404).json({ error: `没有名为「${from}」的领域` });
+      return;
+    }
+    res.json(row);
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
+/** 删领域：词条迁 `general`（**不删词条**），响应含迁移条数。`general` 本身拒绝删除（409）。 */
+termsRouter.delete('/domains/:name', (req: Request, res: Response) => {
+  try {
+    res.json(removeDomain(req.params.name ?? ''));
+  } catch (err) {
+    fail(res, err);
+  }
 });
 
 /** 手动存一条（列表页「添加」/ 对话外补录）。 */

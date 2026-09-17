@@ -10,7 +10,7 @@ export type DomainEvent =
   | { type: 'quiz_generated'; quizId: string }
   | { type: 'quiz_answered'; quizId: string; correct: boolean }
   | { type: 'term_added'; count: number }
-  /** 认知进化升级（COGNITIVE-EVOLUTION-SPEC §9.2）；XP 订阅在任务 10 接入 */
+  /** 深度理解升级（DEEP-UNDERSTANDING-SPEC §9.2）；XP 订阅在任务 10 接入 */
   | { type: 'evolution_levelup'; termId: string; term: string; from: number; to: number }
   /** 可观测（可观测与数据飞轮方案）；订阅方 storage/obs.ts，发布方 search/flow/quiz/点踩 */
   | ({ type: 'obs' } & ObsEventBody);

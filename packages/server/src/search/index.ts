@@ -1,7 +1,8 @@
 /**
  * search/index — 联网搜索聚合（学环核心件）。
  * Provider 矩阵（规划 §1.5.6 实测换血）：Exa 主 + Tavily 备 + 智谱国产兜底，
- * 三家全无 key 时退回 DuckDuckGo 免费通道（port from v1：instant + lite 双通道）；
+ * 三家全无 key 时退回 Bing 免费通道（2026-09-17 换血：DDG 在本机网络完全不可用，
+ * 改用 cn.bing.com，RSS 主 + HTML 兜底双通道）；
  * 并行聚合、单家失败跳过、URL 去重；search_cache 单表 TTL（强化包 S2）。
  * key 优先取环境变量，其次 app_settings（密文，见 storage/crypto）。
  */
@@ -18,12 +19,12 @@ export interface SearchResult {
   source: string;
 }
 
-/** 需要 key 的托管服务商（ddg 免 key，故不在此列） */
+/** 需要 key 的托管服务商（bing 免 key，故不在此列） */
 export const KEYED_PROVIDERS = ['exa', 'tavily', 'zhipu'] as const;
 export type KeyedProvider = (typeof KEYED_PROVIDERS)[number];
 
 export interface SearchProviderConfig {
-  type: KeyedProvider | 'duckduckgo';
+  type: KeyedProvider | 'bing';
   apiKey?: string;
   priority: number;
 }
@@ -128,7 +129,7 @@ const IMPL: Record<string, (q: string, key: string, signal?: AbortSignal) => Pro
   exa: exaSearch,
   tavily: tavilySearch,
   zhipu: zhipuSearch,
-  duckduckgo: (q, _key, signal) => duckduckgoSearch(q, signal),
+  bing: (q, _key, signal) => bingSearch(q, signal),
 };
 
 function errText(err: unknown): string {
@@ -147,80 +148,108 @@ function combineSignals(signal: AbortSignal | undefined, timeoutMs: number): Abo
   return AbortSignal.any([signal, timeout]);
 }
 
-// ── DuckDuckGo 免费通道（无 key 兜底；port from v1 core/search 双通道）──
-const DDG_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) studentbuddy/2.0';
+// ── Bing 免费通道（无 key 兜底）：RSS 主 + HTML 兜底双通道 ──
+// 2026-09-17 换血（原 DDG 通道在本机网络直连超时、彻底不可用）：cn.bing.com/search
+// 实测直连 200 无重定向；带 &format=rss 返回标准 RSS2.0，<item> 内 title/link/description
+// 齐全且 <link> 已是干净真实 URL（无需处理 bing.com/ck/a 跳转链）；
+// HTML 通道作降级备份（b_algo 块；标题在 h2>a、摘要在 .b_caption>p，链接同为真实直链）。
+const BING_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+const BING_SEARCH = 'https://cn.bing.com/search';
 
-function htmlToText(html: string): string {
-  return html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
+/** 码点还原：空白类实体（&#160; 等）归一为空格，非法码点丢弃。 */
+function fromCodePoint(raw: string, radix: number): string {
+  const n = Number.parseInt(raw, radix);
+  if (!Number.isFinite(n) || n < 0 || n > 0x10ffff) return '';
+  return n === 160 ? ' ' : String.fromCodePoint(n);
+}
+
+/** XML/HTML 实体还原（RSS 与 HTML 片段共用）。`&` 必须最后解，避免二次转义。 */
+function decodeEntities(s: string): string {
+  return s
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&(?:nbsp|ensp|emsp|thinsp);/g, ' ')
     .replace(/&quot;/g, '"')
-    .replace(/&#\d+;/g, '')
-    .replace(/&amp;/g, '&')
+    .replace(/&apos;/g, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, h: string) => fromCodePoint(h, 16))
+    .replace(/&#(\d+);/g, (_, d: string) => fromCodePoint(d, 10))
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+/** 剥标签 + 实体还原 → 纯文本（标题含 <strong> 高亮标签，必须走这一步）。 */
+function htmlToText(html: string): string {
+  return decodeEntities(
+    html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      // 块级/换行标签留一个空格做分隔；行内标签（<strong> 高亮）直接删，避免把标题切碎
+      .replace(/<\/?(?:br|p|div|li|ol|ul|h[1-6])\b[^>]*>/gi, ' ')
+      .replace(/<[^>]+>/g, ''),
+  )
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-function decodeUrl(raw: string): string {
-  return raw.replace(/&amp;/g, '&');
-}
-
-/** lite 版 HTML 抓真实网页结果（结果面比 instant API 宽）。 */
-async function ddgLite(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
-  const res = await fetchSafe(`https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`, {
-    headers: { 'User-Agent': DDG_UA },
-    signal: combineSignals(signal, 5_000),
+/** RSS 通道（主）：结构化、体积小（~8KB）、字段稳定，实测中文查询稳定出 10 条。 */
+async function bingRss(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
+  const res = await fetchSafe(`${BING_SEARCH}?q=${encodeURIComponent(query)}&format=rss`, {
+    headers: { 'User-Agent': BING_UA, 'Accept-Language': 'zh-CN,zh;q=0.9' },
+    signal: combineSignals(signal, 6_000),
   });
-  if (!res.ok) throw new Error(`DuckDuckGo Lite ${res.status}`);
-  const html = await res.text();
-  const links = [...html.matchAll(/<a[^>]+href="([^"]*)"[^>]*class="result-link"[^>]*>([\s\S]*?)<\/a>/gi)];
-  const snippets = [...html.matchAll(/<td[^>]*class="result-snippet"[^>]*>([\s\S]*?)<\/td>/gi)];
-  return links
-    .slice(0, 6)
-    .map((m, i) => ({
-      title: htmlToText(m[2] ?? ''),
-      url: decodeUrl(m[1] ?? ''),
-      snippet: htmlToText(snippets[i]?.[1] ?? '').slice(0, 500),
-      source: 'duckduckgo-lite',
-    }))
+  if (!res.ok) throw new Error(`Bing RSS ${res.status}`);
+  const xml = await res.text();
+  return [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)]
+    .slice(0, 8)
+    .map((m) => {
+      const block = m[1] ?? '';
+      const field = (tag: string): string => {
+        const hit = block.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'i'));
+        return decodeEntities(hit?.[1] ?? '').trim();
+      };
+      return {
+        title: field('title'),
+        url: field('link'),
+        snippet: field('description').replace(/\s+/g, ' ').slice(0, 500),
+        source: 'bing',
+      };
+    })
     .filter((r) => r.url.startsWith('http'));
 }
 
-/** instant API：结构化摘要，lite 挂了时的兜底（百科类词条命中率高）。 */
-async function ddgInstant(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
-  const res = await fetchSafe(
-    `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`,
-    { headers: { 'User-Agent': DDG_UA }, signal: combineSignals(signal, 5_000) },
-  );
-  if (!res.ok) throw new Error(`DuckDuckGo ${res.status}`);
-  const data = (await res.json()) as {
-    Headline?: string;
-    AbstractText?: string;
-    AbstractURL?: string;
-    RelatedTopics?: Array<{ Text?: string; FirstURL?: string; Topics?: Array<{ Text?: string; FirstURL?: string }> }>;
-  };
-  const out: SearchResult[] = [];
-  if (data.AbstractText) {
-    out.push({ title: data.Headline || 'Abstract', url: data.AbstractURL ?? '', snippet: data.AbstractText, source: 'duckduckgo' });
-  }
-  for (const t of data.RelatedTopics ?? []) {
-    if (t.Text && t.FirstURL) out.push({ title: t.FirstURL, url: t.FirstURL, snippet: t.Text, source: 'duckduckgo' });
-    for (const s of t.Topics ?? []) {
-      if (s.Text && s.FirstURL) out.push({ title: s.FirstURL, url: s.FirstURL, snippet: s.Text, source: 'duckduckgo' });
-    }
-  }
-  return out.filter((r) => r.url.startsWith('http')).slice(0, 6);
+/** HTML 通道（兜底）：RSS 端点若被关闭/改版时接管；按 b_algo 块切分后逐块取标题与摘要。 */
+async function bingHtml(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
+  const res = await fetchSafe(`${BING_SEARCH}?q=${encodeURIComponent(query)}`, {
+    headers: { 'User-Agent': BING_UA, 'Accept-Language': 'zh-CN,zh;q=0.9' },
+    signal: combineSignals(signal, 6_000),
+  });
+  if (!res.ok) throw new Error(`Bing HTML ${res.status}`);
+  const html = await res.text();
+  const blocks = html.match(/<li class="b_algo"[\s\S]*?(?=<li class="b_algo"|<li class="b_pag"|<\/ol>)/gi) ?? [];
+  return blocks
+    .slice(0, 8)
+    .map((block) => {
+      const link = block.match(/<h2[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
+      const para =
+        block.match(/<p class="b_lineclamp[^"]*"[^>]*>([\s\S]*?)<\/p>/i) ??
+        block.match(/<div class="b_caption"[^>]*>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i);
+      return {
+        title: htmlToText(link?.[2] ?? ''),
+        url: decodeEntities(link?.[1] ?? ''),
+        snippet: htmlToText(para?.[1] ?? '').slice(0, 500),
+        source: 'bing-html',
+      };
+    })
+    .filter((r) => r.url.startsWith('http'));
 }
 
-async function duckduckgoSearch(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
+/** RSS 优先、HTML 兜底；单路软降级不报失败，双路全挂才逐路冒泡原因。 */
+async function bingSearch(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
   const failed: string[] = [];
   for (const [name, run] of [
-    ['lite', ddgLite],
-    ['instant', ddgInstant],
+    ['rss', bingRss],
+    ['html', bingHtml],
   ] as const) {
     try {
       const results = await run(query, signal);
@@ -267,8 +296,8 @@ export async function searchWeb(
     ] as SearchProviderConfig[]
   ).filter((p) => getProviderKey(p.type));
 
-  // 三家全无 key → 免费通道兜底（v1 兼容语义：绝不让搜索整条路走死）
-  const active: SearchProviderConfig[] = keyed.length > 0 ? keyed : [{ type: 'duckduckgo', priority: 4 }];
+  // 三家全无 key → Bing 免费通道兜底（绝不让搜索整条路走死）
+  const active: SearchProviderConfig[] = keyed.length > 0 ? keyed : [{ type: 'bing', priority: 4 }];
 
   // 缓存键含 provider 组合签名：配 key 前拿到的兜底结果，不能在建 key 后继续被端出 24h
   const cacheKey = `q:${active.map((p) => p.type).join('+')}|${query}`;

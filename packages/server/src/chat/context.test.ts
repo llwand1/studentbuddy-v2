@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { alignToolRoundBoundary, truncateHistoryToBudget, estimateTokens } from './context.js';
+import { alignToolRoundBoundary, truncateHistoryToBudget, estimateTokens, dropSummarizedHistory } from './context.js';
 import type { ChatMessage } from '../llm/types.js';
 
 describe('context 截断 — 工具轮边界对齐（v1 崩溃级 bug 回归，防拆散 tool_calls 致 API 400）', () => {
@@ -42,5 +42,34 @@ describe('context 截断 — 工具轮边界对齐（v1 崩溃级 bug 回归，�
   it('token 估算：CJK 按 1、英文按词', () => {
     expect(estimateTokens('你好世界')).toBe(4);
     expect(estimateTokens('hello world')).toBe(2);
+  });
+});
+
+describe('context 长期记忆 — 丢弃已被摘要覆盖的历史（MEMORY-SPEC §4.4）', () => {
+  const mk = (rowid: number, role: ChatMessage['role'], content = 'x'): ChatMessage & { rowid: number } => ({
+    rowid,
+    role,
+    content,
+  });
+
+  it('uptoRowid=0（从未压缩）→ 原样返回同一引用，不做任何过滤', () => {
+    const h = [mk(1, 'user'), mk(2, 'assistant')];
+    expect(dropSummarizedHistory(h, 0)).toBe(h);
+  });
+
+  it('丢弃 rowid ≤ 锚点的部分，保留之后的', () => {
+    const h = [mk(1, 'user'), mk(2, 'assistant'), mk(3, 'user'), mk(4, 'assistant')];
+    expect(dropSummarizedHistory(h, 2).map((m) => m.rowid)).toEqual([3, 4]);
+  });
+
+  it('过滤后若以孤儿 tool 开头 → 丢弃头部孤儿（锚点理论上已对齐，仍兜一层）', () => {
+    const h = [mk(1, 'user'), mk(2, 'tool'), mk(3, 'tool'), mk(4, 'user')];
+    const out = dropSummarizedHistory(h, 1);
+    expect(out[0]?.role).toBe('user');
+    expect(out.map((m) => m.rowid)).toEqual([4]);
+  });
+
+  it('锚点超过全部 rowid → 返空数组（不该发生，但不能崩）', () => {
+    expect(dropSummarizedHistory([mk(1, 'user'), mk(2, 'assistant')], 99)).toEqual([]);
   });
 });

@@ -4,7 +4,7 @@
  * 定位：events/bus 的订阅消费端。发布方（flow / quiz / search / 点踩）只管 publishEvent，
  * 对观测零感知（ADR-3 域自治）；订阅者抛错由 bus.ts 的 ADR-4 兜底（只记日志、不阻塞发布方），
  * 故本文件不再自行 try/catch，避免双份口径。
- * 配套迁移：db.ts v9（v8 已被认知进化契约预留）。
+ * 配套迁移：db.ts v9（v8 已被深度理解契约预留）。
  */
 import { getDb } from './db.js';
 import { subscribeEvents } from '../events/bus.js';

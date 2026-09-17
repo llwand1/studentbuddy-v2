@@ -69,3 +69,25 @@ export function truncateHistoryToBudget(
   }
   return history.slice(alignToolRoundBoundary(history, startIdx));
 }
+
+/**
+ * 丢弃已被会话摘要覆盖的历史（`rowid <= uptoRowid` 的部分）。
+ *
+ * 摘要段会以文本形式提供这些内容（`chat/compact.ts` 的 `buildSummaryBlock`），
+ * 若再把原文一起发出去，同一段内容会在窗口里出现两次——白占预算，
+ * 也削弱「摘要是浓缩」的意义。与 Pi 的 `firstKeptEntryId` 同一语义。
+ *
+ * 用泛型而非 import `HistoryMessage`：本文件是**纯文本工具**，不该知道 DB 概念
+ * （与 `persist.ts` 把 rowid 做成子类型是同一取向）。
+ *
+ * 起点仍要过一遍工具轮对齐：锚点写库时已对齐过，但它是**库里的历史数据**——
+ * 手改库、未来逻辑变更、或锚点写入与消息写入的时序错位都可能让它落在工具轮中间。
+ */
+export function dropSummarizedHistory<T extends ChatMessage & { rowid: number }>(
+  history: T[],
+  uptoRowid: number,
+): T[] {
+  if (!uptoRowid) return history;
+  const kept = history.filter((m) => m.rowid > uptoRowid);
+  return kept.slice(alignToolRoundBoundary(kept, 0));
+}

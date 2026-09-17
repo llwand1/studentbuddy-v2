@@ -1,5 +1,5 @@
 /**
- * learning/verdict.test.ts — [VERDICT] 解析与归一化（COGNITIVE-EVOLUTION-SPEC v1.1 §6.1/§6.3 · §13 清单行 1+5）。
+ * learning/verdict.test.ts — [VERDICT] 解析与归一化（DEEP-UNDERSTANDING-SPEC v1.1 §6.1/§6.3 · §13 清单行 1+5）。
  * 纯函数测试不触 DB/LLM，Node 任意大版本可跑。
  */
 import { describe, it, expect } from 'vitest';

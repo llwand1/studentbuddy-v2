@@ -15,8 +15,14 @@ import { PK_QUIZ_MIX, isAiUserId } from '@sb/shared';
 import type { QuizPayload } from '@sb/shared';
 import { generateQuiz } from '../learning/quiz.js';
 import { routeRole } from '../llm/router.js';
-import { pushGeneratedQuestion, scheduleNextAiQuiz, submitAnswer } from './match.js';
-import { requireRoomInternal, type PkRoomQuestion, type Room } from './room.js';
+import { pushGeneratedQuestion, publishState, scheduleNextAiQuiz, submitAnswer } from './match.js';
+import {
+  clearQuizPending,
+  requireRoomInternal,
+  setQuizPending,
+  type PkRoomQuestion,
+  type Room,
+} from './room.js';
 
 /** AI 自选主题池（建房未指定「主题方向」时轮换；覆盖通用知识面） */
 const AI_TOPICS = ['科学常识', '世界历史', '地理', '文学名著', '信息技术', '数学基础', '生物', '天文', '语言文字', '生活百科'];
@@ -55,6 +61,9 @@ export async function runAiQuiz(roomId: string): Promise<void> {
   // 轮转由 match 侧统一推进（AI 出题成功同样走 advanceTopic），此处只读不写。
   const topic = room.currentTopic || room.aiTopic || AI_TOPICS[room.aiTopicIdx % AI_TOPICS.length] || '通用知识';
   room.aiTopicIdx += 1;
+  // UX 批：与人同口径——AI 出题也要数秒，玩家同样该看到「AI 正在出题」，而不是题目凭空出现
+  setQuizPending(room, author.userId, now);
+  publishState(room);
 
   let payload: QuizPayload | null = null;
   try {
@@ -65,10 +74,16 @@ export async function runAiQuiz(roomId: string): Promise<void> {
     payload = null;
   }
   // LLM 在途期间对局可能已结束：结算后的房间不再收题
-  if (room.status !== 'active') return;
+  if (room.status !== 'active') {
+    clearQuizPending(room); // 别把「AI 正在出题」带进已结束的快照（它还会进历史 JSON）
+    return;
+  }
   const generated = payload?.questions.find((x) => x.type === 'single');
+  // ★ 必须在 pushGeneratedQuestion 之前清（它成功后会立刻 publishState）
+  clearQuizPending(room);
   const ok = pushGeneratedQuestion(room, author.userId, opponent.userId, `主题：${topic}`, generated, Date.now(), topic);
   scheduleNextAiQuiz(room, ok, Date.now());
+  publishState(room); // 失败也要广播：让前端知道「AI 出题已结束」，别让它一直转圈
 }
 
 /** AI 答题（人出题成功后调用；独立 LLM 调用，只喂题干+选项） */

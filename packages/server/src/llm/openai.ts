@@ -6,6 +6,8 @@
  */
 import type { ChatMessage, ChatRequest, ContentPart, LLMAdapter, ModelListRequest, TokenChunk, ToolCall } from './types.js';
 import { getMaxOutputTokens } from './model-limits.js';
+import { acquireUpstream } from './upstream-gate.js';
+import { asUpstreamError, createUpstreamGuard, UPSTREAM_IDLE_MS, UPSTREAM_TOTAL_MS } from './upstream-timeout.js';
 
 /**
  * content 可能已是多模态段数组（视觉调用传图）。openai 视觉 API 认 `image_url` part，
@@ -57,25 +59,35 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
   type = 'openai' as const;
 
   async *chat(req: ChatRequest): AsyncIterable<TokenChunk> {
-    // 一次性回答（v13，池中 AI 形态）：不发流式请求，等完整 JSON 回来整块吐出。
-    // 等待期由前端「思考中」UI 覆盖（首 token 前的空窗）；中转池大量按非流式聚合转发，
-    // 对它们逐字流式只是把残缺体验拉长，不如一次到位。
-    if (req.streamMode === 'once') {
-      yield* this.chatOnce(req);
-      return;
-    }
     const baseUrl = req.baseUrl || 'https://api.openai.com/v1';
+    // 并发闸门（2026-09-17）：一次请求占一个上游槽，主链优先、后台让路。
+    // ★ 只在最外层 acquire 一次 —— streamMode='once' 会转到 chatOnce()，那是内部转调；
+    //   若它也 acquire 就会「自己等自己」直接死锁。
+    const release = await acquireUpstream(baseUrl, req.purpose ?? 'main', req.signal);
+    try {
+      // 一次性回答（v13，池中 AI 形态）：不发流式请求，等完整 JSON 回来整块吐出。
+      // 等待期由前端「思考中」UI 覆盖（首 token 前的空窗）；中转池大量按非流式聚合转发，
+      // 对它们逐字流式只是把残缺体验拉长，不如一次到位。
+      if (req.streamMode === 'once') {
+        yield* this.chatOnce(req, baseUrl);
+        return;
+      }
+      yield* this.chatStream(req, baseUrl);
+    } finally {
+      release();
+    }
+  }
+
+  /**
+   * 流式分支：SSE 增量解析。
+   * 等待兜底＝**空闲超时**（每收到一段数据重置计时）——上游有数据在流就不该被掐，
+   * 只有「真挂起」才会被兜住。首字节之前同样计时（原实现在此处完全裸奔，见 upstream-timeout.ts）。
+   */
+  private async *chatStream(req: ChatRequest, baseUrl: string): AsyncIterable<TokenChunk> {
     const url = `${baseUrl}/chat/completions`;
 
     const controller = new AbortController();
-    let fallback: ReturnType<typeof setTimeout> | undefined;
-    const onExternalAbort = () => controller.abort();
-    if (req.signal) {
-      if (req.signal.aborted) controller.abort();
-      else req.signal.addEventListener('abort', onExternalAbort, { once: true });
-    } else {
-      fallback = setTimeout(() => controller.abort(), 120_000);
-    }
+    const guard = createUpstreamGuard({ controller, external: req.signal, idleMs: UPSTREAM_IDLE_MS });
 
     try {
       const body: Record<string, unknown> = {
@@ -111,6 +123,8 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
 
       while (true) {
         const { done, value } = await reader.read();
+        // 拿到任何数据即重置空闲计时：上游有数据在流就不该被掐（长回答不受影响）
+        guard.touch();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
@@ -173,9 +187,12 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
         }
       }
       yield { content: '', done: true };
+    } catch (err) {
+      // 超时转成可读错误（裸 AbortError 会让用户看到「生成失败：This operation was aborted」）；
+      // 非超时的原始错误原样透传，HTTP 4xx/5xx 的报文要保真
+      throw asUpstreamError(err, guard);
     } finally {
-      if (fallback) clearTimeout(fallback);
-      if (req.signal) req.signal.removeEventListener('abort', onExternalAbort);
+      guard.dispose();
     }
   }
 
@@ -184,19 +201,12 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
    * 差异仅在 body.stream=false、响应是一次完整 JSON（choices[0].message 而非 delta）。
    * reasoning 多字段兼容口径与流式分支一致（中转池字段名不统一是常态）。
    */
-  private async *chatOnce(req: ChatRequest): AsyncIterable<TokenChunk> {
-    const baseUrl = req.baseUrl || 'https://api.openai.com/v1';
+  private async *chatOnce(req: ChatRequest, baseUrl: string): AsyncIterable<TokenChunk> {
     const url = `${baseUrl}/chat/completions`;
 
+    // 一次性请求没有任何中间帧可等 ⇒ 只能用总时长超时（流式那套「空闲超时」在此无从触发）
     const controller = new AbortController();
-    let fallback: ReturnType<typeof setTimeout> | undefined;
-    const onExternalAbort = () => controller.abort();
-    if (req.signal) {
-      if (req.signal.aborted) controller.abort();
-      else req.signal.addEventListener('abort', onExternalAbort, { once: true });
-    } else {
-      fallback = setTimeout(() => controller.abort(), 120_000);
-    }
+    const guard = createUpstreamGuard({ controller, external: req.signal, totalMs: UPSTREAM_TOTAL_MS });
 
     try {
       const body: Record<string, unknown> = {
@@ -261,9 +271,10 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
           : undefined,
         ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
       };
+    } catch (err) {
+      throw asUpstreamError(err, guard);
     } finally {
-      if (fallback) clearTimeout(fallback);
-      if (req.signal) req.signal.removeEventListener('abort', onExternalAbort);
+      guard.dispose();
     }
   }
 

@@ -285,6 +285,8 @@ async function runCompact(sessionId: string): Promise<CompactResult | null> {
       messages: [{ role: 'user', content: prompt }],
       // 显式传输出上限：摘要要装下六段 + [MEMORY]，靠适配器兜底会撞默认上限被截断
       maxTokens: getMaxOutputTokens(target.model),
+      // 后台任务（摘要下一轮才生效，本轮用户已拿到回答）：排队时给主链让路
+      purpose: 'background',
     })) {
       acc += chunk.content;
       if (chunk.done) break;

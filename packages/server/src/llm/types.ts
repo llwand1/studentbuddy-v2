@@ -54,6 +54,13 @@ export interface ToolCall {
   arguments: string;
 }
 
+/**
+ * 上游配额优先级（2026-09-17 并发闸门 `upstream-gate.ts`）：
+ * - `main`（默认）：用户在等的主链请求（对话 / 出题 / 判题 / 看图蒸馏…）
+ * - `background`：为下一轮备料的后台任务（词条抽取、会话内压缩）——排队时给主链让路
+ */
+export type UpstreamPurpose = 'main' | 'background';
+
 export interface ChatRequest {
   model: string;
   apiKey: string;
@@ -61,6 +68,8 @@ export interface ChatRequest {
   messages: ChatMessage[];
   temperature?: number;
   signal?: AbortSignal;
+  /** 上游配额优先级，缺省 `main`（见 UpstreamPurpose） */
+  purpose?: UpstreamPurpose;
   tools?: ToolDefinition[];
   maxTokens?: number;
   /**

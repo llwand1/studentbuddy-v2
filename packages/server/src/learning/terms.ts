@@ -158,6 +158,8 @@ export async function extractTerms(material: string): Promise<TermItem[]> {
       apiKey: target.apiKey,
       baseUrl: target.baseUrl,
       messages: [{ role: 'user', content: prompt }],
+      // 后台任务（对话已结束才跑，用户在等的是下一轮）：排队时给主链让路
+      purpose: 'background',
     })) {
       acc += chunk.content;
       if (chunk.done) break;

@@ -10,6 +10,8 @@
  */
 import type { ChatRequest, ContentPart, LLMAdapter, ModelListRequest, TokenChunk, ToolCall } from './types.js';
 import { getMaxOutputTokens } from './model-limits.js';
+import { acquireUpstream } from './upstream-gate.js';
+import { asUpstreamError, createUpstreamGuard, UPSTREAM_IDLE_MS } from './upstream-timeout.js';
 
 /** 思考预算（tokens）：≥1024 是 Anthropic 硬下限；max_tokens 必须大于它 */
 const THINKING_BUDGET_TOKENS = 4096;
@@ -20,21 +22,19 @@ export class AnthropicAdapter implements LLMAdapter {
   async *chat(req: ChatRequest): AsyncIterable<TokenChunk> {
     const baseUrl = req.baseUrl || 'https://api.anthropic.com/v1';
     const url = `${baseUrl}/messages`;
+    // 并发闸门（2026-09-17）：一次请求占一个上游槽，主链优先、后台让路。
+    // 排队期间被「停止」会在此抛错——此时尚未建任何请求资源，无需清理。
+    const release = await acquireUpstream(baseUrl, req.purpose ?? 'main', req.signal);
 
     // B-001（bug-ledger）：system 段可能有多条——基础提示词 / 忆域词条段 / 文档模式资料段 / 表达偏好段。
     // 旧实现用 find() 只取第一条，第二条起在出站请求里凭空消失（openai 适配器全量透传故掩盖）。
     const systemBlocks = req.messages.filter((m) => m.role === 'system').map((m) => m.content);
     const nonSystemMsgs = req.messages.filter((m) => m.role !== 'system');
 
+    // 等待兜底＝空闲超时（每收到一段数据重置）：原生 AI 先流思考链、再流正文，
+    // 两段之间的间隔也算「有数据在流」——只有真挂起才兜住（见 upstream-timeout.ts）。
     const controller = new AbortController();
-    let fallback: ReturnType<typeof setTimeout> | undefined;
-    const onExternalAbort = () => controller.abort();
-    if (req.signal) {
-      if (req.signal.aborted) controller.abort();
-      else req.signal.addEventListener('abort', onExternalAbort, { once: true });
-    } else {
-      fallback = setTimeout(() => controller.abort(), 120_000);
-    }
+    const guard = createUpstreamGuard({ controller, external: req.signal, idleMs: UPSTREAM_IDLE_MS });
 
     try {
       const maxTokens = req.maxTokens ?? getMaxOutputTokens(req.model);
@@ -116,6 +116,8 @@ export class AnthropicAdapter implements LLMAdapter {
 
       while (true) {
         const { done, value } = await reader.read();
+        // 拿到任何数据即重置空闲计时（思考链增量与正文增量都算「有数据在流」）
+        guard.touch();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
@@ -176,9 +178,11 @@ export class AnthropicAdapter implements LLMAdapter {
         }
       }
       yield { content: '', done: true };
+    } catch (err) {
+      throw asUpstreamError(err, guard);
     } finally {
-      if (fallback) clearTimeout(fallback);
-      if (req.signal) req.signal.removeEventListener('abort', onExternalAbort);
+      guard.dispose();
+      release();
     }
   }
 

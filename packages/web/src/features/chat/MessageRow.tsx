@@ -22,6 +22,7 @@ import { processSummary } from './process-summary';
 import { Markdown } from './Markdown';
 import { ChevronDownIcon } from '../../components/icons';
 import { QuizCard } from '../quiz/QuizCard';
+import { ScenarioPanel } from '../quiz/ScenarioPanel';
 import { api } from '../../lib/api';
 
 export function MessageRow({
@@ -69,6 +70,18 @@ export function MessageRow({
             });
           }
         }}
+      />
+    );
+  }
+
+  // 情景题卡片（M3，契约 SCENARIO-SPEC §8）：宿主面板直接内嵌消息流——
+  // iframe 必须留在本应用内（新标签页会断回传链），对错以服务端判分为准（面板内已钉）
+  if (m.scenarioBlock) {
+    return (
+      <ScenarioPanel
+        quizId={m.scenarioBlock.quizId ?? ''}
+        payload={m.scenarioBlock.payload}
+        demoId={m.scenarioBlock.demoId}
       />
     );
   }
@@ -124,6 +137,13 @@ export function MessageRow({
           </div>
         ) : (
           <>
+            {m.images && m.images.length > 0 && (
+              <div className="chat-att-row">
+                {m.images.map((img, i) => (
+                  <img key={i} src={img.dataUrl} alt={img.name ?? '图片'} className="chat-att-thumb" />
+                ))}
+              </div>
+            )}
             <div className="chat-bubble user">{m.content}</div>
             {canEdit && (
               <button

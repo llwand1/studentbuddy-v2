@@ -79,6 +79,16 @@ export function NoteIcon(props: IconProps) {
   );
 }
 
+/** 情景题（烧瓶——可交互 demo 的实验感，与 QuizIcon 的卷子形区分开） */
+export function FlaskIcon(props: IconProps) {
+  return (
+    <svg {...base(props.size, props)}>
+      <path d="M9.5 3h5M10.5 3v5.2L4.8 17.6A2.2 2.2 0 0 0 6.8 21h10.4a2.2 2.2 0 0 0 2-3.4L13.5 8.2V3" />
+      <path d="M7.2 15.5h9.6" />
+    </svg>
+  );
+}
+
 /** 设置 */
 export function SettingsIcon(props: IconProps) {
   return (
@@ -94,6 +104,24 @@ export function PlusIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
       <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+/** 缩小（画布缩放条）。★ 与 PlusIcon 同构：一条横线，18px 下不会和「关闭」混 */
+export function MinusIcon(props: IconProps) {
+  return (
+    <svg {...base(props.size, props)}>
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+/** 适配窗口（四角括号内收 = 「把内容收进画框」）——画布「看全貌」按钮 */
+export function FitIcon(props: IconProps) {
+  return (
+    <svg {...base(props.size, props)}>
+      <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
     </svg>
   );
 }
@@ -190,6 +218,33 @@ export function UserIcon(props: IconProps) {
     <svg {...base(props.size, props)}>
       <circle cx="12" cy="8" r="4" />
       <path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" />
+    </svg>
+  );
+}
+
+/** 学习流（控制流：两个步骤节点 + 一条折线走向） */
+export function FlowIcon(props: IconProps) {
+  return (
+    <svg {...base(props.size, props)}>
+      <rect x="3" y="4" width="9" height="6" rx="1.5" />
+      <rect x="12" y="14" width="9" height="6" rx="1.5" />
+      <path d="M12 7h1.5a2 2 0 0 1 2 2v5" />
+      <path d="M7.5 10v4a2 2 0 0 0 2 2H12" />
+    </svg>
+  );
+}
+
+/** 知识图（中心节点 + 三个邻居 + 辐射连线） */
+export function GraphIcon(props: IconProps) {
+  return (
+    <svg {...base(props.size, props)}>
+      <circle cx="12" cy="12" r="3" />
+      <circle cx="12" cy="4" r="2" />
+      <circle cx="5" cy="18.5" r="2" />
+      <circle cx="19" cy="18.5" r="2" />
+      <path d="M12 6.5v2.5" />
+      <path d="M9.8 14.2 6.6 16.8" />
+      <path d="M14.2 14.2l3.2 2.6" />
     </svg>
   );
 }

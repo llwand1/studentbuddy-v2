@@ -4,7 +4,14 @@
  * 判定逻辑一律放这里、组件只负责挂——本仓 .tsx 无测试环境（先例 doc-name.ts），
  * 纯函数才能进测链路。全部无副作用、无时钟依赖：now 一律由调用方传入。
  */
-import { PK_ROOM_CODE_LEN, type PkEndReason, type PkOutcome, type PkQuestion, type PkRoomState } from '@sb/shared';
+import {
+  isAiUserId,
+  PK_ROOM_CODE_LEN,
+  type PkEndReason,
+  type PkOutcome,
+  type PkQuestion,
+  type PkRoomState,
+} from '@sb/shared';
 
 /** 房号输入归一：只留数字、截到 6 位（contract §2.1 roomCode = 6 位数字） */
 export function normalizeRoomCode(raw: string): string {
@@ -148,4 +155,45 @@ export function formatEndedAt(ms: number): string {
   const d = new Date(ms);
   const p = (n: number) => String(n).padStart(2, '0');
   return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// ── UX 批（2026-09-15 老板点单：出题过渡／对错反馈／胜负仪式感）────────
+
+/** 出题已进行的秒数（无人出题则 0）：前端据此显示「已过 Ns」，超长时好收敛文案 */
+export function quizPendingSec(state: PkRoomState, now: number): number {
+  const at = state.quizPending?.at;
+  if (at === undefined) return 0;
+  return Math.max(0, Math.floor((now - at) / 1000));
+}
+
+/**
+ * 「谁正在出题」的提示；**没人在出题、或正在出题的正是我自己 → null**。
+ *
+ * ★ 自己出题时刻意不显示：我刚点了按钮、按钮本身就在转圈，旁边再插一条「你正在出题」
+ *   等于拿提示刷存在感——**这个提示是给「看不见对方在干嘛」的那一方用的**。
+ */
+export function quizPendingLabel(state: PkRoomState, userId: string): { who: string; text: string } | null {
+  const p = state.quizPending;
+  if (!p || p.userId === userId) return null;
+  // ★ 文案**只在这一处拼**，组件直接渲染 `text`、不再自己拼一遍：
+  //   同一句话写两处＝迟早漂移（本仓死规矩：双真相源要么配漂移锁，要么只留一个）。
+  //   这条规矩当场兑现过一次——组件里拼的是 `'AI正在出题'`、测试锁的是 `'AI 正在出题'`，
+  //   两边不一致但只有一个在跑，靠断言才炸出来。
+  // ★ AI 与中文之间留一个空格（中英混排规范）：'AI 正在出题' vs '对手正在出题'。
+  const ai = isAiUserId(p.userId);
+  return { who: ai ? 'AI' : '对手', text: ai ? 'AI 正在出题' : '对手正在出题' };
+}
+
+/**
+ * 判分种类（驱动对错动画）。
+ *
+ * ★ 与 `reviewVerdict` **同口径**：未作答（`chosen` 与 `answerRevealed` 双双 undefined）
+ *   一律**不算答对**——`chosen === answerRevealed` 的老写法就栽在这里，把「没答」显示成
+ *   「答对 +2」（P0-8 已修），这里不能重蹈覆辙。
+ */
+export function verdictKind(q: PkQuestion): 'correct' | 'wrong' | 'timeout' | 'pending' {
+  if (q.status === 'pending') return 'pending';
+  if (q.status === 'timeout') return 'timeout';
+  if (q.chosen === undefined || q.answerRevealed === undefined) return 'wrong';
+  return q.chosen === q.answerRevealed ? 'correct' : 'wrong';
 }

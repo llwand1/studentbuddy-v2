@@ -21,6 +21,8 @@ import {
   PinIcon,
   ChevronDownIcon,
   ClockIcon,
+  FlowIcon,
+  GraphIcon,
 } from '../components/icons';
 import { api } from '../lib/api';
 import { ChatView } from '../features/chat/ChatView';
@@ -31,13 +33,18 @@ import { QuizBankPage } from '../features/quiz/QuizBankPage';
 import { NotesPage } from '../features/notes/NotesPage';
 import { TermsPage } from '../features/terms/TermsPage';
 import { DailySummaryPage } from '../features/summary/DailySummaryPage';
+import { FlowPage } from '../features/study-flow/FlowPage';
+import { KnowledgeGraphPage } from '../features/study-flow/KnowledgeGraphPage';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
 import './app.css';
 
-type View = 'chat' | 'quiz' | 'notes' | 'terms' | 'summary' | 'settings';
+type View = 'chat' | 'flow' | 'graph' | 'quiz' | 'notes' | 'terms' | 'summary' | 'settings';
 
 /**
- * 侧栏功能列表。`pk` 是个**例外项**：PK 页是 `#/pk` 上的独立移动优先页面（契约 PK-SPEC §5，
+ * 侧栏功能列表（顺序 = 用户的主线动线）。
+ * ★ 2026-09-17：「学习流」「知识图」排在最前——它们是**学习的主线**（编排怎么学 → 看学出了什么），
+ *   题库/笔记/词条是素材，今日总结是回顾。新功能成组放最前，而不是塞在末尾当"附加功能"。
+ * `pk` 是个**例外项**：PK 页是 `#/pk` 上的独立移动优先页面（契约 PK-SPEC §5，
  * 与主壳互不嵌套），所以它不进 `View` 联合、也不 `setView`，只改 hash 交给 `main.tsx` 换根。
  *
  * 为什么要有这一项（2026-09-13 老板实测）：「对战出题」原先只有 `#/pk` 这个手输地址，
@@ -46,6 +53,8 @@ type View = 'chat' | 'quiz' | 'notes' | 'terms' | 'summary' | 'settings';
 type NavKey = View | 'pk';
 
 const NAV: Array<{ key: NavKey; label: string; icon: typeof QuizIcon }> = [
+  { key: 'flow', label: '学习流', icon: FlowIcon },
+  { key: 'graph', label: '知识图', icon: GraphIcon },
   { key: 'quiz', label: '题库', icon: QuizIcon },
   { key: 'pk', label: '对战', icon: VsIcon },
   { key: 'notes', label: '笔记', icon: NoteIcon },
@@ -75,11 +84,19 @@ export function App() {
   const [historyOpen, setHistoryOpen] = useState(true);
   /** 笔记页的套题过滤（题库页「本套笔记」入口带入；从导航点「笔记」时清除） */
   const [notesQuizId, setNotesQuizId] = useState<string | null>(null);
+  /** 词条库的搜索词（知识图页「去词条库看正文」入口带入；从导航点「词条」时清除） */
+  const [termsKeyword, setTermsKeyword] = useState('');
 
   /** 题库页 → 笔记页的跨页入口：带 quizId 过滤直达本套题的笔记 */
   const openNotes = useCallback((quizId?: string) => {
     setNotesQuizId(quizId ?? null);
     setView('notes');
+  }, []);
+
+  /** 知识图页 → 词条库的跨页入口：按词条名直达（知识图只存引用快照，正文在词条库） */
+  const openTerms = useCallback((keyword: string) => {
+    setTermsKeyword(keyword);
+    setView('terms');
   }, []);
 
   const reloadSessions = useCallback(async () => {
@@ -159,6 +176,7 @@ export function App() {
                 }
                 setView(key);
                 if (key === 'notes') setNotesQuizId(null);
+                if (key === 'terms') setTermsKeyword('');
               }}
             >
               <Icon /> {label}
@@ -241,11 +259,14 @@ export function App() {
             onBusyChange={handleBusyChange}
           />
         )}
+        {view === 'flow' && <FlowPage onGoGraph={() => setView('graph')} />}
+        {view === 'graph' && <KnowledgeGraphPage onOpenTerms={openTerms} />}
         {view === 'quiz' && <QuizBankPage onOpenNotes={openNotes} />}
         {view === 'notes' && (
           <NotesPage quizId={notesQuizId} onClearQuiz={() => setNotesQuizId(null)} />
         )}
-        {view === 'terms' && <TermsPage />}
+        {/* key 变化时重挂：从知识图带词进来要重新初始化搜索框（同「笔记」页的 quizId 手法） */}
+        {view === 'terms' && <TermsPage key={termsKeyword} initialKeyword={termsKeyword} />}
         {view === 'summary' && <DailySummaryPage />}
         {view === 'settings' && <SettingsView />}
       </main>

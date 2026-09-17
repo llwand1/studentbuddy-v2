@@ -2,7 +2,7 @@
  * mix-report — 出题配比的展示文案（纯函数：组件只管挂上去，规则留在这里才可测）。
  * 契约 QuizMixReport 由服务端给出，本文件只做「说人话」，不重新判定缺什么。
  */
-import type { QuizMix, QuizMixReport, QuizImageReport, QuizSearchReport, QuizRef } from '@sb/shared';
+import type { QuizMix, QuizMixReport, QuizImageReport, QuizSearchReport, QuizRef, ScenarioMixResult } from '@sb/shared';
 import { QUIZ_TYPES, QUIZ_TYPE_LABELS, mixTotal } from '@sb/shared';
 
 /** 「单选题 2 · 填空题 1 · 解答题 1」；数量为 0 的档位不展示 */
@@ -59,4 +59,23 @@ export function searchNote(report?: QuizSearchReport | null): string | null {
 export function refsList(report?: QuizSearchReport | null): QuizRef[] {
   if (!report || !report.on) return [];
   return report.refs ?? [];
+}
+
+/**
+ * 情景题逐套结果文案（SCENARIO-SPEC §6.1）：配比里的情景档按套逐一生成，部分失败必须说出来，不静默。
+ * 成功的套卡片已进聊天流（sessionId 场景），这里仍报套数——「一共出了几套」在卡片上看不出来。
+ * 返 null = 本次配比没要情景题，没什么要播报的。
+ */
+export function scenarioMixNote(results?: ScenarioMixResult[] | null): string | null {
+  if (!results || results.length === 0) return null;
+  const ok = results.filter((r) => r.ok).length;
+  const total = results.length;
+  if (ok === total) return `情景题：${total} 套已生成${total > 1 ? '，都在本次对话和题库里' : '，已进本次对话和题库'}。`;
+  const failures = results.filter((r) => !r.ok);
+  const reason = failures.some((f) => f.failure === 'no-model')
+    ? '出题模型没绑定，先到设置页给「出题」绑定模型'
+    : '模型输出没解析成情景题，可重试';
+  return ok === 0
+    ? `情景题：${total} 套都没出成——${reason}。`
+    : `情景题：成功 ${ok}/${total} 套，失败 ${total - ok} 套（${reason}）。`;
 }

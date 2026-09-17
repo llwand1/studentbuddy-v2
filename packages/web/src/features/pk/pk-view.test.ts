@@ -27,6 +27,9 @@ import {
   myHelpLeft,
   retryRemainingMs,
   myWrongQuestions,
+  quizPendingLabel,
+  quizPendingSec,
+  verdictKind,
 } from './pk-view';
 
 function state(players: Array<{ userId: string; nickname: string }>): PkRoomState {
@@ -330,5 +333,73 @@ describe('P0-8 · 投降 / 对战历史（纯函数）', () => {
   it('formatEndedAt：MM-DD HH:mm 且补零（用本地时间构造，避开时区差异）', () => {
     expect(formatEndedAt(new Date(2026, 0, 5, 9, 7).getTime())).toBe('01-05 09:07');
     expect(formatEndedAt(new Date(2026, 11, 31, 23, 59).getTime())).toBe('12-31 23:59');
+  });
+});
+
+describe('UX 批 · 出题过渡 / 判分种类（纯函数）', () => {
+  function q(over: Partial<PkQuestion>): PkQuestion {
+    return {
+      id: 'q1',
+      roomId: 'r-1',
+      fromUserId: 'b',
+      toUserId: 'a',
+      prompt: '',
+      stem: '',
+      options: ['x', 'y'],
+      createdAt: 0,
+      deadlineAt: 0,
+      status: 'answered',
+      chosen: 0,
+      answerRevealed: 0,
+      ...over,
+    };
+  }
+
+  function room(over: Partial<PkRoomState> = {}): PkRoomState {
+    return {
+      ...state([
+        { userId: 'a', nickname: '甲' },
+        { userId: 'b', nickname: '乙' },
+      ]),
+      ...over,
+    };
+  }
+
+  it('★ quizPendingLabel：自己出题时不提示（我刚点了按钮、按钮本身就在转圈，再插一条是刷存在感）', () => {
+    expect(quizPendingLabel(room({ quizPending: { userId: 'a', at: 1000 } }), 'a')).toBeNull();
+  });
+
+  it('quizPendingLabel：没人在出题 → null（不能凭空显示「对方正在出题」）', () => {
+    expect(quizPendingLabel(room(), 'a')).toBeNull();
+  });
+
+  it('quizPendingLabel：对手出题 → 「对手正在出题」；AI 座位出题 → 「AI 正在出题」', () => {
+    expect(quizPendingLabel(room({ quizPending: { userId: 'b', at: 1000 } }), 'a')).toEqual({
+      who: '对手',
+      text: '对手正在出题',
+    });
+    expect(quizPendingLabel(room({ quizPending: { userId: 'ai-r-1', at: 1000 } }), 'a')).toEqual({
+      who: 'AI',
+      text: 'AI 正在出题',
+    });
+  });
+
+  it('quizPendingSec：向下取整、不出现负数（本机时钟回拨也不显示「−3s」）', () => {
+    const s = room({ quizPending: { userId: 'b', at: 10_000 } });
+    expect(quizPendingSec(s, 10_000)).toBe(0);
+    expect(quizPendingSec(s, 13_900)).toBe(3);
+    expect(quizPendingSec(s, 9_000)).toBe(0);
+    expect(quizPendingSec(room(), 99_999)).toBe(0);
+  });
+
+  it('★ verdictKind：未作答（chosen 与 answerRevealed 双双 undefined）不算答对——与 reviewVerdict 同口径', () => {
+    expect(verdictKind(q({ status: 'answered', chosen: undefined, answerRevealed: undefined }))).toBe('wrong');
+  });
+
+  it('verdictKind：答对 / 答错 / 超时 / 未判定四态互不串台', () => {
+    expect(verdictKind(q({ chosen: 1, answerRevealed: 1 }))).toBe('correct');
+    expect(verdictKind(q({ chosen: 1, answerRevealed: 2 }))).toBe('wrong');
+    expect(verdictKind(q({ status: 'timeout' }))).toBe('timeout');
+    expect(verdictKind(q({ status: 'pending' }))).toBe('pending');
   });
 });

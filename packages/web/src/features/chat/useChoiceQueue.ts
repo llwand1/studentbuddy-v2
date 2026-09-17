@@ -26,6 +26,12 @@ export interface ChoiceQueue {
   replyChoice: (requestId: string, reply: { optionId?: string; custom?: string }) => void;
   /** 收起队首（纯前端动作，不触碰后端状态） */
   dismissChoice: () => void;
+  /**
+   * **跳过**（v18 grill-me）：真去后端作废这条挂起提问。
+   * 与 `dismissChoice` 的区别：后者只收起前端卡，后端的 `askChoice` Promise 还在等——
+   * grill-me 开场那张卡是**阻塞整轮**的，不真取消工具就永远悬挂。
+   */
+  skipChoice: (requestId: string) => void;
 }
 
 export function useChoiceQueue(sessionId: string | null, onError: (msg: string) => void): ChoiceQueue {
@@ -66,11 +72,14 @@ export function useChoiceQueue(sessionId: string | null, onError: (msg: string) 
       if (ev.type === 'choice-asked') {
         // 按 id 幂等：断线重连会回放同一帧，覆盖而非二次入队
         const exists = choicesRef.current.some((c) => c.id === ev.request.id);
-        commit(
-          exists
-            ? choicesRef.current.map((c) => (c.id === ev.request.id ? ev.request : c))
-            : [...choicesRef.current, ev.request],
-        );
+        if (exists) {
+          commit(choicesRef.current.map((c) => (c.id === ev.request.id ? ev.request : c)));
+          return true;
+        }
+        // 入队前请走已结算（answered/cancelled）的卡：它们只是「点选成功」的短暂回执，
+        // 而浮层只显示队首——旧确认卡不退场，同一轮里的第二问、grill 的 post 卡
+        // 就会被压在后面看不见，多轮拍板在体验上直接消失。这是老板实测点名的问题（2026-09-17）。
+        commit([...choicesRef.current.filter((c) => c.status === 'pending'), ev.request]);
         return true;
       }
       if (ev.type === 'choice-replied') {
@@ -109,5 +118,17 @@ export function useChoiceQueue(sessionId: string | null, onError: (msg: string) 
     commit(choicesRef.current.slice(1));
   }, [commit]);
 
-  return { pendingChoice: choices[0] ?? null, applyEvent, reset, replyChoice, dismissChoice };
+  const skipChoice = useCallback(
+    (requestId: string) => {
+      // 先本地出队再通知后端：后端若早已结束会回 409，此时本地也已收起，两边都无害。
+      // 取消会广播 choice-cancelled，但该帧只 map 已有项，不会把已出队的卡加回来。
+      commit(choicesRef.current.filter((c) => c.id !== requestId));
+      void api.choices
+        .cancel(requestId, '学习者跳过')
+        .catch((err: unknown) => onError(err instanceof Error ? err.message : String(err)));
+    },
+    [commit, onError],
+  );
+
+  return { pendingChoice: choices[0] ?? null, applyEvent, reset, replyChoice, dismissChoice, skipChoice };
 }

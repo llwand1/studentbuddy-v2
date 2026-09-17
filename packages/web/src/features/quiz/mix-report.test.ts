@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { QuizSearchReport } from '@sb/shared';
-import { searchNote, refsList } from './mix-report';
+import { searchNote, refsList, scenarioMixNote } from './mix-report';
 
 /** 只写关心的字段，其余走零值 */
 const mk = (p: Partial<QuizSearchReport>): QuizSearchReport => ({
@@ -65,5 +65,32 @@ describe('refsList — 参考来源清单', () => {
       { n: 2, title: '', url: 'https://b.example/2', provider: 'tavily' },
     ];
     expect(refsList(mk({ count: 2, refs }))).toEqual(refs);
+  });
+});
+
+
+describe('scenarioMixNote — 情景套数如实播报（SCENARIO-SPEC §6.1）', () => {
+  const ok = (i: number) => ({ ok: true as const, quizId: `q${i}`, demoId: `d${i}` });
+  const fail = () => ({ ok: false as const, failure: 'parse' as const });
+
+  it('没配情景档（空/undefined）→ null，无事发生就不播报', () => {
+    expect(scenarioMixNote(undefined)).toBeNull();
+    expect(scenarioMixNote([])).toBeNull();
+  });
+
+  it('全成功：报套数（卡片本身看不出一共出了几套）', () => {
+    expect(scenarioMixNote([ok(1)])).toContain('1 套已生成');
+    expect(scenarioMixNote([ok(1), ok(2)])).toContain('成功 2/2 套'.replace('成功 2/2 套', '2 套已生成'));
+  });
+
+  it('部分失败：成功/失败各报多少，失败给行动指引（不静默）', () => {
+    const note = scenarioMixNote([ok(1), fail(), fail()]);
+    expect(note).toContain('成功 1/3 套');
+    expect(note).toContain('失败 2 套');
+  });
+
+  it('no-model 与 parse 的指引不同（真因不同，行动就不同）', () => {
+    expect(scenarioMixNote([{ ok: false, failure: 'no-model' }])).toContain('绑定模型');
+    expect(scenarioMixNote([{ ok: false, failure: 'parse' }])).toContain('重试');
   });
 });

@@ -10,6 +10,7 @@
  * 纯函数：吃原始行、吐 StreamMessage[]，不碰 DOM 也不碰 React，可直接单测。
  */
 import type { StreamMessage, TaskItem, ToolStep } from './useChatStream';
+import { restoreScenarioBlock } from './chat-blocks';
 
 /** /messages 下发的原始行（口径见服务端 routes.ts 的 SELECT；多出的字段这里不用） */
 export interface HistoryRow {
@@ -24,6 +25,8 @@ export interface HistoryRow {
   reasoning?: string | null;
   /** 该行是回答时：update_tasks 最后一次全量的 JSON 串（v11 起随消息落库） */
   tasks?: string | null;
+  /** v17 看图：用户上传图片（base64 dataURL JSON 数组），仅作缩略图回显 */
+  images?: string | null;
   created_at: string;
 }
 
@@ -70,7 +73,16 @@ export function foldToolRounds(rows: HistoryRow[]): StreamMessage[] {
       // 上一轮若留下悬空步骤（异常中断），不跨轮污染：直接丢弃未收口的 pending
       pending = [];
       byCallId.clear();
-      out.push({ role: 'user', content: r.content, ts: r.created_at });
+      let images: Array<{ dataUrl: string; name?: string }> | undefined;
+      if (r.images) {
+        try {
+          const v = JSON.parse(r.images) as Array<{ dataUrl: string; name?: string }>;
+          if (Array.isArray(v) && v.length > 0) images = v;
+        } catch {
+          /* 坏 JSON 视作无图：不让脏数据毁掉整段历史 */
+        }
+      }
+      out.push({ role: 'user', content: r.content, ts: r.created_at, ...(images ? { images } : {}) });
       continue;
     }
 
@@ -87,6 +99,21 @@ export function foldToolRounds(rows: HistoryRow[]): StreamMessage[] {
       }
       // 正文 assistant：把累积的过程整块挂给它（无工具轮则 steps 为 undefined；
       // reasoning / tasks 是 v11 起直接存在这条行上的列，一并对上）
+      // 情景题历史行（M3，契约 SCENARIO-SPEC §8）：[SCENARIO] 登记文本还原成卡片——
+      // 还原失败回落普通文本，不让一行旧数据毁掉整个会话的加载
+      const scenario = restoreScenarioBlock(r.content);
+      if (scenario) {
+        out.push({
+          role: 'assistant',
+          content: '',
+          ts: r.created_at,
+          scenarioBlock: scenario,
+          steps: pending.length > 0 ? pending : undefined,
+        });
+        pending = [];
+        byCallId.clear();
+        continue;
+      }
       out.push({
         role: 'assistant',
         content: r.content,

@@ -9,9 +9,8 @@ import { useState } from 'react';
 import { isAiUserId } from '@sb/shared';
 import type { PkRoomState } from '@sb/shared';
 import type { SseReadyState } from '../../lib/sse-client';
-import { finishTitle } from './pk-view';
 import { PkMatch } from './PkMatch';
-import { PkReviewList } from './PkReviewList';
+import { PkResult } from './PkResult';
 
 interface Props {
   state: PkRoomState;
@@ -118,40 +117,7 @@ export function PkRoom({ state, userId, link, busy, onStart, onSetTopic, onForfe
         <PkMatch state={state} userId={userId} busy={busy} onForfeit={onForfeit} />
       )}
 
-      {state.status === 'finished' && (
-        <section className="sb-pk-card">
-          <h2 className="sb-pk-h2">{finishTitle(state, userId)}</h2>
-          {state.winner && (
-            <p className="sb-pk-winner">
-              {state.players.find((p) => p.userId === state.winner)?.nickname ?? '对手'} 获胜
-            </p>
-          )}
-          <div className="sb-pk-score">
-            {state.players.map((p) => (
-              <div key={p.userId} className="sb-pk-side">
-                <span className="sb-pk-nick">
-                  {p.nickname}
-                  {isAiUserId(p.userId) && <span className="sb-pk-ai-tag">AI</span>}
-                </span>
-                <span className="sb-pk-score-num">{p.score}</span>
-                <span className="sb-pk-sub">
-                  答对 {p.correct}/{p.answered}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {state.status === 'finished' && state.questions.length > 0 && (
-        <section className="sb-pk-card">
-          <h2 className="sb-pk-h2">回看题目</h2>
-          <PkReviewList questions={state.questions} userId={userId} />
-          <button type="button" className="sb-pk-btn" onClick={onLeave}>
-            返回大厅
-          </button>
-        </section>
-      )}
+      {state.status === 'finished' && <PkResult state={state} userId={userId} onLeave={onLeave} />}
     </>
   );
 }

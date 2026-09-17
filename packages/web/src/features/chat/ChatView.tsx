@@ -5,8 +5,7 @@
  * 2026-09-13 改版（老板口述两处，两处都是「位置错了」而不是「功能缺了」）：
  * ① 输入框那排功能键（出题/联网/存入记忆/导出/文档模式）收进 `ChatComposer` 的「+」菜单；
  * ② 出题的**联网参考来源清单**从「常驻输入框上方」移进**消息流末尾**——它是**本轮的产物**，
- *    该跟这轮对话一起滚走；钉在输入框上方会一直留着、看着像全局状态（老板实测指出）。
- *    下一轮提问即清空（见 `submit`），所以它始终只对应「眼前这一轮」。
+ *    该跟这轮对话一起滚走、下一轮提问即清空（见 `submit`）；钉在输入框上方会一直留着、看着像全局状态（老板实测指出）。
  *
  * 本文件只留「消息流 + 编排」；输入区整体在 `ChatComposer.tsx`（ChatView 曾贴 300 行门禁）。
  */
@@ -19,13 +18,15 @@ import { TaskPanel } from './TaskPanel';
 import { MessageRow } from './MessageRow';
 import { formatRoundMeta } from './chat-meta';
 import { buildExportMarkdown, downloadText, exportFilename } from './chat-export';
-import { mixSummary, imageNote, searchNote, refsList } from '../quiz/mix-report';
+import { mixSummary } from '../quiz/mix-report';
+import { useQuizActions } from './use-quiz-actions';
 import { RefList } from '../quiz/RefList';
-import type { QuizImageReport, QuizRef, AnswerStyle } from '@sb/shared';
+
 import { Markdown } from './Markdown';
 import { Welcome } from './Welcome';
 import { Thinking } from './Thinking';
 import { ChatComposer } from './ChatComposer';
+import { useGrillChoice } from './useGrillChoice';
 import { useDocMode } from './useDocMode';
 import { useAskStyle } from './AskStyleCard';
 import { api } from '../../lib/api';
@@ -65,18 +66,28 @@ export function ChatView({
     pendingChoice,
     replyChoice,
     dismissChoice,
+    skipChoice,
   } = useChatStream(sessionId, onRoundDone, onBusyChange);
   const [input, setInput] = useState('');
   const [sendError, setSendError] = useState('');
-  const [quizzing, setQuizzing] = useState(false);
+  // v18.3：grill 收尾卡点选后 send 失败要浮出来（此前 void 吞掉 {ok:false}＝点了没反应）
+  const { composerProps, grillNode, sendWithGrill } = useGrillChoice({ pendingChoice, replyChoice, skipChoice, send, onSendError: setSendError });
+  /** v17 看图：待发送的图片附件（base64 dataURL）。随会话切换清空，避免串台 */
+  const [attachments, setAttachments] = useState<Array<{ dataUrl: string; name?: string }>>([]);
   /** 出题联网开关：默认开（与题库页同一个件、同一个默认，契约 QUIZ-SEARCH §3） */
   const [online, setOnline] = useState(true);
   const [remembering, setRemembering] = useState(false);
   const [rememberMsg, setRememberMsg] = useState('');
   const [mixTip, setMixTip] = useState('');
-  const [quizNote, setQuizNote] = useState('');
-  /** 本次出题的参考来源清单（契约 QUIZ-SEARCH-SPEC §2.8）；没联网/没命中即空数组 */
-  const [quizRefs, setQuizRefs] = useState<QuizRef[]>([]);
+  /** 出题动作域（传统题组 + 情景题，v0.2.37 从本文件拆出——本文件贴 300 行红线） */
+  const quiz = useQuizActions({
+    sessionId,
+    input,
+    online,
+    getMaterial: () => messages.slice(-8).map((m) => m.content).filter(Boolean).join('\n').slice(-4000),
+    clearInput: () => setInput(''),
+    onError: setSendError,
+  });
   /** 文档模式载入面板是否展开：触发器在「+」菜单里，面板与 pill 在 composer 上方 */
   const [docOpen, setDocOpen] = useState(false);
   /** 文档模式状态：与菜单里的触发器共用同一份（载入成功即收面板，失败留着让人看见错） */
@@ -89,7 +100,7 @@ export function ChatView({
     steps.length,
     tasks.length,
     streamingText,
-    quizRefs.length,
+    quiz.quizRefs.length,
   ]);
   /** 输入框随内容自增高：高度写进 CSS 变量 --ta-h（chat.css），上限 200px 后内滚 */
   useAutoResize(inputRef, input);
@@ -105,6 +116,7 @@ export function ChatView({
   /** 切会话收起载入面板：面板里可能还留着上一会话没提交的粘贴内容，串台比收起更糟 */
   useEffect(() => {
     setDocOpen(false);
+    setAttachments([]);
   }, [sessionId]);
 
   const blocked = ready !== 'open' || busy;
@@ -142,56 +154,20 @@ export function ChatView({
 
   const submit = async () => {
     const text = input.trim();
-    if (!text || blocked) return;
+    const imgs = attachments;
+    // 允许「纯图片」提问（无文字也有图）；文字与图都没有才拦截
+    if ((!text && imgs.length === 0) || blocked) return;
     setInput('');
+    setAttachments([]);
     setSendError('');
-    // 上一轮的来源清单随本轮提问退场：它是**那一轮**的产物，
-    // 留着会让人以为这一轮也查了网（清单跟着消息流走，清空后本轮自然没有）
-    setQuizRefs([]);
-    setQuizNote('');
-    const r = await send(text);
+    // 上一轮的来源清单随本轮提问退场：它是**那一轮**的产物，留着会让人以为这一轮也查了网
+    quiz.resetRound();
+    const r = await sendWithGrill(text, imgs.length > 0 ? imgs : undefined);
     if (!r.ok && r.error) setSendError(r.error);
   };
 
-  /** 单次覆盖：style 只在「没配过 + 刚在选项卡上选完」这一条路上非空（契约 ANSWER-STYLE §4） */
-  const quickQuiz = async (style?: AnswerStyle) => {
-    if (!sessionId || quizzing) return;
-    const material = messages.slice(-8).map((m) => m.content).filter(Boolean).join('\n').slice(-4000);
-    setQuizzing(true);
-    setSendError('');
-    setQuizNote('');
-    try {
-      const r = await api.request<{ error?: string; images?: QuizImageReport }>('/api/quiz/generate', {
-        method: 'POST',
-        body: JSON.stringify({
-          topic: input.trim() || '根据当前对话内容出题',
-          material: material || undefined,
-          sessionId,
-          style,
-          search: online,
-        }),
-      });
-      if (r.error) setSendError(r.error);
-      // 题卡走 SSE 块进消息流；本行只补「图/联网为什么没成」——有来源清单时改由清单承担告知（不说两遍）
-      else {
-        const found = refsList(r.images?.search);
-        setQuizRefs(found);
-        setQuizNote(
-          [imageNote(r.images), found.length === 0 ? searchNote(r.images?.search) : null]
-            .filter((s): s is string => s !== null)
-            .join(' '),
-        );
-      }
-      setInput('');
-    } catch (e) {
-      setSendError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setQuizzing(false);
-    }
-  };
-
   /** 没配过回答方式时，点「出题」先就地展开选项卡问一次（契约 ANSWER-STYLE §4） */
-  const ask = useAskStyle((style) => void quickQuiz(style));
+  const ask = useAskStyle((style) => void quiz.runQuiz(style));
 
   /** 忆域 v2：手动「存入记忆」——把最近对话内容交给 AI 抽取重要词条入库 */
   const rememberTerms = async () => {
@@ -247,9 +223,10 @@ export function ChatView({
         {rememberMsg && <div className="chat-remember-msg">{rememberMsg}</div>}
         {/* 本轮出题的补白与来源清单：都进消息流，跟这一轮一起滚走（改版前钉在输入框上方，
             会一直留着像全局状态）。有来源清单时由清单承担告知，`quizNote` 只留「图/联网没成」 */}
-        {quizNote && <div className="chat-quiz-mix">{quizNote}</div>}
-        <RefList refs={quizRefs} />
+        {quiz.quizNote && <div className="chat-quiz-mix">{quiz.quizNote}</div>}
+        <RefList refs={quiz.quizRefs} />
         {roundMeta && <div className="chat-round-meta">{roundMeta}</div>}
+        {grillNode}
       </div>
 
       <ChatComposer
@@ -259,10 +236,15 @@ export function ChatView({
         input={input}
         setInput={setInput}
         inputRef={inputRef}
+        attachments={attachments}
+        setAttachments={setAttachments}
+        {...composerProps}
         onSubmit={() => void submit()}
         onStop={() => void stop()}
-        quizzing={quizzing}
+        quizzing={quiz.quizzing}
         onQuiz={() => ask.tap()}
+        scenarioing={quiz.scenarioing}
+        onScenario={() => void quiz.runScenario()}
         online={online}
         setOnline={setOnline}
         remembering={remembering}

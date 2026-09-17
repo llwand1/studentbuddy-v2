@@ -132,3 +132,63 @@
   margin-bottom: var(--sb-sp-3);
   line-height: 1.7;
 }
+
+/* 薄弱点分析（契约 QUIZ-WEAK-SPEC §6）：AI 实时生成的多主题聚类卡片。
+   旧版只有一行固定文案，现在是「主题 + 题号 + 错因 + 建议」的列表。 */
+.quiz-weak { margin-top: var(--sb-sp-3); }
+.quiz-weak-head { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); margin-bottom: var(--sb-sp-2); }
+.quiz-weak-item {
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-left: 3px solid var(--sb-primary);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  margin-bottom: var(--sb-sp-2);
+  line-height: 1.7;
+}
+.quiz-weak-topic { font-weight: 600; font-size: var(--sb-fs-sm); }
+.quiz-weak-topic .m { font-weight: 400; color: var(--sb-ink-tertiary); font-size: var(--sb-fs-xs); margin-left: var(--sb-sp-2); }
+.quiz-weak-reason { font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary); margin-top: var(--sb-sp-1); }
+.quiz-weak-sug { font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary); margin-top: var(--sb-sp-1); }
+.quiz-weak-fallback {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  border: 1px dashed var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  line-height: 1.7;
+}
+
+/* 情景题宿主面板（契约 SCENARIO-SPEC §5）：iframe 宿主 + 任务清单 + 服务端判分完成态 */
+.sb-scenario { display: flex; flex-direction: column; gap: var(--sb-sp-2); }
+.sb-scenario-head { display: flex; align-items: center; gap: var(--sb-sp-2); flex-wrap: wrap; }
+.sb-scenario-title { font-weight: 600; font-size: var(--sb-fs-sm); }
+.sb-scenario-live {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-on-primary, #fff);
+  background: var(--sb-primary);
+  border-radius: 999px;
+  padding: 1px var(--sb-sp-2);
+}
+.sb-scenario-live.off { background: var(--sb-ink-tertiary); }
+.sb-scenario-frame {
+  width: 100%;
+  height: 420px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+}
+.sb-scenario-tasks { list-style: none; margin: 0; padding: 0; }
+.sb-scenario-task {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sb-sp-2);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  margin-bottom: var(--sb-sp-2);
+  line-height: 1.7;
+}
+.sb-scenario-task.is-correct { border-left: 3px solid var(--sb-success, #2e7d32); }
+.sb-scenario-task.is-wrong { border-left: 3px solid var(--sb-danger, #c62828); }
+.sb-scenario-task-state { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); white-space: nowrap; }

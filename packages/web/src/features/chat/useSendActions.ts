@@ -32,16 +32,24 @@ export function useSendActions(deps: SendActionsDeps) {
 
   /** 发送：SSE 未就绪时拒绝并提示（修 F1 竞态——绝不静默吞） */
   const send = useCallback(
-    async (text: string): Promise<{ ok: boolean; error?: string }> => {
+    async (
+      text: string,
+      images?: Array<{ dataUrl: string; name?: string }>,
+      grillMe?: boolean,
+    ): Promise<{ ok: boolean; error?: string }> => {
       if (!sessionId) return { ok: false, error: '无会话' };
       if (ready !== 'open') return { ok: false, error: `连接${ready === 'reconnecting' ? '重连中' : '建立中'}，稍候再发` };
       if (busy) return { ok: false, error: '生成中，请先停止' };
       if (!historyLoadedRef.current) return { ok: false, error: '历史加载中，稍候再发' };
       setError('');
       beginRound();
-      setMessages((ms) => [...ms, { role: 'user', content: text, ts: new Date().toISOString() }]);
+      // 乐观渲染用户气泡（含图片缩略图）；图片随消息落库，历史回显走 /messages 的 images 列
+      setMessages((ms) => [
+        ...ms,
+        { role: 'user', content: text, ts: new Date().toISOString(), ...(images && images.length > 0 ? { images } : {}) },
+      ]);
       try {
-        await api.chat.send(sessionId, text);
+        await api.chat.send(sessionId, text, images, grillMe);
         setBusy(true);
         return { ok: true };
       } catch (err) {

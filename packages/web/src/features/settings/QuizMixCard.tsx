@@ -5,13 +5,13 @@
  * 上限由 shared 契约给（单题型 10 / 总 20），本卡只做钳位与如实展示，不自己定规则。
  */
 import { useEffect, useState } from 'react';
-import type { QuizMix, QuizType } from '@sb/shared';
+import type { QuizMix, QuizMixKind } from '@sb/shared';
 import {
-  QUIZ_TYPES,
-  QUIZ_TYPE_LABELS,
+  MIX_KINDS,
+  MIX_KIND_LABELS,
   DEFAULT_QUIZ_MIX,
-  MAX_QUIZ_PER_TYPE,
   MAX_QUIZ_TOTAL,
+  mixKindCap,
   mixTotal,
   stepQuizMix,
   setQuizMix,
@@ -20,13 +20,14 @@ import { api } from '../../lib/api';
 import './settings.css';
 
 const PRESETS: Array<{ name: string; mix: QuizMix }> = [
-  { name: '标准 4 题', mix: { single: 2, multiple: 0, fill: 1, essay: 1 } },
-  { name: '全选择 5 题', mix: { single: 5, multiple: 0, fill: 0, essay: 0 } },
-  { name: '选择+多选 5 题', mix: { single: 3, multiple: 2, fill: 0, essay: 0 } },
-  { name: '笔试 10 题', mix: { single: 4, multiple: 2, fill: 2, essay: 2 } },
+  { name: '标准 4 题', mix: { single: 2, multiple: 0, fill: 1, essay: 1, scenario: 0 } },
+  { name: '全选择 5 题', mix: { single: 5, multiple: 0, fill: 0, essay: 0, scenario: 0 } },
+  { name: '选择+多选 5 题', mix: { single: 3, multiple: 2, fill: 0, essay: 0, scenario: 0 } },
+  { name: '笔试 10 题', mix: { single: 4, multiple: 2, fill: 2, essay: 2, scenario: 0 } },
+  { name: '情景演练 2 套', mix: { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 2 } },
 ];
 
-const sameMix = (a: QuizMix, b: QuizMix): boolean => QUIZ_TYPES.every((t) => a[t] === b[t]);
+const sameMix = (a: QuizMix, b: QuizMix): boolean => MIX_KINDS.every((t) => a[t] === b[t]);
 
 export function QuizMixCard({ flash }: { flash: (ok: boolean, text: string) => void }) {
   const [mix, setMix] = useState<QuizMix>({ ...DEFAULT_QUIZ_MIX });
@@ -51,12 +52,12 @@ export function QuizMixCard({ flash }: { flash: (ok: boolean, text: string) => v
   const totalFull = total >= MAX_QUIZ_TOTAL;
 
   /** 加减档位：钳位规则在 shared（stepQuizMix），本组件只管调，不自己定规则 */
-  const bump = (t: QuizType, delta: number) => {
+  const bump = (t: QuizMixKind, delta: number) => {
     setMix((m) => stepQuizMix(m, t, delta));
   };
 
   /** 数字直输：同一套钳位规则（setQuizMix），输入 12 / 负数 / 顶破总上限都按编辑态规则收口 */
-  const bumpTo = (t: QuizType, value: number) => {
+  const bumpTo = (t: QuizMixKind, value: number) => {
     setMix((m) => setQuizMix(m, t, value));
   };
 
@@ -79,7 +80,7 @@ export function QuizMixCard({ flash }: { flash: (ok: boolean, text: string) => v
     <section className="settings-sec">
       <h3>出题题型配比</h3>
       <p className="settings-hint">
-        决定每次出题各题型各来几道（0 = 不出该题）；对话页「出题」与题库页「一键出题」都按这份配比。模型偶尔出不够，会在出题处如实提示缺哪类。
+        决定每次出题各题型各来几道（0 = 不出该题）；对话页「出题」与题库页「一键出题」都按这份配比。模型偶尔出不够，会在出题处如实提示缺哪类。情景题按「套」计——一套是一个可玩的交互 demo，生成比普通题慢，上限也更低。
       </p>
 
       <div className="quiz-mix-presets">
@@ -96,12 +97,13 @@ export function QuizMixCard({ flash }: { flash: (ok: boolean, text: string) => v
       </div>
 
       <div className="quiz-mix-rows">
-        {QUIZ_TYPES.map((t) => (
+        {MIX_KINDS.map((t) => (
           <QuizMixRow
             key={t}
-            label={QUIZ_TYPE_LABELS[t]}
+            label={MIX_KIND_LABELS[t]}
             value={mix[t]}
             total={total}
+            cap={mixKindCap(t)}
             disabled={loading || busy}
             onStep={(delta) => bump(t, delta)}
             onSet={(v) => bumpTo(t, v)}
@@ -139,6 +141,7 @@ function QuizMixRow({
   label,
   value,
   total,
+  cap,
   disabled,
   onStep,
   onSet,
@@ -146,6 +149,8 @@ function QuizMixRow({
   label: string;
   value: number;
   total: number;
+  /** 单档上限按档取（题型 10 / 情景题 3，shared mixKindCap） */
+  cap: number;
   disabled: boolean;
   onStep: (delta: number) => void;
   onSet: (value: number) => void;
@@ -157,7 +162,7 @@ function QuizMixRow({
     setDraft(String(value));
   }, [value]);
 
-  const perTypeFull = value >= MAX_QUIZ_PER_TYPE;
+  const perTypeFull = value >= cap;
   const totalFull = total >= MAX_QUIZ_TOTAL;
 
   /** 失焦/回车提交：无效输入还原为当前值；有效输入本地先规范化，再交给钳位规则 */
@@ -186,7 +191,7 @@ function QuizMixRow({
         className="quiz-mix-num"
         type="number"
         min={0}
-        max={MAX_QUIZ_PER_TYPE}
+        max={cap}
         step={1}
         value={draft}
         disabled={disabled}
@@ -206,7 +211,7 @@ function QuizMixRow({
         onClick={() => onStep(1)}
         title={
           perTypeFull
-            ? `单题型上限 ${MAX_QUIZ_PER_TYPE} 道`
+            ? `该题型上限 ${cap} 道`
             : totalFull
               ? `总题数已达上限 ${MAX_QUIZ_TOTAL} 道，先减掉别的题型再加`
               : '增加'
@@ -215,7 +220,7 @@ function QuizMixRow({
         +
       </button>
       <span className="settings-state">0 = 不出</span>
-      <span className="settings-state">{perTypeFull ? '已达单题型上限' : `单题型上限 ${MAX_QUIZ_PER_TYPE}`}</span>
+      <span className="settings-state">{perTypeFull ? '已达该题型上限' : `该题型上限 ${cap}`}</span>
     </div>
   );
 }

@@ -63,7 +63,7 @@ export function SearchKeysCard({ flash }: { flash: (ok: boolean, text: string) =
   return (
     <section className="settings-sec">
       <h3>联网搜索</h3>
-      <p className="settings-hint">三家 key 全未配置时自动走 DuckDuckGo 免费通道兜底；key 加密存本地库，只回显配置状态。</p>
+      <p className="settings-hint">三家 key 全未配置时自动走 Bing 免费通道兜底；key 加密存本地库，只回显配置状态。</p>
       <div className="settings-keys">
         {KEY_FIELDS.map((f) => (
           <div key={f.type} className="settings-key-row">

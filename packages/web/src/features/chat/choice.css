@@ -19,8 +19,20 @@
   align-items: center;
   gap: var(--sb-sp-2);
 }
-.choice-ico { display: inline-flex; color: var(--sb-ink-tertiary); }
+.choice-ico {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--sb-primary-weak);
+  color: var(--sb-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 .choice-ico.ok { color: var(--sb-primary); }
+/* 作废态不给蓝底：作废是中性事件，染蓝反而像「还在进行」 */
+.choice-ico.bad { background: transparent; color: var(--sb-ink-tertiary); }
 .choice-title {
   font-size: var(--sb-fs-md);
   font-weight: 600;
@@ -38,8 +50,13 @@
   line-height: 1.5;
 }
 
-.choice-opts { display: grid; gap: var(--sb-sp-1); }
+.choice-opts {
+  display: grid;
+  gap: var(--sb-sp-2);
+  padding-top: 2px;
+}
 
+/* 方框式选项：白底 + 实线边框的独立盒子，一眼能看出「这是一个可点的格子」 */
 .choice-opt {
   display: flex;
   align-items: flex-start;
@@ -48,30 +65,71 @@
   text-align: left;
   border: 1px solid var(--sb-line);
   border-radius: var(--sb-radius-sm);
-  background: var(--sb-bg);
-  padding: var(--sb-sp-2);
+  background: var(--sb-surface);
+  padding: 10px var(--sb-sp-2);
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
-.choice-opt:hover:not(:disabled) { border-color: var(--sb-primary); }
+.choice-opt:hover:not(:disabled) {
+  border-color: var(--sb-primary);
+  background: var(--sb-bg);
+}
+.choice-opt:active:not(:disabled) { transform: translateY(0.5px); }
+.choice-opt:focus-visible {
+  outline: 2px solid var(--sb-primary);
+  outline-offset: 2px;
+}
 .choice-opt:disabled { opacity: 0.55; cursor: default; }
 .choice-opt.custom { color: var(--sb-ink-secondary); }
 .choice-opt.custom.open { border-color: var(--sb-primary); }
 
-/* 勾标默认隐形，悬停才浮出来：静态列表不带勾，视线先落在文字上 */
+/* 方框勾选格：常驻的 16px 方框（「方框式」的主体），框里平时是选项字母（A/B/C…），
+   悬停该选项时字母让位给勾、方框变蓝——ABCD 心智可辨，可点性又一眼可见 */
 .choice-mk {
   flex: none;
   width: 16px;
   height: 16px;
-  margin-top: 1px;
+  margin-top: 2px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: 1.5px solid var(--sb-ink-tertiary);
+  border-radius: 4px;
+  background: var(--sb-surface);
   color: var(--sb-primary);
-  opacity: 0;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
-.choice-opt:hover:not(:disabled) .choice-mk { opacity: 1; }
-.choice-opt.custom .choice-mk { opacity: 1; color: var(--sb-ink-tertiary); }
+.choice-mk-key {
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--sb-ink-tertiary);
+}
+.choice-mk svg { opacity: 0; transition: opacity 0.12s ease; }
+.choice-opt:hover:not(:disabled) .choice-mk {
+  border-color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+}
+.choice-opt:hover:not(:disabled) .choice-mk-key { display: none; }
+.choice-opt:hover:not(:disabled) .choice-mk svg { opacity: 1; }
+/* 自定义入口（「D」）：虚线方框区分「这不是现成方案」；笔图标悬停浮现，与选项同构 */
+.choice-opt.custom .choice-mk { border-style: dashed; }
+.choice-opt.custom:hover:not(:disabled) .choice-mk { color: var(--sb-primary); }
+
+/* 自定义盒：头部（字母 D + 文案）可点展开，输入框内联在本盒子里 */
+.choice-custom-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sb-sp-2);
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
 
 .choice-body { display: grid; gap: 2px; }
 .choice-label {
@@ -85,16 +143,19 @@
   line-height: 1.45;
 }
 
+/* 自定义盒是 div（内含可点头部 + 展开的输入行），纵向排布 */
+.choice-opt.custom { display: grid; gap: var(--sb-sp-2); }
 .choice-custom-row { display: flex; gap: var(--sb-sp-2); }
 .choice-input {
   flex: 1;
   border: 1px solid var(--sb-line);
   border-radius: var(--sb-radius-sm);
-  background: var(--sb-bg);
+  background: var(--sb-surface);
   padding: var(--sb-sp-2);
   font-size: var(--sb-fs-sm);
   color: var(--sb-ink);
 }
+.choice-input:focus { outline: none; border-color: var(--sb-primary); }
 .choice-send {
   border: 1px solid var(--sb-primary);
   border-radius: var(--sb-radius-sm);

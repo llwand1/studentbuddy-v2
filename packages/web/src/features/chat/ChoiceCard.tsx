@@ -10,6 +10,7 @@
  * 图标一律自绘 SVG line-icon：本仓约定不用 emoji、不引图标字体（`components/icons.tsx` 同规）。
  */
 import { useEffect, useState } from 'react';
+import './choice.css'; // 自包含样式：此前漏了这行 import，真机上整卡零样式裸奔成纯文字（2026-09-17 实证修复）
 import type { AskChoiceRecord } from '@sb/shared';
 import { CHOICE_CUSTOM_MAX } from '@sb/shared';
 
@@ -101,7 +102,7 @@ export function ChoiceCard({
       {pending ? (
         <>
           <div className="choice-opts">
-            {request.options.map((o) => (
+            {request.options.map((o, i) => (
               <button
                 key={o.id}
                 type="button"
@@ -109,7 +110,11 @@ export function ChoiceCard({
                 disabled={busy}
                 onClick={() => reply({ optionId: o.id })}
               >
-                <span className="choice-mk">{ICON_CHECK}</span>
+                {/* 方框里平时是选项字母（A/B/C…），悬停该选项才切打勾——ABCD 心智一眼可辨 */}
+                <span className="choice-mk">
+                  <span className="choice-mk-key">{String.fromCharCode(65 + i)}</span>
+                  {ICON_CHECK}
+                </span>
                 <span className="choice-body">
                   <span className="choice-label">{o.label}</span>
                   {o.description ? <span className="choice-desc">{o.description}</span> : null}
@@ -117,48 +122,55 @@ export function ChoiceCard({
               </button>
             ))}
 
-            {/* 自由输入出口：选择题不该把学习者的答案框死在自己给的选项里 */}
+            {/* 自定义出口（老板 2026-09-17 拍板的「D」形态）：与 AI 选项同构的方框，
+                字母排在 AI 选项之后；点开后输入框内联在本盒子里，不另起一行 */}
             {request.allowCustom ? (
-              <button
-                type="button"
-                className={`choice-opt custom${customOpen ? ' open' : ''}`}
-                disabled={busy}
-                onClick={() => setCustomOpen(true)}
-              >
-                <span className="choice-mk">{ICON_PEN}</span>
-                <span className="choice-body">
-                  <span className="choice-label">以上都不是，我自己写</span>
-                </span>
-              </button>
+              <div className={`choice-opt custom${customOpen ? ' open' : ''}`}>
+                <button
+                  type="button"
+                  className="choice-custom-head"
+                  disabled={busy}
+                  onClick={() => setCustomOpen(true)}
+                >
+                  <span className="choice-mk">
+                    <span className="choice-mk-key">
+                      {String.fromCharCode(65 + request.options.length)}
+                    </span>
+                    {ICON_PEN}
+                  </span>
+                  <span className="choice-body">
+                    <span className="choice-label">以上都不是，自己写</span>
+                  </span>
+                </button>
+                {customOpen ? (
+                  <div className="choice-custom-row">
+                    <input
+                      className="choice-input"
+                      value={custom}
+                      maxLength={CHOICE_CUSTOM_MAX}
+                      placeholder="写出你的口径，AI 会按它继续…"
+                      autoFocus
+                      onChange={(e) => setCustom(e.target.value)}
+                      onKeyDown={(e) => {
+                        // 输入法组字期间的回车是「选词确认」不是「提交」（同 ChatComposer 的处置）
+                        if (e.nativeEvent.isComposing) return;
+                        if (e.key === 'Enter' && custom.trim()) reply({ custom: custom.trim() });
+                        if (e.key === 'Escape') setCustomOpen(false);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="choice-send"
+                      disabled={busy || !custom.trim()}
+                      onClick={() => reply({ custom: custom.trim() })}
+                    >
+                      确认
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
           </div>
-
-          {request.allowCustom && customOpen ? (
-            <div className="choice-custom-row">
-              <input
-                className="choice-input"
-                value={custom}
-                maxLength={CHOICE_CUSTOM_MAX}
-                placeholder="写出你的口径，AI 会按它继续…"
-                autoFocus
-                onChange={(e) => setCustom(e.target.value)}
-                onKeyDown={(e) => {
-                  // 输入法组字期间的回车是「选词确认」不是「提交」（同 ChatComposer 的处置）
-                  if (e.nativeEvent.isComposing) return;
-                  if (e.key === 'Enter' && custom.trim()) reply({ custom: custom.trim() });
-                  if (e.key === 'Escape') setCustomOpen(false);
-                }}
-              />
-              <button
-                type="button"
-                className="choice-send"
-                disabled={busy || !custom.trim()}
-                onClick={() => reply({ custom: custom.trim() })}
-              >
-                确认
-              </button>
-            </div>
-          ) : null}
 
           <div className="choice-foot">
             {ICON_INFO}

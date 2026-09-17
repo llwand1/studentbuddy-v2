@@ -17,14 +17,17 @@
  * 会话，导出也没有内容）。**生成中不禁用整个菜单**——出题、存入记忆、文档会各自禁用，但导出与
  * 联网开关仍可用（ADR-5：能做的别藏着）。
  */
-import type { ComponentProps, RefObject } from 'react';
-import { ComposerMenu, type ComposerMenuItem } from '../../components/ComposerMenu';
-import { QuizIcon, CardsIcon, DownloadIcon, DocIcon, SendIcon, StopIcon } from '../../components/icons';
+import { useRef, type ComponentProps, type Dispatch, type RefObject, type SetStateAction } from 'react';
+import { ComposerMenu } from '../../components/ComposerMenu';
+import { SendIcon, StopIcon } from '../../components/icons';
+import { buildComposerMenuItems } from './chat-menu';
 import type { AskChoiceRecord } from '@sb/shared';
 import { AskStyleCard } from './AskStyleCard';
 import { ChoiceCard } from './ChoiceCard';
 import { DocModeControl } from './DocModeControl';
 import { menuStatus } from './composer-status';
+import { GrillPill } from './GrillPill';
+import { AttachmentTray } from './AttachmentTray';
 import type { DocMode } from './useDocMode';
 
 /** 选项卡的 props（`busy` 由本组件按出题态统一给，故排除掉） */
@@ -37,10 +40,16 @@ export function ChatComposer({
   input,
   setInput,
   inputRef,
+  attachments,
+  setAttachments,
+  grillMe,
+  setGrillMe,
   onSubmit,
   onStop,
   quizzing,
   onQuiz,
+  scenarioing,
+  onScenario,
   online,
   setOnline,
   remembering,
@@ -68,10 +77,19 @@ export function ChatComposer({
   input: string;
   setInput: (v: string) => void;
   inputRef: RefObject<HTMLTextAreaElement>;
+  /** v17 看图：待发送图片（base64 dataURL），由 ChatView 持有并随发送清空 */
+  attachments: Array<{ dataUrl: string; name?: string }>;
+  setAttachments: Dispatch<SetStateAction<Array<{ dataUrl: string; name?: string }>>>;
+  /** v18 grill-me：打开后每轮必出方案选择框（会话级前端状态，不落库） */
+  grillMe: boolean;
+  setGrillMe: (v: boolean) => void;
   onSubmit: () => void;
   onStop: () => void;
   quizzing: boolean;
   onQuiz: () => void;
+  /** 情景题（M3）：生成中禁发；生成与错误都在 ChatView 侧 */
+  scenarioing: boolean;
+  onScenario: () => void;
   online: boolean;
   setOnline: (v: boolean) => void;
   remembering: boolean;
@@ -94,57 +112,47 @@ export function ChatComposer({
   onChoiceReply: (requestId: string, reply: { optionId?: string; custom?: string }) => void;
   onDismissChoice: () => void;
 }) {
-  const items: ComposerMenuItem[] = [
-    {
-      kind: 'action',
-      key: 'quiz',
-      label: quizzing ? '出题中…' : '出题',
-      icon: <QuizIcon />,
-      title: mixTip
-        ? `基于当前对话一键出题，按配比出：${mixTip}（设置页可改）`
-        : '基于当前对话一键出题（输入框文字作为主题）',
-      disabled: !sessionId || quizzing || blocked,
-      onClick: onQuiz,
-    },
-    {
-      kind: 'toggle',
-      key: 'online',
-      label: '联网搜索',
-      title: '出题前先联网检索资料（用设置页里配的搜索 key）；一条也没搜到时退回模型自身知识，不会因此失败',
-      disabled: quizzing,
-      on: online,
-      onChange: setOnline,
-    },
-    {
-      kind: 'action',
-      key: 'doc',
-      label: doc.meta ? '换资料' : '文档模式',
-      icon: <DocIcon />,
-      title: doc.meta
-        ? `换资料：载入新资料会替换本会话当前的「${doc.meta.name}」。回答优先依据资料，超长资料按提问检索段落`
-        : '为会话载入一篇 txt/md 资料，回答优先依据它（超长资料按提问检索段落；每次一份，可替换/清除）',
-      disabled: !sessionId || doc.busy || blocked,
-      onClick: () => setDocOpen(!docOpen),
-    },
-    {
-      kind: 'action',
-      key: 'remember',
-      label: remembering ? '收集中…' : '存入记忆',
-      icon: <CardsIcon />,
-      title: '把最近对话中的重要术语存入词条库，后续回答优先使用',
-      disabled: !sessionId || remembering || blocked,
-      onClick: onRemember,
-    },
-    {
-      kind: 'action',
-      key: 'export',
-      label: '导出对话',
-      icon: <DownloadIcon />,
-      title: '把当前对话导出为 Markdown（含时间与角色，可直接贴进笔记）',
-      disabled: !sessionId || !canExport,
-      onClick: onExport,
-    },
-  ];
+  const fileRef = useRef<HTMLInputElement>(null);
+  const MAX_IMAGES = 4;
+
+  /** 把选中的/粘贴的图片文件转 base64 dataURL 追加进附件（上限 4 张，非图片忽略） */
+  const addImages = (files: File[]) => {
+    const room = MAX_IMAGES - attachments.length;
+    if (room <= 0) return;
+    let added = 0;
+    for (const file of files) {
+      if (!file.type.startsWith('image/') || added >= room) continue;
+      added += 1;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+        if (dataUrl) setAttachments((a) => [...a, { dataUrl, name: file.name }]);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const items = buildComposerMenuItems({
+    sessionId,
+    blocked,
+    quizzing,
+    onQuiz,
+    scenarioing,
+    onScenario,
+    online,
+    setOnline,
+    mixTip,
+    grillMe,
+    setGrillMe,
+    doc,
+    docOpen,
+    setDocOpen,
+    remembering,
+    onRemember,
+    onExport,
+    canExport,
+    onPickImages: () => fileRef.current?.click(),
+  });
 
   return (
     <div className="chat-composer-wrap">
@@ -163,9 +171,15 @@ export function ChatComposer({
         </div>
       )}
       {askHint && <div className="ask-style-hint">{askHint}</div>}
+      {grillMe && <GrillPill onClose={() => setGrillMe(false)} />}
       {askCard && <AskStyleCard {...askCard} busy={quizzing} />}
-      {choiceCard && <ChoiceCard request={choiceCard} onReply={onChoiceReply} onDismiss={onDismissChoice} />}
+      {/* grill-me 的卡**不在这里**浮——它渲染在消息流里（见 ChatView）。
+          同一次提问若两边都渲染，用户会看到两张一模一样的卡 */}
+      {choiceCard && !choiceCard.grillPhase && (
+        <ChoiceCard request={choiceCard} onReply={onChoiceReply} onDismiss={onDismissChoice} />
+      )}
       <DocModeControl doc={doc} open={docOpen} onClose={() => setDocOpen(false)} />
+      <AttachmentTray images={attachments} onRemove={(i) => setAttachments(attachments.filter((_, j) => j !== i))} />
       <div className="chat-composer">
         <ComposerMenu
           items={items}
@@ -183,9 +197,20 @@ export function ChatComposer({
                 ? busy
                   ? '生成中…'
                   : '连接未就绪…'
-                : '问点什么（Enter 发送 / Shift+Enter 换行）'
+                : '问点什么（Enter 发送 / Shift+Enter 换行，可直接粘贴图片）'
           }
           onChange={(e) => setInput(e.target.value)}
+          onPaste={(e) => {
+            // 粘贴图片 = 直接附图（与「+ 图片」同一条路）；非图片粘贴交回默认行为
+            const files = Array.from(e.clipboardData?.items ?? [])
+              .filter((it) => it.type.startsWith('image/'))
+              .map((it) => it.getAsFile())
+              .filter((f): f is File => !!f);
+            if (files.length > 0) {
+              e.preventDefault();
+              addImages(files);
+            }
+          }}
           onKeyDown={(e) => {
             // 输入法组字期间的回车是「选词确认」而不是「发送」：没有这道判断，
             // 中文用户打完拼音按回车上屏的瞬间就会把半成品发出去（keydown 仍会触发）
@@ -194,6 +219,17 @@ export function ChatComposer({
               e.preventDefault();
               onSubmit();
             }
+          }}
+        />
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            addImages(Array.from(e.target.files ?? []));
+            e.target.value = '';
           }}
         />
         {busy ? (

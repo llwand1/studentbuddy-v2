@@ -3,8 +3,7 @@
  * 职责边界：SSE 生命周期 / 流式文本累积 / 错误呈现 / 停止；会话管理在 useSessions，
  * 输入框 UI 在 Composer——单一关注点（ADR-3 的前端落地）。
  *
- * 2026-09-14：方案选择框（契约 docs/ASK-CHOICE-SPEC.md）的挂起队列抽到 `useChoiceQueue`，
- * 本文件只在事件入口做一次转发——本文件此前已 398/400 行，装不下那 90 行（AGENTS 行数红线）。
+ * 2026-09-14：方案选择框（契约 docs/ASK-CHOICE-SPEC.md）的挂起队列抽到 `useChoiceQueue`，本文件只在事件入口做一次转发（本文件贴着 AGENTS 行数红线，装不下那 90 行）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SseEvent, TaskItem, TokenUsage } from '@sb/shared';
@@ -14,6 +13,7 @@ import { createTokenDrain, type TokenDrain } from './stream-smooth';
 import { foldToolRounds } from './history-fold';
 import { useChoiceQueue } from './useChoiceQueue';
 import { useSendActions } from './useSendActions';
+import { applyChatBlock, type QuizBlockView, type ScenarioBlockView } from './chat-blocks';
 export type { TaskItem, TaskStatus } from '@sb/shared';
 
 export interface StreamMessage {
@@ -22,7 +22,11 @@ export interface StreamMessage {
   /** 消息时间：历史消息取库内 created_at（SQLite UTC 串），本轮新消息取本地 ISO */
   ts?: string;
   streaming?: boolean;
-  quizBlock?: { blockId: string; quiz: { title?: string; questions: import('@sb/shared').QuizQuestion[] }; quizId?: string };
+  /** v17 看图：用户上传的图片（base64 dataURL），仅用于气泡内缩略图回显 */
+  images?: Array<{ dataUrl: string; name?: string }>;
+  quizBlock?: QuizBlockView;
+  /** 情景题卡片（M3，契约 SCENARIO-SPEC §8）：live 走 block 事件、历史由 chat-blocks 还原 */
+  scenarioBlock?: ScenarioBlockView;
   /**
    * 这条回答的执行过程（工具卡片）。★ 归属到消息而非页面：
    * 历史消息由 history-fold 从库里重建（tool_calls 展开 + tool 结果回填），
@@ -105,16 +109,15 @@ export function useChatStream(
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState<SseReadyState>('connecting');
   const [error, setError] = useState('');
-  /**
-   * 方案选择框（契约 docs/ASK-CHOICE-SPEC.md）：挂起队列与答复动作全在 `useChoiceQueue`，
-   * 本 hook 只负责把 SSE 事件转发给它、并在新一轮/换会话时通知它清场。
-   */
+  /** 方案选择框（契约 docs/ASK-CHOICE-SPEC.md）：队列与答复动作全在 `useChoiceQueue`，本 hook 只把
+   * SSE 事件转发给它、并在新一轮/换会话时通知它清场。 */
   const {
     pendingChoice,
     applyEvent: applyChoiceEvent,
     reset: resetChoices,
     replyChoice,
     dismissChoice,
+    skipChoice,
   } = useChoiceQueue(sessionId, setError);
   const [usage, setUsage] = useState<TokenUsage | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -301,16 +304,8 @@ export function useChatStream(
         }
         finalizeRound(ev);
       } else if (ev.type === 'block') {
-        // 内容块流（演进③）：quiz 块以可交互卡片进入消息流
-        const p = ev.payload as { kind?: string; blockId?: string; payload?: unknown };
-        if (p?.kind === 'quiz' && p.payload) {
-          const quiz = p.payload as { title?: string; questions: never[] };
-          const quizIdMatch = ev.blockId.match(/quiz-(.+)/);
-          setMessages((ms) => [
-            ...ms,
-            { role: 'assistant', content: '', quizBlock: { blockId: ev.blockId, quiz, quizId: quizIdMatch?.[1] } },
-          ]);
-        }
+        // 内容块流（演进③）：quiz/scenario 块以可交互卡片进消息流（分派在 chat-blocks.ts）
+        applyChatBlock(setMessages, ev.blockId, ev.payload);
       } else if (ev.type === 'chat-error') {
         // 出错也要把已流出的字落屏：服务端会把这半截落库（flow.ts catch 分支），屏上不能比库里少
         flushTokens();
@@ -393,5 +388,6 @@ export function useChatStream(
     pendingChoice,
     replyChoice,
     dismissChoice,
+    skipChoice,
   };
 }

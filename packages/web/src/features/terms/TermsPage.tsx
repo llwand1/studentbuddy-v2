@@ -2,15 +2,17 @@
  * TermsPage — 词条库（忆域 v2：AI 自动词条库）。
  * 取代旧「背背背」翻卡页：AI 在对话/搜索中自动把重要词条入库，
  * 本页提供领域 Tab 浏览、搜索、手动添加、编辑释义、删除、重要度/使用次数查看。
+ *
+ * `initialKeyword`：从知识图页「去词条库看正文」带词进来（知识图只存引用快照，正文在本页）。
+ * 调用方用 `key` 控制重挂，故这里直接拿它做初值即可，不需要额外的 effect 同步。
  */
 import { useCallback, useEffect, useState } from 'react';
 import { api, type TermItem } from '../../lib/api';
 import { CardsIcon, SearchIcon, PlusIcon } from '../../components/icons';
+import { DomainBar, type DomainStat } from './DomainBar';
 import './terms.css';
 
-type DomainStat = { domain: string; count: number };
-
-export function TermsPage() {
+export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) {
   const [stats, setStats] = useState<{ total: number; domains: DomainStat[]; today: number }>({
     total: 0,
     domains: [],
@@ -18,7 +20,7 @@ export function TermsPage() {
   });
   const [terms, setTerms] = useState<TermItem[]>([]);
   const [domain, setDomain] = useState('all');
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState(initialKeyword);
   const [editing, setEditing] = useState<string | null>(null);
   const [editDef, setEditDef] = useState('');
   const [editDomain, setEditDomain] = useState('');
@@ -98,21 +100,7 @@ export function TermsPage() {
       </div>
 
       <div className="term-toolbar">
-        <div className="term-tabs" role="tablist">
-          <button className={domain === 'all' ? 'term-tab on' : 'term-tab'} onClick={() => setDomain('all')}>
-            全部
-          </button>
-          {stats.domains.map((d) => (
-            <button
-              key={d.domain}
-              className={domain === d.domain ? 'term-tab on' : 'term-tab'}
-              onClick={() => setDomain(d.domain)}
-            >
-              {d.domain}
-              <span className="term-tab-count">{d.count}</span>
-            </button>
-          ))}
-        </div>
+        <DomainBar domains={stats.domains} active={domain} onPick={setDomain} onChanged={reload} />
         <div className="term-search">
           <SearchIcon size={14} />
           <input placeholder="搜词条…" value={keyword} onChange={(e) => setKeyword(e.target.value)} />

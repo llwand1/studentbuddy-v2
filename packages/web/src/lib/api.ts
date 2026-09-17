@@ -19,31 +19,16 @@ import type {
   AskChoiceRecord,
 } from '@sb/shared';
 
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-    /**
-     * 服务端响应体原文。**P0-7 起必需**：跑题时裁判给的建议走 `extra` 随错误一起回，
-     * 前端要把它显示出来——只留 message 的话，等于让玩家看到一句「跑题了」却不知道该往哪改。
-     */
-    public body?: unknown,
-  ) {
-    super(message);
-  }
-}
+import { ApiError, request } from './api-request.js';
+import { termsDomainApi } from './api-terms-domain.js';
+import { studyFlowApi } from './api-study-flow.js';
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...init,
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string };
-    throw new ApiError(res.status, body.error ?? `HTTP ${res.status}`, body);
-  }
-  return (await res.json()) as T;
-}
+// 领域的类型**转出**给调用方（形状定义在 `api-terms-domain.ts`，那里承担行数红线的解释）。
+export type { DomainRow, DomainsResponse, RenameDomainResult, RemoveDomainResult } from './api-terms-domain.js';
+
+// `ApiError` 已抽到 api-request.ts（行数红线 + 断环，见该文件头注释）。
+// 此处**转出**以保持既有调用方 `import { api, ApiError } from '../../lib/api'` 零改动。
+export { ApiError };
 
 export const api = {
   /** 通用请求（页面内直接用） */
@@ -156,16 +141,29 @@ export const api = {
           tool_call_id: string | null;
           reasoning: string | null;
           tasks: string | null;
+          /** v17 看图：用户上传图片（base64 dataURL JSON 数组），仅作缩略图回显 */
+          images: string | null;
           created_at: string;
         }>
       >(`/api/sessions/${id}/messages`),
   },
 
   chat: {
-    send: (sessionId: string, text: string) =>
+    send: (
+      sessionId: string,
+      text: string,
+      images?: Array<{ dataUrl: string; name?: string }>,
+      /** v18 grill-me：本轮强制出选择框（开场问方向 + 收尾问下一步） */
+      grillMe?: boolean,
+    ) =>
       request<{ ok: boolean }>('/api/chat/send', {
         method: 'POST',
-        body: JSON.stringify({ sessionId, text }),
+        body: JSON.stringify({
+          sessionId,
+          text,
+          ...(images && images.length > 0 ? { images } : {}),
+          ...(grillMe ? { grillMe: true } : {}),
+        }),
       }),
     abort: (sessionId: string) =>
       request<{ ok: boolean }>('/api/chat/abort', {
@@ -204,6 +202,12 @@ export const api = {
       request<AskChoiceRecord>(`/api/choices/${encodeURIComponent(requestId)}/reply`, {
         method: 'POST',
         body: JSON.stringify(reply),
+      }),
+    /** v18 跳过：真作废后端挂起的提问（只收起前端会让阻塞整轮的工具永久悬挂） */
+    cancel: (requestId: string, reason?: string) =>
+      request<AskChoiceRecord>(`/api/choices/${encodeURIComponent(requestId)}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ ...(reason ? { reason } : {}) }),
       }),
   },
 
@@ -287,8 +291,6 @@ export const api = {
       const qs = q.toString();
       return request<TermItem[]>(`/api/terms${qs ? `?${qs}` : ''}`);
     },
-    domains: () =>
-      request<{ total: number; domains: Array<{ domain: string; count: number }>; today: number }>('/api/terms/domains'),
     add: (term: string, definition: string, domain?: string) =>
       request<TermItem>('/api/terms', { method: 'POST', body: JSON.stringify({ term, definition, domain }) }),
     extract: (text: string, sourceSessionId?: string) =>
@@ -299,6 +301,10 @@ export const api = {
     update: (id: string, patch: { definition?: string; domain?: string; importance?: number }) =>
       request<TermItem>(`/api/terms/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
     remove: (id: string) => request<{ ok: boolean }>(`/api/terms/${id}`, { method: 'DELETE' }),
+
+    // ── 领域（v19：与词条 CRUD 对等；可零词条存在）──
+    // 统计 + 4 个写口整体在 `api-terms-domain.ts`（行数红线，见该文件头注释），此处只挂引用。
+    ...termsDomainApi,
   },
 
   /** 文档模式：会话绑定一篇资料。三个接口都只过元信息，正文只在 set 时上一次行 */
@@ -313,6 +319,12 @@ export const api = {
     clear: (sessionId: string) =>
       request<{ ok: boolean }>(`/api/doc?sessionId=${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
   },
+
+  /**
+   * 学习流（契约 docs/STUDY-FLOW-SPEC.md）：控制流编排 + 知识数据图。
+   * ★ 分组本体在 `api-study-flow.ts`（行数红线 + 断环，见该文件头注释），此处只挂引用。
+   */
+  studyFlow: studyFlowApi,
 };
 
 export interface DocMeta {
@@ -336,3 +348,6 @@ export interface TermItem {
   created_at: string;
   updated_at: string;
 }
+
+// 领域的 4 个类型（DomainRow / DomainsResponse / RenameDomainResult / RemoveDomainResult）
+// 定义在 `api-terms-domain.ts`，由本文件顶部 re-export（调用方 import 路径不变）。

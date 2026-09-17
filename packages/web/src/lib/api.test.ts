@@ -76,7 +76,7 @@ describe('api.settings.answerStyle（L0/L1 共用读写，B-003 同一条通则�
 
 describe('api.settings.saveQuizMix（B-003 回归锁）', () => {
   it('PUT /api/settings/quiz-mix，body 为 { mix }，返回服务端回读配比', async () => {
-    const mix = { single: 5, multiple: 2, fill: 0, essay: 0 };
+    const mix = { single: 5, multiple: 2, fill: 0, essay: 0, scenario: 0 };
     const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({ mix }) });
     const r = await api.settings.saveQuizMix(mix);
     expect(r.mix).toEqual(mix);

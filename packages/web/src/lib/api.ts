@@ -17,14 +17,18 @@ import type {
   PkMatchRecord,
   PkMatchDetail,
   AskChoiceRecord,
+  AuthUser,
 } from '@sb/shared';
 
 import { ApiError, request } from './api-request.js';
 import { termsDomainApi } from './api-terms-domain.js';
+import { termsReviewApi } from './api-terms-review.js';
 import { studyFlowApi } from './api-study-flow.js';
 
 // 领域的类型**转出**给调用方（形状定义在 `api-terms-domain.ts`，那里承担行数红线的解释）。
 export type { DomainRow, DomainsResponse, RenameDomainResult, RemoveDomainResult } from './api-terms-domain.js';
+// 复习的类型同源转出（v23 艾宾浩斯，形状定义在 `api-terms-review.ts`）。
+export type { ReviewTermItem, ReviewOverview, ReviewDayStat } from './api-terms-review.js';
 
 // `ApiError` 已抽到 api-request.ts（行数红线 + 断环，见该文件头注释）。
 // 此处**转出**以保持既有调用方 `import { api, ApiError } from '../../lib/api'` 零改动。
@@ -35,6 +39,23 @@ export const api = {
   request,
 
   status: () => request<StatusResponse>('/api/status'),
+
+  /**
+   * 账号（契约 docs/AUTH-SPEC.md §2）：邮箱 + 密码。
+   * ★ 会话是 **httpOnly cookie**，JS 读不到 ⇒ 前端**不存 token**，也没有"记住登录态"这回事——
+   *   登录态的唯一真相源是 `me()`。刷新页面后是否还登录，问服务端，不靠本地缓存猜。
+   */
+  auth: {
+    me: () => request<AuthUser>('/api/auth/me'),
+    register: (email: string, password: string, nickname?: string) =>
+      request<AuthUser>('/api/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ email, password, ...(nickname ? { nickname } : {}) }),
+      }),
+    login: (email: string, password: string) =>
+      request<AuthUser>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
+  },
 
   /** PK 登录与房间（契约 docs/PK-SPEC.md §2.1）：P0 模拟登录，P1 换真微信授权时签名不变 */
   pk: {
@@ -155,6 +176,8 @@ export const api = {
       images?: Array<{ dataUrl: string; name?: string }>,
       /** v18 grill-me：本轮强制出选择框（开场问方向 + 收尾问下一步） */
       grillMe?: boolean,
+      /** v18.4 联网开关（UI「联网已开」pill）：本轮首轮强绑 search_web（服务端 chat/opening.ts） */
+      online?: boolean,
     ) =>
       request<{ ok: boolean }>('/api/chat/send', {
         method: 'POST',
@@ -163,6 +186,7 @@ export const api = {
           text,
           ...(images && images.length > 0 ? { images } : {}),
           ...(grillMe ? { grillMe: true } : {}),
+          ...(online ? { online: true } : {}),
         }),
       }),
     abort: (sessionId: string) =>
@@ -177,16 +201,16 @@ export const api = {
      */
     active: () => request<{ sessionIds: string[] }>('/api/chat/active'),
     /** 重新生成：服务端作废最后一条提问之后的全部产物并重跑（提问不重复落库） */
-    regenerate: (sessionId: string) =>
+    regenerate: (sessionId: string, online?: boolean) =>
       request<{ ok: boolean }>('/api/chat/regenerate', {
         method: 'POST',
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({ sessionId, ...(online ? { online: true } : {}) }),
       }),
     /** 编辑重发：把最后一条提问改成新文案后重跑（旧回答及工具轮作废） */
-    resend: (sessionId: string, text: string) =>
+    resend: (sessionId: string, text: string, online?: boolean) =>
       request<{ ok: boolean }>('/api/chat/resend', {
         method: 'POST',
-        body: JSON.stringify({ sessionId, text }),
+        body: JSON.stringify({ sessionId, text, ...(online ? { online: true } : {}) }),
       }),
   },
 
@@ -305,6 +329,10 @@ export const api = {
     // ── 领域（v19：与词条 CRUD 对等；可零词条存在）──
     // 统计 + 4 个写口整体在 `api-terms-domain.ts`（行数红线，见该文件头注释），此处只挂引用。
     ...termsDomainApi,
+
+    // ── 复习（v23 艾宾浩斯遗忘曲线）──
+    // 概览 / 队列 / 打卡，整体在 `api-terms-review.ts`（同上的行数红线），此处只挂引用。
+    ...termsReviewApi,
   },
 
   /** 文档模式：会话绑定一篇资料。三个接口都只过元信息，正文只在 set 时上一次行 */
@@ -347,6 +375,10 @@ export interface TermItem {
   last_used_at: string | null;
   created_at: string;
   updated_at: string;
+  /** 复习阶段 0..MAX_REVIEW_STAGE（v23；0 = 还没复习过） */
+  review_stage: number;
+  /** 上次复习时间（null = 从未复习；起算点退到 created_at） */
+  last_reviewed_at: string | null;
 }
 
 // 领域的 4 个类型（DomainRow / DomainsResponse / RenameDomainResult / RemoveDomainResult）

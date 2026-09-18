@@ -48,6 +48,8 @@ export function ChatView({
   /** 生成状态上报：App 侧栏在生成中的会话项上显示「回复中」提示 */
   onBusyChange?: (busy: boolean, sessionId: string | null) => void;
 }) {
+  /** v18.4 联网开关：默认开（与题库页同件同默认，契约 QUIZ-SEARCH §3）。对话与出题共用这一份 */
+  const [online, setOnline] = useState(true);
   const {
     messages,
     streamingText,
@@ -67,15 +69,13 @@ export function ChatView({
     replyChoice,
     dismissChoice,
     skipChoice,
-  } = useChatStream(sessionId, onRoundDone, onBusyChange);
+  } = useChatStream(sessionId, onRoundDone, onBusyChange, online);
   const [input, setInput] = useState('');
   const [sendError, setSendError] = useState('');
   // v18.3：grill 收尾卡点选后 send 失败要浮出来（此前 void 吞掉 {ok:false}＝点了没反应）
   const { composerProps, grillNode, sendWithGrill } = useGrillChoice({ pendingChoice, replyChoice, skipChoice, send, onSendError: setSendError });
   /** v17 看图：待发送的图片附件（base64 dataURL）。随会话切换清空，避免串台 */
   const [attachments, setAttachments] = useState<Array<{ dataUrl: string; name?: string }>>([]);
-  /** 出题联网开关：默认开（与题库页同一个件、同一个默认，契约 QUIZ-SEARCH §3） */
-  const [online, setOnline] = useState(true);
   const [remembering, setRemembering] = useState(false);
   const [rememberMsg, setRememberMsg] = useState('');
   const [mixTip, setMixTip] = useState('');

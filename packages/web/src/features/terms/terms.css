@@ -455,3 +455,219 @@
   font-size: 12px;
   color: var(--sb-ink-secondary);
 }
+
+/* ── 复习面板（v23 艾宾浩斯遗忘曲线）──
+   配色沿用词条页既有 token；只有「逾期」用 danger —— 它是全页唯一需要立刻看见的信号，
+   再给别的元素上色，逾期就不再是最显眼的那个（告警色滥用 = 没有告警）。 */
+.rv-panel {
+  margin: 10px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-lg);
+  background: var(--sb-surface);
+}
+
+.rv-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--sb-fs-md);
+  color: var(--sb-ink);
+}
+
+.rv-sched {
+  margin-left: auto;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.rv-loading,
+.rv-empty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+
+.rv-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+
+.rv-stat b {
+  margin-right: 3px;
+  font-size: var(--sb-fs-lg);
+  color: var(--sb-ink);
+}
+
+.rv-stat-warn b {
+  color: var(--sb-danger);
+}
+
+.rv-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 42px;
+  margin-top: 10px;
+}
+
+.rv-bar-wrap {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 2px;
+}
+
+/* 高度由 --rv-h 驱动（数据来自近 7 天复习量），最小 2px 保证「复习过 0 次」也看得见格子 */
+.rv-bar {
+  width: 100%;
+  min-height: 2px;
+  height: var(--rv-h, 0%);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-primary-weak);
+}
+
+.rv-bar-wrap em {
+  font-size: 10px;
+  font-style: normal;
+  color: var(--sb-ink-tertiary);
+}
+
+.rv-queue-head {
+  margin: 12px 0 6px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+
+.rv-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rv-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  background: var(--sb-bg);
+}
+
+.rv-item.overdue {
+  border-color: var(--sb-danger);
+}
+
+.rv-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.rv-item-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.rv-term {
+  font-size: var(--sb-fs-md);
+  font-weight: 600;
+  color: var(--sb-ink);
+}
+
+.rv-domain,
+.rv-days,
+.rv-meta {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.rv-meta {
+  margin-top: 4px;
+}
+
+.rv-badge {
+  padding: 1px 6px;
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-primary-weak);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+}
+
+.rv-badge-due {
+  background: var(--sb-primary);
+  color: #fff;
+}
+
+.rv-badge-overdue {
+  background: var(--sb-danger);
+  color: #fff;
+}
+
+.rv-def {
+  margin-top: 4px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink);
+}
+
+.rv-item-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rv-btn {
+  padding: 3px 10px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  cursor: pointer;
+}
+
+.rv-btn:hover:not(:disabled) {
+  border-color: var(--sb-primary);
+  color: var(--sb-primary);
+}
+
+.rv-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rv-btn.ok {
+  border-color: var(--sb-success);
+  color: var(--sb-success);
+}
+
+.rv-btn.danger {
+  border-color: var(--sb-danger);
+  color: var(--sb-danger);
+}
+
+/* 词条列表里的「N 天没复习」：默认灰，逾期才上色（同上，不稀释告警） */
+.term-rv {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.term-rv.due {
+  color: var(--sb-primary);
+}
+
+.term-rv.overdue {
+  color: var(--sb-danger);
+}

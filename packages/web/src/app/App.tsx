@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@sb/shared';
-import { UserAuthBox } from '../components/UserAuthBox';
+import { AccountBox } from '../components/AccountBox';
 import {
   QuizIcon,
   VsIcon,
@@ -36,6 +36,7 @@ import { DailySummaryPage } from '../features/summary/DailySummaryPage';
 import { FlowPage } from '../features/study-flow/FlowPage';
 import { KnowledgeGraphPage } from '../features/study-flow/KnowledgeGraphPage';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
+import { CoachDock } from '../features/coach/CoachDock';
 import './app.css';
 
 type View = 'chat' | 'flow' | 'graph' | 'quiz' | 'notes' | 'terms' | 'summary' | 'settings';
@@ -246,8 +247,13 @@ export function App() {
           {visible.length === 0 && query && <div className="sb-session-empty">没有匹配的会话</div>}
         </div>
 
-        {/* 底部用户区：PK 登录（P0-1），组件自持登录态，见 components/UserAuthBox */}
-        <UserAuthBox />
+        {/*
+          底部用户区：只有账号这一个身份入口（邮箱+密码，见 components/AccountBox）。
+          登录前后会话列表的过滤条件不同，故登录/退出都要重载列表；
+          PK 对战昵称不再在此处入口——PK 房间自带登录（features/pk/usePkIdentity），
+          两套身份刻意不互相冒充，M4 才合并（AUTH-SPEC §0）。
+        */}
+        <AccountBox onAuthChange={() => void reloadSessions()} />
       </aside>
       <main className="sb-main">
         {view === 'chat' && (
@@ -271,6 +277,12 @@ export function App() {
         {view === 'settings' && <SettingsView />}
       </main>
       <PreviewPanel />
+      {/*
+        复习督促小窗（v25 B+C+E）：挂在**主区之上、全局常驻**——它不是某个页面的附属功能，
+        而是"随时能点开看一眼欠了多少"的悬浮件，故不随 `view` 切换挂载/卸载
+        （卸载会断掉 SSE 与折叠状态，用户每次切页都看到它被重置）。
+      */}
+      <CoachDock />
     </div>
   );
 }

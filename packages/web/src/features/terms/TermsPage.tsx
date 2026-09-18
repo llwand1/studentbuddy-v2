@@ -8,9 +8,29 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { api, type TermItem } from '../../lib/api';
+import { computeReviewState } from '@sb/shared';
 import { CardsIcon, SearchIcon, PlusIcon } from '../../components/icons';
 import { DomainBar, type DomainStat } from './DomainBar';
+import { ReviewPanel } from './ReviewPanel';
 import './terms.css';
+
+/**
+ * 词条行的「多久没复习」徽标（v23）。
+ * 天数由 shared 现算——与服务端排队列用的是同一份实现，故列表与队列不会互相打脸。
+ */
+function ReviewBadge({ t }: { t: TermItem }) {
+  const rs = computeReviewState({
+    lastReviewedAt: t.last_reviewed_at,
+    createdAt: t.created_at,
+    stage: t.review_stage,
+  });
+  const cls = rs.status === 'overdue' ? 'term-rv overdue' : rs.status === 'due' ? 'term-rv due' : 'term-rv';
+  return (
+    <span className={cls}>
+      {rs.mastered ? `已入长期记忆 · ${rs.daysSince} 天` : `${rs.daysSince} 天没复习`}
+    </span>
+  );
+}
 
 export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) {
   const [stats, setStats] = useState<{ total: number; domains: DomainStat[]; today: number }>({
@@ -99,6 +119,9 @@ export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) 
         </span>
       </div>
 
+      {/* 复习面板（v23 艾宾浩斯）：先于列表，因为它回答的是「现在该干什么」 */}
+      <ReviewPanel domain={domain} onChanged={reload} />
+
       <div className="term-toolbar">
         <DomainBar domains={stats.domains} active={domain} onPick={setDomain} onChanged={reload} />
         <div className="term-search">
@@ -149,6 +172,7 @@ export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) 
                   <div className="term-meta">
                     {t.source_title && <span>来自：{t.source_title.slice(0, 16)}</span>}
                     <span>{t.updated_at?.slice(0, 10)}</span>
+                    <ReviewBadge t={t} />
                   </div>
                 </div>
                 <div className="term-side">

@@ -25,10 +25,15 @@ export interface SendActionsDeps {
   setMessages: Dispatch<SetStateAction<StreamMessage[]>>;
   /** 历史是否已落定：未落定前禁发，否则 messages 响应后到会把刚发的用户消息整表覆盖掉 */
   historyLoadedRef: { current: boolean };
+  /**
+   * v18.4 联网开关（会话级，ChatView 持有）：随本轮出站。发送与重跑**同口径**——
+   * 用户开着联网点「重新生成」，期望也是联网重跑，不该两样。
+   */
+  online?: boolean;
 }
 
 export function useSendActions(deps: SendActionsDeps) {
-  const { sessionId, ready, busy, beginRound, setError, setBusy, setMessages, historyLoadedRef } = deps;
+  const { sessionId, ready, busy, beginRound, setError, setBusy, setMessages, historyLoadedRef, online } = deps;
 
   /** 发送：SSE 未就绪时拒绝并提示（修 F1 竞态——绝不静默吞） */
   const send = useCallback(
@@ -49,7 +54,7 @@ export function useSendActions(deps: SendActionsDeps) {
         { role: 'user', content: text, ts: new Date().toISOString(), ...(images && images.length > 0 ? { images } : {}) },
       ]);
       try {
-        await api.chat.send(sessionId, text, images, grillMe);
+        await api.chat.send(sessionId, text, images, grillMe, online);
         setBusy(true);
         return { ok: true };
       } catch (err) {
@@ -58,7 +63,7 @@ export function useSendActions(deps: SendActionsDeps) {
         return { ok: false, error: msg };
       }
     },
-    [sessionId, ready, busy, beginRound, setError, setBusy, setMessages, historyLoadedRef],
+    [sessionId, ready, busy, beginRound, setError, setBusy, setMessages, historyLoadedRef, online],
   );
 
   /**
@@ -84,8 +89,8 @@ export function useSendActions(deps: SendActionsDeps) {
         return edited ? [...kept, edited] : kept;
       });
       try {
-        if (mode === 'resend') await api.chat.resend(sessionId, text ?? '');
-        else await api.chat.regenerate(sessionId);
+        if (mode === 'resend') await api.chat.resend(sessionId, text ?? '', online);
+        else await api.chat.regenerate(sessionId, online);
         setBusy(true);
         return { ok: true };
       } catch (err) {
@@ -94,7 +99,7 @@ export function useSendActions(deps: SendActionsDeps) {
         return { ok: false, error: msg };
       }
     },
-    [sessionId, ready, busy, beginRound, setError, setBusy, setMessages],
+    [sessionId, ready, busy, beginRound, setError, setBusy, setMessages, online],
   );
 
   /** 重新生成：服务端已把最后一条提问之后的产物删掉（含工具轮与中止半截）后原样重跑 */

@@ -1,0 +1,428 @@
+/* 复习督促小窗（B 胶囊 + C 抽屉 + E 卡片流，契约 docs/COACH-SPEC.md）
+   视觉全走 tokens，无组件内联样式（gates 对 style={{}} 有红线）。
+   这一层是「悬浮」的：胶囊钉在右下角，抽屉从右侧滑入——两者都不占主区布局，不挤压任何页面。 */
+
+/* ── 折叠态：任务胶囊（B）──────────────────────────────────────── */
+.coach-cap {
+  position: fixed;
+  right: var(--sb-sp-5);
+  bottom: var(--sb-sp-5);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  box-shadow: var(--sb-shadow-2);
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+.coach-cap:hover {
+  transform: translateY(-1px);
+  color: var(--sb-ink);
+}
+.coach-cap-icon {
+  display: flex;
+  align-items: center;
+}
+.coach-cap-text {
+  letter-spacing: 0.01em;
+}
+/* 只有"有欠账"才上色：常亮的高亮色很快就没人看，颜色变了才是提示（刻意不做倒计时） */
+.coach-cap.warn {
+  color: #b26a00;
+  border-color: #f0d9b0;
+}
+.coach-cap.alert {
+  color: var(--sb-danger);
+  border-color: #f3c9c9;
+}
+.coach-cap.open {
+  color: var(--sb-ink);
+  border-color: var(--sb-primary);
+}
+/* 该主动提醒时的呼吸点（服务端 shouldNudge 判定，前端只渲染） */
+.coach-cap-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sb-danger);
+  animation: coach-pulse 1.6s ease-in-out infinite;
+}
+@keyframes coach-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.28;
+  }
+}
+
+/* 预览面板开着时，胶囊让位到它左边（:has 检测面板是否在 DOM 里，
+   面板为空时不渲染 .sb-browser，故这个选择器天然只在其打开时生效） */
+.sb-shell:has(.sb-browser) .coach-cap {
+  right: calc(min(var(--sb-browser-w), 46vw) + var(--sb-sp-4));
+}
+
+/* ── 展开态：右侧抽屉（C）────────────────────────────────────── */
+.coach-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 400px;
+  max-width: 92vw;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  background: var(--sb-surface);
+  border-left: 1px solid var(--sb-line);
+  box-shadow: var(--sb-shadow-2);
+  animation: coach-in 0.18s ease-out;
+}
+.sb-shell:has(.sb-browser) .coach-drawer {
+  right: min(var(--sb-browser-w), 46vw);
+}
+@keyframes coach-in {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+}
+.coach-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sb-sp-2);
+  padding: var(--sb-sp-3);
+  border-bottom: 1px solid var(--sb-line);
+}
+.coach-drawer-title {
+  font-size: var(--sb-fs-md);
+  font-weight: 700;
+  color: var(--sb-ink);
+}
+.coach-drawer-sub {
+  margin-top: 2px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+.coach-drawer-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--sb-radius-sm);
+  color: var(--sb-ink-secondary);
+}
+.coach-drawer-close:hover {
+  background: var(--sb-bg);
+  color: var(--sb-ink);
+}
+.coach-error {
+  margin: var(--sb-sp-2) var(--sb-sp-3) 0;
+  padding: 6px 10px;
+  border-radius: var(--sb-radius-sm);
+  background: #fdecec;
+  color: var(--sb-danger);
+  font-size: var(--sb-fs-xs);
+  line-height: var(--sb-lh);
+}
+
+/* ── 卡片流（E）─────────────────────────────────────────────── */
+.coach-feed {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sb-sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-4);
+}
+.coach-sec-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sb-sp-2);
+  font-size: var(--sb-fs-sm);
+  font-weight: 600;
+  color: var(--sb-ink);
+  margin-bottom: var(--sb-sp-2);
+}
+.coach-sec-hint {
+  font-size: var(--sb-fs-xs);
+  font-weight: 400;
+  color: var(--sb-ink-tertiary);
+}
+
+/* 今日队列：横向滚动的一叠卡（先干事，故放在流水之上） */
+.coach-queue {
+  display: flex;
+  gap: var(--sb-sp-2);
+  overflow-x: auto;
+  padding-bottom: var(--sb-sp-1);
+}
+.coach-queue-empty,
+.coach-stream-empty {
+  padding: var(--sb-sp-3);
+  border: 1px dashed var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-xs);
+  line-height: var(--sb-lh);
+}
+.coach-qcard {
+  flex-shrink: 0;
+  width: 208px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--sb-sp-2);
+  border: 1px solid var(--sb-line);
+  border-left: 3px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  background: var(--sb-surface);
+}
+/* 保持率分档（用 class 而不是行内宽度：gates 禁 style={{}}） */
+.coach-qcard.lv-4 {
+  border-left-color: var(--sb-success);
+}
+.coach-qcard.lv-3 {
+  border-left-color: #7bb661;
+}
+.coach-qcard.lv-2 {
+  border-left-color: #e0b23c;
+}
+.coach-qcard.lv-1 {
+  border-left-color: #e08a3c;
+}
+.coach-qcard.lv-0 {
+  border-left-color: var(--sb-danger);
+}
+.coach-qcard-face {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  text-align: left;
+  cursor: pointer;
+}
+.coach-qterm {
+  font-size: var(--sb-fs-md);
+  font-weight: 700;
+  color: var(--sb-ink);
+  word-break: break-word;
+}
+.coach-qdomain {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+.coach-qdays {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+}
+.coach-qdays.overdue {
+  color: var(--sb-danger);
+  font-weight: 600;
+}
+.coach-qret {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+.coach-qdef {
+  padding: 6px 8px;
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-bg);
+  color: var(--sb-ink);
+  font-size: var(--sb-fs-xs);
+  line-height: var(--sb-lh);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.coach-qacts {
+  display: flex;
+  gap: 6px;
+}
+.coach-qbtn {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  font-size: var(--sb-fs-xs);
+  font-weight: 600;
+  color: var(--sb-ink-secondary);
+  cursor: pointer;
+}
+.coach-qbtn.ok:hover {
+  border-color: var(--sb-success);
+  color: var(--sb-success);
+}
+.coach-qbtn.danger:hover {
+  border-color: var(--sb-danger);
+  color: var(--sb-danger);
+}
+.coach-qbtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* 流水：时间正序的卡片列表 */
+.coach-stream {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+}
+.coach-card {
+  position: relative;
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  border-radius: var(--sb-radius-md);
+  border: 1px solid var(--sb-line);
+  background: var(--sb-surface);
+  font-size: var(--sb-fs-sm);
+  line-height: var(--sb-lh);
+  color: var(--sb-ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.coach-card-time {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+  white-space: nowrap;
+}
+.coach-card-ai {
+  border-left: 3px solid var(--sb-primary);
+}
+.coach-ai-tag {
+  font-size: var(--sb-fs-xs);
+  font-weight: 700;
+  color: var(--sb-primary);
+  margin-bottom: 2px;
+}
+.coach-card-ai.streaming {
+  border-left-color: var(--sb-primary);
+  background: linear-gradient(180deg, #f7faff, var(--sb-surface));
+}
+.coach-card-me {
+  margin-left: 36px;
+  background: var(--sb-bg);
+  color: var(--sb-ink);
+}
+.coach-card-nudge {
+  border-left: 3px solid #e0a23c;
+  background: #fffaf1;
+  color: #7a5210;
+}
+.coach-card-review {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sb-sp-2);
+}
+.coach-rv-mark {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: var(--sb-fs-xs);
+  font-weight: 700;
+}
+.coach-rv-mark.ok {
+  background: #e8f6ea;
+  color: var(--sb-success);
+}
+.coach-rv-mark.bad {
+  background: #fdecec;
+  color: var(--sb-danger);
+}
+.coach-rv-main {
+  flex: 1;
+  min-width: 0;
+}
+.coach-rv-term {
+  font-weight: 600;
+}
+.coach-rv-sub {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+/* ── 输入区 ─────────────────────────────────────────────────── */
+.coach-composer {
+  border-top: 1px solid var(--sb-line);
+  padding: var(--sb-sp-2) var(--sb-sp-3) var(--sb-sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+}
+.coach-quick {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.coach-quick-btn {
+  padding: 3px 9px;
+  border: 1px solid var(--sb-line);
+  border-radius: 999px;
+  background: var(--sb-surface);
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-xs);
+  cursor: pointer;
+}
+.coach-quick-btn:hover:not(:disabled) {
+  border-color: var(--sb-primary);
+  color: var(--sb-primary);
+}
+.coach-quick-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.coach-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sb-sp-2);
+}
+.coach-input {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  padding: 7px 10px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  background: var(--sb-surface);
+  color: var(--sb-ink);
+  font: inherit;
+  font-size: var(--sb-fs-sm);
+  line-height: var(--sb-lh);
+}
+.coach-input:focus {
+  outline: none;
+  border-color: var(--sb-primary);
+}
+.coach-send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: var(--sb-radius-md);
+  background: var(--sb-primary);
+  color: #fff;
+  cursor: pointer;
+}
+.coach-send:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+.coach-send.stop {
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  color: var(--sb-ink-secondary);
+}

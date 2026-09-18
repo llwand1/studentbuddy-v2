@@ -60,6 +60,8 @@ export function useChatStream(
   onRoundDone?: () => void,
   /** 生成状态上报（App 侧栏「回复中」提示）：busy 翻转时回调一次 */
   onBusyChange?: (busy: boolean, sessionId: string | null) => void,
+  /** v18.4 联网开关（ChatView 持有）：透传给 send / rerun，随本轮出站（服务端 chat/opening.ts） */
+  online?: boolean,
 ) {
   const [messages, setMessages] = useState<StreamMessage[]>([]);
   const [streamingText, setStreamingText] = useState('');
@@ -368,6 +370,7 @@ export function useChatStream(
     setBusy,
     setMessages,
     historyLoadedRef,
+    online,
   });
 
   return {

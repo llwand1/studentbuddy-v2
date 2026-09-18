@@ -263,6 +263,8 @@
   flex-shrink: 0;
 }
 .sb-user-box:hover { background: rgba(30, 40, 60, 0.05); }
+/* 侧栏底部只有一个账号框（原 PK 昵称框已下线），margin-top:auto 由 .sb-user-box 负责推到底部。 */
+.sb-account-box .sb-login-tag { border-color: var(--sb-primary); color: var(--sb-primary); }
 .sb-avatar {
   width: 28px;
   height: 28px;

@@ -6,8 +6,13 @@
 > 原则：**先立契约再改码**（AGENTS.md 已知约束）；登录契约先行，P0 模拟实现、P1 换真微信授权时前端零改动。
 >
 > **落地进度（逐批记账唯一处＝`CHANGELOG.md`，本节只做指针不做第二事实源）**：
-> **P0-1 已完成**（2026-09-12）——① 登录链路：`pk_users` v10 迁移 / `POST /auth/login` / `GET /auth/me` / `UserAuthBox`
-> （提交 `e02d67a`）；② 房间链路：`PkRoomState`/`PkPlayer`/`PkQuestion` 类型 + 房间常量 + `pkChannel()` 频道键、
+> **P0-1 已完成**（2026-09-12）——① 登录链路：`pk_users` v10 迁移 / `POST /auth/login` / `GET /auth/me`
+> （提交 `e02d67a`）。★ **入口已于 2026-09-18 收窄**：侧栏常驻的昵称框 `UserAuthBox` **已删除**，
+> 昵称登录只在**进入 PK 房间时**发生（`features/pk/usePkIdentity` → `/api/pk/auth/login`）；
+> 后端 `/api/pk/auth/*` 与 `pk_users` 表**原样保留**，PK 功能不受影响。
+> 删除理由：它常驻在侧栏、看着像「已登录」却不产生任何数据归属（真账号是 `AccountBox`），
+> 属「以为什么都做了」的错觉源——而错觉在权限类问题上比没有功能更危险；
+> 两套身份仍并存（AUTH-SPEC §0：M4 才合并到同一个 user）。② 房间链路：`PkRoomState`/`PkPlayer`/`PkQuestion` 类型 + 房间常量 + `pkChannel()` 频道键、
 > `pk/room.ts` 内存状态机、`/rooms`·`/rooms/join`·`/rooms/:id/start`·`/rooms/:id/state` 四端点、
 > SSE `pk:` 频道与 `pk-state` 主动广播。
 > **P0-2 已完成**（2026-09-13）——出题 CD / 判分 / 答题超时 / 怠慢惩罚 / 对局时钟结算全落地

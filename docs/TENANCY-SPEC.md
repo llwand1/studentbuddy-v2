@@ -1,0 +1,210 @@
+# TENANCY-SPEC · 多租户数据隔离（M2）
+
+> 版本：v1.1 | 状态：[活跃] | 更新：2026-09-18（M2b：长期画像 `user_memory` 归主，迁移 v24）
+> 上游契约：`docs/AUTH-SPEC.md`（账号与会话）。本契约只解决「**登录之后，数据归谁**」。
+
+---
+
+## 0. 为什么必须先写这份契约
+
+M1（账号）做完之后，账号体系能注册登录了，但**业务数据仍是一张全局大表**：
+`sessions` / `messages` / `quiz_bank` / `term_library` / `user_memory` … **全部没有 owner 列**。
+
+此刻上线会发生什么：`GET /api/sessions` 返回 `WHERE deleted_at IS NULL` 的**全部会话**——
+**所有访客互相看到对方的聊天记录**。这不是"体验问题"，是**数据泄露**。
+
+所以 M2 是"能不能上线"的**唯一开关**，且与登录方式正交：无论选邮箱、微信还是手机号，这份都得做。
+
+### 0.1 本批范围与非范围（★ 先划清，避免误以为"加完 v22 就安全了"）
+
+| | 内容 | 状态 |
+|---|---|---|
+| **本批（M2a）** | `sessions` 归属列 + 会话/聊天域全部端点接线 + 内存态（aborters/SSE）隔离 | 已落地 |
+| **非本批** | `quiz_bank` / `quiz_notes` / `term_library` / `user_memory` / `daily_activity` / `flow_def` / `providers` / `token_usage` | **未接线 ⇒ 仍在互相看见**，见 §7 挂账 |
+
+★ **"加列"与"接线"必须同批**。只加 `user_id` 列而查询不过滤，等于给一张漏水的桶贴标签——
+既不减少泄露，还制造"已经做了隔离"的假象。故本批**只给本批真正接线的表加列**。
+
+---
+
+## 1. 归属模型：**会话是唯一锚点**（parent-owned）
+
+```
+users (AUTH-SPEC v21)
+  └── sessions.user_id        ← ★ 归属唯一事实源
+        ├── messages          ← 不设 user_id，随父会话
+        ├── ask_choices       ← 同上
+        └── flow_run          ← 同上
+```
+
+**为什么不给 `messages` 也加 `user_id`**：
+那会造出**两个事实源**（`sessions.user_id` 与 `messages.user_id`），二者一旦漂移，
+"到底谁拥有这条消息"就没有答案了——本仓在 `register` / `/me` 的 `createdAt` 上已经为
+"两个事实源"付过一次学费（test-plan §4）。**子表随父表，是从模型上消灭漂移**。
+
+代价：读子表必须先断言父会话归属。这条由 §4 的 `canAccessSession` 统一承担。
+
+---
+
+## 2. 迁移 v22：`sessions.user_id`
+
+```sql
+ALTER TABLE sessions ADD COLUMN user_id TEXT;   -- 可空：老行是孤儿
+CREATE INDEX idx_sessions_user ON sessions(user_id);
+```
+
+- **可空是刻意的**：老库里已有会话，它们的 owner 在迁移那一刻**不可知**（谁的？无人可问）。
+  强行回填成某个具体用户 = 把别人的历史聊天判给他。故留 `NULL`。
+- **索引必须加**：`WHERE user_id = ?` 是此后最高频的过滤条件，无索引则会话一多就全表扫。
+- ★ 纯加法，`ALTER TABLE ADD COLUMN` **不幂等** ⇒ 回放迁移链的测试若 DROP 表重建则无碍，
+  但若只回滚版本号重放，会报 `duplicate column name`（本仓 v18 踩过，见 `db.test.ts`）。
+
+---
+
+## 3. 老数据（孤儿行）策略
+
+**规则：`user_id IS NULL` 的行，对任何已登录用户都不可见。**
+
+- 登录用户的查询一律带 `WHERE user_id = ?`，`NULL` 天然不匹配 ⇒ **不会泄露给别人**。
+- 副作用：老数据对**它的真正主人也看不见了**（认领前等于归档）。
+- **认领路径**：`_probe/claim-legacy.mjs <email>` —— 显式把全部孤儿行判给指定账号。
+  ★ **刻意不做"首个注册者自动认领"**：那是隐式魔法，并发注册时归属不确定，且无法撤销。
+
+---
+
+## 4. 归属解析：`ownerIdOf` 与「无登录态」的边界
+
+| `SB_REQUIRE_AUTH` | 请求带有效会话？ | `ownerIdOf()` | 过滤行为 |
+|---|---|---|---|
+| `0`（默认） | 是 | `user.id` | **按 user 过滤** |
+| `0`（默认） | 否 | `null` | **不过滤**（维持本地单人旧行为） |
+| `1` | 否 | — | 中间件已 401，到不了路由 |
+| `1` | 是 | `user.id` | 按 user 过滤 |
+
+★ **为什么"无登录态就不过滤"**：本仓默认仍是本地单人模式（服务只绑 `127.0.0.1`），
+强行过滤会让老板自己本地的历史数据全部消失。**安全边界由部署形态保证**——
+一旦 `SB_REQUIRE_AUTH=1`（生产），每条请求必有 user ⇒ 每条查询必过滤。
+
+这条要在部署 runbook 里钉死：**生产必须 `SB_REQUIRE_AUTH=1`**。
+
+---
+
+## 5. 路由接线规范（会话域 / 聊天域）
+
+| 端点 | 改造 |
+|---|---|
+| `GET /api/sessions` | `WHERE deleted_at IS NULL AND user_id = ?`（owner 为 null 时不带该条件） |
+| `POST /api/sessions` | 插入时写 `user_id` |
+| `DELETE /api/sessions/:id` | 先断言归属，不归属 → **404**（不回 403，避免泄露"这个 id 存在"） |
+| `PATCH /:id/pinned` | `WHERE ... AND user_id = ?` |
+| `GET /:id/messages` | 先 `canAccessSession`，否则 404 |
+| `GET /:id/live` | 同上 |
+| `POST /api/chat/send` `/regenerate` `/resend` `/abort` | 先断言归属 |
+| `GET /api/chat/active` | **只返回自己的会话 id**（aborters 带 owner 维度，见 §6） |
+| `GET /api/chat/stream` | 先断言归属 |
+
+★ **统一口径：不归属一律 404，不回 403**。403 等于告诉攻击者"这个 id 存在，只是不是你的"。
+
+---
+
+## 6. 内存态与 SSE 的隔离（★ 最易漏的一处）
+
+`aborters: Map<sessionId, AbortController>` 是**进程内存**，不随 SQL 过滤消失：
+
+- 老实现 `GET /chat/active` 直接 `[...aborters.keys()]` ⇒ **任何人都能看见别人"正在生成"的会话 id**。
+  这本身是信息泄露，且暴露的 id 可被拿来撞 `/api/sessions/:id/messages`（虽然会被归属断言挡住，
+  但**会话 id 属于敏感标识，不该扩散**）。
+- 改造：`Map<sessionId, { controller, ownerId }>`，`/chat/active` 与 `/abort` 都按 owner 过滤。
+- SSE 订阅（`sse-bus`）已是**按 sessionId 分隔、禁通配**（v1 串台教训），叠加归属断言即可，
+  **不做跨用户全局频道**。
+
+---
+
+## 7. 长期画像归属（M2b，迁移 v24）
+
+`user_memory` 与前几节不同：它**不是**"用户自己建的东西"，而是**全站唯一一处由模型自动写入的
+跨会话个人数据**。这条差异决定了两件事——归属列必须是 `NOT NULL`，唯一键必须带 owner。
+
+### 7.1 为什么必须**重建表**而不是 `ADD COLUMN`
+
+v13 建表时写的是 `UNIQUE(kind, content)`，这是**全局**唯一键。多用户下两个人沉淀出同一句画像
+（"喜欢先看例子"这种极常见）时，后写的人走 `ON CONFLICT(kind, content) DO UPDATE` 会**改写先写那一行**：
+
+| 后果 | 说明 |
+|---|---|
+| B 的记忆**写不进去** | 写是成功的，但写完按 `user_id` 过滤，B 自己看不到——最隐蔽的一类 bug |
+| A 的画像被**陌生人刷新** | `importance` 取 MAX、`updated_at` 被改，A 无从察觉 |
+| B 的隐私**落进 A 的行里** | 内容是 B 的，行主是 A ⇒ A 打开记忆页直接看见 |
+
+一条约束同时造成「串台 + 污染 + 泄露」，而 `ALTER TABLE` 改不了约束 ⇒ **只能重建**。
+
+### 7.2 归属列的语义：`NOT NULL DEFAULT ''`
+
+- `user_id = ''` ＝ **无主**（迁移前的遗留行 / 未登录的本地单人模式写入）。与 §3 的"孤儿行"同义。
+- 为什么这里用 `''` 而不是 §2 的 `NULL`：唯一键要用**列**而不是 `COALESCE(user_id,'')` 表达式索引，
+  因为 `ON CONFLICT` 的冲突目标必须匹配唯一索引的列，表达式索引会让它退化成"无冲突目标"而直接报错。
+- ⇒ 两处的"孤儿"取值不同是**刻意的**，不是疏漏：`sessions` 无此约束故用 `NULL`，
+  `user_memory` 有复合唯一键故用 `''`。两者对外行为一致（登录用户都查不到、`WHERE user_id = ?` 天然跳过）。
+
+### 7.3 归属必须**显式传下来**，不能靠 `req`
+
+记忆的写入只在压缩过程里发生（MEMORY-SPEC §5.1），而压缩是 **fire-and-forget**——它跑在
+HTTP 响应之后，那时 `req` 早已结束。故：
+
+```
+routes/chat.ts  ownerIdOf(req)
+  → handleMessage({ ownerId })
+    → collectContextSegments({ ownerId })  → buildMemoryContext → injectMemoryBlock(ownerId)   // 读
+    → compactIfNeeded(sessionId, ownerId)  → upsertMemoryItems(..., ownerId) / pruneMemoryItems(ownerId)   // 写
+```
+
+★ 全链路每一个 `ownerId` 参数都是**可选且默认 `null`**（＝本地单人模式，不过滤）。
+可选而非必填是刻意的：既有 20+ 个调用点（含测试）不必改签名，而"漏传"的后果是**退回现状**，
+不是串台——**让默认值是安全的那一侧**。
+
+### 7.4 顺带补上的一个旁路（M2a 漏的）
+
+`GET/DELETE /api/memory/summary/:sessionId` 只吃 `sessionId`、原先不判归属——
+拿别人的会话 id 就能**读出他早前对话的浓缩**，甚至远程擦掉。
+现已统一走 `canAccessSession`，不归属一律 404（与 §5 同口径）。
+
+---
+
+## 8. 挂账：仍未接线（下一批 M2c / M2d）
+
+### 8.1 `providers` / `role_bindings` / LLM 路由 —— **必须整片做，不能拆**
+
+§1 的原计划是把 `providers` 与 `user_memory` 合成 M2b 一批。实际读码后**把它拆出去了**，理由如下：
+
+- `providers` 的归属**不止是"能不能改"**。真正要命的是**用**：`roleRole()`（`llm/router.ts`）
+  取 provider 时不知道"这轮是谁在问"，故用户 A 配了 key，**B 聊天烧的是 A 的额度**。
+- 而 `routeRole` 被 **14 个文件**调用（chat / learning / pk / routes 各域），全仓**没有**
+  `AsyncLocalStorage` 或任何上下文传递机制 ⇒ 要让路由按 owner 取 provider，是一次横切改造。
+- 同时 `role_bindings` 是**全局表**（`role → provider_id`），`PUT /roles/:role` 任何登录用户都能调。
+  若只给 `providers` 加归属而不管它，**任何人可以把全站的模型指向自己的 provider**——
+  比现在更糟：从"能改别人的"变成"能改所有人的"。
+
+⇒ 结论：**`providers` + `role_bindings` + `routeRole` 是一整片**（本质是"LLM 成本与配置归谁"），
+拆开做只会先造出新洞。它的正确定义是 **M2c**，且要先定"谁付模型钱"这个业务决策。
+
+### 8.2 其余表
+
+| 表 | 泄露后果 | 备注 |
+|---|---|---|
+| `term_library` / `term_domain` | 中：互相看见词条库 | 含 `UNIQUE(term, domain)`，与 §7.1 同型，**多半也要重建表** |
+| `quiz_bank` / `quiz_notes` / `quiz_stats` | 中：互相看见题目与笔记 | 有 `UNIQUE` 复合键，先核 |
+| `daily_activity` | 中：学习轨迹 | 纯加法列即可 |
+| `flow_def` / `flow_run` | 中：`flow_run` 随会话，`flow_def` 需独立归属 | — |
+| `token_usage` | 中：配额与账单的事实源 | 与 8.1 的成本模型一起定 |
+
+---
+
+## 9. 验收判据（★ 可实测）
+
+1. **迁移**：v22 后 `sessions` 有 `user_id` 列 + `idx_sessions_user` 索引；v1~v22 连续无缺号。
+2. **跨用户不可见**（e2e）：用户 A 建会话 → 用户 B 的 `GET /api/sessions` **不含**该会话；
+   B 直接 `GET /api/sessions/:id/messages` → **404**。
+3. **孤儿不可见**：无 owner 的老会话，对任何已登录用户都不出现在列表里，直接访问 → 404。
+4. **`/chat/active` 隔离**：A 正在生成时，B 的 `/chat/active` 返回空数组。
+5. **鉴权关闭时旧行为不变**：无登录态请求仍能列全量会话（不回归本地单人模式）。
+6. **真机冒烟**：隔离实例 + 两个账号，逐条跑上述断言。

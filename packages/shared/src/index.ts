@@ -18,3 +18,6 @@ export * from './memory.js';
 export * from './study-flow.js';
 export * from './study-flow-params.js';
 export * from './scenario.js';
+export * from './auth.js';
+export * from './ebbinghaus.js';
+export * from './coach.js';

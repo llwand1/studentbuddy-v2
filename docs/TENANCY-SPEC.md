@@ -1,6 +1,6 @@
 # TENANCY-SPEC · 多租户数据隔离（M2）
 
-> 版本：v1.3 | 状态：[活跃] | 更新：2026-09-18（M2c 定案：双通道 + 免费通道**额度不限、两层并发限速**；`app_settings` 改每用户。见 §8.1.3 / §8.2）
+> 版本：v1.4 | 状态：[活跃] | 更新：2026-09-18（M2c 开工：**§8.1.4 上下文传递拍板为显式 `ownerId` 穿透**（不引 ALS）+ 13 个消费点清单 + 后台路径 owner 语义 + **迁移 v29**；§8.1.2 补迁移编号与 `ON CONFLICT` 连带必改点；§8.1.3 免费通道额度不限、两层并发限速；`app_settings` 改每用户）
 > 上游契约：`docs/AUTH-SPEC.md`（账号与会话）。本契约只解决「**登录之后，数据归谁**」。
 
 ---
@@ -204,11 +204,16 @@ routes/chat.ts  ownerIdOf(req)
 
 | 表 | 现状（实测表结构） | 改造 |
 |---|---|---|
-| `providers` | `id / name / base_url / api_key / type / enabled / created_at` —— **无 owner 列** | 加 `owner_id TEXT`（可空；`NULL` = 平台通道的保留值，语义同 §3 的孤儿行） |
-| `role_bindings` | **`role TEXT PRIMARY KEY`**（单列主键，全局唯一） | ★ **必须改复合主键 `(owner_id, role)`** —— 见下方警告 |
-| `token_usage` | `id / session_id / model / prompt_tokens / completion_tokens / source / created_at` —— **无 `user_id`** | 加 `user_id`（**配额记账的事实源**）。★ 它已带 `session_id`、而 `sessions.user_id` 已存在 ⇒ **过渡期可先 join 拿 owner**，但配额是高频查询，最终仍应直接落列 |
+| `providers` | `id / name / base_url / api_key / type / enabled / created_at` —— **无 owner 列**（v1 建表 `migrations-list-v1-9.ts:22-30`；v13 追加 `stream_mode`） | 加 `owner_id TEXT`（可空；`NULL` = 平台通道的保留值，语义同 §3 的孤儿行） |
+| `role_bindings` | **`role TEXT PRIMARY KEY`**（单列主键，全局唯一；`migrations-list-v1-9.ts:32-36`） | ★ **必须改复合主键 `(owner_id, role)`** —— 见下方警告 |
+| `token_usage` | `id / session_id / model / prompt_tokens / completion_tokens / source / created_at` —— **无 `user_id`** | 加 `user_id`（**归属与诊断用**）。★ **不是配额账本**——§8.1.3 已把免费通道改成「额度不限、只限并发」⇒ **不做配额聚合**。★ 它已带 `session_id`、而 `sessions.user_id` 已存在 ⇒ 过渡期可先 join 拿 owner，但最终仍应直接落列 |
+
+★ **迁移编号 v29**（三张表同版；⚠️ 提交顺序的硬约束见 §8.1.4 末尾）。`role_bindings` 的重建**照 §7.1 的 `user_memory`（v24）六步先例**：建新表 → `INSERT … SELECT` 显式回填归属列 → `DROP` 旧表 → `RENAME` → 重建索引。★ 老库既有绑定的回填值取 **`NULL`**（= 平台通道），与 `providers` 的平台 provider 对齐——**不能用 `''`**：`routeRole` 的平台分支判据是 `owner_id IS NULL`，`''` 会落进「某个不存在的用户」的空档。
 
 ★★ **`role_bindings` 的主键必须改，这是本片最容易漏的一处**：现主键是 `role` 单列 ⇒ 全库只有**一份** `explain → provider_X` 的绑定。若只给 `providers` 加 owner 而不管它，则**任何登录用户改一次绑定，全站所有用户的模型都跟着变**——从 8.1 描述的"能改别人的"升级成"**能改所有人的**"，**比不做更糟**。而 `ALTER TABLE` 改不了主键 ⇒ **照 §7.1 的 `user_memory` 先例重建表**（v13 的 `UNIQUE(kind, content)` 与此同型）。
+
+★ **连带必改的写口（读码实测，2026-09-18）**：`PUT /api/providers/roles/:role` 的写库语句是 `INSERT … ON CONFLICT(role) DO UPDATE`（`routes.ts:186`）。主键改复合后 **`ON CONFLICT(role)` 会直接报错**（找不到匹配的唯一索引）⇒ 必须同步改成 `ON CONFLICT(owner_id, role)`，并写入当前用户的 `owner_id`。**只改迁移不改这里 = 运行时 500**，两者必须同批。
+
 
 #### 8.1.3 免费通道的限流模型（2026-09-18 **二次拍板**：额度不限、限并发）
 
@@ -247,6 +252,60 @@ routes/chat.ts  ownerIdOf(req)
 ★ **两层闸门只约束免费通道**。BYOK 用户自带 key ⇒ 不同 `baseUrl` ⇒ 天然落到**另一个桶**，不受平台闸门影响。
 
 ★ 这一条同时解释了**为什么不能把闸门做成"全局单桶"**——那会把付费用户一起限住，等于"因为免费用户多，付费用户也被卡"。
+
+#### 8.1.4 ★ 上下文传递方案（2026-09-18 拍板：**显式 `ownerId` 穿透**，不引 AsyncLocalStorage）
+
+**问题**：`routeRole()` 必须知道「这一轮是谁在问」。§8.1 初稿写「全仓没有 `AsyncLocalStorage` 或任何上下文传递机制」——**读码实测后该表述需修正**，方案据此改判。
+
+**实测事实（2026-09-18；13 个生产消费文件 + `router.ts` 自身）**：
+
+| # | 消费点 `文件:行号` | 角色 | 路径性质 | `ownerId` 现成可得？ |
+|---|---|---|---|---|
+| 1 | `chat/flow.ts:91` | `opts.role ?? 'explain'` | HTTP 链（`routes/chat.ts:76` 的 `trackRun`，**不 await**） | ✅ 已有 `opts.ownerId`（`chat/options.ts:30`） |
+| 2 | `chat/compact.ts:292` | `summarizer` | **响应后 fire-and-forget**（`flow.ts:328` `void compactIfNeeded`） | ✅ 已收到 `ownerId` |
+| 3 | `chat/vision.ts:71` | `vision` | HTTP 链 | ✅ |
+| 4 | `pk/judge.ts:39` | `judge` | HTTP 链（4 个上游全在请求路径上） | ✅ |
+| 5 | `pk/ai-bot.ts:91` | `solver` | **响应后 detached**（`match.ts:213` `void runAiAnswer`） | ❌ **未传** |
+| 6 | `learning/coach.ts:291` | `coach` | HTTP（`routes/coach.ts:77` detached IIFE）**＋ 定时器**（`trend.ts:122`） | ⚠️ 请求侧可得；**定时器侧签名无参** |
+| 7 | `learning/coach.ts:293` | `explain`（回退分支） | 同上 | 同上 |
+| 8 | `learning/collect.ts:224` | `quiz-generator` | HTTP | ✅ |
+| 9 | `learning/activity.ts:80` | `summarizer` | HTTP | ✅ |
+| 10 | `learning/quiz-weak.ts:279` | `analyzer` | HTTP | ✅ |
+| 11 | `learning/quiz.ts:257` | `quiz-generator` | HTTP ＋ **定时器**（`pk/ai-bot.ts:72` ← `match.ts:357` `void runAiQuiz` ← `tickMatches` 1s ticker） | ❌ 定时器侧**未传** |
+| 12 | `learning/scenario.ts:173` | `quiz-generator` | HTTP（3 个上游） | ✅ |
+| 13 | `learning/term-extract.ts:75` | `explain` | HTTP ＋ **响应后 fire-and-forget**（`flow.ts:320` `void extractTerms`） | ❌ **未传** |
+| 14 | `learning/tidy.ts:204` | `explain` | HTTP（chat 工具循环内） | ✅ |
+| — | `llm/router.ts:127` | `roleReady()` 内部自调用 | — | 需一并加参 |
+
+★ **修正 §8.1 初稿的两处**：① 「14 个文件」的真实构成是 **13 个生产消费文件 + `router.ts` 自身**，而 **`routes/` 域没有任何文件直接调 `routeRole`**（只调 `roleReady`，3 处：`routes/quiz.ts:114`／`:170`、`routes/scenario.ts:63`）；② 「全仓没有上下文传递机制」**不准确**——**显式 `ownerId` 参数穿透已是既有惯例**，且有书面理由：`chat/options.ts:26-29` 自述「本链路是 fire-and-forget 的，压缩与记忆写入发生在 HTTP 响应之后，**那时已无 req 可取用的上下文**」；`chat/compact.ts:272/360`、`learning/coach.ts:322` 均照此把 `ownerId` 一路带下去。
+
+**★ 拍板：沿既有惯例做显式穿透，`routeRole` 加第三参**：
+
+```ts
+routeRole(role: ModelRole, fallbackModel?: string, ownerId?: string | null)
+```
+
+四条理由：
+
+1. **惯例一致**：`ownerId` 显式下传已是本仓做法（`ChatOptions.ownerId`／`compact.ts`／`coach.ts` 三处先例），ALS 会是**第二套机制**。
+2. ★ **成本归属必须「看得见」**：M2c 的本质是「谁付模型钱」。显式参数让**每个调用点都必须回答「这是谁在问」**；ALS 把它藏进隐式上下文，漏设时**静默退化成平台通道**——而那正是本次要消灭的 bug（A 的 key 被 B 烧掉／平台额度被白嫖）。**同一个失败模式，一个写在代码里，一个不写。**
+3. **ALS 在定时器路径上并不生效**：`pk/match.ts:376` 的 1s ticker 与 `learning/trend.ts:245` 的 6h ticker **都没有 HTTP 上下文**，ALS 里读出来是 `undefined` ⇒ 仍须显式传。即 ALS **只覆盖一半场景，却引入一整套隐式语义**。
+4. **零新机制**：不引 `node:async_hooks`，不增测试基建（现有 `routeRole` 测试直接加参即可）。
+
+**后台／脱离链路的 owner 语义（必须逐条定义，不留白）**：
+
+| 路径 | `ownerId` 取什么 | 理由 |
+|---|---|---|
+| `trend.ts` 定时器 → `resolveCoachTarget()` | **该轮 tick 的 `ownerId`** | ★ `trend.ts:231` 本就 `for (const ownerId of trendOwners())` **逐 owner 跑**，ownerId **现成在手**，只是 `resolveCoachTarget()` 签名没收——**加个参数即可，零新逻辑** |
+| `pk/match.ts` 1s ticker → `runAiQuiz` → `generateQuiz` | **`null`（平台通道）** | AI 对手是**平台扮演的角色**，不是任何用户的请求；且房间有两名玩家，**不存在唯一 owner**。⇒ 明确记为平台消耗（受 §8.1.3.1 两层闸门约束）。⚠️ 若将来要按房间分摊，需先在 `pk_matches` 上定义归属，**本批不做** |
+| `chat/flow.ts:320` `void extractTerms(...)` | **补传 `opts.ownerId`** | 起点是用户请求、ownerId 现成；**当前漏传是 bug**（词条会写进无主库） |
+| `chat/flow.ts:328` `void compactIfNeeded(...)` | **已传，保持** | — |
+| `pk/match.ts:213` `void runAiAnswer(...)` | **补传**（取当前提交者） | 起点是 `submitQuiz()` 的 HTTP 请求 |
+| `routes/coach.ts:77` detached IIFE | **补传** | 同上 |
+
+★ **`null` 的语义与既有口径一致**：`auth/ownership.ts:26` 的 `ownerFilter(null)` 返回空过滤 ⇒「单人本地模式不做归属判定」；`routeRole(…, null)` 同理 ⇒ **走平台通道**（`providers.owner_id IS NULL`）。
+
+**迁移编号：v29**（写在 `storage/migrations-list-v22.ts`）。⚠️ 并行会话在该文件尾部有**未提交的 v28**（`review_enabled`）⇒ **本批版本号必须从 v29 起**，且**提交必须晚于 v28 进 HEAD**——否则 `migrate()` 的 `if (m.version <= current) continue`（`storage/migrations.ts:22`）会让**已升到 v29 的库永久跳过 v28**（`review_enabled` 列永不落库）。**这是提交顺序的硬约束，不是偏好。**
 
 ### 8.2 其余表
 

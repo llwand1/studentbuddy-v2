@@ -61,6 +61,22 @@ export interface ToolCall {
  */
 export type UpstreamPurpose = 'main' | 'background';
 
+/**
+ * 上游配额的**归属维度**（M2c，契约 `docs/TENANCY-SPEC.md` §8.1.3.1）。
+ *
+ * ★ 与 `UpstreamPurpose` **正交**，别混：`purpose` 是**技术**优先级（主链 / 后台，决定排队让路）；
+ *   本类型是**业务**归属（谁付钱，决定受哪几层闸门约束）。
+ * ★ `ownerId` 是**请求者**的账号，**不是** provider 的 owner。这一条最容易写反：
+ *   免费通道的 provider 其 `owner_id` 恒为 `NULL`，若按 provider 的 owner 分桶，
+ *   **所有免费用户会共享一个桶**——那正是"加 owner 维度"要消灭的现象。
+ */
+export interface UpstreamQuota {
+  /** 请求者账号；`null` = 未登录的单人本地模式（口径同 `auth/ownership.ts` 的 `ownerFilter(null)`） */
+  ownerId: string | null;
+  /** 是否走**平台通道**（= 平台付钱）。只有平台通道受 §8.1.3.1 的「全站封顶」约束 */
+  platform: boolean;
+}
+
 export interface ChatRequest {
   model: string;
   apiKey: string;
@@ -70,6 +86,12 @@ export interface ChatRequest {
   signal?: AbortSignal;
   /** 上游配额优先级，缺省 `main`（见 UpstreamPurpose） */
   purpose?: UpstreamPurpose;
+  /**
+   * 上游配额的归属（M2c）。★ **正常路径不要手写**：它由 `router.ts#routeRole` 通过
+   * `bindQuota()` **绑在返回的 `adapter` 上**，调用方无感。
+   * 缺省时按「未登录的**平台**通道」计（失败安全侧：宁可多限一个匿名请求，也不放跑一笔平台开销）。
+   */
+  quota?: UpstreamQuota;
   tools?: ToolDefinition[];
   maxTokens?: number;
   /**

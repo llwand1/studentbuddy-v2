@@ -19,13 +19,18 @@
  *                 不做归属判定，直接用**平台通道**——老库升级后既有绑定回填的就是 `NULL`，故行为不变；
  *   · 省略      → 同 `null`（保持本批之前所有调用点的既有行为，也让单测不必逐个补参）。
  *   ★ 平台通道的判据是 `owner_id IS NULL`，**不是 `''`**（`''` 会落进「某个不存在的用户」的空档）。
+ *
+ * ★ `ownerId` 还**顺带**决定了上游配额怎么分桶（契约 §8.1.3.1 两层闸门）：`routeRole` 把
+ *   `{ ownerId, platform }` 用 `bindQuota()` 绑在**返回的 `adapter` 上**，于是调用方
+ *   「零改动、也不可能漏传」。★ 三档各自的配额语义见下方 `routeRole` 内注释。
  */
 import type { ModelRole, Provider } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { decryptSecret } from '../storage/crypto.js';
-import type { LLMAdapter } from './types.js';
+import type { LLMAdapter, UpstreamQuota } from './types.js';
 import { OpenAICompatibleAdapter } from './openai.js';
 import { AnthropicAdapter } from './anthropic.js';
+import { bindQuota } from './upstream-gate.js';
 
 export const MODEL_ROLES: Array<{ role: ModelRole; label: string }> = [
   { role: 'explain', label: '讲解（日常对话）' },
@@ -51,12 +56,19 @@ const adapters: Record<'openai' | 'anthropic', LLMAdapter> = {
 };
 
 export interface RoutedTarget {
+  /**
+   * ★ M2c：**已绑好配额的**适配器（`bindQuota`）——每次 `chat()` 自动把 `quota` 塞进请求，
+   *   调用方无感。★ 这是「不可能漏传」的实现方式：拿不到本字段就没有 `apiKey`/`baseUrl`，
+   *   也就发不出请求；而一旦拿到，配额就一定在里面（见 `upstream-gate.ts` 文件头）。
+   */
   adapter: LLMAdapter;
   model: string;
   apiKey: string;
   baseUrl: string;
   /** 回答呈现形态（v13）：stream=逐字流式（原生 AI 全过程）；once=一次性回答（池中 AI） */
   streamMode: 'stream' | 'once';
+  /** 上游配额的归属维度（M2c）。★ 同时暴露出来供诊断/测试断言，正常路径不必读它 */
+  quota: UpstreamQuota;
 }
 
 /** stream_mode 缺省按 type 定位：anthropic 原生协议=流式；openai 兼容（中转池）=一次性 */
@@ -133,26 +145,35 @@ function providerById(id: string, owner: string | null) {
  * ★ 限定 `owner_id IS NULL`：兜底路径**绝不能**取"任意 owner 的第一个 provider"——
  *   那会让"平台绑定缺失"变成"随机用某个用户的 key 付账"。宁可返回 null 让调用方
  *   报「没有可用的服务商」，也不要静默花别人的钱。
+ * ★ `requester`（M2c）是**请求者**，只用于填配额（内层按它分桶）；provider 仍取平台行。
  */
-function defaultTarget(): RoutedTarget | null {
+function defaultTarget(requester: string | null): RoutedTarget | null {
   const rows = getDb()
     .prepare('SELECT id FROM providers WHERE enabled = 1 AND owner_id IS NULL ORDER BY created_at LIMIT 1')
     .all() as Array<{ id: string }>;
   const first = rows[0];
   if (!first) return null;
-  return targetFromProvider(first.id, null);
+  return targetFromProvider(first.id, null, { ownerId: requester, platform: true });
 }
 
-function targetFromProvider(providerId: string, owner: string | null): RoutedTarget | null {
+/**
+ * 由 provider 行造目标。
+ * @param owner  **可见性**归属（`null` = 取平台行；非 null = 允许"平台行或该用户的"）
+ * @param quota  配额归属（M2c）。★ 与 `owner` **不是同一件事**：免费通道的 provider 其
+ *               `owner` 恒为 `null`，而配额里的 `ownerId` 是**请求者**——两者混用会让
+ *               所有免费用户挤进同一个内层桶（见 `upstream-gate.ts` 文件头）。
+ */
+function targetFromProvider(providerId: string, owner: string | null, quota: UpstreamQuota): RoutedTarget | null {
   const p = providerById(providerId, owner);
   if (!p || p.enabled !== 1) return null;
   const type = p.type === 'anthropic' ? 'anthropic' : 'openai';
   return {
-    adapter: adapters[type],
+    adapter: bindQuota(adapters[type], quota),
     model: '', // model 由角色绑定或 provider 默认给出
     apiKey: decryptSecret(p.api_key),
     baseUrl: p.base_url,
     streamMode: normalizeStreamMode(p.stream_mode, p.type),
+    quota,
   };
 }
 
@@ -183,18 +204,21 @@ export function routeRole(
   if (owner !== null) {
     const mine = bindingFor(role, owner);
     if (mine) {
-      const t = targetFromProvider(mine.provider_id, owner);
+      // ① 自己的 provider ⇒ **BYOK 通道**：钱不是平台出的，故不受「全站封顶」约束（§8.1.3.2）
+      const t = targetFromProvider(mine.provider_id, owner, { ownerId: owner, platform: false });
       if (t) return { ...t, model: mine.model };
     }
   }
 
   const platform = bindingFor(role, null);
   if (platform) {
-    const t = targetFromProvider(platform.provider_id, null);
+    // ② 平台绑定 ⇒ **平台付钱**。★ 但配额里的 `ownerId` 仍是**请求者**——
+    //    内层「每用户 2」正是靠它分桶；若这里图省事写 `null`，所有免费用户会挤进同一个桶。
+    const t = targetFromProvider(platform.provider_id, null, { ownerId: owner, platform: true });
     if (t) return { ...t, model: platform.model };
   }
 
-  const def = defaultTarget();
+  const def = defaultTarget(owner);
   if (!def) return null;
   // 默认路径：绑定表存每角色默认 model（M1 由设置页写入），缺省用调用方给的模型名
   return { ...def, model: platform?.model || fallbackModel || '' };

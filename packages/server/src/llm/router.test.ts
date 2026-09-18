@@ -15,6 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { openIsolated, closeDb, getDb } from '../storage/db.js';
 import { MODEL_ROLES, getProviders, roleReady, routeRole, seedIfEmpty } from './router.js';
+import { acquireUpstream, resetUpstreamGates, upstreamStats } from './upstream-gate.js';
 
 let dir: string;
 
@@ -164,5 +165,71 @@ describe('llm/router — seedIfEmpty 幂等（v29 部分唯一索引的回归锁
       | { owner_id: string | null }
       | undefined;
     expect(seed?.owner_id).toBeNull();
+  });
+});
+
+describe('llm/router — M2c 配额归属（契约 §8.1.3.1：内层按**请求者**分桶）', () => {
+  /** 冲掉微任务队列：闸门的放行/拒绝都经 Promise，断言前要给它跑完的机会 */
+  async function tick(): Promise<void> {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  }
+
+  it('BYOK 分支：配额 = 本人 + `platform:false`（平台不付钱 ⇒ 不受全站封顶约束）', () => {
+    addProvider('p-a', 'uA', 'sk-A-SECRET');
+    bind('explain', 'p-a', 'a-model', 'uA');
+    const t = routeRole('explain', undefined, 'uA')!;
+    expect(t.baseUrl).toBe('https://p-a.example/v1');
+    expect(t.quota).toEqual({ ownerId: 'uA', platform: false });
+  });
+
+  it('★ 平台绑定分支：provider 的 owner 是 NULL，但**配额里的 ownerId 必须是请求者**', () => {
+    // 没绑自己的 ⇒ 落平台绑定（provider 行 owner_id = NULL）
+    const t = routeRole('explain', undefined, 'uA')!;
+    expect(t.baseUrl).toBe(PLATFORM_BASE);
+    // ★ 这里若图省事写 `null`，所有免费用户会挤进同一个内层桶（"加 owner 维度"就白加了）
+    expect(t.quota).toEqual({ ownerId: 'uA', platform: true });
+  });
+
+  it('平台兜底分支（平台绑定被删）同样记请求者；未登录记 `null`', () => {
+    getDb().prepare(`DELETE FROM role_bindings WHERE owner_id IS NULL`).run();
+    expect(routeRole('explain', undefined, 'uA')!.quota).toEqual({ ownerId: 'uA', platform: true });
+    expect(routeRole('explain')!.quota).toEqual({ ownerId: null, platform: true });
+  });
+
+  it('★ 配额真的绑在 adapter 上：占满该请求者的内层桶后，chat() 会排进**他**的桶', async () => {
+    addProvider('p-a', 'uA', 'sk-A-SECRET');
+    bind('explain', 'p-a', 'a-model', 'uA');
+    const t = routeRole('explain', undefined, 'uA')!;
+
+    // 上游打桩成"立刻失败"：本用例只关心**闸门落在哪个桶**，不关心请求本身（也不打真网络）
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (() => Promise.reject(new Error('no-network'))) as typeof fetch;
+    resetUpstreamGates();
+    const held = [
+      await acquireUpstream(t.baseUrl, 'main', undefined, { ownerId: 'uA', platform: false }),
+      await acquireUpstream(t.baseUrl, 'main', undefined, { ownerId: 'uA', platform: false }),
+    ];
+    try {
+      const gen = t.adapter.chat({
+        model: t.model,
+        apiKey: t.apiKey,
+        baseUrl: t.baseUrl,
+        messages: [],
+      })[Symbol.asyncIterator]();
+      const pending = gen.next();
+      await tick();
+      // ★ 若配额没绑上（`ChatRequest.quota` 缺省 = 未登录**平台**通道），它会落进
+      //   `(baseUrl, null)` 桶并**被放行**（于是直接去 fetch）⇒ 下面两条都会红
+      expect(upstreamStats(t.baseUrl, 'uA').pendingMain).toBe(1);
+      expect(upstreamStats(t.baseUrl, null).pendingMain).toBe(0);
+
+      held.forEach((r) => r());
+      await pending.catch(() => undefined); // 放行后真的去 fetch，被上面的桩拒掉
+    } finally {
+      globalThis.fetch = realFetch;
+      resetUpstreamGates();
+    }
   });
 });

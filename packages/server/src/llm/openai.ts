@@ -60,10 +60,11 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
 
   async *chat(req: ChatRequest): AsyncIterable<TokenChunk> {
     const baseUrl = req.baseUrl || 'https://api.openai.com/v1';
-    // 并发闸门（2026-09-17）：一次请求占一个上游槽，主链优先、后台让路。
+    // 并发闸门（2026-09-17 建；2026-09-18 M2c 加两层业务闸门）。一次请求占一个槽，
+    // 主链优先、后台让路；`req.quota` 带的是"谁在问"（由 routeRole 经 bindQuota 绑上）。
     // ★ 只在最外层 acquire 一次 —— streamMode='once' 会转到 chatOnce()，那是内部转调；
     //   若它也 acquire 就会「自己等自己」直接死锁。
-    const release = await acquireUpstream(baseUrl, req.purpose ?? 'main', req.signal);
+    const release = await acquireUpstream(baseUrl, req.purpose ?? 'main', req.signal, req.quota);
     try {
       // 一次性回答（v13，池中 AI 形态）：不发流式请求，等完整 JSON 回来整块吐出。
       // 等待期由前端「思考中」UI 覆盖（首 token 前的空窗）；中转池大量按非流式聚合转发，

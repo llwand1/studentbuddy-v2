@@ -22,9 +22,10 @@ export class AnthropicAdapter implements LLMAdapter {
   async *chat(req: ChatRequest): AsyncIterable<TokenChunk> {
     const baseUrl = req.baseUrl || 'https://api.anthropic.com/v1';
     const url = `${baseUrl}/messages`;
-    // 并发闸门（2026-09-17）：一次请求占一个上游槽，主链优先、后台让路。
+    // 并发闸门（2026-09-17 建；2026-09-18 M2c 加两层业务闸门）。一次请求占一个槽，
+    // 主链优先、后台让路；`req.quota` 带的是"谁在问"（由 routeRole 经 bindQuota 绑上）。
     // 排队期间被「停止」会在此抛错——此时尚未建任何请求资源，无需清理。
-    const release = await acquireUpstream(baseUrl, req.purpose ?? 'main', req.signal);
+    const release = await acquireUpstream(baseUrl, req.purpose ?? 'main', req.signal, req.quota);
 
     // B-001（bug-ledger）：system 段可能有多条——基础提示词 / 忆域词条段 / 文档模式资料段 / 表达偏好段。
     // 旧实现用 find() 只取第一条，第二条起在出站请求里凭空消失（openai 适配器全量透传故掩盖）。

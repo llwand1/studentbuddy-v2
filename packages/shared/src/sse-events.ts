@@ -7,6 +7,7 @@
 import type { TaskItem } from './task-list.js';
 import type { PkQuestion, PkRoomState } from './pk.js';
 import type { AskChoiceRecord, AskChoiceReply } from './choice.js';
+import type { CoachTrendCard } from './coach.js';
 
 
 /** 服务端按会话推送的事件（seq 单调递增，新一轮对话从 1 重新计数） */
@@ -77,6 +78,13 @@ export type SseEvent =
   | { type: 'choice-asked'; seq: number; sessionId: string; request: AskChoiceRecord }
   | { type: 'choice-replied'; seq: number; sessionId: string; requestId: string; reply: AskChoiceReply }
   | { type: 'choice-cancelled'; seq: number; sessionId: string; requestId: string; reason: string }
+  // ── 督促趋势卡（记忆联动 P4，契约 docs/MEMORY-TREND-SPEC.md §4.4）──────────────
+  // ★ 服务端定时生成一张趋势卡后**主动推**给前端，前端据此在胶囊旁冒一个小气泡
+  //   （「你的近期学习趋势生成了！」）。★ 复用既有 `coach:<owner>` 频道、**不新造通道**，
+  //   故字段名沿用 `sessionId`（与其余督促事件一致），与会话 id、PK 的 `pk:` 三向隔离。
+  // ★ 只对 `trend` 卡发这个事件：`nudge` 的红点语义已经在胶囊上，两者叠加会让胶囊
+  //   同时"报数 + 报消息"，用户分不清哪个更急（契约 §4.4 末条）。
+  | { type: 'coach-card'; seq: number; sessionId: string; card: CoachTrendCard }
   | { type: 'ping' };
 
 export interface TokenUsage {

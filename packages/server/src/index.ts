@@ -23,6 +23,7 @@ import { studyFlowRouter } from './routes/study-flow.js';
 import { scenarioRouter } from './routes/scenario.js';
 import { coachRouter } from './routes/coach.js';
 import { registerDefaultExecutors } from './learning/flow-executors.js';
+import { startTrendScheduler } from './learning/trend.js';
 import { wireActivityEvents } from './learning/activity.js';
 import { wireObsEvents } from './storage/obs.js';
 import { getDb } from './storage/db.js';
@@ -147,6 +148,10 @@ if (process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('index.js
   // 账号：启动兜底清理过期会话（除惰性清理外，保证长跑实例的 auth_sessions 不被过期行撑大）
   purgeExpiredSessions();
   startServer();
+  // 记忆联动 P4（契约 docs/MEMORY-TREND-SPEC.md §4.2）：督促趋势定时器。
+  // ★ 放在启动链**最后**：它起服即先跑一次（否则首张图要等 6 小时），但全程 fire-and-forget，
+  //   绝不挡在「开始接请求」之前——一段慢查询不该让端口晚半秒可用。
+  startTrendScheduler();
   // eslint-disable-next-line no-console -- 启动横幅是进程日志，非调试输出
   console.log(`[sb-server] listening on http://${HOST}:${PORT} (v${VERSION})`);
 }

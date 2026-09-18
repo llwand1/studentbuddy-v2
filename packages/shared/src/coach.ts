@@ -142,6 +142,47 @@ export function capsuleLine(s: Pick<CoachSnapshot, 'due' | 'streak' | 'todayDone
   return `欠 ${s.due} 条 · 连续 ${s.streak} 天`;
 }
 
+/** 趋势卡里的一条领域榜（形状与 `learning/mention.ts#mentionTrend()` 的输出**逐字一致**） */
+export interface CoachTrendDomainRank {
+  domain: string;
+  count: number;
+}
+
+/** 趋势卡里的一条词条榜（同上） */
+export interface CoachTrendTermRank {
+  term: string;
+  count: number;
+}
+
+/**
+ * 趋势卡（第 5 种 kind，契约 `docs/MEMORY-TREND-SPEC.md` §4.1）。
+ *
+ * ★ 为什么落**结构化数据**而不是一段 SVG 字符串（老板拍板「模型出数据、代码出图」）：
+ *   一段 SVG 是**不可校验、不可复用、不可重绘**的像素级产物——窗口从 7 天改 30 天、
+ *   换浅色主题、想导出数据表，任何一件事都得让模型重画一遍；落结构化数据则三件事都免费，
+ *   而且卡片**能被单测**（web 侧 `.tsx` 无 jsdom，只有纯数据上得了仪器）。
+ * ★ 所有数值一律来自 SQL，**模型无权产出**：趋势图的全部价值就在数字是真的（§4.3）。
+ */
+export interface CoachTrendCard {
+  id: string;
+  kind: 'trend';
+  at: string;
+  /** 窗口天数：**UI 标题必须显示它**——流水不含建表前的历史，写成"总趋势"就是假话（§1.5） */
+  windowDays: number;
+  /** 横轴：本地日历日 `MM-DD`（与 `values` 等长、严格升序） */
+  labels: string[];
+  /** 每天的总提及次数（无提及的日期补 0，**不允许缺格**——缺格会让折线整体左移一天） */
+  values: number[];
+  /** 窗口内提及最多的领域（降序） */
+  topDomains: CoachTrendDomainRank[];
+  /** 窗口内提及最多的词条（降序） */
+  topTerms: CoachTrendTermRank[];
+  /** 一句话摘要 */
+  summary: string;
+  /** `ai`＝模型写的；`fallback`＝确定性模板（模型不可用时**照常出卡**，§4.3） */
+  summarySource: 'ai' | 'fallback';
+}
+
 /**
  * 卡片流的一张卡（E 卡片流的**内容契约**）。
  * ★ 为什么用「卡」而不是「消息气泡」：流里混着三种性质完全不同的东西——
@@ -152,6 +193,7 @@ export type CoachCard =
   | { id: string; kind: 'ai'; text: string; at: string; streaming?: boolean }
   | { id: string; kind: 'me'; text: string; at: string }
   | { id: string; kind: 'nudge'; text: string; at: string }
+  | CoachTrendCard
   | {
       id: string;
       kind: 'review';

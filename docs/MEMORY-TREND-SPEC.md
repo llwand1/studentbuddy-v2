@@ -307,6 +307,33 @@ countUsage(replyText: string, ownerId?: string | null): number
 - ★ **气泡只对 `trend` 卡弹**：`nudge` 卡的红点语义已在胶囊上（§4.2），
   两者叠加会让胶囊同时"报数 + 报消息"，用户分不清哪个更急。
 
+### §4.5 P4 落地形状（v0.2.54）
+
+新增 `server/src/learning/trend.ts`，**纯函数与 IO 分层**（同 `memory-digest.ts` 的取舍）：
+
+| 层 | 函数 | 职责 |
+|----|------|------|
+| 纯函数 | `toTrendData` | 窗口数据 → 卡片数据：横轴 `YYYY-MM-DD` → `MM-DD`（年份已由窗口表达，横轴塞不下年份），`values` 与 `labels` **严格等长** |
+| 纯函数 | `trendFallbackSummary` | 模型不可用时的确定性模板，点名**真实数据的头名**并带次数 |
+| IO | `generateTrendCard` | 三道闸门（今日已有 → 窗口不足 → 出卡）＋ 落卡 ＋ 广播；`now`/`summarize`/`broadcast` 可注入 |
+| IO | `summarizeTrend` | 模型**只写一句话**（`streamMode:'once'`、`purpose:'background'`）；`resolveCoachTarget()` **也在 try 内** ⇒ 配置坏掉也不抛 |
+| 调度 | `startTrendScheduler` | `setInterval`（**不引调度库**）；`intervalMs` 可注入 ⇒「定时器可注入」这条交付判据由签名本身保证 |
+
+**落法**：摘要进 `content`（它是这张卡"说给用户的那句话"，与 AI 卡/提醒卡的 `text` 同语义——
+将来要检索、要列流水都读得到），图表数据进 `meta`（只给前端渲染的机器字段，不重复存一份）。
+读回时由 `learning/coach.ts#toCard` **唯一解释**：坏 meta 退空图但**绝不连正文一起吞**（同 review 卡的处理）。
+
+**三个刻意的行为**（每条都挡住一个具体的错）：
+
+1. **起服先跑一次**（不等一个完整 tick）：否则首张图要等 6 小时才可能出现，
+   而"我刚聊了几轮、重启一下就该看到趋势"才是人的预期；
+2. **一个 tick 做两件事**：刷**词条库驱动的偏好画像**（P3 挂在压缩之后，而轻度用户可能很久都不触发
+   一次压缩 ⇒ 画像长期不刷新，`docs/dev/test-plan.md` §6 已挂此账）＋ 出当日趋势卡。两者都幂等；
+3. **`null`（本地单人模式）那一份只在"库里没有任何具名归属"时才出**：`mentionTrend(days, null)` 的语义是
+   **不过滤 = 全体聚合**（本地单人模式的既有口径，见 P1 的 §1.4），一旦已经有了登录用户再为 `null` 出卡，
+   就是把这**所有人**的提及算成"这个匿名访客的趋势"。本地单人部署里两者等价（库里只有 `null` 行），
+   故这条短路不损失任何真实场景，只挡住多租户下的错误聚合。
+
 ---
 
 ## §5 分期（每期独立可回滚，按依赖序）
@@ -316,7 +343,7 @@ countUsage(replyText: string, ownerId?: string | null): number
 | **P1** | §1 流水表 + 双写 + 窗口查询 | 迁移 v26 回放绿；提及一次即多一行流水；窗口查询有单测 | **已交付**（v0.2.49，`mention.test.ts` 13 例） |
 | **P2** | §2 领域总提及数 + 偏好领域 | `GET /api/terms/domains` 带 `mentionCount`；领域栏显示 | **已交付**（v0.2.51，`domains.test.ts` 18→23 例；领域栏显示 + 偏好领域 chip） |
 | **P3** | §3 长期记忆联动 | 提及后画像出现 `preference`；重复触发不堆行 | **已交付**（v0.2.52，`memory-digest.test.ts` 13 例 + shared 8 例 + mention 4 例） |
-| **P4** | §4 趋势卡后端（定时 + 模型 + SSE） | 定时器可注入；模型失败仍出卡（`fallback`） | 未开工 |
+| **P4** | §4 趋势卡后端（定时 + 模型 + SSE） | 定时器可注入；模型失败仍出卡（`fallback`） | **已交付**（v0.2.54，`learning/trend.test.ts` 19 例；§4.5 记落地形状） |
 | **P5** | §4.4 前端图 + 气泡 | `chart-utils` 出 SVG；气泡只在 `trend` 且抽屉关着时出现 | 未开工 |
 
 ★ 每期都要：代码 + 测试 + 文档登记**同批提交**（AGENTS.md「工程红线」）。
@@ -330,3 +357,8 @@ countUsage(replyText: string, ownerId?: string | null): number
 4. **定时器是进程内的**：多实例部署会各跑一份（本仓是本地单实例应用，现状可接受；
    将来多实例需换成"抢占式落卡"，即靠 `coach_messages` 唯一约束去重）。
 5. **气泡未接浏览器通知**：只在页面打开时可见（不做 Web Push）。
+6. **P4 只有服务端那一半**：前端目前把趋势卡渲染成「标题 + 摘要」（`CoachCardViews` 的 `trend` 分支），
+   **SVG 折线图与胶囊旁气泡是 P5** ⇒ 本版"图"还看不见；但卡已在流水里、数据已在 `meta` 里
+   （可直接查库验，不必等前端）。
+7. **卡片上的词条名来自全局词条库**：`term_mention_log.owner_id` 已**按人记**（数据基础就位），
+   但 `term_library` 仍是**全局表**（无归属列）⇒ 多租户下榜单取自全库，须等 `term_library` 归主（M2d）。

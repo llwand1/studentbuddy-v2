@@ -64,6 +64,17 @@
 - **订阅前服务端先验房间是否存在**，否则 404——好过让前端挂一条永远安静的长连接。
 - **载荷永不含正确答案**（契约 §1 硬约束）：判分权只在服务端，`PkQuestion` 类型层面就没有 `answer` 字段。
 
+### 2.2 督促频道事件（复习督促小窗，契约 `docs/COACH-SPEC.md` / `docs/MEMORY-TREND-SPEC.md` §4.4）
+
+**频道键：** `coach:<owner>`（`shared/coach.ts` 的 `coachChannel()`，前端订阅用同一函数、不手抄前缀）。
+★ 与聊天 `sessionId`、PK 的 `pk:` **三向严格隔离**——三者共用同一套 sse-bus，**只有前缀能防串台**（v1 教训）。
+本组事件沿用 `sessionId` 字段名承载频道键：督促是**另一条链路**，不属任何会话（`routes/coach.ts` 文件头）。
+
+| type | 载荷 | 语义 |
+|------|------|------|
+| `token` / `done` / `chat-error` | 同 §2 | 督促对话的流式帧（同一 sse-bus，缓冲按频道键独立；督促**一轮结束后可以再开一轮**，故 `acceptSeq` 的「`seq===1` 即换轮」在这条链路上是必需项——B-007） |
+| `coach-card` | sessionId / card | **2026-09-18 登记（记忆联动 P4）**：服务端**定时后台生成**一张趋势卡后主动推给前端，前端据此在胶囊旁冒一个小气泡（「你的近期学习趋势生成了！」）。`card` ＝ `CoachTrendCard`（唯一事实源 `shared/coach.ts`：`windowDays` / `labels` / `values` / `topDomains` / `topTerms` / `summary` / `summarySource`）。★ **只对 `trend` 卡发**——`nudge` 的红点语义已经在胶囊上，两者叠加会让胶囊同时"报数 + 报消息"，用户分不清哪个更急（契约 §4.4 末条）。★ 生成失败/不足时**不发**该事件（安静 ≠ 报错：全 0 的图是负价值） |
+
 ## 3. REST 端点（M1）
 
 | 方法 | 路径 | 说明 |
@@ -131,6 +142,7 @@
 
 | 日期 | 变更 |
 |------|------|
+| 2026-09-18 | **督促趋势卡**（契约 `docs/MEMORY-TREND-SPEC.md` §4）：新增 SSE 事件 `coach-card`（归 `coach:<owner>` 频道，与 `sessionId`/`pk:` 三向隔离）+ 新增 §2.2 督促频道事件小节（此前 `token`/`done`/`chat-error` 三条共用事件一直未在本文件登记，本次一并补登）。载荷 `card` ＝ `CoachTrendCard`（结构化数据，**不是 SVG 字符串**：窗口改天数/换主题/导出数据表都不该让模型重画一遍）。服务端由 `learning/trend.ts` 定时生成（每 6 小时检查、每天最多一张、窗口内提及 < 3 次不出卡），模型只写一句摘要且**失败仍出卡**（`summarySource:'fallback'`） |
 | 2026-09-14 | **方案选择框**（契约 `docs/ASK-CHOICE-SPEC.md`）：新增 3 个 SSE 事件（`choice-asked` / `choice-replied` / `choice-cancelled`，归 `sessionId` 频道）+ 2 个端点（`GET /api/choices`、`POST /api/choices/:id/reply`）+ `ask_choice` 工具（**长等待**：在 `flow.ts` 的 `runToolCalls` 里登记 `noTimeout`，豁免 30s 默认工具超时）；迁移 v14 建 `ask_choices` 表；已注册工具清单同步更新 |
 | 2026-08-23 | M1 首版（SSE/会话/发送/中止/服务商+角色绑定） |
 | 2026-08-27 | `step` 事件随单轨工具循环上线（search_web）；新增 `/api/settings/search-keys`（GET/PUT）与 `/api/settings/search/test`；订阅回放语义收紧——已完结的一轮只补 `done`，修重复气泡 |

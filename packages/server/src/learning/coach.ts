@@ -16,15 +16,19 @@ import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
 import { routeRole } from '../llm/router.js';
 import { reviewOverview, listReviewQueue, markReviewed, reviewStreak } from './term-review.js';
+import { MENTION_WINDOW_DAYS } from './mention.js';
 import { buildCoachSystemPrompt } from './coach-prompt.js';
 import {
   COACH_HISTORY_TURNS,
   COACH_MAX_REPLY_CHARS,
   COACH_TOP_TERMS,
+  localDayKey,
+  parseCoachTime,
   shouldNudge,
   type CoachCard,
   type CoachNudge,
   type CoachSnapshot,
+  type CoachTrendCard,
 } from '@sb/shared';
 import type { ChatMessage } from '../llm/types.js';
 
@@ -84,6 +88,28 @@ export function lastNudgeAt(ownerId: string | null): string | null {
   return row?.created_at ?? null;
 }
 
+/**
+ * 最近一张趋势卡落在**哪个本地日历日**（没出过返回 null）。这是「每天最多一张」的幂等闸门
+ * （契约 `MEMORY-TREND-SPEC` §4.2：重启、多跑一次 tick 都不该多出一张图）。
+ *
+ * ★ 为什么返回「日键」而不是布尔：调用方拿它跟 `localDayKey(now)` 比，跨天判定就只剩一次比较，
+ *   而且这个函数**不知道自己被问的是哪天**，将来要查历史（"上周出过几张"）也不用改签名。
+ * ★ 为什么必须经 `parseCoachTime` 再取本地日：库里的 `created_at` 是 **UTC 文本**
+ *   （`datetime('now')`），直接在 SQL 里 `date(created_at)` 会在 +8 区晚上错一天
+ *   ——本仓已在日期段批吃过一次这个亏，故这里不做"更省事"的 SQL 日比较。
+ */
+export function lastTrendDayKey(ownerId: string | null): string | null {
+  const f = ownerClause(ownerId);
+  const row = getDb()
+    .prepare(
+      `SELECT created_at FROM coach_messages WHERE ${f.sql} AND kind = 'trend' ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+    )
+    .get(...f.params) as { created_at: string } | undefined;
+  if (!row) return null;
+  const t = parseCoachTime(row.created_at);
+  return t ? localDayKey(t) : null;
+}
+
 /** 快照 + 提醒判定（服务端唯一出口：前端只渲染，不自己判该不该催） */
 export function coachState(ownerId: string | null, now: Date = new Date()): CoachState {
   const snapshot = coachSnapshot();
@@ -109,10 +135,33 @@ interface CoachRow {
 
 /** 脏 kind 归一：库里可能存着旧版本/手改的值，统一落到 'ai'（宁可显示成 AI 卡也不让前端崩） */
 function parseKind(raw: string): CoachCard['kind'] {
-  return raw === 'me' || raw === 'nudge' || raw === 'review' ? raw : 'ai';
+  return raw === 'me' || raw === 'nudge' || raw === 'review' || raw === 'trend' ? raw : 'ai';
 }
 
-/** 行 → 卡片（**唯一**的库行解释点；路由与生成都经它，保证形状一致） */
+/**
+ * meta 里的榜单归一：**只信形状对的行**，坏值一律丢弃。
+ * ★ 与 review 卡的取舍同源——meta 是 JSON 文本列，手改库/版本错位都可能让它坏掉，
+ *   而**一条坏 meta 不该毁掉整张卡**（用户看到的是"趋势图没了"，而不是"某一行坏了"）。
+ */
+function pickRank(raw: unknown, key: 'domain' | 'term'): Array<{ key: string; count: number }> {
+  if (!Array.isArray(raw)) return [];
+  const out: Array<{ key: string; count: number }> = [];
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const rec = item as Record<string, unknown>;
+    const k = rec[key];
+    if (typeof k === 'string' && typeof rec.count === 'number') out.push({ key: k, count: rec.count });
+  }
+  return out;
+}
+
+/**
+ * 行 → 卡片（**唯一**的库行解释点；路由与生成都经它，保证形状一致）。
+ *
+ * ★ 两种结构化卡共用「正文进 `content`、图表数据进 `meta`」的落法：
+ *   `content` 是**这张卡说给用户的那句话**（与 AI 卡/提醒卡的 `text` 同语义，将来要检索/列表也读得到），
+ *   `meta` 是**只给前端渲染的机器字段**。故趋势卡的 `summary` 取自 `content`，不重复存一份。
+ */
 function toCard(row: CoachRow): CoachCard {
   const kind = parseKind(row.kind);
   const at = row.created_at;
@@ -134,6 +183,28 @@ function toCard(row: CoachRow): CoachCard {
       stage: typeof meta.stage === 'number' ? meta.stage : 0,
       intervalDays: typeof meta.intervalDays === 'number' ? meta.intervalDays : 0,
     };
+  }
+  if (kind === 'trend') {
+    let raw: Record<string, unknown> = {};
+    try {
+      raw = row.meta ? (JSON.parse(row.meta) as Record<string, unknown>) : {};
+    } catch {
+      raw = {};
+    }
+    const trend: CoachTrendCard = {
+      id: row.id,
+      kind: 'trend',
+      at,
+      // 窗口天数缺省取 MENTION_WINDOW_DAYS（而不是 0）：0 天在 UI 上读作"没窗口"，比缺省更误导
+      windowDays: typeof raw.windowDays === 'number' ? raw.windowDays : MENTION_WINDOW_DAYS,
+      labels: Array.isArray(raw.labels) ? raw.labels.filter((x): x is string => typeof x === 'string') : [],
+      values: Array.isArray(raw.values) ? raw.values.filter((x): x is number => typeof x === 'number') : [],
+      topDomains: pickRank(raw.topDomains, 'domain').map((r) => ({ domain: r.key, count: r.count })),
+      topTerms: pickRank(raw.topTerms, 'term').map((r) => ({ term: r.key, count: r.count })),
+      summary: row.content,
+      summarySource: raw.summarySource === 'ai' ? 'ai' : 'fallback',
+    };
+    return trend;
   }
   return { id: row.id, kind, text: row.content, at } as CoachCard;
 }

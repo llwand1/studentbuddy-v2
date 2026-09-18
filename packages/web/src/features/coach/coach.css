@@ -321,6 +321,23 @@
   background: #fffaf1;
   color: #7a5210;
 }
+/* 趋势卡（记忆联动 P4）：一张卡承载一份「我最近在学什么」的窗口快照。
+   ★ 配色刻意走**中性**（既不是 AI 卡的蓝、也不是提醒卡的橙）：它既不是"我说的话"、
+     也不是"催我"，而是一份数据报表——用颜色抢注意力会让它看起来像又一条提醒。 */
+.coach-card-trend {
+  border-left: 3px solid #6b7c93;
+}
+.coach-tr-head {
+  margin-bottom: 4px;
+  font-size: var(--sb-fs-xs);
+  font-weight: 700;
+  color: #55637a;
+}
+.coach-tr-body {
+  color: var(--sb-ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .coach-card-review {
   display: flex;
   align-items: flex-start;

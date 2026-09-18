@@ -198,6 +198,25 @@ describe('learning/terms — 检索与使用计数', () => {
     expect(closure?.last_used_at).toBeTruthy();
   });
 
+  it('countUsage 在**同一事务**里落提及流水（计数与流水不得分叉）', () => {
+    countUsage('closure 用于保留变量，光合作用 photosynthesis 是……');
+    const logs = getDb()
+      .prepare('SELECT term_id, domain FROM term_mention_log')
+      .all() as Array<{ term_id: string; domain: string }>;
+    expect(logs).toHaveLength(2); // 命中 2 条词条 ⇒ 2 行流水
+    // 快照的 domain 必须与词条当下的 domain 一致（本例未改领域，两者应当相等）
+    for (const l of logs) {
+      const t = getDb().prepare('SELECT domain FROM term_library WHERE id = ?').get(l.term_id) as { domain: string };
+      expect(l.domain).toBe(t.domain);
+    }
+  });
+
+  it('未命中任何词条：既不累加计数、也不落流水（不留空行噪音）', () => {
+    expect(countUsage('今天天气怎么样')).toBe(0);
+    const c = getDb().prepare('SELECT COUNT(*) AS c FROM term_mention_log').get() as { c: number };
+    expect(c.c).toBe(0);
+  });
+
   it('listTerms 支持 domain 过滤与 keyword 前缀', () => {
     expect(listTerms('english')).toHaveLength(1);
     expect(listTerms(undefined, 'ph')).toHaveLength(1);

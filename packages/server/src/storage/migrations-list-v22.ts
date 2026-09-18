@@ -147,4 +147,48 @@ export const MIGRATIONS_V22: Array<{ version: number; statements: string[] }> = 
       `CREATE INDEX IF NOT EXISTS idx_coach_owner ON coach_messages(owner_id, created_at)`,
     ],
   },
+  // ── v26 词条提及流水（契约 docs/MEMORY-TREND-SPEC.md §1，2026-09-18）────────────
+  //
+  // 背景：词条库此前只有一个**累加器** `usage_count`（`learning/terms.ts` 的 `countUsage`）。
+  // 累加值能答「一共提了多少次」，**答不了「什么时候提的」**——而老板点单的四件事里
+  // 有三件是时间维度的（近期趋势、领域近期提及、趋势图），没有逐次记录就**算不出来**。
+  //
+  // ★ 为什么 `domain` 直接落在流水上（**冗余快照**，不是外键）：词条可以被改领域
+  //   （`tidy.renameDomain` / 手动编辑）、也可以被删除。若只存 `term_id` 再 JOIN 取领域，
+  //   那么"三个月前属于算法、今天被挪到网络"的词条会让**历史趋势整体漂移**——
+  //   同一张图昨天看是"算法涨了"、今天变成"网络涨了"，而用户什么都没做。
+  //   流水是历史事实，事实必须当场冻结（同 `evolution_event` 的冗余快照手法）。
+  //
+  // ★ `owner_id` **可空且不设 DEFAULT ''**：沿用 v25 `coach_messages` 的口径
+  //   （null ＝ 未登录的单人本地模式）。与 v24 `user_memory` 的 `''` **刻意相反**——
+  //   那里用 `''` 是被 `ON CONFLICT` 的冲突目标必须匹配唯一索引**列**这一点强制的；
+  //   本表没有唯一键，就该让 null 保持"无主"语义，不把两者混成一个值。
+  //
+  // ★ `mentioned_day` 冗余落库（同 v23 `term_review_log.reviewed_day`）：与"派生值一律现算"
+  //   （v23 拒绝落 `next_review_at`）**不矛盾**——那条针对的是**业务口径会变**的派生值
+  //   （间隔序列一改就得洗全表）；日历日是**稳定口径**，且按天聚合是最高频查询，
+  //   `date(mentioned_at)` 这种函数表达式走不了索引。
+  //   ⚠️ 该列由应用层用 `localDayKey(now)` 填（**本地**日历日），**不靠 `date('now')`**
+  //   ——那是 UTC 日，在 +8 区晚上会错一天（日期段批已吃过一次）。
+  //
+  // ★ 本表**只增不删**，且**不做历史回填**：历史 `usage_count` 没有任何时间信息，
+  //   按当前时间批量补行＝**造假数据**（趋势图会显示一批用户根本没发生过的"提及"）
+  //   ⇒ 宁可从零开始积累。故「总提及数」（走 usage_count，含历史）与
+  //   「近期提及数」（走本表，只有建表之后）**是两个不可互相校验的口径**（契约 §1.5）。
+  {
+    version: 26,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS term_mention_log (
+        id            TEXT PRIMARY KEY,
+        term_id       TEXT NOT NULL,
+        domain        TEXT NOT NULL,
+        owner_id      TEXT,
+        mentioned_at  TEXT NOT NULL DEFAULT (datetime('now')),
+        mentioned_day TEXT NOT NULL DEFAULT (date('now'))
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_term_mention_term ON term_mention_log(term_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_term_mention_day ON term_mention_log(mentioned_day)`,
+      `CREATE INDEX IF NOT EXISTS idx_term_mention_lookup ON term_mention_log(owner_id, domain, mentioned_day)`,
+    ],
+  },
 ];

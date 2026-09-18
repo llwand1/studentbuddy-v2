@@ -327,7 +327,9 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       .finally(() => {
         void compactIfNeeded(sessionId, opts.ownerId ?? null);
       });
-    countUsage(acc);
+    // 归属随聊天链路下来（同 compactIfNeeded）：词条库本身尚无归属列，但流水按人记，
+    // 将来词条库归主时可直接支撑"按人统计"（契约 MEMORY-TREND-SPEC §6）
+    countUsage(acc, opts.ownerId ?? null);
     publish(sessionId, {
       type: 'done',
       sessionId,

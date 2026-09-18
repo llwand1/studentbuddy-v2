@@ -18,6 +18,7 @@ import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
 import { routeRole } from '../llm/router.js';
 import { publishEvent } from '../events/bus.js';
+import { recordMentions } from './mention.js';
 
 export interface TermItem {
   id?: string;
@@ -318,50 +319,15 @@ export function updateTerm(id: string, patch: { definition?: string; domain?: st
   return raw ? { ...raw, aliases: parseAliases(raw.aliases) } : null;
 }
 
-// ── 检索与使用计数（flow.ts 注入用）──
-
-/** 轻量分词：英文按单词/驼峰切，中文按连续片段。 */
-function tokens(s: string): string[] {
-  const en = s.match(/[A-Za-z][A-Za-z0-9]+/g) ?? [];
-  const cn = s.match(/[\u4e00-\u9fa5]{2,}/g) ?? [];
-  return [...en, ...cn];
-}
-
-/**
- * 相关性打分：term 直接出现在 query 里权重最高；否则 query 词元与 term 互相包含加分。
- * 无直接匹配返回 0（不相关）；有匹配后加 AI 重要度（×0.8）与近期使用（×0.3）作排序权重。
- * 零依赖、无向量库。
- */
-function score(query: string, row: TermRow): number {
-  const q = query.toLowerCase();
-  const t = row.term.toLowerCase();
-  let s = 0;
-  if (q.includes(t) || t.includes(q)) s += 2.0;
-  else {
-    for (const tk of tokens(q)) {
-      if (tk.length >= 2 && (t.includes(tk.toLowerCase()) || tk.toLowerCase().includes(t))) {
-        s += 0.5;
-        break;
-      }
-    }
-  }
-  if (s <= 0) return 0; // 无直接匹配 → 不相关，不参与注入
-  s += (row.importance ?? 0.5) * 0.8;
-  if (row.last_used_at) s += 0.3; // 近期用过的小幅加权（学生刚学的内容更可能接着问）
-  return s;
-}
-
-/** 检索与 query 相关的 Top-K 词条（供对话注入）。 */
-export function getRelevantTerms(query: string, limit = 15): TermRow[] {
-  if (!query?.trim()) return [];
-  const rows = getDb().prepare('SELECT * FROM term_library').all() as TermRow[];
-  return rows
-    .map((r) => ({ r, s: score(query, r) }))
-    .filter((x) => x.s > 0)
-    .sort((a, b) => b.s - a.s)
-    .slice(0, limit)
-    .map((x) => x.r);
-}
+// ── 检索（flow.ts 注入用）——已按「关注点分家」拆到 `term-recall.ts` ──
+//
+// ★ 为什么拆（2026-09-18 v0.2.49 记忆联动 P1 批）：本批把提及流水接进 `countUsage` 后，
+//   本文件涨到 **409 行**触 AGENTS.md「.ts ≤400 行」红线。照仓规**拆文件、不压注释**——
+//   而检索与入库本就是两个关注点：**检索只读**（随打分策略变）、**入库写库**（随抽取协议变）。
+// ★ 为什么用 re-export 而不是让调用方改 import：`chat/context-segments.ts` 与
+//   `chat/flow.test.ts`/`routes/document.test.ts` 的 `vi.mock('../learning/terms.js')`
+//   都指着本文件——改路径会同时打穿三处 mock（那不是重构，是给自己埋红灯）。
+export { getRelevantTerms } from './term-recall.js';
 
 /** 回复文本是否用到某词条（term + 别名，大小写不敏感；英文词按边界匹配防子串误报）。 */
 function replyHitsKey(replyLower: string, key: string): boolean {
@@ -372,21 +338,37 @@ function replyHitsKey(replyLower: string, key: string): boolean {
   return new RegExp(`(?<![a-z0-9])${esc}(?![a-z0-9])`).test(replyLower);
 }
 
-/** 回复完成后扫描命中词条（term + 别名）：usage_count+1、last_used_at 更新（反馈「真正用上了」）。 */
-export function countUsage(replyText: string): number {
+/**
+ * 回复完成后扫描命中词条（term + 别名）：`usage_count + 1`、`last_used_at` 更新，
+ * 并在**同一事务**里落一行提及流水（契约 `docs/MEMORY-TREND-SPEC.md` §1.4）。
+ *
+ * ★ 为什么计数与流水必须同事务：两处一旦分叉（计数加了、流水没落），差值此后再也无法对齐
+ *   ——「总提及数」与「近期提及数」本就是两个独立口径（前者含历史、后者只有建表之后），
+ *   没有任何交叉校验能发现这种分叉。
+ * ★ 顺带去掉旧版"命中列表算两遍"的重复扫描（原实现第 387 与 391 行各 filter 一次）。
+ * ★ `ownerId` 可选且默认 `null`（＝本地单人模式，同 MEMORY-SPEC / TENANCY-SPEC §7）：
+ *   不逼既有调用点改签名，且"漏传"的后果是退回现状，不是串台。
+ */
+export function countUsage(replyText: string, ownerId: string | null = null, now: Date = new Date()): number {
   if (!replyText?.trim()) return 0;
   const replyLower = replyText.toLowerCase();
-  const rows = getDb().prepare('SELECT id, term, aliases FROM term_library').all() as Array<
-    Pick<TermRow, 'id' | 'term' | 'aliases'>
+  const rows = getDb().prepare('SELECT id, term, aliases, domain FROM term_library').all() as Array<
+    Pick<TermRow, 'id' | 'term' | 'aliases' | 'domain'>
   >;
+  const hits = rows.filter((r) => [r.term, ...parseAliases(r.aliases)].some((k) => replyHitsKey(replyLower, k)));
+  if (hits.length === 0) return 0;
   const db = getDb();
   const upd = db.prepare('UPDATE term_library SET usage_count = usage_count + 1, last_used_at = datetime(\'now\') WHERE id = ?');
   const tx = db.transaction(() => {
-    for (const r of rows) {
-      const keys = [r.term, ...parseAliases(r.aliases)];
-      if (keys.some((k) => replyHitsKey(replyLower, k))) upd.run(r.id);
-    }
+    for (const r of hits) upd.run(r.id);
+    // 一次批量写：`recordMentions` 内部 prepare 一次，放进循环会 prepare N 次。
+    // 它在事务**内**被调用，故自身不再开事务（嵌套 transaction 会抛，见 mention.ts 文件头）。
+    recordMentions(
+      hits.map((r) => ({ termId: r.id, domain: r.domain })),
+      ownerId,
+      now,
+    );
   });
   tx();
-  return rows.filter((r) => [r.term, ...parseAliases(r.aliases)].some((k) => replyHitsKey(replyLower, k))).length;
+  return hits.length;
 }

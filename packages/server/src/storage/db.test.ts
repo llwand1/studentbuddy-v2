@@ -134,6 +134,9 @@ describe('storage/db — v11 过程回放迁移（思考链 / 任务清单随消
     // v25 督促流水（coach_messages）：CREATE TABLE IF NOT EXISTS 不 DROP 也能重放，
     // 但留着就等于"老库其实已经有督促流水"，与测试意图不符（同 v23 那条的理由）
     v10.exec(`DROP TABLE IF EXISTS coach_messages`);
+    // v26 提及流水（term_mention_log）：同 v25 的理由——纯建表型迁移回放本身安全
+    // （见 migrations-list-v22.ts 文件头第 11-12 行），但留着会让"老库"凭空有流水。
+    v10.exec(`DROP TABLE IF EXISTS term_mention_log`);
     v10.prepare('DELETE FROM schema_version WHERE version > 10').run();
     expect(cols(v10)).not.toContain('reasoning');
     v10.close();

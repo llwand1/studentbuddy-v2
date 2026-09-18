@@ -166,11 +166,13 @@ countUsage(replyText: string, ownerId?: string | null): number
 新增 `chat/memory-digest.ts`（词条库 → 画像）：
 
 - **输入**：`preferredDomains`（§2.1）+ 高频词条 top N。
-- **输出**：`MemoryDraft[]`，`kind = 'preference'`，内容形如
-  `偏好领域：计算机网络（累计提及 42 次）`。
+- **输出**：`MemoryDraft[]`，`kind = 'preference'`，内容形如 `常学领域：计算机网络` /
+  `高频术语：二分查找`。
+  ⚠️ **不要把次数写进 content**——它与「唯一键含 content」直接冲突，理由与替代方案见 **§3.4**。
 - **写入**：复用既有 `upsertMemoryItems`（幂等：同 `kind` + 同 `content` 只刷 `importance`/`updated_at`）。
-- **`importance` 由提及数归一映射**（提及越多越重要），而不是恒定 0.5
+- **`importance` 由提及数归一映射**（`mentionsToImportance`：单调·有界·饱和于 1），而不是恒定 0.5
   ——这正是老板说的"长期记忆要根据词条库各词条的使用次数来改变"的**可执行含义**。
+  映射的具体取值与三条不变式见 **§3.4**。
 - **触发时机**：挂在压缩之后（同一 fire-and-forget 链，不新增调度器），
   且**幂等**——重复触发只是刷新 `updated_at`，不会堆垃圾画像。
 
@@ -182,6 +184,53 @@ countUsage(replyText: string, ownerId?: string | null): number
 
 ★ 但要**硬限条数**：偏好领域最多写 top 3，否则每次压缩都往里塞，会挤掉对话沉淀出来的画像
 （`MEMORY_MAX_ITEMS` 是**每人一份**的硬上限，塞满就把真正重要的挤出去了）。
+
+### §3.4 P3 落地形状（v0.2.52）
+
+新增 `server/src/chat/memory-digest.ts`，**两层分开**（规则可单测、IO 只管取数与落库）：
+
+| 层 | 函数 | 职责 |
+|----|------|------|
+| 纯函数 | `buildPreferenceDrafts(input)` | 榜单 → `MemoryDraft[]`：领域与词条**各**取 top 3，按提及数降序（**内部自排序**，不信任调用方） |
+| IO | `refreshTermDigest(ownerId?)` | 读库（`domainStats().preferred` + `topMentionedTerms()`）→ 建草稿 → 幂等入库 → 淘汰 |
+
+**`importance` 映射**（`shared/src/memory.ts` 的 `mentionsToImportance`）：
+`count ≤ 0 → 0`（**0 表示「不构成偏好」，调用方应丢弃该条**）；
+否则 `0.5 + 0.5 × min(1, count / 30)`，保留 3 位小数。
+
+三条不变式（**由 shared 层断言钉住**，改数前先读）：
+
+1. **单调**——提及越多分越高；
+2. **有界且饱和于 1**（30 次满分）——不饱和的话，重度用户的单条偏好会把整张画像的
+   `importance` 尺度拉爆，结果不是「学霸的偏好更重要」，而是**所有人的其他画像都被压成噪声**；
+3. **下限 ≥ 注入门槛**（`MEMORY_DIGEST_MIN_IMPORTANCE ≥ MEMORY_MIN_IMPORTANCE`）——
+   低于门槛就**白写**：不注入、还占 `MEMORY_MAX_ITEMS` 的名额。
+
+★★ **最关键的一条设计：`content` 里不许出现次数。**
+
+`user_memory` 的唯一键是 `(user_id, kind, content)`，冲突时**只刷** `importance` 与 `updated_at`。
+若把次数写进 content（`常学「数学」（累计提及 42 次）`），**次数每变一次就新增一行**，
+而旧行**再也无法被更新、也永远不会消失** ⇒ 注入段里会同时出现「累计提及 3 次」与
+「累计提及 42 次」两条**互相打脸**的记录。故拆成两件事：
+
+- **身份**（学的是谁）→ `content`，**必须稳定**，如 `常学领域：math` / `高频术语：二分查找`；
+- **强度**（学得多频）→ `importance`，次数本就该去那儿。
+
+代价是记忆页看不到那个数字——但**领域栏已经显示了**（`GET /api/terms/domains` 的
+`mentionCount`），两边都不缺它。真要把它搬进画像页，正确做法是给 `user_memory` 加一列指标
+（属独立批次），**不是**把它塞进 `content`。
+
+**`countUsage` 之外的两个上游**（都在 `learning/mention.ts`，与 §2 的**总**口径同源）：
+
+- `topMentionedTerms(limit)` —— `usage_count DESC, term ASC`（**全序**；不做全序的话
+  `LIMIT` 在并列处取谁不确定，偏好画像会变成**随机内容**），且 `WHERE usage_count > 0`；
+- `domainStats().preferred` —— **刻意复用**而不在 digest 里重排：排序规则（提及数 → 词条数 → 名）
+  只允许有一份实现。
+
+**触发点**：`compact.ts` 压缩成功后（同一 fire-and-forget 链），失败**吞掉但记账**
+（`event_log` 的 `digestError`）——它跑在链路尾部、而压缩此刻**已经成功了**，
+让一个附加动作把整轮压缩标成失败，账就再也对不上（ADR-4/ADR-5）。
+`digestAdded` **单独入账**、不并进 `memoryAdded`：两个来源的诊断含义完全不同。
 
 ---
 
@@ -266,7 +315,7 @@ countUsage(replyText: string, ownerId?: string | null): number
 |----|------|----------|------|
 | **P1** | §1 流水表 + 双写 + 窗口查询 | 迁移 v26 回放绿；提及一次即多一行流水；窗口查询有单测 | **已交付**（v0.2.49，`mention.test.ts` 13 例） |
 | **P2** | §2 领域总提及数 + 偏好领域 | `GET /api/terms/domains` 带 `mentionCount`；领域栏显示 | **已交付**（v0.2.51，`domains.test.ts` 18→23 例；领域栏显示 + 偏好领域 chip） |
-| **P3** | §3 长期记忆联动 | 提及后画像出现 `preference`；重复触发不堆行 | 未开工 |
+| **P3** | §3 长期记忆联动 | 提及后画像出现 `preference`；重复触发不堆行 | **已交付**（v0.2.52，`memory-digest.test.ts` 13 例 + shared 8 例 + mention 4 例） |
 | **P4** | §4 趋势卡后端（定时 + 模型 + SSE） | 定时器可注入；模型失败仍出卡（`fallback`） | 未开工 |
 | **P5** | §4.4 前端图 + 气泡 | `chart-utils` 出 SVG；气泡只在 `trend` 且抽屉关着时出现 | 未开工 |
 

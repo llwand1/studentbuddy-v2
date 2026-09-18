@@ -160,6 +160,26 @@ export function domainMentionTotals(): Map<string, number> {
   return new Map(rows.map((r) => [r.domain, r.c ?? 0]));
 }
 
+/**
+ * 高频词条榜（**总**口径，与 `domainMentionTotals` 同源：两者都走 `usage_count`，
+ * 都**含流水建表前的全部历史**）。供长期记忆的偏好画像取 top N（契约 §3.2）。
+ *
+ * ★ `WHERE usage_count > 0` 不是性能优化，是**语义**：一次都没提过的词条不构成偏好，
+ *   列出来只会把真正的偏好稀释掉。这条与 `domains.preferred` 的「只含 >0」是同一条规矩。
+ * ★ 排序给到 `term ASC` 二级键 ⇒ **全序**，同一份数据每次返回顺序逐字相同
+ *   （否则 `LIMIT` 在并列处取谁是不确定的，画像就成了随机内容）。
+ */
+export function topMentionedTerms(limit: number = MENTION_TOP_LIMIT): Array<{ term: string; count: number }> {
+  const n = Math.min(Math.max(Math.trunc(limit) || MENTION_TOP_LIMIT, 1), 50);
+  return getDb()
+    .prepare(
+      `SELECT term, usage_count AS count FROM term_library
+        WHERE usage_count > 0
+        ORDER BY usage_count DESC, term ASC LIMIT ?`,
+    )
+    .all(n) as Array<{ term: string; count: number }>;
+}
+
 /** 横轴标签用：`YYYY-MM-DD` → `MM-DD`（图表横轴塞不下年份，年份在标题的窗口里已表达） */
 export function shortDayLabel(key: string): string {
   return /^\d{4}-(\d{2}-\d{2})$/.exec(key)?.[1] ?? key;

@@ -91,6 +91,45 @@ export const MEMORY_MIN_IMPORTANCE = 0.4;
 /** 单条画像内容上限（模型偶尔会写一整段，截断而非丢弃）。 */
 export const MEMORY_CONTENT_MAX = 200;
 
+// ── 词条库驱动的偏好画像（契约 `docs/MEMORY-TREND-SPEC.md` §3）────────────────
+
+/**
+ * 偏好画像的 `importance` 下限。
+ * ★ 必须 **≥ `MEMORY_MIN_IMPORTANCE`**：低于它就写进去也**注入不了**——一条永远不进
+ *   上下文的记忆只是垃圾行，还占 `MEMORY_MAX_ITEMS` 的名额。留 0.1 余量是防将来
+ *   有人上调门槛时这里静默失效（两处常量的关系由 `memory.test.ts` 立断言钉住）。
+ */
+export const MEMORY_DIGEST_MIN_IMPORTANCE = 0.5;
+
+/**
+ * 提及达到这个次数即记满分（线性饱和，再多也不再涨）。
+ * ★ 为什么是「饱和」而不是「无界线性」：`importance` 全域只有 0..1，而提及数没有上界。
+ *   不饱和的话，一个重度用户的单条偏好会把整张画像的 `importance` 尺度拉爆，
+ *   结果不是「学霸的偏好更重要」，而是**所有人的其他画像都被压成噪声**。
+ * ★ 30 这个数是可以调的（不是推导出来的）：它的含义是「提到 30 次算把这件事学到熟了」。
+ */
+export const MEMORY_DIGEST_FULL_MENTIONS = 30;
+
+/** 偏好画像最多写几个**领域** / 几个**词条**（硬限，见契约 §3.3）。 */
+export const MEMORY_DIGEST_TOP_DOMAINS = 3;
+export const MEMORY_DIGEST_TOP_TERMS = 3;
+
+/**
+ * 提及次数 → `importance`。**单调、有界、饱和**，这是「长期记忆要根据词条使用次数改变」
+ * 的**可执行含义**：不是让模型再总结一遍，而是把这个行为数字直接映射成权重。
+ *
+ * 返回 `0` 表示「**不构成偏好**」（`count ≤ 0`）——调用方应据此**丢弃该条**，
+ * 而不是写一条 0 分的记忆（0 分既不注入又占名额，是纯垃圾）。
+ */
+export function mentionsToImportance(count: number): number {
+  if (!Number.isFinite(count) || count <= 0) return 0;
+  const ratio = Math.min(1, count / MEMORY_DIGEST_FULL_MENTIONS);
+  const v = MEMORY_DIGEST_MIN_IMPORTANCE + (1 - MEMORY_DIGEST_MIN_IMPORTANCE) * ratio;
+  // 保留 3 位小数：`ON CONFLICT` 走 `MAX(importance)`，浮点尾差会让「同一份数据两次跑」
+  // 产生不同的值，进而让「幂等」这条断言变得没法写。
+  return Math.round(v * 1000) / 1000;
+}
+
 // ── 归一 ─────────────────────────────────────────────────────────────────────
 
 /**

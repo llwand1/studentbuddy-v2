@@ -7,11 +7,16 @@
 import { describe, it, expect } from 'vitest';
 import {
   MEMORY_CONTENT_MAX,
+  MEMORY_DIGEST_FULL_MENTIONS,
+  MEMORY_DIGEST_MIN_IMPORTANCE,
+  MEMORY_DIGEST_TOP_DOMAINS,
+  MEMORY_DIGEST_TOP_TERMS,
   MEMORY_INJECT_MAX_CHARS,
   MEMORY_KINDS,
   MEMORY_MAX_ITEMS,
   MEMORY_MIN_IMPORTANCE,
   isMemoryKind,
+  mentionsToImportance,
   normalizeImportance,
   normalizeMemoryContent,
 } from './memory.js';
@@ -84,5 +89,55 @@ describe('常量不变式（改这些数要连带想清楚，不是随手调）'
 
   it('容量上限为正', () => {
     expect(MEMORY_MAX_ITEMS).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * 提及次数 → `importance`（契约 `docs/MEMORY-TREND-SPEC.md` §3）。
+ * 这是「长期记忆要根据词条库使用次数改变」的**可执行含义**：不是让模型再总结一遍，
+ * 而是把这个**行为数字**直接映射成权重，故它必须是**单调、有界、饱和**的。
+ */
+describe('mentionsToImportance（提及次数 → importance）', () => {
+  it('0 与负数一律 0——**0 表示「不构成偏好」**，调用方应据此丢弃该条而不是写一条 0 分记忆', () => {
+    expect(mentionsToImportance(0)).toBe(0);
+    expect(mentionsToImportance(-5)).toBe(0);
+  });
+
+  it('非有限数一律 0（宁可少一条，也不写一条算不出强度的记忆）', () => {
+    expect(mentionsToImportance(NaN)).toBe(0);
+    expect(mentionsToImportance(Infinity)).toBe(0);
+  });
+
+  it('单调：提及越多分越高', () => {
+    const seq = [1, 2, 5, 10, 29].map(mentionsToImportance);
+    // 不用 `!` 非空断言（仓库禁用）：`?? 0` 兜住索引越界，比较本身照旧成立
+    expect(seq.every((v, i) => i === 0 || v > (seq[i - 1] ?? 0))).toBe(true);
+  });
+
+  it('**饱和**：达到 MEMORY_DIGEST_FULL_MENTIONS 即满分，再多也不涨', () => {
+    expect(mentionsToImportance(MEMORY_DIGEST_FULL_MENTIONS)).toBe(1);
+    expect(mentionsToImportance(MEMORY_DIGEST_FULL_MENTIONS * 1000)).toBe(1);
+  });
+
+  it('★ 下限必须够得到注入门槛——低门槛就白写：不注入、还占 MEMORY_MAX_ITEMS 的名额', () => {
+    expect(MEMORY_DIGEST_MIN_IMPORTANCE).toBeGreaterThanOrEqual(MEMORY_MIN_IMPORTANCE);
+  });
+
+  it('次数 ≥1 时恒 ≥ 门槛：「被提过一次」就已经算一次可注入的偏好', () => {
+    expect(mentionsToImportance(1)).toBeGreaterThanOrEqual(MEMORY_MIN_IMPORTANCE);
+  });
+
+  it('结果落在 [0,1] 且只保留 3 位小数（浮点尾差会让「幂等」这条断言没法写）', () => {
+    for (const n of [1, 3, 7, 13, 30, 99]) {
+      const v = mentionsToImportance(n);
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(1);
+      expect(v).toBe(Math.round(v * 1000) / 1000);
+    }
+  });
+
+  it('名额上限都为正（取 0 会让偏好画像整体失效）', () => {
+    expect(MEMORY_DIGEST_TOP_DOMAINS).toBeGreaterThan(0);
+    expect(MEMORY_DIGEST_TOP_TERMS).toBeGreaterThan(0);
   });
 });

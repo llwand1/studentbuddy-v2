@@ -23,6 +23,7 @@ import { routeRole } from '../llm/router.js';
 import { getMaxOutputTokens } from '../llm/model-limits.js';
 import { getDb } from '../storage/db.js';
 import { injectMemoryBlock, pruneMemoryItems, upsertMemoryItems } from './memory.js';
+import { refreshTermDigest } from './memory-digest.js';
 import {
   COMPACT_KEEP_TOKENS,
   COMPACT_MIN_DISCARD_TOKENS,
@@ -243,6 +244,22 @@ function applyCompact(sessionId: string, summary: string, uptoRowid: number, tok
   recordCompact(sessionId, { ok: true, tokensBefore, uptoRowid }, tokensBefore);
 }
 
+/**
+ * 偏好画像刷新：**吞掉异常，但记账**。
+ *
+ * ★ 为什么必须吞：它跑在压缩链路的**尾部**，而压缩此刻**已经成功了**（摘要已 `applyCompact`
+ *   落库）。让一个附加动作把整轮压缩标成失败，`event_log` 里的账就再也对不上——排查的人会
+ *   去查一个根本没坏的摘要（先例：`markMemoryUsed` 同样是「顺带」的写，同样不该反过来决定主链成败）。
+ * ★ 但**不静默**（ADR-5）：失败原因进 `event_log` 的 `digestError`，而不是被 `catch {}` 吃掉。
+ */
+function refreshDigestQuietly(ownerId?: string | null): { added: number; error: string | null } {
+  try {
+    return { added: refreshTermDigest(ownerId), error: null };
+  } catch (err) {
+    return { added: 0, error: (err instanceof Error ? err.message : String(err)).slice(0, 200) };
+  }
+}
+
 function fail(sessionId: string, failure: NonNullable<CompactResult['failure']>, tokensBefore: number): CompactResult {
   recordCompact(sessionId, { ok: false, failure, tokensBefore }, tokensBefore);
   return { ok: false, summary: null, items: [], tokensBefore, failure };
@@ -309,10 +326,24 @@ async function runCompact(sessionId: string, ownerId?: string | null): Promise<C
   // ★ 画像的归属跟着**会话的主人**走，不是跟着「谁在跑压缩」——压缩是 fire-and-forget，
   //   跑到这里时 HTTP 请求早已结束，只能靠显式传下来的 ownerId。
   const added = upsertMemoryItems(parsed.items, sessionId, ownerId);
+  // ★ 顺带刷新**词条库驱动**的偏好画像（契约 `docs/MEMORY-TREND-SPEC.md` §3）：压缩是天然的
+  //   「该沉淀了」信号点，偏好画像挂在这里就不必新增调度器。它是**幂等**的——重复跑只刷
+  //   `updated_at`、不堆行，所以「多跑几次」没有代价，漏跑也只是晚一轮生效。
+  const digest = refreshDigestQuietly(ownerId);
   const pruned = pruneMemoryItems(ownerId);
   recordCompact(
     sessionId,
-    { ok: true, tokensBefore, uptoRowid: upto, memoryAdded: added, memoryPruned: pruned },
+    {
+      ok: true,
+      tokensBefore,
+      uptoRowid: upto,
+      memoryAdded: added,
+      memoryPruned: pruned,
+      // ★ 偏好画像**单独记账、不并进 `memoryAdded`**：两个来源的诊断含义完全不同
+      //   （一个是「对话里沉淀了什么」，一个是「词条库统计出什么」），合并就再也分不开。
+      digestAdded: digest.added,
+      digestError: digest.error,
+    },
     tokensBefore,
     Date.now() - startedAt,
   );

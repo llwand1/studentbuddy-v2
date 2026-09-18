@@ -1,18 +1,21 @@
 /**
  * learning/mention — 提及流水与窗口聚合（契约 docs/MEMORY-TREND-SPEC.md §1）。
  *
- * 本文件的断言分四类，每类钉住一个**容易静默错**的点：
+ * 本文件的断言分五类，每类钉住一个**容易静默错**的点：
  *  ① 写入：字段齐全 + `domain` 是**快照**（词条改领域不改写历史）；
  *  ② 补零：`labels` 与 `values` 等长且含今天——缺一格折线会整体左移一天；
  *  ③ 口径：窗口外不计入；已删词条仍进 total 但不进 topTerms；owner 过滤；
- *  ④ 钳制：`days` 越界不放大查询。
+ *  ④ 钳制：`days` 越界不放大查询；
+ *  ⑤ 高频榜（`topMentionedTerms`，**总**口径）：只含 `usage_count > 0`，且并列按名升序
+ *     ——不是全序的话 `LIMIT` 在并列处取谁不确定，长期记忆的偏好画像会变成随机内容。
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { openIsolated, closeDb, getDb } from '../storage/db.js';
-import { recordMentions, mentionTrend, shortDayLabel } from './mention.js';
+import { recordMentions, mentionTrend, shortDayLabel, topMentionedTerms } from './mention.js';
+import { countUsage } from './terms.js';
 
 let dir: string;
 
@@ -209,5 +212,51 @@ describe('learning/mention — 横轴标签', () => {
     expect(shortDayLabel('2026-09-18')).toBe('09-18');
     expect(shortDayLabel('09-18')).toBe('09-18');
     expect(shortDayLabel('')).toBe('');
+  });
+});
+
+/**
+ * 高频词条榜（**总**口径：走 `usage_count`，与 `domainMentionTotals` 同源、**含流水建表前的历史**）。
+ * 它是长期记忆偏好画像的上游（`chat/memory-digest.ts`），故两件事必须锁死：
+ * 「一次没提过的进不来」与「并列处是全序」——后者不做，`LIMIT` 取谁就不确定，
+ * 画像内容会随查询计划变（同一份数据两次跑出两份画像，是最难查的那种不定）。
+ * ★ 造数走**真实 `countUsage`**（命中即 +1）：直改 `usage_count` 会把「命中逻辑」
+ *   与「计数口径」一起绕过，测出来只是我用 SQL 写进去的数。
+ */
+describe('learning/mention — 高频词条榜（总口径）', () => {
+  it('按 usage_count 降序；**一次没提过的词条进不来**（不构成偏好）', () => {
+    seedTerm('t-a', 'alpha', 'math');
+    seedTerm('t-b', 'beta', 'math');
+    seedTerm('t-c', 'gamma', 'english'); // 一次不提
+    for (let i = 0; i < 3; i++) countUsage('alpha');
+    countUsage('beta');
+
+    expect(topMentionedTerms()).toEqual([
+      { term: 'alpha', count: 3 },
+      { term: 'beta', count: 1 },
+    ]);
+  });
+
+  it('并列时按词条名升序 ⇒ **全序**（不稳定排序会让「取 top N」变成「取随机 N 个」）', () => {
+    seedTerm('t-z', 'zeta', 'math');
+    seedTerm('t-a', 'alpha', 'math');
+    countUsage('zeta');
+    countUsage('alpha');
+
+    expect(topMentionedTerms().map((r) => r.term)).toEqual(['alpha', 'zeta']);
+  });
+
+  it('limit 正常生效；传 0 视作「没传」回落默认；超大值钳到 50（不放大查询）', () => {
+    for (const t of ['a', 'b', 'c', 'd', 'e']) {
+      seedTerm(`t-x${t}`, `term-${t}`, 'math');
+      countUsage(`term-${t}`);
+    }
+    expect(topMentionedTerms(2)).toHaveLength(2);
+    expect(topMentionedTerms(0)).toHaveLength(5); // 0 ⇒ 回落默认（不是「取 0 条」）
+    expect(topMentionedTerms(999)).toHaveLength(5); // 钳到 50，而库里只有 5 条
+  });
+
+  it('空库返回空数组（不抛、不返回 undefined）', () => {
+    expect(topMentionedTerms()).toEqual([]);
   });
 });

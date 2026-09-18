@@ -26,6 +26,7 @@ import { buildAnswerStyleBlock } from '@sb/shared';
 import { estimateTokens } from './context.js';
 import { buildMemoryContext } from './compact.js';
 import { choiceNudge } from './choice-nudge.js';
+import { searchNudge } from './search-nudge.js';
 import { buildDateBlock } from './date-context.js';
 import { SYSTEM_PROMPT } from './system-prompt.js';
 import { getRelevantTerms } from '../learning/terms.js';
@@ -67,6 +68,8 @@ export interface ContextInputs {
   sessionId: string;
   /** 本轮提问：词条检索、文档检索、触发增强三处都用它 */
   text: string;
+  /** 归属用户 id：长期画像**按人隔离**（契约 docs/TENANCY-SPEC.md §7）。缺省 null＝本地单人模式 */
+  ownerId?: string | null;
 }
 
 export interface CollectedContext {
@@ -85,11 +88,11 @@ export interface CollectedContext {
  * 与「组装」是同一件事的两面——分开放就又成了双真相源。
  */
 export function collectContextSegments(inputs: ContextInputs): CollectedContext {
-  const { history, sessionId, text } = inputs;
+  const { history, sessionId, text, ownerId } = inputs;
 
   // 长期记忆（契约 docs/MEMORY-SPEC.md）：摘要段（本会话早前内容的浓缩）+ 画像段
   // （跨会话的学习者事实）+ 已被摘要覆盖的历史。两段都进 system 位、都占窗口。
-  const { summaryBlock, memoryBlock, liveHistory } = buildMemoryContext(history, sessionId);
+  const { summaryBlock, memoryBlock, liveHistory } = buildMemoryContext(history, sessionId, ownerId);
 
   // 忆域 v2（词条库注入）：检索与本次提问相关的已入库词条，软性提示 AI 优先使用；
   // 命中失败/为空不影响对话（ADR-4），词条段短（约 ≤1k tokens）。
@@ -118,8 +121,11 @@ export function collectContextSegments(inputs: ContextInputs): CollectedContext 
     // 它**恒非空**（至少含 scope 那句），故无需条件判断——空内容段会在下面被统一剔除。
     { kind: 'style', content: buildAnswerStyleBlock(loadAnswerStyle()) },
     { kind: 'memory', content: memoryBlock },
-    // 方案选择框触发增强（2026-09-14）：识别「这条提问是不是在做选择/规划」，命中则追加硬指令。
-    { kind: 'nudge', content: choiceNudge(text) ?? '' },
+    // 触发增强（2026-09-14 方案选择框 / 2026-09-17 联网搜索）：识别「这条提问是不是在做选择/规划
+    // 或要求联网检索」，命中则追加硬指令。两者同时命中时 **search 优先**——学习者明说"搜一下"
+    // 是**动作指令**不是岔路，而实测里模型偏偏在这时弹了 ask_choice 让他先拍板（bug-ledger B-006），
+    // 故不给它"先问再搜"的机会（理由详见 `search-nudge.ts` 文件头「与 choice-nudge 的差异」）。
+    { kind: 'nudge', content: searchNudge(text) ?? choiceNudge(text) ?? '' },
   ];
 
   // 空段统一剔除：预算与组装看到的是**同一份**清单，不可能一边算一边不算

@@ -5,7 +5,6 @@
  * 单轨原则（ADR/G3）：仅原生 function-calling，工具注册表见 chat/tools.ts。
  */
 import { randomUUID } from 'node:crypto';
-import type { ModelRole } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { routeRole } from '../llm/router.js';
 import { getMaxOutputTokens } from '../llm/model-limits.js';
@@ -21,10 +20,12 @@ import { compactIfNeeded } from './compact.js';
 import { assembleContextMessages, collectContextSegments } from './context-segments.js';
 import { TASKS_TOOL, parseTaskArgs, applyTaskPatch, formatTaskList, type TaskItem } from './task-list.js';
 import { saveTerms, extractTerms, countUsage } from '../learning/terms.js';
-import type { ChatMessage, ToolCall, UploadedImage } from '../llm/types.js';
+import type { ChatMessage, ToolCall } from '../llm/types.js';
 import { contentToText } from '../llm/types.js';
 import { describeImages } from './vision.js';
-import { GRILL_PRE, GRILL_TOOL_CHOICE, runGrillClosing } from './grill.js';
+import { runGrillClosing } from './grill.js';
+import { buildOpening, dropOpening } from './opening.js';
+import type { ChatOptions, ChatResult } from './options.js';
 
 /**
  * 工具循环上限（v1 语义：模型连续发起工具调用时的轮次天花板，防死循环）。
@@ -40,23 +41,9 @@ const MAX_TOOL_RESULT_CHARS = 14_000;
 /** 同会话串行锁：并发消息排队执行，绝不交错（v1 修复语义） */
 const locks = new Map<string, Promise<unknown>>();
 
-export interface ChatOptions {
-  sessionId: string;
-  text: string;
-  role?: ModelRole;
-  signal?: AbortSignal;
-  /** v17 看图：用户上传的图片（base64 dataURL 内联）。非空时先蒸馏成文字描述再进主模型上下文 */
-  images?: UploadedImage[];
-  /** 重新生成：提问已在库里，跳过 user 落库（否则一轮出现两条相同提问） */
-  skipUserPersist?: boolean;
-  /** v18 grill-me（见 `chat/grill.ts`）：本轮必出选择框——开场问方向（答复回灌）＋收尾问下一步（不等待） */
-  grillMe?: boolean;
-}
-export interface ChatResult {
-  ok: boolean;
-  error?: string;
-  assistantMessageId?: string;
-}
+// 出入参契约已切到 `chat/options.ts`（2026-09-18，行数红线）。此处**转出**而非让调用方改路径——
+// 契约搬家不该逼 6 个调用点跟着改 import（那只会制造一次无意义的全仓改动）。
+export type { ChatOptions, ChatResult } from './options.js';
 
 export function handleMessage(opts: ChatOptions): Promise<ChatResult> {
   const prev = locks.get(opts.sessionId) ?? Promise.resolve();
@@ -121,6 +108,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     // 检索词用 userText 而非 opts.text：发图时若只拿「这个怎么推导」去检索词条/资料，
     // 画面里的信息完全用不上（无图时两者恒等，老行为不变）
     text: userText,
+    ownerId: opts.ownerId ?? null,
   });
   // 顺序不可换：截断要用段清单算出的预算，装配要用截断后的历史（截断含工具轮对齐）
   const truncated = truncateHistoryToBudget(liveHistory, {
@@ -128,9 +116,9 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     systemPromptTokens,
   });
   const { messages, nudgeMsg } = assembleContextMessages(segments, truncated);
-  // v18 grill-me 开场硬指令：只在内存 messages 里活，不落库（它是指令不是一条用户发言）
-  const grillMsg = opts.grillMe ? ({ role: 'user', content: GRILL_PRE } as ChatMessage) : null;
-  if (grillMsg) messages.push(grillMsg);
+  // 开场硬指令（grill-me / 联网，装配见 chat/opening.ts）：只在内存 messages 里活，不落库——它是指令不是发言
+  const opening = buildOpening({ grill: opts.grillMe === true, online: opts.online === true });
+  if (opening.msg) messages.push(opening.msg);
   // 工具循环预算：窗口 − 全部附加 system 段（`systemPromptTokens`，见 context-segments.ts）
   // − 已载历史 − 预留。每轮工具回灌后核对，接近上限提前收口——小上下文模型
   // 15 轮 × MAX_TOOL_RESULT_CHARS 会撑爆窗口（轮数上限由 8 提到 15 后，
@@ -193,7 +181,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
    */
   const execTool = (name: string, argsJson: string, ctx: ToolContext): Promise<ToolResult> => {
     // grill-me 开场：给强绑产生的 ask_choice 打 pre 标记，前端据此把它沉进消息流（普通触发不带）
-    if (name !== 'update_tasks') return runTool(name, argsJson, name === 'ask_choice' && grillMsg ? { ...ctx, grillPhase: 'pre' } : ctx);
+    if (name !== 'update_tasks') return runTool(name, argsJson, name === 'ask_choice' && opening.grill ? { ...ctx, grillPhase: 'pre' } : ctx);
     const parsed = parseTaskArgs(argsJson);
     if (!parsed.ok) return Promise.resolve({ content: parsed.content });
     if (parsed.mode === 'replace') {
@@ -229,8 +217,8 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         messages,
         signal: opts.signal,
         tools,
-        // grill-me 只绑 turn 0：turn 1 起必须放开，否则模型被锁死在提问上，正文永远出不来
-        toolChoice: turn === 0 && grillMsg ? GRILL_TOOL_CHOICE : undefined,
+        // 强绑只到 turn 0：turn 1 起必须放开，否则模型被锁死在开场动作上，正文永远出不来
+        toolChoice: turn === 0 ? opening.toolChoice : undefined,
         // 显式传输出上限（B 系列防御）：不再依赖适配器 ?? getMaxOutputTokens 兜底，
         // 新增适配器漏写兜底时 Anthropic 会直接 400——类型层由 ChatRequest.maxTokens 承载。
         maxTokens: getMaxOutputTokens(target.model),
@@ -291,11 +279,11 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         publish(sessionId, { type: 'token', sessionId, content: '\n\n' }); // 分隔符同样下发：屏上与库内文本逐字一致
       }
       pendingToolRound = true;
-      // 首轮一过就摘掉触发增强：它只对「开场该不该先问」负责，留着会让后续轮
-      // （"把第二个方案展开讲讲"）被误导再问一次——问第二次的体验比不问还差。
-      if (turn === 0 && nudgeMsg) {
-        const i = messages.indexOf(nudgeMsg);
+      // 首轮一过就摘触发增强与开场指令（联网留着每轮重搜、nudge 留着会再问，都只对开场负责）
+      if (turn === 0) {
+        const i = nudgeMsg ? messages.indexOf(nudgeMsg) : -1;
         if (i >= 0) messages.splice(i, 1);
+        dropOpening(messages, opening);
       }
       if (toolTokens > toolBudget) {
         budgetExceeded = true;
@@ -303,11 +291,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       }
     }
 
-    // 开场指令只用一次：无论模型问没问，出了循环就摘掉（留着会污染收尾那一轮）
-    if (grillMsg) {
-      const i = messages.indexOf(grillMsg);
-      if (i >= 0) messages.splice(i, 1);
-    }
+    dropOpening(messages, opening);
 
     if (pendingToolRound) {
       const capMsg = budgetExceeded
@@ -341,7 +325,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       // 长期记忆压缩排在词条抽取**之后**串行（两者都要打一次 LLM，并发会同时占两个配额槽），
       // 且不 await——摘要下一轮才生效，本轮用户已拿到回答（MEMORY-SPEC §4.1）。
       .finally(() => {
-        void compactIfNeeded(sessionId);
+        void compactIfNeeded(sessionId, opts.ownerId ?? null);
       });
     countUsage(acc);
     publish(sessionId, {

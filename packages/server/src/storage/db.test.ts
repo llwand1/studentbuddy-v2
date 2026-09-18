@@ -119,6 +119,21 @@ describe('storage/db — v11 过程回放迁移（思考链 / 任务清单随消
     v10.exec(`ALTER TABLE sessions DROP COLUMN summary_updated_at`);
     // v17 看图（messages.images）：同上，每加一列迁移，退版本的用例都要跟着多退一列
     v10.exec(`ALTER TABLE messages DROP COLUMN images`);
+    // v22 多租户（sessions.user_id）：同上，每加一列迁移，退版本的用例都要跟着多退一列。
+    // ★ **先删索引再删列**：该列上有 idx_sessions_user，直接 DROP COLUMN 会报
+    //   "error in index ... after drop column"（SQLite 不留悬空索引）
+    v10.exec(`DROP INDEX IF EXISTS idx_sessions_user`);
+    v10.exec(`ALTER TABLE sessions DROP COLUMN user_id`);
+    // v23 复习（term_library 两列 + term_review_log）：同上，多一列迁移就多退一列。
+    // ★ 先删索引再删列（idx_term_library_last_reviewed 建在 last_reviewed_at 上，
+    //   SQLite 不留悬空索引，直接 DROP COLUMN 会报 "error in index ... after drop column"）
+    v10.exec(`DROP INDEX IF EXISTS idx_term_library_last_reviewed`);
+    v10.exec(`ALTER TABLE term_library DROP COLUMN review_stage`);
+    v10.exec(`ALTER TABLE term_library DROP COLUMN last_reviewed_at`);
+    v10.exec(`DROP TABLE IF EXISTS term_review_log`);
+    // v25 督促流水（coach_messages）：CREATE TABLE IF NOT EXISTS 不 DROP 也能重放，
+    // 但留着就等于"老库其实已经有督促流水"，与测试意图不符（同 v23 那条的理由）
+    v10.exec(`DROP TABLE IF EXISTS coach_messages`);
     v10.prepare('DELETE FROM schema_version WHERE version > 10').run();
     expect(cols(v10)).not.toContain('reasoning');
     v10.close();
@@ -155,6 +170,16 @@ describe('storage/db — v13 回答形态迁移（providers.stream_mode）', () 
     old.exec(`ALTER TABLE sessions DROP COLUMN summary_updated_at`);
     // v17 看图（messages.images）：同上
     old.exec(`ALTER TABLE messages DROP COLUMN images`);
+    // v22 多租户（sessions.user_id）：同上（先删索引再删列，理由见上一个用例）
+    old.exec(`DROP INDEX IF EXISTS idx_sessions_user`);
+    old.exec(`ALTER TABLE sessions DROP COLUMN user_id`);
+    // v23 复习：同上（先索引后列）
+    old.exec(`DROP INDEX IF EXISTS idx_term_library_last_reviewed`);
+    old.exec(`ALTER TABLE term_library DROP COLUMN review_stage`);
+    old.exec(`ALTER TABLE term_library DROP COLUMN last_reviewed_at`);
+    old.exec(`DROP TABLE IF EXISTS term_review_log`);
+    // v25 督促流水：同上
+    old.exec(`DROP TABLE IF EXISTS coach_messages`);
     old.prepare('DELETE FROM schema_version WHERE version > 12').run();
     old.close();
 
@@ -196,6 +221,75 @@ describe('storage/db — v16 长期记忆迁移（docs/MEMORY-SPEC.md）', () =>
       db.prepare(`INSERT INTO user_memory (id, kind, content) VALUES ('b', 'profile', '同一句')`).run(),
     ).toThrow();
     db.close();
+  });
+});
+
+describe('storage/db — v24 长期画像归主（docs/TENANCY-SPEC.md §7）', () => {
+  it('唯一键是 (user_id, kind, content)：同人重复才撞，★ 同内容不同人必须能共存', () => {
+    const db = openIsolated(tmp());
+    db.prepare(`INSERT INTO user_memory (id, user_id, kind, content) VALUES ('a', 'u-1', 'profile', '同一句')`).run();
+    expect(() =>
+      db.prepare(`INSERT INTO user_memory (id, user_id, kind, content) VALUES ('b', 'u-1', 'profile', '同一句')`).run(),
+    ).toThrow();
+
+    // ★ 这一行是 v24 的**全部理由**：v24 之前唯一键是 `UNIQUE(kind, content)`（全局），
+    //   这里会撞——而上层 `ON CONFLICT DO UPDATE` 会把 u-1 那行**改写**（B 的隐私落进 A 的行里）。
+    db.prepare(`INSERT INTO user_memory (id, user_id, kind, content) VALUES ('c', 'u-2', 'profile', '同一句')`).run();
+    const n = (db.prepare(`SELECT COUNT(*) AS c FROM user_memory WHERE content = '同一句'`).get() as { c: number }).c;
+    expect(n).toBe(2);
+    db.close();
+  });
+
+  it(`user_id NOT NULL DEFAULT ''：无主行写得进，且不落进任何登录用户的名下`, () => {
+    const db = openIsolated(tmp());
+    const info = (
+      db.prepare(`PRAGMA table_info(user_memory)`).all() as Array<{
+        name: string;
+        notnull: number;
+        dflt_value: string | null;
+      }>
+    ).find((c) => c.name === 'user_id');
+    // ★ 用列而非 `COALESCE(user_id,'')` 表达式索引：`ON CONFLICT` 的冲突目标必须匹配
+    //   唯一索引的**列**，表达式索引会让它退化成"无冲突目标"而直接报错（写 upsert 时会炸）。
+    expect(info?.notnull).toBe(1);
+    expect(info?.dflt_value).toBe(`''`);
+
+    db.prepare(`INSERT INTO user_memory (id, kind, content) VALUES ('orphan', 'profile', '无主画像')`).run();
+    const mine = (db.prepare(`SELECT COUNT(*) AS c FROM user_memory WHERE user_id = 'u-1'`).get() as { c: number }).c;
+    expect(mine).toBe(0); // 无主行不会被判给任何登录用户（与 §3 的孤儿行同口径）
+    db.close();
+  });
+
+  it('老库升级：既有画像不丢，且被标成无主——★ 绝不判给"第一个注册的人"', () => {
+    const dir = tmp();
+    const old = openIsolated(dir);
+    // 伪装成 v24 之前的库：还原旧表结构（无 user_id、全局 UNIQUE）并塞一行老画像。
+    // 只退到 v23 是因为 v23 的 `ALTER TABLE term_library ADD COLUMN` 不幂等，重放会撞 duplicate column。
+    old.exec(`DROP TABLE IF EXISTS user_memory`);
+    old.exec(`CREATE TABLE user_memory (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        content TEXT NOT NULL,
+        source_session_id TEXT,
+        importance REAL NOT NULL DEFAULT 0.5,
+        usage_count INTEGER NOT NULL DEFAULT 0,
+        last_used_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(kind, content)
+      )`);
+    old.prepare(`INSERT INTO user_memory (id, kind, content, importance) VALUES ('legacy', 'profile', '升级前的画像', 0.7)`).run();
+    old.prepare('DELETE FROM schema_version WHERE version > 23').run();
+    old.close();
+
+    const upgraded = openIsolated(dir);
+    const row = upgraded
+      .prepare(`SELECT id, user_id, importance FROM user_memory WHERE id = 'legacy'`)
+      .get() as { id: string; user_id: string; importance: number } | undefined;
+    expect(row).toBeDefined(); // 数据不丢
+    expect(row?.user_id).toBe(''); // 无主（要显式认领，见 _probe/claim-legacy.mjs）
+    expect(row?.importance).toBe(0.7); // 其余字段原样搬运
+    upgraded.close();
   });
 });
 
@@ -241,6 +335,18 @@ describe('storage/db — v19 领域表迁移（term_domain，领域升为一等�
     // 绕过写入侧登记直接落一行（模拟 v19 之前的老库：有词条、无登记册）
     old.prepare(`INSERT INTO term_library (id, term, definition, domain) VALUES ('t1', '闭包', 'x', 'math')`).run();
     old.exec(`DROP TABLE term_domain`); // 退版本号就得连表一起退（CREATE TABLE IF NOT EXISTS 会跳过已存在的表）
+    // v22 的 sessions.user_id 是 **ALTER TABLE ADD COLUMN**（不幂等），退到 v18 重放会撞
+    // `duplicate column name` ⇒ 连索引带列一起退（先索引后列，SQLite 不留悬空索引）
+    old.exec(`DROP INDEX IF EXISTS idx_sessions_user`);
+    old.exec(`ALTER TABLE sessions DROP COLUMN user_id`);
+    // v23 复习：同上（先索引后列；term_review_log 是 CREATE TABLE IF NOT EXISTS，
+    // 不 DROP 也能重放，但留着就等于"老库其实已经有复习流水"，与测试意图不符）
+    old.exec(`DROP INDEX IF EXISTS idx_term_library_last_reviewed`);
+    old.exec(`ALTER TABLE term_library DROP COLUMN review_stage`);
+    old.exec(`ALTER TABLE term_library DROP COLUMN last_reviewed_at`);
+    old.exec(`DROP TABLE IF EXISTS term_review_log`);
+    // v25 督促流水：同上
+    old.exec(`DROP TABLE IF EXISTS coach_messages`);
     old.prepare('DELETE FROM schema_version WHERE version > 18').run();
     old.close();
 
@@ -250,6 +356,162 @@ describe('storage/db — v19 领域表迁移（term_domain，领域升为一等�
     );
     expect(names).toContain('math'); // 回填：老库的既有领域不丢
     expect(names).toContain('general'); // 预置：默认域重新在位
+    upgraded.close();
+  });
+});
+
+describe('storage/db — v21 账号与会话迁移（docs/AUTH-SPEC.md，M1）', () => {
+  it('新库含 users / auth_sessions 两表与两索引', () => {
+    const db = openIsolated(tmp());
+    const tables = (
+      db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as Array<{ name: string }>
+    ).map((r) => r.name);
+    expect(tables).toContain('users');
+    expect(tables).toContain('auth_sessions');
+    for (const ix of ['idx_auth_sessions_user', 'idx_auth_sessions_expires']) {
+      expect(db.prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name=?`).get(ix)).toBeTruthy();
+    }
+    db.close();
+  });
+
+  it('users.email UNIQUE 由库层兜底（同一邮箱第二行必撞，不靠应用记得查重）', () => {
+    const db = openIsolated(tmp());
+    db.prepare(`INSERT INTO users (id, email, password_hash) VALUES ('u1', 'a@b.com', 'h')`).run();
+    expect(() =>
+      db.prepare(`INSERT INTO users (id, email, password_hash) VALUES ('u2', 'a@b.com', 'h')`).run(),
+    ).toThrow(/UNIQUE/);
+    db.close();
+  });
+
+  it('auth_sessions 主键是 token_hash（同值不能落两行 ⇒ 库里只存哈希不会是摆设）', () => {
+    const db = openIsolated(tmp());
+    db.prepare(`INSERT INTO auth_sessions (token_hash, user_id, expires_at, last_seen_at) VALUES ('h1', 'u1', 1, 1)`).run();
+    expect(() =>
+      db.prepare(`INSERT INTO auth_sessions (token_hash, user_id, expires_at, last_seen_at) VALUES ('h1', 'u2', 1, 1)`).run(),
+    ).toThrow();
+    db.close();
+  });
+});
+
+describe('storage/db — v22 多租户归属迁移（docs/TENANCY-SPEC.md，M2a）', () => {
+  const sessionCols = (db: ReturnType<typeof openIsolated>): string[] =>
+    (db.prepare(`PRAGMA table_info(sessions)`).all() as Array<{ name: string }>).map((c) => c.name);
+
+  it('新库 sessions 含 user_id 列与 idx_sessions_user 索引', () => {
+    const db = openIsolated(tmp());
+    expect(sessionCols(db)).toContain('user_id');
+    // 索引必须存在：WHERE user_id = ? 是此后最高频过滤条件，无索引则会话一多就全表扫
+    expect(db.prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name='idx_sessions_user'`).get()).toBeTruthy();
+    db.close();
+  });
+
+  it('子表不加 user_id（归属唯一事实源，防 sessions/messages 两列漂移）', () => {
+    const db = openIsolated(tmp());
+    const msgCols = (db.prepare(`PRAGMA table_info(messages)`).all() as Array<{ name: string }>).map((c) => c.name);
+    expect(msgCols).not.toContain('user_id'); // TENANCY-SPEC §1：子表随父表
+    db.close();
+  });
+
+  it('老库升级：既有会话的 user_id 为 NULL（孤儿行），且对任何已登录用户都查不到', () => {
+    const db = openIsolated(tmp());
+    db.prepare(`INSERT INTO sessions (id, title) VALUES ('s-old', '老会话')`).run();
+    db.prepare(`INSERT INTO sessions (id, user_id, title) VALUES ('s-a', 'u1', 'A 的会话')`).run();
+    expect((db.prepare('SELECT user_id FROM sessions WHERE id = ?').get('s-old') as { user_id: string | null }).user_id).toBeNull();
+
+    // ★ 这条是「上线不泄露」的库层证明：NULL 不匹配任何 user_id = ?，
+    //   ⇒ 老数据不会被判给任何一个登录用户（代价是主人也暂时看不到，需显式认领）
+    const seenByU1 = db.prepare('SELECT id FROM sessions WHERE deleted_at IS NULL AND user_id = ?').all('u1') as Array<{ id: string }>;
+    expect(seenByU1.map((r) => r.id)).toEqual(['s-a']);
+    const seenByU2 = db.prepare('SELECT id FROM sessions WHERE deleted_at IS NULL AND user_id = ?').all('u2') as Array<{ id: string }>;
+    expect(seenByU2).toEqual([]);
+    db.close();
+  });
+});
+
+describe('storage/db — v23 词条复习迁移（docs/EBBINGHAUS-SPEC.md，艾宾浩斯）', () => {
+  const termCols = (db: ReturnType<typeof openIsolated>): string[] =>
+    (db.prepare(`PRAGMA table_info(term_library)`).all() as Array<{ name: string }>).map((c) => c.name);
+
+  it('新库 term_library 两列 + term_review_log 表 + 三个索引就位', () => {
+    const db = openIsolated(tmp());
+    expect(termCols(db)).toEqual(expect.arrayContaining(['review_stage', 'last_reviewed_at']));
+    const logCols = (db.prepare(`PRAGMA table_info(term_review_log)`).all() as Array<{ name: string }>).map((c) => c.name);
+    expect(logCols).toEqual(
+      expect.arrayContaining(['id', 'term_id', 'stage', 'remembered', 'reviewed_at', 'reviewed_day']),
+    );
+    for (const ix of ['idx_term_review_log_term', 'idx_term_review_log_day', 'idx_term_library_last_reviewed']) {
+      expect(db.prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name=?`).get(ix)).toBeTruthy();
+    }
+    db.close();
+  });
+
+  it('★ 不落 next_review_at：下次复习时间是派生值，落库则改间隔序列就得洗全表', () => {
+    const db = openIsolated(tmp());
+    expect(termCols(db)).not.toContain('next_review_at');
+    db.close();
+  });
+
+  it('老库升级：既有词条 review_stage=0 且 last_reviewed_at 为 NULL（= 从未复习，不是「很久前复习过」）', () => {
+    const dir = tmp();
+    const old = openIsolated(dir);
+    old.prepare(`INSERT INTO term_library (id, term, definition, domain) VALUES ('t1', '闭包', 'x', 'math')`).run();
+    old.exec(`DROP INDEX IF EXISTS idx_term_library_last_reviewed`);
+    old.exec(`ALTER TABLE term_library DROP COLUMN review_stage`);
+    old.exec(`ALTER TABLE term_library DROP COLUMN last_reviewed_at`);
+    old.exec(`DROP TABLE IF EXISTS term_review_log`);
+    old.prepare('DELETE FROM schema_version WHERE version > 22').run();
+    old.close();
+
+    const upgraded = openIsolated(dir);
+    const row = upgraded.prepare('SELECT review_stage, last_reviewed_at FROM term_library WHERE id = ?').get('t1') as {
+      review_stage: number;
+      last_reviewed_at: string | null;
+    };
+    // 老词条不该"一升级就变成复习过"，也不该"一升级就逾期很久"：起算点退到 created_at 由应用层判
+    expect(row.review_stage).toBe(0);
+    expect(row.last_reviewed_at).toBeNull();
+    upgraded.close();
+  });
+});
+
+describe('storage/db — v25 督促小窗流水迁移（docs/COACH-SPEC.md，B+C+E 批）', () => {
+  const coachCols = (db: ReturnType<typeof openIsolated>): string[] =>
+    (db.prepare(`PRAGMA table_info(coach_messages)`).all() as Array<{ name: string }>).map((c) => c.name);
+
+  it('新库 coach_messages 六列 + idx_coach_owner 索引就位', () => {
+    const db = openIsolated(tmp());
+    expect(coachCols(db)).toEqual(expect.arrayContaining(['id', 'owner_id', 'kind', 'content', 'meta', 'created_at']));
+    expect(db.prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name='idx_coach_owner'`).get()).toBeTruthy();
+    db.close();
+  });
+
+  it('★ owner_id 允许为 NULL 且无 DEFAULT（未登录单人本地模式 ≠ 空串用户）', () => {
+    const db = openIsolated(tmp());
+    const info = (db.prepare(`PRAGMA table_info(coach_messages)`).all() as Array<{
+      name: string;
+      notnull: number;
+      dflt_value: string | null;
+    }>).find((c) => c.name === 'owner_id');
+    expect(info?.notnull).toBe(0);
+    expect(info?.dflt_value).toBeNull();
+    // 真写一行：无主消息必须落得进去（本地单人模式下 ownerId 恒为 null）
+    db.prepare(`INSERT INTO coach_messages (id, owner_id, kind, content) VALUES ('m1', NULL, 'ai', '该背了')`).run();
+    expect((db.prepare('SELECT COUNT(*) AS c FROM coach_messages').get() as { c: number }).c).toBe(1);
+    db.close();
+  });
+
+  it('老库升级：新表与索引自动补回（重放迁移链不撞 duplicate）', () => {
+    const dir = tmp();
+    const old = openIsolated(dir);
+    old.exec(`DROP TABLE IF EXISTS coach_messages`);
+    old.prepare('DELETE FROM schema_version WHERE version > 23').run();
+    old.close();
+
+    const upgraded = openIsolated(dir);
+    expect(coachCols(upgraded)).toContain('kind');
+    expect(
+      upgraded.prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name='idx_coach_owner'`).get(),
+    ).toBeTruthy();
     upgraded.close();
   });
 });

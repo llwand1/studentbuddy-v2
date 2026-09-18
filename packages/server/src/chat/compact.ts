@@ -80,11 +80,12 @@ export function buildSummaryBlock(summary: string): string {
 export function buildMemoryContext(
   history: HistoryMessage[],
   sessionId: string,
+  ownerId?: string | null,
 ): { summaryBlock: string; memoryBlock: string; liveHistory: HistoryMessage[] } {
   const { summary, uptoRowid } = loadSessionSummary(sessionId);
   return {
     summaryBlock: buildSummaryBlock(summary),
-    memoryBlock: injectMemoryBlock(),
+    memoryBlock: injectMemoryBlock(ownerId),
     liveHistory: dropSummarizedHistory(history, uptoRowid),
   };
 }
@@ -251,7 +252,7 @@ function fail(sessionId: string, failure: NonNullable<CompactResult['failure']>,
  * 压缩主流程。返回 `null` 表示**本轮不需要压缩**（历史没超、丢弃量不足、或没有新内容）——
  * 属正常路径，**不记日志**（否则 event_log 会被「什么都没发生」刷满）。
  */
-async function runCompact(sessionId: string): Promise<CompactResult | null> {
+async function runCompact(sessionId: string, ownerId?: string | null): Promise<CompactResult | null> {
   const history = loadHistory(sessionId);
   if (history.length === 0) return null;
 
@@ -305,8 +306,10 @@ async function runCompact(sessionId: string): Promise<CompactResult | null> {
   const last = dropped[dropped.length - 1];
   const upto = last ? last.rowid : uptoRowid;
   applyCompact(sessionId, parsed.summary, upto, tokensBefore);
-  const added = upsertMemoryItems(parsed.items, sessionId);
-  const pruned = pruneMemoryItems();
+  // ★ 画像的归属跟着**会话的主人**走，不是跟着「谁在跑压缩」——压缩是 fire-and-forget，
+  //   跑到这里时 HTTP 请求早已结束，只能靠显式传下来的 ownerId。
+  const added = upsertMemoryItems(parsed.items, sessionId, ownerId);
+  const pruned = pruneMemoryItems(ownerId);
   recordCompact(
     sessionId,
     { ok: true, tokensBefore, uptoRowid: upto, memoryAdded: added, memoryPruned: pruned },
@@ -323,11 +326,11 @@ async function runCompact(sessionId: string): Promise<CompactResult | null> {
  *   目的是「下一轮生效」，本轮用户已经拿到回答了，没有等它的理由。
  * ★ 全链路自带降级：任何失败都只记 event_log，**绝不影响对话**（ADR-4）。
  */
-export async function compactIfNeeded(sessionId: string): Promise<CompactResult | null> {
+export async function compactIfNeeded(sessionId: string, ownerId?: string | null): Promise<CompactResult | null> {
   if (inFlight.has(sessionId)) return null;
   inFlight.add(sessionId);
   try {
-    return await runCompact(sessionId);
+    return await runCompact(sessionId, ownerId);
   } catch (err) {
     // 兜底：上面每一层都 catch 过，走到这里说明是预期外的错（如库写失败）——
     // 同样不许冒泡，它跑在 fire-and-forget 里，冒泡就是 unhandled rejection

@@ -188,3 +188,78 @@ describe('removeMemory / clearMemory（逃生口）', () => {
     expect(loadMemoryItems()).toHaveLength(0);
   });
 });
+
+/**
+ * 多租户归属（契约 docs/TENANCY-SPEC.md §7；迁移 v24）。
+ *
+ * ★ 这一组里最要紧的是**第一条**：v24 之前唯一键是 `UNIQUE(kind, content)`（全局），
+ *   两个人沉淀出同一句画像时，后写的人会 `ON CONFLICT DO UPDATE` **改写先写那一行**——
+ *   结果是「B 的记忆写不进去 + A 的画像被陌生人刷新 + B 的隐私落进 A 的记忆页」三件事同时发生。
+ *   重建表把唯一键换成 `UNIQUE(user_id, kind, content)` 才从**模型上**消灭它，
+ *   所以这里锁的是「同内容不同人 ⇒ 两条」，而不是「查询时记得过滤」。
+ */
+describe('多租户归属（user_memory.user_id）', () => {
+  const A = 'user-a';
+  const B = 'user-b';
+
+  it('同内容不同人 = 两条，互不改写（★ v24 重建表的唯一理由）', () => {
+    upsertMemoryItems([draft('preference', '喜欢先看例子再看定义', 0.3)], null, A);
+    upsertMemoryItems([draft('preference', '喜欢先看例子再看定义', 0.9)], null, B);
+
+    const a = loadMemoryItems(A);
+    const b = loadMemoryItems(B);
+    expect(a).toHaveLength(1);
+    expect(b).toHaveLength(1);
+    // 关键：A 的 importance 没被 B 的 0.9 抬上去（旧约束下会被 MAX 成 0.9）
+    expect(a[0]?.importance).toBe(0.3);
+    expect(b[0]?.importance).toBe(0.9);
+    // 且是**两行**而不是一行两个主人
+    expect(a[0]?.id).not.toBe(b[0]?.id);
+  });
+
+  it('同一人同内容仍幂等（取 MAX，不新增行）——归属不能破坏既有去重', () => {
+    upsertMemoryItems([draft('preference', '喜欢列点作答', 0.2)], null, A);
+    upsertMemoryItems([draft('preference', '喜欢列点作答', 0.8)], null, A);
+    const a = loadMemoryItems(A);
+    expect(a).toHaveLength(1);
+    expect(a[0]?.importance).toBe(0.8);
+  });
+
+  it('loadMemoryItems 只回自己的；无主（本地模式写入）与有主互不可见', () => {
+    upsertMemoryItems([draft('profile', 'A 的画像')], null, A);
+    upsertMemoryItems([draft('profile', 'B 的画像')], null, B);
+    upsertMemoryItems([draft('profile', '无主画像')], null, null); // 本地单人模式：user_id=''
+
+    expect(loadMemoryItems(A).map((m) => m.content)).toEqual(['A 的画像']);
+    expect(loadMemoryItems(B).map((m) => m.content)).toEqual(['B 的画像']);
+    // 未登录（ownerId=null）⇒ 不过滤，维持本地单用户既有行为
+    expect(loadMemoryItems(null)).toHaveLength(3);
+  });
+
+  it('removeMemory 跨用户删不掉（deletions=0 ⇒ 路由回 404，而不是 403）', () => {
+    upsertMemoryItems([draft('profile', 'A 的画像')], null, A);
+    const id = loadMemoryItems(A)[0]?.id ?? '';
+    expect(removeMemory(id, B)).toBe(false);
+    expect(loadMemoryItems(A)).toHaveLength(1); // 还在
+    expect(removeMemory(id, A)).toBe(true);
+  });
+
+  it('clearMemory 只清自己的', () => {
+    upsertMemoryItems([draft('profile', 'A1'), draft('goal', 'A2')], null, A);
+    upsertMemoryItems([draft('profile', 'B1')], null, B);
+    expect(clearMemory(A)).toBe(2);
+    expect(loadMemoryItems(A)).toHaveLength(0);
+    expect(loadMemoryItems(B)).toHaveLength(1);
+  });
+
+  it('容量上限是每人一份：A 写满也挤不掉 B 的一条', () => {
+    // A 先写满上限，B 才来——若上限按全库算，B 一条也塞不进去（早注册的人吃满配额）
+    const manyA = Array.from({ length: MEMORY_MAX_ITEMS }, (_, i) => draft('profile', `A-${i}`, 0.9));
+    upsertMemoryItems(manyA, null, A);
+    expect(pruneMemoryItems(A)).toBe(0); // 刚好等于上限，不删
+
+    upsertMemoryItems([draft('profile', 'B 的第一条', 0.4)], null, B);
+    expect(loadMemoryItems(B)).toHaveLength(1);
+    expect(pruneMemoryItems(B)).toBe(0); // B 远未到上限，不受 A 影响
+  });
+});

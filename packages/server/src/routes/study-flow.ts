@@ -13,6 +13,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { FLOW_STEP_METAS, FLOW_MAX_STEPS } from '@sb/shared';
+import { ownerIdOf } from '../auth/ownership.js';
 import {
   createDef,
   getDef,
@@ -116,7 +117,8 @@ studyFlowRouter.post('/runs', (req: Request, res: Response) => {
     res.status(400).json({ error: 'defId 必填' });
     return;
   }
-  const r = createRun(defId, { sessionId: sessionId ?? null });
+  // ★ 归属必须传下去：否则自动建的会话是孤儿，登录用户会「跑完学习流却找不到会话」
+  const r = createRun(defId, { sessionId: sessionId ?? null, userId: ownerIdOf(req) });
   if (!r.ok) {
     res.status(404).json({ error: r.error });
     return;

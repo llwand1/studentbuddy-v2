@@ -10,6 +10,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { listTerms, saveOneTerm, saveTerms, extractTerms, removeTerm, updateTerm } from '../learning/terms.js';
+import { reviewOverview, listReviewQueue, markReviewed } from '../learning/term-review.js';
 import {
   createDomain,
   updateDomain,
@@ -126,6 +127,38 @@ termsRouter.post('/extract', async (req: Request, res: Response) => {
   }
   const added = saveTerms(items, sourceSessionId ?? null);
   res.json({ added, items });
+});
+
+/**
+ * 复习打卡（v23 艾宾浩斯）：`remembered: true` 推进一个节点，`false` 归零重来。
+ * ★ `remembered` **必须是布尔**（不接受 `"true"` 字符串）：这里没有「没填」的合理默认——
+ *   猜成记住会让用户白丢一次复习，猜成忘了会让阶段倒退；**这种二选一的字段一律显式**。
+ */
+termsRouter.post('/:id/review', (req: Request, res: Response) => {
+  const remembered = (req.body as { remembered?: unknown } | undefined)?.remembered;
+  if (typeof remembered !== 'boolean') {
+    res.status(400).json({ error: 'remembered 必填且必须是布尔值' });
+    return;
+  }
+  const row = markReviewed(req.params.id ?? '', remembered);
+  if (!row) {
+    res.status(404).json({ error: '词条不存在' });
+    return;
+  }
+  res.json(row);
+});
+
+/** 复习概览（今日欠账 + 阶段分布 + 近 7 天复习量）。放在 `/:id` 之前，免得被路径参数吞掉。 */
+termsRouter.get('/review/overview', (req: Request, res: Response) => {
+  const domain = typeof req.query.domain === 'string' ? req.query.domain : undefined;
+  res.json(reviewOverview(domain));
+});
+
+/** 今日复习队列（按逾期天数降序 = 先还旧账）。`limit` 的归一在域层，这里不自己钳。 */
+termsRouter.get('/review/queue', (req: Request, res: Response) => {
+  const domain = typeof req.query.domain === 'string' ? req.query.domain : undefined;
+  const raw = Number(req.query.limit);
+  res.json(listReviewQueue(Number.isFinite(raw) ? raw : undefined, domain));
 });
 
 termsRouter.put('/:id', (req: Request, res: Response) => {

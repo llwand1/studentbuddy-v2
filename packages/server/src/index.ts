@@ -5,7 +5,8 @@
 import express from 'express';
 import cors from 'cors';
 import { securityHeaders, originCheck, isAllowedOrigin } from './security.js';
-import { sessionsRouter, chatRouter, providersRouter, settingsRouter, initChatInfra } from './routes.js';
+import { sessionsRouter, providersRouter, settingsRouter, initChatInfra } from './routes.js';
+import { chatRouter } from './routes/chat.js';
 import { choiceRouter } from './routes/choice.js';
 import { sweepStaleChoices } from './chat/choice.js';
 import { quizRouter } from './routes/quiz.js';
@@ -17,12 +18,16 @@ import { activityRouter } from './routes/activity.js';
 import { obsRouter } from './routes/obs.js';
 import { previewRouter } from './routes/preview.js';
 import { pkRouter } from './routes/pk.js';
+import { authRouter } from './routes/auth.js';
 import { studyFlowRouter } from './routes/study-flow.js';
 import { scenarioRouter } from './routes/scenario.js';
+import { coachRouter } from './routes/coach.js';
 import { registerDefaultExecutors } from './learning/flow-executors.js';
 import { wireActivityEvents } from './learning/activity.js';
 import { wireObsEvents } from './storage/obs.js';
 import { getDb } from './storage/db.js';
+import { requireAuth, attachUser } from './auth/middleware.js';
+import { purgeExpiredSessions } from './auth/session.js';
 import type { StatusResponse } from '@sb/shared';
 import { VERSION } from './version.js';
 
@@ -55,12 +60,46 @@ app.use((req, res, next) => {
 });
 app.use('/api', originCheck);
 
+/**
+ * 身份**软解析**（契约 docs/TENANCY-SPEC.md §4）：有会话就把用户挂到 `req.authUser`，从不 401。
+ *
+ * ★ 无条件挂载、且与下面的 `requireAuth` **刻意分开**：数据隔离（`ownerIdOf`）依赖这里解析出的
+ *   身份，而它必须在「强制登录开关未开」时也一样工作——否则登录用户的请求 owner 恒为 null，
+ *   归属过滤被整体跳过 ⇒ **隔离形同虚设**。强制登录只是部署形态的选择，不影响「我是谁」的解析。
+ */
+app.use('/api', attachUser);
+
+/**
+ * 可选强制鉴权（契约 docs/AUTH-SPEC.md §3）。
+ *
+ * ★ 默认**关**（`SB_REQUIRE_AUTH` 未设）——只有账号、没有数据隔离时贸然强制鉴权，
+ *   会让「所有登录用户互相看到全部数据」（现有 sessions/messages/题库/笔记全是全局表）。
+ *   等 M2 把 `user_id` 隔离做完，两者**同一批打开**。
+ * ★ 豁免是「必须公开」的白名单：登录端点自身不能要求登录；status/health 是探活。
+ * ★ 只管 `/api/*`——非 api 路径（静态/未知路由）放行给各自的处理器，不在这里 401。
+ */
+const REQUIRE_AUTH = process.env.SB_REQUIRE_AUTH === '1';
+
+function isAuthProtected(path: string): boolean {
+  if (!path.startsWith('/api/')) return false;
+  return !/^\/api\/(auth(\/|$)|status$|health$)/.test(path);
+}
+
+app.use((req, res, next) => {
+  if (!REQUIRE_AUTH || !isAuthProtected(req.path)) {
+    next();
+    return;
+  }
+  requireAuth(req, res, next);
+});
+
 app.get<never, StatusResponse>('/api/status', (_req, res) => {
   const db = getDb();
   const count = (db.prepare('SELECT COUNT(*) AS c FROM providers').get() as { c: number }).c;
   res.json({ hasProviders: count > 0, version: VERSION });
 });
 
+app.use('/api/auth', authRouter);
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/providers', providersRouter);
@@ -77,6 +116,8 @@ app.use('/api/pk', pkRouter);
 app.use('/api/choices', choiceRouter);
 app.use('/api/study-flow', studyFlowRouter);
 app.use('/api/scenario', scenarioRouter);
+// v25 复习督促小窗（B+C+E，契约 docs/COACH-SPEC.md）：独立链路，不挂在 /api/chat 上
+app.use('/api/coach', coachRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
@@ -103,6 +144,8 @@ if (process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('index.js
   const swept = sweepStaleChoices();
   // eslint-disable-next-line no-console -- 进程启动日志，与下面的启动横幅同类
   if (swept > 0) console.log(`[sb-server] 已作废 ${swept} 条重启前挂起的方案选择`);
+  // 账号：启动兜底清理过期会话（除惰性清理外，保证长跑实例的 auth_sessions 不被过期行撑大）
+  purgeExpiredSessions();
   startServer();
   // eslint-disable-next-line no-console -- 启动横幅是进程日志，非调试输出
   console.log(`[sb-server] listening on http://${HOST}:${PORT} (v${VERSION})`);

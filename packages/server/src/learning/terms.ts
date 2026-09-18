@@ -41,6 +41,10 @@ export interface TermRow {
   last_used_at: string | null;
   created_at: string;
   updated_at: string;
+  /** 复习阶段 0..MAX_REVIEW_STAGE（v23 艾宾浩斯；0 = 还没复习过） */
+  review_stage: number;
+  /** 上次复习时间（**null = 从未复习**，起算点退到 `created_at`） */
+  last_reviewed_at: string | null;
 }
 
 /** API 返回形状（aliases 已解析；routes 直接 res.json 该形状） */

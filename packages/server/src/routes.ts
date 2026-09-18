@@ -5,13 +5,8 @@ import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { getDb } from './storage/db.js';
-import { handleMessage } from './chat/flow.js';
-import { parseIncomingImages } from './chat/vision.js';
 import { cancelChoicesBySession } from './chat/choice.js';
-import { planRegenerate } from './chat/regenerate.js';
-import { planResend } from './chat/resend.js';
-import { snapshot } from './chat/sse-bus.js';
-import { subscribe, startHeartbeat } from './chat/sse-bus.js';
+import { snapshot, startHeartbeat } from './chat/sse-bus.js';
 import { getProviders, seedIfEmpty, MODEL_ROLES } from './llm/router.js';
 import { OpenAICompatibleAdapter } from './llm/openai.js';
 import { AnthropicAdapter } from './llm/anthropic.js';
@@ -25,26 +20,39 @@ import {
   isAnswerStyleConfigured,
 } from './storage/answer-style.js';
 import { DEFAULT_ANSWER_STYLE, normalizeQuizMix } from '@sb/shared';
+import { ownerIdOf, ownerFilter, canAccessSession, insertSession } from './auth/ownership.js';
 
 // ── sessions ──────────────────────────────────────────────
 export const sessionsRouter = Router();
 
-sessionsRouter.get('/', (_req, res) => {
+/**
+ * ★ 多租户隔离（契约 docs/TENANCY-SPEC.md §5）：列表只返回**自己的**会话。
+ *   未登录（单人本地模式，`ownerId === null`）时 `ownerFilter` 不加条件 ⇒ 旧行为不变。
+ */
+sessionsRouter.get('/', (req: Request, res: Response) => {
+  const f = ownerFilter(ownerIdOf(req));
   const rows = getDb()
-    .prepare(`SELECT id, title, pinned, created_at, updated_at FROM sessions WHERE deleted_at IS NULL ORDER BY pinned DESC, updated_at DESC`)
-    .all();
+    .prepare(
+      `SELECT id, title, pinned, created_at, updated_at FROM sessions WHERE deleted_at IS NULL${f.sql} ORDER BY pinned DESC, updated_at DESC`,
+    )
+    .all(...f.params);
   res.json(rows);
 });
 
 sessionsRouter.post('/', (req: Request, res: Response) => {
   const id = randomUUID();
-  getDb().prepare(`INSERT INTO sessions (id) VALUES (?)`).run(id);
+  insertSession(id, ownerIdOf(req));
   const row = getDb().prepare(`SELECT id, title, pinned, created_at, updated_at FROM sessions WHERE id = ?`).get(id);
   res.status(201).json(row);
 });
 
 sessionsRouter.delete('/:id', (req: Request, res: Response) => {
   const id = req.params.id ?? '';
+  // ★ 归属断言在前：不归属一律 404（不回 403，避免泄露「这个 id 存在」，TENANCY-SPEC §5）
+  if (!canAccessSession(id, ownerIdOf(req))) {
+    res.status(404).json({ error: '会话不存在' });
+    return;
+  }
   // 逃生口②：删会话连带作废挂起的方案选择。会话都没了，那张卡再也无人能点，
   // 不作废则对应的 ask_choice 永久悬挂（与「停止生成」同源处置，见 chat/flow.ts）。
   cancelChoicesBySession(id, '会话已删除');
@@ -58,9 +66,10 @@ sessionsRouter.patch('/:id/pinned', (req: Request, res: Response) => {
     res.status(400).json({ error: 'pinned 必须是布尔值' });
     return;
   }
+  const f = ownerFilter(ownerIdOf(req));
   const r = getDb()
-    .prepare(`UPDATE sessions SET pinned = ? WHERE id = ? AND deleted_at IS NULL`)
-    .run(pinned ? 1 : 0, (req.params.id ?? ''));
+    .prepare(`UPDATE sessions SET pinned = ? WHERE id = ? AND deleted_at IS NULL${f.sql}`)
+    .run(pinned ? 1 : 0, req.params.id ?? '', ...f.params);
   if (r.changes === 0) {
     res.status(404).json({ error: '会话不存在' });
     return;
@@ -76,136 +85,27 @@ sessionsRouter.patch('/:id/pinned', (req: Request, res: Response) => {
  * 本接口只做透传不加工。
  */
 sessionsRouter.get('/:id/messages', (req: Request, res: Response) => {
+  const id = req.params.id ?? '';
+  // ★ 子表随父表：messages 没有 user_id 列，归属由父会话断言（TENANCY-SPEC §1）
+  if (!canAccessSession(id, ownerIdOf(req))) {
+    res.status(404).json({ error: '会话不存在' });
+    return;
+  }
   const rows = getDb()
     .prepare(
       `SELECT id, role, content, tool_calls, tool_call_id, reasoning, tasks, images, created_at FROM messages WHERE session_id = ? ORDER BY created_at, rowid`,
     )
-    .all((req.params.id ?? ''));
+    .all(id);
   res.json(rows);
 });
 
 sessionsRouter.get('/:id/live', (req: Request, res: Response) => {
-  res.json({ events: snapshot((req.params.id ?? '')) });
-});
-
-// ── chat（REST 发送 + SSE 流）──────────────────────────────
-export const chatRouter = Router();
-
-/** 进行中的会话中止器（sessionId → AbortController），POST abort 时触发 */
-const aborters = new Map<string, AbortController>();
-
-chatRouter.post('/send', (req: Request, res: Response) => {
-  const { sessionId, text, images, grillMe } = req.body as {
-    sessionId?: string;
-    text?: string;
-    images?: Array<{ dataUrl?: string; name?: string }>;
-    grillMe?: boolean;
-  };
-  // v17 看图：闸门在 chat/vision.ts；空提问＝「字和图都没有」（纯图片提问正当，别在这 400）
-  const parsed = parseIncomingImages(images);
-  if (!parsed.ok) {
-    res.status(400).json({ error: parsed.error });
+  const id = req.params.id ?? '';
+  if (!canAccessSession(id, ownerIdOf(req))) {
+    res.status(404).json({ error: '会话不存在' });
     return;
   }
-  if (!sessionId || typeof text !== 'string' || (!text.trim() && parsed.images.length === 0)) {
-    res.status(400).json({ error: 'sessionId 与 text 必填' });
-    return;
-  }
-  const controller = new AbortController();
-  aborters.set(sessionId, controller);
-  // 异步执行，立即返回（流式走 SSE）
-  handleMessage({
-    sessionId,
-    text,
-    images: parsed.images.length > 0 ? parsed.images : undefined,
-    grillMe: grillMe === true,
-    signal: controller.signal,
-  })
-    .catch(() => undefined) // 异常经 sse-bus 上报，此处吞掉防 unhandled rejection
-    .finally(() => {
-    if (aborters.get(sessionId) === controller) aborters.delete(sessionId);
-  });
-  res.json({ ok: true });
-});
-
-chatRouter.post('/regenerate', (req: Request, res: Response) => {
-  const { sessionId } = req.body as { sessionId?: string };
-  if (!sessionId) {
-    res.status(400).json({ error: 'sessionId 必填' });
-    return;
-  }
-  const plan = planRegenerate(sessionId);
-  if (!plan.ok || !plan.text) {
-    res.status(400).json({ error: plan.error ?? '无法重新生成' });
-    return;
-  }
-  const controller = new AbortController();
-  aborters.set(sessionId, controller);
-  // skipUserPersist：提问仍在库里（planRegenerate 只删它之后的产物），不能再插一条
-  handleMessage({ sessionId, text: plan.text, signal: controller.signal, skipUserPersist: true })
-    .catch(() => undefined)
-    .finally(() => {
-      if (aborters.get(sessionId) === controller) aborters.delete(sessionId);
-    });
-  res.json({ ok: true });
-});
-
-/**
- * 编辑重发（v13 体验升级）：把最后一条提问改成新文案后重跑。
- * planResend 已删掉旧提问之后的全部产物并更新提问内容，故同样走 skipUserPersist。
- * 屏上同步口径由前端负责（与 regenerate 一致：保留最后一条提问及其之前）。
- */
-chatRouter.post('/resend', (req: Request, res: Response) => {
-  const { sessionId, text } = req.body as { sessionId?: string; text?: string };
-  if (!sessionId || typeof text !== 'string' || !text.trim()) {
-    res.status(400).json({ error: 'sessionId 与 text 必填' });
-    return;
-  }
-  const plan = planResend(sessionId, text);
-  if (!plan.ok || !plan.text) {
-    res.status(400).json({ error: plan.error ?? '无法编辑重发' });
-    return;
-  }
-  const controller = new AbortController();
-  aborters.set(sessionId, controller);
-  handleMessage({ sessionId, text: plan.text, signal: controller.signal, skipUserPersist: true })
-    .catch(() => undefined)
-    .finally(() => {
-      if (aborters.get(sessionId) === controller) aborters.delete(sessionId);
-    });
-  res.json({ ok: true });
-});
-
-chatRouter.post('/abort', (req: Request, res: Response) => {
-  const { sessionId } = req.body as { sessionId?: string };
-  if (sessionId) aborters.get(sessionId)?.abort();
-  res.json({ ok: true });
-});
-
-/**
- * 正在生成回复的会话 id 列表（前端侧栏「回复中」提示的唯一事实源）。
- *
- * ★ 为什么这件事必须由服务端说：**生成不随页面切换而中止**——断开 SSE 只是在
- *   `sse-bus.subscribe` 的 `res.on('close')` 里把订阅者摘掉（实测该处只 `clients.delete`，
- *   不碰任何 AbortController），`handleMessage` 照跑照落库。而前端只能感知「当前挂载的那个会话」，
- *   一切走就再也无从知道原会话是否还在生成 ⇒ 只能问服务端。
- * ★ 为什么用 `aborters` 当真相：send / regenerate / resend 三条发起路径都在开跑前登记、
- *   在 `finally` 里摘除，它就是「正在生成」的完整集合，不需要再造一份状态（避免双真相源漂移）。
- * ★ 为什么不做成 SSE 事件：那要引入跨会话的全局频道，而本仓 sse-bus 的隔离设计正是
- *   「按 sessionId 分隔、禁通配订阅」（v1 串台教训）。为此破例不划算，2s 轮询足够。
- */
-chatRouter.get('/active', (_req, res) => {
-  res.json({ sessionIds: [...aborters.keys()] });
-});
-
-chatRouter.get('/stream', (req: Request, res: Response) => {
-  const sessionId = String(req.query.sessionId ?? '');
-  if (!sessionId) {
-    res.status(400).json({ error: 'sessionId 必填' });
-    return;
-  }
-  const since = Number(req.query.since ?? 0) || 0;
-  subscribe(sessionId, res, since);
+  res.json({ events: snapshot(id) });
 });
 
 // ── providers / 角色绑定 ──────────────────────────────────
@@ -213,9 +113,7 @@ export const providersRouter = Router();
 
 providersRouter.get('/', (_req, res) => {
   seedIfEmpty();
-  res.json(
-    getProviders().map((p) => p), // api_key 密文永不出现在响应中
-  );
+  res.json(getProviders()); // 内部已显式挑选出站字段（无 api_key），不必再 map 一层
 });
 
 providersRouter.post('/', (req: Request, res: Response) => {

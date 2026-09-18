@@ -5,7 +5,7 @@
 import type { ToolDefinition } from '../llm/types.js';
 import type { TidySummary } from '@sb/shared';
 import type { GrillPhase } from '@sb/shared';
-import { searchWeb, resultsToContext, listKeyStatus } from '../search/index.js';
+import { searchWeb, resultsToContext } from '../search/index.js';
 import { tidyTerms, mergeTerms, renameDomain } from '../learning/tidy.js';
 import { createDomain, removeDomain } from '../learning/domains.js';
 import { saveOneTerm, updateTerm, removeTerm, findTermByName } from '../learning/terms.js';
@@ -48,7 +48,14 @@ registry.set('search_web', {
     type: 'function',
     function: {
       name: 'search_web',
-      description: '联网搜索。用于：概念查证、时效性问题、找资料/找题。返回带来源的搜索结果。',
+      // description 是**写给模型的提示词**（2026-09-17 重写，bug-ledger B-006）：原先只有一句
+      // 名词短语，模型读不出「这是我随时能调、而且该主动调的能力」。改为正面陈述 + 触发场景 + 示例
+      // （同 `chat/choice-tool.ts` 的写法：正面为主，否定条款只留必要的）。
+      description:
+        '联网搜索。你**具备**这个能力，可随时调用。适用：学习者说"搜一下/联网查/查最新/百度一下"、' +
+        '要核实不熟悉的人名/品牌/名词/事件、时效性问题（最新进展、今天的新闻、实时数据）、找资料找题。' +
+        '示例：学习者说「牛来是什么」→ 直接调 search_web({query:"牛来"})。' +
+        '他给的词再模糊也先用它搜一次，不要反问他搜什么。返回带来源的搜索结果；确实无结果时如实说明"这次没搜到"。',
       parameters: {
         type: 'object',
         properties: { query: { type: 'string', description: '搜索词（中文即可）' } },
@@ -65,12 +72,16 @@ registry.set('search_web', {
     ctx.onStep('search_web', 'running', query);
     const { results, providers, failed } = await searchWeb(query, { signal: ctx.signal });
     if (results.length === 0) {
-      const noKey = !Object.values(listKeyStatus()).some(Boolean);
-      const guide = noKey
-        ? '未配置搜索 key（当前为免 key 兜底，本网络可能不可达）。请到设置页配置搜索 key（推荐智谱，国产可达）后重试，或基于已有知识回答。'
-        : '搜索失败或无结果。请基于已有知识回答并说明未联网核实。';
+      // 回灌口径（2026-09-17 重写，bug-ledger B-006）：此前把「未配置搜索 key（免 key 兜底）/
+      // 本网络可能不可达」这类**内部配置细节**直接甩给模型，模型转述出来就成了"我没有联网功能"
+      // ——2026-09-09 那轮「我无法获取今日新闻，因为…没有联网功能」正是这段话的产物；
+      // 末尾那句「或基于已有知识回答」又给了它一个放弃的台阶。
+      // 故改为：① 不暴露配置细节；② 明确「你有这能力，只是这次没命中」；③ 不给放弃的台阶。
+      const guide =
+        '本次联网检索没有返回结果。你**具备**联网检索能力，只是这一次没命中（可换更具体的词再试一次）；' +
+        '仍无结果就如实告诉学习者"这次没搜到"，但不要说自己没有联网能力。';
       ctx.onStep('search_web', 'error', failed.join('; ') || '无结果');
-      return { content: `${guide} [原因：${failed.join('; ') || '无结果'}]` };
+      return { content: `${guide} [检索通道返回：${failed.join('; ') || '无结果'}]` };
     }
     const from = providers.filter((p) => p !== 'cache');
     ctx.onStep('search_web', 'done', `${results.length} 条结果${from.length > 0 ? `（来源 ${from.join('、')}）` : '（缓存）'}`);

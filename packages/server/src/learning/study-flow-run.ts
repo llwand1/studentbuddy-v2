@@ -27,6 +27,7 @@ import { getDb } from '../storage/db.js';
 import { findFlowStepMeta, FLOW_MAX_STEPS } from '@sb/shared';
 import type { FlowPort, FlowRun, FlowRunStatus, FlowRunStep, FlowStepKind } from '@sb/shared';
 import { getDef } from './study-flow.js';
+import { insertSession } from '../auth/ownership.js';
 import { getExecutor, registeredKinds } from './flow-registry.js';
 import type { FlowStepContext } from './flow-registry.js';
 import { ensureNode, deriveDomainEdges } from './knowledge-graph.js';
@@ -130,7 +131,11 @@ export type CreateRunResult = { ok: true; run: FlowRun } | { ok: false; error: s
  * 未给 sessionId 时**自动建一个会话**——学习流的意义就是「在对话里学」，没有会话它无处产出
  * 词条/笔记；让调用方先建会话只会把这份责任推给前端而毫无好处。
  */
-export function createRun(defId: string, opts?: { sessionId?: string | null }): CreateRunResult {
+/**
+ * @param opts.userId 会话归属者（TENANCY-SPEC §1）。★ 不传＝孤儿会话，登录用户将**看不到它**
+ *   （比泄露更隐蔽的 bug：学习流跑完却找不到会话），故由调用方显式从 `ownerIdOf(req)` 传入。
+ */
+export function createRun(defId: string, opts?: { sessionId?: string | null; userId?: string | null }): CreateRunResult {
   const def = getDef(defId);
   if (!def) return { ok: false, error: '学习流不存在' };
   if (def.steps.length === 0) return { ok: false, error: '这条学习流没有步骤，无法运行' };
@@ -149,7 +154,8 @@ export function createRun(defId: string, opts?: { sessionId?: string | null }): 
   db.transaction(() => {
     if (!sessionId) {
       sessionId = randomUUID();
-      db.prepare('INSERT INTO sessions (id, title) VALUES (?, ?)').run(sessionId, `学习流：${def.name}`);
+      // 走 auth/ownership 的唯一落点：user_id 由签名强制传入，杜绝"忘了写归属列"
+      insertSession(sessionId, opts?.userId ?? null, `学习流：${def.name}`);
     }
     db.prepare(
       `INSERT INTO flow_run (id, def_id, def_snapshot, def_version, session_id, status)

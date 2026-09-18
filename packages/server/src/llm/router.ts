@@ -21,6 +21,11 @@ export const MODEL_ROLES: Array<{ role: ModelRole; label: string }> = [
   // v17 新增：视觉（看图）。纯文本主模型借它「读图」——图→视觉模型→文字描述→塞回主模型上下文。
   // 数组驱动 ⇒ 设置页「角色模型绑定」自动多出一列，无需额外写 UI；未绑定时 flow 给清晰报错。
   { role: 'vision', label: '视觉（看图）' },
+  // v25 新增：督促（复习陪练）。小窗里那个盯着欠账说话的 AI。
+  // ★ 与 vision 不同，**未绑定不是错误**：`learning/coach.ts` 的 resolveCoachTarget()
+  //   会回退讲解模型——督促本质是日常对话，而老库升级后 role_bindings 里本来就没有这一行，
+  //   若按「必须绑定」处理，用户看到的是「该角色还没绑定模型」而他从没改过任何设置。
+  { role: 'coach', label: '督促（复习陪练）' },
 ];
 
 const adapters: Record<'openai' | 'anthropic', LLMAdapter> = {

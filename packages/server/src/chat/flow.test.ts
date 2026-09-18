@@ -26,6 +26,8 @@ const stub = vi.hoisted(() => ({
   lastMessages: [] as Array<{ role: string; content: string }>,
   /** 本轮全部 chat() 调用（按序）——用于断言「首轮注入、次轮已摘除」这类跨轮变化 */
   allMessages: [] as Array<Array<{ role: string; content: string }>>,
+  /** 每次 chat() 收到的 toolChoice（按序）——v18.4 断言「首轮强绑、turn 1 放开」 */
+  toolChoices: [] as unknown[],
 }));
 
 vi.mock('../llm/router.js', () => ({
@@ -35,7 +37,7 @@ vi.mock('../llm/router.js', () => ({
     baseUrl: 'http://127.0.0.1:1/v1',
     adapter: {
       type: 'openai' as const,
-      async *chat(args: { messages: Array<{ role: string; content: string }> }) {
+      async *chat(args: { messages: Array<{ role: string; content: string }>; toolChoice?: unknown }) {
         // ★ 摘要角色的调用**不进 turn 队列**：长期记忆压缩是收尾后异步触发的（MEMORY-SPEC §4.1），
         //   它与主流程无交互，却会走同一个 routeRole。不分角色的话，压缩会在测例结束前后
         //   偷走下一测例的 `turns[0]`（`idx` 已被 beforeEach 归零）——表现为随机失败，
@@ -46,6 +48,7 @@ vi.mock('../llm/router.js', () => ({
         //   于是「首轮有 nudge」永远断不出来（实测踩到：断言恒 false，而代码是对的）。
         stub.lastMessages = [...args.messages];
         stub.allMessages.push([...args.messages]);
+        stub.toolChoices.push(args.toolChoice);
         const turn = stub.turns[stub.idx++];
         if (turn instanceof Error) throw turn;
         for (const chunk of turn ?? []) yield chunk;
@@ -182,6 +185,7 @@ beforeEach(() => {
   stub.searchSnippet = 'F=ma';
   stub.lastMessages = [];
   stub.allMessages = [];
+  stub.toolChoices = [];
   resetAnswerStyle(); // 偏好落 app_settings，不清就会流到下一个测例
   termsStub.relevant = [];
   termsStub.queries = [];
@@ -401,18 +405,25 @@ describe('单轨工具循环', () => {
     expect(list.filter((x) => x.role === 'tool').length).toBe(9);
   });
 
-  it('无 key 且搜索失败 → 工具结果回灌明确引导（去设置页配搜索 key）', async () => {
+  it('搜索失败 → 回灌「你有这能力、只是这次没命中」（不泄漏内部配置、不给放弃台阶）', async () => {
     const sid = newSession();
     stub.searchFail = 'lite: 超时; instant: 超时';
-    stub.turns = [toolCallTurn(''), [{ content: '基于已有知识回答。', done: true }]];
+    stub.turns = [toolCallTurn(''), [{ content: '这次没搜到。', done: true }]];
 
     const r = await handleMessage({ sessionId: sid, text: 'q' });
     expect(r.ok).toBe(true);
 
     const list = rows(sid);
     const toolMsg = list.find((x) => x.role === 'tool');
-    expect(toolMsg?.content).toContain('未配置搜索 key');
-    expect(toolMsg?.content).toContain('智谱');
+    // 2026-09-17 重写口径（bug-ledger B-006）：旧文案把「未配置搜索 key（免 key 兜底）/
+    // 本网络可能不可达」这类**内部配置细节**甩给模型，模型转述出来就成了"我没有联网功能"
+    // ——故这里对旧表述做**反向断言**，防它改回来。
+    expect(toolMsg?.content).toContain('本次联网检索没有返回结果');
+    expect(toolMsg?.content).toContain('具备');
+    expect(toolMsg?.content).toContain('不要说自己没有联网能力');
+    expect(toolMsg?.content).not.toContain('未配置搜索 key');
+    expect(toolMsg?.content).not.toContain('智谱');
+    // 检索通道的失败原因仍如实回灌（模型据此判断要不要换词重试）
     expect(toolMsg?.content).toContain('lite: 超时');
   });
 
@@ -810,6 +821,59 @@ describe('日期段注入', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+/**
+ * v18.4 联网开关的工程强绑（bug-ledger B-006 的根因修复）。
+ *
+ * 为什么单独立一组：此前 `online`（UI「联网已开」pill）**压根没进 `/chat/send`**——
+ * 开关只是装饰；而即便接上，靠提示词求模型「主动搜」仍不可靠（`search-nudge.ts` 记着这层）。
+ * 这组用例钉的是**机器证据**：开关打开时首轮出站请求真的带着 `tool_choice=search_web`，
+ * 且只绑首轮、指令出循环即摘。
+ */
+describe('联网开关的首轮强绑（v18.4）', () => {
+  it('online=true → 首轮强绑 search_web，turn 1 起放开', async () => {
+    const sid = newSession();
+    stub.turns = [toolCallTurn(''), [{ content: '根据检索结果…', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: '牛来是什么', online: true });
+
+    expect(stub.toolChoices).toHaveLength(2);
+    expect(stub.toolChoices[0]).toEqual({ type: 'function', name: 'search_web' });
+    // turn 1 必须放开：锁死会变成「搜完还要再搜」，正文永远出不来
+    expect(stub.toolChoices[1]).toBeUndefined();
+  });
+
+  it('online 缺省 → 全程不干预（保持适配器默认的 auto）', async () => {
+    const sid = newSession();
+    stub.turns = [[{ content: '等于 2', done: true }]];
+    await handleMessage({ sessionId: sid, text: '1+1' });
+    expect(stub.toolChoices).toEqual([undefined]);
+  });
+
+  it('联网硬指令随首轮注入、出循环即摘（留着会让每一轮都重搜）', async () => {
+    const sid = newSession();
+    stub.turns = [toolCallTurn(''), [{ content: '正文', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: '牛来是什么', online: true });
+
+    const hasForce = (msgs: Array<{ content: string }>) => msgs.some((m) => m.content.includes('已开启联网搜索'));
+    expect(hasForce(stub.allMessages[0]!)).toBe(true);
+    expect(hasForce(stub.allMessages[1]!)).toBe(false);
+  });
+
+  it('grill-me 与联网同开 → 强绑名额归 grill（GRILL_PRE 是硬性表述，冲突更大）', async () => {
+    const sid = newSession();
+    // 模型这一轮不调 ask_choice：调了会挂起等用户点选（pre 段的挂起语义由 choice.test.ts 锁，此处只验出站参数）
+    stub.turns = [[{ content: '正文', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: '讲讲二分查找', grillMe: true, online: true });
+
+    expect(stub.toolChoices[0]).toEqual({ type: 'function', name: 'ask_choice' });
+    // 两段指令合成一条开场消息（不拆两条）：位置与用途相同，拆开只多占一次消息开销
+    const opening = stub.allMessages[0]!.find((m) => m.content.includes('已开启联网搜索'));
+    expect(opening?.content).toContain('第一个动作必须是调用 ask_choice');
   });
 });
 

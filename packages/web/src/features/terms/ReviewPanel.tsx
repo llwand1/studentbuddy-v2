@@ -32,6 +32,11 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
   const [overview, setOverview] = useState<ReviewOverview | null>(null);
   const [queue, setQueue] = useState<ReviewTermItem[]>([]);
   const [loading, setLoading] = useState(true);
+  /**
+   * 队列默认**收起**（v23.1）：本页的主体是词条库，而队列一展开就是 20 条（实测 2073px），
+   * 会把词条库本体连同搜索/添加一起挤出可视区。收起态保留一行欠账摘要，信息不丢。
+   */
+  const [open, setOpen] = useState(false);
   const [revealed, setRevealed] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -75,13 +80,26 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
       <div className="rv-head">
         <ClockIcon size={15} />
         <b>复习计划</b>
-        <span className="rv-sched">经典节点 {SCHEDULE_TEXT}</span>
+        {/* 收起态也要回答「今天欠多少」——摘要与展开态同源（`overview`），不另算一套口径 */}
+        {overview && (
+          <span className="rv-sum">
+            <span className="rv-sum-warn">逾期 {overview.overdue}</span>
+            <span>待复习 {overview.due}</span>
+            <span>今日已复习 {overview.todayDone}</span>
+          </span>
+        )}
+        {/* 展开/收起是**本页布局的必需开关**（不是可选装饰）：展开才会让队列参与高度分配 */}
+        <button className="rv-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          {open ? '收起队列' : '展开队列'}
+          <i className={open ? 'rv-caret on' : 'rv-caret'} />
+        </button>
       </div>
 
       {loading && !overview && <div className="rv-loading">正在算欠账…</div>}
 
-      {overview && (
+      {open && overview && (
         <>
+          <div className="rv-sched">经典节点 {SCHEDULE_TEXT}</div>
           <div className="rv-stats">
             <span className="rv-stat">
               <b>{overview.due}</b> 待复习
@@ -112,7 +130,9 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
         </>
       )}
 
-      <div className="rv-queue-head">今日队列（先还旧账）</div>
+      {open && (
+        <>
+          <div className="rv-queue-head">今日队列（先还旧账）</div>
 
       {!loading && queue.length === 0 && (
         <div className="rv-empty">
@@ -159,7 +179,9 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
             </div>
           </div>
         ))}
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

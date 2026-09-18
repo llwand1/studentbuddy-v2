@@ -1,106 +1,172 @@
 # studentbuddy v2
 
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![tests](https://img.shields.io/badge/tests-125%20files%20%2F%201767%20cases-brightgreen)
-![coverage](https://img.shields.io/badge/coverage-51.4%25%20lines%20%2F%2079.8%25%20branch-f59e0b)
-![api](https://img.shields.io/badge/REST%20endpoints-48-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-39%20types-8a63f6)
-![deps](https://img.shields.io/badge/runtime%20deps-8%20%28shared%200%29-blue)
-![stack](https://img.shields.io/badge/stack-React%2018%20·%20Express%20·%20SQLite-8a63f6)
+![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
+![tests](https://img.shields.io/badge/tests-129%20files%20%2F%201845%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-127-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-124%20types-8a63f6)
+![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
+![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
-> 实测基线与口径见 [docs/metrics.md](docs/metrics.md)（2026-09-06 全量采集）。
-
-> 本地优先的 AI 学习助手（学习版豆包）：**学 → 练 → 析 → 忆 → 反馈**闭环。
-> v2 全新重写仓——v1（[llwand1/studentbuddy](https://github.com/llwand1/studentbuddy)，已冻结）按「需求为纲、简洁优先」六条 ADR 从零重写为本仓。
+> **studentbuddy —— 你的专属学习助手。** 本地优先的 AI 学习产品：**学 → 练 → 析 → 忆 → 反馈** 五环闭环，同一套代码既可**单机本地运行**，也可作为**多用户 Web 服务**部署。
+>
+> v2 是全新重写仓（v1 [`llwand1/studentbuddy`](https://github.com/llwand1/studentbuddy) 已冻结），按「需求为纲、简洁优先」六条 ADR 从零建成。
+>
+> ⚠️ **当前处于上线准备阶段**（`2.0.0-alpha.0`）：账号体系与数据归属逐批收口中，**公网部署的前置闸门尚未清空**，现状请直接读 [§当前状态](#当前状态) 与 [§已知限制](#已知限制)，不要据此镜像部署。
+>
+> 📌 本文所有定量数字为**快照**，取数口径与日期逐条标注；**权威口径**在 `docs/dev/test-plan.md` §3（测试基线）与 `docs/dev/launch-plan.md` §2（上线阶梯），冲突时以那两份为准。
 
 ## 目录
 
 - [这是什么](#这是什么)
+- [当前状态](#当前状态)
 - [核心优势](#核心优势)
 - [功能总览](#功能总览)
 - [内容块协议](#内容块协议)
 - [架构](#架构)
-- [安全设计](#安全设计)
+- [安全与隐私设计](#安全与隐私设计)
+- [部署形态](#部署形态)
 - [快速开始](#快速开始)
-- [v1 数据迁移](#v1-数据迁移)
 - [仓库结构](#仓库结构)
 - [开发指南](#开发指南)
 - [配置说明](#配置说明)
+- [v1 数据迁移](#v1-数据迁移)
 - [里程碑](#里程碑)
 - [已知限制](#已知限制)
-- [文档体系](#文档体系)
+- [文档索引](#文档索引)
 
 ## 这是什么
 
-一个跑在本机的单用户 AI 学习助手：`api(Express :18791，仅 127.0.0.1) + web(Vite :5173)`，浏览器访问，所有数据存本地 SQLite 单文件（WAL），**不上云、零 AI 写盘**。
+studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一个套了学习提示词的聊天框：
 
-它把学习做成闭环：**学**（对话 + 文档模式）→ **练**（AI 出题）→ **析**（逐题统计 / 薄弱点）→ **忆**（AI 词条库）→ **反馈**（XP / 今日总结）。助手正文按 Markdown 排版，```svg / ```chart / ```html 三种围栏让模型能直接产出矢量图、数据图和可交互演示页。
+- **学** —— 流式对话 + 思考链 + 联网检索 + 文档模式（长文档 BM25 检索）
+- **练** —— 自建出题引擎：结构化协议、自动判分、题型配比可配、AI 特化 SVG 配图
+- **析** —— 逐题正确率、薄弱点定位、学习趋势
+- **忆** —— AI 自学词条库 + 艾宾浩斯复习时钟 + 跨会话长期记忆
+- **反馈** —— 事件总线驱动 XP / 连签 / 今日总结，外加 AI 主动督促
+
+它同时管住了「模型不听话」这一整类工程问题：解析阶梯、丢图保题、流式超时、上游并发闸门、契约漂移回归锁——每条对策都对应一次真实故障的根因登记。
+
+两种运行形态共用同一份代码（差异只在环境变量）：
+
+| 形态 | 说明 | 状态 |
+|------|------|------|
+| **本地单机** | `api(Express :18791，默认仅绑 127.0.0.1) + web(Vite :5173)`，数据存 SQLite 单文件（WAL） | ✅ 已交付，日常开发形态 |
+| **多用户 Web 服务** | 邮箱注册/登录 + 按用户的数据归属 + 用量闸门，Docker + 反向代理部署 | 🔶 代码线进行中，**部署闸门未清空 ⇒ 尚不可上线** |
+
+## 当前状态
+
+> 本节是 [`docs/dev/launch-plan.md`](docs/dev/launch-plan.md) §2 的摘要，取数于提交 `ac50186`（2026-09-19）。**逐批证据、判据与「不改会怎样」的清单只在那份台账里。**
+
+| 上线批次 | 内容 | 状态 |
+|---|---|---|
+| M1 | 邮箱 + 密码账号体系（`users` / `auth_sessions`，迁移 v21） | ✅ 已交付 |
+| M1.5 | 邮箱验证码登录（`auth_codes` v27 + Resend 发信 + 五道限流） | ✅ 已交付 |
+| M1.6 | 注册即验证 + 限流三桶作用域拆分 | ✅ 已交付 |
+| M2a | 会话归属隔离（`sessions.user_id` v22 + SSE 隔离） | ✅ 已交付 |
+| M2b | 长期记忆画像归主（`user_memory` 重建，v24） | ✅ 已交付 |
+| M2c | 模型成本归属（`providers` / `role_bindings` 加 `owner_id`，v29）+ 两层并发闸门 | ✅ 已交付 |
+| M2d-1 | 设置与反馈环归主（`app_settings` / `daily_activity` / `daily_summaries` / `user_stats`，v30） | ✅ 已交付 |
+| M2d-2 | 词条库与领域归主（`term_library` / `term_domain` 重建 + `term_mention_log` 口径对齐，v31） | ✅ 已交付 |
+| **M2d-3** | 其余表加归属列：`quiz_*` / `flow_*` / `knowledge_*` / `evolution_*` | ⬜ **未收口 ⇒ 此刻上线仍会跨用户串数据** |
+| **M2 收口** | 与 `SB_REQUIRE_AUTH=1` 同批强开鉴权 | ⬜ 未开工 |
+| **M3 部署上线** | 5 条代码闸门 + 4 条配置闸门 + Docker/Caddy/域名/发信 DNS | ⬜ **未开工（仓内暂无 Dockerfile）** |
+
+★ 注意**两套编号不是一回事**：`M1/M1.5/M2a~d/M3` 是**上线阶梯**（本节），`M0~M6` 是**产品功能里程碑**（见 [§里程碑](#里程碑)）。功能里程碑不决定能不能上线。
 
 ## 核心优势
 
-与「给聊天框加层皮」的 AI 学习工具的差别在于：v2 把 **闭环完整度、AI 输出可靠性、工程质量** 三层都做实了，且每条都给出可当场复验的证据。
+差别不在于有没有接大模型，而在于**闭环完整度、AI 输出可靠性、工程质量**三层是否同时做实。每条都给出可当场复验的证据。
 
 | 优势 | 强在哪 | 可当场复验的证据 |
 |------|--------|------------------|
-| **真·本地优先** | 只绑 `127.0.0.1`、数据 SQLite 单文件、搜索密钥 AES-GCM 密文入库、零 AI 写盘——学习记录与 key 都不出本机 | `Origin: null` 写请求 → 403 有回归锁；沙箱页 `localStorage` 抛 SecurityError、读 sessions 被拒均真机实测（CHANGELOG 08-28） |
-| **学习域特化功能，不是大模型传声筒** | 练是一台自建出题引擎：`[QUIZ]` 结构化自动判分、四题型可配配比、模型特化 SVG 配图（真机生产口径 5/6 组出图）、五级解析阶梯让模型漏括号/坏图/撞顶都不塌整组；忆是一个自学词条库：加权相关性注入 + 对话自动沉淀 + AI 整理；深度理解有 5 级链在契约中（如实标注：未实施），逐条见 §功能总览 | 已落地项各有测试基线与真机统计（CHANGELOG 09-04 出题两批 / 09-01·09-04 词条库批）；未落地项在 §忆 · 深度理解 小节标题即标状态 |
-| **AI 输出可靠性工程** | 模型不听话不塌系统：出题五级解析阶梯（补括号 → 剥图重试 → 截断逐题回退…）、丢图保题、`\theta` 类非法转义修复、SSE 屏上文本与库内文本逐字一致；**上游挂起不再让会话永久卡住**——流式空闲超时 120s（每段数据重置，长回答不受影响）／一次性总时长 180s，超时抛可读错误而非裸 `AbortError`；**并发闸门按上游分桶、容量 2**（两路对话可并行，主链优先、后台让路） | 每个对策都对应一次真实故障的根因登记与回归锁（`docs/dev/bug-ledger.md` + CHANGELOG 09-04 两批、09-17 上游并发闸门批） |
-| **模型产出敢真跑** | ```html 围栏产出的网页在 `CSP: sandbox` + iframe 双层沙箱里运行，页面源为 `null`；SVG 净化剥 `<image>` 外链（防外链信标泄露 IP） | 真机实测沙箱页调写接口 / 读数据全被拒；净化有 `web/svg-utils.test.ts` 锁 |
-| **前端零第三方库** | 无 UI 库 · 无 markdown 库 · 无图表库：Markdown 解析、数据图自绘 SVG、SVG 净化自愈全部自写——供应链攻击面与包体积同时趋零、行为完全可控 | `packages/web/package.json` 运行时依赖只有 react / react-dom / `@sb/shared` |
-| **1845 例测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；**交互层另有真机 CDP 探针**（`tools/probes/*-cdp.mjs`：PK 断点 9 档视口、编排画布缩放 31 条断言、**督促小窗 38 条断言**、**词条页布局 56 条断言**、**趋势卡 33 条断言**），补 `.tsx` 无 jsdom 的空白 | 一条命令本地/CI 复验；基线 **128 文件 / 1845 例（1826 passed + 1 skipped）**，2026-09-18 23:20 于 Node 22 全量 vitest 实测；**权威口径与逐文件对账见 `docs/dev/test-plan.md` §3**（本格数字仅为快照，随批次变动，勿据此判现状） |
-| **契约先行的可维护性** | `@sb/shared` 是 SSE 事件 / 内容块 / REST / 领域模型的单一事实源，前后端不允许各写一套；先登记再实现 | shared 契约文件头注释即纪律；四条固定扩展模式见 §开发指南 |
-| **不锁定供应商** | OpenAI 兼容 + Anthropic 双适配；搜索 Exa / Tavily / 智谱三家并行聚合 + Bing 免 key 兜底——换模型换服务商只动设置页 | 适配器有出站请求体断言测试，且当场逮出过真缺陷 B-001（多条 system 在 Anthropic 型上静默丢失） |
+| **学习域特化，不是模型传声筒** | 练是一台自建出题引擎：`[QUIZ]` 结构化自动判分、四题型配比可配、模型特化 SVG 配图（真机生产口径 5/6 组出图）、五级解析阶梯；忆是一个自学词条库：加权相关性注入 + 对话自动沉淀 + AI 整理 + 复习时钟 | 已落地项各有测试基线与真机统计（`CHANGELOG.md` 09-04 出题两批 / 09-01·09-04 词条库批）；未落地项在对应小节标题即标状态 |
+| **AI 输出可靠性工程** | 模型不听话不塌系统：出题五级解析阶梯（补括号 → 剥图重试 → 截断逐题回退）、丢图保题、非法转义修复、SSE 屏上文本与库内文本逐字一致；**上游挂起不再让会话永久卡住**——流式空闲超时 120s / 一次性总时长 180s，超时抛可读错误；**并发闸门两层：每用户 2 路 + 全站封顶 N（占位 8）**（两路对话可并行，主链优先、后台让路，超额明确拒绝而非无限排队） | 每个对策都对应一次真实故障的根因登记与回归锁（[`docs/dev/bug-ledger.md`](docs/dev/bug-ledger.md) + CHANGELOG 09-04、09-17 两批） |
+| **模型产出敢真跑** | ```html 围栏产出的网页在 `CSP: sandbox` + iframe 双层沙箱里运行，页面源为 `null`；SVG 净化剥 `<image>` 外链（防外链信标泄露 IP） | 真机实测沙箱页调写接口 / 读数据全被拒；净化有 `web/lib/svg-utils.test.ts` 锁 |
+| **前端零第三方库** | 无 UI 库 · 无 Markdown 库 · 无图表库：Markdown 解析、代码高亮、数据图自绘 SVG、SVG 净化自愈全部自写——供应链攻击面与包体积同时趋零、行为完全可控 | `packages/web/package.json` 运行时依赖只有 `react` / `react-dom` / `@sb/shared` |
+| **测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；交互层另有 **10 个真机探针脚本**（`tools/probes/*.mjs`，其中 8 个走 CDP 真点真渲染），补 `.tsx` 无 jsdom 的空白 | 基线 **129 文件 / 1845 例（1844 passed + 1 skipped）**，Node 22 全量 vitest 实测；**逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**（本格数字仅为快照，勿据此判现状） |
+| **契约先行的可维护性** | `@sb/shared` 是 SSE 事件 / 内容块 / REST / 领域模型的单一事实源，前后端不允许各写一套；先登记再实现 | shared 契约文件头注释即纪律；四条固定扩展模式见 [§开发指南](#开发指南) |
+| **不锁定供应商** | OpenAI 兼容 + Anthropic 双适配；搜索三家按 key 并行聚合 + 免 key 兜底——换模型、换服务商只动设置页 | 适配器有出站请求体断言测试，且当场逮出过真缺陷 B-001（多条 system 在 Anthropic 型上静默丢失） |
+| **多用户归属做得彻底** | 归属不是加个 `WHERE`：`providers.owner_id IS NULL` ＝平台通道（人人可用）、业务表 `owner_id = ''` ＝无主（谁都看不见），两种「没有主人」可见性刻意相反；读写按形状分别走 `ownerFilter` / `ownerForWrite` | 每批都配跨用户隔离锁 + 「故意改坏必红」的非空转取证（[`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) §8 + test-plan §7） |
 
-> 一条隐性优势是**诚实的文档文化**：CHANGELOG 每批都有「未验（诚实记账）」段、推断不进验证列，§已知限制 明写哪些是缺陷哪些是定档边界——这份 README 的每个数字都能在仓库内对上出处。
+> 一条隐性优势是**诚实的文档文化**：CHANGELOG 每批都有「未验（诚实记账）」段、推断不进验证列，[§已知限制](#已知限制) 明写哪些是缺陷、哪些是定档边界。
 
 ## 功能总览
 
 ### 学 · 对话核
-- **SSE 流式输出**：token 级流式上屏，屏上文本与库内文本逐字一致；断线指数退避重连 + 事件序号回放去重 + 重连后 `/live` 快照对齐（重叠帧由序号去重在入口拦死）
-- **回答呈现形态按服务商可配**：原生 AI（Anthropic 原生协议）走逐字流式全过程——**原生思考链**（extended thinking 流式上屏并随消息落库）+ 任务清单 + 工具卡片；池中 AI（OpenAI 兼容中转）默认「思考中 UI + 一次性回答」（非流式请求整块上屏）；设置页按服务商切换（`stream_mode`）
-- **思考中等待态**：三点弹跳 + **阶段感知状态行**（有工具在跑显示真实动作如「联网搜索：闭包」，思考链在流显示「深度思考中」）+ 已用时计时（首 token 前空窗与池中 AI 整个生成期共用）
-- **打字机平滑**：不管上游到达节奏多糙（含池中 AI 整块返回），上屏永远匀速逐字；**收口后过程折成一行摘要**（思考字数 · 工具次数 · 任务数），点开才展开——过程不喧宾夺主
+- **SSE 流式输出**：token 级流式上屏，屏上文本与库内文本逐字一致；断线指数退避重连 + 事件序号回放去重 + 重连后 `/live` 快照对齐
+- **回答呈现形态按服务商可配**：原生协议（Anthropic）走逐字流式全过程——**原生思考链**（流式上屏并随消息落库）+ 任务清单 + 工具卡片；兼容中转协议默认「思考中 UI + 一次性回答」；设置页按服务商切换（`stream_mode`）
+- **思考中等待态**：三点弹跳 + **阶段感知状态行**（有工具在跑显示真实动作如「联网搜索：闭包」）+ 已用时计时
+- **打字机平滑**：不管上游到达节奏多糙，上屏永远匀速逐字；**收口后过程折成一行摘要**（思考字数 · 工具次数 · 任务数），点开才展开
 - **消息操作**：复制 / 重新生成（最后一条回答）/ **编辑重发**（最后一条提问，改完重跑、旧回答作废）
 - **单轨工具循环**：原生 function-calling 循环（15 轮上限 / 14k 回灌截断 / 逐轮预算检查 / 工具轮原子落库，无孤儿 tool 消息）
-- **联网搜索**：Exa / Tavily / 智谱按 key 并行聚合 + 跨家 URL 去重 + 24h 缓存；三家无 key 走 Bing 免费通道兜底（cn.bing.com，RSS 主 + HTML 兜底）；出网带 SSRF 护栏
+- **联网搜索**：Exa / Tavily / 智谱按 key 并行聚合 + 跨家 URL 去重 + 24h 缓存；三家无 key 走免 key 通道兜底；出网带 SSRF 护栏
 - **工具调用可视化**：`step` 事件三态进度芯片上屏（进行中 / 完成 / 失败），搜索溯源可见
-- **文档模式（RAG）**：给会话绑定一篇资料（粘贴 / .txt / .md）；**短文档（≤ 60k 字）整篇直塞，长文档走真检索**——零依赖词法 **BM25** 切块（800 字 / 重叠 120）后按本轮提问取 Top-12 段落注入，**带【段 n】段号可溯源**，并强制声明「这些段落是局部不是全文，没出现不代表资料里没有」；存储不丢字、换形状只发生在注入层；出题 / 抽词缺材料时自动回退用会话资料（出题按主题检索、抽词条无主题则按位置均匀覆盖）。实测：70 万字资料下旧直塞的内容覆盖率 **0/13**、新检索 **13/13**（关键词型），注入量从 60k 字降到 10.5k（契约 `docs/DOC-RAG-SPEC.md`）
+- **文档模式（RAG）**：给会话绑定一篇资料（粘贴 / .txt / .md）；**短文档（≤ 60k 字）整篇直塞，长文档走真检索**——零依赖词法 **BM25** 切块（800 字 / 重叠 120）后按本轮提问取 Top-12 段落注入，**带【段 n】段号可溯源**；出题 / 抽词缺材料时自动回退用会话资料。实测：70 万字资料下旧直塞内容覆盖率 **0/13**、新检索 **13/13**，注入量从 60k 字降到 10.5k（契约 [`DOC-RAG-SPEC.md`](docs/DOC-RAG-SPEC.md)）
 
 ### 学 · 内置浏览器面板
 - ```html 围栏产出可交互演示页：对话里只出卡片，点「侧栏预览」在应用右侧内置面板运行（或新标签页）
 - 面板只挂模型产出（无地址栏），出页带 `CSP: sandbox` + iframe 双层 sandbox，页面源为 `null`
 
-### 练 + 析 · 出题（自建出题引擎，不是大模型传声筒）
+### 练 + 析 · 出题（自建出题引擎）
 - **`[QUIZ]` 结构化协议**：模型按字段清单 + 格式示例输出题组（题干 / 选项 / 答案索引 / 解析 / svg）整块入库——判分靠结构化作答索引，自动批改、逐题可统计，不依赖模型逐次判卷
-- **题型配比可配**：单选 / 多选 / 填空 / 解答四档各 0..10、总上限 20；编辑期钳位（所见即所存），服务端归一化兜底；对话页与题库页共用全局配比；模型没出够不补题、缺几题说几题（ADR-4 降级不崩 + ADR-5 不静默）
-- **AI 特化配图**（默认关，总开关是服务端硬门不只靠提示词）：凡题干涉及图形 / 结构 / 装置 / 几何体 / 受力 / 电路 / 光路的题**必须**产出 SVG 矢量图，每组最多 3 张限流对冲耗时；SVG 属性一律单引号，从源头掐掉 JSON 转义坑；**真机实测产出率**：生产口径 5/6 组至少 1 张图（1.6~2.3 张/组），电路图 / 电表接反对比图 / 30° 斜面四力受力图经浏览器逐张目视为切题真矢量图，填空题正确无图
-- **丢图保题，坏不连坐**：单图 8000 字符上限、缺闭合标记即丢弃——**学习软件里残缺的几何图比没图更糟，会教错学生**；任何一条校验失败只删该题 `svg` 字段，题目照常交付
-- **模型犯错不塌整组**：五级解析阶梯（无损补括号 → 原样 parse → 剥图重试 → 截断逐题回退 → 回退后再剥图），外加 `repairJsonBrackets` 无损补模型漏写的 `]`——该修复**在合法 JSON 上永不触发**，纯增益基底；撞 `max_tokens`、漏括号、坏图，任何一种都不再让整组题 502
-- **如实上报**：`QuizImageReport{on, delivered, droppedSvg, truncated}` 四态贯穿 server→路由→前端，没图 / 丢图 / 被截断各如实补一句，绝不拿「开关已开」冒充「图已交付」
+- **题型配比可配**：单选 / 多选 / 填空 / 解答四档各 0..10、总上限 20；编辑期钳位（所见即所存），服务端归一化兜底；模型没出够不补题、缺几题说几题（ADR-4 降级不崩 + ADR-5 不静默）
+- **AI 特化配图**（默认关，总开关是服务端硬门不只靠提示词）：凡题干涉及图形 / 结构 / 装置 / 几何体 / 受力 / 电路 / 光路的题**必须**产出 SVG，每组最多 3 张限流对冲耗时；**真机实测产出率**：生产口径 5/6 组至少 1 张图（1.6~2.3 张/组），逐张浏览器目视为切题真矢量图
+- **丢图保题，坏不连坐**：单图 8000 字符上限、缺闭合标记即丢弃——**残缺的几何图比没图更糟，会教错学生**；任何一条校验失败只删该题 `svg` 字段，题目照常交付
+- **模型犯错不塌整组**：五级解析阶梯（无损补括号 → 原样 parse → 剥图重试 → 截断逐题回退 → 回退后再剥图），外加无损补 `]` 修复——该修复**在合法 JSON 上永不触发**，纯增益基底
+- **如实上报**：`QuizImageReport{on, delivered, droppedSvg, truncated}` 四态贯穿 server→路由→前端，绝不拿「开关已开」冒充「图已交付」
 - **题库与统计**：逐题正确率统计、薄弱点定位、golden dataset
-- **现场搜集真题**（2026-09-18，v0.2.57）：题库页「搜集题目」一条闭环——派生搜集词联网检索 → `fetchSafe` 抓页（单页不遍历、15s 超时）→ 模型从正文**逐字摘录**题目 → **verbatim 锚点锁**（题干锚点命不中原文即拒，宁漏真题不误收编题）→ preview/commit 两段人工确认才入库（外部结果永不直接写库）；`source='collect'` 零迁移落库，练习 / 判分 / 笔记 / 统计全链路自动接住（契约 `docs/RESOURCE-SPEC.md`）
-- **刷题笔记**：**提交答案即自动落一篇结构化笔记草稿**（题目 / 我的作答 / 对错 / 解析整题快照，每题一篇幂等 upsert），心得 Markdown 手写补全且重答永不覆盖；独立「笔记」一级页（全部 / 只看错题筛选）+ 题库页「本套笔记」直达；快照自洽不设外键——题库删除后笔记仍可读（契约 `docs/QUIZ-NOTES-SPEC.md`）
+- **现场搜集真题**（v0.2.57）：题库页「搜集题目」一条闭环——派生搜集词联网检索 → 受护栏抓页 → 模型从正文**逐字摘录**题目 → **verbatim 锚点锁**（题干锚点命不中原文即拒，宁漏真题不误收编题）→ preview/commit 两段人工确认才入库（外部结果永不直接写库）（契约 [`RESOURCE-SPEC.md`](docs/RESOURCE-SPEC.md)）
+- **刷题笔记**：**提交答案即自动落一篇结构化笔记草稿**（题目 / 我的作答 / 对错 / 解析整题快照，每题一篇幂等 upsert），心得手写补全且重答永不覆盖；独立「笔记」一级页（全部 / 只看错题筛选）+ 题库页「本套笔记」直达；快照自洽不设外键——题库删除后笔记仍可读（契约 [`QUIZ-NOTES-SPEC.md`](docs/QUIZ-NOTES-SPEC.md)）
 
-### 忆 · AI 词条库（自学忆域，不靠用户手动记）
-- **双通道抽词**：回复后 `[TERMS]` 协议 fire-and-forget 自动抽取（不阻塞对话、失败降级空列表）+ 对话页「存入记忆」手动通道；入库按 `UNIQUE(term,domain)` upsert 合并（同词保更高 importance、更新释义），并向模型注入已有领域 top-12 引导复用词表——防词条库分裂
-- **加权相关性注入**：回复前按「子串命中 2.0 / 词元互含 0.5 + importance×0.8 + 最近使用×0.3」加权检索，命中词条作第二条 system 软性注入（不强制、不污染正文）；回复后 usage 命中计数——**越用的词越容易被再注入**，记忆形成正反馈
-- **AI 整理**：对话内自然语言触发 `tidy_terms` 工具——自动分组、同义词归一、领域归一，单事务应用；只合并不删除，被并同义词挂主条 `aliases` 防再分裂（参照 Anki 查重 + Obsidian aliases 范式）
-- **领域与词条同等可管**（2026-09-17，迁移 v19）：领域此前只是 `term_library.domain` 这一列的**去重值**，于是**建不了空领域、改不了名、删不掉**（连「存在过」都没记录）；现建 `term_domain` 登记表把它升为一等实体——词条库页「管理领域」可**新建**（可零词条）、**改名**（该域词条批量随迁，目标域已存在则两域合一）、**写说明**、**删除**（词条**迁 general、一条不删**）；AI 侧 `tidy_terms` 同步支持 `domain_add` / `domain_remove`。★ 改名撞 `UNIQUE(term, domain)` 时自动并入（目标域已有同名词条），不报错
+### 忆 · AI 词条库
+- **双通道抽词**：回复后 `[TERMS]` 协议 fire-and-forget 自动抽取（不阻塞对话、失败降级空列表）+ 对话页「存入记忆」手动通道；入库按 `UNIQUE(owner, term, domain)` upsert 合并，并向模型注入已有领域 top-12 引导复用词表——防词条库分裂
+- **加权相关性注入**：回复前按「子串命中 2.0 / 词元互含 0.5 + importance×0.8 + 最近使用×0.3」加权检索，命中词条作第二条 system 软性注入；回复后 usage 命中计数——**越用的词越容易被再注入**
+- **AI 整理**：对话内自然语言触发 `tidy_terms` 工具——自动分组、同义词归一、领域归一，单事务应用；只合并不删除，被并同义词挂主条 `aliases` 防再分裂（契约 [`TERM-TIDY-SPEC.md`](docs/TERM-TIDY-SPEC.md)）
+- **领域为一级实体**（迁移 v19）：`term_domain` 登记册支持**新建**（可零词条）、**改名**（该域词条批量随迁，撞唯一键自动并入）、**写说明**、**删除**（词条迁 `general`、一条不删）；AI 侧同步 `domain_add` / `domain_remove`
 
-### 忆 · 深度理解（契约 v1.1 · 待评审，**尚未落实现代码**）
+### 忆 · 艾宾浩斯复习
+- **复习时钟**（迁移 v23）：七个复查节点 1/2/4/7/15/30/60 天，到期＝保持率掉到 70%，忘了归零重来；**天数按本地日历日**、库里只存 `review_stage` + `last_reviewed_at`（派生值不落库）；**队列先还旧账**（欠账多的排前），词条页顶部面板**先翻牌再看释义**
+- **选择式范围**（v28，契约 v1.1）：`有效范围 = COALESCE(词条覆盖位, 领域开关, 0)`——只有用户勾选的词条／领域才进复习池，`NULL` ＝跟随领域，故新词条自动纳入、写入侧零改动（契约 [`EBBINGHAUS-SPEC.md`](docs/EBBINGHAUS-SPEC.md)）
 
-把「用户对一个词条的理解」做成可累积的等级链：**L0 直觉 → L1 复述 → L2 准确 → L3 边界 → L4 迁移**，AI 在对话中承担教练角色每轮现场判定（判定纪律：宁判低不判高；不许把没讲过的内容算作已掌握）。设计取契约〔[`docs/DEEP-UNDERSTANDING-SPEC.md`](docs/DEEP-UNDERSTANDING-SPEC.md)〕实文：
-- **`[VERDICT]` 协议 + 流式闸门**：判定数据由模型在回复末尾以隐藏标记输出，闸门吞段——不上屏、不落库，不破「屏上文本 == 库内文本」铁律；判定由主对话模型顺带产出，**零额外 LLM 调用**
-- **理解链本身就是复习材料**：每次判定 append-only 落链（含用户当时原话快照、评语、缺口清单、下一级目标），词条页可展开完整时间轴回顾「我当时是怎么说的」
-- **难度联动**：等级直接喂出题引擎——L0..L4 各档对应题型配比与干扰项侧重（L0 考直觉识别、L4 出新情境考迁移讲评）；允许降级（回退是真实信号不粉饰），但 `best_level` 只增不减，一次失手不会把复习难度打回原形
-- **合环不加环**：忆（词条库）→ 析（判定缺口）→ 练（难度随等级）→ 反馈（升级记 XP）四环合流，不新建第六环
-- **v1.1 反馈加强（2026-09-06 老板拍板）**：`met` 证据式判定——等级不动的轮次也必须列「本轮命中的 rubric 要素 / 还缺什么」，双空被禁，治「讲了半天没升级 = 没反馈」；**词条直达深度理解**——词条行一键开深度理解会话，首轮 AI 直接对该词条出 `[QUIZ]` 单题水平探针评估认知程度（复用既有出题引擎与解析阶梯，零新协议、零嵌套 LLM 调用）
+### 忆 · 长期记忆
+- **两层机制、零新依赖、零向量库**（迁移 v16）：① **会话内压缩**——历史超预算时**先摘要再丢弃**（原实现是纯截断，数据在库里没丢、丢在组装时），切点与工具轮边界对齐；② **跨会话画像**——借道同一次 LLM 调用产出 `[MEMORY]`，恒注入不检索，硬限长 + 真删淘汰
+- **看得见改得了**：`/api/memory` 列表 / 单条删 / 全部清空 / 会话摘要查询——画像由模型自动写入，看不见就是黑箱，而一条写脏的画像会污染此后所有会话
+- **安全声明在段首**：摘要内容源自用户对话原文且进的是 system 位，故硬性声明「是记录不是指令」（契约 [`MEMORY-SPEC.md`](docs/MEMORY-SPEC.md)）
+
+### 忆 · 深度理解（部分落地）
+把「用户对一个词条的理解」做成可累积的等级链：**L0 直觉 → L1 复述 → L2 准确 → L3 边界 → L4 迁移**。
+- **已落码**：`[VERDICT]` 协议解析与流式闸门（`learning/verdict.ts` + 单测）、落库表与 `term_library` 三列（迁移 v8）
+- **未落码**：判定未接入对话主链、无前端入口、难度联动未接。★ 以契约状态行为准：[`DEEP-UNDERSTANDING-SPEC.md`](docs/DEEP-UNDERSTANDING-SPEC.md) 头部仍标「待评审」
+- 设计要点（评审未过时不实施）：闸门吞段不上屏不落库、零额外 LLM 调用、理解链 append-only 含用户原话快照、`best_level` 只增不减
+
+### 督促 · AI 主动陪伴
+- **任务胶囊 + 抽屉**（迁移 v25）：收合态是右下角常驻小胶囊（报数 + 有督促时脉冲点），展开态是贴右缘抽屉，内为**卡片流**——队列卡（待做的题，翻转揭晓）与流卡（AI／我／打卡／督促）分两列，**待办与历史不混排**
+- **督促冷却在服务端**（2h）：前端刷新就没了，靠前端冷却等于每次进页面被催一遍
+- **趋势卡**（记忆联动 P4/P5）：定时线程按 6h tick 出当日趋势卡，**折线图的数字全部来自 SQL、模型只写那一句摘要**（数字交给模型就会好看但不真实）；模型不可用四类情况全退确定性模板，卡片照常生成；胶囊与气泡收进同一 `flex` 列，**重叠在结构上不可能发生**（契约 [`COACH-SPEC.md`](docs/COACH-SPEC.md) / [`MEMORY-TREND-SPEC.md`](docs/MEMORY-TREND-SPEC.md)）
+
+### 学习流与知识图
+- **编排页**：左「我的学习流」列表 → 中 SVG 画布（节点可拖拽改 `position` 并落库，受控视口缩放/平移）→ 右步骤面板（参数表单 + `next`/`correct`/`wrong` 三出口连线）→ 下运行面板（步进 + 逐步轨迹）；**有未保存改动时禁止开跑**（运行冻结的是库里那一版）
+- **开箱模板**：三个预制流（四步课堂／错题重练／考前速通），参数与连线均已配好并逐模板过 shared 校验——「新建」不再一进门就是必填空着
+- **知识图页**：统计 → 节点列表 → **邻域子图**（点任一节点即以它为新中心重画，顺着关系走下去）+ 节点详情（它指向谁／谁指向它、手工连边、删边）；边分 `user`/`ai`/`derived` 三档，推导边只整批清理（单删下次又冒出来）
+- 几何与映射全抽成纯 `.ts`（79 例回归锁），交互接线由真机 CDP 探针核验（契约 [`STUDY-FLOW-SPEC.md`](docs/STUDY-FLOW-SPEC.md)）
+
+### 对战（移动优先独立页）
+- `#/pk` 上的独立页，与主应用五环并列；断点适配有 9 档视口真机探针锁（契约 [`PK-SPEC.md`](docs/PK-SPEC.md)）
+
+### 账号与多用户
+- **注册 / 登录**：邮箱 + 密码（`scrypt` 派生，参数随哈希落库 ⇒ 调参不必洗库）、邮箱验证码登录（`auth_codes` + Resend 发信）、注册即验证
+- **会话安全**：库里只存 `SHA-256(token)`（拖库拿不到可用会话）、`HttpOnly` cookie、登出幂等
+- **限流三桶作用域两两不同**：间隔按 `用途:邮箱`、每小时封数按邮箱跨用途共用、IP 封数按 `用途:IP`
+- **数据归属**：见 [§当前状态](#当前状态) M2 线；跨用户访问一律 404 不回 403（403 等于承认「这个 id 存在」）
+- **成本归属与并发**：`providers.owner_id` 区分「用户自带 key」与「平台免费通道」；免费通道两层闸门＝**每用户 2 路 + 全站封顶 N**（N 仍是占位值 8，待业务值）
+- ⚠️ **微信 / 短信登录未做**：两者均要求企业主体资质，个人无法申请；留作企业资质就绪后的增强，且必须映射到同一个 user（契约 [`AUTH-SPEC.md`](docs/AUTH-SPEC.md)）
 
 ### 反馈
-- 学 / 练 / 忆的每个动作经事件总线 `publishEvent` 落 XP（存题、添词条、对话各按费率表计分），驱动 XP 连签、今日总结、近 7 天趋势——学习闭环的成就感不靠用户自觉记账
+- 学 / 练 / 忆的每个动作经事件总线 `publishEvent` 按费率表落 XP（归属必填，漏传是静默少算），驱动 XP 连签、今日总结、近 7 天趋势
 
 ### 回答方式偏好
-- 四维偏好（详略 / 口吻 / 辅助 / 形状）：**L0** 设置页常驻卡 + **L1** 出题前没配过就先就地问一次（勾「记住」才落库）；默认档逐字等价现状口径，老用户零感知
+- 四维偏好（详略 / 口吻 / 辅助 / 形状）：**L0** 设置页常驻卡 + **L1** 出题前没配过就先就地问一次（勾「记住」才落库）；默认档逐字等价原口径，老用户零感知（契约 [`ANSWER-STYLE-SPEC.md`](docs/ANSWER-STYLE-SPEC.md)）
 
 ## 内容块协议
 
@@ -108,50 +174,77 @@
 
 | 围栏 | 行为 | 实现 |
 |------|------|------|
-| ```svg | DOMParser 快路径 + 正则回退**净化**（剥 script / foreignObject / iframe / object / embed / image 外链），再 L1 自愈（补闭合 / 钳宽 / 主题色）后内联渲染；支持放大 / 下载 | `web/lib/svg-utils.ts` |
+| ```svg | DOMParser 快路径 + 正则回退**净化**（剥 script / foreignObject / iframe / object / embed / image 外链），再自愈（补闭合 / 钳宽 / 主题色）后内联渲染；支持放大 / 下载 | `web/lib/svg-utils.ts` |
 | ```chart | JSON 容错解析 + bar / line / pie **零依赖自绘 SVG** 数据图 | `web/lib/chart-utils.ts` |
-| ```html | 对话内永不内联；点「侧栏预览」上传（内存暂存 20 条 / 512KB）后在右侧面板的沙箱 iframe 运行，也可新标签页 | `server/routes/preview.ts` + `web/features/preview/` |
+| ```html | 对话内永不内联；点「侧栏预览」上传后在右侧面板的沙箱 iframe 运行，也可新标签页 | `server/routes/preview.ts` + `web/features/preview/` |
 
 ## 架构
 
 ```
 浏览器  http://localhost:5173（Vite dev；生产态由 api 同源托管 dist/web）
-    │  HTTP + SSE  /api/*（同源代理）
+    │  HTTP + SSE  /api/*（同源代理）+ 会话 cookie
     ▼
 ┌────────────────────────────────────────────────────────┐
-│ packages/server — Express :18791（仅绑定 127.0.0.1）      │
-│   routes        REST + settingsRouter（密钥不出接口）      │
-│   chat/flow     一轮对话编排：四段 system 注入 + 预算收口   │
-│     ├ chat/tools      工具注册表（search_web/tidy_terms）│
-│     ├ learning/*      quiz / terms / tidy / document    │
-│     ├ search/*        Exa·Tavily·智谱并行 → Bing 兜底    │
-│     ├ llm/*           openai / anthropic 双适配          │
-│     └ security.ts     Origin 校验 / 密钥加密 / SSRF 护栏  │
+│ packages/server — Express（本地形态 :18791 / 127.0.0.1） │
+│   auth/           scrypt 口令 · 会话签发 · 验证码 · 限流 · 归属│
+│   routes/         REST 分域路由（auth/chat/terms/quiz/…）│
+│   chat/flow       一轮对话编排：多段 system 注入 + 预算收口│
+│     ├ chat/tools      工具注册表（search_web/tidy_terms…）│
+│     ├ chat/compact    会话压缩 + 跨会话画像               │
+│     ├ learning/*      quiz / terms / review / tidy / document│
+│     ├ coach/*         督促卡片 · 趋势 · 定时 tick         │
+│     ├ flow/*          学习流编排 · 知识图                 │
+│     ├ pk/*            对战赛局                            │
+│     ├ search/*        三路聚合 → 免 key 兜底              │
+│     ├ llm/*           openai / anthropic 双适配 + 两层闸门 │
+│     └ sse-bus         事件序号回放 · 按 owner 分频道       │
+│   security.ts     Origin 校验 / 密钥加密 / SSRF 护栏      │
 └──────────────────────────┬─────────────────────────────┘
-                           │ better-sqlite3（WAL，逐版本迁移）
+                           │ better-sqlite3（WAL，逐版本迁移 v1..v31）
                            ▼
-        %APPDATA%/studentbuddy-v2/studentbuddy.db（SB_DATA_DIR 可覆盖）
+        数据目录 / studentbuddy.db（SB_DATA_DIR 可覆盖）
 
-packages/shared — 契约单一事实源：SSE 事件 / 内容块协议 / REST / 领域模型
-tools/gates     — 工程门禁：行数上限 / 禁内联样式 / 禁 any
+packages/shared — 契约单一事实源：SSE 事件 / 内容块 / REST / 领域模型
+tools/gates     — 工程门禁：行数上限 / 禁内联样式 / 禁 any / 测试登记
+tools/probes    — 真机探针 11 个（CDP 真点 6 + 算法量测 5）
 ```
 
-**三包职责**：`@sb/shared` 只放契约与纯函数（前后端共用一份，不允许各写一套）；`@sb/server` 承载全部业务域；`@sb/web` 是 React 18 前端，**零运行时依赖**（无 UI 库 / 无 markdown 库 / 无图表库，全部自绘）。
+**三包职责**：`@sb/shared` 只放契约与纯函数（前后端共用一份，不允许各写一套）；`@sb/server` 承载全部业务域；`@sb/web` 是 React 18 前端，**零第三方运行时依赖**。
 
-## 安全设计
+**一级视图八个**（`App.tsx` 的 `View` 联合）：对话 / 学习流 / 知识图 / 题库 / 笔记 / 词条 / 今日总结 / 设置；对战是 `#/pk` 独立页，督促是常驻胶囊 + 抽屉。
+
+## 安全与隐私设计
 
 按 ADR-2「安全做必要最小」，落了这几件：
 
 - **Origin 校验**：写操作校验 Origin，**不放行 `'null'`**（sandbox 预览页的源就是字符串 null，放行等于让模型写的网页能调写接口）
-- **SVG 净化**：剥除外链 `<image>`（防外链信标泄露 IP）与全部脚本载体，净化后才可进 blob 文档
+- **口令与会话**：`crypto.scrypt` 派生且**参数随哈希自描述落库**；库里只存 `SHA-256(sessionToken)`；「邮箱不存在」与「密码错」回同一个错误码（分开等于提供注册查询接口）；连续 5 次失败 → 429，成功即清零
+- **验证码**：码只以明文存在一瞬间（签发即哈希入库），一次性靠**原子认领**（`UPDATE … WHERE consumed_at IS NULL` 以 `changes` 为判据，先查后改会让同一个码用两次）；真正的防线是尝试上限 + 发送侧限流，哈希只防拖库
+- **SVG 净化**：剥除外链 `<image>`（防外链信标泄露 IP）与全部脚本载体
 - **html 沙箱双保险**：响应带 `CSP: sandbox`（无 `allow-same-origin`）⇒ 页面源为 `null`，读不到本应用数据也调不了写接口；前端 iframe 再叠一层 `sandbox`
 - **密钥不出接口**：搜索 key AES-GCM 密文入库，响应只回布尔
-- **SSRF 护栏**：搜索 / 抓取出网走护栏 + 白名单
+- **SSRF 护栏**：搜索 / 抓取出网走护栏 + 白名单；抓页单页不遍历
+- **外部结果永不直接写库**：现场搜集走 preview/commit 两段确认，服务端重算逐字锚点、不信模型上报
+- **归属过滤按读形状分两把**：读「一批行」用 `ownerFilter`，读「一个值/聚合」用 `ownerForWrite`——豁免过滤时前者返回多余行、后者会返回**任意一行**（静默串台）
 - **请求体 2MB 上限**；SQLite 落库，无上传目录、无路径穿越面
+
+## 部署形态
+
+本地形态开箱即用（见 [§快速开始](#快速开始)）。**多用户 Web 形态尚未就绪**——`docs/dev/launch-plan.md` §3 列明五类闸门，其中**必须在代码里改完的 5 条当前全部未做**：
+
+| # | 闸门 | 不改的症状 | 位置 |
+|---|---|---|---|
+| 1 | `trust proxy` + 反代下发 `X-Forwarded-For` | `req.ip` 恒为反代地址 ⇒ 全站共用一个 IP 桶 ⇒ 发码限流退化成全站上限 | `routes/auth.ts` 的 `clientIp` |
+| 2 | `ALLOWED_ORIGINS` 可配 | 现为硬编码 localhost 集 ⇒ 带真实域名的所有 POST 一律 403，**全站瘫痪** | `security.ts:7` |
+| 3 | 监听 `HOST` 可配 | 容器内只绑回环 ⇒ 反代连不上（本机开发无感，上线即挂） | `index.ts:37` |
+| 4 | `SB_COOKIE_SECURE=1` | HTTPS 站点下发非 Secure cookie ⇒ 会话可被明文链路截获 | `auth/middleware.ts` |
+| 5 | `SB_REQUIRE_AUTH=1`（M2 收口同批） | 不强制鉴权 ⇒ 任何人可读写全站数据 | `AUTH-SPEC` §3 |
+
+配置侧另有四条必验项（发信双变量、数据目录指持久卷、端口对齐、全站并发值 N），误配症状逐条写在台账 §3.2。
 
 ## 快速开始
 
-> ⚠️ **Node 版本必须「装依赖」与「运行时」一致**（`engines: >=22.11.0`，现役 Node 22.22.2 / ABI 127，仓库带 `.nvmrc`）：`better-sqlite3` 是原生模块，产物按**安装那一刻**的 Node ABI 编译；用 Node 20 装完再拿 Node 22 跑（或反之），涉库代码会全线 `ERR_DLOPEN_FAILED`，表现为所有 HTTP 接口 500、测试大面积红，**极易误判成新代码写错**。**换 Node 大版本必须重装依赖**（删 `node_modules` 后 `npm install`），只换运行时无效。
+> ⚠️ **Node 版本必须「装依赖」与「运行时」一致**（`engines: >=22.11.0`，仓库带 `.nvmrc`）：`better-sqlite3` 是原生模块，产物按**安装那一刻**的 Node ABI 编译；用 Node 20 装完再拿 Node 22 跑（或反之），涉库代码会全线 `ERR_DLOPEN_FAILED`，表现为所有 HTTP 接口 500、测试大面积红，**极易误判成新代码写错**。**换 Node 大版本必须重装依赖**（删 `node_modules` 后 `npm install`），只换运行时无效。
 
 ```bash
 npm install          # workspaces 三包一次装齐（装依赖的 Node = 以后跑的 Node）
@@ -165,6 +258,94 @@ npm run dev:web      # 只起 web :5173（代理目标 SB_PROXY_TARGET 可配）
 
 首次使用：设置页添加 AI 服务商（OpenAI 兼容协议，`baseUrl` / `apiKey` / `defaultModel`）；要用联网搜索再配搜索 key（见[配置说明](#配置说明)）。
 
+## 仓库结构
+
+```
+packages/
+├─ shared/src/            契约单一事实源
+│  ├─ sse-events.ts         SSE 事件契约（先登记再实现）
+│  ├─ content-blocks.ts     内容块协议 + 题型配比契约
+│  ├─ auth.ts / tenancy.ts  账号校验 / 归属工具（前后端同一份）
+│  ├─ ebbinghaus.ts         复习判定唯一实现
+│  ├─ doc-rag.ts            文档检索常量唯一事实源
+│  └─ domain.ts             Session / Message / TermItem 领域模型
+├─ server/src/
+│  ├─ index.ts              Express 入口（安全头 / CORS / originCheck / 2MB）
+│  ├─ auth/                 password / session / users / codes / code-limit / middleware / ownership
+│  ├─ chat/flow.ts          对话编排：多段 system 注入 + 上下文预算收口
+│  ├─ chat/compact.ts       会话压缩 + 跨会话画像
+│  ├─ chat/tools/           工具注册表（search_web / tidy_terms / manage_terms …）
+│  ├─ learning/             quiz(+json-repair) / terms / domains / review / tidy / document(+BM25) / verdict / knowledge-graph
+│  ├─ coach/ · flow/ · pk/   督促卡片 / 学习流与知识图 / 对战赛局
+│  ├─ search/               多路聚合 + 免 key 兜底 + 24h 缓存 + SSRF 护栏
+│  ├─ llm/                  openai / anthropic 双适配 + router(归属) + upstream-gate(两层)
+│  ├─ sse-bus.ts            帧序号 · 回放去重 · 按 owner 分频道
+│  ├─ routes/               REST 分域路由（15 个域文件）
+│  ├─ storage/              better-sqlite3 封装 / 逐版本迁移（v1..v31，按区间分文件）
+│  └─ security.ts           Origin 校验（不放行 'null'）
+├─ web/src/
+│  ├─ app/App.tsx           应用壳：侧栏八视图导航 + 可折叠历史 + 用户框
+│  ├─ features/chat/        ChatView / useChatStream / Markdown / Thinking / AskStyleCard / 像素吉祥物
+│  ├─ features/{quiz,terms,notes,summary,coach,study-flow,pk,settings,preview}/
+│  ├─ lib/                  svg-utils（净化+自愈）/ chart-utils（自绘图表）/ markdown / highlight（零依赖）/ api*
+│  ├─ components/icons.tsx  SVG line-icon 基座（禁 emoji）
+│  └─ styles/tokens.css     设计 token 唯一事实源
+tools/
+├─ gates/check.mjs         行数 / 内联样式 / any / 测试登记 四项门禁
+├─ probes/                 真机探针 11 个（CDP 真点 6 + 算法量测 5）
+└─ migrate-from-v1/        v1→v2 数据迁移
+docs/                      契约与研发台账（22 份 SPEC + dev/ 四份 + metrics）
+CHANGELOG.md               项目改动登记册（代码/文档/测试同批登记）
+AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决策记录
+```
+
+## 开发指南
+
+**门禁红线**（`npm run gates` 强制）：
+
+- 单文件行数：server ≤ 400 行 / web 组件 ≤ 300 行（触线按仓规**拆文件**，不压注释换行数）
+- 禁内联 `style={{…}}`（一律走 tokens.css 的 token）；禁 `any`；测试也禁 `!` 非空断言
+- 每个测试文件必须在 `docs/dev/test-plan.md` 成行登记（未登记 = 门禁红）
+
+**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**129 测试文件 / 1845 用例**（1844 passed + 1 skipped；**权威口径见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，此处仅为快照）。
+
+`.tsx` 渲染层与事件接线无 jsdom 兜底，改交互时跑真机探针：
+
+| 探针 | 验什么 | 前置 |
+|---|---|---|
+| `terms-layout-cdp.mjs` | 词条页布局三态 × 两视口（56 断言）——**改 `terms.css` 任何高度/`flex`/`overflow` 后必须重跑，门禁看不见 CSS** | 零前置（自带静态服务，不碰后端/库） |
+| `coach-trend-cdp.mjs` | 趋势卡折线 + 胶囊旁气泡（33 断言）——**唯一在真浏览器里验 `prepareSvg` 的 DOMParser 路径的仪器** | 仅需 vite |
+| `coach-cdp.mjs` | 督促小窗三态（默认档 38 断言，零 LLM） | 需 `npm run dev`；拷库做隔离时**记得把 `.mk` 一起拷**，否则 `decryptSecret` 解不开 key |
+| `flow-canvas-zoom-cdp.mjs` | 编排画布缩放/平移（31 断言，含「滚轮锚点不漂」） | 需 `npm run dev` |
+| `pk-breakpoint-cdp.mjs` | 对战页 9 档视口断点 | 仅需 vite |
+| `doc-rag-bm25.mjs` | 切块/BM25 召回量测——**改 `shared/doc-rag.ts` 任何常量前必须重跑**，契约 §8 的每个数字出自它 | 零依赖 |
+
+**提交纪律**：
+
+- 三件套：代码 + 文档 + 测试同批提交；每批在 `CHANGELOG.md`「未发布」段追加一行，验证列只写实测结论（推断不进表）
+- Conventional Commits；从 v1 搬运的件标注 `port from v1`
+- 改 bug 前先读 [`docs/dev/bug-ledger.md`](docs/dev/bug-ledger.md)（收敛计数 3 = 禁止第 4 次同向尝试）
+- 上线阶梯每完成一批：改 `launch-plan.md` §2 状态 + §5 追加一次总体进展汇报
+
+**扩展模式**：
+
+- 新增 SSE 事件 → 先在 `shared/src/sse-events.ts` 登记，同步 [`docs/SSE-CONTRACT.md`](docs/SSE-CONTRACT.md)
+- 新增内容卡片 → `shared/src/content-blocks.ts` 登记 kind + web 注册渲染器
+- 新增工具 → `chat/tools/` 加定义 + `step` 上报，flow 循环零改动
+- 新增设置项 → `app_settings` 键名在 shared 登记，套路照 quiz-mix（load 归一化回落 / save upsert）；★ 该表已按 `owner_id` 归主，**新键必须带归属**
+
+## 配置说明
+
+| 配置 | 位置 | 说明 |
+|------|------|------|
+| AI 服务商 | 设置页（`providers` 表，按 `owner_id` 归属） | OpenAI 兼容协议；Anthropic 型走独立适配器（system 全量合并） |
+| 搜索 key | 设置页（AES-GCM 密文入库）或环境变量 | 环境变量：`EXA_API_KEY` / `TAVILY_API_KEY` / `ZHIPU_API_KEY`；三者全缺走免 key 通道兜底，质量以配 key 为稳 |
+| 发信 | `RESEND_API_KEY` **与** `SB_MAIL_FROM` | ★ **两个都配齐才真发信**；只配一个会静默走控制台兜底，症状是「点了发送、界面说成功、邮箱永远没有」 |
+| 鉴权 | `SB_REQUIRE_AUTH`（默认关）、`SB_COOKIE_SECURE` | 强制鉴权必须与 M2 收口同批开；HTTPS 部署必须开 Secure |
+| 上游并发 | `SB_UPSTREAM_SITE_MAX_CONCURRENT`（全站封顶，**缺省 8 为占位值**）、`SB_UPSTREAM_SITE_QUEUE_MAX`（缺省 20） | 只约束平台免费通道；队列满**明确拒绝**而非无限排队 |
+| 端口 | `SB_PORT`（默认 18791）、`SB_PROXY_TARGET` | 端口被 v1 占用时切 18792，**不杀 v1 进程** |
+| 数据目录 | `SB_DATA_DIR`（默认平台 AppData 下 `studentbuddy-v2`） | SQLite 单文件 `studentbuddy.db`（WAL），逐版本 schema 迁移；容器部署**必须指向持久卷** |
+
 ## v1 数据迁移
 
 M4 自带全量迁移工具（ADR-6：**永不触碰 v1 原库**；v2 库先备份再动）：
@@ -176,113 +357,71 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 
 迁移 `sessions / messages / quiz_bank / memorize`（SRS 初值）与 providers；v1 早期 GBK 乱码标题自动重解码，不可恢复的保留原文并打标。
 
-## 仓库结构
-
-```
-packages/
-├─ shared/src/            契约单一事实源
-│  ├─ sse-events.ts         SSE 事件契约（先登记再实现）
-│  ├─ content-blocks.ts     内容块协议 + 题型配比契约
-│  ├─ answer-style.ts       回答方式偏好契约（UI 文案与提示词同源）
-│  └─ domain.ts             Session / Message / TermItem 领域模型
-├─ server/src/
-│  ├─ index.ts              Express 入口（安全头 / CORS / originCheck / 2MB）
-│  ├─ chat/flow.ts          对话编排：四段 system 注入 + 上下文预算收口
-│  ├─ chat/tools.ts         单轨工具注册表
-│  ├─ learning/             quiz 出题引擎(+json-repair) / terms 词条库 / domains 领域库(登记册 v19) / tidy 整理 / document 文档模式(+doc-retrieve BM25 检索) / activity
-│  ├─ search/               三路聚合 + Bing 兜底 + 24h 缓存 + SSRF 护栏
-│  ├─ llm/                  openai / anthropic 双适配（system 全量合并）
-│  ├─ routes.ts             REST + settingsRouter
-│  ├─ storage/              better-sqlite3 封装 / 逐版本迁移 / 偏好读写
-│  └─ security.ts           Origin 校验（不放行 'null'）
-├─ web/src/
-│  ├─ app/App.tsx           应用壳：180px 侧栏五环导航
-│  ├─ features/chat/        ChatView / useChatStream / Markdown / HtmlCard / Welcome + 像素吉祥物 / AskStyleCard / DocModeControl
-│  ├─ features/preview/     内置浏览器面板（沙箱 iframe）
-│  ├─ features/settings/    搜索 key / 配比 / 配图 / 回答偏好 四张卡
-│  ├─ features/quiz·terms·summary/   题库 / 词条库 / 今日总结
-│  ├─ lib/                  svg-utils（净化+自愈）/ chart-utils（自绘图表）/ markdown（零依赖解析）/ api（领域组独立在 api-terms-domain）
-│  ├─ components/icons.tsx  SVG line-icon 基座（禁 emoji）
-│  └─ styles/tokens.css     设计 token 唯一事实源
-tools/
-├─ gates/check.mjs         行数 / 内联样式 / any 门禁
-└─ migrate-from-v1/        v1→v2 数据迁移
-docs/                      L3 仓库文档（契约规范 / 测试计划 / bug 台账）
-CHANGELOG.md               项目改动登记册（代码/文档/测试同批登记）
-```
-
-## 开发指南
-
-**门禁红线**（`npm run gates` 强制）：
-
-- 单文件行数：server ≤ 400 行 / web 组件 ≤ 300 行
-- 禁内联 `style={{…}}`（一律走 tokens.css 的 token）；禁 `any`；测试也禁 `!` 非空断言
-
-**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**129 测试文件 / 1845 用例**（2026-09-19 00:55 实测；**权威口径见 `docs/dev/test-plan.md` §3**，此处仅为快照）。`.tsx` 渲染层与事件接线无 jsdom 兜底，改交互时跑真机探针：`node tools/probes/flow-canvas-zoom-cdp.mjs`（编排画布缩放/平移）、`node tools/probes/pk-breakpoint-cdp.mjs`（PK 断点）、`node tools/probes/coach-cdp.mjs`（督促小窗三档，默认档零 LLM；★ 拷库做隔离时记得把 `.mk` 一起拷，否则 `decryptSecret` 解不开 key）、`node tools/probes/coach-trend-cdp.mjs`（趋势卡折线 + 胶囊旁气泡，**零依赖零写入、不需要后端**——只要一个在跑的 vite；★ 改 `chart-utils`/`coach.css` 后必须重跑：它是唯一在**真浏览器**里验 `prepareSvg` 的 DOMParser 路径的仪器，而 node 单测走的是正则回退分支）、`node tools/probes/terms-layout-cdp.mjs`（词条页布局三态 × 两视口，**零依赖零副作用、不需后端不需登录**——改 `terms.css` 任何高度/`flex`/`overflow` 后必须重跑，门禁看不见 CSS）。
-
-**提交纪律**：
-
-- 三件套：代码 + 文档 + 测试同批提交；每批在 `CHANGELOG.md`「未发布」段追加一行，验证列只写实测结论（推断不进表）
-- Conventional Commits；从 v1 搬运的件标注 `port from v1`
-- 改 bug 前先读 `docs/dev/bug-ledger.md`（收敛计数 3 = 禁止第 4 次同向尝试）
-
-**扩展模式**：
-
-- 新增 SSE 事件 → 先在 `shared/src/sse-events.ts` 登记，同步 `docs/SSE-CONTRACT.md`
-- 新增内容卡片 → `shared/src/content-blocks.ts` 登记 kind + web 注册渲染器
-- 新增工具 → `chat/tools.ts` 加定义 + `step` 上报，flow 循环零改动
-- 新增设置项 → `app_settings` 键名在 shared 登记，套路照 quiz-mix（load 归一化回落 / save upsert）
-
-## 配置说明
-
-| 配置 | 位置 | 说明 |
-|------|------|------|
-| AI 服务商 | 设置页（`providers` 表） | OpenAI 兼容协议；Anthropic 型走独立适配器（system 全量合并） |
-| 搜索 key | 设置页（AES-GCM 密文入库） | 推荐 Exa / Tavily / 智谱任一，按 key 并行聚合；**三路全无 key 走 Bing 免费通道兜底**（cn.bing.com 实测直连 200，RSS 主 + HTML 兜底），不配 key 也能出结果；配 key 走托管三路质量更稳 |
-| 端口 | 环境变量 `SB_PORT`（默认 18791）、`SB_PROXY_TARGET` | 端口被 v1 占用时切 18792，**不杀 v1 进程** |
-| 数据目录 | 环境变量 `SB_DATA_DIR`（默认 `%APPDATA%/studentbuddy-v2`） | SQLite 单文件 `studentbuddy.db`（WAL），逐版本 schema 迁移 |
-
 ## 里程碑
+
+**产品功能线**（与上线阶梯无关，见 [§当前状态](#当前状态)）：
 
 | 阶段 | 状态 |
 |------|------|
-| M0 地基（workspaces 三包 / 门禁 / 浅色豆包 token / SVG 图标 / 安全中间件） | ✅ 2026-08-23 |
+| M0 地基（workspaces 三包 / 四项门禁 / 设计 token / SVG 图标基座 / 安全中间件） | ✅ 2026-08-23 |
 | M1 对话核（SSE / 单轨工具循环 / 模型路由 / 内容块流 / 内置浏览器面板） | ✅ 2026-08-28 |
 | M2 练+析（出题引擎 / 题型配比 / SVG 配图 / 逐题统计） | ✅ 2026-09-04 |
 | M3 忆（AI 词条库 + AI 整理） | ✅ 2026-09-03 |
-| M4 反馈环 + v1 数据迁移 | 🔶 反馈与迁移已落，定稿未做 |
-| 5.0 §5 学环·文档模式（短文档直塞 + 长文档 BM25 检索） | ✅ 2026-09-02，检索改造 2026-09-06 |
+| 文档模式（短文档直塞 + 长文档 BM25 检索） | ✅ 2026-09-02，检索改造 2026-09-06 |
+| 长期记忆（会话压缩 + 跨会话画像） | ✅ 2026-09-15 |
+| 对战（PK 独立页） | ✅ 2026-09-13 |
+| 学习流 + 知识图（编排 / 模板 / 画布视口） | ✅ 2026-09-17 |
+| 复习时钟（艾宾浩斯 + 选择式范围） | ✅ 2026-09-17，范围选择 2026-09-18 |
+| 督促小窗 + 趋势卡（记忆联动 P1~P5） | ✅ 2026-09-18 |
+| 现场搜集真题（逐字锚点锁 + 两段确认） | ✅ 2026-09-18 |
+| 深度理解（判定链完整闭环） | 🔶 闸门件与落库表已就位，主链未接线 |
+| M4 定稿（反馈环收口 + v1 迁移实跑） | 🔶 反馈与迁移工具已落，定稿未做 |
+| M5 工具生态（MCP / 文件工具 / 确认门） | ⬜ 契约 v1.3 已立，未排产 |
 
 ## 已知限制
 
-- **行内公式不渲染**：`$…$` 按原文显示（未引 katex，保持 `@sb/web` 零运行时依赖）；`mermaid` / `echarts` 围栏降级代码块（刻意不引库，数据图由自绘 ```chart 覆盖）
-- **预览页只活内存**：服务重启即失效，无分享链接（本地单用户形态无场景）；内置面板无地址栏、宽度不可拖拽（只挂模型产出，是定档边界不是缺陷）
-- **文档模式：词法检索，不是语义检索**：≤ 60k 字整篇直塞（与旧实现逐字等价）；> 60k 才切块 + BM25 按提问取段落。**没有的：embedding 向量／跨会话资料库／持久化索引／pdf-docx 解析／可点击溯源**。已知天花板：用户**不用资料里的原词**改写提问时，70 万字规模下召回收敛在 **8/13 ≈ 62%**（多给段落救不回来，这是词法路线的性质，只能靠向量路线突破）；且**不靠分数阈值判「资料没写」**——两种阈值方案都被实测否掉（真命中区间与干扰项区间重叠），识别不到的权力交给模型如实说（契约 `docs/DOC-RAG-SPEC.md` §3.3）
-- **`search_web` 免 key 兜底已换血为 Bing**：原 DDG 直连实测超时、不可用，已改为 Bing 免费通道（cn.bing.com，RSS + HTML 双通道）；仍建议至少配一个搜索 key 以获得更稳的托管质量
-- **security.ts 放行 localhost 任意端口**：单用户本地权衡，刻意保留
-- **转义修复只补「漏根」不修「错命令」**：`\theta` / `\nu` 这类恰好等于合法转义的写法无法与真制表符区分，故意不修（命中走逐题回退，最坏丢一题不连坐整组）
+- **★ 尚不可公网部署**：五类部署闸门未清（见 [§部署形态](#部署形态)），且 M2d-3 未收口 ⇒ `quiz_*` / `flow_*` / `knowledge_*` / `evolution_*` 等表**仍无归属过滤**，此刻强开鉴权上线会跨用户串数据。仓内暂无 Dockerfile / Caddyfile
+- **`security.ts` 放行 localhost 任意端口 + Origin 白名单硬编码**：本地开发形态下的权衡，**是 M3 闸门而非缺陷**，上线前必须改
+- **上游并发闸门是进程内 `Map`**：多实例部署下容量 × 实例数，全站封顶只在单进程内成立
+- **行内公式不渲染**：`$…$` 按原文显示（未引 katex，保持 `@sb/web` 零第三方依赖）；`mermaid` / `echarts` 围栏降级代码块（刻意不引库，数据图由自绘 ```chart 覆盖）
+- **预览页只活内存**：服务重启即失效，无分享链接（内置面板无地址栏、宽度不可拖拽，是定档边界不是缺陷）
+- **文档模式：词法检索，不是语义检索**：≤ 60k 字整篇直塞；> 60k 才切块 + BM25 取段落。**没有 embedding 向量／跨会话资料库／持久化索引／pdf-docx 解析／可点击溯源**。已知天花板：用户**不用资料里的原词**改写提问时，70 万字规模下召回收敛在 **8/13 ≈ 62%**（词法路线的性质，只能靠向量路线突破）；且**不靠分数阈值判「资料没写」**——两种阈值方案都被实测否掉（真命中区间与干扰项区间重叠），识别不到的权力交给模型如实说（契约 `DOC-RAG-SPEC.md` §3.3）
+- **`.tsx` 渲染层无 jsdom**：观感与手感类症状只能靠真机探针 + 人工目检，覆盖率数字对交互层不适用
+- **全站并发值 N 仍是占位值 8**：待业务值确定后调整，沿用上线会收到「当前免费通道繁忙」
 
-## 文档体系
+★ 覆盖率与历史基线的逐文件对账见 [`docs/metrics.md`](docs/metrics.md)（**2026-09-06 全量采集，未随近期批次刷新**，引用时注意口径日期）。
 
-| 层 | 位置 |
-|----|------|
-| L0 元规则 / L1 开发文档 5.0 / L2 专题 | `Desktop/studentbuddy重写/`（本机） |
-| L3 仓库文档 | 本仓 `docs/` |
-| L4 归档区 | `Desktop/studentbuddy重写/废弃文档/`（本机） |
+## 文档索引
 
-`docs/` 索引：
+`docs/` 是本仓的**权威技术文档面**。分两类：`*SPEC*.md` 是行为契约（改行为先改契约），`dev/` 是研发台账。
 
 | 文档 | 内容 |
 |------|------|
 | [`SSE-CONTRACT.md`](docs/SSE-CONTRACT.md) | SSE 事件与 HTTP 接口契约（前端对接核心） |
+| [`AUTH-SPEC.md`](docs/AUTH-SPEC.md) | 账号契约（注册/登录/验证码/限流/后续批次划分） |
+| [`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) | 多租户归属契约（M2a~M2d 改造准绳） |
+| [`MEMORY-SPEC.md`](docs/MEMORY-SPEC.md) | 长期记忆契约（会话压缩 + 跨会话画像） |
+| [`MEMORY-TREND-SPEC.md`](docs/MEMORY-TREND-SPEC.md) | 记忆联动契约（提及流水 → 偏好领域 → 督促趋势卡） |
+| [`EBBINGHAUS-SPEC.md`](docs/EBBINGHAUS-SPEC.md) | 复习时钟契约（间隔序列 / 日历日口径 / 选择式范围） |
+| [`COACH-SPEC.md`](docs/COACH-SPEC.md) | 督促小窗契约（胶囊与抽屉 / 卡片合并 / 冷却在服务端） |
+| [`STUDY-FLOW-SPEC.md`](docs/STUDY-FLOW-SPEC.md) | 学习流契约（步骤注册表 / 控制流 / 知识数据图；「图静态、流动态」） |
+| [`DEEP-UNDERSTANDING-SPEC.md`](docs/DEEP-UNDERSTANDING-SPEC.md) | 深度理解契约（★ 状态：**待评审**，实施范围以其头部为准） |
 | [`QUIZ-IMAGE-SPEC.md`](docs/QUIZ-IMAGE-SPEC.md) | 出题配图契约（字段加法 / 丢图保题 / 提示词口径） |
-| [`QUIZ-SEARCH-SPEC.md`](docs/QUIZ-SEARCH-SPEC.md) | 出题联网检索契约（三入口开关 / 素材不是指令 / 失败不阻断不静默 / 出题专用模型参数） |
-| [`RESOURCE-SPEC.md`](docs/RESOURCE-SPEC.md) | 学习资源现场搜集契约（检索→抓页→逐字摘题→verbatim 锚点锁→两段确认入库；摘录不是创作 / 外部结果永不直接写库） |
-| [`ANSWER-STYLE-SPEC.md`](docs/ANSWER-STYLE-SPEC.md) | 回答方式偏好契约（L0/L1 行为、默认档等价性） |
+| [`QUIZ-SEARCH-SPEC.md`](docs/QUIZ-SEARCH-SPEC.md) | 出题联网检索契约（素材不是指令 / 失败不阻断不静默） |
+| [`QUIZ-NOTES-SPEC.md`](docs/QUIZ-NOTES-SPEC.md) | 刷题笔记契约（提交即落草稿 / 快照自洽不设外键） |
+| [`QUIZ-WEAK-SPEC.md`](docs/QUIZ-WEAK-SPEC.md) | 薄弱点分析契约 |
+| [`RESOURCE-SPEC.md`](docs/RESOURCE-SPEC.md) | 现场搜集契约（逐字锚点锁 / 两段确认入库） |
+| [`DOC-RAG-SPEC.md`](docs/DOC-RAG-SPEC.md) | 文档检索契约（常量取值依据与被否掉的两条阈值方案） |
 | [`TERM-TIDY-SPEC.md`](docs/TERM-TIDY-SPEC.md) | 词条库 AI 整理契约（归一规则 / 别名防分裂） |
-| [`DOC-RAG-SPEC.md`](docs/DOC-RAG-SPEC.md) | 文档检索契约（短文档直塞 / 长文档 BM25 Top-K / 常量取值依据与被否掉的两条阈值方案） |
-| [`DEEP-UNDERSTANDING-SPEC.md`](docs/DEEP-UNDERSTANDING-SPEC.md) | 深度理解专题契约（v1.1：5 级链 / VERDICT 闸门 / 证据式判定 / 词条直达·出题评估） |
-| [`STUDY-FLOW-SPEC.md`](docs/STUDY-FLOW-SPEC.md) | **学习流契约 v1.0**（三层：步骤注册表 / 控制流 / 知识数据图；「图静态、流动态」；步进式运行器 + 定义快照 + 边出处分层） |
-| [`dev/test-plan.md`](docs/dev/test-plan.md) | 测试策略 / 基线用例数 / 逐文件不变量 |
+| [`ANSWER-STYLE-SPEC.md`](docs/ANSWER-STYLE-SPEC.md) | 回答方式偏好契约（L0/L1 行为、默认档等价性） |
+| [`ASK-CHOICE-SPEC.md`](docs/ASK-CHOICE-SPEC.md) | 就地提问契约（出题前问一次 / 队列与落库） |
+| [`PK-SPEC.md`](docs/PK-SPEC.md) · [`PK-DEMO-SPEC.md`](docs/PK-DEMO-SPEC.md) | 对战契约与演示脚本 |
+| [`SCENARIO-SPEC.md`](docs/SCENARIO-SPEC.md) | 场景卡契约 |
+| [`TOOL-ECOSYSTEM-SPEC.md`](docs/TOOL-ECOSYSTEM-SPEC.md) | 工具生态契约（工具内核 / MCP / 确认门 / 计时口径） |
+| [`metrics.md`](docs/metrics.md) | 定量基线采集口径（⚠️ 2026-09-06 快照） |
+| [`dev/test-plan.md`](docs/dev/test-plan.md) | **测试基线权威口径** / 逐文件不变量 / 挂账清单 |
+| [`dev/launch-plan.md`](docs/dev/launch-plan.md) | **上线台账**：阶梯进展 + 部署闸门清单＝「什么时候能上线」的答案 |
 | [`dev/bug-ledger.md`](docs/dev/bug-ledger.md) | 反复 bug 台账（收敛计数驱动换根因假设） |
-| [`dev/launch-plan.md`](docs/dev/launch-plan.md) | **上线台账**（上线阶梯进展 / **部署闸门清单＝"什么时候能上线"的答案** / 每次完成上线小任务的总体进展汇报） |
+| [`dev/manual-test.md`](docs/dev/manual-test.md) | 真人验收记录 |
+
+★ 更高层的元规则与个人开发规范不随本仓分发；仓内以 `AGENTS.md`（施工手册）与本目录为权威面，二者与代码冲突时**以代码 + 测试为准**。

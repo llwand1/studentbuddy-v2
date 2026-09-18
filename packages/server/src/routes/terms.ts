@@ -10,7 +10,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { listTerms, saveOneTerm, saveTerms, extractTerms, removeTerm, updateTerm } from '../learning/terms.js';
-import { reviewOverview, listReviewQueue, markReviewed } from '../learning/term-review.js';
+import { reviewOverview, listReviewQueue, markReviewed, termScope, setDomainReviewScope, setTermReviewScope } from '../learning/term-review.js';
 import {
   createDomain,
   updateDomain,
@@ -133,6 +133,9 @@ termsRouter.post('/extract', async (req: Request, res: Response) => {
  * 复习打卡（v23 艾宾浩斯）：`remembered: true` 推进一个节点，`false` 归零重来。
  * ★ `remembered` **必须是布尔**（不接受 `"true"` 字符串）：这里没有「没填」的合理默认——
  *   猜成记住会让用户白丢一次复习，猜成忘了会让阶段倒退；**这种二选一的字段一律显式**。
+ * ★ v28 起先判**复习范围**：范围外的词条拒绝打卡（409），否则会出现"库里记了一次复习、
+ *   而页面上它根本不显示"的静默错账。404 与 409 分开给：前者是"词条没了，刷新列表"，
+ *   后者是"你没把它纳入复习，先去勾选"——两种处置完全不同，压成一个码前端就没法提示。
  */
 termsRouter.post('/:id/review', (req: Request, res: Response) => {
   const remembered = (req.body as { remembered?: unknown } | undefined)?.remembered;
@@ -140,7 +143,17 @@ termsRouter.post('/:id/review', (req: Request, res: Response) => {
     res.status(400).json({ error: 'remembered 必填且必须是布尔值' });
     return;
   }
-  const row = markReviewed(req.params.id ?? '', remembered);
+  const id = req.params.id ?? '';
+  const scope = termScope(id);
+  if (!scope) {
+    res.status(404).json({ error: '词条不存在' });
+    return;
+  }
+  if (!scope.inScope) {
+    res.status(409).json({ error: '该词条未纳入复习范围，请先在复习范围里勾选它（或其所属领域）' });
+    return;
+  }
+  const row = markReviewed(id, remembered);
   if (!row) {
     res.status(404).json({ error: '词条不存在' });
     return;
@@ -159,6 +172,45 @@ termsRouter.get('/review/queue', (req: Request, res: Response) => {
   const domain = typeof req.query.domain === 'string' ? req.query.domain : undefined;
   const raw = Number(req.query.limit);
   res.json(listReviewQueue(Number.isFinite(raw) ? raw : undefined, domain));
+});
+
+/**
+ * 设复习范围（v28，契约 `docs/EBBINGHAUS-SPEC.md` §9）：**选择式复习**的唯一写口。
+ * `{ domain, enabled }` = 领域开关；`{ termId, enabled }` = 单条词条。二者**必须恰好给一个**。
+ *
+ * ★ `enabled` 是**目标有效值**（"这条以后复不复习"），不是"往列里写什么"——
+ *   该写 `NULL`（继承领域）还是写显式 0/1，由域层按"是否偏离领域默认"决定
+ *   （见 `setTermReviewScope`）。让调用方自己决定写哪一列，等于把优先级规则漏给前端。
+ * ★ 两个都给 ⇒ 400 而不是"两个都改"：调用方多半是拼错了，猜一个会让它以为另一个也生效了
+ *   （同 `remembered` 必须显式布尔的取向：**二选一的字段不接受猜测**）。
+ */
+termsRouter.put('/review/scope', (req: Request, res: Response) => {
+  const { domain, termId, enabled } = req.body as { domain?: unknown; termId?: unknown; enabled?: unknown };
+  if (typeof enabled !== 'boolean') {
+    res.status(400).json({ error: 'enabled 必填且必须是布尔值' });
+    return;
+  }
+  const hasDomain = typeof domain === 'string' && domain.trim() !== '';
+  const hasTerm = typeof termId === 'string' && termId.trim() !== '';
+  if (hasDomain === hasTerm) {
+    res.status(400).json({ error: 'domain 与 termId 必须二选一（且都要非空）' });
+    return;
+  }
+  if (hasDomain) {
+    const r = setDomainReviewScope(domain as string, enabled);
+    if (!r) {
+      res.status(404).json({ error: `没有名为「${domain}」的领域` });
+      return;
+    }
+    res.json(r);
+    return;
+  }
+  const r = setTermReviewScope(termId as string, enabled);
+  if (!r) {
+    res.status(404).json({ error: '词条不存在' });
+    return;
+  }
+  res.json(r);
 });
 
 termsRouter.put('/:id', (req: Request, res: Response) => {

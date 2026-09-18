@@ -21,23 +21,28 @@ process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-routes-tenan
 const { app } = await import('../index.js');
 const { getDb, closeDb } = await import('../storage/db.js');
 const { resetRateLimits } = await import('../auth/rate-limit.js');
-const { resetAuthCaches } = await import('../auth/users.js');
+const { resetAuthCaches, createUser } = await import('../auth/users.js');
+const { createSession: issueSession } = await import('../auth/session.js');
 const { upsertMemoryItems } = await import('../chat/memory.js');
 const request = (await import('supertest')).default;
 
 const origin = 'http://localhost:5173';
 
-/** 注册并取出会话 cookie（`register` 直接下发登录态，见 AUTH-SPEC §2）。 */
+/**
+ * 建一个账号并取出会话 cookie（`register` 直接下发登录态，见 AUTH-SPEC §2）。
+ *
+ * ★ M1.6（契约 §2.7「注册即验证」）起 `POST /api/auth/register` **必带 `code`**，
+ *   而本文件的主体是**数据归属隔离**、不是注册流程 ⇒ 夹具直接落在**账号 + 会话**这两层，
+ *   不再借道注册端点。两条理由：
+ *     ① 省掉一次发信打桩（注册码只能从邮件里拿）；
+ *     ② **不吃注册用途的限流名额**——注册的 IP 上限只有 5/小时，而测试全走同一个出口 IP，
+ *        借道注册会让「注册阈值一改，本文件跟着红」。
+ *   注册端点本身的端到端覆盖在 `routes/auth.test.ts`。
+ */
 async function signUp(email: string): Promise<string> {
-  const res = await request(app)
-    .post('/api/auth/register')
-    .set('Origin', origin)
-    .send({ email, password: 'good-password-1' });
-  expect(res.status).toBe(200);
-  const raw = res.headers['set-cookie'];
-  const arr = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [];
-  const hit = arr.find((c) => c.startsWith(`${AUTH_COOKIE_NAME}=`));
-  return hit ? (hit.split(';')[0] ?? '') : '';
+  const user = await createUser(email, 'good-password-1', undefined);
+  const { token } = issueSession(user.id);
+  return `${AUTH_COOKIE_NAME}=${token}`;
 }
 
 /** 建一个属于自己的会话，返回 id。 */

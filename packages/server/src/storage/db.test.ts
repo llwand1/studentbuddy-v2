@@ -130,6 +130,11 @@ describe('storage/db — v11 过程回放迁移（思考链 / 任务清单随消
     v10.exec(`DROP INDEX IF EXISTS idx_term_library_last_reviewed`);
     v10.exec(`ALTER TABLE term_library DROP COLUMN review_stage`);
     v10.exec(`ALTER TABLE term_library DROP COLUMN last_reviewed_at`);
+    // v28 复习范围（term_library 一列 + term_domain 一列）：同 v23，多一列迁移就多退一列。
+    // ★ 先删索引再删列（idx_term_library_review_enabled 建在新列上，SQLite 不留悬空索引）
+    v10.exec(`DROP INDEX IF EXISTS idx_term_library_review_enabled`);
+    v10.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
+    v10.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
     v10.exec(`DROP TABLE IF EXISTS term_review_log`);
     // v25 督促流水（coach_messages）：CREATE TABLE IF NOT EXISTS 不 DROP 也能重放，
     // 但留着就等于"老库其实已经有督促流水"，与测试意图不符（同 v23 那条的理由）
@@ -182,6 +187,11 @@ describe('storage/db — v13 回答形态迁移（providers.stream_mode）', () 
     old.exec(`DROP INDEX IF EXISTS idx_term_library_last_reviewed`);
     old.exec(`ALTER TABLE term_library DROP COLUMN review_stage`);
     old.exec(`ALTER TABLE term_library DROP COLUMN last_reviewed_at`);
+    // v28 复习范围（term_library 一列 + term_domain 一列）：同 v23，多一列迁移就多退一列。
+    // ★ 先删索引再删列（idx_term_library_review_enabled 建在新列上，SQLite 不留悬空索引）
+    old.exec(`DROP INDEX IF EXISTS idx_term_library_review_enabled`);
+    old.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
+    old.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
     old.exec(`DROP TABLE IF EXISTS term_review_log`);
     // v25 督促流水：同上
     old.exec(`DROP TABLE IF EXISTS coach_messages`);
@@ -284,6 +294,11 @@ describe('storage/db — v24 长期画像归主（docs/TENANCY-SPEC.md §7）', 
         UNIQUE(kind, content)
       )`);
     old.prepare(`INSERT INTO user_memory (id, kind, content, importance) VALUES ('legacy', 'profile', '升级前的画像', 0.7)`).run();
+    // v28 复习范围：本用例只退到 v23（v23 与 v28 的 ADD COLUMN 都不幂等），
+    // 故 v28 的两列要单独退；先删索引再删列（SQLite 不留悬空索引）。
+    old.exec(`DROP INDEX IF EXISTS idx_term_library_review_enabled`);
+    old.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
+    old.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
     old.prepare('DELETE FROM schema_version WHERE version > 23').run();
     old.close();
 
@@ -349,6 +364,11 @@ describe('storage/db — v19 领域表迁移（term_domain，领域升为一等�
     old.exec(`DROP INDEX IF EXISTS idx_term_library_last_reviewed`);
     old.exec(`ALTER TABLE term_library DROP COLUMN review_stage`);
     old.exec(`ALTER TABLE term_library DROP COLUMN last_reviewed_at`);
+    // v28 复习范围（term_library 一列 + term_domain 一列）：同 v23，多一列迁移就多退一列。
+    // ★ 先删索引再删列（idx_term_library_review_enabled 建在新列上，SQLite 不留悬空索引）
+    old.exec(`DROP INDEX IF EXISTS idx_term_library_review_enabled`);
+    old.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
+    // term_domain 在本用例里是整表 DROP 的（v19 回放要重放建表），列随之消失，无需单独退列
     old.exec(`DROP TABLE IF EXISTS term_review_log`);
     // v25 督促流水：同上
     old.exec(`DROP TABLE IF EXISTS coach_messages`);
@@ -463,6 +483,11 @@ describe('storage/db — v23 词条复习迁移（docs/EBBINGHAUS-SPEC.md，艾�
     old.exec(`DROP INDEX IF EXISTS idx_term_library_last_reviewed`);
     old.exec(`ALTER TABLE term_library DROP COLUMN review_stage`);
     old.exec(`ALTER TABLE term_library DROP COLUMN last_reviewed_at`);
+    // v28 复习范围（term_library 一列 + term_domain 一列）：同 v23，多一列迁移就多退一列。
+    // ★ 先删索引再删列（idx_term_library_review_enabled 建在新列上，SQLite 不留悬空索引）
+    old.exec(`DROP INDEX IF EXISTS idx_term_library_review_enabled`);
+    old.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
+    old.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
     old.exec(`DROP TABLE IF EXISTS term_review_log`);
     old.prepare('DELETE FROM schema_version WHERE version > 22').run();
     old.close();
@@ -509,6 +534,11 @@ describe('storage/db — v25 督促小窗流水迁移（docs/COACH-SPEC.md，B+C
     const dir = tmp();
     const old = openIsolated(dir);
     old.exec(`DROP TABLE IF EXISTS coach_messages`);
+    // v28 复习范围：本用例只退到 v23（v23 与 v28 的 ADD COLUMN 都不幂等），
+    // 故 v28 的两列要单独退；先删索引再删列（SQLite 不留悬空索引）。
+    old.exec(`DROP INDEX IF EXISTS idx_term_library_review_enabled`);
+    old.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
+    old.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
     old.prepare('DELETE FROM schema_version WHERE version > 23').run();
     old.close();
 
@@ -587,6 +617,11 @@ describe('storage/db — v27 邮箱验证码迁移（docs/AUTH-SPEC.md §1，M1.
     const dir = tmp();
     const old = openIsolated(dir);
     old.exec(`DROP TABLE IF EXISTS auth_codes`);
+    // v28 复习范围：本用例只退到 v26（v28 的 ADD COLUMN 不幂等），故 v28 的两列要单独退；
+    // 先删索引再删列（SQLite 不留悬空索引）。
+    old.exec(`DROP INDEX IF EXISTS idx_term_library_review_enabled`);
+    old.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
+    old.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
     old.prepare('DELETE FROM schema_version WHERE version > 26').run();
     old.close();
 
@@ -596,5 +631,67 @@ describe('storage/db — v27 邮箱验证码迁移（docs/AUTH-SPEC.md §1，M1.
       upgraded.prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name='idx_auth_codes_email_purpose'`).get(),
     ).toBeTruthy();
     upgraded.close();
+  });
+});
+
+describe('storage/db — v28 复习范围迁移（docs/EBBINGHAUS-SPEC.md §9，选择式复习）', () => {
+  const termCols = (db: ReturnType<typeof openIsolated>) =>
+    db.prepare(`PRAGMA table_info(term_library)`).all() as Array<{ name: string; notnull: number; dflt_value: string | null }>;
+  const domainCols = (db: ReturnType<typeof openIsolated>) =>
+    db.prepare(`PRAGMA table_info(term_domain)`).all() as Array<{ name: string; notnull: number; dflt_value: string | null }>;
+
+  it('新库：term_library.review_enabled **可空**（NULL = 继承领域），term_domain.review_enabled NOT NULL DEFAULT 0', () => {
+    const db = openIsolated(tmp());
+    const t = termCols(db).find((c) => c.name === 'review_enabled');
+    // ★ 可空是这一版的**核心设计**：`NULL` 表示"跟随领域开关"。写成 NOT NULL DEFAULT 0 的话，
+    //   "领域已开启"与"新词条默认关闭"就冲突，只能靠写入侧回填 —— 那是第二份范围口径。
+    expect(t).toBeDefined();
+    expect(t?.notnull).toBe(0);
+    expect(t?.dflt_value).toBeNull();
+
+    const d = domainCols(db).find((c) => c.name === 'review_enabled');
+    expect(d?.notnull).toBe(1);
+    expect(d?.dflt_value).toBe('0'); // 默认全不选（老板 2026-09-18 拍板）
+    db.close();
+  });
+
+  it('新库：idx_term_library_review_enabled 索引就位', () => {
+    const db = openIsolated(tmp());
+    expect(
+      db.prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name='idx_term_library_review_enabled'`).get(),
+    ).toBeTruthy();
+    db.close();
+  });
+
+  it('老库升级：既有领域一律 review_enabled=0（复习池为空，不是"悄悄全开"）', () => {
+    const dir = tmp();
+    const old = openIsolated(dir);
+    old.prepare(`INSERT INTO term_domain (name) VALUES ('math')`).run();
+    old.exec(`DROP INDEX IF EXISTS idx_term_library_review_enabled`);
+    old.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
+    old.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
+    old.prepare('DELETE FROM schema_version WHERE version > 27').run();
+    old.close();
+
+    const upgraded = openIsolated(dir);
+    const rows = upgraded.prepare(`SELECT name, review_enabled FROM term_domain ORDER BY name`).all() as Array<{
+      name: string;
+      review_enabled: number;
+    }>;
+    expect(rows.length).toBeGreaterThan(0);
+    // ★ 默认必须落到 0：若给 DEFAULT 1，老用户升级后会**突然被一堆娱乐词条催复习**，
+    //   而本功能的前提正是"词条库是 AI 从全部对话里抽的，混着娱乐内容"。
+    for (const r of rows) expect(r.review_enabled).toBe(0);
+    upgraded.close();
+  });
+
+  it('★ 不落 `next_review_*` 之类的派生列：范围只存两个开关，有效范围每次现算', () => {
+    const db = openIsolated(tmp());
+    const names = [...termCols(db), ...domainCols(db)].map((c) => c.name);
+    // 与 v23「不落 next_review_at」同一条理由：范围是派生值（覆盖位 + 领域开关的组合），
+    // 落库就得在每次开关变化时洗全表，且新老行口径必然分裂。
+    expect(names.some((n) => n.startsWith('next_review'))).toBe(false);
+    expect(names).not.toContain('review_in_scope');
+    db.close();
   });
 });

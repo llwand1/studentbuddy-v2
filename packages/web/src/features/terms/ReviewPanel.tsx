@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, type ReviewOverview, type ReviewTermItem } from '../../lib/api';
 import { ClockIcon, CheckIcon } from '../../components/icons';
+import { ReviewScopePicker } from './ReviewScopePicker';
 
 const QUEUE_LIMIT = 20;
 
@@ -37,6 +38,12 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
    * 会把词条库本体连同搜索/添加一起挤出可视区。收起态保留一行欠账摘要，信息不丢。
    */
   const [open, setOpen] = useState(false);
+  /**
+   * 复习范围面板（v28）：默认**收起**，但它与队列是**两个独立的开关**——
+   * 范围是"该背哪些"（低频、一次性），队列是"今天还哪些账"（高频）。
+   * 合成一个开关的话，每次想调范围都得先展开 20 条队列，页面被挤走。
+   */
+  const [scopeOpen, setScopeOpen] = useState(false);
   const [revealed, setRevealed] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -83,17 +90,38 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
         {/* 收起态也要回答「今天欠多少」——摘要与展开态同源（`overview`），不另算一套口径 */}
         {overview && (
           <span className="rv-sum">
-            <span className="rv-sum-warn">逾期 {overview.overdue}</span>
-            <span>待复习 {overview.due}</span>
-            <span>今日已复习 {overview.todayDone}</span>
+            {/* ★ 复习池为空（v28 默认全不选）时**不能说"逾期 0"**：那读起来像"今天没账"，
+                而真实情况是"你还没说要背什么"。两句话的下一步动作完全不同。 */}
+            {overview.total === 0 ? (
+              <span className="rv-sum-hint">还没选复习范围</span>
+            ) : (
+              <>
+                <span className="rv-sum-warn">逾期 {overview.overdue}</span>
+                <span>待复习 {overview.due}</span>
+                <span>今日已复习 {overview.todayDone}</span>
+              </>
+            )}
           </span>
         )}
         {/* 展开/收起是**本页布局的必需开关**（不是可选装饰）：展开才会让队列参与高度分配 */}
+        <button className="rv-toggle" aria-expanded={scopeOpen} onClick={() => setScopeOpen((o) => !o)}>
+          {scopeOpen ? '收起范围' : '复习范围'}
+        </button>
         <button className="rv-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
           {open ? '收起队列' : '展开队列'}
           <i className={open ? 'rv-caret on' : 'rv-caret'} />
         </button>
       </div>
+
+      {scopeOpen && (
+        <ReviewScopePicker
+          onChanged={() => {
+            // 范围一变，概览/队列/词条行的徽标**全都**要跟着变（范围是本页最大的一个开关）
+            void reload().catch(() => undefined);
+            onChanged?.();
+          }}
+        />
+      )}
 
       {loading && !overview && <div className="rv-loading">正在算欠账…</div>}
 
@@ -137,7 +165,16 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
       {!loading && queue.length === 0 && (
         <div className="rv-empty">
           <CheckIcon size={18} />
-          <span>{overview && overview.due > 0 ? '这一批复习完了，刷新看还有没有' : '今天没有到期要复习的词条'}</span>
+          {/* ★ 三句话对应三种完全不同的下一步（v28 加了第一条）：
+              没选范围 → 去选；有欠账但队列空 → 刷新；真的没到期 → 什么都不用做。
+              全说成"今天没有要复习的词条"会让第一种情况永远无解。 */}
+          <span>
+            {overview && overview.total === 0
+              ? '还没选复习范围——点上方「复习范围」勾选要背的领域或词条'
+              : overview && overview.due > 0
+                ? '这一批复习完了，刷新看还有没有'
+                : '今天没有到期要复习的词条'}
+          </span>
         </div>
       )}
 

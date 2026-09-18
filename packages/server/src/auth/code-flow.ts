@@ -1,6 +1,11 @@
 /**
  * auth/code-flow — 验证码两个端点的用例编排（契约 docs/AUTH-SPEC.md §2.5）。
  *
+ * ★ 2026-09-18（M1.6）：新增 **`registerByCode`**（「注册即验证」，§2.7）——
+ *   `WIRED_PURPOSES` 加 `register`，配套把 `register` 的 **IP 桶单独收紧到 5/小时**
+ *   （`AUTH_CODE_MAX_PER_IP_REGISTER_HOUR`，见 `code-limit.ts` 的 `IP_HOURLY_CAP`）。
+ *   两个变更**必须同批**：只开用途不收限流 = 把一个陌生地址跳板打开且不设闸。
+ *
  * 分层的理由：`auth/codes.ts` 只管表与 crypto、`mail/` 只管发信，**两者都不该知道对方的策略**；
  * 「邮箱没注册时发不发信」这类判断是**用例级**的，收在这一层。
  * 本文件同样不碰 HTTP（错误一律抛 `AuthError` 码，由 `routes/auth.ts` 映射状态码）。
@@ -29,33 +34,38 @@
  */
 import {
   AUTH_CODE_TTL_MS,
+  normalizeAuthNickname,
   normalizeEmail,
   normalizePurpose,
+  passwordProblem,
   type AuthCodePurpose,
   type AuthError,
   type AuthUser,
 } from '@sb/shared';
 import { admitSend } from './code-limit.js';
 import { consumeCode, issueCode } from './codes.js';
-import { findUserByEmail } from './users.js';
+import { createUser, findUserByEmail } from './users.js';
 import { buildCodeMail, getMailSender } from '../mail/send.js';
 
 /**
  * **已接线（存在消费端点）的用途白名单**。
  *
  * ★ 为什么需要这道闸门（两层理由，第二层更硬）：
- *   ① `AUTH-SPEC §2.5` 目前只有 `login-by-code` **一个**消费端点 ⇒ `register` / `reset`
- *      发出去的码**没有任何地方能校验**，用户收得到信却用不上，而每封都从 Resend 的
- *      3000 封/月里扣（§4.6 成本账）。
+ *   ① 消费端点没落地时，发出去的码**没有任何地方能校验**，用户收得到信却用不上，
+ *      而每封都从 Resend 的 3000 封/月里扣（§4.6 成本账）。
  *   ② ★★ **`register` 态会给「未注册的邮箱」发信**——这正是注册流程需要的，但它同时意味着
  *      **任何人都能拿我们的发信通道给任意陌生邮箱发邮件**（垃圾邮件/钓鱼的现成跳板，
  *      也是让发信域名被拉黑最快的方式）。`login` 态只给**已注册**邮箱发信，滥用面小得多。
- *      ⇒ 在 register 的完整链路（注册端点 + 邮箱验证）落地之前，**不开这个口子**。
+ *      ⇒ 它必须与消费端点**同批开**，且必须配套收紧限流（§2.7）。
  * ★ 用 `PURPOSE_INVALID`（400）而不是新造一个码：从调用方视角，"这个用途现在不能用"
  *   与"这个用途不存在"是同一件事，多一个码只会多一个前端分支。
- * ★ 端点落地时把常量加一项即可，**表结构、`purpose` 列、限流、发信全都不用改**。
+ *
+ * ★ **2026-09-18（M1.6）加 `register`**：消费端点 `registerByCode` 与
+ *   `POST /api/auth/register` 的 `code` 必填项同批落地（§2.7），② 的配套是
+ *   **`register` 单独的 IP 桶上限 5/小时**（`AUTH_CODE_MAX_PER_IP_REGISTER_HOUR`）。
+ *   `reset` 仍未接线（密码找回端点未做）⇒ 继续回 400。
  */
-const WIRED_PURPOSES: readonly AuthCodePurpose[] = ['login'];
+const WIRED_PURPOSES: readonly AuthCodePurpose[] = ['login', 'register'];
 
 /**
  * 该用途**今天**有没有消费端点。★ 与 `decideSend` 刻意分成两件事：
@@ -118,7 +128,7 @@ export async function sendCode(
   const { email, purpose } = parseTarget(rawEmail, rawPurpose);
   if (!isPurposeWired(purpose)) throw new Error('PURPOSE_INVALID' satisfies AuthError);
 
-  const admission = admitSend(email, ip, now);
+  const admission = admitSend(email, ip, purpose, now);
   if (!admission.ok) throw new Error('CODE_RATE_LIMITED' satisfies AuthError);
 
   const decision = decideSend(purpose, findUserByEmail(email) !== null);
@@ -154,4 +164,41 @@ export function loginByCode(rawEmail: unknown, rawCode: unknown, now: number = D
   const user = findUserByEmail(email);
   if (!user) throw new Error('CREDENTIALS_INVALID' satisfies AuthError);
   return user;
+}
+
+/**
+ * `POST /api/auth/register` 的用例：核销 `register` 码 → 建号。**会话由路由建**（见 `routes/auth.ts`）。
+ *
+ * ★ **这就是「注册即验证」的全部实现**（契约 §2.7）：建号前必须先证明邮箱所有权。
+ *   旧的无码注册路径**必须消失**——留着它就是**绕过验证的后门**，不是兼容性。
+ *
+ * ★ 顺序：**纯校验 → 核销码 → 建号**，三步都不换。
+ *   ① **纯校验放最前**：邮箱格式 / 密码长度 / 昵称都是纯函数、零 IO，**免费**；
+ *      而核销码**不可逆**。顺序反了的话「密码只打了 6 位」这种手滑会**白烧一条码**，
+ *      用户得重新收信——把可避免的失败挡在不可逆操作之前。
+ *   ② **核销在建号之前**：码是一次性凭据，验证通过就该失效（同 `loginByCode`）。
+ *      为「邮箱已被占用」保留码，等于给枚举账号留一个可重复试探的口子。
+ *   ③ **建号复用 `createUser`**：它内部已带两层（先查一次给友好码 + catch 住并发撞
+ *      `UNIQUE(email)` 的竞态）。★ 即**库层唯一约束是最终兜底**，本函数不重复实现查重——
+ *      两处各写一遍必然漂成「一处拦一处不拦」。
+ *
+ * ⚠️ **已知代价（契约 §2.7 记账）**：`EMAIL_TAKEN` 只可能在**竞态**下从这里抛出
+ *   （正常流程里 `send-code` 的 `register` 态已先回 409），而**此时码已被烧掉**。
+ *   这是刻意取舍：宁可让极端竞态下的用户重收一次码，也不给「拿别人邮箱试注册」留口子。
+ */
+export async function registerByCode(
+  rawEmail: unknown,
+  rawCode: unknown,
+  rawPassword: unknown,
+  rawNickname: unknown,
+  now: number = Date.now(),
+): Promise<AuthUser> {
+  const email = normalizeEmail(rawEmail);
+  if (!email) throw new Error('EMAIL_INVALID' satisfies AuthError);
+  const pwProblem = passwordProblem(rawPassword);
+  if (pwProblem) throw new Error(pwProblem);
+  if (normalizeAuthNickname(rawNickname) === null) throw new Error('NICKNAME_INVALID' satisfies AuthError);
+
+  consumeCode(email, 'register', rawCode, now); // 失败抛 CODE_INVALID / CODE_EXPIRED
+  return createUser(email, rawPassword, rawNickname);
 }

@@ -10,6 +10,7 @@ import { isScenarioItem, isScenarioPayload } from './scenario-view';
 import { AskStyleCard, useAskStyle } from '../chat/AskStyleCard';
 import { OnlineToggle } from '../../components/OnlineToggle';
 import { RefList } from './RefList';
+import { CollectPanel } from './CollectPanel';
 import { mixSummary, shortfallText, imageNote, searchNote, refsList, scenarioMixNote } from './mix-report';
 import { weakView } from './weak-report';
 import './quiz.css';
@@ -22,6 +23,8 @@ export function QuizBankPage({ onOpenNotes }: { onOpenNotes?: (quizId?: string) 
   const [generating, setGenerating] = useState(false);
   /** 联网开关：默认开（题库页是主出题口，时效性题目要靠它）；只作用于本次请求，不落库 */
   const [online, setOnline] = useState(true);
+  /** 现场搜集面板开合（契约 RESOURCE-SPEC D2 已批：题库页先行；preview/commit 两段在面板内完成） */
+  const [showCollect, setShowCollect] = useState(false);
   const [err, setErr] = useState('');
   const [mixTip, setMixTip] = useState('');
   const [note, setNote] = useState('');
@@ -212,7 +215,22 @@ export function QuizBankPage({ onOpenNotes }: { onOpenNotes?: (quizId?: string) 
         <button className="quiz-gen-btn" disabled={!topic.trim() || generating} onClick={() => ask.tap()}>
           {generating ? '出题中…' : '一键出题'}
         </button>
+        <button className="quiz-collect-btn" onClick={() => setShowCollect((v) => !v)}>
+          {showCollect ? '收起搜集' : '搜集题目'}
+        </button>
       </div>
+      {showCollect && (
+        <CollectPanel
+          initialTopic={topic}
+          onClose={() => setShowCollect(false)}
+          onCommitted={(_quizId, count) => {
+            setShowCollect(false);
+            setTopic('');
+            setNote(`已入库 ${count} 道搜集结果（逐题可点「出处」回查原页）`);
+            void reload();
+          }}
+        />
+      )}
       {ask.hint && <div className="ask-style-hint">{ask.hint}</div>}
       {ask.card && <AskStyleCard {...ask.card} busy={generating} />}
       {mixTip && <div className="quiz-mix-tip">本次出题配比：{mixTip}{ask.summary && <>｜回答方式：{ask.summary}</>}（设置页可改）</div>}

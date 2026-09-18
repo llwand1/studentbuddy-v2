@@ -5,17 +5,21 @@
  * 路由只做三件事：参数校验、调域层、把域层错误码映射成 HTTP——业务规则一律不在这一层
  * （与 `routes/pk.ts` 同构）。
  *
+ * ★ 2026-09-18（M1.6）：`register` 的入参**新增必填 `code`**（「注册即验证」，§2.7）。
+ *   ⚠️ 这是**破坏性变更**：旧的无码注册路径已消失。留着它 = 一条**绕过邮箱验证的后门**，
+ *   不是兼容性。前端漏改的症状是 `400 CODE_INVALID`（清晰可查），不是静默降级。
+ *
  * ⚠️ 写端点（register/login/logout/send-code/login-by-code）受 `security.ts` 的 `originCheck`
  * 管辖：**必须带合法 Origin**，否则 403（这不是参数错误）。真机 curl 冒烟要加 `-H 'origin: ...'`。
  */
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { normalizeEmail, type AuthError } from '@sb/shared';
-import { authenticate, createUser } from '../auth/users.js';
+import { authenticate } from '../auth/users.js';
 import { createSession, deleteSession } from '../auth/session.js';
 import { clearSessionCookie, readSessionToken, resolveUser, setSessionCookie } from '../auth/middleware.js';
 import { clearFailures, isLocked, recordFailure } from '../auth/rate-limit.js';
-import { loginByCode, sendCode } from '../auth/code-flow.js';
+import { loginByCode, registerByCode, sendCode } from '../auth/code-flow.js';
 
 export const authRouter = Router();
 
@@ -84,10 +88,22 @@ function failFrom(res: Response, e: unknown): void {
   fail(res, code);
 }
 
-/** 注册：建号 + 直接登录（下发会话 cookie）。 */
+/**
+ * 注册（**注册即验证**，契约 §2.7，M1.6）：核销 `register` 验证码 → 建号 → 直接登录。
+ *
+ * ★ `code` 是**必填**：没有它这条路就是「任何人用任意邮箱凭空建号」。
+ *   校验失败回 `CODE_INVALID` / `CODE_EXPIRED`（不是 400 参数缺失——域层统一给这两个码）。
+ * ★ 建号后复用与密码登录**完全相同**的会话下发（`createSession` + `setSessionCookie`）——
+ *   注册与登录产出同一种会话，故后续归属逻辑（TENANCY-SPEC）无需分支。
+ */
 authRouter.post('/register', (req: Request, res: Response) => {
-  const { email, password, nickname } = req.body as { email?: unknown; password?: unknown; nickname?: unknown };
-  void createUser(email, password, nickname)
+  const { email, code, password, nickname } = req.body as {
+    email?: unknown;
+    code?: unknown;
+    password?: unknown;
+    nickname?: unknown;
+  };
+  void registerByCode(email, code, password, nickname)
     .then((user) => {
       const { token, expiresAt } = createSession(user.id);
       setSessionCookie(res, token, expiresAt);

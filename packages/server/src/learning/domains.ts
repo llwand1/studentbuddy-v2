@@ -32,6 +32,10 @@ import { renameDomain } from './tidy.js';
 // ★ 依赖方向仍守单向：`mention.ts` 只依赖 storage/ownership/shared，**不反向依赖本文件**
 //   或 `terms.ts`，故不成环（本文件头写的「terms → domains → tidy → terms 环」那条约束不受影响）。
 import { domainMentionTotals } from './mention.js';
+// ★ v28 复习范围：范围**取值**表达式向 `term-review.ts` 要，不在这里手抄一遍
+//   （抄一遍就有两份口径，将来范围规则一改，Tab 上的「已纳入 N 条」与复习概览就对不上）。
+//   依赖方向安全：`term-review.ts` 只依赖 storage/db 与 @sb/shared，**不反向依赖本文件**。
+import { SCOPE_FLAG } from './term-review.js';
 
 /** 默认领域：词条未归类时的落点，也是删域时的迁移目标（**不可删除**）。 */
 export const DEFAULT_DOMAIN = 'general';
@@ -197,8 +201,15 @@ export function removeDomain(rawName: string): RemoveDomainResult {
  */
 export function domainStats(): {
   total: number;
-  /** count 为派生值；note 来自登记册（孤儿域为空串）。按 count 降序、同数按名字升序 */
-  domains: Array<{ domain: string; count: number; note: string; mentionCount: number }>;
+  /**
+   * count 为派生值；note 来自登记册（孤儿域为空串）。按 count 降序、同数按名字升序。
+   * ★ `reviewEnabled`/`reviewCount`（v28 复习范围，契约 EBBINGHAUS-SPEC §9）：
+   *   `reviewEnabled` 是**领域开关本身**（用户点出来的），`reviewCount` 是**有效范围内的词条数**
+   *   （现算，含词条级覆盖）。两者**不可互相换算**：开关开着但被逐条反选掉时
+   *   `reviewEnabled=true` 而 `reviewCount` 可能远小于 `count`——前端的三态勾选框正是靠
+   *   这个差看出"部分纳入"。孤儿域恒 `reviewEnabled=false`（登记册里没有它，没有开关可谈）。
+   */
+  domains: Array<{ domain: string; count: number; note: string; mentionCount: number; reviewEnabled: boolean; reviewCount: number }>;
   today: number;
   /**
    * **偏好领域**（契约 MEMORY-TREND-SPEC §2.1）：按**总提及数**降序；同数按词条数降序、
@@ -215,17 +226,19 @@ export function domainStats(): {
   const total = (db.prepare('SELECT COUNT(*) AS c FROM term_library').get() as { c: number }).c;
   const domains = db
     .prepare(
-      `SELECT d.name AS domain, d.note AS note, COUNT(t.id) AS count
+      `SELECT d.name AS domain, d.note AS note, d.review_enabled AS review_enabled, COUNT(t.id) AS count,
+              COALESCE(SUM(${SCOPE_FLAG}), 0) AS review_count
          FROM term_domain d LEFT JOIN term_library t ON t.domain = d.name
-        GROUP BY d.name, d.note
+        GROUP BY d.name, d.note, d.review_enabled
         UNION ALL
-       SELECT t.domain AS domain, '' AS note, COUNT(*) AS count
+       SELECT t.domain AS domain, '' AS note, 0 AS review_enabled, COUNT(*) AS count,
+              COALESCE(SUM(${SCOPE_FLAG}), 0) AS review_count
          FROM term_library t LEFT JOIN term_domain d ON d.name = t.domain
         WHERE d.name IS NULL
         GROUP BY t.domain
         ORDER BY count DESC, domain ASC`,
     )
-    .all() as Array<{ domain: string; count: number; note: string }>;
+    .all() as Array<{ domain: string; count: number; note: string; review_enabled: number; review_count: number }>;
   const today = (
     db.prepare("SELECT COUNT(*) AS c FROM term_library WHERE created_at >= date('now')").get() as { c: number }
   ).c;
@@ -233,7 +246,14 @@ export function domainStats(): {
   // ★ 提及口径不在这里重写 SQL：一律向 `mention.ts` 要（那里的 `domainMentionTotals` 是唯一实现）。
   //   本文件自己写一遍 `SUM(usage_count)` 就会有两份口径，将来加归属过滤时必漏一边。
   const mentions = domainMentionTotals();
-  const withMentions = domains.map((r) => ({ ...r, mentionCount: mentions.get(r.domain) ?? 0 }));
+  const withMentions = domains.map(({ review_enabled, review_count, ...r }) => ({
+    ...r,
+    mentionCount: mentions.get(r.domain) ?? 0,
+    // 库层是 0/1，对外给布尔：`reviewEnabled` 是"用户点出来的开关"，
+    // `reviewCount` 是"现算的有效条数"——前端三态（全选/部分/未选）取的就是这一对。
+    reviewEnabled: review_enabled === 1,
+    reviewCount: review_count,
+  }));
   const preferred = withMentions
     .filter((d) => d.mentionCount > 0)
     .sort(

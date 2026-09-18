@@ -44,6 +44,8 @@ vi.mock('../llm/router.js', async (importOriginal) => {
 
 const { app } = await import('../index.js');
 const { getDb, closeDb } = await import('../storage/db.js');
+const { createUser } = await import('../auth/users.js');
+const { createSession: issueSession } = await import('../auth/session.js');
 const request = (await import('supertest')).default;
 
 const origin = 'http://localhost:5173';
@@ -54,7 +56,16 @@ const addTerm = async (term: string): Promise<string> => {
     .set('Origin', origin)
     .send({ term, definition: `${term} 的释义`, domain: 'math' })
     .expect(201);
-  return (res.body as { id: string }).id;
+  const id = (res.body as { id: string }).id;
+  // ★ v28 复习范围：新词条**默认不在复习池**（默认全不选，老板 2026-09-18 拍板）。
+  //   本文件验的是督促编排（欠账口径 / 冷却 / 落卡），词条必须在池里才谈得上催，
+  //   故建完顺手勾进范围。范围本身的默认值与边界由 `term-review.test.ts` 单独钉。
+  await request(app)
+    .put('/api/terms/review/scope')
+    .set('Origin', origin)
+    .send({ termId: id, enabled: true })
+    .expect(200);
+  return id;
 };
 
 /** 把上次复习时间往回拨 N 天（造欠账；不碰系统时钟，理由见 term-review.test.ts） */
@@ -100,16 +111,18 @@ async function waitFor(pred: () => boolean, ms = 3000): Promise<boolean> {
 const nudgeCount = (): number =>
   (getDb().prepare(`SELECT COUNT(*) AS c FROM coach_messages WHERE kind = 'nudge'`).get() as { c: number }).c;
 
+/**
+ * 建一个账号并取出会话 cookie。
+ *
+ * ★ M1.6（契约 §2.7「注册即验证」）起 `POST /api/auth/register` **必带 `code`**，
+ *   而本文件的主体是**督促编排**、不是注册流程 ⇒ 夹具直接落在**账号 + 会话**这两层，
+ *   不借道注册端点：省掉一次发信打桩，也不吃注册用途的限流名额（注册 IP 上限 5/小时）。
+ *   注册端点本身的端到端覆盖在 `routes/auth.test.ts`。
+ */
 const newCookie = async (email: string): Promise<string> => {
-  const res = await request(app)
-    .post('/api/auth/register')
-    .set('Origin', origin)
-    .send({ email, password: 'good-password-1' });
-  expect(res.status).toBe(200);
-  const raw = res.headers['set-cookie'];
-  const arr = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [];
-  const hit = arr.find((c) => c.startsWith(`${AUTH_COOKIE_NAME}=`));
-  return hit ? (hit.split(';')[0] ?? '') : '';
+  const user = await createUser(email, 'good-password-1', undefined);
+  const { token } = issueSession(user.id);
+  return `${AUTH_COOKIE_NAME}=${token}`;
 };
 
 beforeEach(() => {

@@ -1,7 +1,8 @@
 /**
  * TermsPage — 词条库（忆域 v2：AI 自动词条库）。
  * 取代旧「背背背」翻卡页：AI 在对话/搜索中自动把重要词条入库，
- * 本页提供领域 Tab 浏览、搜索、手动添加、编辑释义、删除、重要度/使用次数查看。
+ * 本页提供领域 Tab 浏览、搜索、手动添加、编辑释义、删除、重要度/使用次数查看，
+ * 以及**复习范围的逐条开关**（v28：词条行右侧「纳入复习 / 移出复习」）。
  *
  * `initialKeyword`：从知识图页「去词条库看正文」带词进来（知识图只存引用快照，正文在本页）。
  * 调用方用 `key` 控制重挂，故这里直接拿它做初值即可，不需要额外的 effect 同步。
@@ -107,6 +108,20 @@ export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) 
     await reload();
   };
 
+  /**
+   * 单条词条的复习范围开关（v28 选择式复习）。
+   * ★ 判据用服务端算好的 `review_in_scope`，**不是** `review_enabled` 那一列：
+   *   后者可能是 `NULL`（继承领域），拿它判"现在复不复习"会把"领域已开"读成"没开"。
+   * ★ 纳入会**清零进度**（老板拍板"清零重来"），故文案必须把这件事说出来——
+   *   进度是不可撤销的，静默清掉等于让用户莫名其妙从头背。
+   */
+  const toggleScope = async (t: TermItem) => {
+    const on = t.review_in_scope !== 1;
+    await api.terms.scopeTerm(t.id, on);
+    flash(on ? '已纳入复习范围（进度从第 1 天重新开始）' : '已移出复习范围');
+    await reload();
+  };
+
   return (
     <div className="term-page">
       <div className="term-head">
@@ -201,7 +216,10 @@ export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) 
                   <div className="term-meta">
                     {t.source_title && <span>来自：{t.source_title.slice(0, 16)}</span>}
                     <span>{t.updated_at?.slice(0, 10)}</span>
-                    <ReviewBadge t={t} />
+                    {/* ★ v28：**未纳入复习范围的词条不显示复习徽标**（老板拍板）。
+                        显示"N 天没复习"会让人以为它在催，而它根本不在复习池里——
+                        徽标只能有一个含义，否则数字与队列对不上就是必然的。 */}
+                    {t.review_in_scope === 1 && <ReviewBadge t={t} />}
                   </div>
                 </div>
                 <div className="term-side">
@@ -210,6 +228,17 @@ export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) 
                     <i style={{ ['--imp-w' as string]: `${Math.round(t.importance * 100)}%` }} />
                   </div>
                   <div className="term-actions">
+                    <button
+                      className={t.review_in_scope === 1 ? 'term-btn' : 'term-btn ok'}
+                      title={
+                        t.review_in_scope === 1
+                          ? '移出复习范围（已积累的进度保留，重新纳入时会清零重来）'
+                          : '纳入复习范围，从第 1 天开始记'
+                      }
+                      onClick={() => void toggleScope(t)}
+                    >
+                      {t.review_in_scope === 1 ? '移出复习' : '纳入复习'}
+                    </button>
                     <button className="term-btn" onClick={() => startEdit(t)}>
                       编辑
                     </button>

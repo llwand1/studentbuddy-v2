@@ -288,3 +288,66 @@ describe('learning/domains — 领域总提及数 + 偏好领域（契约 §2）
     expect(s.preferred.map((p) => p.domain)).toEqual(['solo']); // 但偏好榜 solo 赢（它才有提及）
   });
 });
+
+/**
+ * ★ v28 复习范围（契约 EBBINGHAUS-SPEC §9）：`domainStats` 多给两个字段，
+ *   它们是**前端领域三态勾选框（全选 / 部分 / 未选）的唯一数据源**。
+ * 两者不可换算——`reviewEnabled` 是"用户点出来的开关"，`reviewCount` 是"现算的有效条数"。
+ * 若这里算错，UI 上就会出现"明明全选了却显示部分"或反过来的假象，而数据本身是对的。
+ */
+describe('learning/domains — 复习范围计数（v28）', () => {
+  const find = (name: string) => domainStats().domains.find((d) => d.domain === name);
+  const scopeTerm = (term: string, enabled: boolean) =>
+    getDb()
+      .prepare('UPDATE term_library SET review_enabled = ? WHERE term = ?')
+      .run(enabled ? 1 : 0, term);
+
+  it('默认全不选：reviewEnabled=false 且 reviewCount=0（空领域也是 0）', () => {
+    createDomain('empty-one');
+    saveTerms([{ term: 'a', definition: 'A', domain: 'rv-default', importance: 0.5 }]);
+    const d = find('rv-default');
+    expect(d?.count).toBe(1);
+    expect(d?.reviewEnabled).toBe(false);
+    expect(d?.reviewCount).toBe(0);
+    expect(find('empty-one')).toMatchObject({ count: 0, reviewEnabled: false, reviewCount: 0 });
+  });
+
+  it('领域开关打开 ⇒ reviewCount 等于 count（该域全部跟随）', () => {
+    saveTerms([
+      { term: 'b1', definition: '1', domain: 'rv-on', importance: 0.5 },
+      { term: 'b2', definition: '2', domain: 'rv-on', importance: 0.5 },
+    ]);
+    getDb().prepare(`UPDATE term_domain SET review_enabled = 1 WHERE name = 'rv-on'`).run();
+    expect(find('rv-on')).toMatchObject({ count: 2, reviewEnabled: true, reviewCount: 2 });
+  });
+
+  it('★ 部分纳入：开关开着但词条被逐条反选 ⇒ reviewEnabled=true 而 reviewCount < count', () => {
+    saveTerms([
+      { term: 'c1', definition: '1', domain: 'rv-part', importance: 0.5 },
+      { term: 'c2', definition: '2', domain: 'rv-part', importance: 0.5 },
+      { term: 'c3', definition: '3', domain: 'rv-part', importance: 0.5 },
+    ]);
+    getDb().prepare(`UPDATE term_domain SET review_enabled = 1 WHERE name = 'rv-part'`).run();
+    scopeTerm('c2', false); // 单独反选一条
+    // ★ 这一对差（true 但 2/3）就是 UI「部分选中」的判据；少了它，三态会退化成两态。
+    expect(find('rv-part')).toMatchObject({ count: 3, reviewEnabled: true, reviewCount: 2 });
+  });
+
+  it('★ 反向部分：领域关着，但词条被单独勾进来 ⇒ reviewCount > 0 而 reviewEnabled=false', () => {
+    saveTerms([
+      { term: 'd1', definition: '1', domain: 'rv-off', importance: 0.5 },
+      { term: 'd2', definition: '2', domain: 'rv-off', importance: 0.5 },
+    ]);
+    scopeTerm('d1', true);
+    expect(find('rv-off')).toMatchObject({ count: 2, reviewEnabled: false, reviewCount: 1 });
+  });
+
+  it('★ 孤儿域（登记册里没有的域）恒 reviewEnabled=false，但 reviewCount 仍如实算', () => {
+    saveTerms([{ term: 'e1', definition: '1', domain: 'rv-orphan', importance: 0.5 }]);
+    getDb().prepare(`DELETE FROM term_domain WHERE name = 'rv-orphan'`).run(); // 造孤儿态
+    scopeTerm('e1', true);
+    // 孤儿域没有开关可谈（登记册里没这一行）⇒ 恒 false；但词条自己的覆盖位仍算数，
+    // 否则它的词条会在 Tab 上"隐身"（与 v19 那条兜底的取向一致：宁可多一格也不丢数据）。
+    expect(find('rv-orphan')).toMatchObject({ count: 1, reviewEnabled: false, reviewCount: 1 });
+  });
+});

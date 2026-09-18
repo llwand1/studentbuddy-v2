@@ -17,10 +17,10 @@ import type {
   PkMatchRecord,
   PkMatchDetail,
   AskChoiceRecord,
-  AuthUser,
 } from '@sb/shared';
 
 import { ApiError, request } from './api-request.js';
+import { authApi } from './api-auth.js';
 import { termsDomainApi } from './api-terms-domain.js';
 import { termsReviewApi } from './api-terms-review.js';
 import { studyFlowApi } from './api-study-flow.js';
@@ -41,21 +41,10 @@ export const api = {
   status: () => request<StatusResponse>('/api/status'),
 
   /**
-   * 账号（契约 docs/AUTH-SPEC.md §2）：邮箱 + 密码。
-   * ★ 会话是 **httpOnly cookie**，JS 读不到 ⇒ 前端**不存 token**，也没有"记住登录态"这回事——
-   *   登录态的唯一真相源是 `me()`。刷新页面后是否还登录，问服务端，不靠本地缓存猜。
+   * 账号（契约 docs/AUTH-SPEC.md §2）。
+   * ★ 形状定义在 `api-auth.ts`（行数红线 + M1.6 的破坏性变更集中一处），此处只做转发。
    */
-  auth: {
-    me: () => request<AuthUser>('/api/auth/me'),
-    register: (email: string, password: string, nickname?: string) =>
-      request<AuthUser>('/api/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({ email, password, ...(nickname ? { nickname } : {}) }),
-      }),
-    login: (email: string, password: string) =>
-      request<AuthUser>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-    logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
-  },
+  auth: authApi,
 
   /** PK 登录与房间（契约 docs/PK-SPEC.md §2.1）：P0 模拟登录，P1 换真微信授权时签名不变 */
   pk: {
@@ -379,6 +368,14 @@ export interface TermItem {
   review_stage: number;
   /** 上次复习时间（null = 从未复习；起算点退到 created_at） */
   last_reviewed_at: string | null;
+  /**
+   * **有效**复习范围（v28）：1 = 该词条要复习。服务端现算
+   * `COALESCE(词条覆盖位, 领域开关, 0)`，前端**只读结论、不自己算**
+   * （自己 COALESCE 一次就是第二份范围口径，会出现「列表说不用背、队列里却有它」）。
+   */
+  review_in_scope: number;
+  /** 词条级覆盖位（v28）：null = 继承领域开关。**别拿它判"复不复习"**，那是 review_in_scope 的事 */
+  review_enabled: number | null;
 }
 
 // 领域的 4 个类型（DomainRow / DomainsResponse / RenameDomainResult / RemoveDomainResult）

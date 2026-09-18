@@ -3,7 +3,7 @@
  *
  * 2026-09-18 四次拆分：v24（长期画像归主，契约 docs/TENANCY-SPEC.md §7）加完后 `-v18.ts` 涨到 413 行，
  * 触 AGENTS.md「.ts ≤400 行」红线。照本仓既有规矩（**按版本区间再切，不要用压注释换行数**）
- * 把 v22~v27 切到本文件——分片注释记的是每张表**为什么这么建**，价值远高于行数。
+ * 把 v22~v28 切到本文件——分片注释记的是每张表**为什么这么建**，价值远高于行数。
  * ★ 本文件是**追加新迁移的唯一落点**（v22 及之后）；v18~v21 在 `-v18.ts`，v10~v17 在 `-v10.ts`。
  *
  * ⚠️ 回放迁移链的测试必须把**加列**也 DROP 掉（`ALTER TABLE ADD COLUMN` 不幂等，
@@ -240,6 +240,47 @@ export const MIGRATIONS_V22: Array<{ version: number; statements: string[] }> = 
         created_at  TEXT NOT NULL DEFAULT (datetime('now'))
       )`,
       `CREATE INDEX IF NOT EXISTS idx_auth_codes_email_purpose ON auth_codes(email, purpose)`,
+    ],
+  },
+
+  // ── v28 复习范围（契约 docs/EBBINGHAUS-SPEC.md §9，2026-09-18）──────────────────
+  //
+  // 背景：v23 给每个词条装了复习时钟，但**没给"谁该复习"这个开关**——`rowsAll()` 扫全表，
+  //   278 条词条一律进池。而词条库是 AI 从**全部对话**里自动抽的，里面混着娱乐/闲聊词条
+  //   （实测老板库 `general` 域 66 条里既有「阈值」「认知偏差」也有「谐音梗」「二创」「邪典片」）
+  //   ⇒ 复习队列被稀释，真正要背的术语淹在里面。本迁移把复习改成**选择式**：
+  //   只有用户点过的领域/词条才复习。
+  //
+  // ★ **两列，不是一列**（领域开关 + 词条覆盖，`NULL` = 继承领域）：
+  //   只做词条级的话，AI 每轮对话都会往已选领域里加新词，**新词默认不进池且用户不会察觉**
+  //   （复习池静默漏词，是那种几个月后才发现的功能性缺陷）；只做领域级的话，
+  //   `general` 这种"正经词与娱乐词混装"的域只能整块砍掉，没法只留「阈值」砍「谐音梗」。
+  //   两层并用才有"领域批量、词条微调"的效果，且新词自动跟随领域。
+  //
+  // ★ **为什么 `term_library.review_enabled` 可空**（`NULL` = 继承领域开关）：
+  //   这是**唯一**能让"领域开关对新词条生效"与"词条可单独反选"同时成立的表示。
+  //   若给它 `NOT NULL DEFAULT 0`，那么"新词条默认关闭"与"领域已开启"就冲突，
+  //   只能靠写入侧回填（`saveTerms` 每次 INSERT 前查领域开关）——那是**第二份口径**，
+  //   本仓在 `messages.user_id` / `auth_sessions.expires_at` 上为这类漂移付过两次学费。
+  //   ⇒ 让"继承"在**读取侧**用 `COALESCE(t.review_enabled, d.review_enabled, 0)` 现算，
+  //     写入侧一个字都不用改（新词条不写这一列，自然是 NULL = 跟随领域）。
+  //
+  // ★ **`term_domain.review_enabled` 的 `DEFAULT 0` = 默认全不选**（老板 2026-09-18 拍板）：
+  //   词条库里娱乐内容占比不低，默认全选等于让用户先去"关掉一堆"，默认全不选则是"点自己
+  //   要背的"。老库升级后**复习池为空**——已有进度（`review_stage`/`last_reviewed_at`）**不丢**，
+  //   只是暂时不被催；重新纳入范围时按拍板口径**清零重来**（见 learning/term-review.ts）。
+  //   孤儿域（词条 domain 不在登记册）取不到 `d.review_enabled` ⇒ `COALESCE` 落到 0，同样默认不复习。
+  //
+  // ⚠️ `ALTER TABLE ADD COLUMN` **不幂等**：回放迁移链的测试必须退版本时删掉这两列
+  //   （本仓 v16/v17/v22/v23 已四次踩过 `duplicate column name`），见 `storage/db.test.ts`。
+  // ⚠️ 回放**先删索引再删列**：`idx_term_library_review_enabled` 建在新列上，
+  //   SQLite 不留悬空索引，直接 `DROP COLUMN` 会报 "error in index ... after drop column"。
+  {
+    version: 28,
+    statements: [
+      `ALTER TABLE term_domain ADD COLUMN review_enabled INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE term_library ADD COLUMN review_enabled INTEGER`,
+      `CREATE INDEX IF NOT EXISTS idx_term_library_review_enabled ON term_library(review_enabled)`,
     ],
   },
 ];

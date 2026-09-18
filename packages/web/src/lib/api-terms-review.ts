@@ -46,6 +46,14 @@ export interface ReviewOverview {
   recent: ReviewDayStat[];
 }
 
+/** 复习范围写入结果（v28）：`resetCount` = 因「由关变开」被清零进度的词条数 */
+export interface ReviewScopeResult {
+  domain?: string;
+  id?: string;
+  enabled: boolean;
+  resetCount: number;
+}
+
 export const termsReviewApi = {
   /** 概览（今日欠账 / 阶段分布 / 近 7 天） */
   overview: (domain?: string) => {
@@ -60,10 +68,27 @@ export const termsReviewApi = {
     const qs = q.toString();
     return request<ReviewTermItem[]>(`/api/terms/review/queue${qs ? `?${qs}` : ''}`);
   },
-  /** 打卡：`remembered=true` 推进一个节点，`false` 归零重来 */
+  /** 打卡：`remembered=true` 推进一个节点，`false` 归零重来。未纳入范围的词条会被 409 拒掉 */
   mark: (id: string, remembered: boolean) =>
     request<ReviewTermItem>(`/api/terms/${id}/review`, {
       method: 'POST',
       body: JSON.stringify({ remembered }),
+    }),
+
+  // ── 复习范围（v28 选择式复习，契约 EBBINGHAUS-SPEC §9）──
+  // ★ `enabled` 传的是**目标有效值**（"以后复不复习"），不是"往列里写什么"——
+  //   写 NULL（继承领域）还是写显式 0/1 由服务端按"是否偏离领域默认"决定。
+  //   前端若自己决定写哪一列，就等于把优先级规则抄了第二份。
+  /** 领域级：点一下整个领域进/出复习范围（不动词条级覆盖位） */
+  scopeDomain: (domain: string, enabled: boolean) =>
+    request<ReviewScopeResult>('/api/terms/review/scope', {
+      method: 'PUT',
+      body: JSON.stringify({ domain, enabled }),
+    }),
+  /** 词条级：单条加入/移出复习范围 */
+  scopeTerm: (termId: string, enabled: boolean) =>
+    request<ReviewScopeResult>('/api/terms/review/scope', {
+      method: 'PUT',
+      body: JSON.stringify({ termId, enabled }),
     }),
 };

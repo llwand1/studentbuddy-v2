@@ -286,6 +286,7 @@
 
 .term-actions {
   display: flex;
+  flex-wrap: wrap; /* v28：多了「纳入/移出复习」，窄侧栏下允许换行而不是撑破 .term-side */
   gap: 6px;
 }
 
@@ -789,4 +790,133 @@
 
 .term-rv.overdue {
   color: var(--sb-danger);
+}
+
+/* ── v28 复习范围选择器（契约 EBBINGHAUS-SPEC §9）────────────────────────────
+   ★ 与队列刻意**并列**而不是嵌进同一个折叠区：范围是低频的一次性设置（"我该背什么"），
+     队列是高频的日常动作（"今天还哪些账"）。合在一起的话，每次想调范围都得先展开
+     20 条队列，而队列一展开就是 2000px（v23.1 那条布局教训）。 */
+.rv-sum-hint {
+  color: var(--sb-ink-tertiary);
+}
+
+.rv-scope {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--sb-line);
+}
+
+.rv-scope-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink);
+}
+
+.rv-scope-hint,
+.rv-scope-num {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.rv-scope-tip {
+  margin: 4px 0 8px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  line-height: 1.5;
+}
+
+/* 领域多时自己滚：12 个领域排下来约两行，但窄窗口下仍可能把面板撑高 */
+.rv-scope-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 132px;
+  overflow-y: auto;
+}
+
+.rv-scope-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-bg);
+  color: var(--sb-ink);
+  font-size: var(--sb-fs-sm);
+  cursor: pointer;
+}
+
+.rv-scope-row:hover {
+  border-color: var(--sb-primary);
+}
+
+.rv-scope-row:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* 全选态：整块上品牌色，与"部分"拉开距离（部分态只染框，不染底） */
+.rv-scope-all {
+  background: var(--sb-primary-weak);
+  border-color: var(--sb-primary);
+}
+
+.rv-scope-all .rv-scope-num {
+  color: var(--sb-primary);
+}
+
+/* 三态勾选框：全选 = 对勾 / 部分 = 横杠 / 未选 = 空框。
+   ★ 勾与杠用 CSS 画而不是字符：本仓禁 emoji，且 ✓ 这类字符在不同字体下宽度不一，
+     一行里三个框会视觉不齐；`--sb-surface` 当勾的颜色（浅色下即白，与品牌蓝底对比足够）。 */
+.rv-tri {
+  position: relative;
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid var(--sb-ink-tertiary);
+  border-radius: 4px;
+  background: var(--sb-surface);
+}
+
+.rv-tri-all {
+  border-color: var(--sb-primary);
+  background: var(--sb-primary);
+}
+
+.rv-tri-all::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 3px;
+  height: 7px;
+  border: solid var(--sb-surface);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+
+.rv-tri-some {
+  border-color: var(--sb-primary);
+}
+
+.rv-tri-some::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 5px;
+  width: 7px;
+  height: 1.5px;
+  background: var(--sb-primary);
+}
+
+.rv-scope-msg {
+  margin-top: 8px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
 }

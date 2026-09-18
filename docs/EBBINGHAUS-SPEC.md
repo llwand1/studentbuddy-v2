@@ -1,15 +1,19 @@
-# EBBINGHAUS-SPEC — 词条复习（艾宾浩斯遗忘曲线）v1.0
+# EBBINGHAUS-SPEC — 词条复习（艾宾浩斯遗忘曲线）v1.1
 
-> 契约落点：`packages/shared/src/ebbinghaus.ts`（判定唯一实现）／`packages/server/src/learning/term-review.ts`（域层）／
-> `packages/server/src/routes/terms.ts`（三个端点）／`packages/web/src/features/terms/ReviewPanel.tsx`（UI）。
-> 迁移：**v23**（`term_library` 加两列 + 新建 `term_review_log`）。
+> 契约落点：`packages/shared/src/ebbinghaus.ts`（判定唯一实现）／`packages/server/src/learning/term-review.ts`（域层，含**复习范围**）／
+> `packages/server/src/routes/terms.ts`（四个端点）／`packages/web/src/features/terms/ReviewPanel.tsx` + `ReviewScopePicker.tsx`（UI）。
+> 迁移：**v23**（`term_library` 加两列 + 新建 `term_review_log`）、**v28**（复习范围两列，见 §9）。
+>
+> **v1.1 相对 v1.0 的变更**：新增 **§9 复习范围（选择式）**——复习从"全库自动进池"改为"只有用户勾选的领域/词条才复习"，
+> 迁移 v28 加 `term_domain.review_enabled` + `term_library.review_enabled` 两列。**§2~§8 的判定口径一字未改**。
 
 ## 1. 背景与范围
 
 词条库此前是「只进不出」的仓库：AI 抽进去就算完，用户没有任何机制回到旧词条——**入库越勤、欠账越多**，
 这与「忆」这一环的目标正好相反。本契约给每个词条装一个**复习时钟**：
 
-- **在范围内**：复习计划（七个经典节点）、欠账统计、今日队列、打卡（记住了／忘了）、真实天数可见。
+- **在范围内**：复习计划（七个经典节点）、欠账统计、今日队列、打卡（记住了／忘了）、真实天数可见、
+  **复习范围（选择式：领域级 + 词条级，见 §9）**。
 - **不在范围内（下一批，方案待老板选）**：AI 督促（悬浮小窗对话）、自动安排到学习流、跨设备同步。
 
 ## 2. 复习计划：七个经典节点
@@ -23,17 +27,22 @@
   再补 60 天作收尾档。**数值不改，只做「天」这个粒度下的投影**。
 - `stage = 7` 即毕业（长期记忆）：仍记录天数，但**不再进队列**——催它等于让毕业失效。
 
-## 3. 数据模型（迁移 v23）
+## 3. 数据模型（迁移 v23 + v28）
 
 ```
 term_library.review_stage      INTEGER NOT NULL DEFAULT 0   -- 当前阶段
 term_library.last_reviewed_at  TEXT                          -- NULL = 从未复习
+term_library.review_enabled    INTEGER                       -- v28；NULL = 继承领域开关，0/1 = 显式反选/加入
+term_domain.review_enabled     INTEGER NOT NULL DEFAULT 0     -- v28；领域开关（点领域 = 一键全开/全关）
 term_review_log(id, term_id, stage, remembered, reviewed_at, reviewed_day)  -- 只追加的流水
 ```
 
 ★ **不落 `next_review_at`**：下次复习时间 = 基准日 + 本阶段间隔，是**派生值**。落库则将来调整间隔序列
 （如 4 天改 3 天）必须洗全表，否则新老行口径分裂（本仓在 `sessions.summary_upto_rowid`、
 `auth_sessions.expires_at` 上已两次付过这个学费）。
+
+★ **同样不落 `review_in_scope`**：有效范围是 `COALESCE(词条覆盖位, 领域开关, 0)` 的**组合结果**，
+落库就得在每次开关变化时洗全表，且"新词条跟随领域"这条链路会退化成需要写入侧回填。
 
 ★ `last_reviewed_at` **可空**的语义是「从未复习」，与「复习过但时间未知」必须区分：前者退到
 `created_at` 当起算点（否则新词条永远 0 天、永不进队列），后者是脏数据。哨兵值（如 1970）会让
@@ -67,9 +76,10 @@ term_review_log(id, term_id, stage, remembered, reviewed_at, reviewed_day)  -- �
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/terms/review/overview` | 概览：`total/due/overdue/fresh/todayDone/mastered/maxOverdueDays/stages/recent`（近 7 天，缺天补 0） |
+| GET | `/api/terms/review/overview` | 概览：`total/due/overdue/fresh/todayDone/mastered/maxOverdueDays/stages/recent`（近 7 天，缺天补 0）。**只统计在复习范围内的词条**（§9） |
 | GET | `/api/terms/review/queue?limit=&domain=` | 今日队列（`limit` 归一 1..100，默认 20） |
-| POST | `/api/terms/:id/review` | 打卡：`{ remembered: boolean }`，**必须是布尔**（没有合理默认值，猜成记住会白丢一次复习） |
+| POST | `/api/terms/:id/review` | 打卡：`{ remembered: boolean }`，**必须是布尔**（没有合理默认值，猜成记住会白丢一次复习）。★ 未纳入范围的词条 → **409**（不是 404：处置完全不同）；词条不存在 → 404 |
+| PUT | `/api/terms/review/scope` | 设复习范围（§9）：`{ domain, enabled }` 或 `{ termId, enabled }`，**恰好给一个** |
 
 队列排序：**先还旧账**——按 `overdueDays` 降序，同欠账按 `importance` 降序。若按到期时间排，
 用户会永远在刷今天的新账，老账越滚越多，等于没做这个功能。
@@ -78,7 +88,12 @@ term_review_log(id, term_id, stage, remembered, reviewed_at, reviewed_day)  -- �
 
 - 词条页顶部 `ReviewPanel`：欠账统计 + 近 7 天柱状 + 今日队列（**先翻牌再看释义**，默认盖住释义——
   一上来摊开等于把复习降级成阅读）。
+- `ReviewPanel` 头部另有一个**独立**的「复习范围」开关（§9）：范围是低频的一次性设置，
+  队列是高频的日常动作，**两者不共用折叠区**——合在一起的话，每次调范围都要先展开 20 条队列
+  （队列一展开实测 2000px，v23.1 那条布局教训）。
 - 列表每行「N 天没复习」徽标：默认灰，逾期才上色（告警色只用一次，否则逾期不再是最显眼的信号）。
+  ★ **未纳入范围的词条不显示徽标**（v28）：徽标只能有一个含义，否则数字与队列必然对不上。
+- 列表每行右侧「纳入复习 / 移出复习」按钮 = 单条词条的范围开关（§9）。
 - **不做乐观切态**：打卡以服务端返回为准再更新队列（同 `useChoiceQueue` 手法）。
 
 ## 7. 未做（登记不欠账）
@@ -86,10 +101,100 @@ term_review_log(id, term_id, stage, remembered, reviewed_at, reviewed_day)  -- �
 - **AI 督促**：单独悬浮小窗（可折叠）与督促 AI 对话——方案待老板从 demo 中选定，未落码。
 - 复习提醒的**时机与频控**（节流/免打扰时段）随 AI 督促同批设计。
 - 复习与「学习流」「知识图」的打通（把逾期词条自动排进学习流）未做。
+- **范围选择的批量入口只有领域级**（12 个领域一屏可点完）：没有"全选 / 全不选 / 按重要度自动选"，
+  也没有从复习面板直接跳到某领域词条列表的联动（现在要自己去切 Tab）。
 
 ## 8. 验收
 
 - `packages/shared/src/ebbinghaus.test.ts`（15 例）：间隔序列、日历日口径、四种状态、保持率、阶段推进、文案。
-- `packages/server/src/routes/term-review.test.ts`（8 例）：到期判定、先还旧账、打卡推进与归零、
-  今日去重计数、入参校验与 404、跨源闸门。
-- `packages/server/src/storage/db.test.ts`（+3 例）：v23 列/表/索引就位、**不含 `next_review_at`**、老库升级后既有词条为 `stage=0` 且 `last_reviewed_at IS NULL`。
+- `packages/server/src/routes/term-review.test.ts`（**17** 例）：到期判定、先还旧账、打卡推进与归零、
+  今日去重计数、入参校验与 404、跨源闸门；**v1.1 加 9 例**锁复习范围（默认全不选 / 词条级反选 /
+  领域级一键纳入且**新词条自动跟随** / 领域级一键移出 / 清零重来 / 覆盖位不冗余写 NULL /
+  未纳入拒绝打卡 409 / 写口入参校验 / 写口跨源）。
+- `packages/server/src/storage/db.test.ts`（**40** 例，v1.1 +4）：v23 列/表/索引就位、**不含 `next_review_at`**、
+  老库升级后既有词条为 `stage=0` 且 `last_reviewed_at IS NULL`；v28 两列（`term_library` **可空**、
+  `term_domain` NOT NULL DEFAULT 0）+ 索引、老库升级后**既有领域一律 0**、**不落 `review_in_scope`**。
+- `packages/server/src/learning/domains.test.ts`（**28** 例，v1.1 +5）：`reviewEnabled` / `reviewCount`
+  这对字段是前端三态的**唯一数据源**，锁四态（默认 / 全开 / 开关开着但部分反选 / 开关关着但单独勾了）+ 孤儿域。
+- `packages/server/src/routes/coach.test.ts`（13 例，数量不变）：`addTerm` helper 改为建完顺手勾进范围
+  （新词条默认不在池里，不勾的话督促快照全空）。
+
+## 9. 复习范围（选择式，v1.1 新增）
+
+### 9.1 为什么要有这一节
+
+词条库是 AI 从**全部对话**里自动抽的，里面混着娱乐/闲聊内容。实测老板真实库（278 条 / 12 领域）：
+
+| 领域 | 条数 | 实测样本 |
+|---|---|---|
+| `cs` | 67 | 结构体、内存泄漏…**但也混着 `low-poly`** |
+| `general` | 66 | 阈值、认知偏差、省控线…**但也混着「谐音梗」「二创」「邪典片」「审丑狂欢」** |
+
+⇒ 两个结论直接决定了设计：**① 全库进池会把真正要背的术语淹掉**（复习队列被娱乐词条稀释）；
+**② 纯领域级勾选不够**——`general` 里正经词与娱乐词是**混装**的，整块砍掉会误伤「阈值」。
+
+### 9.2 口径：两层 + 一个 `COALESCE`（唯一实现）
+
+```
+有效范围 = COALESCE(term_library.review_enabled, term_domain.review_enabled, 0)
+```
+
+| 词条覆盖位 | 领域开关 | 有效范围 | 含义 |
+|---|---|---|---|
+| `NULL` | 1 | **1** | 继承：领域开了，它跟着开 |
+| `NULL` | 0 | 0 | 继承：领域没开 |
+| 1 | 任意 | **1** | 用户单独勾进来 |
+| 0 | 任意 | 0 | 用户单独反选掉 |
+
+★ **为什么必须两层**（少一层都会出一个真缺陷）：
+- 只做**词条级**：AI 每轮对话都会往已选领域里抽新词，新词默认关闭且**用户完全不会察觉**
+  ⇒ 复习池静默漏词，几个月后才发现。
+- 只做**领域级**：`general` 这种混装域只能整块砍掉，没法只留「阈值」砍「谐音梗」。
+
+★ **为什么 `term_library.review_enabled` 可空**：这是**唯一**能让"领域开关对新词条生效"与
+"词条可单独反选"同时成立的表示。写成 `NOT NULL DEFAULT 0` 的话，两者冲突，只能靠写入侧回填
+（`saveTerms` 每次 INSERT 前查领域开关）——那是**第二份范围口径**，本仓在 `messages.user_id` /
+`auth_sessions.expires_at` 上为这类漂移付过两次学费。让"继承"在**读取侧**现算，
+写入侧一个字都不用改：新词条不写这一列，自然是 `NULL` = 跟随领域。
+
+★ **唯一实现**：SQL 谓词收在 `learning/term-review.ts` 的 `IN_SCOPE` / `SCOPE_FLAG` 常量，
+`domains.ts`（领域计数）、`terms.ts`（列表的 `review_in_scope`）都 import 它，**没有任何第二处**写这个表达式。
+范围判定一旦有两份，就会出现「概览说欠 3 条、队列里 0 条」，而这类 bug 只在"恰好有人反选过词条"时复现。
+
+★ **统计口径一致**：`overview` 的 `total/due/overdue/fresh/mastered/stages` 走 `rowsAll`（已过滤），
+`todayDone` / `recent` / `reviewStreak` 也 JOIN 回 `term_library` 判范围——
+否则"移出复习范围"的词条其历史打卡仍被计入，数字与上方统计不同源。
+
+### 9.3 写口语义（`PUT /api/terms/review/scope`）
+
+**`enabled` 是"目标有效值"（这条以后复不复习），不是"往列里写什么"。** 写 `NULL` 还是写显式 0/1
+由域层按"是否偏离领域默认"决定：
+
+> 目标值 === 领域开关值 ⇒ 写 `NULL`（回归继承）；否则写显式目标值。
+
+★ 不无脑写显式值：那样用户每碰一次就固化一条，领域开关从此对它永久失效（含"新词条跟随领域"的语义一致性），
+且库里的显式值会越积越多、分不清哪些是真反选、哪些只是点了一下。这条规则保证
+**显式值只在"用户确实要偏离领域默认"时存在**。
+
+**领域级 = 一键全开 / 一键全关**：除了设开关，还**清掉该域内所有词条的覆盖位**。
+老板原话是「点击领域，领域内的词条都一键开启复习」——若只切开关而保留覆盖位，被反选过的词条不会跟着开，
+"一键开启"就名不副实。清完之后该域回到"全部跟随领域"的干净态，与按钮文案逐字对应。
+
+### 9.4 清零重来（老板 2026-09-18 拍板）
+
+**由"不在范围"变为"在范围"时**，`review_stage = 0` 且 `last_reviewed_at = NULL`。
+
+- ★ **只在"由关变开"一个方向触发**：反向（移出范围）**不清零**——那只是"暂时不催"，
+  而再纳入时反正会清零；两个方向都清等于把"移出"变成隐形的破坏性操作。
+- ★ **不动 `term_review_log`**：流水是历史事实（"你那天确实复习过"），抹掉它等于篡改曲线图的横坐标。
+  代价是「刚复习完 → 移出 → 再纳入」之后 `todayDone` 仍记着那次打卡——这是如实反映，不是 bug。
+- ★ **UI 必须说出来**：纳入范围会清零进度，这是**不可撤销**的损失，故领域/词条的写口响应都带
+  `resetCount`，前端把它显示成"其中 N 条的复习进度清零重来"。静默清掉等于让用户莫名其妙从头背。
+
+### 9.5 边界与未做
+
+- **孤儿域**（词条 `domain` 不在登记册里）：`d.review_enabled` 取不到 ⇒ `COALESCE` 落到 0（不复习）；
+  但词条自己的覆盖位仍算数（Tab 上照旧显示，与 v19「宁可多一格也不让词条隐身」同取向）。
+- **范围外的词条拒绝打卡（409）**，不留任何库痕迹——否则出现"记了一次复习但页面上看不到"的静默错账。
+- **不做"范围生效时间"**：没有"从明天起生效"这类排期，改动立即生效。
+- **不做跨设备同步**：范围存在本地 SQLite，与其余学习数据同命运（见 §7）。

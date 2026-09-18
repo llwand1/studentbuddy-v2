@@ -330,6 +330,41 @@
 }
 .sb-user-form-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* M1.6（AUTH-SPEC §2.7）：一个表单承载三条通道——登录/注册切换、验证码行、切换链接。
+   刻意复用 .sb-user-form-btn / -input 的既有观感，不引入新的一档尺寸。 */
+.sb-user-form-tabs { display: flex; gap: 4px; }
+.sb-user-form-tabs button {
+  flex: 1;
+  font-size: 11px;
+  padding: 3px 0;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: #fff;
+  color: var(--sb-ink-secondary, #4e5969);
+  cursor: pointer;
+}
+.sb-user-form-tabs button.on {
+  border-color: var(--sb-primary);
+  color: var(--sb-primary);
+  background: var(--sb-primary-weak, #f2f5ff);
+}
+.sb-user-form-row { display: flex; gap: 4px; }
+.sb-user-form-row .sb-user-form-input { flex: 1; min-width: 0; }
+/* 发码按钮**不跟着拉伸**：它的文案会从「发送验证码」变成「60s 后重发」，
+   跟着拉伸会让整个表单在倒计时开始时跳一下。 */
+.sb-user-form-row .sb-user-form-btn { flex: 0 0 auto; padding: 3px 6px; white-space: nowrap; }
+.sb-user-form-link {
+  align-self: flex-start;
+  font-size: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--sb-primary);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.sb-user-form-note { font-size: 10px; color: var(--sb-ink-secondary, #4e5969); line-height: 1.4; }
+
 /* ===== 吉祥物像素团子：调色板与眨眼（自 chat.css 迁入——侧栏也用团子，样式归壳层）
    调色板：亮/本体/暗/墨四档全从 --sb-primary 混出来，品牌色一改团子跟着改，不留私有蓝 ===== */
 .mascot-px-lid {

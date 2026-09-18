@@ -14,6 +14,7 @@ import {
   applyQuizMix,
 } from '../learning/quiz.js';
 import { analyzeWeakPoints } from '../learning/quiz-weak.js';
+import { collectQuiz, normalizeCollectedQuiz } from '../learning/collect.js';
 import { announceScenarioToSession, generateScenario } from '../learning/scenario.js';
 import { emptyScenarioGenReport } from '../learning/scenario-protocol.js';
 import { deleteScenarioDemoByQuiz } from '../learning/scenario.js';
@@ -23,6 +24,7 @@ import {
   mixTotal,
   emptyQuizImageReport,
   countQuizImages,
+  emptyCollectReport,
   type ScenarioMixResult,
 } from '@sb/shared';
 import { roleReady } from '../llm/router.js';
@@ -146,6 +148,50 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+/**
+ * 现场搜集·预览（契约 docs/RESOURCE-SPEC.md §3.5）：跑「检索→抓页→模型摘题→verbatim 锁」全程，
+ * **绝不落库**——commit 只发生在人于预览界面勾选确认之后（外部结果永不直接写库，TOOL-ECOSYSTEM 先例）。
+ * 报告全程如实带回（搜集词/逐源失败/逐页记账/逐题 verdict），前端只念不判（ADR-5）。
+ */
+quizRouter.post('/collect/preview', async (req: Request, res: Response) => {
+  const { topic } = req.body as { topic?: string };
+  if (!topic?.trim()) {
+    res.status(400).json({ error: 'topic 必填——想练什么主题的题，说个主题' });
+    return;
+  }
+  try {
+    const report = emptyCollectReport();
+    const r = await collectQuiz(topic.trim(), report);
+    // 「没配模型」与「搜到抓到现场没题」是两条不同行动指引，文案分开（同 /generate 的 failure 口径）
+    if (report.failure === 'no-model') {
+      res.status(502).json({
+        error: `搜集失败：${roleReady('quiz-generator').reason || '出题模型没配好'}——请到「设置」→「角色模型绑定」为「出题」绑定模型后再试`,
+      });
+      return;
+    }
+    res.json(r);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+/**
+ * 现场搜集·入库：用户在预览里确认过的题组 → `saveQuiz(quiz,'collect')`。
+ * ★ 不信任客户端的 ok 标记——服务端复跑形状 + 可判分闸门（`normalizeCollectedQuiz`）；
+ *   verbatim 不在此重验（页面原文已不在场），预览机验 + 入库人验两道叠加即契约设计。
+ */
+quizRouter.post('/collect/commit', (req: Request, res: Response) => {
+  const { title, questions } = req.body as { title?: string; questions?: unknown };
+  const quiz = normalizeCollectedQuiz(title, questions);
+  if (!quiz) {
+    res.status(400).json({ error: '入库失败：没有一道通过服务端复校验（请先预览，再勾选确认的题提交）' });
+    return;
+  }
+  const quizId = saveQuiz(quiz, 'collect');
+  publishEvent({ type: 'quiz_generated', quizId });
+  res.json({ quizId, count: quiz.questions.length });
 });
 
 quizRouter.get('/bank', (_req, res) => {

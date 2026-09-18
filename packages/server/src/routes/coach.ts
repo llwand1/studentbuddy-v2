@@ -118,7 +118,9 @@ coachRouter.post('/review', (req: Request, res: Response) => {
   }
   const r = coachMarkReviewed(ownerIdOf(req), termId, remembered);
   if ('error' in r) {
-    res.status(404).json({ error: r.error });
+    // 404（词条没了）与 409（未纳入复习范围）由域层给，路由直通不翻译——
+    // 两种处置完全不同（刷新列表 / 去勾选范围），压成一个码前端就没法给出正确提示。
+    res.status(r.status).json({ error: r.error });
     return;
   }
   res.json({ card: r.card });

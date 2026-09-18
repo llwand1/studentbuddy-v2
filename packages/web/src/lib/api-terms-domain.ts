@@ -34,7 +34,20 @@ export interface DomainRow {
  */
 export interface DomainsResponse {
   total: number;
-  domains: Array<{ domain: string; count: number; note: string; mentionCount: number }>;
+  /**
+   * `reviewEnabled` / `reviewCount`（v28 复习范围，契约 EBBINGHAUS-SPEC §9）：
+   * 前者是**领域开关**（用户点出来的），后者是**现算的有效条数**。两者不可换算——
+   * 开关开着但被逐条反选掉时 `reviewEnabled=true` 而 `reviewCount < count`，
+   * 前端的领域三态勾选框（全选/部分/未选）正是靠这个差读出来的。
+   */
+  domains: Array<{
+    domain: string;
+    count: number;
+    note: string;
+    mentionCount: number;
+    reviewEnabled: boolean;
+    reviewCount: number;
+  }>;
   today: number;
   /** 偏好领域榜（服务端已排好全序；本接口返回全量，展示时自取 top N） */
   preferred: Array<{ domain: string; mentionCount: number }>;

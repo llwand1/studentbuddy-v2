@@ -15,7 +15,7 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
 import { routeRole } from '../llm/router.js';
-import { reviewOverview, listReviewQueue, markReviewed, reviewStreak } from './term-review.js';
+import { reviewOverview, listReviewQueue, markReviewed, reviewStreak, termScope } from './term-review.js';
 import { MENTION_WINDOW_DAYS } from './mention.js';
 import { buildCoachSystemPrompt } from './coach-prompt.js';
 import {
@@ -251,14 +251,26 @@ export function pushNudge(ownerId: string | null, now: Date = new Date()): { car
   return { card, reason: state.nudge.reason };
 }
 
-/** 复习打卡（小窗内的「记得 / 忘了」）：推进阶段 + 记一张动作卡 */
+/**
+ * 复习打卡（小窗内的「记得 / 忘了」）：推进阶段 + 记一张动作卡。
+ *
+ * ★ v28 起与 `POST /api/terms/:id/review` **同一道范围闸门**：小窗队列里本来就只有范围内
+ *   的词条（`listReviewQueue` 已过滤），但端点是公开的，不判范围的话会出现
+ *   "库里记了一次复习、而词条页上它根本不显示"的静默错账。
+ * ★ `status` 与 `error` 一起返回（不在这里落 HTTP）：域层给状态码、薄路由直通，
+ *   是本仓既有手法（同 `routes/choice.ts` 的 `DomainError`）——404 与 409 对用户是
+ *   两句不同的话（"词条没了" / "先把它纳入复习范围"），压成一个码前端就没法提示。
+ */
 export function coachMarkReviewed(
   ownerId: string | null,
   termId: string,
   remembered: boolean,
-): { card: CoachCard } | { error: string } {
+): { card: CoachCard } | { error: string; status: number } {
+  const scope = termScope(termId);
+  if (!scope) return { error: '词条不存在', status: 404 };
+  if (!scope.inScope) return { error: '该词条未纳入复习范围，请先在复习范围里勾选它', status: 409 };
   const updated = markReviewed(termId, remembered);
-  if (!updated) return { error: '词条不存在' };
+  if (!updated) return { error: '词条不存在', status: 404 };
   const card = appendCard(ownerId, 'review', `${updated.term} · ${remembered ? '记得' : '忘了'}`, {
     termId: updated.id,
     term: updated.term,

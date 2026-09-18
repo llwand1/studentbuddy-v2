@@ -35,12 +35,13 @@ export interface QuizQuestion {
   explanation?: string;
   solution?: string;
   /**
-   * 该题的来源（契约 `docs/QUIZ-SEARCH-SPEC.md` §2.8）。
+   * 该题的来源（契约 `docs/QUIZ-SEARCH-SPEC.md` §2.8；`'collect'` 见 `docs/RESOURCE-SPEC.md` §3.1）。
    * **服务端按模型给的编号映射后回填，URL 永远来自真实检索结果**：模型只许给编号、
    * 不许写网址（幻觉 URL 是弱模型常态，"来源写错"比"没有来源"更糟）。
    * 模型没给编号或编号越界 → 不填此字段，由套题级来源清单兜底。历史题无此键 → 不渲染。
+   * `'collect'`＝现场搜集摘录的题，title/url 由 verbatim 锚点命中的那个页面回填。
    */
-  source?: { kind: 'web' | 'ai'; title: string; url?: string };
+  source?: { kind: 'web' | 'ai' | 'collect'; title: string; url?: string };
   /**
    * 配图：SVG 源码（契约 docs/QUIZ-IMAGE-SPEC.md）。模型自决——需要示意图才给，看得懂文字就不给。
    * 可选字段：历史题无此键 → undefined → 不渲染，**不做数据迁移**；判分逻辑不读它，图只作附加展示。
@@ -286,4 +287,42 @@ export interface QuizSearchReport {
 /** 零值报告：出题前先建好，传给 generateQuiz 当出参（避开 undefined 分支） */
 export function emptyQuizSearchReport(on = false): QuizSearchReport {
   return { on, count: 0, providers: [], failed: [], refs: [] };
+}
+
+// ── 现场搜集题目（契约 docs/RESOURCE-SPEC.md v0.2；2026-09-18 老板点单「让产品能现场搜集」）──
+
+/** 一页的逐页记账：抓没抓到、没抓到为什么（契约 §3.1，ADR-5——跳过要能说清，不静默） */
+export interface CollectPageRecord {
+  url: string;
+  title: string;
+  fetched: boolean;
+  /** fetched=false 时的真因（HTTP 状态 / 非 HTML / 正文过短 / 超时 / SSRF 拦截） */
+  reason?: string;
+}
+
+/** 一道搜集候选题。ok=false 的 question 只是模型草稿，前端不得当可用题展示 */
+export interface CollectCandidate {
+  question: QuizQuestion;
+  ok: boolean;
+  /** ok=false 的逐题拒绝真因（verbatim 未命中 / 答案缺失……） */
+  reason?: string;
+}
+
+/** 一次搜集的全程报告：搜了什么、检索源成没成、抓到哪几页、摘了几题拒了几题 */
+export interface CollectReport {
+  /** 实际使用的搜集词（派生结果如实回显——用户看得见搜了什么） */
+  queries: string[];
+  providers: string[];
+  failed: string[];
+  pages: CollectPageRecord[];
+  total: number;
+  accepted: number;
+  rejected: number;
+  /** 与 QuizImageReport.failure 同族：搜集模型没配 / 输出整段解不出，路由据此选文案不反推 */
+  failure?: 'no-model' | 'parse';
+}
+
+/** 零值报告：preview 路由先建好传给域层 */
+export function emptyCollectReport(): CollectReport {
+  return { queries: [], providers: [], failed: [], pages: [], total: 0, accepted: 0, rejected: 0 };
 }

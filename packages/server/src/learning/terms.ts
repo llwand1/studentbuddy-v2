@@ -5,29 +5,27 @@
  * 机制：
  *  1. 抽取：每轮对话/手动触发 → extractTerms 调 LLM 从材料中抽「重要术语」
  *     （英语单词 / 专业术语），[TERMS] JSON 协议，失败降级不崩（ADR-4）。
- *     提示词注入已有领域 top-12，引导新词条优先归入既有领域（防领域碎裂）。
+ *     ★ **已拆到 `term-extract.ts`**（v28 行数红线，见文件末的 re-export 注释）。
  *  2. 入库：saveTerms 先查防再分裂索引——同词同域（大小写不敏感）或命中已有
  *     词条的别名（跨域，AI 整理时判定的同一概念）→ 并入该行不新建；其余走
  *     UNIQUE(term, domain) upsert（同词条取更高 importance、更新释义）。
  *  3. 使用：getRelevantTerms 按关键词重叠度 + 重要度 + 近期使用排序，注入后续对话
- *     （flow.ts 软性提示 AI 优先使用，保持自然）。
+ *     （flow.ts 软性提示 AI 优先使用，保持自然）。★ **已拆到 `term-recall.ts`**。
  *  4. 计数：countUsage 扫描已完成回复命中词条（term + 别名，大小写不敏感，
  *     英文词按边界匹配防子串误报），累积 usage_count（反馈「记住了多少」）。
+ *  5. 范围：v28 起复习改成**选择式**——`review_enabled` 覆盖位 + 领域开关，
+ *     有效范围由 `term-review.ts` 现算（契约 EBBINGHAUS-SPEC §9）。
  */
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
-import { routeRole } from '../llm/router.js';
 import { publishEvent } from '../events/bus.js';
 import { recordMentions } from './mention.js';
-
-export interface TermItem {
-  id?: string;
-  term: string;
-  definition: string;
-  domain?: string;
-  sourceSessionId?: string | null;
-  importance?: number;
-}
+// 入库前要归一（抽取侧的 `normalizeTerms`）；类型 `TermItem` 同源，避免两处各写一份形状。
+import { normalizeTerms, type TermItem } from './term-extract.js';
+// ★ v28 复习范围：有效范围的**取值与连接**都向 `term-review.ts` 要（那里是唯一实现），
+//   本文件只负责把它挂进列表查询。依赖方向安全：`term-review.ts` 不反向依赖本文件，
+//   故不成环（对比 `terms → domains → tidy → terms` 那条必须避开的环，见 domains.ts 头注释）。
+import { SCOPE_FLAG, SCOPE_JOIN } from './term-review.js';
 
 export interface TermRow {
   id: string;
@@ -46,6 +44,13 @@ export interface TermRow {
   review_stage: number;
   /** 上次复习时间（**null = 从未复习**，起算点退到 `created_at`） */
   last_reviewed_at: string | null;
+  /**
+   * 复习范围覆盖位（v28，契约 EBBINGHAUS-SPEC §9）：`null` = **继承领域开关**，
+   * 0/1 = 用户对该词条的显式反选/加入。
+   * ★ 它不是"该不该复习"的答案——答案由 `COALESCE(词条, 领域, 0)` 现算（见 `term-review.ts`）。
+   *   单看这一列会把"继承且领域已开"误读成"不复习"。
+   */
+  review_enabled: number | null;
 }
 
 /** API 返回形状（aliases 已解析；routes 直接 res.json 该形状） */
@@ -96,88 +101,24 @@ function buildTermIndex(): TermIndex {
   };
 }
 
-const TERMS_PROTOCOL = `你是术语抽取引擎。从给定材料中抽取学习者应当记住的重要术语（英语单词 / 专业术语），严格按以下 JSON 格式输出，输出外围包一对 [TERMS]...[/TERMS] 标记：
-[TERMS]{"terms":[{"term":"术语或单词","definition":"精炼中文释义（英语单词可含词性/例句要点；专业术语给准确定义）","domain":"english 或学科名如 math/cs/生物/化学 等，无法归类用 general","importance":0到1的数值，越核心越高}]}[/TERMS]
-规则：只抽对学习有价值的术语，通常 3-8 条；term 用原文（英文单词保留英文，中文术语用中文）；definition 精炼准确；除该 JSON 外不要输出任何其他文字。`;
-
-/** 解析模型输出中的 [TERMS] JSON（容错：多行/围栏/前后杂质；失败返回 [] 走降级） */
-export function parseTermsBlock(text: string): TermItem[] {
-  const m = text.match(/\[TERMS\]([\s\S]*?)\[\/TERMS\]/);
-  let raw = m ? m[1] : '';
-  if (!raw && text.includes('"terms"')) raw = text;
-  if (!raw) return [];
-  const cleaned = raw.replace(/```json|```/g, '').trim();
-  const objMatch = cleaned.match(/\{[\s\S]*\}/);
-  if (!objMatch) return [];
-  try {
-    const data = JSON.parse(objMatch[0]) as { terms?: TermItem[] };
-    return normalizeTerms(data.terms ?? []);
-  } catch {
-    return [];
-  }
-}
-
-/** 校验规范化：丢弃无 term/definition 的条目；importance 钳到 0-1。 */
-export function normalizeTerms(items: TermItem[]): TermItem[] {
-  const out: TermItem[] = [];
-  for (const t of items ?? []) {
-    const term = t.term?.trim();
-    const definition = t.definition?.trim();
-    if (!term || !definition) continue;
-    const importance = Number(t.importance);
-    out.push({
-      term,
-      definition,
-      domain: (t.domain ?? '').trim().toLowerCase().slice(0, 30) || 'general',
-      importance: Number.isFinite(importance) ? Math.min(1, Math.max(0, importance)) : 0.5,
-    });
-  }
-  return out;
-}
-
-/** 一键抽取（材料 → 词条列表）；返回 [] 表示失败（降级由调用方处理）。 */
-export async function extractTerms(material: string): Promise<TermItem[]> {
-  if (!material?.trim()) return [];
-  const target = routeRole('explain'); // 抽取复用讲解角色模型；契约留扩展点：可拆独立 extractor 角色
-  if (!target || !target.model) return [];
-  let acc = '';
-  // 防领域碎裂：注入已有领域 top-12，引导新词条优先归入既有领域（TERM-TIDY-SPEC §7.2）。
-  // 领域清单**直查 `term_domain`**，不 import `learning/domains.ts`——那会成
-  // `terms → domains → tidy → terms` 环（见 domains.ts 头注释的依赖方向说明）。
-  // 排序仍按词条数降序（与 v19 前 `domainStats().domains.slice(0,12)` 的口径一致）；
-  // 空领域（count=0）排在最末，只在领域总数不足 12 时才进引导——它没有词条作例证，引导力弱。
-  const known = (
-    getDb()
-      .prepare(
-        `SELECT d.name AS name FROM term_domain d
-           LEFT JOIN term_library t ON t.domain = d.name
-          GROUP BY d.name ORDER BY COUNT(t.id) DESC, d.name ASC LIMIT 12`,
-      )
-      .all() as Array<{ name: string }>
-  ).map((r) => r.name);
-  const guide = known.length > 0 ? `\n已有领域（优先复用，确实不属于再新建）：${known.join('、')}` : '';
-  const prompt = `${TERMS_PROTOCOL}${guide}\n\n材料：\n${material.slice(0, 30000)}`;
-  try {
-    for await (const chunk of target.adapter.chat({
-      model: target.model,
-      apiKey: target.apiKey,
-      baseUrl: target.baseUrl,
-      messages: [{ role: 'user', content: prompt }],
-      // 后台任务（对话已结束才跑，用户在等的是下一轮）：排队时给主链让路
-      purpose: 'background',
-    })) {
-      acc += chunk.content;
-      if (chunk.done) break;
-    }
-  } catch {
-    return [];
-  }
-  return parseTermsBlock(acc);
-}
+// ── 抽取（材料 → 词条列表：LLM 协议 + 解析 + 归一）——已拆到 `term-extract.ts` ──
+//
+// ★ 为什么拆（2026-09-18 v28 复习范围批）：本批给词条加复习范围后本文件涨到 **401 行**，
+//   触 AGENTS.md「server `.ts` ≤400 行」红线。拆的判据同 `term-recall.ts`：
+//   **抽取**随「AI 抽什么、怎么解析」而变，**入库**随「怎么存、怎么查」而变，
+//   两类改动几乎不会同时发生。照仓规**拆文件、不压注释**。
+// ★ 用 re-export 而不是让调用方改 import：`chat/flow.test.ts` 与 `routes/document.test.ts`
+//   的 `vi.mock('../learning/terms.js')` 都指着本文件——改路径会同时打穿两处 mock。
+export { TERMS_PROTOCOL, parseTermsBlock, normalizeTerms, extractTerms } from './term-extract.js';
+export type { TermItem } from './term-extract.js';
 
 /**
  * 入库（防再分裂 + UNIQUE(term,domain) 兜底）：先查索引命中并入（同词同域大小写
  * 不敏感 / 命中别名跨域），未命中走 upsert；返回处理条数（非新增行数）。
+ *
+ * ★ v28 起**写入侧一个字都不用改**：新词条不写 `review_enabled`，自然是 `NULL`（继承领域）
+ *   ⇒ 「已开启的领域里 AI 新抽的词条自动进复习池」是**读取侧现算**白拿的，
+ *   不需要在这里查一次领域开关再回填（那会多出第二份范围口径，同迁移 v28 注释的取舍）。
  */
 export function saveTerms(items: TermItem[], sourceSessionId?: string | null): number {
   const db = getDb();
@@ -254,8 +195,18 @@ export function saveOneTerm(term: string, definition: string, domain?: string): 
   return { ...raw, aliases: parseAliases(raw.aliases) };
 }
 
-/** 词条列表（可按 domain 过滤；keyword 对 term 前缀模糊；JOIN 来源会话标题供 UI 展示）。 */
-export function listTerms(domain?: string, keyword?: string): Array<TermApiRow & { source_title: string | null }> {
+/**
+ * 词条列表（可按 domain 过滤；keyword 对 term 前缀模糊；JOIN 来源会话标题供 UI 展示）。
+ *
+ * ★ `review_in_scope`（v28）是**现算的有效范围**，不是 `review_enabled` 那一列——
+ *   前端要回答的是"这条词条到底复不复习"（列表行据此显示复习徽标与「纳入/移出」按钮），
+ *   而库里那一列可能是 NULL（继承）。让前端自己 COALESCE 一次，就等于把范围判定抄了第二份
+ *   （本仓在 `doc-rag` 常量上付过学费）。故范围只在服务端算，前端只读结论。
+ */
+export function listTerms(
+  domain?: string,
+  keyword?: string,
+): Array<TermApiRow & { source_title: string | null; review_in_scope: number }> {
   const db = getDb();
   const conds: string[] = [];
   const args: unknown[] = [];
@@ -270,11 +221,13 @@ export function listTerms(domain?: string, keyword?: string): Array<TermApiRow &
   const where = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
   const rows = db
     .prepare(
-      `SELECT t.*, s.title AS source_title FROM term_library t
-       LEFT JOIN sessions s ON s.id = t.source_session_id
+      `SELECT t.*, s.title AS source_title, ${SCOPE_FLAG} AS review_in_scope
+         FROM term_library t
+         ${SCOPE_JOIN}
+         LEFT JOIN sessions s ON s.id = t.source_session_id
        ${where} ORDER BY t.importance DESC, t.usage_count DESC, t.updated_at DESC LIMIT 500`,
     )
-    .all(...args) as Array<TermRow & { source_title: string | null }>;
+    .all(...args) as Array<TermRow & { source_title: string | null; review_in_scope: number }>;
   return rows.map((r) => ({ ...r, aliases: parseAliases(r.aliases) }));
 }
 

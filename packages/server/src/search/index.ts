@@ -178,8 +178,9 @@ function decodeEntities(s: string): string {
     .replace(/&amp;/g, '&');
 }
 
-/** 剥标签 + 实体还原 → 纯文本（标题含 <strong> 高亮标签，必须走这一步）。 */
-function htmlToText(html: string): string {
+/** 剥标签 + 实体还原 → 纯文本（标题含 <strong> 高亮标签，必须走这一步）。
+ *  导出供现场搜集复用（RESOURCE-SPEC §5 待核实①：仓内唯一 HTML→正文件，不再造第二个）。 */
+export function htmlToText(html: string): string {
   return decodeEntities(
     html
       .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')

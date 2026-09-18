@@ -110,6 +110,31 @@ function parseTarget(rawEmail: unknown, rawPurpose: unknown): { email: string; p
 }
 
 /**
+ * 限流错误：比普通 `AuthError` **多带一个 `retryAfterMs`**（契约 §2.5 / §4.5）。
+ *
+ * ★ 为什么单造一个类，而不是给 `Error.message` 加后缀：`retryAfterMs` 是**结构化字段**，
+ *   而本仓的错误约定是「`message` 只放 `AuthError` 码、由路由映射成 HTTP」——
+ *   把数字塞进 `message` 会让路由那层的 `code in ERROR_STATUS` 判断直接失效
+ *   （症状是**限流变成 500**，用户看到"服务器内部错误"，而真正的原因是"等一会儿再来"）。
+ * ★ 为什么**只有这一个码**带 payload：其余错误（`EMAIL_TAKEN` / `CODE_INVALID` / `CODE_EXPIRED`…）
+ *   都是「用户改一下重来」，**没有"等多久"这回事**；给了反而诱导前端对所有失败都显示倒计时。
+ *   ⇒ 路由层也为它单列一个出口（`failRateLimited`），不给 `fail` 加可选参数——
+ *   可选参数会让「给 `EMAIL_TAKEN` 也传一个」变成编译期合法的事。
+ *
+ * ★★ 这个类存在的全部理由是**一条曾经只是文档承诺的缓解措施**（2026-09-18 v0.2.59）：
+ *   `admitSend` 一直在算 `retryAfterMs`、`code-limit.test.ts` 也一直在断言它，
+ *   但**它从未到达过响应体**（`sendCode` 只把 `admission.ok === false` 翻成一个裸错误码）。
+ *   是 `_probe/auth-smoke.mjs` 真机跑到第 11 节才把它揪出来——
+ *   **单元测试全绿、契约写着"已实现"，只有真机请求能看见那个字段不存在**。
+ */
+export class CodeRateLimitedError extends Error {
+  constructor(readonly retryAfterMs: number) {
+    super('CODE_RATE_LIMITED' satisfies AuthError);
+    this.name = 'CodeRateLimitedError';
+  }
+}
+
+/**
  * `POST /api/auth/send-code` 的用例。
  *
  * 顺序**不可换**：两道校验（格式/用途 → 是否接线）→ 限流 → 策略 → 发信。
@@ -118,6 +143,8 @@ function parseTarget(rawEmail: unknown, rawPurpose: unknown): { email: string; p
  *   「第 6 次收到 429」本身就成了一条枚举信号（未注册的永远不 429）。
  * ★ 发信失败抛 `MAIL_SEND_FAILED`，**不让用户干等**（ADR-5：失败必须可读、可重试）。
  *   代价是"限流额度已被消耗"——失败不该给额外尝试机会，这个方向是安全的。
+ * ★ 限流被拒抛 `CodeRateLimitedError`（**带 `retryAfterMs`**）：被拒的那一刻用户唯一
+ *   有用的信息是"还要等多久"，而这个数**只有这一层手里有**——再往下丢一次就回不来了。
  */
 export async function sendCode(
   rawEmail: unknown,
@@ -129,7 +156,7 @@ export async function sendCode(
   if (!isPurposeWired(purpose)) throw new Error('PURPOSE_INVALID' satisfies AuthError);
 
   const admission = admitSend(email, ip, purpose, now);
-  if (!admission.ok) throw new Error('CODE_RATE_LIMITED' satisfies AuthError);
+  if (!admission.ok) throw new CodeRateLimitedError(admission.retryAfterMs);
 
   const decision = decideSend(purpose, findUserByEmail(email) !== null);
   if (decision === 'taken') throw new Error('EMAIL_TAKEN' satisfies AuthError);

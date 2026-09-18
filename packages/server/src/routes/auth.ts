@@ -19,7 +19,7 @@ import { authenticate } from '../auth/users.js';
 import { createSession, deleteSession } from '../auth/session.js';
 import { clearSessionCookie, readSessionToken, resolveUser, setSessionCookie } from '../auth/middleware.js';
 import { clearFailures, isLocked, recordFailure } from '../auth/rate-limit.js';
-import { loginByCode, registerByCode, sendCode } from '../auth/code-flow.js';
+import { CodeRateLimitedError, loginByCode, registerByCode, sendCode } from '../auth/code-flow.js';
 
 export const authRouter = Router();
 
@@ -78,8 +78,29 @@ function fail(res: Response, code: AuthError): void {
   res.status(ERROR_STATUS[code]).json({ error: ERROR_TEXT[code], code });
 }
 
+/**
+ * 429 `CODE_RATE_LIMITED` 专用出口：多带 `retryAfterMs`（契约 §2.5 / §4.5）。
+ *
+ * ★ 单列一个函数、不给 `fail` 加可选参数：**全仓只有这一个错误码带 payload**，
+ *   可选参数会让"顺手给 `EMAIL_TAKEN` 也传一个"变成编译期合法的事。
+ * ★ 状态码与文案仍从上面两张表取（不写字面量）——映射只此一处的规矩不能因为
+ *   多了一个字段就破掉。
+ */
+function failRateLimited(res: Response, retryAfterMs: number): void {
+  res.status(ERROR_STATUS.CODE_RATE_LIMITED).json({
+    error: ERROR_TEXT.CODE_RATE_LIMITED,
+    code: 'CODE_RATE_LIMITED',
+    retryAfterMs,
+  });
+}
+
 /** 域层错误 → HTTP；非域错误一律 500（不把内部异常当业务错误外泄）。 */
 function failFrom(res: Response, e: unknown): void {
+  // ★ 先认类型再认 `message`：`retryAfterMs` 是结构化字段，只能从类上取（见 `CodeRateLimitedError`）
+  if (e instanceof CodeRateLimitedError) {
+    failRateLimited(res, e.retryAfterMs);
+    return;
+  }
   const code = e instanceof Error ? (e.message as AuthError) : undefined;
   if (code === undefined || !(code in ERROR_STATUS)) {
     res.status(500).json({ error: '服务器内部错误' });
@@ -154,6 +175,8 @@ authRouter.get('/me', (req: Request, res: Response) => {
  * 发验证码（契约 §2.5，M1.5）。
  * ★ 响应**不带任何"邮箱是否存在"的信息**——两种情况的响应体逐字相同，详见 `auth/code-flow.ts` 头注。
  * ★ 返回 `expiresInMs` 而不是绝对时刻：绝对时刻依赖客户端时钟，而用户机器的时间不一定准。
+ * ★ 被限流时 429 带 `retryAfterMs`（契约 §2.5，毫秒）——被拒的那一刻用户唯一有用的信息
+ *   是"还要等多久"；没有它前端只能显示"请稍后再试"，而 429 **不记账**、服务端也没痕迹可查。
  */
 authRouter.post('/send-code', (req: Request, res: Response) => {
   const { email, purpose } = req.body as { email?: unknown; purpose?: unknown };

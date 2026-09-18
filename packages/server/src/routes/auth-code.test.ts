@@ -21,7 +21,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { AUTH_CODE_MAX_PER_IP_REGISTER_HOUR, AUTH_COOKIE_NAME } from '@sb/shared';
+import { AUTH_CODE_MAX_PER_IP_REGISTER_HOUR, AUTH_CODE_RESEND_INTERVAL_MS, AUTH_CODE_WINDOW_MS, AUTH_COOKIE_NAME } from '@sb/shared';
 
 process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-routes-auth-code-test-'));
 const { app } = await import('../index.js');
@@ -147,6 +147,15 @@ describe('POST /api/auth/send-code（契约 §2.5）', () => {
     expect(sixth.status).toBe(429);
     expect(sixth.body.code).toBe('CODE_RATE_LIMITED');
     expect(sent).toHaveLength(AUTH_CODE_MAX_PER_IP_REGISTER_HOUR);
+    // ★★ 429 必须带 `retryAfterMs`（契约 §2.5）：被拒的那一刻用户**唯一**有用的信息是
+    //   "还要等多久"——没有它前端只能显示"请稍后再试"，而 429 **不记账**、服务端连痕迹都没有。
+    //   这条命中的是 **IP 桶**（新邮箱 + 新地址 ⇒ 另两道闸都没碰）⇒ 等待时长按小时窗口算。
+    //   ⚠️ 这条断言是 `_probe/auth-smoke.mjs` 真机跑到第 11 节才逼出来的：
+    //      此前 `retryAfterMs` 一路算到 `sendCode` 就被丢掉了，而**所有单测都是绿的**
+    //      （`code-limit.test.ts` 只断言限流器自己算得对，从没断言它到得了响应体）。
+    expect(typeof sixth.body.retryAfterMs).toBe('number');
+    expect(sixth.body.retryAfterMs).toBeGreaterThan(0);
+    expect(sixth.body.retryAfterMs).toBeLessThanOrEqual(AUTH_CODE_WINDOW_MS);
   });
 
   it('★★ 注册被刷满**不会**掐死同一出口 IP 上的验证码登录（**分桶的全部理由**）', async () => {
@@ -171,6 +180,11 @@ describe('POST /api/auth/send-code（契约 §2.5）', () => {
     expect(again.status).toBe(429);
     expect(again.body.code).toBe('CODE_RATE_LIMITED');
     expect(sent).toHaveLength(1);
+    // ★ 429 的响应体形状（契约 §2.5）：这条命中的是**最小间隔**那道闸 ⇒ 等待时长
+    //   不可能超过它本身（比 60s 还长说明算错了闸门——比如把每小时窗口算进来）。
+    expect(typeof again.body.retryAfterMs).toBe('number');
+    expect(again.body.retryAfterMs).toBeGreaterThan(0);
+    expect(again.body.retryAfterMs).toBeLessThanOrEqual(AUTH_CODE_RESEND_INTERVAL_MS);
   });
 
   it('发信通道故障 → 502 `MAIL_SEND_FAILED`（**不让用户干等**，文案能指路）', async () => {

@@ -1,6 +1,6 @@
 # 账号与会话契约（AUTH-SPEC）
 
-> 版本：v0.5.0 | 状态：**M1 后端+前端已落码（2026-09-17~18）· M2a/M2b 数据隔离已完成 · M1.5 邮箱验证码登录已交付（2026-09-18，仅 `login` 用途接线）· 发信域名已定（§0.3：主站 `.xyz` + 发信 `.com` 双域）· **M1.6 注册即验证已立契约（§2.7，待落码）** · M2c/M2d 待做** | 更新：2026-09-18
+> 版本：v0.5.1 | 状态：**M1 后端+前端已落码（2026-09-17~18）· M2a/M2b 数据隔离已完成 · M1.5 邮箱验证码登录已交付（2026-09-18）· **M1.6 注册即验证已落码**（§2.7，2026-09-18 提交 `d512e81`）· **429 响应体已补 `retryAfterMs`**（§2.5/§4.5，v0.5.1——此前只是文档承诺，真机冒烟才逮到它没上线）· 发信域名已定（§0.3：主站 `.xyz` + 发信 `.com` 双域）· M2c/M2d 待做** | 更新：2026-09-18
 > 定位：studentbuddy 从**本地单用户**走向 **Web 多用户**的第一块地基——**邮箱**账号体系与会话（**密码 + 验证码双通道**）。
 > 原则：**先立契约再改码**（AGENTS.md 已知约束）；契约先行、实现随后；前端登录 UI 与后端零耦合（只认 §2 的端点）。
 
@@ -184,7 +184,7 @@
 
 ⇒ 采用**注册即验证**：`POST /api/auth/register` 的入参**新增必填 `code`**。
 
-⚠️ **这是破坏性变更**（同批必须改 `components/AccountBox.tsx` 与 `routes/auth.test.ts`）：旧的「只给 email+password 就建号」路径**必须消失**——留着它就是一条**绕过验证的后门**，而不是兼容性。前端漏改的表现是 `400 CODE_INVALID`（清晰可查），**不是静默降级**。
+⚠️ **这是破坏性变更**（同批必须改 `components/AccountBox.tsx` 与 `routes/auth.test.ts`）：旧的「只给 email+password 就建号」路径**必须消失**——留着它就是一条**绕过验证的后门**，而不是兼容性。前端漏改的表现是 `400 CODE_INVALID`（清晰可查），**不是静默降级**。★ **已落码**（2026-09-18，提交 `d512e81`）；回归锁＝`routes/auth.test.ts` 的「不传 `code` → 400 `CODE_INVALID` 且 `users` 一行不落」。
 
 **端点契约**（`POST /api/auth/register`，端点名不变、入参变）：
 
@@ -192,13 +192,17 @@
 |---|---|
 | 入参 | `{ email, code, password, nickname? }`（`code` **必填**，6 位） |
 | 成功 | `200 { user }` + `Set-Cookie`（与 §2 完全一致，**登录态同一套**） |
-| 失败 | 400 `EMAIL_INVALID`／`PASSWORD_TOO_SHORT`／`CODE_INVALID`／`CODE_EXPIRED`；409 `EMAIL_TAKEN`；429 `RATE_LIMITED` |
+| 失败 | 400 `EMAIL_INVALID`／`PASSWORD_WEAK`／`NICKNAME_INVALID`／`CODE_INVALID`／`CODE_EXPIRED`；409 `EMAIL_TAKEN`；429 `CODE_RATE_LIMITED` |
+
+★ **上表的码名以 `AuthError` 联合类型为准**（`shared/src/auth.ts`）：初稿这里写的 `PASSWORD_TOO_SHORT` 与 `RATE_LIMITED` **在实现里不存在**（真实码是 `PASSWORD_WEAK` 与 `CODE_RATE_LIMITED`）——契约写了一个不存在的码，前端照着写分支就会**永远进不去**。已按实现订正。
 
 **发码侧**：`POST /api/auth/send-code` 的 `purpose: 'register'` **本批接线**（`auth/code-flow.ts` 的 `WIRED_PURPOSES` 加一项，§2.5.1 已预留）。已注册 → `409 EMAIL_TAKEN` 不发信；未注册 → 发信（泄露策略见 §2.5.1 的表，**刻意与 `login` 相反**）。
 
-**执行顺序（防竞态，与 `login-by-code` 同口径）**：`consumeCode`（原子认领）→ 查重 → 建号。
+**执行顺序（防竞态，与 `login-by-code` 同口径）**：**纯校验 → `consumeCode`（原子认领）→ 建号**。
+- ★★ **纯校验必须放最前**（2026-09-18 落码时明确，初稿漏了这一步）：邮箱格式 / 密码长度 / 昵称都是**纯函数、零 IO、免费**，而核销码**不可逆**。顺序反了的话「密码只打了 6 位」这种手滑会**白烧一条码**，用户得重新收信——**把可避免的失败挡在不可逆操作之前**（回归锁＝`routes/auth.test.ts` 的「弱口令被拒后同一个码还能注册」）。
 - ★ **先消费再查重**：两个并发请求拿同一个码时，原子认领（`UPDATE … WHERE consumed_at IS NULL`，§4.5）保证**只有一个**能往下走，另一个拿 `CODE_INVALID`。
 - ★ **最终兜底是库层的 `users.email UNIQUE`**（v21 DDL；写入前已 trim + 小写归一）：万一竞态穿过了应用层检查，`INSERT` 会抛约束错误 ⇒ **必须捕获并转成 409**，**不能让它变成 500**。
+- ⚠️ **已知代价**：`EMAIL_TAKEN` 只可能在**竞态**下从这里抛出（正常流程里 `send-code` 的 `register` 态已先回 409），而**此时码已被烧掉**——宁可让极端竞态下的用户重收一次码，也不给「拿别人邮箱试注册」留口子。
 
 **不新增 `users.email_verified` 列（2026-09-18 判定）**：
 - 注册**必须**过验证码 ⇒ 每个 user **天生已验证** ⇒ 该列恒为 `1`，**没有区分度**。
@@ -257,7 +261,7 @@ cookie 会话 + 该闸门＝**跨站写请求被拦**，故无需再引 CSRF tok
 - **生成**：`crypto.randomInt(0, 1_000_000)` 补零成 6 位。★ **绝不用 `Math.random()`**——它可预测，攻击者拿到几个码就能推出下一个。
 - **一次性 + 短时效**：`AUTH_CODE_TTL_MS = 5min`；校验成功立刻写 `consumed_at`，**重放同一个码必失败**。
 - **尝试次数硬上限**：同一条码失败 `AUTH_CODE_MAX_ATTEMPTS = 5` 次即作废。★ 这是**6 位码的唯一防线**：不限制的话，10^6 空间对一个脚本是分钟级的事。
-- **发送频率三道限流**：同邮箱 `AUTH_CODE_RESEND_INTERVAL_MS = 60s`（防连点）／同邮箱 `AUTH_CODE_MAX_PER_HOUR = 5`（防定向刷）／同 IP `AUTH_CODE_MAX_PER_IP_HOUR = 20`（防换邮箱刷）。★ 超限回 `429 CODE_RATE_LIMITED`，**且不提示「已发过」**——提示等于确认该邮箱正在被刷。
+- **发送频率三道限流**：同邮箱 `AUTH_CODE_RESEND_INTERVAL_MS = 60s`（防连点）／同邮箱 `AUTH_CODE_MAX_PER_HOUR = 5`（防定向刷）／同 IP `AUTH_CODE_MAX_PER_IP_HOUR = 20`（防换邮箱刷）。★ 超限回 `429 CODE_RATE_LIMITED`，**且不提示「已发过」**——提示等于确认该邮箱正在被刷。**响应体必须带 `retryAfterMs`（毫秒，见 §2.5）**：只回时间、不回原因，前端据此提示「约 N 分钟后可重发」——校园网误伤（`AUTH_CODE_MAX_PER_IP_REGISTER_HOUR` 那条）就是靠它把「没有解释的失败」变成「再等 4 分钟」。
   - ★★ **「60 秒间隔」只作用于邮箱桶，不作用于 IP 桶**（2026-09-18 落地时明确）：契约初稿只写了"同邮箱"，实现时若把三道闸门做成同一种 `blockedUntil(sends, now, max)`，就会把间隔一并套到 IP 桶上 ⇒ **同一出口 IP 上所有用户合计每分钟只能发 1 封**。共享出口（校园网 / 公司网 / 运营商 NAT）与**反代未配 `trust proxy` 时的全站单 IP** 都会被静默掐死，症状是「点了发送没反应」而**服务端零错误日志**。⇒ 两个桶的判据必须分开写（`emailBlockedUntil` / `ipBlockedUntil`），且**被拒的请求不记账**（否则窗口不断后移，正常用户一小时内永远等不到窗口滑出）。
 - **旧码作废**：发新码时把同 `(email, purpose)` 的未消费码全部标记作废。★ 不这么做的话，用户点两次「重新发送」会得到**两个都能用的码**，攻击面翻倍。
   - ★ 用 `consumed_at` **标记**而不是 `DELETE`：留着才能回答"这个邮箱发过几次码、何时被换掉"，而这类审计信息**删了就再也回不来**（同 `term_review_log` 只追加的口径）。
@@ -317,9 +321,9 @@ cookie 会话 + 该闸门＝**跨站写请求被拦**，故无需再引 CSRF tok
 | cookie 属性 HttpOnly / SameSite=Lax | ✅ 单测 |
 | `SB_REQUIRE_AUTH=1` 时无 cookie 访问业务端点 → 401；带 cookie → 放行 | ✅ 单测 |
 | **浏览器真机走通注册/登录/登出** | ✅ 前端已接线（2026-09-18，`components/AccountBox.tsx`；旧 `UserAuthBox` 已下线）；**界面观感待老板目检** |
-| **验证码：发送 / 校验 / 一次性 / 尝试上限 / 三道限流** | ✅ **单测 70 例**（2026-09-18，M1.5；`auth/codes.test.ts` 15 + `auth/code-limit.test.ts` 11 + `auth/code-flow.test.ts` 15 + `mail/send.test.ts` 12 + `routes/auth-code.test.ts` 12 + `storage/db.test.ts` +5） |
-| **验证码邮件真机送达（QQ / 163 / Gmail 三档）** | ⬜ 未跑（M1.5 已落地但**发信一律打桩**——真发信要联网、要烧额度、会给真人发信；判据见 §4.6，**判定权在老板**） |
-| **邮箱验证 / 密码找回** | ⬜ 本版未做；**将由 M1.5 的验证码覆盖**（见 §6 第 2、3 条） |
+| **验证码：发送 / 校验 / 一次性 / 尝试上限 / 三道限流** | ✅ **单测 91 例**（2026-09-18，M1.5 立、M1.6 扩；`auth/codes.test.ts` 15 + `auth/code-limit.test.ts` **19** + `auth/code-flow.test.ts` **24** + `mail/send.test.ts` 12 + `routes/auth-code.test.ts` **16** + `storage/db.test.ts` +5） |
+| **验证码邮件真机送达（QQ / 163 / Gmail 三档）** | ⬜ 未跑（M1.5 已落地但**发信一律打桩**——真发信要联网、要烧额度、会给真人发信；判据见 §4.6，**判定权在老板**）。★ **补（2026-09-18 v0.2.59）**：真机冒烟 `_probe/auth-smoke.mjs` 已把**码的流转**跑通（隔离实例 + 真实 HTTP + 真实 SQLite：「发码 → 抓码 → 填码 → 建号 → cookie 查 `/me`」，PASS=62 FAIL=0），但它走的是**控制台兜底通道**（未配 `RESEND_API_KEY`／`SB_MAIL_FROM`）——**恰好就是生产误配那条路** ⇒ 本判据证的是「码发得对、用得对」，**不是「邮件进得了收件箱」** |
+| **邮箱验证 / 密码找回** | **邮箱验证 ✅ 已交付**（M1.6「注册即验证」，2026-09-18 `d512e81`——`register` 必填 `code`，旧的无码路径**已删**）；**密码找回 ⬜ 未做**（`purpose: 'reset'` 仍未接线，见 §6 第 3 条） |
 
 ---
 
@@ -329,7 +333,7 @@ cookie 会话 + 该闸门＝**跨站写请求被拦**，故无需再引 CSRF tok
    `knowledge_*` 等**全部是全局表、无 `user_id`** ⇒ 现在若强制鉴权，登录用户互相可见全部数据。
    **M2 给所有业务表补 `user_id` + 所有查询加 `WHERE user_id=?` + SSE 叠加 user 维度防串台**。
    ★ **进度（2026-09-18）**：**M2a（会话域，v22）与 M2b（`user_memory`，v24）已完成**；**M2c / M2d 未做**，见 `TENANCY-SPEC §8`。
-2. ~~**邮箱验证**：注册即可用，不发验证邮件（需 SMTP / 邮件服务，本版未引）~~ → **发信通道与 `auth_codes` 表已就绪**（M1.5，2026-09-18）：`purpose: 'register'` 的码**发得出来**，但**校验端点未做** ⇒ 当前回 400 `PURPOSE_INVALID`（§2.5.1）。→ **M1.6 已立契约（2026-09-18，§2.7）**：形态定为**注册即验证**（`POST /api/auth/register` 入参加必填 `code`），**不新增 `users.email_verified` 列**（理由见 §2.7）。⬜ 剩余 = 落码：`WIRED_PURPOSES` 加 `register` + `register` 消费端点 + 前端 `AccountBox.tsx` + `register` 的 IP 桶收紧到 5/小时。
+2. ~~**邮箱验证**：注册即可用，不发验证邮件（需 SMTP / 邮件服务，本版未引）~~ → **发信通道与 `auth_codes` 表已就绪**（M1.5，2026-09-18）：`purpose: 'register'` 的码**发得出来**，但**校验端点未做** ⇒ 当前回 400 `PURPOSE_INVALID`（§2.5.1）。→ **M1.6 已立契约（2026-09-18，§2.7）**：形态定为**注册即验证**（`POST /api/auth/register` 入参加必填 `code`），**不新增 `users.email_verified` 列**（理由见 §2.7）。✅ **已落码**（2026-09-18，提交 `d512e81`）：`WIRED_PURPOSES` 加 `register` + `registerByCode` 消费端点 + 前端 `AccountBox.tsx` 注册态 + `register` 的 IP 桶收紧到 5/小时，**四项同批**（只开用途不收限流＝把一个陌生地址跳板打开且不设闸）。
 3. ~~**密码找回**：需发信通道，同上未做~~ → 同上：通道与表已就绪，`purpose: 'reset'` 的**校验端点未做**。⬜ 剩余：`reset-by-code`（校验码 → 设新密码）+ 前端入口。★ **在它落地之前，用户忘密码仍无法自助找回**——这是当前唯一的账号丢失无出路缺口（M1.5 只解决了「不用密码也能登录」，没解决「换一个密码」）。
 4. **多设备 / 会话管理**：不提供「登出其它设备」「查看登录设备」。
 5. ~~**微信 / 手机号登录**：M4，企业资质就绪后接入，映射到同一 user~~ → **2026-09-18 拍板不做**（§0.1 第 1 条）。
@@ -342,7 +346,7 @@ cookie 会话 + 该闸门＝**跨站写请求被拦**，故无需再引 CSRF tok
 | 批次 | 内容 | 状态 |
 |---|---|---|
 | **M1.5** | **邮箱验证码登录**：`auth_codes` 表（迁移 v27）+ `send-code`/`login-by-code` 两端点（§2.5）+ Resend 发信通道（§4.6）+ 五道限流（§4.5） | ✅ **已交付**（2026-09-18，登录闭环可用；★ **`purpose` 只接线了 `login`**，`register`/`reset` 的消费端点未做 ⇒ 回 400，理由见 §2.5.1。⬜ 未验：邮件真机送达、Resend 真实通道） |
-| **M1.6** | **注册即验证**（§2.7）：`register` 用途接线 + `POST /api/auth/register` 入参加必填 `code` + `register` 的 IP 桶收紧到 5/小时 + 前端 `AccountBox.tsx` 同步。**不新增 `users.email_verified` 列**（§2.7 有理由）。★ 老板原话「要邮箱验证」 | ⬜ 契约已立（2026-09-18），**待落码**；**零迁移**（表结构不动） |
+| **M1.6** | **注册即验证**（§2.7）：`register` 用途接线 + `POST /api/auth/register` 入参加必填 `code` + `register` 的 IP 桶收紧到 5/小时 + 前端 `AccountBox.tsx` 同步。**不新增 `users.email_verified` 列**（§2.7 有理由）。★ 老板原话「要邮箱验证」 | ✅ **已交付**（2026-09-18，提交 `d512e81`；**零迁移**，表结构不动）。★ 真机冒烟 `_probe/auth-smoke.mjs` **PASS=62 FAIL=0**（证的是**码的流转**；**邮件送达仍未验**，见 §5 与 §4.6）。⚠️ 前端渲染层无自动化测（本仓无 jsdom），须老板目检 |
 | **M2c** | `providers` + `role_bindings` + `routeRole` 归属。★ **业务决策已定**（2026-09-18）：**用户自带 API key 与平台赠送免费额度双通道** ⇒ 展开见 `TENANCY-SPEC §8.1`（**上下文传递方案见 §8.1.4**：显式 `ownerId` 穿透，**迁移 v29**） | ⬜ 待实现（**归属改造可开工；配额参数待定**） |
 | **M2d** | 其余业务表归属（`quiz_*` / `term_*` / `daily_activity` / `flow_*` / `app_settings`）。★ `token_usage` 的 `user_id` **归 M2c**（见 `TENANCY-SPEC §8.1.2` 与 §8.2 的口径统一） | ⬜ 待实现 |
 | **M2 收口** | M2c + M2d 完成后，与 `SB_REQUIRE_AUTH=1` **同批开** | ⬜ |

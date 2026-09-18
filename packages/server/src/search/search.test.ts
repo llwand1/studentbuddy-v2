@@ -60,7 +60,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe('search 聚合', () => {
   it('三家都没 key → 走 Bing 免费通道兜底（RSS 主通道）', async () => {
     mockFetch((url) => (url.includes('format=rss') ? { text: BING_RSS } : { text: BING_HTML }));
-    const r = await searchWeb('bing-nokey');
+    const r = await searchWeb('bing-nokey', null);
     expect(r.providers).toEqual(['bing']);
     expect(r.results.map((x) => x.title)).toEqual(['牛顿第二定律_百度百科', '动量守恒定律']);
     expect(r.results[1]?.url).toBe('https://other.example?a=1&b=2'); // &amp; 实体还原
@@ -68,7 +68,7 @@ describe('search 聚合', () => {
 
   it('RSS 挂了 → HTML 兜底，结果按 source 标注实际路由', async () => {
     mockFetch((url) => (url.includes('format=rss') ? { status: 599 } : { text: BING_HTML }));
-    const r = await searchWeb('bing-fallback');
+    const r = await searchWeb('bing-fallback', null);
     expect(r.results[0]?.title).toBe('牛顿第二运动定律_百度百科');
     expect(r.results[0]?.source).toBe('bing-html'); // HTML 兜底路由
     expect(calls.some((u) => u.includes('format=rss'))).toBe(true);
@@ -77,7 +77,7 @@ describe('search 聚合', () => {
 
   it('RSS 与 HTML 双路都挂 → 失败原因不静默，逐路冒泡', async () => {
     mockFetch((url) => (url.includes('format=rss') ? { status: 599 } : { status: 500 }));
-    const r = await searchWeb('bing-dead');
+    const r = await searchWeb('bing-dead', null);
     expect(r.results).toEqual([]);
     expect(r.failed.join()).toContain('rss: Bing RSS 599');
     expect(r.failed.join()).toContain('html: Bing HTML 500');
@@ -86,7 +86,7 @@ describe('search 聚合', () => {
   it('配了 Exa key → 只发 Exa 请求并解析结果', async () => {
     process.env.EXA_API_KEY = 'env-exa';
     mockFetch(() => ({ json: { results: [{ title: 'T', url: 'https://exa.example/1', text: '正文' }] } }));
-    const r = await searchWeb('exa-only');
+    const r = await searchWeb('exa-only', null);
     expect(calls).toEqual(['https://api.exa.ai/search']);
     expect(r.results[0]?.snippet).toBe('正文');
     expect(r.providers).toEqual(['exa']);
@@ -100,7 +100,7 @@ describe('search 聚合', () => {
         ? { status: 432 }
         : { json: { results: [{ title: 'A', url: 'https://same.example/x', text: 'a' }, { title: 'B', url: 'https://same.example/x', text: 'b' }] } },
     );
-    const r = await searchWeb('dedupe');
+    const r = await searchWeb('dedupe', null);
     expect(r.results).toHaveLength(1); // 同 URL 去重
     expect(r.results[0]?.url).toBe('https://same.example/x');
     expect(r.failed.join()).toContain('tavily');
@@ -109,9 +109,9 @@ describe('search 聚合', () => {
 
   it('同查询 24h 内命中缓存，不再发起外部请求', async () => {
     mockFetch(() => ({ text: BING_RSS }));
-    const first = await searchWeb('cached-q');
+    const first = await searchWeb('cached-q', null);
     const n = calls.length;
-    const second = await searchWeb('cached-q');
+    const second = await searchWeb('cached-q', null);
     expect(n).toBeGreaterThan(0);
     expect(calls.length).toBe(n);
     expect(second.providers).toEqual(['cache']);
@@ -120,33 +120,33 @@ describe('search 聚合', () => {
 
   it('缓存按 provider 组合隔离：配了 key 不再吃免 key 时期的旧缓存', async () => {
     mockFetch(() => ({ text: BING_RSS }));
-    expect((await searchWeb('sig-q')).providers).toEqual(['bing']);
+    expect((await searchWeb('sig-q', null)).providers).toEqual(['bing']);
 
     process.env.EXA_API_KEY = 'env-exa';
     mockFetch(() => ({ json: { results: [{ title: 'E', url: 'https://exa.example/e', text: 'ee' }] } }));
-    const after = await searchWeb('sig-q');
+    const after = await searchWeb('sig-q', null);
     expect(after.providers).toEqual(['exa']);
     expect(after.results[0]?.url).toBe('https://exa.example/e');
   });
 
   it('skipCache 强制真发（连通自检不能被缓存冒充）', async () => {
     mockFetch(() => ({ text: BING_RSS }));
-    await searchWeb('live-q');
+    await searchWeb('live-q', null);
     const n = calls.length;
-    await searchWeb('live-q', { skipCache: true });
+    await searchWeb('live-q', null, { skipCache: true });
     expect(calls.length).toBeGreaterThan(n);
   });
 
   it('settings 存的 key 密文落库，读取时解密；空串即删除', async () => {
-    saveProviderKey('zhipu', 'secret-zp');
-    const row = getDb().prepare("SELECT value FROM app_settings WHERE key = 'search_key_zhipu'").get() as { value: string };
+    saveProviderKey('zhipu', 'secret-zp', null);
+    const row = getDb().prepare("SELECT value FROM app_settings WHERE owner_id = '' AND key = 'search_key_zhipu'").get() as { value: string };
     expect(row.value.startsWith('enc:v1:')).toBe(true);
     expect(row.value).not.toContain('secret-zp');
-    expect(getProviderKey('zhipu')).toBe('secret-zp');
-    expect(listKeyStatus().zhipu).toBe(true);
+    expect(getProviderKey('zhipu', null)).toBe('secret-zp');
+    expect(listKeyStatus(null).zhipu).toBe(true);
 
-    saveProviderKey('zhipu', '');
-    expect(listKeyStatus().zhipu).toBe(false);
+    saveProviderKey('zhipu', '', null);
+    expect(listKeyStatus(null).zhipu).toBe(false);
   });
 
   it('resultsToContext 带来源编号与 URL（供模型引用溯源）', () => {

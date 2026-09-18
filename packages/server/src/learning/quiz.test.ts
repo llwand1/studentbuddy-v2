@@ -365,7 +365,7 @@ describe('generateQuiz 出站提示词 — 回答方式偏好真进了 prompt（
   });
 
   it('不传 style → 读库内偏好（设置页选的就算数）', async () => {
-    saveAnswerStyle({ shape: 'bullets', support: 'worked' });
+    saveAnswerStyle({ shape: 'bullets', support: 'worked' }, null);
     await generateQuiz('T', 'M');
     expect(lastPrompt).toContain('多用短列点');
     expect(lastPrompt).toContain('带具体数字');
@@ -374,15 +374,15 @@ describe('generateQuiz 出站提示词 — 回答方式偏好真进了 prompt（
   });
 
   it('显式传 style 只覆盖本次，库内那份不受影响也不两段并存', async () => {
-    saveAnswerStyle({ verbosity: 'detailed' });
+    saveAnswerStyle({ verbosity: 'detailed' }, null);
     await generateQuiz('T', 'M', undefined, undefined, { ...DEFAULT_ANSWER_STYLE, verbosity: 'brief' });
     expect(lastPrompt).toContain('两三句内');
     expect(lastPrompt).not.toContain('宁长勿短'); // 库里那份不得同时在场
-    expect(loadAnswerStyle().verbosity).toBe('detailed'); // 本次覆盖不写库
+    expect(loadAnswerStyle(null).verbosity).toBe('detailed'); // 本次覆盖不写库
   });
 
   it('段落顺序固定：配比 → 配图 → 偏好（偏好排最后，不插进协议与配图之间）', async () => {
-    saveQuizImage(true);
+    saveQuizImage(true, null);
     await generateQuiz('T', 'M');
     const iMix = lastPrompt.indexOf('本次出题数量要求');
     const iImg = lastPrompt.indexOf('配图要求');

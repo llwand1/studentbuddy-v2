@@ -119,8 +119,17 @@ export type { TermItem } from './term-extract.js';
  * ★ v28 起**写入侧一个字都不用改**：新词条不写 `review_enabled`，自然是 `NULL`（继承领域）
  *   ⇒ 「已开启的领域里 AI 新抽的词条自动进复习池」是**读取侧现算**白拿的，
  *   不需要在这里查一次领域开关再回填（那会多出第二份范围口径，同迁移 v28 注释的取舍）。
+ *
+ * ★ M2d（2026-09-18）：`ownerId` 是**事件归属**、不是这一行的归属——本批不动 `term_library`
+ *   的 SQL（`term_*` 归主在 M2d-2 / v31，消费面 12 文件 + ~80 个 SQL 点，单独一批交付）。
+ *   这里要它，是因为下面 `term_added` 事件会让 `activity.ts` 给**这个人**记 XP 与每日计数；
+ *   不传的话 `tsc` 直接报错（见 `events/bus.ts` 头注「为什么必填」）。
  */
-export function saveTerms(items: TermItem[], sourceSessionId?: string | null): number {
+export function saveTerms(
+  items: TermItem[],
+  sourceSessionId?: string | null,
+  ownerId: string | null = null,
+): number {
   const db = getDb();
   const norm = normalizeTerms(items);
   if (norm.length === 0) return 0;
@@ -164,7 +173,7 @@ export function saveTerms(items: TermItem[], sourceSessionId?: string | null): n
     }
   });
   tx();
-  publishEvent({ type: 'term_added', count: norm.length });
+  publishEvent({ type: 'term_added', count: norm.length, ownerId });
   return norm.length;
 }
 

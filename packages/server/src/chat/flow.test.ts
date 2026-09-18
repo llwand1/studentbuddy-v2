@@ -186,7 +186,7 @@ beforeEach(() => {
   stub.lastMessages = [];
   stub.allMessages = [];
   stub.toolChoices = [];
-  resetAnswerStyle(); // 偏好落 app_settings，不清就会流到下一个测例
+  resetAnswerStyle(null); // 偏好落 app_settings（v30 起每用户一份），不清就会流到下一个测例
   termsStub.relevant = [];
   termsStub.queries = [];
   termsStub.extractRejects = false;
@@ -609,7 +609,7 @@ describe('回答方式偏好注入（契约 ANSWER-STYLE §3）', () => {
 
   it('改库内偏好 → 下一轮出站的偏好段随之改变（不改就不算生效）', async () => {
     const sid = newSession();
-    saveAnswerStyle({ verbosity: 'brief', shape: 'bullets' });
+    saveAnswerStyle({ verbosity: 'brief', shape: 'bullets' }, null);
     stub.turns = [[{ content: '一', done: true }]];
 
     await handleMessage({ sessionId: sid, text: '第一问' });
@@ -621,7 +621,7 @@ describe('回答方式偏好注入（契约 ANSWER-STYLE §3）', () => {
 
   it('偏好段只进上下文：屏上与库内正文都不含它', async () => {
     const sid = newSession();
-    saveAnswerStyle({ tone: 'socratic' });
+    saveAnswerStyle({ tone: 'socratic' }, null);
     stub.turns = [[{ content: '你先想想看。', done: true }]];
 
     await handleMessage({ sessionId: sid, text: '讲讲牛顿定律' });
@@ -632,8 +632,8 @@ describe('回答方式偏好注入（契约 ANSWER-STYLE §3）', () => {
 
   it('恢复默认（删键）后回到默认偏好段', async () => {
     const sid = newSession();
-    saveAnswerStyle({ verbosity: 'detailed' });
-    resetAnswerStyle();
+    saveAnswerStyle({ verbosity: 'detailed' }, null);
+    resetAnswerStyle(null);
     stub.turns = [[{ content: 'ok', done: true }]];
 
     await handleMessage({ sessionId: sid, text: 'q' });

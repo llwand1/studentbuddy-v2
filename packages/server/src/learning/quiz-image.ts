@@ -8,17 +8,22 @@
  */
 import { SETTING_KEY_QUIZ_IMAGE, DEFAULT_QUIZ_IMAGE } from '@sb/shared';
 import { getDb } from '../storage/db.js';
+import { ownerForWrite } from '../auth/ownership.js';
 
 /** 库里只认真值 true/'true'，其余一律按关处理（数据容错，ADR-6） */
 function normalizeImageFlag(input: unknown): boolean {
   return input === true || input === 'true';
 }
 
+// ★ M2d（2026-09-18，契约 TENANCY-SPEC §8.2）：`app_settings` 归主（v30，主键 `(owner_id, key)`）。
+//   `ownerId` 一律必填（含读侧）——读侧漏传会读到**别人的**配图开关，
+//   写侧漏传会写进无主行（用户自己读不回）。两者都不报错，只能靠类型挡。
+
 /** 读设置；未配过/配置损坏都回退默认（与 loadQuizMix 同一套路） */
-export function loadQuizImage(): boolean {
+export function loadQuizImage(ownerId: string | null): boolean {
   const row = getDb()
-    .prepare('SELECT value FROM app_settings WHERE key = ?')
-    .get(SETTING_KEY_QUIZ_IMAGE) as { value: string } | undefined;
+    .prepare('SELECT value FROM app_settings WHERE owner_id = ? AND key = ?')
+    .get(ownerForWrite(ownerId), SETTING_KEY_QUIZ_IMAGE) as { value: string } | undefined;
   if (!row) return DEFAULT_QUIZ_IMAGE;
   try {
     return normalizeImageFlag(JSON.parse(row.value) as unknown);
@@ -28,13 +33,15 @@ export function loadQuizImage(): boolean {
 }
 
 /** 存设置；落库前先归一化，库里永远是干净值 */
-export function saveQuizImage(on: boolean): boolean {
+export function saveQuizImage(on: boolean, ownerId: string | null): boolean {
   const clean = normalizeImageFlag(on);
   getDb()
     .prepare(
-      'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      // ★ 冲突目标跟着主键改（v30）：仍写 `ON CONFLICT(key)` 会运行时 500。
+      `INSERT INTO app_settings (owner_id, key, value) VALUES (?, ?, ?)
+       ON CONFLICT(owner_id, key) DO UPDATE SET value = excluded.value`,
     )
-    .run(SETTING_KEY_QUIZ_IMAGE, JSON.stringify(clean));
+    .run(ownerForWrite(ownerId), SETTING_KEY_QUIZ_IMAGE, JSON.stringify(clean));
   return clean;
 }
 

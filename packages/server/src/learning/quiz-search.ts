@@ -54,17 +54,21 @@ export interface QuizSearchBlock {
  * `report` 省略时仍然正常检索，只是没人记账（PK 这类不面向用户的入口可以省略）。
  * 失败三层降级全 catch、**不阻断出题**：单家搜索源挂由 searchWeb 的 allSettled 吞掉并记 failed；
  * 全部源挂/无 key/超时则 picked 为空、block 为空串；更外层意外在这里 catch，原因写进 failed。
+ *
+ * ★ M2d（2026-09-18，契约 TENANCY-SPEC §8.2）：搜索 key 存在 `app_settings`（v30 归主）。
+ *   `ownerId` 必填——漏传会让 A 用**别人的**搜索 key（那是要花钱的），且不报错。
  */
 export async function buildQuizSearchBlock(
   topic: string,
   material: string | undefined,
-  report?: QuizSearchReport,
+  report: QuizSearchReport | undefined,
+  ownerId: string | null,
 ): Promise<QuizSearchBlock> {
   if (report) report.on = true;
   const query = buildQuizQuery(topic, material);
   if (!query) return { block: '', refs: [] };
   try {
-    const res = await searchWeb(query);
+    const res = await searchWeb(query, ownerId);
     // 去重按 url（无 url 退标题）：编号必须能一对一映射回来源，重复条目会让 [n] 指向两处
     const seen = new Set<string>();
     const picked = res.results

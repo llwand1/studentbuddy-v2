@@ -319,13 +319,15 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       );
     db.prepare(`UPDATE sessions SET updated_at = datetime('now') WHERE id = ?`).run(sessionId);
 
-    publishEvent({ type: 'chat_done', sessionId });
+    // ★ M2d：事件带归属——订阅者 `learning/activity.ts` 要按人记 XP / 每日计数 / 连签，
+    //   而总线改前只有「发生了什么」。类型上 `ownerId` 必填 ⇒ 漏传是编译错误（见 `events/bus.ts`）。
+    publishEvent({ type: 'chat_done', sessionId, ownerId: opts.ownerId ?? null });
     // 忆域 v2：回复完成后自动抽取重要词条入库（失败静默不阻塞对话）+ 命中词条计数
     // ★ M2c 补传 `opts.ownerId`（契约 §8.1.4 表）：起点是用户请求、ownerId 现成，**此前漏传是 bug**
     //   ——抽取是一次 LLM 调用，不带归属就只能落进平台通道（用户自带 key 时烧的却是平台的额度）。
     void extractTerms(`${opts.text}\n\n${acc}`.slice(0, 30000), opts.ownerId)
       .then((items) => {
-        if (items.length > 0) saveTerms(items, sessionId);
+        if (items.length > 0) saveTerms(items, sessionId, opts.ownerId ?? null);
       })
       .catch(() => undefined)
       // 长期记忆压缩排在词条抽取**之后**串行（两者都要打一次 LLM，并发会同时占两个配额槽），

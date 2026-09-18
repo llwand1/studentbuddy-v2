@@ -66,7 +66,7 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
     return;
   }
   try {
-    const requested = mix === undefined ? loadQuizMix() : normalizeQuizMix(mix);
+    const requested = mix === undefined ? loadQuizMix(ownerIdOf(req)) : normalizeQuizMix(mix);
     // 情景档（SCENARIO-SPEC §6.1）：五档一张配比卡，但传统四类走一道引擎、情景题走独立引擎
     const scenarioCount = requested.scenario;
     const tradTotal = mixTotal(requested) - scenarioCount;
@@ -82,7 +82,7 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
           results.push({ ok: false, failure: report.failure ?? 'parse' });
           continue;
         }
-        publishEvent({ type: 'quiz_generated', quizId: gen.quizId });
+        publishEvent({ type: 'quiz_generated', quizId: gen.quizId, ownerId: ownerIdOf(req) });
         if (sessionId) announceScenarioToSession(sessionId, gen);
         results.push({ ok: true, quizId: gen.quizId, demoId: gen.demoId });
       }
@@ -130,7 +130,7 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
     images.delivered = countQuizImages(quiz);
     let quizId: string | undefined;
     if (save) quizId = saveQuiz(quiz, 'ai');
-    if (quizId) publishEvent({ type: 'quiz_generated', quizId });
+    if (quizId) publishEvent({ type: 'quiz_generated', quizId, ownerId: ownerIdOf(req) });
     if (sessionId) {
       // 内容块流（演进③）：quiz 经 SSE block 事件下发聊天视图
       publish(sessionId, {
@@ -192,7 +192,7 @@ quizRouter.post('/collect/commit', (req: Request, res: Response) => {
     return;
   }
   const quizId = saveQuiz(quiz, 'collect');
-  publishEvent({ type: 'quiz_generated', quizId });
+  publishEvent({ type: 'quiz_generated', quizId, ownerId: ownerIdOf(req) });
   res.json({ quizId, count: quiz.questions.length });
 });
 

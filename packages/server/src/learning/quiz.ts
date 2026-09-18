@@ -21,6 +21,7 @@ import {
   MAX_DOC_CHARS,
 } from '@sb/shared';
 import { getDb } from '../storage/db.js';
+import { ownerForWrite } from '../auth/ownership.js';
 import { loadAnswerStyle } from '../storage/answer-style.js';
 import { routeRole } from '../llm/router.js';
 import { QUIZ_TEMPERATURE, getQuizMaxOutputTokens } from '../llm/model-limits.js';
@@ -178,12 +179,17 @@ export function normalizeQuiz(data: QuizPayload, opts?: NormalizeQuizOptions): Q
 }
 
 // ── 题型配比（用户可配：每种题型 0..10 道）──
+//
+// ★ M2d（2026-09-18，契约 TENANCY-SPEC §8.2）：`app_settings` 归主（v30，主键 `(owner_id, key)`）。
+//   改前这是**全局写口**——A 在设置页改一次出题配比，**全站所有人的出题都跟着变**。
+//   `ownerId` 一律必填：读侧漏传读到别人的配比、写侧漏传写进无主行（用户自己读不回），
+//   两种都**不会让任何测试变红**，只能靠类型挡住。
 
 /** 读设置；未配过/配置损坏都回退默认（数据容错，ADR-6） */
-export function loadQuizMix(): QuizMix {
+export function loadQuizMix(ownerId: string | null): QuizMix {
   const row = getDb()
-    .prepare('SELECT value FROM app_settings WHERE key = ?')
-    .get(SETTING_KEY_QUIZ_MIX) as { value: string } | undefined;
+    .prepare('SELECT value FROM app_settings WHERE owner_id = ? AND key = ?')
+    .get(ownerForWrite(ownerId), SETTING_KEY_QUIZ_MIX) as { value: string } | undefined;
   if (!row) return { ...DEFAULT_QUIZ_MIX };
   try {
     return normalizeQuizMix(JSON.parse(row.value) as unknown);
@@ -193,13 +199,15 @@ export function loadQuizMix(): QuizMix {
 }
 
 /** 存设置；落库前先归一化，库里永远是干净值 */
-export function saveQuizMix(mix: QuizMix): QuizMix {
+export function saveQuizMix(mix: QuizMix, ownerId: string | null): QuizMix {
   const clean = normalizeQuizMix(mix);
   getDb()
     .prepare(
-      'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      // ★ 冲突目标跟着主键改（v30）：仍写 `ON CONFLICT(key)` 会运行时 500。
+      `INSERT INTO app_settings (owner_id, key, value) VALUES (?, ?, ?)
+       ON CONFLICT(owner_id, key) DO UPDATE SET value = excluded.value`,
     )
-    .run(SETTING_KEY_QUIZ_MIX, JSON.stringify(clean));
+    .run(ownerForWrite(ownerId), SETTING_KEY_QUIZ_MIX, JSON.stringify(clean));
   return clean;
 }
 
@@ -259,16 +267,17 @@ export async function generateQuiz(
   //   尾参放最后且可选：本函数的调用点有 6 处（chat 工具循环 / REST / PK 人出题 / PK AI 出题 /
   //   裁判类似题 / 单测），中间插参会把 `styleArg`、`online` 两个位置参数全部错位——
   //   那是最容易"改完能编译、语义全错"的一类改动。生产路径全部显式传值。
-  const target = routeRole('quiz-generator', undefined, ownerId);
+  const owner = ownerId ?? null; // 归一化一次：下面 4 处读设置/检索/路由全用它，避免各处 `?? null` 写法分叉
+  const target = routeRole('quiz-generator', undefined, owner);
   if (!target || !target.model) {
     // 真因写进 report（契约 QUIZ-SEARCH-SPEC §2.5）：路由据此报「去设置页绑模型」而不是「可重试」
     if (report) report.failure = 'no-model';
     return null;
   }
   let acc = '';
-  const wanted = mix ?? loadQuizMix();
+  const wanted = mix ?? loadQuizMix(owner);
   // 开关只读一次：提示词与解析硬门必须同源，否则会出现「叫模型画、画完又剥掉」的自相矛盾
-  const imageOn = loadQuizImage();
+  const imageOn = loadQuizImage(owner);
   if (report) report.on = imageOn;
   // 联网只由 online 决定；report 只是「要不要记账」的可选出参。★ 别再写成 `online && report`——
   // 那样 PK 这类不传 report 的入口会静默退化成不联网（2026-09-13 真机核查抓到的实际 bug）。
@@ -276,10 +285,10 @@ export async function generateQuiz(
   if (report && searchReport) report.search = searchReport;
   // 检索先于出题（拿到资料才可能出时效题）；失败返回空段，下面的提示词与旧版逐字一致
   const found = searchReport
-    ? await buildQuizSearchBlock(topic, material, searchReport)
+    ? await buildQuizSearchBlock(topic, material, searchReport, owner)
     : { block: '', refs: [] };
   const refsBlock = found.block;
-  const prompt = `${QUIZ_PROTOCOL}\n${buildMixInstruction(wanted)}\n${buildImageInstruction(imageOn)}\n${buildAnswerStyleBlock(styleArg ?? loadAnswerStyle(), 'quiz')}\n${refsBlock}${refsBlock ? '\n' : ''}\n材料：\n${material ? material.slice(0, MAX_DOC_CHARS) : `主题：${topic}`}`;
+  const prompt = `${QUIZ_PROTOCOL}\n${buildMixInstruction(wanted)}\n${buildImageInstruction(imageOn)}\n${buildAnswerStyleBlock(styleArg ?? loadAnswerStyle(owner), 'quiz')}\n${refsBlock}${refsBlock ? '\n' : ''}\n材料：\n${material ? material.slice(0, MAX_DOC_CHARS) : `主题：${topic}`}`;
   for await (const chunk of target.adapter.chat({
     model: target.model,
     apiKey: target.apiKey,

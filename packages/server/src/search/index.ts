@@ -10,6 +10,7 @@ import { getDb } from '../storage/db.js';
 import { encryptSecret, decryptSecret } from '../storage/crypto.js';
 import { fetchSafe } from './ssrf-guard.js';
 import { publishEvent } from '../events/bus.js';
+import { ownerForWrite } from '../auth/ownership.js';
 
 export interface SearchResult {
   title: string;
@@ -29,6 +30,15 @@ export interface SearchProviderConfig {
   priority: number;
 }
 
+/**
+ * 取某家的 key：**环境变量优先，其次该用户自己的设置**。
+ *
+ * ★ M2d（2026-09-18，契约 TENANCY-SPEC §8.2）：`app_settings` 归主后，`search_key_*`
+ *   是**每个用户自己的 key**（BYOK 语义），而环境变量仍是**平台兜底**
+ *   （与 §8.1.1 的双通道一致：平台免费额度来自 env 里配的 key，不需要也不应该有"平台行"）。
+ *   ⚠️ 老库里的 `search_key_*` 行在 v30 之后变成无主行（`owner_id = ''`）⇒ 登录用户读不到，
+ *   需用 `_probe/claim-legacy.mjs` 认领（或直接重新填一次）。
+ */
 function keyFromEnv(type: string): string {
   const env: Record<string, string | undefined> = {
     exa: process.env.EXA_API_KEY,
@@ -38,34 +48,37 @@ function keyFromEnv(type: string): string {
   return env[type] ?? '';
 }
 
-function keyFromSettings(type: string): string {
-  const row = getDb().prepare("SELECT value FROM app_settings WHERE key = ?").get(`search_key_${type}`) as
-    | { value: string }
-    | undefined;
+function keyFromSettings(type: string, ownerId: string | null): string {
+  const row = getDb()
+    .prepare('SELECT value FROM app_settings WHERE owner_id = ? AND key = ?')
+    .get(ownerForWrite(ownerId), `search_key_${type}`) as { value: string } | undefined;
   return row?.value ? decryptSecret(row.value) : '';
 }
 
-export function getProviderKey(type: string): string {
-  return keyFromEnv(type) || keyFromSettings(type);
+export function getProviderKey(type: string, ownerId: string | null): string {
+  return keyFromEnv(type) || keyFromSettings(type, ownerId);
 }
 
 /** 三家 key 的配置状态（只回布尔，明文/密文都不出响应）。 */
-export function listKeyStatus(): Record<KeyedProvider, boolean> {
+export function listKeyStatus(ownerId: string | null): Record<KeyedProvider, boolean> {
   const out = {} as Record<KeyedProvider, boolean>;
-  for (const p of KEYED_PROVIDERS) out[p] = getProviderKey(p).length > 0;
+  for (const p of KEYED_PROVIDERS) out[p] = getProviderKey(p, ownerId).length > 0;
   return out;
 }
 
 /** 存 key：非空加密落库；空串=删除该 key（环境变量仍可用）。 */
-export function saveProviderKey(type: KeyedProvider, plain: string): void {
+export function saveProviderKey(type: KeyedProvider, plain: string, ownerId: string | null): void {
   const db = getDb();
+  const owner = ownerForWrite(ownerId);
   if (!plain) {
-    db.prepare('DELETE FROM app_settings WHERE key = ?').run(`search_key_${type}`);
+    db.prepare('DELETE FROM app_settings WHERE owner_id = ? AND key = ?').run(owner, `search_key_${type}`);
     return;
   }
   db.prepare(
-    'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-  ).run(`search_key_${type}`, encryptSecret(plain));
+    // ★ 冲突目标跟着主键改（v30）：仍写 `ON CONFLICT(key)` 会运行时 500。
+    `INSERT INTO app_settings (owner_id, key, value) VALUES (?, ?, ?)
+     ON CONFLICT(owner_id, key) DO UPDATE SET value = excluded.value`,
+  ).run(ownerForWrite(ownerId), `search_key_${type}`, encryptSecret(plain));
 }
 
 // ── 三家实现（各 ~20 行独立函数，简单组合原则）──
@@ -284,9 +297,16 @@ function cacheSet(key: string, results: SearchResult[]): void {
     .run(key, JSON.stringify(results), Date.now() + 24 * 3600_000);
 }
 
-/** 聚合入口：并行发起有 key 的 provider，失败跳过，URL 去重合并。 */
+/**
+ * 聚合入口：并行发起有 key 的 provider，失败跳过，URL 去重合并。
+ *
+ * ★ M2d：`ownerId` **必填**（`string | null`）——`search_key_*` 现在是**每个用户自己的 key**
+ *   （v30 归主），漏传的后果是「读不到自己配的 key ⇒ 静默退回 Bing 免费通道」：
+ *   功能看着还在、质量悄悄降级，任何测试都不会红。
+ */
 export async function searchWeb(
   query: string,
+  ownerId: string | null,
   opts: { skipCache?: boolean; signal?: AbortSignal } = {},
 ): Promise<{ results: SearchResult[]; providers: string[]; failed: string[] }> {
   const keyed = (
@@ -295,7 +315,7 @@ export async function searchWeb(
       { type: 'tavily', priority: 2 },
       { type: 'zhipu', priority: 3 },
     ] as SearchProviderConfig[]
-  ).filter((p) => getProviderKey(p.type));
+  ).filter((p) => getProviderKey(p.type, ownerId));
 
   // 三家全无 key → Bing 免费通道兜底（绝不让搜索整条路走死）
   const active: SearchProviderConfig[] = keyed.length > 0 ? keyed : [{ type: 'bing', priority: 4 }];
@@ -306,7 +326,7 @@ export async function searchWeb(
   if (cached) return { results: cached, providers: ['cache'], failed: [] };
 
   const settled = await Promise.allSettled(
-    active.map((p) => IMPL[p.type]!(query, getProviderKey(p.type), opts.signal)),
+    active.map((p) => IMPL[p.type]!(query, getProviderKey(p.type, ownerId), opts.signal)),
   );
   const failed: string[] = [];
   const byUrl = new Map<string, SearchResult>();

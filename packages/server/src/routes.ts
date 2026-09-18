@@ -298,8 +298,8 @@ providersRouter.get('/:id/key-status', (req: Request, res: Response) => {  const
 // ── settings（搜索 key：密文落库，响应只回状态）──────────────
 export const settingsRouter = Router();
 
-settingsRouter.get('/search-keys', (_req, res) => {
-  res.json({ configured: listKeyStatus() });
+settingsRouter.get('/search-keys', (req, res) => {
+  res.json({ configured: listKeyStatus(ownerIdOf(req)) });
 });
 
 settingsRouter.put('/search-keys', (req: Request, res: Response) => {
@@ -316,47 +316,47 @@ settingsRouter.put('/search-keys', (req: Request, res: Response) => {
     patch.push({ key, value: trimmed });
   }
   // 先全量校验再落库：避免一个字段超限导致半写状态
-  for (const item of patch) saveProviderKey(item.key, item.value);
-  res.json({ ok: true, configured: listKeyStatus() });
+  for (const item of patch) saveProviderKey(item.key, item.value, ownerIdOf(req));
+  res.json({ ok: true, configured: listKeyStatus(ownerIdOf(req)) });
 });
 
-// ── settings：出题题型配比（全局一份，对话页「出题」与题库页「一键出题」共用）──
-settingsRouter.get('/quiz-mix', (_req, res) => {
-  res.json({ mix: loadQuizMix() });
+// ── settings：出题题型配比（v30 起**每用户一份**，对话页「出题」与题库页「一键出题」共用）──
+settingsRouter.get('/quiz-mix', (req, res) => {
+  res.json({ mix: loadQuizMix(ownerIdOf(req)) });
 });
 
 settingsRouter.put('/quiz-mix', (req: Request, res: Response) => {
   // 入参一律过归一化（负数/小数/超上限/全 0 都有既定归宿），落库即干净值
-  const mix = saveQuizMix(normalizeQuizMix((req.body as { mix?: unknown }).mix));
+  const mix = saveQuizMix(normalizeQuizMix((req.body as { mix?: unknown }).mix), ownerIdOf(req));
   res.json({ ok: true, mix });
 });
 
 // ── settings：出题配图开关（契约 docs/QUIZ-IMAGE-SPEC.md §2.2）──
-settingsRouter.get('/quiz-image', (_req, res) => {
-  res.json({ on: loadQuizImage() });
+settingsRouter.get('/quiz-image', (req, res) => {
+  res.json({ on: loadQuizImage(ownerIdOf(req)) });
 });
 
 settingsRouter.put('/quiz-image', (req: Request, res: Response) => {
   // 只认真值，其余一律按关处理（saveQuizImage 内归一化）
-  const on = saveQuizImage((req.body as { on?: unknown }).on === true);
+  const on = saveQuizImage((req.body as { on?: unknown }).on === true, ownerIdOf(req));
   res.json({ ok: true, on });
 });
 
 // ── settings：回答方式偏好（契约 docs/ANSWER-STYLE-SPEC.md §2）──
-settingsRouter.get('/answer-style', (_req, res) => {
+settingsRouter.get('/answer-style', (req, res) => {
   // configured 是 L1 的开关量：没配过 与 配成默认值 在 style 上看不出区别
-  res.json({ style: loadAnswerStyle(), configured: isAnswerStyleConfigured() });
+  res.json({ style: loadAnswerStyle(ownerIdOf(req)), configured: isAnswerStyleConfigured(ownerIdOf(req)) });
 });
 
 settingsRouter.put('/answer-style', (req: Request, res: Response) => {
   // 入参逐字段过归一化（非法/缺失各自回落默认，不 400），回读的是实际落库值
-  const style = saveAnswerStyle((req.body as { style?: unknown }).style);
+  const style = saveAnswerStyle((req.body as { style?: unknown }).style, ownerIdOf(req));
   res.json({ style, configured: true });
 });
 
-settingsRouter.delete('/answer-style', (_req, res) => {
+settingsRouter.delete('/answer-style', (req, res) => {
   // 删键＝回到「没配过」：下次点出题会重新弹一次选项卡
-  resetAnswerStyle();
+  resetAnswerStyle(ownerIdOf(req));
   res.json({ style: { ...DEFAULT_ANSWER_STYLE }, configured: false });
 });
 
@@ -364,7 +364,8 @@ settingsRouter.delete('/answer-style', (_req, res) => {
 settingsRouter.post('/search/test', async (req: Request, res: Response) => {
   const query = String((req.body as { query?: unknown }).query ?? '学习 方法').slice(0, 80);
   try {
-    const { results, providers, failed } = await searchWeb(query, { skipCache: true });
+    // ★ 自检必须用**请求者自己的** key：用别人的 key 自检，通过与否都不代表他的配置可用
+    const { results, providers, failed } = await searchWeb(query, ownerIdOf(req), { skipCache: true });
     res.json({ ok: results.length > 0, count: results.length, providers, failed });
   } catch (err) {
     res.json({ ok: false, count: 0, providers: [], failed: [err instanceof Error ? err.message : String(err)] });

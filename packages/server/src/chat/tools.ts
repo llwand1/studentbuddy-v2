@@ -76,7 +76,9 @@ registry.set('search_web', {
       return { content: '搜索词为空，请带 query 重新调用 search_web。' };
     }
     ctx.onStep('search_web', 'running', query);
-    const { results, providers, failed } = await searchWeb(query, { signal: ctx.signal });
+    // ★ M2d：搜索 key 现在**每用户一份**（v30 归主）⇒ 必须带 `ctx.ownerId`，
+    //   漏传的后果是「读不到自己配的 key ⇒ 静默退回 Bing 免费通道」（功能还在、质量降级、不报错）。
+    const { results, providers, failed } = await searchWeb(query, ctx.ownerId ?? null, { signal: ctx.signal });
     if (results.length === 0) {
       // 回灌口径（2026-09-17 重写，bug-ledger B-006）：此前把「未配置搜索 key（免 key 兜底）/
       // 本网络可能不可达」这类**内部配置细节**直接甩给模型，模型转述出来就成了"我没有联网功能"

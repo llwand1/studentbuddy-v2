@@ -61,7 +61,7 @@ describe('storage/obs — 可观测地基（v9 event_log）', () => {
     wireObsEvents();
     wireObsEvents();
     publishEvent({ type: 'obs', kind: 'search_empty', payload: { query: 'q' } });
-    publishEvent({ type: 'chat_done', sessionId: 's' });
+    publishEvent({ type: 'chat_done', sessionId: 's', ownerId: null });
     const rows = listObsEvents();
     expect(rows).toHaveLength(1);
     expect(rows[0]?.kind).toBe('search_empty');

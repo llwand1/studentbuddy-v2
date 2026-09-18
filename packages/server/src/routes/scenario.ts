@@ -67,7 +67,7 @@ scenarioRouter.post('/generate', async (req: Request, res: Response) => {
       });
       return;
     }
-    publishEvent({ type: 'quiz_generated', quizId: gen.quizId });
+    publishEvent({ type: 'quiz_generated', quizId: gen.quizId, ownerId: ownerIdOf(req) });
     if (sessionId) announceScenarioToSession(sessionId, gen);
     res.json({ quizId: gen.quizId, demoId: gen.demoId, payload: gen.payload, report });
   } catch (err) {

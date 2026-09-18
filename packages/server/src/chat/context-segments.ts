@@ -119,7 +119,8 @@ export function collectContextSegments(inputs: ContextInputs): CollectedContext 
     { kind: 'doc', content: docBlock },
     // 表达偏好段（契约 ANSWER-STYLE §3）：四维全默认时它只是重述现状口径、不改口吻。
     // 它**恒非空**（至少含 scope 那句），故无需条件判断——空内容段会在下面被统一剔除。
-    { kind: 'style', content: buildAnswerStyleBlock(loadAnswerStyle()) },
+    // ★ M2d：`app_settings` 归主（v30）⇒ 必须带 `ownerId`——不带就会读到**别人的**口吻偏好。
+    { kind: 'style', content: buildAnswerStyleBlock(loadAnswerStyle(ownerId ?? null)) },
     { kind: 'memory', content: memoryBlock },
     // 触发增强（2026-09-14 方案选择框 / 2026-09-17 联网搜索）：识别「这条提问是不是在做选择/规划
     // 或要求联网检索」，命中则追加硬指令。两者同时命中时 **search 优先**——学习者明说"搜一下"

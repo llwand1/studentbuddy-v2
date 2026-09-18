@@ -127,7 +127,7 @@ termsRouter.post('/extract', async (req: Request, res: Response) => {
     res.json({ added: 0, items: [] });
     return;
   }
-  const added = saveTerms(items, sourceSessionId ?? null);
+  const added = saveTerms(items, sourceSessionId ?? null, ownerIdOf(req));
   res.json({ added, items });
 });
 

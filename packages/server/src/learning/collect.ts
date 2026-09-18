@@ -203,7 +203,7 @@ export async function collectQuiz(
   const picks: Array<{ url: string; title: string }> = [];
   for (const q of report.queries) {
     try {
-      const res = await searchWeb(q, { signal: opts.signal });
+      const res = await searchWeb(q, opts.ownerId ?? null, { signal: opts.signal });
       report.providers.push(...res.providers);
       report.failed.push(...res.failed);
       for (const r of res.results) {

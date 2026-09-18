@@ -22,10 +22,41 @@ export function ownerIdOf(req: Request): string | null {
 /**
  * 归属过滤条件：`ownerId` 为 null 时**不加条件**（单人本地模式）。
  * 返回的 `params` 必须按序拼进 `prepare(...).all(...)`，与 `sql` 里的 `?` 一一对应。
+ *
+ * ★★ **只用于 v22/v24 的 `sessions` / `user_memory`**（它们的孤儿行是 `NULL`，且读形状是
+ *   「按 id 取一行 / 列一批行」）。★ **M2d 系列的表（`app_settings` / `daily_*` / `user_stats` /
+ *   `term_*` / `quiz_*` / `flow_*`）不要用它**，一律改用 `ownerForWrite(ownerId)`——
+ *   理由见 `ownerForWrite` 的注释（那些表的读形状是**单值或聚合**，"豁免过滤"会返回
+ *   任意一个用户的行）。两者不是"同一个东西的两种写法"，选错**不报错**。
+ *
+ * ★ 默认列名仍是 `user_id`，**不要**为了"统一"把默认值改成 `owner_id`——改默认值会让
+ *   `sessions` 的过滤条件指向一个不存在的列（SQL 直接报错，还算好的）；更坏的是将来某张表
+ *   恰好两列都有，静默过滤错列 ⇒ 泄露且不报错。
  */
 export function ownerFilter(ownerId: string | null, column = 'user_id'): { sql: string; params: string[] } {
   if (ownerId === null) return { sql: '', params: [] };
   return { sql: ` AND ${column} = ?`, params: [ownerId] };
+}
+
+/**
+ * M2d 表的归属值：把「这次请求的归属」转成**列值**，**读写两侧都用它**（契约 §8.2）。
+ *
+ * ★★ 为什么读侧也用它（而不是 `ownerFilter` 的"null 就豁免过滤"）——这是本批最容易写错、
+ *   而且**写错不报错**的一处，2026-09-18 开工时实测踩到：
+ *   M2d 这组表的读形状是**单值或聚合**，不是"按 id 列一批行"：
+ *   · `app_settings`：`SELECT value … WHERE key = ?` → `.get()`。豁免过滤后库里若有多行
+ *     （每个用户一行），`.get()` 返回的是**任意一行** ⇒ 未登录请求读到**某个用户**的出题配比 /
+ *     回答方式偏好 / 搜索 key（**静默串台**，且不会报错）。
+ *   · `daily_summaries`：同上 ⇒ **B 直接读到 A 的今日总结**（那正是本批要修的那个洞）。
+ *   · `user_stats`：同上 ⇒ 未登录读到**某个用户**的 XP。
+ *   · `daily_activity`：`SUM(count)` ⇒ 把**所有人**的活动加在一起。
+ *   ⇒ 故本组表**读写同口径**：`''` = 无主行；未登录只看无主行、登录只看自己的行。
+ *     `null`（未登录单人模式）⇒ `''`，而本地模式写入的行**本来就是无主行**（同一把 helper），
+ *     所以"看到的就是自己全部历史"这条仍然成立——契约 §9 第 5 条没有被违反。
+ *   ★ 判据一句话：**读形状是"一批行"的用 `ownerFilter`；是"一个值"的用本函数。**
+ */
+export function ownerForWrite(ownerId: string | null): string {
+  return ownerId ?? '';
 }
 
 /**

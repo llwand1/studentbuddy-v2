@@ -28,6 +28,36 @@ function revertV29(db: ReturnType<typeof openIsolated>): void {
   db.exec(`CREATE TABLE role_bindings (role TEXT PRIMARY KEY, provider_id TEXT NOT NULL, model TEXT NOT NULL)`);
 }
 
+/**
+ * 把 v30（M2d-1，设置与反馈环归主）的**四张重建表**退回「老库」形态。
+ *
+ * ★ 四张全是**重建**（不是加列）⇒ 退回动作统一是「DROP 新表 + 按旧结构建回」。
+ *   **不能只 DROP**：`migrate()` 只跑 `version > current` 的迁移，被跳过的 v1
+ *   （`CREATE TABLE IF NOT EXISTS`）不会重跑 ⇒ 只删不建，后面整条链全报 `no such table`
+ *   （v29 的 `revertV29` 已踩过这一条，见上面的注释）。
+ * ★ 旧结构逐字取自 `migrations-list-v1-9.ts`，**不要凭印象写**：`daily_summaries.created_at`
+ *   那个 `DEFAULT (datetime('now'))` 少写一个括号都算「与老库不一致」，用例会测出假的差异。
+ */
+function revertV30(db: ReturnType<typeof openIsolated>): void {
+  db.exec(`DROP TABLE IF EXISTS app_settings`);
+  db.exec(`CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
+  db.exec(`DROP TABLE IF EXISTS daily_activity`);
+  db.exec(`CREATE TABLE daily_activity (
+    day TEXT NOT NULL,
+    type TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, type)
+  )`);
+  db.exec(`DROP TABLE IF EXISTS daily_summaries`);
+  db.exec(`CREATE TABLE daily_summaries (
+    day TEXT PRIMARY KEY,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+  db.exec(`DROP TABLE IF EXISTS user_stats`);
+  db.exec(`CREATE TABLE user_stats (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
+}
+
 describe('storage/db — 版本化迁移（逐语句，根除 v1 大模板 TS1434 坑）', () => {
   it('建表齐全 + schema_version 记录 + 幂等（重复打开不动）', () => {
     const dir = tmp();
@@ -822,5 +852,134 @@ describe('storage/db — v29 LLM 成本归主迁移（docs/TENANCY-SPEC.md §8.1
     expect(row?.provider_id).toBe('openai-default');
     expect(row?.model).toBe('gpt-4o');
     upgraded.close();
+  });
+});
+
+describe('storage/db — v30 设置与反馈环归主迁移（docs/TENANCY-SPEC.md §8.2，M2d-1）', () => {
+  /** 表的主键列（按声明序），用于断言"复合主键真的含 owner_id" */
+  const pkOf = (db: ReturnType<typeof openIsolated>, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string; pk: number }>)
+      .filter((c) => c.pk > 0)
+      .sort((a, b) => a.pk - b.pk)
+      .map((c) => c.name);
+
+  it('新库四张表都含 owner_id 且它是**主键第一列**（改前是全局单列主键）', () => {
+    const db = openIsolated(tmp());
+    expect(pkOf(db, 'app_settings')).toEqual(['owner_id', 'key']);
+    expect(pkOf(db, 'user_stats')).toEqual(['owner_id', 'key']);
+    expect(pkOf(db, 'daily_activity')).toEqual(['owner_id', 'day', 'type']);
+    expect(pkOf(db, 'daily_summaries')).toEqual(['owner_id', 'day']);
+    db.close();
+  });
+
+  it("★ owner_id 是 `NOT NULL DEFAULT ''`：不是可空（与 v29 的 providers 刻意相反，见迁移头注）", () => {
+    const db = openIsolated(tmp());
+    for (const t of ['app_settings', 'user_stats', 'daily_activity', 'daily_summaries']) {
+      const col = (db.prepare(`PRAGMA table_info(${t})`).all() as Array<{ name: string; notnull: number; dflt_value: string | null }>).find(
+        (c) => c.name === 'owner_id',
+      );
+      expect(col?.notnull, t).toBe(1);
+      // DEFAULT '' 的形态在 PRAGMA 里是字符串 `''`（含引号）
+      expect(col?.dflt_value, t).toBe("''");
+    }
+    db.close();
+  });
+
+  it('★★ 跨用户撞键回归（本批的核心承诺）：A、B 同名 key / 同日同 type 必须能共存', () => {
+    const db = openIsolated(tmp());
+    const setA = db.prepare(`INSERT INTO app_settings (owner_id, key, value) VALUES (?, ?, ?)`);
+    setA.run('u1', 'quiz_mix', 'A');
+    setA.run('u2', 'quiz_mix', 'B'); // ★ 改前这里是 PRIMARYKEY 冲突
+    const actA = db.prepare(`INSERT INTO daily_activity (owner_id, day, type, count) VALUES (?, ?, ?, ?)`);
+    actA.run('u1', '2026-09-18', 'chat_done', 3);
+    actA.run('u2', '2026-09-18', 'chat_done', 7); // ★ 改前 `PK(day,type)` 直接撞
+    const sumA = db.prepare(`INSERT INTO daily_summaries (owner_id, day, content) VALUES (?, ?, ?)`);
+    sumA.run('u1', '2026-09-18', 'A 的总结');
+    sumA.run('u2', '2026-09-18', 'B 的总结'); // ★ 改前 `PK(day)`：B 会读到 A 的
+    const stA = db.prepare(`INSERT INTO user_stats (owner_id, key, value) VALUES (?, ?, ?)`);
+    stA.run('u1', 'xp', '100');
+    stA.run('u2', 'xp', '5'); // ★ 改前 A、B 的 XP 是同一个数
+
+    const mixOf = (u: string): string =>
+      (db.prepare(`SELECT value FROM app_settings WHERE owner_id = ? AND key = 'quiz_mix'`).get(u) as { value: string }).value;
+    expect(mixOf('u1')).toBe('A');
+    expect(mixOf('u2')).toBe('B');
+    const xpOf = (u: string): string =>
+      (db.prepare(`SELECT value FROM user_stats WHERE owner_id = ? AND key = 'xp'`).get(u) as { value: string }).value;
+    expect(xpOf('u1')).toBe('100');
+    expect(xpOf('u2')).toBe('5');
+    db.close();
+  });
+
+  it('★ 同一个人同一天同 type 仍然只能一条（复合主键没被「放宽」成不约束）', () => {
+    const db = openIsolated(tmp());
+    const ins = db.prepare(`INSERT INTO daily_activity (owner_id, day, type, count) VALUES (?, ?, ?, ?)`);
+    ins.run('u1', '2026-09-18', 'chat_done', 1);
+    expect(() => ins.run('u1', '2026-09-18', 'chat_done', 1)).toThrow(/PRIMARYKEY|UNIQUE/i);
+    db.close();
+  });
+
+  it("★ 单值读**不能**豁免过滤：库里同时有 `''` 与 `'u1'` 两行时，`.get()` 必须只取自己那条", () => {
+    const db = openIsolated(tmp());
+    const ins = db.prepare(`INSERT INTO user_stats (owner_id, key, value) VALUES (?, ?, ?)`);
+    ins.run('', 'xp', '999'); // 无主行（本地单人模式的历史数据）
+    ins.run('u1', 'xp', '12');
+    // 这是"读侧用 ownerForWrite 而不是 ownerFilter"的锁：若读侧写成不加条件，
+    // 下面这条会返回**任意一行**（SQLite 通常给 rowid 最小的那条 = 无主行 999）⇒ 静默串台。
+    const mine = db.prepare(`SELECT value FROM user_stats WHERE owner_id = ? AND key = 'xp'`).get('u1') as
+      | { value: string }
+      | undefined;
+    expect(mine?.value).toBe('12');
+    // ★ 反向也要成立：登录用户**查不到**无主行（无主 ≠ 谁都能看见）
+    const orphan = db.prepare(`SELECT value FROM user_stats WHERE owner_id = ? AND key = 'xp'`).get('u2') as
+      | { value: string }
+      | undefined;
+    expect(orphan).toBeUndefined();
+    db.close();
+  });
+
+  it("老库升级：四张表既有数据全部回填 `''`（无主），★ 不是 NULL、也不是判给某个用户", () => {
+    const dir = tmp();
+    const old = openIsolated(dir);
+    // ★ 顺序要紧：先退回旧结构（revertV30 会 DROP 并重建），再往**旧表**里塞老行，
+    //   否则老行会被 DROP 掉，用例就变成了"空表升级"，测不到回填。
+    revertV30(old);
+    old.prepare(`INSERT INTO app_settings (key, value) VALUES ('quiz_mix', '{"single":4}')`).run();
+    old.prepare(`INSERT INTO daily_activity (day, type, count) VALUES ('2026-09-18', 'chat_done', 9)`).run();
+    old.prepare(`INSERT INTO daily_summaries (day, content) VALUES ('2026-09-18', '老总结')`).run();
+    old.prepare(`INSERT INTO user_stats (key, value) VALUES ('xp', '250')`).run();
+    old.prepare('DELETE FROM schema_version WHERE version > 29').run();
+    old.close();
+
+    const up = openIsolated(dir);
+    const s = up.prepare(`SELECT owner_id, value FROM app_settings WHERE key = 'quiz_mix'`).get() as {
+      owner_id: string;
+      value: string;
+    };
+    expect(s.owner_id).toBe(''); // ★ 空串（无主），不是 NULL
+    expect(s.value).toBe('{"single":4}'); // 数据不丢
+    expect(
+      (up.prepare(`SELECT owner_id FROM daily_activity WHERE day = '2026-09-18'`).get() as { owner_id: string }).owner_id,
+    ).toBe('');
+    expect(
+      (up.prepare(`SELECT owner_id FROM daily_summaries WHERE day = '2026-09-18'`).get() as { owner_id: string }).owner_id,
+    ).toBe('');
+    expect((up.prepare(`SELECT owner_id FROM user_stats WHERE key = 'xp'`).get() as { owner_id: string }).owner_id).toBe('');
+    // ★ 而登录用户读不到它们（无主行只对未登录模式可见）
+    expect(up.prepare(`SELECT 1 FROM user_stats WHERE owner_id = ? AND key = 'xp'`).get('u1')).toBeUndefined();
+    up.close();
+  });
+
+  it('回放迁移链不撞 duplicate：退到 v29 后重开，四张表都按新形状建回', () => {
+    const dir = tmp();
+    const old = openIsolated(dir);
+    revertV30(old);
+    old.prepare('DELETE FROM schema_version WHERE version > 29').run();
+    old.close();
+    const up = openIsolated(dir);
+    expect(pkOf(up, 'app_settings')).toEqual(['owner_id', 'key']);
+    expect(pkOf(up, 'daily_summaries')).toEqual(['owner_id', 'day']);
+    expect(up.prepare(`SELECT MAX(version) AS v FROM schema_version`).get()).toEqual({ v: 30 });
+    up.close();
   });
 });

@@ -47,7 +47,7 @@ describe('/api/settings/quiz-image（出题配图开关）', () => {
   it('PUT 开启 → 落库，GET 回读与服务端直读一致', async () => {
     const r = await put({ on: true }).expect(200);
     expect(r.body.on).toBe(true);
-    expect(loadQuizImage()).toBe(true);
+    expect(loadQuizImage(null)).toBe(true);
 
     const got = await request(app).get('/api/settings/quiz-image').expect(200);
     expect(got.body.on).toBe(true);
@@ -57,7 +57,7 @@ describe('/api/settings/quiz-image（出题配图开关）', () => {
     await put({ on: true }).expect(200);
     const r = await put({ on: false }).expect(200);
     expect(r.body.on).toBe(false);
-    expect(loadQuizImage()).toBe(false);
+    expect(loadQuizImage(null)).toBe(false);
 
     const got = await request(app).get('/api/settings/quiz-image').expect(200);
     expect(got.body.on).toBe(false);

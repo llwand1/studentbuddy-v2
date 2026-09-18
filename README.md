@@ -285,3 +285,4 @@ CHANGELOG.md               项目改动登记册（代码/文档/测试同批登
 | [`STUDY-FLOW-SPEC.md`](docs/STUDY-FLOW-SPEC.md) | **学习流契约 v1.0**（三层：步骤注册表 / 控制流 / 知识数据图；「图静态、流动态」；步进式运行器 + 定义快照 + 边出处分层） |
 | [`dev/test-plan.md`](docs/dev/test-plan.md) | 测试策略 / 基线用例数 / 逐文件不变量 |
 | [`dev/bug-ledger.md`](docs/dev/bug-ledger.md) | 反复 bug 台账（收敛计数驱动换根因假设） |
+| [`dev/launch-plan.md`](docs/dev/launch-plan.md) | **上线台账**（上线阶梯进展 / **部署闸门清单＝"什么时候能上线"的答案** / 每次完成上线小任务的总体进展汇报） |

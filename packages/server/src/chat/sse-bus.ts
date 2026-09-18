@@ -43,10 +43,19 @@ export function subscribe(sessionId: string, res: Response, since = 0): () => vo
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
   });
-  const client: Client = { sessionId, res, since };
+  const buf = buffers.get(sessionId);
+  /**
+   * ★ 陈旧 `since` 归零（bug-ledger **B-007**）：seq 是**按轮**从 1 重计的（`startNewRound` 清缓冲），
+   *   而客户端那份计数是跨轮保留的。客户端带着**上一轮的** since 重连时，它比本轮已产出的 seq 还大
+   *   ⇒ 下面的回放为空、且 `publish` 里的 `full.seq > c.since` 恒不成立 ⇒ **整轮（含 `done`）
+   *   一条都发不出去** ⇒ 前端永久卡在「生成中」、正文永不显示（与 B-004/B-005 同族的「永久卡住」）。
+   *   判据：since 超过缓冲里出现过的最大 seq ⇒ 它只可能来自更早的一轮，按 0 起算（本轮一条都不许少）。
+   */
+  const maxSeq = buf?.events.reduce((m, e) => (e.seq > m ? e.seq : m), 0) ?? 0;
+  const from = since > maxSeq ? 0 : since;
+  const client: Client = { sessionId, res, since: from };
   clients.add(client);
 
-  const buf = buffers.get(sessionId);
   if (buf) {
     buf.lastActivity = Date.now();
     // 回放只为恢复"进行中的一轮"；已完结的一轮已落库，正文由 /messages 权威提供。
@@ -54,7 +63,7 @@ export function subscribe(sessionId: string, res: Response, since = 0): () => vo
     const doneIdx = buf.events.findIndex((e) => e.type === 'done');
     const replay = doneIdx >= 0 ? buf.events.slice(doneIdx, doneIdx + 1) : buf.events;
     for (const ev of replay) {
-      if (ev.seq > since) writeEvent(res, ev);
+      if (ev.seq > from) writeEvent(res, ev);
     }
   }
   writeEvent(res, { type: 'ping' });

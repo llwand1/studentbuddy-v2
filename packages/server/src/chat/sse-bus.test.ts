@@ -82,6 +82,33 @@ describe('sse-bus — 按 sessionId 隔离广播（v1 串台防护回归）', ()
     expect(tokens).toHaveLength(1);
     expect(tokens[0]).toMatchObject({ content: '半句' });
   });
+
+  it('★ 陈旧 since 重连不被饿死（B-007）：带上一轮的 since 订阅，新一轮的帧仍全部送达', () => {
+    // 场景：上一轮 seq 已到 101；`startNewRound` 清缓冲后 seq 从 1 重计；
+    // 客户端带着**上一轮的** since=101 重连。若照单全收这个 since，`publish` 里
+    // `full.seq > c.since` 恒不成立 ⇒ 整轮（含 done）一条都发不出去 ⇒ 前端永久卡在「生成中」。
+    publish('s1', { type: 'token', sessionId: 's1', content: '上一轮' });
+    startNewRound('s1');
+
+    const stale = fakeRes();
+    subscribe('s1', stale, 101);
+    publish('s1', { type: 'token', sessionId: 's1', content: '这一轮' });
+    publish('s1', { type: 'done', sessionId: 's1' });
+
+    const evs = stale.frames.map(parse);
+    expect(evs.filter((e) => e.type === 'token').map((e) => e.content)).toEqual(['这一轮']);
+    expect(evs.some((e) => e.type === 'done')).toBe(true);
+  });
+
+  it('不越界：since 未超过本轮已产出的 seq 时，回放口径一字不变（只补错过的）', () => {
+    publish('s1', { type: 'token', sessionId: 's1', content: 'a' });
+    publish('s1', { type: 'token', sessionId: 's1', content: 'b' });
+
+    const r = fakeRes();
+    subscribe('s1', r, 1); // 1 未超过本轮最大 seq(2) ⇒ 仍按原意只回放 seq > 1
+    const tokens = r.frames.map(parse).filter((e) => e.type === 'token');
+    expect(tokens.map((e) => e.content)).toEqual(['b']);
+  });
 });
 
 describe('sse-bus — 缓冲 TTL 回收（buffers 泄漏回归，原版 now % TTL 闸门永不触发）', () => {

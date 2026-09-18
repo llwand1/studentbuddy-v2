@@ -5,6 +5,7 @@
  * 事件契约：@sb/shared/sse-events（seq 单调去重）。
  */
 import type { SseEvent } from '@sb/shared';
+import { acceptSeq } from './sse-seq';
 
 export type SseReadyState = 'connecting' | 'open' | 'reconnecting' | 'closed';
 
@@ -47,14 +48,20 @@ export function connectSse(streamUrl: string, opts: { reconcileUrl?: string } = 
   };
 
   /**
-   * 事件统一入口：seq 单调去重后分发。
+   * 事件统一入口：seq 去重后分发。
    * 此前只前移 since 不拦 ≤since 的旧帧——重连回放与 /live 快照一旦重叠，
    * 同一帧会进回调两次（token 帧重复 = 文字翻倍），v13 起在入口处拦死。
+   *
+   * ★ 但「拦 ≤since」有个**必须一起处理的例外**：seq 是**按轮**从 1 重计的，而本地 `since` 跨轮保留，
+   *   于是新一轮里 `seq <= since` 的帧不是重复、是下一句话——全拦会出现「第二轮开头半句不见了」，
+   *   **且新一轮比上一轮短时连 done 都收不到**（正文永不显示 + 输入框永久禁用，bug-ledger B-007）。
+   *   判据收在 `sse-seq.acceptSeq` 里（纯函数、有单测），此处只管接线。
    */
   const handleEvent = (ev: SseEvent) => {
     if ('seq' in ev && typeof ev.seq === 'number') {
-      if (ev.seq <= since) return;
-      since = ev.seq;
+      const next = acceptSeq(since, ev.seq);
+      if (next === null) return;
+      since = next;
     }
     eventCbs.forEach((cb) => cb(ev));
   };

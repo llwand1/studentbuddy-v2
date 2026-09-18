@@ -141,6 +141,25 @@ export function mentionTrend(
   return { days: n, labels, values, total: values.reduce((a, b) => a + b, 0), topDomains, topTerms };
 }
 
+/**
+ * 各领域的**总**提及数 = 该领域内所有词条的 `usage_count` 之和。
+ *
+ * ★ 走 `usage_count` 聚合而**不是**流水表：这是「**总**」口径，**含流水建表之前的全部历史**
+ *   （契约 §1.5）。两个口径**永久并存、不可互相校验**——历史提及没有任何时间信息，
+ *   无法回溯成流水行。故「领域总提及数」与「领域近期提及数」是两个不同的数，别互相验证。
+ * ★ 不分 owner：`term_library` 目前是**全局表**（尚无归属列，多租户只做到会话与画像），
+ *   故本口径是全局的。将来词条库归主时，这里再加过滤即可——流水表**已按人记**（`owner_id`），
+ *   数据基础已经就位（契约 §6）。
+ * ★ 提及口径在这里**只有这一份实现**：`domains.ts` 的 `domainStats()` 不自己写
+ *   `SUM(usage_count)`，一律向本函数要 Map——否则「总提及数」会有两份 SQL，迟早漂。
+ */
+export function domainMentionTotals(): Map<string, number> {
+  const rows = getDb()
+    .prepare('SELECT domain, SUM(usage_count) AS c FROM term_library GROUP BY domain')
+    .all() as Array<{ domain: string; c: number | null }>;
+  return new Map(rows.map((r) => [r.domain, r.c ?? 0]));
+}
+
 /** 横轴标签用：`YYYY-MM-DD` → `MM-DD`（图表横轴塞不下年份，年份在标题的窗口里已表达） */
 export function shortDayLabel(key: string): string {
   return /^\d{4}-(\d{2}-\d{2})$/.exec(key)?.[1] ?? key;

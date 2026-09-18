@@ -29,6 +29,9 @@
  */
 import { getDb } from '../storage/db.js';
 import { renameDomain } from './tidy.js';
+// ★ 依赖方向仍守单向：`mention.ts` 只依赖 storage/ownership/shared，**不反向依赖本文件**
+//   或 `terms.ts`，故不成环（本文件头写的「terms → domains → tidy → terms 环」那条约束不受影响）。
+import { domainMentionTotals } from './mention.js';
 
 /** 默认领域：词条未归类时的落点，也是删域时的迁移目标（**不可删除**）。 */
 export const DEFAULT_DOMAIN = 'general';
@@ -195,8 +198,18 @@ export function removeDomain(rawName: string): RemoveDomainResult {
 export function domainStats(): {
   total: number;
   /** count 为派生值；note 来自登记册（孤儿域为空串）。按 count 降序、同数按名字升序 */
-  domains: Array<{ domain: string; count: number; note: string }>;
+  domains: Array<{ domain: string; count: number; note: string; mentionCount: number }>;
   today: number;
+  /**
+   * **偏好领域**（契约 MEMORY-TREND-SPEC §2.1）：按**总提及数**降序；同数按词条数降序、
+   * 再按领域名升序（**全序**，保证同一份数据每次返回的顺序逐字相同）。
+   * **只含提及数 > 0 的领域**——「从未被提及」不是偏好，列出来只会稀释这个榜的意义。
+   *
+   * ★ 为什么不设最小阈值（如「提及 ≥3 才算偏好」）：阈值是拍脑袋的数，且会让小样本用户
+   *   永远看到空列表。改为**如实返回全序**，由调用方自己截 top N，并在文案里带上计数
+   *   （「计算机网络（42 次）」）——**让用户看见依据，而不是看见一个结论**。
+   */
+  preferred: Array<{ domain: string; mentionCount: number }>;
 } {
   const db = getDb();
   const total = (db.prepare('SELECT COUNT(*) AS c FROM term_library').get() as { c: number }).c;
@@ -216,5 +229,21 @@ export function domainStats(): {
   const today = (
     db.prepare("SELECT COUNT(*) AS c FROM term_library WHERE created_at >= date('now')").get() as { c: number }
   ).c;
-  return { total, domains, today };
+
+  // ★ 提及口径不在这里重写 SQL：一律向 `mention.ts` 要（那里的 `domainMentionTotals` 是唯一实现）。
+  //   本文件自己写一遍 `SUM(usage_count)` 就会有两份口径，将来加归属过滤时必漏一边。
+  const mentions = domainMentionTotals();
+  const withMentions = domains.map((r) => ({ ...r, mentionCount: mentions.get(r.domain) ?? 0 }));
+  const preferred = withMentions
+    .filter((d) => d.mentionCount > 0)
+    .sort(
+      (a, b) =>
+        b.mentionCount - a.mentionCount ||
+        b.count - a.count ||
+        // 领域名在 `term_domain` 里是主键 ⇒ 不会相等，故不必处理 ties（省一个分支）
+        (a.domain < b.domain ? -1 : 1),
+    )
+    .map((d) => ({ domain: d.domain, mentionCount: d.mentionCount }));
+
+  return { total, domains: withMentions, today, preferred };
 }

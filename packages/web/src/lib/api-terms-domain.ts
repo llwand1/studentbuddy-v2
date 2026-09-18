@@ -23,11 +23,21 @@ export interface DomainRow {
  * 领域统计响应（GET /api/terms/domains）。
  * ⚠️ 元素键是 `domain` 而非 `name`：沿用 v19 之前的既有形状（当时领域就是词条的一列），
  * 改名会连带改服务端统计测试与既有 UI，收益不抵风险，故保留。列表**含空领域**（count=0）。
+ *
+ * `mentionCount`（契约 MEMORY-TREND-SPEC §2）：该领域内所有词条的**总**提及数
+ * （= `usage_count` 之和，含流水建表前的历史）。与 `count`（词条数）是**两个独立维度**：
+ * 「3 个词条被提了 50 次」和「30 个词条一次没提过」是两种完全不同的学习状态。
+ *
+ * `preferred`（偏好领域）：按 `mentionCount` 降序的全序榜，**只含提及数 > 0 的领域**。
+ * 服务端**不设阈值、不截断**（阈值是拍脑袋的数），由前端自己取前几个并**带上计数**展示
+ * ——让用户看见依据，而不是只看见一个结论。
  */
 export interface DomainsResponse {
   total: number;
-  domains: Array<{ domain: string; count: number; note: string }>;
+  domains: Array<{ domain: string; count: number; note: string; mentionCount: number }>;
   today: number;
+  /** 偏好领域榜（服务端已排好全序；本接口返回全量，展示时自取 top N） */
+  preferred: Array<{ domain: string; mentionCount: number }>;
 }
 
 /** 领域改名结果：moved=随迁词条数，merged=目标域原本已存在（两域合一） */

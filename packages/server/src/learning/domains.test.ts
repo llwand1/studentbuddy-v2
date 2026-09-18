@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { openIsolated, closeDb, getDb } from '../storage/db.js';
 import { createDomain, updateDomain, renameDomainEntry, removeDomain, domainStats, DomainError } from './domains.js';
-import { saveOneTerm, saveTerms, listTerms } from './terms.js';
+import { saveOneTerm, saveTerms, listTerms, countUsage } from './terms.js';
 
 /**
  * learning/domains — 领域 CRUD（v19：领域升为一等实体）。
@@ -200,5 +200,91 @@ describe('learning/domains — 写入侧登记 + 孤儿兜底（v19 不变式）
     const stat = domainStats().domains.find((d) => d.domain === 'orphan');
     expect(stat?.count).toBe(1); // 但统计兜底列出了它
     expect(stat?.note).toBe(''); // 孤儿域没有说明
+  });
+});
+
+/**
+ * 领域总提及数 + 偏好领域（契约 `docs/MEMORY-TREND-SPEC.md` §2）。
+ *
+ * ★ 本组刻意**走真实 `countUsage`** 而不是直接 `UPDATE usage_count`：契约 §1.5 说得很清楚，
+ *   「总提及数」的口径是 `usage_count` 聚合（含流水建表前的历史），它必须由**写入侧**长出来。
+ *   直接改列会把「命中逻辑」与「计数口径」一起绕过，测出来的就只是我用 SQL 写进去的数。
+ */
+describe('learning/domains — 领域总提及数 + 偏好领域（契约 §2）', () => {
+  /** 让 `term` 被提及 `times` 次（每次命中 +1；`countUsage` 按调用次数计，不按出现次数）。 */
+  function mention(term: string, times: number) {
+    for (let i = 0; i < times; i++) countUsage(term, null, new Date(2026, 8, 18, 10, i));
+  }
+
+  it('mentionCount = 该领域内所有词条 usage_count 之和，preferred 与 domains 两处**同源**', () => {
+    saveTerms([
+      { term: 'alpha', definition: 'a', domain: 'math', importance: 0.5 },
+      { term: 'beta', definition: 'b', domain: 'math', importance: 0.5 },
+      { term: 'gamma', definition: 'g', domain: 'english', importance: 0.5 },
+    ]);
+    mention('alpha', 3);
+    mention('beta', 1);
+    mention('gamma', 4);
+
+    const s = domainStats();
+    expect(s.domains.find((d) => d.domain === 'math')?.mentionCount).toBe(4); // 3 + 1
+    expect(s.domains.find((d) => d.domain === 'english')?.mentionCount).toBe(4);
+    // 同一个数必须只有一个出处（`mention.ts#domainMentionTotals`）：domains 与 preferred 不许各算各的
+    expect(s.preferred.find((p) => p.domain === 'math')?.mentionCount).toBe(4);
+    expect(s.preferred.find((p) => p.domain === 'english')?.mentionCount).toBe(4);
+  });
+
+  it('preferred 按提及数降序；**同提及数时按词条数降序**（4=4 时 math 的 2 条压过 english 的 1 条）', () => {
+    saveTerms([
+      { term: 'alpha', definition: 'a', domain: 'math', importance: 0.5 },
+      { term: 'beta', definition: 'b', domain: 'math', importance: 0.5 },
+      { term: 'gamma', definition: 'g', domain: 'english', importance: 0.5 },
+    ]);
+    mention('alpha', 3);
+    mention('beta', 1);
+    mention('gamma', 4);
+
+    expect(domainStats().preferred.map((p) => p.domain)).toEqual(['math', 'english']);
+  });
+
+  it('preferred 是**全序**：提及数与词条数都相同时按领域名升序（同一份数据每次顺序逐字相同）', () => {
+    saveTerms([
+      { term: 't-z', definition: 'z', domain: 'zeta', importance: 0.5 },
+      { term: 't-a', definition: 'a', domain: 'alpha2', importance: 0.5 },
+    ]);
+    mention('t-z', 1);
+    mention('t-a', 1);
+
+    // 1=1、count 1=1 ⇒ 只剩名字这一级，'alpha2' < 'zeta'
+    expect(domainStats().preferred.map((p) => p.domain)).toEqual(['alpha2', 'zeta']);
+  });
+
+  it('零提及领域**不进** preferred，但仍照旧出现在 domains（mentionCount=0，不隐藏）', () => {
+    saveTerms([
+      { term: 'alpha', definition: 'a', domain: 'math', importance: 0.5 },
+      { term: 'delta', definition: 'd', domain: 'physics', importance: 0.5 },
+    ]);
+    createDomain('empty'); // 连词条都没有的空领域
+    mention('alpha', 2);
+
+    const s = domainStats();
+    expect(s.preferred.map((p) => p.domain)).toEqual(['math']); // physics（词条 1 条但零提及）与 empty 都不算偏好
+    expect(s.domains.find((d) => d.domain === 'physics')?.mentionCount).toBe(0);
+    expect(s.domains.find((d) => d.domain === 'empty')?.mentionCount).toBe(0);
+    expect(s.domains.find((d) => d.domain === 'empty')?.count).toBe(0); // v19 语义不受影响：空领域仍在册
+  });
+
+  it('**提及数与词条数无关**：一条高频词条可以压过多条零提及词条', () => {
+    saveTerms([
+      { term: 'hot', definition: 'h', domain: 'solo', importance: 0.5 },
+      { term: 'c1', definition: '1', domain: 'crowd', importance: 0.5 },
+      { term: 'c2', definition: '2', domain: 'crowd', importance: 0.5 },
+      { term: 'c3', definition: '3', domain: 'crowd', importance: 0.5 },
+    ]);
+    mention('hot', 5);
+
+    const s = domainStats();
+    expect(s.domains.find((d) => d.domain === 'crowd')?.count).toBe(3); // 词条数 crowd 赢
+    expect(s.preferred.map((p) => p.domain)).toEqual(['solo']); // 但偏好榜 solo 赢（它才有提及）
   });
 });

@@ -125,6 +125,28 @@ countUsage(replyText: string, ownerId?: string | null): number
 且会让小样本用户永远看到空列表。改为**如实返回全序**，由调用方（督促/画像）自己截取 top N，
 并在文案里带上计数（「计算机网络（42 次）」）——**让用户看见依据，而不是看见一个结论**。
 
+### §2.4 P2 落地形状（v0.2.51）
+
+`GET /api/terms/domains`（`routes/terms.ts` 直通 `learning/domains.ts#domainStats`）响应扩为：
+
+```
+{ total, today,
+  domains:   [{ domain, count, note, mentionCount }],   // mentionCount 新增
+  preferred: [{ domain, mentionCount }] }               // 新增（已排全序、只含 >0）
+```
+
+**三个界面落点**（都只是「显示 + 跳转」，不引入任何新的写入口）：
+
+| 落点 | 显示什么 | 为什么放这儿 |
+|------|----------|--------------|
+| 领域 Tab 的 `title` | `N 个词条 · 共提及 M 次` | Tab 是**筛选器**，塞两个无标签数字会变成读不懂的 `math 12·87`；悬停给全文 |
+| 「管理领域」行的只读字段 | `N 词条 · 提及 M 次` | 这里才是**带标签的字段区**，数字有地方解释自己 |
+| 词条库页「偏好领域」chip 行 | `领域名 + 提及数`（top 4，可点） | 结论必须能**一步跳到证据**（点一下即筛到该领域）；只展示不可点就退化成装饰 |
+
+★ **口径单一实现**：`mentionCount` 只有 `learning/mention.ts#domainMentionTotals()` 一份 SQL。
+`domains.ts` **刻意不自己写** `SUM(usage_count)`——两处一旦各写一遍，将来加归属过滤时必漏一边，
+而「同一个数有两个出处」正是本仓反复付过学费的那类静默 bug。
+
 ---
 
 ## §3 长期记忆与词条库联动
@@ -240,13 +262,13 @@ countUsage(replyText: string, ownerId?: string | null): number
 
 ## §5 分期（每期独立可回滚，按依赖序）
 
-| 期 | 内容 | 交付判据 |
-|----|------|----------|
-| **P1** | §1 流水表 + 双写 + 窗口查询 | 迁移 v26 回放绿；提及一次即多一行流水；窗口查询有单测 |
-| **P2** | §2 领域总提及数 + 偏好领域 | `GET /api/terms/domains` 带 `mentionCount`；领域栏显示 |
-| **P3** | §3 长期记忆联动 | 提及后画像出现 `preference`；重复触发不堆行 |
-| **P4** | §4 趋势卡后端（定时 + 模型 + SSE） | 定时器可注入；模型失败仍出卡（`fallback`） |
-| **P5** | §4.4 前端图 + 气泡 | `chart-utils` 出 SVG；气泡只在 `trend` 且抽屉关着时出现 |
+| 期 | 内容 | 交付判据 | 状态 |
+|----|------|----------|------|
+| **P1** | §1 流水表 + 双写 + 窗口查询 | 迁移 v26 回放绿；提及一次即多一行流水；窗口查询有单测 | **已交付**（v0.2.49，`mention.test.ts` 13 例） |
+| **P2** | §2 领域总提及数 + 偏好领域 | `GET /api/terms/domains` 带 `mentionCount`；领域栏显示 | **已交付**（v0.2.51，`domains.test.ts` 18→23 例；领域栏显示 + 偏好领域 chip） |
+| **P3** | §3 长期记忆联动 | 提及后画像出现 `preference`；重复触发不堆行 | 未开工 |
+| **P4** | §4 趋势卡后端（定时 + 模型 + SSE） | 定时器可注入；模型失败仍出卡（`fallback`） | 未开工 |
+| **P5** | §4.4 前端图 + 气泡 | `chart-utils` 出 SVG；气泡只在 `trend` 且抽屉关着时出现 | 未开工 |
 
 ★ 每期都要：代码 + 测试 + 文档登记**同批提交**（AGENTS.md「工程红线」）。
 

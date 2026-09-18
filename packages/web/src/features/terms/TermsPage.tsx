@@ -33,10 +33,17 @@ function ReviewBadge({ t }: { t: TermItem }) {
 }
 
 export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) {
-  const [stats, setStats] = useState<{ total: number; domains: DomainStat[]; today: number }>({
+  const [stats, setStats] = useState<{
+    total: number;
+    domains: DomainStat[];
+    today: number;
+    /** 偏好领域（服务端已排好全序；只含提及数 > 0 的领域——「没提过」不是偏好） */
+    preferred: Array<{ domain: string; mentionCount: number }>;
+  }>({
     total: 0,
     domains: [],
     today: 0,
+    preferred: [],
   });
   const [terms, setTerms] = useState<TermItem[]>([]);
   const [domain, setDomain] = useState('all');
@@ -118,6 +125,28 @@ export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) 
           <b>{stats.today}</b> 今日新增
         </span>
       </div>
+
+      {/* 偏好领域（契约 MEMORY-TREND-SPEC §2）：按「该领域词条被提及的**总**次数」排出来的学习重心。
+          ★ 为什么这行必须可点：它是**结论**（"你最常碰的是计算机网络"），而结论旁边必须能一步跳到
+            证据（该领域下到底是哪些词条、各被提了多少次）。只展示不可点，这行就退化成装饰。
+          ★ 取前 4 个而非全部：这里是一句话摘要，全榜在服务端 `preferred` 里（前端不截断数据，只截展示）。 */}
+      {stats.preferred.length > 0 && (
+        <div className="term-preferred">
+          <span className="term-preferred-label">偏好领域</span>
+          {stats.preferred.slice(0, 4).map((p) => (
+            <button
+              key={p.domain}
+              className={domain === p.domain ? 'term-preferred-chip on' : 'term-preferred-chip'}
+              title={`「${p.domain}」的词条共被提及 ${p.mentionCount} 次`}
+              onClick={() => setDomain(p.domain)}
+            >
+              {p.domain}
+              <span className="term-preferred-num">{p.mentionCount}</span>
+            </button>
+          ))}
+          <span className="term-preferred-hint">按词条提及总次数排</span>
+        </div>
+      )}
 
       {/* 复习面板（v23 艾宾浩斯）：先于列表，因为它回答的是「现在该干什么」 */}
       <ReviewPanel domain={domain} onChanged={reload} />

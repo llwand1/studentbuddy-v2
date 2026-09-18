@@ -16,8 +16,15 @@
 import { useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 
-/** 领域 Tab 数据（= `GET /api/terms/domains` 响应里的 domains 元素；含空领域 count=0） */
-export type DomainStat = { domain: string; count: number; note: string };
+/**
+ * 领域 Tab 数据（= `GET /api/terms/domains` 响应里的 domains 元素；含空领域 count=0）。
+ *
+ * `mentionCount`（契约 MEMORY-TREND-SPEC §2）：该领域内词条的**总**提及数。
+ * ★ 它与 `count`（词条数）**不是一回事，也不能互相换算**——`count` 回答"库里有多少词"，
+ *   `mentionCount` 回答"这些词被用起来过多少次"。两个维度都要看得见：一个领域可能词条很多
+ *   但从没被提及（存了不用），也可能只 2 个词条却撑起大半提及（真正的学习重心）。
+ */
+export type DomainStat = { domain: string; count: number; note: string; mentionCount: number };
 
 interface Draft {
   name: string;
@@ -121,7 +128,9 @@ export function DomainBar({
           <button
             key={d.domain}
             className={active === d.domain ? 'term-tab on' : 'term-tab'}
-            title={d.note || undefined}
+            // ★ 徽标仍只显示**词条数**：Tab 是筛选器，塞两个无标签的数字会变成"math 12·87"这种
+            //   读不懂的形状。总提及数放进 title（悬停即得）+ 管理面板的带标签字段（改动区才谈数字）。
+            title={[d.note, `${d.count} 个词条 · 共提及 ${d.mentionCount} 次`].filter(Boolean).join('\n')}
             onClick={() => onPick(d.domain)}
           >
             {d.domain}
@@ -161,7 +170,11 @@ export function DomainBar({
                   aria-label={`领域说明 ${d.domain}`}
                   onChange={(e) => setDraft(d, { note: e.target.value })}
                 />
-                <span className="term-domain-count">{d.count} 词条</span>
+                {/* 派生只读字段：`count` 来自词条表、`mentionCount` 来自 usage_count 聚合。
+                    两个都不接受编辑（改数字没有意义——它们是你用出来的，不是填出来的）。 */}
+                <span className="term-domain-count">
+                  {d.count} 词条 · 提及 {d.mentionCount} 次
+                </span>
                 <button className="term-btn" disabled={busy} onClick={() => save(d)}>
                   保存
                 </button>

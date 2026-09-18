@@ -67,7 +67,8 @@ export interface GrillClosingDeps {
   signal?: AbortSignal;
   onStep: (tool: string, status: 'running' | 'done' | 'error', detail?: string) => void;
   /** 归属用户 id（M2c）：收尾这轮工具里若发起 LLM 调用（tidy_terms auto），记在发起者头上 */
-  ownerId?: string | null;
+  /** ★ M2d-2 起**必填**：工具里可能读写词条库（归属操作），漏传即静默串台/丢写 */
+  ownerId: string | null;
 }
 
 /**

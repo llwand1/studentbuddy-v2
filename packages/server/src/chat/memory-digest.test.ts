@@ -27,16 +27,18 @@ afterEach(() => closeDb());
  * 造一个有「学了什么」的库：4 个词条分布在 3 个领域，`delta` 刻意一次不提。
  * 造完的既成事实：math 提及 4（alpha 3 + beta 1）、english 提及 4（gamma 4）、physics 提及 0。
  */
-function seedLibrary() {
+function seedLibrary(ownerId: string | null = null) {
+  // ★ 归属必须与**读取方**一致：v31 起 `countUsage` 按 `owner_id` 取词条，
+  //   造数落在 `''` 而读的是 `'u1'` ⇒ 命中 0 条、一行画像都写不出来（而断言只报"[]"）。
   saveTerms([
     { term: 'alpha', definition: 'a', domain: 'math', importance: 0.5 },
     { term: 'beta', definition: 'b', domain: 'math', importance: 0.5 },
     { term: 'gamma', definition: 'g', domain: 'english', importance: 0.5 },
     { term: 'delta', definition: 'd', domain: 'physics', importance: 0.5 },
-  ]);
-  for (let i = 0; i < 3; i++) countUsage('alpha');
-  countUsage('beta');
-  for (let i = 0; i < 4; i++) countUsage('gamma');
+  ], null, ownerId);
+  for (let i = 0; i < 3; i++) countUsage('alpha', ownerId);
+  countUsage('beta', ownerId);
+  for (let i = 0; i < 4; i++) countUsage('gamma', ownerId);
 }
 
 const contents = () => loadMemoryItems().map((m) => m.content);
@@ -141,7 +143,7 @@ describe('refreshTermDigest（IO：真词条库 → 画像）', () => {
     seedLibrary();
     refreshTermDigest();
     const low = importanceOf('高频术语：beta');
-    for (let i = 0; i < 20; i++) countUsage('beta'); // beta 1 → 21 次，跃升为最高频
+    for (let i = 0; i < 20; i++) countUsage('beta', null); // beta 1 → 21 次，跃升为最高频
     refreshTermDigest();
     expect(importanceOf('高频术语：beta')).toBeGreaterThan(low);
     expect(loadMemoryItems().filter((m) => m.content === '高频术语：beta')).toHaveLength(1);
@@ -156,7 +158,8 @@ describe('refreshTermDigest（IO：真词条库 → 画像）', () => {
   });
 
   it('归属隔离：同一份榜单按 owner 各写一份，**同 content 不同人 = 两行互不覆盖**', () => {
-    seedLibrary();
+    seedLibrary('u1');
+    seedLibrary('u2');
     refreshTermDigest('u1');
     refreshTermDigest('u2');
     const rows = getDb()

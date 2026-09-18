@@ -20,7 +20,9 @@ afterEach(() => {
 
 /** 按 term 取行（测试辅助） */
 function rowOf(term: string): TermRow {
-  const r = getDb().prepare('SELECT * FROM term_library WHERE term = ?').get(term) as TermRow | undefined;
+  const r = getDb().prepare("SELECT * FROM term_library WHERE term = ? AND owner_id = ''").get(term) as
+    | TermRow
+    | undefined;
   if (!r) throw new Error(`测试词条不存在：${term}`);
   return r;
 }
@@ -29,7 +31,7 @@ function rowOf(term: string): TermRow {
 function setRow(term: string, patch: { usage?: number; created?: string; importance?: number }): void {
   const r = rowOf(term);
   getDb()
-    .prepare('UPDATE term_library SET usage_count = ?, created_at = ?, importance = ? WHERE id = ?')
+    .prepare("UPDATE term_library SET usage_count = ?, created_at = ?, importance = ? WHERE id = ? AND owner_id = ''")
     .run(patch.usage ?? r.usage_count, patch.created ?? r.created_at, patch.importance ?? r.importance, r.id);
 }
 
@@ -154,7 +156,7 @@ describe('learning/tidy — applyTidy 合并语义（契约 §6 逐字段）', (
       { term: 'machine learning', definition: '更完整的 ML 定义', domain: 'english', importance: 0.95 },
       { term: 'ML', definition: '缩写', domain: 'cs', importance: 0.3 },
       { term: '指针', definition: '内存地址', domain: '计算机', importance: 0.85 },
-    ]);
+    ], null, null);
     setRow('机器学习', { usage: 2, created: '2026-01-01 00:00:00' });
     setRow('machine learning', { usage: 1, created: '2026-02-01 00:00:00' });
     setRow('ML', { usage: 0, created: '2026-03-01 00:00:00' });
@@ -172,7 +174,7 @@ describe('learning/tidy — applyTidy 合并语义（契约 §6 逐字段）', (
         },
       ],
       domainRenames: {},
-    });
+    }, null);
     expect(summary.result).toBe('ok');
     expect(summary.before).toBe(4);
     expect(summary.after).toBe(2); // 3 并 1 + 指针
@@ -188,22 +190,24 @@ describe('learning/tidy — applyTidy 合并语义（契约 §6 逐字段）', (
 
   it('领域归一：改名生效 + 新旧两域同词条自动并入（usage 求和，保高者为 keep）', () => {
     // 指针@计算机（usage 0）与 指针@cs（usage 1）撞域 → 自动并入为一条
-    saveTerms([{ term: '指针2', definition: '占位', domain: 'cs', importance: 0.1 }]);
-    getDb().prepare(`UPDATE term_library SET term = '指针', usage_count = 1 WHERE term = '指针2'`).run();
-    const summary = applyTidy({ clusters: [], domainRenames: { 计算机: 'cs' } });
+    saveTerms([{ term: '指针2', definition: '占位', domain: 'cs', importance: 0.1 }], null, null);
+    getDb().prepare(`UPDATE term_library SET term = '指针', usage_count = 1 WHERE term = '指针2' AND owner_id = ''`).run();
+    const summary = applyTidy({ clusters: [], domainRenames: { 计算机: 'cs' } }, null);
     expect(summary.result).toBe('ok');
     const p = rowOf('指针');
     expect(p.domain).toBe('cs');
     expect(p.usage_count).toBe(1); // 0 + 1
-    expect(listTerms()).toHaveLength(4);
+    expect(listTerms(undefined, undefined, null)).toHaveLength(4);
   });
 
   it('簇外 UNIQUE 冲突防御：同词同域行被一并并入，事务不炸', () => {
     // 簇 = {machine learning@english + 机器学习@math}，canonical 取簇内的「机器学习」、
     // 归一到 cs——与簇外的 机器学习@cs 撞 (term, domain)，防御逻辑把簇外行一并并入，
     // 而不是让 UPDATE 撞唯一约束炸掉事务
-    saveTerms([{ term: '机器学习', definition: 'math 域的同词条', domain: 'math', importance: 0.2 }]);
-    const mathId = getDb().prepare(`SELECT id FROM term_library WHERE term = '机器学习' AND domain = 'math'`).get() as { id: string };
+    saveTerms([{ term: '机器学习', definition: 'math 域的同词条', domain: 'math', importance: 0.2 }], null, null);
+    const mathId = getDb()
+      .prepare(`SELECT id FROM term_library WHERE term = '机器学习' AND domain = 'math' AND owner_id = ''`)
+      .get() as { id: string };
     const summary = applyTidy({
       clusters: [
         {
@@ -215,18 +219,18 @@ describe('learning/tidy — applyTidy 合并语义（契约 §6 逐字段）', (
         },
       ],
       domainRenames: {},
-    });
+    }, null);
     expect(summary.result).toBe('ok');
     const merged = rowOf('机器学习');
     expect(merged.domain).toBe('cs');
     expect(merged.usage_count).toBe(3); // machine learning 1 + math 域 0 + 簇外 cs 域 2
     expect(JSON.parse(merged.aliases)).toEqual(['machine learning']);
-    expect(listTerms().filter((r) => r.term === '机器学习')).toHaveLength(1);
-    expect(listTerms()).toHaveLength(3); // 机器学习@cs + ML@cs + 指针@计算机
+    expect(listTerms(undefined, undefined, null).filter((r) => r.term === '机器学习')).toHaveLength(1);
+    expect(listTerms(undefined, undefined, null)).toHaveLength(3); // 机器学习@cs + ML@cs + 指针@计算机
   });
 
   it('空方案 → noop 零变更', () => {
-    const summary = applyTidy({ clusters: [], domainRenames: {} });
+    const summary = applyTidy({ clusters: [], domainRenames: {} }, null);
     expect(summary.result).toBe('noop');
     expect(summary.before).toBe(4);
     expect(summary.after).toBe(4);
@@ -239,11 +243,11 @@ describe('learning/tidy — mergeTerms / renameDomain（点名确定性操作）
       { term: 'closure', definition: '闭包', domain: 'cs', importance: 0.9 },
       { term: 'Closure', definition: '闭包（大小写变体）', domain: 'math', importance: 0.4 },
       { term: '闭包', definition: '函数与其词法环境', domain: 'cs', importance: 0.85 },
-    ]);
+    ], null, null);
   });
 
   it('点名合并：首词为主词条，其余并入并挂别名', () => {
-    const summary = mergeTerms(['闭包', 'closure', 'Closure']);
+    const summary = mergeTerms(['闭包', 'closure', 'Closure'], null);
     expect(summary.result).toBe('ok');
     expect(summary.before).toBe(3);
     expect(summary.after).toBe(1);
@@ -254,31 +258,31 @@ describe('learning/tidy — mergeTerms / renameDomain（点名确定性操作）
   });
 
   it('点名合并：找不到的词条如实报告', () => {
-    const summary = mergeTerms(['闭包', '不存在词']);
+    const summary = mergeTerms(['闭包', '不存在词'], null);
     expect(summary.result).toBe('error');
     expect(summary.message).toContain('不存在词');
-    expect(listTerms()).toHaveLength(3);
+    expect(listTerms(undefined, undefined, null)).toHaveLength(3);
   });
 
   it('点名合并：同名同域重复点名 → noop', () => {
-    const summary = mergeTerms(['闭包', '闭包']);
+    const summary = mergeTerms(['闭包', '闭包'], null);
     expect(summary.result).toBe('noop');
   });
 
   it('renameDomain：改名 + 同名词条撞域自动并入', () => {
-    saveTerms([{ term: '积分', definition: 'integral', domain: 'math', importance: 0.5 }]);
+    saveTerms([{ term: '积分', definition: 'integral', domain: 'math', importance: 0.5 }], null, null);
     getDb().prepare(`INSERT INTO term_library (id, term, definition, domain, importance, usage_count)
       VALUES ('t1', '积分', '另一条积分', '数学', 0.5, 3)`).run();
-    const summary = renameDomain('数学', 'math');
+    const summary = renameDomain('数学', 'math', null);
     expect(summary.result).toBe('ok');
-    const rows = listTerms().filter((r) => r.term === '积分');
+    const rows = listTerms(undefined, undefined, null).filter((r) => r.term === '积分');
     expect(rows).toHaveLength(1);
     expect(rows[0]?.domain).toBe('math');
     expect(rows[0]?.usage_count).toBe(3); // 保 usage 高者
   });
 
   it('renameDomain：领域不存在 → error', () => {
-    const summary = renameDomain('幽灵领域', 'cs');
+    const summary = renameDomain('幽灵领域', 'cs', null);
     expect(summary.result).toBe('error');
     expect(summary.message).toContain('幽灵领域');
   });
@@ -286,8 +290,8 @@ describe('learning/tidy — mergeTerms / renameDomain（点名确定性操作）
 
 describe('learning/tidy — tidyTerms 全量入口（方案失败降级）', () => {
   it('词条不足两条 → 空方案 noop（不打 LLM）', async () => {
-    saveTerms([{ term: '唯一词条', definition: 'x', domain: 'general', importance: 0.5 }]);
-    const summary = await tidyTerms();
+    saveTerms([{ term: '唯一词条', definition: 'x', domain: 'general', importance: 0.5 }], null, null);
+    const summary = await tidyTerms(null);
     expect(summary.result).toBe('noop');
   });
 });

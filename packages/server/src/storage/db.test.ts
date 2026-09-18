@@ -3,6 +3,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { openIsolated } from './db.js';
+import { MIGRATIONS } from './migrations-list.js';
+
+/**
+ * 迁移清单的**最高版本号**（= 新建库跑完后的 `MAX(schema_version.version)`）。
+ *
+ * ★ 为什么用算的而不是写死：本仓每加一条迁移都会重放整条链，而"重放后库应处于最新版"
+ *   这个断言**每加一条迁移就会红一次**（v31 落地时实测红了一处）。
+ *   写死数字等于把「清单头号」抄了一份，多一个会漂移的快照（§0.11）。
+ */
+const HEAD_VERSION = Math.max(...MIGRATIONS.map((m) => m.version));
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'sb-db-test-'));
@@ -979,7 +989,270 @@ describe('storage/db — v30 设置与反馈环归主迁移（docs/TENANCY-SPEC.
     const up = openIsolated(dir);
     expect(pkOf(up, 'app_settings')).toEqual(['owner_id', 'key']);
     expect(pkOf(up, 'daily_summaries')).toEqual(['owner_id', 'day']);
-    expect(up.prepare(`SELECT MAX(version) AS v FROM schema_version`).get()).toEqual({ v: 30 });
+    expect(up.prepare(`SELECT MAX(version) AS v FROM schema_version`).get()).toEqual({ v: HEAD_VERSION });
+    up.close();
+  });
+});
+
+/**
+ * v31（M2d-2）：`term_library` / `term_domain` / `term_mention_log` 归主。
+ *
+ * ★ `revertV31` 的旧结构**逐字取自迁移源文件**，不要凭印象写：
+ *   · `term_library` 的 17 列是 **v1 建表（11 列）+ 6 次 ALTER** 累积的结果
+ *     （`aliases` / `evo_level` / `best_level` / `evo_updated_at` / `review_stage` /
+ *     `last_reviewed_at` / `review_enabled`），不是最初那一版；
+ *   · 旧约束是 `UNIQUE(term, domain)`（**没有** owner）；
+ *   · `term_mention_log` 的 `owner_id` 那时**可空**（`TEXT`，无 NOT NULL 无 DEFAULT）。
+ *   漏一列会让后续迁移的 `UPDATE` 报 `no such column`；漏一个约束会让"回放后重开"变成空转。
+ */
+function revertV31(db: ReturnType<typeof openIsolated>): void {
+  db.exec(`DROP TABLE IF EXISTS term_library`);
+  db.exec(`CREATE TABLE term_library (
+    id TEXT PRIMARY KEY,
+    term TEXT NOT NULL,
+    definition TEXT NOT NULL,
+    domain TEXT NOT NULL DEFAULT 'general',
+    source_session_id TEXT,
+    importance REAL NOT NULL DEFAULT 0.5,
+    usage_count INTEGER NOT NULL DEFAULT 0,
+    last_used_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    aliases TEXT NOT NULL DEFAULT '[]',
+    evo_level INTEGER NOT NULL DEFAULT 0,
+    best_level INTEGER NOT NULL DEFAULT 0,
+    evo_updated_at TEXT,
+    review_stage INTEGER NOT NULL DEFAULT 0,
+    last_reviewed_at TEXT,
+    review_enabled INTEGER,
+    UNIQUE(term, domain)
+  )`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_term_domain ON term_library(domain)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_term_library_last_reviewed ON term_library(last_reviewed_at)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_term_library_review_enabled ON term_library(review_enabled)`);
+  db.exec(`DROP TABLE IF EXISTS term_domain`);
+  db.exec(`CREATE TABLE term_domain (
+    name TEXT PRIMARY KEY,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    review_enabled INTEGER NOT NULL DEFAULT 0
+  )`);
+  db.exec(`DROP TABLE IF EXISTS term_mention_log`);
+  db.exec(`CREATE TABLE term_mention_log (
+    id TEXT PRIMARY KEY,
+    term_id TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    owner_id TEXT,
+    mentioned_at TEXT NOT NULL DEFAULT (datetime('now')),
+    mentioned_day TEXT NOT NULL DEFAULT (date('now'))
+  )`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_term_mention_term ON term_mention_log(term_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_term_mention_day ON term_mention_log(mentioned_day)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_term_mention_lookup ON term_mention_log(owner_id, domain, mentioned_day)`);
+}
+
+describe('storage/db — v31 词条库/领域归主迁移（docs/TENANCY-SPEC.md §8.2，M2d-2）', () => {
+  /** 列名（按声明序） */
+  const colsOf = (db: ReturnType<typeof openIsolated>, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((c) => c.name);
+  /** 主键列（按声明序） */
+  const pkOf = (db: ReturnType<typeof openIsolated>, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string; pk: number }>)
+      .filter((c) => c.pk > 0)
+      .sort((a, b) => a.pk - b.pk)
+      .map((c) => c.name);
+  /** 唯一索引的列组合（含 SQLite 为 UNIQUE/PK 建的 `sqlite_autoindex_*`） */
+  const uniqueColsOf = (db: ReturnType<typeof openIsolated>, table: string): string[][] =>
+    (db.prepare(`PRAGMA index_list(${table})`).all() as Array<{ name: string; unique: number }>)
+      .filter((i) => i.unique === 1)
+      .map((i) =>
+        (db.prepare(`PRAGMA index_info(${i.name})`).all() as Array<{ name: string }>).map((c) => c.name),
+      );
+
+  it('新库：三张表都含 owner_id；`term_domain` 的主键换成 `(owner_id, name)`', () => {
+    const db = openIsolated(tmp());
+    for (const t of ['term_library', 'term_domain', 'term_mention_log']) {
+      expect(colsOf(db, t), t).toContain('owner_id');
+    }
+    // ★ term_domain 是"名字单列 PK"那一类，必须整片换成复合主键
+    expect(pkOf(db, 'term_domain')).toEqual(['owner_id', 'name']);
+    // ★ 而 term_library 的**主键仍是 `id` 单列**（uuid 全局唯一；`term_review_log.term_id` /
+    //   `knowledge_node.ref_id` 都按 id 引用它，改复合主键会让这些"只知道 id"的引用丢索引前缀）
+    expect(pkOf(db, 'term_library')).toEqual(['id']);
+    expect(pkOf(db, 'term_mention_log')).toEqual(['id']);
+    db.close();
+  });
+
+  it('★★ 唯一键换成 `(owner_id, term, domain)`——改前是 `(term, domain)`（本批的核心承诺）', () => {
+    const db = openIsolated(tmp());
+    expect(uniqueColsOf(db, 'term_library')).toContainEqual(['owner_id', 'term', 'domain']);
+    expect(uniqueColsOf(db, 'term_library')).not.toContainEqual(['term', 'domain']);
+    db.close();
+  });
+
+  it("★ owner_id 是 `NOT NULL DEFAULT ''`：不是可空（与 v29 providers 的 NULL 刻意相反）", () => {
+    const db = openIsolated(tmp());
+    for (const t of ['term_library', 'term_domain', 'term_mention_log']) {
+      const col = (
+        db.prepare(`PRAGMA table_info(${t})`).all() as Array<{ name: string; notnull: number; dflt_value: string | null }>
+      ).find((c) => c.name === 'owner_id');
+      expect(col?.notnull, t).toBe(1);
+      expect(col?.dflt_value, t).toBe("''");
+    }
+    db.close();
+  });
+
+  it('★ 列完整性：`term_library` 仍是 18 列（17 老列 + owner_id），漏列 = 静默丢数据', () => {
+    const db = openIsolated(tmp());
+    expect(colsOf(db, 'term_library')).toEqual([
+      'owner_id',
+      'id',
+      'term',
+      'definition',
+      'domain',
+      'source_session_id',
+      'importance',
+      'usage_count',
+      'last_used_at',
+      'created_at',
+      'updated_at',
+      'aliases',
+      'evo_level',
+      'best_level',
+      'evo_updated_at',
+      'review_stage',
+      'last_reviewed_at',
+      'review_enabled',
+    ]);
+    db.close();
+  });
+
+  it('★★ 跨用户撞键回归：A、B 同名领域 / 同 (term, domain) / 同名流水必须能共存', () => {
+    const db = openIsolated(tmp());
+    const dom = db.prepare(`INSERT INTO term_domain (owner_id, name) VALUES (?, ?)`);
+    dom.run('u1', '物理');
+    dom.run('u2', '物理'); // ★ 改前 `name` 单列 PK：第二个人直接 SQLITE_CONSTRAINT_PRIMARYKEY
+    const term = db.prepare(
+      `INSERT INTO term_library (owner_id, id, term, definition, domain) VALUES (?, ?, ?, ?, ?)`,
+    );
+    term.run('u1', 't1', '牛顿第二定律', 'F=ma', '物理');
+    term.run('u2', 't2', '牛顿第二定律', 'F=ma', '物理'); // ★ 改前 UNIQUE(term,domain) 撞键
+    const log = db.prepare(
+      `INSERT INTO term_mention_log (owner_id, id, term_id, domain) VALUES (?, ?, ?, ?)`,
+    );
+    log.run('u1', 'm1', 't1', '物理');
+    log.run('u2', 'm2', 't2', '物理');
+
+    const mine = (u: string): string =>
+      (db.prepare(`SELECT definition FROM term_library WHERE owner_id = ? AND term = '牛顿第二定律'`).get(u) as {
+        definition: string;
+      }).definition;
+    expect(mine('u1')).toBe('F=ma');
+    expect(mine('u2')).toBe('F=ma');
+    expect((db.prepare(`SELECT COUNT(*) AS c FROM term_domain WHERE name = '物理'`).get() as { c: number }).c).toBe(2);
+    db.close();
+  });
+
+  it('★ 同一个人重复 `(term, domain)` 仍被拦（唯一键没被"放宽"成不约束）', () => {
+    const db = openIsolated(tmp());
+    const ins = db.prepare(
+      `INSERT INTO term_library (owner_id, id, term, definition, domain) VALUES (?, ?, ?, ?, ?)`,
+    );
+    ins.run('u1', 't1', '闭包', 'x', 'cs');
+    expect(() => ins.run('u1', 't2', '闭包', 'y', 'cs')).toThrow(/UNIQUE/i);
+    // 换个人就行（这正是本批要的那个自由度）
+    expect(() => ins.run('u2', 't3', '闭包', 'y', 'cs')).not.toThrow();
+    db.close();
+  });
+
+  it('★ 单值读不能豁免过滤：库里同时有无主行与 `u1` 行时，各读各的（无主 ≠ 谁都能看见）', () => {
+    const db = openIsolated(tmp());
+    const ins = db.prepare(`INSERT INTO term_library (owner_id, id, term, definition, domain) VALUES (?, ?, ?, ?, ?)`);
+    ins.run('', 'o1', '孤儿词条', '本地单人模式的历史', 'general');
+    ins.run('u1', 'a1', '我的词条', 'u1 的', 'general');
+    const one = (u: string) =>
+      db.prepare(`SELECT definition FROM term_library WHERE owner_id = ? AND term = '孤儿词条'`).get(u) as
+        | { definition: string }
+        | undefined;
+    expect(one('u1')).toBeUndefined(); // ★ 登录用户看不到无主行
+    expect(one('')).toBeTruthy(); // 无主行只对无主模式可见
+    db.close();
+  });
+
+  it("★ `term_mention_log.owner_id` 不再是 NULL：老行的 NULL 回填成 `''`（口径对齐）", () => {
+    const dir = tmp();
+    const old = openIsolated(dir);
+    revertV31(old);
+    old.prepare(`INSERT INTO term_mention_log (id, term_id, domain, owner_id) VALUES ('m1', 't1', 'js', NULL)`).run();
+    old.prepare(`DELETE FROM schema_version WHERE version > 30`).run();
+    old.close();
+
+    const up = openIsolated(dir);
+    const row = up.prepare(`SELECT owner_id FROM term_mention_log WHERE id = 'm1'`).get() as { owner_id: string };
+    expect(row.owner_id).toBe(''); // ★ 空串，不是 NULL
+    up.close();
+  });
+
+  it("老库升级：三张表既有数据全部回填 `''`（无主），且列值一个不丢", () => {
+    const dir = tmp();
+    const old = openIsolated(dir);
+    revertV31(old);
+    old
+      .prepare(
+        `INSERT INTO term_library (id, term, definition, domain, importance, usage_count, aliases, evo_level)
+         VALUES ('t1', '闭包', '函数与其词法环境', 'cs', 0.9, 7, '["closure"]', 3)`,
+      )
+      .run();
+    old.prepare(`INSERT INTO term_domain (name, note, review_enabled) VALUES ('cs', '计算机', 1)`).run();
+    old.prepare(`INSERT INTO term_mention_log (id, term_id, domain) VALUES ('m1', 't1', 'cs')`).run();
+    old.prepare(`DELETE FROM schema_version WHERE version > 30`).run();
+    old.close();
+
+    const up = openIsolated(dir);
+    const t = up
+      .prepare(`SELECT owner_id, definition, importance, usage_count, aliases, evo_level FROM term_library`)
+      .get() as {
+      owner_id: string;
+      definition: string;
+      importance: number;
+      usage_count: number;
+      aliases: string;
+      evo_level: number;
+    };
+    expect(t.owner_id).toBe(''); // ★ 无主，不是判给某个用户
+    expect(t.definition).toBe('函数与其词法环境');
+    expect(t.importance).toBe(0.9);
+    expect(t.usage_count).toBe(7);
+    expect(t.aliases).toBe('["closure"]'); // ★ ALTER 加进来的列也不能丢
+    expect(t.evo_level).toBe(3);
+    expect((up.prepare(`SELECT owner_id FROM term_domain WHERE name = 'cs'`).get() as { owner_id: string }).owner_id).toBe(
+      '',
+    );
+    expect(
+      (up.prepare(`SELECT owner_id FROM term_mention_log WHERE id = 'm1'`).get() as { owner_id: string }).owner_id,
+    ).toBe('');
+    // ★ 而登录用户读不到它们（无主行只对无主模式可见）
+    expect(up.prepare(`SELECT 1 FROM term_library WHERE owner_id = 'u1' AND term = '闭包'`).get()).toBeUndefined();
+    up.close();
+  });
+
+  it('回放迁移链不撞 duplicate：退到 v30 后重开，三张表都按新形状建回', () => {
+    const dir = tmp();
+    const old = openIsolated(dir);
+    revertV31(old);
+    old.prepare(`DELETE FROM schema_version WHERE version > 30`).run();
+    old.close();
+    const up = openIsolated(dir);
+    expect(pkOf(up, 'term_domain')).toEqual(['owner_id', 'name']);
+    expect(uniqueColsOf(up, 'term_library')).toContainEqual(['owner_id', 'term', 'domain']);
+    // ★ 索引也要在（新表是 DROP+RENAME 出来的，忘了重建索引不会报错，只会静默全表扫）
+    const idx = (up.prepare(`SELECT name FROM sqlite_master WHERE type='index'`).all() as Array<{ name: string }>).map(
+      (r) => r.name,
+    );
+    for (const n of ['idx_term_domain', 'idx_term_library_review_enabled', 'idx_term_mention_lookup']) {
+      expect(idx, n).toContain(n);
+    }
     up.close();
   });
 });

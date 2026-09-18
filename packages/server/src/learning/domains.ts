@@ -23,11 +23,28 @@
  *  3. **`general` 不可删**：它是词条未归类时的落点，也是删域时的迁移目标。删了它，
  *     迁移就没有终点，不变式 `term_library.domain ⊆ term_domain.name` 也守不住。
  *
- * ⚠️ 与 `tidy.ts` 的分工：`tidy` 面向 **AI 整理**（LLM 方案 + 点名操作，含合并同义词这类
- * 词条级动作）；本文件面向 **领域自身的 CRUD**（用户/工具直接调用，确定性）。领域改名一件事
- * 两边都会触发，故**词条迁移的实现收口在 tidy 的 `renameDomainTx`**，本文件只管「迁完同步登记册」。
+ * ── M2d-2（v31，2026-09-18）：领域库归主 ───────────────────────────────────────
+ *
+ * ★ **`ownerId` 在本文件必填**（`string | null`，不给默认值）：默认值会让"漏传"退化成
+ *   "按未登录处理"，表现是**静默串台**（A 看到 B 的领域）或**静默丢写**（写进无主行）。
+ *   归属值一律经 `ownerForWrite(ownerId)`（`null` ⇒ `''` = 无主行），读写同口径——
+ *   本文件全是**聚合读**（`COUNT`/`SUM`）与**单值读**（`.get()`），按 M2d-1 判据
+ *   不能用 `ownerFilter` 的「`null` 就不加条件」（那会把全站领域并成一个列表）。
+ *
+ * ★ **JOIN 条件必须带 `AND t.owner_id = d.owner_id`**（本文件最容易漏的一处）：
+ *   `term_domain` 与 `term_library` 现在**各有一份 owner**。只写 `t.domain = d.name`
+ *   会把「A 的领域行」与「B 的同名词条」连起来 ⇒ A 的 Tab 上 count 里混着 B 的词条，
+ *   而两个人都看不出异常。这条与 `domainStats` 的 `UNION ALL` 分支同源。
+ *
+ * ★ **`general` 每用户懒建 + 读路径补建**（2026-09-18 老板拍板）：归主后 `general` 不再是
+ *   全站一行，但它是「词条未归类的落点」与「删域的迁移终点」，**每个用户都必须有一份**。
+ *   写入侧（`saveTerms`/`saveOneTerm` 落新 domain 时 `INSERT OR IGNORE`）会自动登记，
+ *   故无需额外代码；`domainStats` 再补一次是为了**观感一致**——新用户打开领域 Tab
+ *   恒有一格 `general`（与归主前一致），而不是空列表。★ 孤儿行的 `general` 留给
+ *   本地单人模式（`owner_id = ''`），两者互不可见。
  */
 import { getDb } from '../storage/db.js';
+import { ownerForWrite } from '../auth/ownership.js';
 import { renameDomain } from './tidy.js';
 // ★ 依赖方向仍守单向：`mention.ts` 只依赖 storage/ownership/shared，**不反向依赖本文件**
 //   或 `terms.ts`，故不成环（本文件头写的「terms → domains → tidy → terms 环」那条约束不受影响）。
@@ -75,46 +92,71 @@ export function normalizeDomainName(raw?: string | null): string {
   return (raw ?? '').trim().toLowerCase().slice(0, 30);
 }
 
+/**
+ * 保证该用户有一行 `general`（懒建，幂等）。
+ * ★ 靠 `INSERT OR IGNORE` + `PK(owner_id, name)` 去重——不要改成"先 SELECT 再 INSERT"：
+ *   那是两条语句之间的竞态，且 PK 已经在拦了，先查一遍纯属多余。
+ * ★ 调用点两处：`domainStats`（**读路径补建**，让新用户 Tab 恒有一格）与
+ *   `removeDomain`（迁词条前必须保证终点存在，否则留下"词条指向不存在的领域"）。
+ */
+export function ensureDefaultDomain(ownerId: string | null): void {
+  getDb()
+    .prepare('INSERT OR IGNORE INTO term_domain (owner_id, name, note) VALUES (?, ?, ?)')
+    .run(ownerForWrite(ownerId), DEFAULT_DOMAIN, '');
+}
+
 /** 单行查询（含派生计数）。不存在返回 null。 */
-function getDomainRow(name: string): DomainApiRow | null {
+function getDomainRow(name: string, ownerId: string | null): DomainApiRow | null {
+  const owner = ownerForWrite(ownerId);
   const row = getDb()
     .prepare(
       `SELECT d.name, d.note, d.created_at, d.updated_at,
-              (SELECT COUNT(*) FROM term_library t WHERE t.domain = d.name) AS count
-         FROM term_domain d WHERE d.name = ?`,
+              (SELECT COUNT(*) FROM term_library t
+                WHERE t.domain = d.name AND t.owner_id = d.owner_id) AS count
+         FROM term_domain d WHERE d.owner_id = ? AND d.name = ?`,
     )
-    .get(name) as DomainApiRow | undefined;
+    .get(owner, name) as DomainApiRow | undefined;
   return row ?? null;
 }
 
-function countTerms(domain: string): number {
-  return (getDb().prepare('SELECT COUNT(*) AS c FROM term_library WHERE domain = ?').get(domain) as { c: number }).c;
+function countTerms(domain: string, ownerId: string | null): number {
+  return (
+    getDb()
+      .prepare('SELECT COUNT(*) AS c FROM term_library WHERE owner_id = ? AND domain = ?')
+      .get(ownerForWrite(ownerId), domain) as { c: number }
+  ).c;
 }
 
 /**
  * 新建领域（登记册新增，**允许零词条**——这正是「领域是一等实体」的核心收益：
  * 可以先把领域建好，再慢慢往里放词）。
  * 已存在时不覆盖既有 note（「新建」不该顺手改写别人的说明），`created: false` 如实回报。
+ * ★ 「已存在」判据现在是 `(owner_id, name)`：A 建了 `物理` 不影响 B 也建 `物理`（改前 `name`
+ *   单列 PK 会直接撞，B 只能拿到 A 那行）。
  */
-export function createDomain(rawName: string, note = ''): { row: DomainApiRow; created: boolean } {
+export function createDomain(
+  rawName: string,
+  note: string,
+  ownerId: string | null,
+): { row: DomainApiRow; created: boolean } {
   const name = normalizeDomainName(rawName);
   if (!name) throw new DomainError('领域名不能为空');
   const info = getDb()
-    .prepare('INSERT OR IGNORE INTO term_domain (name, note) VALUES (?, ?)')
-    .run(name, note.trim().slice(0, NOTE_MAX));
-  const row = getDomainRow(name);
+    .prepare('INSERT OR IGNORE INTO term_domain (owner_id, name, note) VALUES (?, ?, ?)')
+    .run(ownerForWrite(ownerId), name, note.trim().slice(0, NOTE_MAX));
+  const row = getDomainRow(name, ownerId);
   if (!row) throw new DomainError('领域创建失败', 500); // 理论不可达：刚写入或已存在，两者都查得到
   return { row, created: info.changes > 0 };
 }
 
 /** 改领域说明（只动 note；领域名改动走 `renameDomainEntry`，两者刻意分开）。 */
-export function updateDomain(rawName: string, note: string): DomainApiRow | null {
+export function updateDomain(rawName: string, note: string, ownerId: string | null): DomainApiRow | null {
   const name = normalizeDomainName(rawName);
   const info = getDb()
-    .prepare(`UPDATE term_domain SET note = ?, updated_at = datetime('now') WHERE name = ?`)
-    .run(note.trim().slice(0, NOTE_MAX), name);
+    .prepare(`UPDATE term_domain SET note = ?, updated_at = datetime('now') WHERE owner_id = ? AND name = ?`)
+    .run(note.trim().slice(0, NOTE_MAX), ownerForWrite(ownerId), name);
   if (info.changes === 0) return null;
-  return getDomainRow(name);
+  return getDomainRow(name, ownerId);
 }
 
 export interface RenameDomainResult {
@@ -130,28 +172,36 @@ export interface RenameDomainResult {
  * 领域改名（用户/工具直接调用；`tidy_terms(rename_domain)` 走 tidy 自己的通道，不走这里）。
  * 流程：校验 → 迁词条（有词条才走 tidy，否则空领域只动登记册）→ 同步登记册。
  */
-export function renameDomainEntry(rawFrom: string, rawTo: string): RenameDomainResult {
+export function renameDomainEntry(rawFrom: string, rawTo: string, ownerId: string | null): RenameDomainResult {
   const from = normalizeDomainName(rawFrom);
   const to = normalizeDomainName(rawTo);
   if (!from || !to) throw new DomainError('领域名不能为空');
   if (from === to) throw new DomainError('新旧领域名相同');
-  if (!getDomainRow(from)) throw new DomainError(`没有名为「${from}」的领域`, 404);
+  if (!getDomainRow(from, ownerId)) throw new DomainError(`没有名为「${from}」的领域`, 404);
 
-  const moved = countTerms(from);
-  const targetExisted = getDomainRow(to) !== null;
+  const moved = countTerms(from, ownerId);
+  const targetExisted = getDomainRow(to, ownerId) !== null;
 
   // 步骤 1：迁词条（事实层）。有词条才调——tidy.renameDomain 拿词条行当存在性凭证，
   // 空领域传进去会直接报「没有名为 X 的领域」（v19 之前领域建不出来也正因为这条）。
   if (moved > 0) {
-    const r = renameDomain(from, to);
+    const r = renameDomain(from, to, ownerId);
     if (r.result === 'error') throw new DomainError(r.message ?? '领域改名失败', 409);
   }
 
   // 步骤 2：同步登记册（索引层）。目标已存在 ⇒ 合一（删旧名、留目标行及其 note）。
+  // ★ 两条路径都带 owner：改别人的登记册行是**跨用户篡改**，而 `name` 在归主后已不唯一
+  //   （A、B 各可有一个 `math`）⇒ 只按 name 定位会同时改掉所有人的同名域。
   const db = getDb();
+  const owner = ownerForWrite(ownerId);
   const tx = db.transaction(() => {
-    if (targetExisted) db.prepare('DELETE FROM term_domain WHERE name = ?').run(from);
-    else db.prepare(`UPDATE term_domain SET name = ?, updated_at = datetime('now') WHERE name = ?`).run(to, from);
+    if (targetExisted) db.prepare('DELETE FROM term_domain WHERE owner_id = ? AND name = ?').run(owner, from);
+    else
+      db.prepare(`UPDATE term_domain SET name = ?, updated_at = datetime('now') WHERE owner_id = ? AND name = ?`).run(
+        to,
+        owner,
+        from,
+      );
   });
   tx();
 
@@ -169,19 +219,25 @@ export interface RemoveDomainResult {
  * 删除领域：词条迁 `general`（**不删词条**），登记册移除旧名。
  * 拒绝删 `general`（它是迁移终点）；迁词条复用改名通道，因而同样享有「目标域同名词条先并入」
  * 的防御——`general` 里已有一条 `closure` 时删掉 math 域，两条 `closure` 会并成一条而不是炸约束。
+ * ★ 归主后「终点」是**该用户自己的** `general`：先 `ensureDefaultDomain` 保证它在，
+ *   否则删完域会留下「词条指向登记册里不存在的领域」的态（Tab 靠孤儿域兜底仍显示，
+ *   但不变式 `term_library.domain ⊆ term_domain.name` 已破）。
  */
-export function removeDomain(rawName: string): RemoveDomainResult {
+export function removeDomain(rawName: string, ownerId: string | null): RemoveDomainResult {
   const name = normalizeDomainName(rawName);
   if (!name) throw new DomainError('领域名不能为空');
-  if (!getDomainRow(name)) throw new DomainError(`没有名为「${name}」的领域`, 404);
+  if (!getDomainRow(name, ownerId)) throw new DomainError(`没有名为「${name}」的领域`, 404);
   if (name === DEFAULT_DOMAIN) throw new DomainError(`「${DEFAULT_DOMAIN}」是默认领域，不能删除`, 409);
 
-  const moved = countTerms(name);
+  ensureDefaultDomain(ownerId);
+  const moved = countTerms(name, ownerId);
   if (moved > 0) {
-    const r = renameDomain(name, DEFAULT_DOMAIN);
+    const r = renameDomain(name, DEFAULT_DOMAIN, ownerId);
     if (r.result === 'error') throw new DomainError(r.message ?? '词条迁移失败', 409);
   }
-  getDb().prepare('DELETE FROM term_domain WHERE name = ?').run(name);
+  getDb()
+    .prepare('DELETE FROM term_domain WHERE owner_id = ? AND name = ?')
+    .run(ownerForWrite(ownerId), name);
   return { name, moved, target: DEFAULT_DOMAIN };
 }
 
@@ -198,8 +254,13 @@ export function removeDomain(rawName: string): RemoveDomainResult {
  * （`saveTerms` / `saveOneTerm`）落新 domain 时同步登记，见 v19 迁移注释的不变式。
  * 留着它是为了**不在异常态下静默丢数据**：漏登记的领域宁可在 Tab 上多一格
  * （用户仍能看见它、改名、删掉），也不能让它的词条在列表里"隐身"。
+ *
+ * ★ **两条支路都要按人算**（归主后本函数最危险的写法是只改一条）：
+ *   支路一 `d.owner_id = ?`；支路二 `t.owner_id = ?`。★ 且**两处 JOIN 都要
+ *   `AND t.owner_id = d.owner_id`**——只按 name 连会把 A 的领域行与 B 的同名词条连起来，
+ *   A 的 count 里混进 B 的词条而两人都看不出异常（见文件头）。
  */
-export function domainStats(): {
+export function domainStats(ownerId: string | null): {
   total: number;
   /**
    * count 为派生值；note 来自登记册（孤儿域为空串）。按 count 降序、同数按名字升序。
@@ -222,30 +283,39 @@ export function domainStats(): {
    */
   preferred: Array<{ domain: string; mentionCount: number }>;
 } {
+  // ★ 读路径补建（老板 2026-09-18 拍板）：新用户打开 Tab 恒有一格 general，与归主前观感一致。
+  ensureDefaultDomain(ownerId);
   const db = getDb();
-  const total = (db.prepare('SELECT COUNT(*) AS c FROM term_library').get() as { c: number }).c;
+  const owner = ownerForWrite(ownerId);
+  const total = (
+    db.prepare('SELECT COUNT(*) AS c FROM term_library WHERE owner_id = ?').get(owner) as { c: number }
+  ).c;
   const domains = db
     .prepare(
       `SELECT d.name AS domain, d.note AS note, d.review_enabled AS review_enabled, COUNT(t.id) AS count,
               COALESCE(SUM(${SCOPE_FLAG}), 0) AS review_count
-         FROM term_domain d LEFT JOIN term_library t ON t.domain = d.name
+         FROM term_domain d LEFT JOIN term_library t ON t.domain = d.name AND t.owner_id = d.owner_id
+        WHERE d.owner_id = ?
         GROUP BY d.name, d.note, d.review_enabled
         UNION ALL
        SELECT t.domain AS domain, '' AS note, 0 AS review_enabled, COUNT(*) AS count,
               COALESCE(SUM(${SCOPE_FLAG}), 0) AS review_count
-         FROM term_library t LEFT JOIN term_domain d ON d.name = t.domain
-        WHERE d.name IS NULL
+         FROM term_library t LEFT JOIN term_domain d ON d.name = t.domain AND d.owner_id = t.owner_id
+        WHERE d.name IS NULL AND t.owner_id = ?
         GROUP BY t.domain
         ORDER BY count DESC, domain ASC`,
     )
-    .all() as Array<{ domain: string; count: number; note: string; review_enabled: number; review_count: number }>;
+    .all(owner, owner) as Array<{ domain: string; count: number; note: string; review_enabled: number; review_count: number }>;
   const today = (
-    db.prepare("SELECT COUNT(*) AS c FROM term_library WHERE created_at >= date('now')").get() as { c: number }
+    db.prepare("SELECT COUNT(*) AS c FROM term_library WHERE owner_id = ? AND created_at >= date('now')").get(owner) as {
+      c: number;
+    }
   ).c;
 
   // ★ 提及口径不在这里重写 SQL：一律向 `mention.ts` 要（那里的 `domainMentionTotals` 是唯一实现）。
-  //   本文件自己写一遍 `SUM(usage_count)` 就会有两份口径，将来加归属过滤时必漏一边。
-  const mentions = domainMentionTotals();
+  //   本文件自己写一遍 `SUM(usage_count)` 就会有两份口径，将来加归属过滤时必漏一边
+  //   ——M2d-2 这次正是按这条走的：归属只加在 `mention.ts` 一处，本文件传参即可。
+  const mentions = domainMentionTotals(ownerId);
   const withMentions = domains.map(({ review_enabled, review_count, ...r }) => ({
     ...r,
     mentionCount: mentions.get(r.domain) ?? 0,

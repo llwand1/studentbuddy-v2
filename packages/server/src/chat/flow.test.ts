@@ -85,7 +85,9 @@ const termsStub = vi.hoisted(() => ({
 }));
 
 vi.mock('../learning/terms.js', () => ({
-  getRelevantTerms: (q: string, limit: number) => {
+  // ★ v31 起签名是 (query, ownerId, limit)——mock 必须跟着改，否则 `limit` 位收到的是 ownerId
+  //   （断言会变成 [query, null]，且「限额真传下去了吗」这条锁**静默失效**）。
+  getRelevantTerms: (q: string, _ownerId: string | null, limit: number) => {
     termsStub.queries.push([q, limit]);
     return termsStub.relevant;
   },

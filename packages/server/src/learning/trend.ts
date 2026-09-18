@@ -161,14 +161,24 @@ export interface TrendGenerateResult {
   reason: 'ok' | 'dup' | 'insufficient';
 }
 
-/** 有流水记录的归属者（含 `null`＝本地单人模式），定时器按人各出一张 */
+/**
+ * 有流水记录的归属者（含 `null`＝**匿名桶**），定时器按人各出一张。
+ *
+ * ★ v31（M2d-2）：流水表的"无主"哨兵从 SQL `NULL` 改成 **`''`**（迁移 v31 把该列
+ *   改成 `NOT NULL DEFAULT ''`）。故**具名归属 = 非空串**——若沿用原来的 `!== null`，
+ *   `''` 会被当成一个"用户"，于是本地单人模式会被派去出一张 `ownerId = ''` 的卡，
+ *   而 `appendCard('', …)` 落的是**空串**、`trendRows(null)` 查的是 `IS NULL` ⇒
+ *   卡落了但谁读不到（"图出了却看不见"）。
+ * ★ 对外契约仍是 `null` = 匿名桶：`ownerForWrite(null)` 正好把它折回 `''`，
+ *   于是 `mentionTrend(days, null)` 读的就是这一桶——两套哨兵在**这一个函数里**完成换算。
+ */
 export function trendOwners(): Array<string | null> {
-  const rows = getDb().prepare('SELECT DISTINCT owner_id FROM term_mention_log').all() as Array<{ owner_id: string | null }>;
-  const named = rows.map((r) => r.owner_id).filter((o): o is string => o !== null);
-  // ★ 本地模式（null）**只在库里没有任何具名归属时**才出一份。
-  //   理由：`mentionTrend(days, null)` 的语义是**不过滤 = 全体聚合**（本地单人模式的既有口径），
-  //   一旦已经有了登录用户，再为 null 出一张卡就是把这**所有人**的提及算成"这个匿名访客的趋势"。
-  //   本地单人部署里两者等价（库里只有 null 行），故这条短路不损失任何真实场景，
+  const rows = getDb().prepare('SELECT DISTINCT owner_id FROM term_mention_log').all() as Array<{ owner_id: string }>;
+  const named = rows.map((r) => r.owner_id).filter((o) => o !== '');
+  // ★ 匿名桶**只在库里没有任何具名归属时**才出一份。
+  //   理由：`mentionTrend(days, null)` 此时读的就是无主桶，一旦已经有了登录用户，
+  //   再为它出一张卡就是把这**所有人**的提及算成"这个匿名访客的趋势"。
+  //   本地单人部署里两者等价（库里只有无主行），故这条短路不损失任何真实场景，
   //   只挡住多租户下的错误聚合——注册之后老的无主行不再产卡，与 M2a「孤儿行」同一处置。
   if (named.length === 0) return [null];
   return named;

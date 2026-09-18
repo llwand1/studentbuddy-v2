@@ -268,6 +268,9 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         noTimeout: ['ask_choice'],
       });
       abortIfNeeded();
+        // ★ M2d-2 补传（v31）：此前这里没有 ownerId ⇒ `manage_terms` 的词条增删改查全落**无主行**
+        //   （主人自己登录后看不到），而**全程不报错**。必填化就是为了逼出这类静默错误。
+        ownerId: opts.ownerId ?? null,
       for (const o of outcomes) {
         results.push({ role: 'tool', content: o.content.slice(0, MAX_TOOL_RESULT_CHARS), toolCallId: o.id });
       }
@@ -325,7 +328,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     // 忆域 v2：回复完成后自动抽取重要词条入库（失败静默不阻塞对话）+ 命中词条计数
     // ★ M2c 补传 `opts.ownerId`（契约 §8.1.4 表）：起点是用户请求、ownerId 现成，**此前漏传是 bug**
     //   ——抽取是一次 LLM 调用，不带归属就只能落进平台通道（用户自带 key 时烧的却是平台的额度）。
-    void extractTerms(`${opts.text}\n\n${acc}`.slice(0, 30000), opts.ownerId)
+    void extractTerms(`${opts.text}\n\n${acc}`.slice(0, 30000), opts.ownerId ?? null)
       .then((items) => {
         if (items.length > 0) saveTerms(items, sessionId, opts.ownerId ?? null);
       })
@@ -355,7 +358,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     // done 之后发帧照样送达；失败一律静默，不能让已上屏的回答变出错。
     if (opts.grillMe) {
       await runGrillClosing({ sessionId, adapter: target.adapter, model: target.model, apiKey: target.apiKey,
-        baseUrl: target.baseUrl, messages, tools, signal: opts.signal, onStep, ownerId: opts.ownerId });
+        baseUrl: target.baseUrl, messages, tools, signal: opts.signal, onStep, ownerId: opts.ownerId ?? null });
     }
     return { ok: true, assistantMessageId: assistantId };
   } catch (err) {

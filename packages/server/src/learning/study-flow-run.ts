@@ -30,7 +30,7 @@ import { getDef } from './study-flow.js';
 import { insertSession, ownerOfSession } from '../auth/ownership.js';
 import { getExecutor, registeredKinds } from './flow-registry.js';
 import type { FlowStepContext } from './flow-registry.js';
-import { ensureNode, deriveDomainEdges } from './knowledge-graph.js';
+import { emitTermNodes } from './knowledge-graph.js';
 
 /** 运行用的定义快照（Dify WorkflowRunHistory.graph 的对应物；只留运行器真正要用的字段） */
 interface DefSnapshot {
@@ -314,7 +314,7 @@ export async function advanceRun(runId: string): Promise<AdvanceResult> {
     // ★ 只做 'term'：词条表有 source_session_id，可按「会话 + 时间窗」精确定位本步新增的行。
     //   'note'/'turn' 的定位缺可靠锚点（quiz_notes 无 session 列），**不猜**、留待 SPEC §7 待接。
     if (meta?.produces.includes('term') && row.session_id) {
-      emitTermNodes(runId, step.id, row.session_id, startedAt.t);
+      emitTermNodes(runId, step.id, row.session_id, startedAt.t, ctx.ownerId);
     }
 
     if (shouldPause) {
@@ -342,26 +342,6 @@ export async function advanceRun(runId: string): Promise<AdvanceResult> {
     failRun(runId, msg);
     return { ok: false, status: 502, error: `步骤执行失败：${msg}` };
   }
-}
-
-/**
- * 本步跑出的词条 → 知识节点（+ 同域 derived 边）。
- * 定位办法：`term_library.source_session_id = 本会话` 且 `created_at >= 本步开始时刻`。
- * ★ 时间窗用的是 SQLite 自己的 `datetime('now')`（UTC，秒级），与写入端同源，故可直接字符串比较。
- */
-function emitTermNodes(runId: string, stepId: string, sessionId: string, startedAt: string): void {
-  const rows = getDb()
-    .prepare(
-      `SELECT id, term FROM term_library
-       WHERE source_session_id = ? AND created_at >= ?
-       ORDER BY created_at, rowid`,
-    )
-    .all(sessionId, startedAt) as Array<{ id: string; term: string }>;
-  if (rows.length === 0) return;
-  const nodeIds = rows.map(
-    (t) => ensureNode({ kind: 'term', refId: t.id, refText: t.term, sourceRunId: runId, sourceStepId: stepId }).id,
-  );
-  deriveDomainEdges(nodeIds);
 }
 
 // ── 状态收尾（全部集中在此，别处不再直接改 status）──

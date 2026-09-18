@@ -6,12 +6,24 @@
  * ★ 薄路由纪律：状态码由域层（`DomainError.status`）**直通**，本文件不翻译不包装
  *   （同 `routes/choice.ts` 的头注释）。词条侧的历史写法是硬编码 400/404，未一并重构——
  *   本批只保证新增的领域口子口径统一。
+ *
+ * ── M2d-2（v31，2026-09-18）：词条库归主后本文件的形态 ─────────────────────────
+ *
+ * ★ **每个 handler 第一件事就是取 `ownerIdOf(req)` 并往下传**——本文件是词条库的**唯一 HTTP
+ *   入口**，任何一处漏传都等于「该端点回到全局表行为」。★ 这里刻意**不**在文件顶部取一次
+ *   然后共享：每个 handler 各取一次是**逐端点可审计**的（评审时能一眼数出 12 个端点都取了），
+ *   而共享变量会让"新加一个 handler 忘了取"变成静默错误。
+ * ★ 归属值一律是 `ownerIdOf(req)` 的**原样值**（`string | null`）：`null`（未登录单人模式）
+ *   ⇒ 域层经 `ownerForWrite` 落成 `''` = 无主行。**不要在这里写 `?? ''`**——那与域层口径
+ *   重复表达，将来口径一改就会两处不一致（见 `auth/ownership.ts`）。
  */
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { listTerms, saveOneTerm, saveTerms, extractTerms, removeTerm, updateTerm } from '../learning/terms.js';
 import { ownerIdOf } from '../auth/ownership.js';
-import { reviewOverview, listReviewQueue, markReviewed, termScope, setDomainReviewScope, setTermReviewScope } from '../learning/term-review.js';
+import { reviewOverview, listReviewQueue, markReviewed } from '../learning/term-review.js';
+// ★ 复习**范围**的写侧在 term-review-scope.ts（M2d-2 拆出，那里刻意不做 re-export 以免成环）
+import { termScope, setDomainReviewScope, setTermReviewScope } from '../learning/term-review-scope.js';
 import {
   createDomain,
   updateDomain,
@@ -34,17 +46,18 @@ function fail(res: Response, err: unknown): void {
 termsRouter.get('/', (req: Request, res: Response) => {
   const domain = typeof req.query.domain === 'string' ? req.query.domain : undefined;
   const keyword = typeof req.query.keyword === 'string' ? req.query.keyword : undefined;
-  res.json(listTerms(domain, keyword));
+  res.json(listTerms(domain, keyword, ownerIdOf(req)));
 });
 
 /** 领域统计（前端 Tab + 顶部统计）：含**空领域**（count=0），v19 起以登记册为准。 */
-termsRouter.get('/domains', (_req, res) => {
-  res.json(domainStats());
+termsRouter.get('/domains', (req: Request, res: Response) => {
+  res.json(domainStats(ownerIdOf(req)));
 });
 
 /**
  * 新建领域（**可零词条**）。已存在则 200 + 既有行（不覆盖 note），新建成功 201。
  * 幂等语义让「点两次新建」不会报错，UI 不必先查再建。
+ * ★ 归主后「已存在」是 `(owner_id, name)`：A 建过 `物理` 不影响 B 也建 `物理`。
  */
 termsRouter.post('/domains', (req: Request, res: Response) => {
   const { name, note } = req.body as { name?: string; note?: string };
@@ -53,7 +66,7 @@ termsRouter.post('/domains', (req: Request, res: Response) => {
     return;
   }
   try {
-    const { row, created } = createDomain(name, note ?? '');
+    const { row, created } = createDomain(name, note ?? '', ownerIdOf(req));
     res.status(created ? 201 : 200).json(row);
   } catch (err) {
     fail(res, err);
@@ -70,14 +83,14 @@ termsRouter.put('/domains/:name', (req: Request, res: Response) => {
   const { name, note } = req.body as { name?: string; note?: string };
   try {
     if (name?.trim()) {
-      res.json(renameDomainEntry(from, name));
+      res.json(renameDomainEntry(from, name, ownerIdOf(req)));
       return;
     }
     if (note === undefined) {
       res.status(400).json({ error: 'name（改名）或 note（改说明）至少给一个' });
       return;
     }
-    const row = updateDomain(from, note);
+    const row = updateDomain(from, note, ownerIdOf(req));
     if (!row) {
       res.status(404).json({ error: `没有名为「${from}」的领域` });
       return;
@@ -91,7 +104,7 @@ termsRouter.put('/domains/:name', (req: Request, res: Response) => {
 /** 删领域：词条迁 `general`（**不删词条**），响应含迁移条数。`general` 本身拒绝删除（409）。 */
 termsRouter.delete('/domains/:name', (req: Request, res: Response) => {
   try {
-    res.json(removeDomain(req.params.name ?? ''));
+    res.json(removeDomain(req.params.name ?? '', ownerIdOf(req)));
   } catch (err) {
     fail(res, err);
   }
@@ -104,7 +117,7 @@ termsRouter.post('/', (req: Request, res: Response) => {
     res.status(400).json({ error: 'term 与 definition 必填' });
     return;
   }
-  const row = saveOneTerm(term, definition, domain);
+  const row = saveOneTerm(term, definition, domain, ownerIdOf(req));
   res.status(201).json(row);
 });
 
@@ -122,12 +135,14 @@ termsRouter.post('/extract', async (req: Request, res: Response) => {
     return;
   }
   // M2c：抽取要调 explain 模型，归属取当前用户（未登录 ⇒ null = 平台通道）
-  const items = await extractTerms(body.slice(0, DOC_EXTRACT_BUDGET_CHARS), ownerIdOf(req));
+  // M2d-2：落库同样按人（`saveTerms` 的第 3 参）
+  const ownerId = ownerIdOf(req);
+  const items = await extractTerms(body.slice(0, DOC_EXTRACT_BUDGET_CHARS), ownerId);
   if (items.length === 0) {
     res.json({ added: 0, items: [] });
     return;
   }
-  const added = saveTerms(items, sourceSessionId ?? null, ownerIdOf(req));
+  const added = saveTerms(items, sourceSessionId ?? null, ownerId);
   res.json({ added, items });
 });
 
@@ -146,7 +161,8 @@ termsRouter.post('/:id/review', (req: Request, res: Response) => {
     return;
   }
   const id = req.params.id ?? '';
-  const scope = termScope(id);
+  const ownerId = ownerIdOf(req);
+  const scope = termScope(id, ownerId);
   if (!scope) {
     res.status(404).json({ error: '词条不存在' });
     return;
@@ -155,7 +171,7 @@ termsRouter.post('/:id/review', (req: Request, res: Response) => {
     res.status(409).json({ error: '该词条未纳入复习范围，请先在复习范围里勾选它（或其所属领域）' });
     return;
   }
-  const row = markReviewed(id, remembered);
+  const row = markReviewed(id, remembered, ownerId);
   if (!row) {
     res.status(404).json({ error: '词条不存在' });
     return;
@@ -166,21 +182,21 @@ termsRouter.post('/:id/review', (req: Request, res: Response) => {
 /** 复习概览（今日欠账 + 阶段分布 + 近 7 天复习量）。放在 `/:id` 之前，免得被路径参数吞掉。 */
 termsRouter.get('/review/overview', (req: Request, res: Response) => {
   const domain = typeof req.query.domain === 'string' ? req.query.domain : undefined;
-  res.json(reviewOverview(domain));
+  res.json(reviewOverview(domain, ownerIdOf(req)));
 });
 
 /** 今日复习队列（按逾期天数降序 = 先还旧账）。`limit` 的归一在域层，这里不自己钳。 */
 termsRouter.get('/review/queue', (req: Request, res: Response) => {
   const domain = typeof req.query.domain === 'string' ? req.query.domain : undefined;
   const raw = Number(req.query.limit);
-  res.json(listReviewQueue(Number.isFinite(raw) ? raw : undefined, domain));
+  res.json(listReviewQueue(Number.isFinite(raw) ? raw : undefined, domain, ownerIdOf(req)));
 });
 
 /**
  * 设复习范围（v28，契约 `docs/EBBINGHAUS-SPEC.md` §9）：**选择式复习**的唯一写口。
  * `{ domain, enabled }` = 领域开关；`{ termId, enabled }` = 单条词条。二者**必须恰好给一个**。
  *
- * ★ `enabled` 是**目标有效值**（"这条以后复不复习"），不是"往列里写什么"——
+ * ★ `enabled` 是**目标有效值**（"这条以后复不复"），不是"往列里写什么"——
  *   该写 `NULL`（继承领域）还是写显式 0/1，由域层按"是否偏离领域默认"决定
  *   （见 `setTermReviewScope`）。让调用方自己决定写哪一列，等于把优先级规则漏给前端。
  * ★ 两个都给 ⇒ 400 而不是"两个都改"：调用方多半是拼错了，猜一个会让它以为另一个也生效了
@@ -198,8 +214,9 @@ termsRouter.put('/review/scope', (req: Request, res: Response) => {
     res.status(400).json({ error: 'domain 与 termId 必须二选一（且都要非空）' });
     return;
   }
+  const ownerId = ownerIdOf(req);
   if (hasDomain) {
-    const r = setDomainReviewScope(domain as string, enabled);
+    const r = setDomainReviewScope(domain as string, enabled, ownerId);
     if (!r) {
       res.status(404).json({ error: `没有名为「${domain}」的领域` });
       return;
@@ -207,7 +224,7 @@ termsRouter.put('/review/scope', (req: Request, res: Response) => {
     res.json(r);
     return;
   }
-  const r = setTermReviewScope(termId as string, enabled);
+  const r = setTermReviewScope(termId as string, enabled, ownerId);
   if (!r) {
     res.status(404).json({ error: '词条不存在' });
     return;
@@ -217,7 +234,7 @@ termsRouter.put('/review/scope', (req: Request, res: Response) => {
 
 termsRouter.put('/:id', (req: Request, res: Response) => {
   const { definition, domain, importance } = req.body as { definition?: string; domain?: string; importance?: number };
-  const row = updateTerm(req.params.id ?? '', { definition, domain, importance });
+  const row = updateTerm(req.params.id ?? '', { definition, domain, importance }, ownerIdOf(req));
   if (!row) {
     res.status(404).json({ error: '词条不存在' });
     return;
@@ -226,6 +243,6 @@ termsRouter.put('/:id', (req: Request, res: Response) => {
 });
 
 termsRouter.delete('/:id', (req: Request, res: Response) => {
-  removeTerm(req.params.id ?? '');
+  removeTerm(req.params.id ?? '', ownerIdOf(req));
   res.json({ ok: true });
 });

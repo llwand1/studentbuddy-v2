@@ -77,6 +77,7 @@ async function runClosing(sessionId: string, script: (req: ChatRequest) => Token
     messages: [{ role: 'user', content: '讲讲二分查找' }, { role: 'assistant', content: '……' }],
     tools: toolDefinitions(),
     onStep: (tool, status, detail) => steps.push({ tool, status, detail }),
+    ownerId: null,
   });
   return { seen, steps };
 }
@@ -124,6 +125,7 @@ describe('runGrillClosing（收尾提问）', () => {
       messages,
       tools: toolDefinitions(),
       onStep: () => undefined,
+      ownerId: null,
     });
     expect(messages).toHaveLength(2);
     expect(messages[1]).toEqual({ role: 'user', content: GRILL_POST });

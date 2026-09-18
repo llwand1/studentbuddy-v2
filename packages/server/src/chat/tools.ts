@@ -30,11 +30,17 @@ export interface ToolContext {
    */
   grillPhase?: GrillPhase;
   /**
-   * 归属用户 id（M2c，契约 `docs/TENANCY-SPEC.md` §8.1.4）：工具里发起的 LLM 调用记在谁头上。
-   * 目前只有 `tidy_terms` 的 auto 分支会用（整理方案是一次模型调用）；`null` = 平台通道。
-   * 可选——不碰模型的工具（搜索 / 词条增删）无需关心它，既有工具桩也不必改。
+   * 归属用户 id（M2c 起；契约 `docs/TENANCY-SPEC.md` §8.1.4 / §8.2）。
+   *
+   * ★ v31（M2d-2）起**必填**（`string | null`，不给可选）——原注释写"不碰模型的工具
+   *   （搜索 / 词条增删）无需关心它"，那在 `term_library` 还是全局表时成立；
+   *   **归主之后词条增删改查本身就是归属操作**（漏传 = 写进无主行 / 读到别人的词条），
+   *   故与 `tidy_terms` 的 auto 分支同等需要它。`null` = 未登录单人模式（落无主行）。
+   *   ★ 改必填时实测逮到一处真漏点：`chat/flow.ts` 的主对话路径**此前根本没传**
+   *     （`runToolCalls(…)` 的 opts 里没有 `ownerId`）⇒ `tidy_terms` 的 auto 分支
+   *     一直在把模型调用记到平台头上。这正是"必填"要防的那类静默错误。
    */
-  ownerId?: string | null;
+  ownerId: string | null;
 }
 
 export interface ToolResult {
@@ -107,18 +113,18 @@ function tidyResultContent(summary: TidySummary): string {
  * 把域层异常转成 `TidySummary.error`——工具层的报错口径统一走 `tidyResultContent`，
  * 不让 `DomainError`（带 HTTP status，是给路由用的）直接冒到工具层。
  */
-function domainAdd(name: string, note: string): TidySummary {
+function domainAdd(name: string, note: string, ownerId: string | null): TidySummary {
   try {
-    const { row, created } = createDomain(name, note.trim());
+    const { row, created } = createDomain(name, note.trim(), ownerId);
     return { result: 'ok', message: created ? `已新建领域「${row.name}」` : `领域「${row.name}」已存在，未重复创建` };
   } catch (err) {
     return { result: 'error', message: err instanceof Error ? err.message : '新建领域失败' };
   }
 }
 
-function domainRemove(name: string): TidySummary {
+function domainRemove(name: string, ownerId: string | null): TidySummary {
   try {
-    const r = removeDomain(name);
+    const r = removeDomain(name, ownerId);
     return { result: 'ok', message: `已删除领域「${r.name}」，${r.moved} 条词条转入「${r.target}」（词条一条未删）` };
   } catch (err) {
     return { result: 'error', message: err instanceof Error ? err.message : '删除领域失败' };
@@ -171,7 +177,7 @@ registry.set('tidy_terms', {
         return { content: 'merge 需要在 terms 里给至少两个词条名（第一个为主词条），请重新调用 tidy_terms。' };
       }
       ctx.onStep('tidy_terms', 'running', `合并 ${terms.length} 个词条`);
-      summary = mergeTerms(terms);
+      summary = mergeTerms(terms, ctx.ownerId);
     } else if (action === 'rename_domain') {
       const from = String(args.from ?? '').trim();
       const to = String(args.to ?? '').trim();
@@ -180,7 +186,7 @@ registry.set('tidy_terms', {
         return { content: 'rename_domain 需要 from（旧领域名）与 to（新领域名），请重新调用 tidy_terms。' };
       }
       ctx.onStep('tidy_terms', 'running', `领域改名 ${from} → ${to}`);
-      summary = renameDomain(from, to);
+      summary = renameDomain(from, to, ctx.ownerId);
     } else if (action === 'domain_add') {
       const name = String(args.domain ?? '').trim();
       if (!name) {
@@ -188,7 +194,7 @@ registry.set('tidy_terms', {
         return { content: 'domain_add 需要 domain（新领域名），请重新调用 tidy_terms。' };
       }
       ctx.onStep('tidy_terms', 'running', `新建领域 ${name}`);
-      summary = domainAdd(name, String(args.note ?? ''));
+      summary = domainAdd(name, String(args.note ?? ''), ctx.ownerId);
     } else if (action === 'domain_remove') {
       const name = String(args.domain ?? '').trim();
       if (!name) {
@@ -196,7 +202,7 @@ registry.set('tidy_terms', {
         return { content: 'domain_remove 需要 domain（要删除的领域名），请重新调用 tidy_terms。' };
       }
       ctx.onStep('tidy_terms', 'running', `删除领域 ${name}`);
-      summary = domainRemove(name);
+      summary = domainRemove(name, ctx.ownerId);
     } else {
       ctx.onStep('tidy_terms', 'error', '未知 action');
       return {
@@ -256,7 +262,7 @@ registry.set('manage_terms', {
         return { content: 'add 需要 term（词条名）与 definition（释义），请带齐参数重新调用 manage_terms。' };
       }
       const domain = String(args.domain ?? '').trim() || undefined;
-      const row = saveOneTerm(term, definition, domain);
+      const row = saveOneTerm(term, definition, domain, ctx.ownerId);
       ctx.onStep('manage_terms', 'done', `词条「${row.term}」已入库（${row.domain}）`);
       return {
         content: `词条已入库：${row.term}（领域 ${row.domain}）。请用一句话向用户确认，不要输出本 JSON。`,
@@ -269,7 +275,7 @@ registry.set('manage_terms', {
         ctx.onStep('manage_terms', 'error', 'update 需要 term');
         return { content: 'update 需要 term（要修改的词条名），请重新调用 manage_terms。' };
       }
-      const hit = findTermByName(term);
+      const hit = findTermByName(term, ctx.ownerId);
       if (!hit) {
         ctx.onStep('manage_terms', 'error', `词条「${term}」不存在`);
         return {
@@ -284,7 +290,7 @@ registry.set('manage_terms', {
         ctx.onStep('manage_terms', 'error', 'update 缺少要改的字段');
         return { content: 'update 至少要给 definition / domain / importance 之一，请重新调用 manage_terms。' };
       }
-      const row = updateTerm(hit.id, patch);
+      const row = updateTerm(hit.id, patch, ctx.ownerId);
       ctx.onStep('manage_terms', 'done', `词条「${row?.term ?? term}」已更新`);
       return {
         content: `词条已更新：${row?.term ?? term}（领域 ${row?.domain ?? '?'}）。请用一句话向用户确认改了什么，不要输出本 JSON。`,
@@ -303,9 +309,9 @@ registry.set('manage_terms', {
       const removed: string[] = [];
       const missing: string[] = [];
       for (const name of list) {
-        const hit = findTermByName(name);
+        const hit = findTermByName(name, ctx.ownerId);
         if (hit) {
-          removeTerm(hit.id);
+          removeTerm(hit.id, ctx.ownerId);
           removed.push(hit.term);
         } else {
           missing.push(name);

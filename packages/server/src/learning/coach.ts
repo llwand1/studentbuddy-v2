@@ -15,7 +15,9 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
 import { routeRole } from '../llm/router.js';
-import { reviewOverview, listReviewQueue, markReviewed, reviewStreak, termScope } from './term-review.js';
+import { reviewOverview, listReviewQueue, markReviewed, reviewStreak } from './term-review.js';
+// ★ 复习**范围**的写侧在 term-review-scope.ts（M2d-2 拆出，那里刻意不做 re-export 以免成环）
+import { termScope } from './term-review-scope.js';
 import { MENTION_WINDOW_DAYS } from './mention.js';
 import { buildCoachSystemPrompt } from './coach-prompt.js';
 import {
@@ -53,10 +55,12 @@ function ownerClause(ownerId: string | null, column = 'owner_id'): { sql: string
  * 督促快照：欠账账本。
  * ★ 直接复用 `reviewOverview`（不自己扫表）：概览页与小窗必须是同一份数字，
  *   两处各扫一次表 = 迟早出现「概览说欠 12 条、胶囊说欠 9 条」。
+ * ★ M2d-2：`ownerId` 必传——三处数字（概览 / 队列 / 连续天数）必须来自**同一个人**的
+ *   同一批词条，任一处漏传就会出现「概览说欠 12 条、队列里 0 条」这种自打脸。
  */
-export function coachSnapshot(): CoachSnapshot {
-  const o = reviewOverview();
-  const top = listReviewQueue(COACH_TOP_TERMS).map((t) => ({
+export function coachSnapshot(ownerId: string | null): CoachSnapshot {
+  const o = reviewOverview(undefined, ownerId);
+  const top = listReviewQueue(COACH_TOP_TERMS, undefined, ownerId).map((t) => ({
     id: t.id,
     term: t.term,
     domain: t.domain,
@@ -72,7 +76,7 @@ export function coachSnapshot(): CoachSnapshot {
     todayDone: o.todayDone,
     mastered: o.mastered,
     maxOverdueDays: o.maxOverdueDays,
-    streak: reviewStreak(),
+    streak: reviewStreak(ownerId),
     top,
   };
 }
@@ -112,7 +116,7 @@ export function lastTrendDayKey(ownerId: string | null): string | null {
 
 /** 快照 + 提醒判定（服务端唯一出口：前端只渲染，不自己判该不该催） */
 export function coachState(ownerId: string | null, now: Date = new Date()): CoachState {
-  const snapshot = coachSnapshot();
+  const snapshot = coachSnapshot(ownerId);
   const last = lastNudgeAt(ownerId);
   const nudge = shouldNudge({
     due: snapshot.due,
@@ -266,10 +270,10 @@ export function coachMarkReviewed(
   termId: string,
   remembered: boolean,
 ): { card: CoachCard } | { error: string; status: number } {
-  const scope = termScope(termId);
+  const scope = termScope(termId, ownerId);
   if (!scope) return { error: '词条不存在', status: 404 };
   if (!scope.inScope) return { error: '该词条未纳入复习范围，请先在复习范围里勾选它', status: 409 };
-  const updated = markReviewed(termId, remembered);
+  const updated = markReviewed(termId, remembered, ownerId);
   if (!updated) return { error: '词条不存在', status: 404 };
   const card = appendCard(ownerId, 'review', `${updated.term} · ${remembered ? '记得' : '忘了'}`, {
     termId: updated.id,
@@ -329,7 +333,7 @@ export async function generateCoachReply(opts: {
   const target = resolveCoachTarget(opts.ownerId);
   if (!target) return { ok: false, text: '', error: '没有启用的服务商，请到设置里配一个模型服务商' };
   if (!target.model) return { ok: false, text: '', error: '督促模型还没绑定：请到设置 → 角色模型绑定里给「督促」选一个模型' };
-  const snapshot = coachSnapshot();
+  const snapshot = coachSnapshot(opts.ownerId);
   const messages: ChatMessage[] = [
     { role: 'system', content: buildCoachSystemPrompt(snapshot) },
     ...historyMessages(opts.ownerId),

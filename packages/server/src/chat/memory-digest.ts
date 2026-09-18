@@ -93,13 +93,13 @@ export function buildPreferenceDrafts(input: DigestInput): MemoryDraft[] {
  * ★ 归属一律走 `ownerId`：本函数会在 `compactIfNeeded` 的 fire-and-forget 里跑，
  *   那时 HTTP 请求早已结束，只能靠调用方显式传下来（同 `compact.ts` 的既有纪律）。
  *   「漏传」的后果是退回本地单人模式（与现状相同），**不是串台**。
- * ★ 词条库目前是**全局表**（无归属列）⇒ 榜单本身不分人，如实写在契约 §6：
- *   多租户下「偏好画像」会取自全库词条，要等 `term_library` 归主之后才精确。
+ * ★ **v31（M2d-2）起词条库已归主**：两个榜单（领域榜 / 词条榜）都按 `ownerId` 取，
+ *   偏好画像不再取自全库——契约 §6 里「要等 `term_library` 归主之后才精确」那条**已兑现**。
  */
 export function refreshTermDigest(ownerId?: string | null): number {
   const drafts = buildPreferenceDrafts({
-    domains: domainStats().preferred,
-    terms: topMentionedTerms(MEMORY_DIGEST_TOP_TERMS),
+    domains: domainStats(ownerId ?? null).preferred,
+    terms: topMentionedTerms(ownerId ?? null, MEMORY_DIGEST_TOP_TERMS),
   });
   if (drafts.length === 0) return 0;
   const written = upsertMemoryItems(drafts, null, ownerId);

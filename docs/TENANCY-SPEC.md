@@ -1,6 +1,6 @@
 # TENANCY-SPEC · 多租户数据隔离（M2）
 
-> 版本：v1.7 | 状态：[活跃] | 更新：2026-09-18（**M2d-1 已落码（v0.2.62）**：§8.2 里四张「**约束会跨用户撞键**」的表——`app_settings`（`key` 单列 PK）/ `daily_activity`（`PK(day,type)`）/ `daily_summaries`（`PK(day)`）/ `user_stats`（`key` 单列 PK）——随**迁移 v30** 重建（新分片 `storage/migrations-list-v30.ts`），老行一律回填 `''`（无主）；**读写两侧同口径**（本批最关键的一处纠正，见下）；`_probe/claim-legacy.mjs` 同时补上 **M2b 漏掉的 `user_memory`**。★ **§8.2 余量拆两批**：**M2d-2** = `term_library`/`term_domain`/`term_mention_log`（12 文件 + ~80 SQL 点），**M2d-3** = `quiz_*`/`flow_*`/`knowledge_*`（主键是 uuid，**加列即可**）。此前 v1.6 已落 M2c 两层并发闸门；**M2c 至此全部完成**）**M2c 两层并发闸门已落码（v0.2.61）**：§8.1.3.1 从"设计"变成"实现"——内层 `(baseUrl, 请求者)` 容量 2 / 外层 `baseUrl` 容量 N（`SB_UPSTREAM_SITE_MAX_CONCURRENT`，**缺省 8 为占位值，仍待老板给业务值**）+ **外层队列上限**（超出直接拒，文案「当前免费通道繁忙，请稍后再试」）；并补三条**实现期定下的口径**：① 配额里的 `ownerId` 是**请求者**而不是 provider 的 owner（写反 ⇒ 所有免费用户挤一个桶）；② **外层只约束平台通道**——原文「BYOK 不同 baseUrl ⇒ 天然另一个桶」只在两家服务商不同时成立；③ **内层先拿外层后拿**，且外层失败必须归还内层槽。★ 配额经 `bindQuota()` 绑在 `routeRole` 返回的 `adapter` 上（**15 个调用点零改动、结构上不可能漏传**）。此前 v1.5 已落 M2c 归属改造：§8.1.2 三张表（迁移 v29）+ 平台行部分唯一索引（复合 PK 在 SQLite 下**不拦 NULL**）。**M2c 至此全部完成**）
+> 版本：v1.8 | 状态：[活跃] | 更新：2026-09-18（**M2d-2 已落码（v0.2.63）**：§8.2 里 `term_library`（`UNIQUE(term,domain)` → `UNIQUE(owner_id,term,domain)`，**`id` 仍是全局唯一 PK**——`knowledge_node.ref_id` / `term_review_log.term_id` 都指向它）、`term_domain`（`name` 单列 PK → `PK(owner_id,name)`）、`term_mention_log`（口径 `NULL` → 空串）**三张随迁移 v31 重建**（新分片 `storage/migrations-list-v31.ts`），老行一律回填空串（无主）。★★ **本批最关键的一处开工实测**：`term_review.ts` 的 `SCOPE_JOIN` 原先**只按 `name` 连领域**，`term_domain` 归主后 A 的词条会读到 **B 的同名领域开关**（跨用户串台）⇒ 连接条件补 `owner_id`。★ **`general` 改每用户懒建 + 读路径补建**（老板拍板）：写入侧已有 `INSERT OR IGNORE` 自动登记，领域接口首次访问再补建一份自己的 `general` ⇒ 领域 Tab 恒有一格 `general`（观感不变），孤儿行的 `general` 留给本地单人模式。★ **拆文件（被 server ≤400 红线逼出，照仓规不压注释）**：`terms.ts` → `term-usage.ts`（`countUsage`）；`tidy.ts` → `tidy-plan.ts`（`parseTidyBlock`/`normalizeTidyPlan`/`renameDomainTx`）；`term-review.ts` → `term-review-scope.ts`（范围开关/清零/打卡）；`study-flow-run.ts` → `emitTermNodes` 移入 `knowledge-graph.ts`。★ 连带必改：`terms.ts` 两处 `ON CONFLICT(term,domain)` 的冲突目标同步改复合；`ToolCtx.ownerId` 由可选改**必填**（逼出 `chat/flow.ts` 一处漏传——此前工具里的词条增删改查全落无主行）。**M2d-2 至此全部完成**；此前 v1.7 已落 M2d-1（迁移 v30）与 M2c 全部（§8.1，迁移 v29）。**剩 M2d-3**（`quiz_*`/`flow_*`/`knowledge_*` 加列）→ M2 收口 → M3 部署）
 > 前任 v1.5 | 更新：2026-09-18（**M2c 归属改造已落码过测（v0.2.60）**：§8.1.2 三张表随**迁移 v29** 落地 + `routeRole` 第三参 + 14 个消费点全量穿透；★ 同批**开工实测**逮到复合主键 `(owner_id, role)` 在 SQLite 下**不拦 `NULL`** ⇒ 平台行改由**部分唯一索引**去重（两个约束分工不同、都要有）。当时 §8.1.3.1 两层闸门仍未开工，**现已完成**，见上行）
 > 上游契约：`docs/AUTH-SPEC.md`（账号与会话）。本契约只解决「**登录之后，数据归谁**」。
 
@@ -363,9 +363,9 @@ routeRole(role: ModelRole, fallbackModel?: string, ownerId?: string | null)
 | **M2d-1** | `daily_activity` | `PK(day, type)` | ★ **重建** → `PK(owner_id, day, type)` | ✅ **已交付**（v0.2.62，迁移 v30） |
 | **M2d-1** | `daily_summaries` | `day` 单列 PK | ★ **重建** → `PK(owner_id, day)` | ✅ **已交付**（v0.2.62，迁移 v30） |
 | **M2d-1** | `user_stats` | `key` 单列 PK（存 `xp`） | ★ **重建** → `PK(owner_id, key)` | ✅ **已交付**（v0.2.62，迁移 v30） |
-| **M2d-2** | `term_library` | `UNIQUE(term, domain)` | ★ **重建** → `UNIQUE(owner_id, term, domain)` | ⬜ 未开工 |
-| **M2d-2** | `term_domain` | `name` 单列 PK | ★ **重建** → `PK(owner_id, name)` | ⬜ 未开工 |
-| **M2d-2** | `term_mention_log` | `owner_id` **已存在**（v26） | ⚠️ **口径要对齐**：现在是 `NULL`=无主，且 `mentionTrend` 的聚合在未登录时会**跨用户求和** | ⬜ 未开工 |
+| **M2d-2** | `term_library` | `UNIQUE(term, domain)` | ★ **重建** → `UNIQUE(owner_id, term, domain)` | ✅ **已交付**（v0.2.63，迁移 v31） |
+| **M2d-2** | `term_domain` | `name` 单列 PK | ★ **重建** → `PK(owner_id, name)` | ✅ **已交付**（v0.2.63，迁移 v31） |
+| **M2d-2** | `term_mention_log` | `owner_id` **已存在**（v26） | ⚠️ **口径已对齐**：v31 把 `owner_id` 由可空改 `NOT NULL DEFAULT ''`；`mentionTrend` 的聚合改 `ownerForWrite`（原先未登录会**跨用户求和**） | ✅ **已交付**（v0.2.63，迁移 v31） |
 | **M2d-3** | `quiz_bank` / `quiz_stats` / `quiz_notes` | 均以全局唯一 uuid 为主键 | **加列即可** | ⬜ 未开工 |
 | **M2d-3** | `flow_def` / `flow_run`(+step) | id PK / 随会话 | **加列即可** | ⬜ 未开工 |
 | **M2d-3** | `knowledge_node` / `knowledge_edge` | id PK | **加列即可** | ⬜ 未开工 |
@@ -380,12 +380,12 @@ routeRole(role: ModelRole, fallbackModel?: string, ownerId?: string | null)
 2. **单值/聚合读用 `ownerForWrite`，成批行读用 `ownerFilter`**——M2d 这组表的读形状是
    `SELECT value … .get()` 与 `SUM(count)`：若按 `ownerFilter` 的「`null` 就不加条件」处理，
    库里多行时 `.get()` 会返回**任意一行** ⇒ 未登录请求读到**某个用户**的设置/总结/XP（**静默串台**）。
-   ★ 同型推演：`term_library` 也有 `countTerms` / `domainStats` 这类聚合读 ⇒ **M2d-2 同一个坑**。
+   ★ **同型推演已在 M2d-2 兑现**：`term_library` 的 `countTerms` / `domainStats` 也是聚合读，v0.2.63 一律按 `ownerForWrite` 处理（不是重新发明——照抄本判据）。
 
 ★ **为什么 M2d-1 与 M2d-2 要分开交付**（不是"表数量少"）：v30 这四张表只有 **6 个源文件**，
 而 `term_*` 是 **12 个源文件 + ~80 个 SQL 点**——**同类风险、不同爆炸半径**。分开才能让
 「**没有漏掉某个查询点**」这个结论**真的能被验证**（本批要防的正是跨用户泄露，验证质量比批次整齐更重要）。
-★ 中间态是安全的：`term_*` 的代码与表结构**一个字都没动**，登录用户仍能看见别人的词条
+★ 该中间态**已于 v0.2.63 结束**：`term_*` 的代码与表结构一并归主（迁移 v31），登录用户不再能看见别人的词条。★ 当时判定「中间态安全」的理由是：`term_*` 一个字都没动，登录用户仍能看见别人的词条
 ——那是**改动前就有的状态**，不是 M2d-1 新造的洞（`SB_REQUIRE_AUTH` 未开）。
 
 ★ **`app_settings` 已落地（每用户一份）**（2026-09-18 老板原话「**变成每用户**」；v0.2.62 实现）。改前是 `key TEXT PRIMARY KEY, value TEXT` ——**全局一份**（出题配比 / 配图 / 回答方式偏好 / 搜索 key），而设置页那几个 PUT 是**全局写口** ⇒ **用户 A 改出题配比会改掉所有人的**（同 `role_bindings` 的隐患）。已改：主键 **`(owner_id, key)`**（`ALTER TABLE` 改不了主键 ⇒ 照 §7.1 的 `user_memory` 先例**重建表**）。★ 连带必改（**只改迁移不改这些 = 运行时 500**）：4 处 `ON CONFLICT(key)` 的冲突目标必须同步改成 `(owner_id, key)`，落点 `learning/quiz.ts` / `learning/quiz-image.ts` / `search/index.ts` / `storage/answer-style.ts`。★ 归属语义：`owner_id = ''` 为**无主**（本地单人模式的既有行），登录用户查不到。

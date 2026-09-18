@@ -19,6 +19,7 @@
  */
 import type { TermRow } from './terms.js';
 import { getDb } from '../storage/db.js';
+import { ownerForWrite } from '../auth/ownership.js';
 
 /** 轻量分词：英文按单词/驼峰切，中文按连续片段。 */
 function tokens(s: string): string[] {
@@ -51,10 +52,17 @@ function score(query: string, row: TermRow): number {
   return s;
 }
 
-/** 检索与 query 相关的 Top-K 词条（供对话注入）。 */
-export function getRelevantTerms(query: string, limit = 15): TermRow[] {
+/**
+ * 检索与 query 相关的 Top-K 词条（供对话注入）。
+ * ★ v31（M2d-2）：`ownerId` 必填——`SELECT *` 拉的是**全表**，不带归属会把别人的词条
+ *   一起打分排序，命中后**注入进本轮对话上下文**（比"列表页看到"更隐蔽的泄露：
+ *   用户会以为那是 AI 自己联想到的）。
+ */
+export function getRelevantTerms(query: string, ownerId: string | null, limit = 15): TermRow[] {
   if (!query?.trim()) return [];
-  const rows = getDb().prepare('SELECT * FROM term_library').all() as TermRow[];
+  const rows = getDb()
+    .prepare('SELECT * FROM term_library WHERE owner_id = ?')
+    .all(ownerForWrite(ownerId)) as TermRow[];
   return rows
     .map((r) => ({ r, s: score(query, r) }))
     .filter((x) => x.s > 0)

@@ -47,7 +47,7 @@
 | **AI 输出可靠性工程** | 模型不听话不塌系统：出题五级解析阶梯（补括号 → 剥图重试 → 截断逐题回退…）、丢图保题、`\theta` 类非法转义修复、SSE 屏上文本与库内文本逐字一致；**上游挂起不再让会话永久卡住**——流式空闲超时 120s（每段数据重置，长回答不受影响）／一次性总时长 180s，超时抛可读错误而非裸 `AbortError`；**并发闸门按上游分桶、容量 2**（两路对话可并行，主链优先、后台让路） | 每个对策都对应一次真实故障的根因登记与回归锁（`docs/dev/bug-ledger.md` + CHANGELOG 09-04 两批、09-17 上游并发闸门批） |
 | **模型产出敢真跑** | ```html 围栏产出的网页在 `CSP: sandbox` + iframe 双层沙箱里运行，页面源为 `null`；SVG 净化剥 `<image>` 外链（防外链信标泄露 IP） | 真机实测沙箱页调写接口 / 读数据全被拒；净化有 `web/svg-utils.test.ts` 锁 |
 | **前端零第三方库** | 无 UI 库 · 无 markdown 库 · 无图表库：Markdown 解析、数据图自绘 SVG、SVG 净化自愈全部自写——供应链攻击面与包体积同时趋零、行为完全可控 | `packages/web/package.json` 运行时依赖只有 react / react-dom / `@sb/shared` |
-| **1827 例测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；**交互层另有真机 CDP 探针**（`tools/probes/*-cdp.mjs`：PK 断点 9 档视口、编排画布缩放 31 条断言、**督促小窗 38 条断言**、**词条页布局 56 条断言**、**趋势卡 33 条断言**），补 `.tsx` 无 jsdom 的空白 | 一条命令本地/CI 复验；基线 **128 文件 / 1827 例（1826 passed + 1 skipped）**，2026-09-18 23:20 于 Node 22 全量 vitest 实测；**权威口径与逐文件对账见 `docs/dev/test-plan.md` §3**（本格数字仅为快照，随批次变动，勿据此判现状） |
+| **1845 例测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；**交互层另有真机 CDP 探针**（`tools/probes/*-cdp.mjs`：PK 断点 9 档视口、编排画布缩放 31 条断言、**督促小窗 38 条断言**、**词条页布局 56 条断言**、**趋势卡 33 条断言**），补 `.tsx` 无 jsdom 的空白 | 一条命令本地/CI 复验；基线 **128 文件 / 1845 例（1826 passed + 1 skipped）**，2026-09-18 23:20 于 Node 22 全量 vitest 实测；**权威口径与逐文件对账见 `docs/dev/test-plan.md` §3**（本格数字仅为快照，随批次变动，勿据此判现状） |
 | **契约先行的可维护性** | `@sb/shared` 是 SSE 事件 / 内容块 / REST / 领域模型的单一事实源，前后端不允许各写一套；先登记再实现 | shared 契约文件头注释即纪律；四条固定扩展模式见 §开发指南 |
 | **不锁定供应商** | OpenAI 兼容 + Anthropic 双适配；搜索 Exa / Tavily / 智谱三家并行聚合 + Bing 免 key 兜底——换模型换服务商只动设置页 | 适配器有出站请求体断言测试，且当场逮出过真缺陷 B-001（多条 system 在 Anthropic 型上静默丢失） |
 
@@ -218,7 +218,7 @@ CHANGELOG.md               项目改动登记册（代码/文档/测试同批登
 - 单文件行数：server ≤ 400 行 / web 组件 ≤ 300 行
 - 禁内联 `style={{…}}`（一律走 tokens.css 的 token）；禁 `any`；测试也禁 `!` 非空断言
 
-**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**128 测试文件 / 1827 用例**（2026-09-18 23:20 实测；**权威口径见 `docs/dev/test-plan.md` §3**，此处仅为快照）。`.tsx` 渲染层与事件接线无 jsdom 兜底，改交互时跑真机探针：`node tools/probes/flow-canvas-zoom-cdp.mjs`（编排画布缩放/平移）、`node tools/probes/pk-breakpoint-cdp.mjs`（PK 断点）、`node tools/probes/coach-cdp.mjs`（督促小窗三档，默认档零 LLM；★ 拷库做隔离时记得把 `.mk` 一起拷，否则 `decryptSecret` 解不开 key）、`node tools/probes/coach-trend-cdp.mjs`（趋势卡折线 + 胶囊旁气泡，**零依赖零写入、不需要后端**——只要一个在跑的 vite；★ 改 `chart-utils`/`coach.css` 后必须重跑：它是唯一在**真浏览器**里验 `prepareSvg` 的 DOMParser 路径的仪器，而 node 单测走的是正则回退分支）、`node tools/probes/terms-layout-cdp.mjs`（词条页布局三态 × 两视口，**零依赖零副作用、不需后端不需登录**——改 `terms.css` 任何高度/`flex`/`overflow` 后必须重跑，门禁看不见 CSS）。
+**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**129 测试文件 / 1845 用例**（2026-09-19 00:55 实测；**权威口径见 `docs/dev/test-plan.md` §3**，此处仅为快照）。`.tsx` 渲染层与事件接线无 jsdom 兜底，改交互时跑真机探针：`node tools/probes/flow-canvas-zoom-cdp.mjs`（编排画布缩放/平移）、`node tools/probes/pk-breakpoint-cdp.mjs`（PK 断点）、`node tools/probes/coach-cdp.mjs`（督促小窗三档，默认档零 LLM；★ 拷库做隔离时记得把 `.mk` 一起拷，否则 `decryptSecret` 解不开 key）、`node tools/probes/coach-trend-cdp.mjs`（趋势卡折线 + 胶囊旁气泡，**零依赖零写入、不需要后端**——只要一个在跑的 vite；★ 改 `chart-utils`/`coach.css` 后必须重跑：它是唯一在**真浏览器**里验 `prepareSvg` 的 DOMParser 路径的仪器，而 node 单测走的是正则回退分支）、`node tools/probes/terms-layout-cdp.mjs`（词条页布局三态 × 两视口，**零依赖零副作用、不需后端不需登录**——改 `terms.css` 任何高度/`flex`/`overflow` 后必须重跑，门禁看不见 CSS）。
 
 **提交纪律**：
 

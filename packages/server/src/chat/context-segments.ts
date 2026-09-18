@@ -96,7 +96,8 @@ export function collectContextSegments(inputs: ContextInputs): CollectedContext 
 
   // 忆域 v2（词条库注入）：检索与本次提问相关的已入库词条，软性提示 AI 优先使用；
   // 命中失败/为空不影响对话（ADR-4），词条段短（约 ≤1k tokens）。
-  const relevantTerms = getRelevantTerms(text, 15);
+  // ★ v31（M2d-2）：词条库已归主 ⇒ 检索必须按人（否则会把别人的词条注进本轮上下文）
+  const relevantTerms = getRelevantTerms(text, ownerId ?? null, 15);
   const termLines = relevantTerms.map((t) => `- ${t.term}（${t.domain}）：${t.definition}`).join('\n');
   const termBlock =
     relevantTerms.length > 0

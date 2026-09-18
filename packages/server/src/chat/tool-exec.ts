@@ -44,8 +44,13 @@ export interface ToolExecOptions {
   signal?: AbortSignal;
   /** 透传进 ToolContext 的会话 id（需要绑会话的工具用，如 ask_choice） */
   sessionId?: string;
-  /** 透传进 ToolContext 的归属用户 id（M2c：工具里发起的 LLM 调用记在谁头上） */
-  ownerId?: string | null;
+  /**
+   * 透传进 ToolContext 的归属用户 id（M2c 起；**v31 起必填**）。
+   * ★ 必填的理由：`manage_terms`（词条增删改查）与 `tidy_terms` 都要按人读写；
+   *   漏传的表现是"写进无主行 / 读到别人的词条"，**全程不报错**。
+   * ★ 改必填时实测逮到 `chat/flow.ts` 主对话路径根本没传（同 `tools.ts` 那处注释）。
+   */
+  ownerId: string | null;
 }
 
 /** 过程卡片可展开的载荷（SSE 契约 2026-09-09）：入参原文 + 结果摘要 */
@@ -114,11 +119,16 @@ export interface StepEmitterCtx {
  * 并行执行一轮内的全部工具调用，返回与入参同序的结果。
  * 单个工具失败/超时/被取消都**不抛**——各自的失败以 `content` 回灌模型自纠（契约 §4.2），
  * 只有调度器本身炸了才进 allSettled 的兜底分支（那属于 bug，不静默吞）。
+ *
+ * ★ `opts` **没有默认值**（M2d-2 起）：原写法 `opts: ToolExecOptions = {}` 会让
+ *   「漏传 ownerId」在编译期看不出来，而 `ToolExecOptions.ownerId` 已改必填
+ *   （词条增删改查自 v31 起就是归属操作）。去掉默认值后，**每个调用点都被 `tsc` 点名**
+ *   ——`chat/flow.ts` 那处漏点就是这么被逮到的。
  */
 export async function runToolCalls(
   calls: ToolCall[],
   ctx: StepEmitterCtx,
-  opts: ToolExecOptions = {},
+  opts: ToolExecOptions,
 ): Promise<ToolOutcome[]> {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS;
   const exec = opts.exec ?? runTool;

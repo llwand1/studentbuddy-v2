@@ -12,7 +12,7 @@ const call = (id: string, name: string, args = '{}'): ToolCall => ({ id, name, a
 function makeCtx(): { ctx: ToolContext; steps: Array<{ tool: string; status: string; detail?: string }> } {
   const steps: Array<{ tool: string; status: string; detail?: string }> = [];
   return {
-    ctx: { onStep: (tool, status, detail) => steps.push({ tool, status, detail }) },
+    ctx: { onStep: (tool, status, detail) => steps.push({ tool, status, detail }), ownerId: null },
     steps,
   };
 }
@@ -27,7 +27,7 @@ describe('runToolCalls — 并行与顺序', () => {
       return { content: `ok:${name}` };
     };
     const t0 = Date.now();
-    const out = await runToolCalls([call('1', 'a'), call('2', 'b')], ctx, { exec });
+    const out = await runToolCalls([call('1', 'a'), call('2', 'b')], ctx, { ownerId: null, exec });
     const cost = Date.now() - t0;
     expect(cost).toBeLessThan(200); // 串行会到 240ms 以上
     expect(out.map((o) => o.name)).toEqual(['a', 'b']);
@@ -39,14 +39,14 @@ describe('runToolCalls — 并行与顺序', () => {
       await delay(name === 'slow' ? 60 : 5); // 后调用的先完成
       return { content: `ok:${name}` };
     };
-    const out = await runToolCalls([call('1', 'slow'), call('2', 'fast')], ctx, { exec });
+    const out = await runToolCalls([call('1', 'slow'), call('2', 'fast')], ctx, { ownerId: null, exec });
     expect(out.map((o) => o.content)).toEqual(['ok:slow', 'ok:fast']);
     expect(out[0]?.id).toBe('1');
   });
 
   it('空调用列表返回空数组（不进循环、不报错）', async () => {
     const { ctx } = makeCtx();
-    await expect(runToolCalls([], ctx)).resolves.toEqual([]);
+    await expect(runToolCalls([], ctx, { ownerId: null })).resolves.toEqual([]);
   });
 });
 
@@ -62,7 +62,7 @@ describe('runToolCalls — 超时', () => {
       });
     const t0 = Date.now();
     try {
-      const out = await runToolCalls([call('1', 'hang')], ctx, { exec, timeoutMs: 80 });
+      const out = await runToolCalls([call('1', 'hang')], ctx, { ownerId: null, exec, timeoutMs: 80 });
       expect(Date.now() - t0).toBeLessThan(500);
       expect(out[0]?.ok).toBe(false);
       expect(out[0]?.content).toBe(TIMEOUT_HINT);
@@ -76,7 +76,7 @@ describe('runToolCalls — 超时', () => {
   it('默认超时是契约里的 30s（未显式传时生效）', async () => {
     const { ctx } = makeCtx();
     const spy = vi.fn(async (): Promise<ToolResult> => ({ content: 'ok' }));
-    await runToolCalls([call('1', 'a')], ctx, { exec: spy });
+    await runToolCalls([call('1', 'a')], ctx, { ownerId: null, exec: spy });
     // 直接断言常量暴露正确，避免真等 30s
     expect(DEFAULT_TOOL_TIMEOUT_MS).toBe(30_000);
     expect(spy).toHaveBeenCalledTimes(1);
@@ -86,7 +86,7 @@ describe('runToolCalls — 超时', () => {
     // 若 finally 里没清 timer，本进程会被 30s 的 timer 挂住、用例超时失败
     const { ctx } = makeCtx();
     const exec = async (): Promise<ToolResult> => ({ content: 'ok' });
-    const out = await runToolCalls([call('1', 'a')], ctx, { exec });
+    const out = await runToolCalls([call('1', 'a')], ctx, { ownerId: null, exec });
     expect(out[0]?.ok).toBe(true);
   });
 });
@@ -97,7 +97,7 @@ describe('runToolCalls — 取消与失败', () => {
     const spy = vi.fn(async (): Promise<ToolResult> => ({ content: 'ok' }));
     const ac = new AbortController();
     ac.abort();
-    const out = await runToolCalls([call('1', 'a')], ctx, { exec: spy, signal: ac.signal });
+    const out = await runToolCalls([call('1', 'a')], ctx, { ownerId: null, exec: spy, signal: ac.signal });
     expect(spy).not.toHaveBeenCalled();
     expect(out[0]?.content).toBe(ABORT_HINT);
     expect(steps[0]).toMatchObject({ status: 'error', detail: '已停止' });
@@ -114,7 +114,7 @@ describe('runToolCalls — 取消与失败', () => {
     const t0 = Date.now();
     setTimeout(() => ac.abort(), 40);
     try {
-      const out = await runToolCalls([call('1', 'hang')], ctx, { exec, signal: ac.signal, timeoutMs: 5000 });
+      const out = await runToolCalls([call('1', 'hang')], ctx, { ownerId: null, exec, signal: ac.signal, timeoutMs: 5000 });
       expect(Date.now() - t0).toBeLessThan(1000); // 远小于 5s 超时 ⇒ 确实没在干等
       expect(out[0]?.content).toBe(ABORT_HINT);
       expect(steps[0]).toMatchObject({ status: 'error', detail: '已停止' });
@@ -128,7 +128,7 @@ describe('runToolCalls — 取消与失败', () => {
     const exec = async (): Promise<ToolResult> => {
       throw new Error('boom');
     };
-    const out = await runToolCalls([call('1', 'a')], ctx, { exec });
+    const out = await runToolCalls([call('1', 'a')], ctx, { ownerId: null, exec });
     expect(out[0]?.ok).toBe(false);
     expect(out[0]?.content).toContain('boom');
     expect(steps[0]).toMatchObject({ status: 'error', detail: 'boom' });
@@ -140,7 +140,7 @@ describe('runToolCalls — 取消与失败', () => {
       if (name === 'bad') throw new Error('坏工具');
       return { content: `ok:${name}` };
     };
-    const out = await runToolCalls([call('1', 'good'), call('2', 'bad')], ctx, { exec });
+    const out = await runToolCalls([call('1', 'good'), call('2', 'bad')], ctx, { ownerId: null, exec });
     expect(out[0]).toMatchObject({ name: 'good', ok: true });
     expect(out[1]).toMatchObject({ name: 'bad', ok: false });
   });
@@ -151,6 +151,7 @@ describe('runToolCalls — signal 透传（v13 体验升级）', () => {
     const controller = new AbortController();
     let seen: AbortSignal | undefined;
     await runToolCalls([call('1', 'search_web')], { onStep: () => undefined }, {
+      ownerId: null,
       exec: async (_n, _a, ctx) => {
         seen = ctx.signal;
         return { content: 'ok' };
@@ -163,6 +164,7 @@ describe('runToolCalls — signal 透传（v13 体验升级）', () => {
   it('不给 signal 时 ctx.signal 为 undefined（老调用方零改动）', async () => {
     let seen: AbortSignal | undefined | null = null;
     await runToolCalls([call('1', 't')], { onStep: () => undefined }, {
+      ownerId: null,
       exec: async (_n, _a, ctx) => {
         seen = ctx.signal;
         return { content: 'ok' };

@@ -144,7 +144,7 @@ describe('knowledge-graph — 结构推导（origin=derived 的唯一产地）',
     const a = term('a', 'closure', 'cs');
     const b = term('b', 'scope', 'cs');
     const c = term('c', 'hoisting', 'cs');
-    expect(deriveDomainEdges([a.id, b.id, c.id])).toBe(3); // C(3,2)
+    expect(deriveDomainEdges([a.id, b.id, c.id], null)).toBe(3); // C(3,2)
 
     const stats = graphStats();
     expect(stats.edges).toBe(3);
@@ -156,7 +156,7 @@ describe('knowledge-graph — 结构推导（origin=derived 的唯一产地）',
   it('不同域不建边；单节点不建边', () => {
     const a = term('a', 'closure', 'cs');
     const b = term('b', 'subjunctive', 'english');
-    expect(deriveDomainEdges([a.id, b.id])).toBe(0);
-    expect(deriveDomainEdges([a.id])).toBe(0);
+    expect(deriveDomainEdges([a.id, b.id], null)).toBe(0);
+    expect(deriveDomainEdges([a.id], null)).toBe(0);
   });
 });

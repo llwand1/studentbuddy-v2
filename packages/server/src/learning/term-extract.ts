@@ -17,6 +17,7 @@
  *   并把四个公开名 re-export 出去 ⇒ **调用方 import 路径零改动**（同 `term-recall.ts` 手法）。
  */
 import { getDb } from '../storage/db.js';
+import { ownerForWrite } from '../auth/ownership.js';
 import { routeRole } from '../llm/router.js';
 
 /** 待入库的一条词条（抽取产物 / 手动添加的入参，两条路共用同一形状） */
@@ -76,9 +77,11 @@ export function normalizeTerms(items: TermItem[]): TermItem[] {
  *   本函数有**两个**入口：HTTP（`routes/terms.ts` 的「存入记忆」/文档模式）与
  *   **响应后 fire-and-forget**（`chat/flow.ts` 的 `void extractTerms(...)`）——
  *   后者的 ownerId 只能靠显式下传，正是 §8.1.4 选"显式穿透而非 ALS"的直接理由之一。
- *   ⚠️ 词条**落库**的归属（`term_library`）是 M2d（§8.2），本批只管"模型记在谁头上"。
+ *   ★ v31（M2d-2）起词条库已归主：本函数**两处**都按 `ownerId` 取——① 模型调用记在谁头上
+ *   （M2c）；② 领域引导清单只列**该用户自己的**领域（否则把别人的领域名当"已有领域"
+ *   发给模型，既泄露又误导分类）。
  */
-export async function extractTerms(material: string, ownerId?: string | null): Promise<TermItem[]> {
+export async function extractTerms(material: string, ownerId: string | null): Promise<TermItem[]> {
   if (!material?.trim()) return [];
   const target = routeRole('explain', undefined, ownerId); // 抽取复用讲解角色模型；契约留扩展点：可拆独立 extractor 角色
   if (!target || !target.model) return [];
@@ -92,10 +95,11 @@ export async function extractTerms(material: string, ownerId?: string | null): P
     getDb()
       .prepare(
         `SELECT d.name AS name FROM term_domain d
-           LEFT JOIN term_library t ON t.domain = d.name
+           LEFT JOIN term_library t ON t.domain = d.name AND t.owner_id = d.owner_id
+          WHERE d.owner_id = ?
           GROUP BY d.name ORDER BY COUNT(t.id) DESC, d.name ASC LIMIT 12`,
       )
-      .all() as Array<{ name: string }>
+      .all(ownerForWrite(ownerId)) as Array<{ name: string }>
   ).map((r) => r.name);
   const guide = known.length > 0 ? `\n已有领域（优先复用，确实不属于再新建）：${known.join('、')}` : '';
   const prompt = `${TERMS_PROTOCOL}${guide}\n\n材料：\n${material.slice(0, 30000)}`;

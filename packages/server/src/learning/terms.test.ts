@@ -69,12 +69,12 @@ describe('learning/terms — [TERMS] 协议解析（AI 输出容错）', () => {
 
 describe('learning/terms — 入库与合并', () => {
   it('saveTerms 入库并可 list；重复 term+domain 合并取更高 importance', () => {
-    const n1 = saveTerms([{ term: 'closure', definition: '闭包', domain: 'cs', importance: 0.5 }]);
+    const n1 = saveTerms([{ term: 'closure', definition: '闭包', domain: 'cs', importance: 0.5 }], null, null);
     expect(n1).toBe(1);
     // 同词条同领域：importance 更高 → 更新释义并保留高重要度
-    const n2 = saveTerms([{ term: 'closure', definition: '闭包（更完整定义）', domain: 'cs', importance: 0.9 }]);
+    const n2 = saveTerms([{ term: 'closure', definition: '闭包（更完整定义）', domain: 'cs', importance: 0.9 }], null, null);
     expect(n2).toBe(1);
-    const rows = listTerms();
+    const rows = listTerms(undefined, undefined, null);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.definition).toBe('闭包（更完整定义）');
     expect(rows[0]?.importance).toBe(0.9);
@@ -84,26 +84,26 @@ describe('learning/terms — 入库与合并', () => {
     saveTerms([
       { term: 'matrix', definition: '矩阵', domain: 'math' },
       { term: 'matrix', definition: '母体', domain: 'general' },
-    ]);
-    expect(listTerms()).toHaveLength(2);
+    ], null, null);
+    expect(listTerms(undefined, undefined, null)).toHaveLength(2);
   });
 
   it('saveOneTerm 手动存 + 重复更新释义', () => {
-    const r1 = saveOneTerm('vector', '向量', 'math');
-    const r2 = saveOneTerm('vector', '矢量（更新）', 'math');
+    const r1 = saveOneTerm('vector', '向量', 'math', null);
+    const r2 = saveOneTerm('vector', '矢量（更新）', 'math', null);
     expect(r1.id).toBe(r2.id);
-    expect(listTerms()).toHaveLength(1);
-    expect(listTerms()[0]?.definition).toBe('矢量（更新）');
+    expect(listTerms(undefined, undefined, null)).toHaveLength(1);
+    expect(listTerms(undefined, undefined, null)[0]?.definition).toBe('矢量（更新）');
   });
 
   it('updateTerm 编辑释义/领域/重要度，removeTerm 删除', () => {
-    const r = saveOneTerm('foo', '定义', 'general');
-    const u = updateTerm(r.id, { definition: '新定义', domain: 'cs', importance: 0.8 });
+    const r = saveOneTerm('foo', '定义', 'general', null);
+    const u = updateTerm(r.id, { definition: '新定义', domain: 'cs', importance: 0.8 }, null);
     expect(u?.definition).toBe('新定义');
     expect(u?.domain).toBe('cs');
     expect(u?.importance).toBe(0.8);
-    removeTerm(r.id);
-    expect(listTerms()).toHaveLength(0);
+    removeTerm(r.id, null);
+    expect(listTerms(undefined, undefined, null)).toHaveLength(0);
   });
 
 });
@@ -111,52 +111,54 @@ describe('learning/terms — 入库与合并', () => {
 describe('learning/terms — 防再分裂（TERM-TIDY-SPEC §7）', () => {
   /** 给指定词条挂别名（模拟整理后的状态） */
   const setAliases = (term: string, aliases: string[]) => {
-    getDb().prepare('UPDATE term_library SET aliases = ? WHERE term = ?').run(JSON.stringify(aliases), term);
+    getDb()
+      .prepare("UPDATE term_library SET aliases = ? WHERE term = ? AND owner_id = ''")
+      .run(JSON.stringify(aliases), term);
   };
 
   it('saveTerms 命中已有词条的别名 → 并入不新建（跨域也并入）', () => {
-    saveTerms([{ term: '机器学习', definition: '定义', domain: 'cs', importance: 0.8 }]);
+    saveTerms([{ term: '机器学习', definition: '定义', domain: 'cs', importance: 0.8 }], null, null);
     setAliases('机器学习', ['machine learning', 'ML']);
     // 再抽到 machine learning（哪怕 LLM 给了别的领域）→ 并入已有行
-    const n = saveTerms([{ term: 'machine learning', definition: '新释义', domain: 'english', importance: 0.6 }]);
+    const n = saveTerms([{ term: 'machine learning', definition: '新释义', domain: 'english', importance: 0.6 }], null, null);
     expect(n).toBe(1);
-    expect(listTerms()).toHaveLength(1);
-    expect(listTerms()[0]?.term).toBe('机器学习');
-    expect(listTerms()[0]?.definition).toBe('定义'); // 0.6 < 0.8，不覆盖释义
-    expect(listTerms()[0]?.importance).toBe(0.8);
+    expect(listTerms(undefined, undefined, null)).toHaveLength(1);
+    expect(listTerms(undefined, undefined, null)[0]?.term).toBe('机器学习');
+    expect(listTerms(undefined, undefined, null)[0]?.definition).toBe('定义'); // 0.6 < 0.8，不覆盖释义
+    expect(listTerms(undefined, undefined, null)[0]?.importance).toBe(0.8);
   });
 
   it('saveTerms 同词同域大小写不敏感 → 并入（Closure/closure 不再各成一条）', () => {
-    saveTerms([{ term: 'closure', definition: '闭包', domain: 'cs', importance: 0.5 }]);
-    saveTerms([{ term: 'Closure', definition: '闭包（大写变体）', domain: 'cs', importance: 0.9 }]);
-    expect(listTerms()).toHaveLength(1);
-    expect(listTerms()[0]?.definition).toBe('闭包（大写变体）');
+    saveTerms([{ term: 'closure', definition: '闭包', domain: 'cs', importance: 0.5 }], null, null);
+    saveTerms([{ term: 'Closure', definition: '闭包（大写变体）', domain: 'cs', importance: 0.9 }], null, null);
+    expect(listTerms(undefined, undefined, null)).toHaveLength(1);
+    expect(listTerms(undefined, undefined, null)[0]?.definition).toBe('闭包（大写变体）');
   });
 
   it('saveTerms 同词不同域不并入（closure 的 math 与 english 是两个概念）', () => {
     saveTerms([
       { term: 'matrix', definition: '矩阵', domain: 'math', importance: 0.5 },
       { term: 'matrix', definition: '母体', domain: 'general', importance: 0.5 },
-    ]);
-    expect(listTerms()).toHaveLength(2);
+    ], null, null);
+    expect(listTerms(undefined, undefined, null)).toHaveLength(2);
   });
 
   it('countUsage 命中别名与大小写变体；英文按词边界不误报', () => {
-    saveTerms([{ term: '机器学习', definition: 'x', domain: 'cs', importance: 0.5 }]);
+    saveTerms([{ term: '机器学习', definition: 'x', domain: 'cs', importance: 0.5 }], null, null);
     setAliases('机器学习', ['machine learning', 'ML']);
-    const n = countUsage('Machine Learning 与 ML 都是机器学习的说法');
+    const n = countUsage('Machine Learning 与 ML 都是机器学习的说法', null);
     expect(n).toBe(1);
-    expect(listTerms()[0]?.usage_count).toBe(1);
+    expect(listTerms(undefined, undefined, null)[0]?.usage_count).toBe(1);
     // html 内含 "ml" 子串，但不是独立词 → 不计数
-    expect(countUsage('html 是超文本标记语言')).toBe(0);
+    expect(countUsage('html 是超文本标记语言', null)).toBe(0);
   });
 
   it('extractTerms 提示词注入已有领域（防领域碎裂）', async () => {
     saveTerms([
       { term: 'a', definition: 'a', domain: 'english', importance: 0.5 },
       { term: 'b', definition: 'b', domain: 'cs', importance: 0.5 },
-    ]);
-    await extractTerms('一段学习材料');
+    ], null, null);
+    await extractTerms('一段学习材料', null);
     expect(lastPrompt).toContain('已有领域（优先复用');
     expect(lastPrompt).toContain('english');
     expect(lastPrompt).toContain('cs');
@@ -170,27 +172,27 @@ describe('learning/terms — 检索与使用计数', () => {
       { term: '二重积分', definition: '对二元函数的积分', domain: 'math', importance: 0.8 },
       { term: 'photosynthesis', definition: '光合作用', domain: 'english', importance: 0.7 },
       { term: '无关词', definition: '无关', domain: 'general', importance: 0.3 },
-    ]);
+    ], null, null);
   });
 
   it('getRelevantTerms 命中提问中的词条（子串）', () => {
-    const hit = getRelevantTerms('什么是 closure 闭包？', 10);
+    const hit = getRelevantTerms('什么是 closure 闭包？', null, 10);
     expect(hit.map((r) => r.term)).toContain('closure');
   });
 
   it('getRelevantTerms 中文词条子串命中', () => {
-    const hit = getRelevantTerms('帮我讲讲二重积分怎么算', 10);
+    const hit = getRelevantTerms('帮我讲讲二重积分怎么算', null, 10);
     expect(hit.map((r) => r.term)).toContain('二重积分');
   });
 
   it('getRelevantTerms 无关提问返回空', () => {
-    expect(getRelevantTerms('今天天气怎么样', 10)).toHaveLength(0);
+    expect(getRelevantTerms('今天天气怎么样', null, 10)).toHaveLength(0);
   });
 
   it('countUsage 统计回复命中词条并累加 usage_count', () => {
-    const n = countUsage('closure 用于保留变量，光合作用 photosynthesis 是……');
+    const n = countUsage('closure 用于保留变量，光合作用 photosynthesis 是……', null);
     expect(n).toBe(2);
-    const rows = listTerms();
+    const rows = listTerms(undefined, undefined, null);
     const closure = rows.find((r) => r.term === 'closure');
     const photo = rows.find((r) => r.term === 'photosynthesis');
     expect(closure?.usage_count).toBe(1);
@@ -199,7 +201,7 @@ describe('learning/terms — 检索与使用计数', () => {
   });
 
   it('countUsage 在**同一事务**里落提及流水（计数与流水不得分叉）', () => {
-    countUsage('closure 用于保留变量，光合作用 photosynthesis 是……');
+    countUsage('closure 用于保留变量，光合作用 photosynthesis 是……', null);
     const logs = getDb()
       .prepare('SELECT term_id, domain FROM term_mention_log')
       .all() as Array<{ term_id: string; domain: string }>;
@@ -212,25 +214,26 @@ describe('learning/terms — 检索与使用计数', () => {
   });
 
   it('未命中任何词条：既不累加计数、也不落流水（不留空行噪音）', () => {
-    expect(countUsage('今天天气怎么样')).toBe(0);
+    expect(countUsage('今天天气怎么样', null)).toBe(0);
     const c = getDb().prepare('SELECT COUNT(*) AS c FROM term_mention_log').get() as { c: number };
     expect(c.c).toBe(0);
   });
 
   it('listTerms 支持 domain 过滤与 keyword 前缀', () => {
-    expect(listTerms('english')).toHaveLength(1);
-    expect(listTerms(undefined, 'ph')).toHaveLength(1);
+    expect(listTerms('english', undefined, null)).toHaveLength(1);
+    expect(listTerms(undefined, 'ph', null)).toHaveLength(1);
   });
 });
 
 // 防回归：term_library 表已建（迁移 v5）
 describe('learning/terms — 表结构', () => {
-  it('term_library 表存在且唯一约束 (term, domain) 生效', () => {
+  it('term_library 表存在且唯一约束 (owner_id, term, domain) 生效', () => {
     const db = getDb();
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{ name: string }>;
     expect(tables.some((t) => t.name === 'term_library')).toBe(true);
-    saveTerms([{ term: 'dup', definition: '1', domain: 'x' }]);
+    saveTerms([{ term: 'dup', definition: '1', domain: 'x' }], null, null);
     // 直接 SQL 插同键应抛错（约束由 upsert 保护，这里验证唯一性存在）
+    // ★ v31 起唯一键是**三列复合**（含 owner_id）：不带归属的插入落 `''`，与上一行同桶 ⇒ 仍然撞。
     expect(() =>
       db.prepare(`INSERT INTO term_library (id, term, definition, domain) VALUES ('i2', 'dup', '2', 'x')`).run(),
     ).toThrow();

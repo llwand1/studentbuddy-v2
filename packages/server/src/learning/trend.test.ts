@@ -55,12 +55,14 @@ function at(dayOffset: number): Date {
   return new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + dayOffset, 12, 0, 0);
 }
 
-function seedLibrary(): void {
+function seedLibrary(ownerId: string | null = null): void {
+  // ★ 归属必须与**读取方**一致：v31 起 `countUsage` 按 `owner_id` 取词条，
+  //   造数落在 `''` 而读的是 `'u1'` ⇒ 命中 0 条、一道闸门都过不去。
   saveTerms([
     { term: 'alpha', definition: 'a', domain: 'math', importance: 0.5 },
     { term: 'beta', definition: 'b', domain: 'math', importance: 0.5 },
     { term: 'gamma', definition: 'g', domain: 'english', importance: 0.5 },
-  ]);
+  ], null, ownerId);
 }
 
 /** 在 `dayOffset` 那天提及 `term` `n` 次（走真实 `countUsage`，它会同时落流水） */
@@ -220,7 +222,7 @@ describe('generateTrendCard（IO：三道闸门 + 幂等 + 归属）', () => {
   });
 
   it('★ 归属隔离：别人的提及不算进我的窗口（我数据不足就不出卡，且卡不串台）', async () => {
-    seedLibrary();
+    seedLibrary('u1');
     mention('alpha', 5, 0, 'u1');
     expect((await generateTrendCard({ ownerId: 'u2', now: NOW, broadcast: false })).reason).toBe('insufficient');
     expect(trendRows('u2')).toEqual([]);
@@ -233,7 +235,7 @@ describe('generateTrendCard（IO：三道闸门 + 幂等 + 归属）', () => {
 
   it('★ 定时器不出无主卡：一旦有具名归属，`null` 那一份就不再出（避免把全体聚合算成匿名访客的趋势）', () => {
     expect(trendOwners()).toEqual([null]); // 空库：本地模式是唯一可能出图的人
-    seedLibrary();
+    seedLibrary('u1');
     mention('alpha', 3, 0, 'u1');
     expect(trendOwners()).toEqual(['u1']); // 有具名用户后，不再备 null 那一份
   });

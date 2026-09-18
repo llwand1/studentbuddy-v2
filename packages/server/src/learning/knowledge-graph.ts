@@ -20,6 +20,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
+import { ownerForWrite } from '../auth/ownership.js';
 import type {
   KnowledgeEdge,
   KnowledgeEdgeKind,
@@ -240,8 +241,11 @@ export function neighborhood(nodeId: string, depth = 2): KnowledgeNeighborhood |
  *   将来换更聪明的推导（共现 / 引用 / 前置关系）时，`purgeDerivedEdges()` 一清即可，
  *   不会伤到 AI 抽取与用户手搭的边。
  * ★ 已知边界：同域词条多时是 O(n²)，故本函数**由调用方限定同域节点数**（见 SPEC §13 未验账）。
+ * ★ v31（M2d-2）：`ownerId` 必传——`ref_id` 指向的 `term_library` 已归主。传进来的 id
+ *   本来就该是同一批，但**「同域」这个判据现在含 owner**（A、B 各有一个 `math` 域，
+ *   它们的词条不是「同域」）⇒ 不带归属会把两个用户的词条连成一条 derived 边。
  */
-export function deriveDomainEdges(termNodeIds: string[]): number {
+export function deriveDomainEdges(termNodeIds: string[], ownerId: string | null): number {
   if (termNodeIds.length < 2) return 0;
   const db = getDb();
   const placeholders = termNodeIds.map(() => '?').join(',');
@@ -252,8 +256,8 @@ export function deriveDomainEdges(termNodeIds: string[]): number {
   if (refIds.length < 2) return 0;
   const ph2 = refIds.map(() => '?').join(',');
   const terms = db
-    .prepare(`SELECT id, domain FROM term_library WHERE id IN (${ph2})`)
-    .all(...refIds) as Array<{ id: string; domain: string }>;
+    .prepare(`SELECT id, domain FROM term_library WHERE id IN (${ph2}) AND owner_id = ?`)
+    .all(...refIds, ownerForWrite(ownerId)) as Array<{ id: string; domain: string }>;
   const nodeOfTerm = new Map(rows.map((r) => [r.ref_id ?? '', r.id]));
   const byDomain = new Map<string, string[]>();
   for (const t of terms) {
@@ -274,6 +278,40 @@ export function deriveDomainEdges(termNodeIds: string[]): number {
     }
   }
   return made;
+}
+
+/**
+ * 本步跑出的词条 → 知识节点（+ 同域 derived 边）。
+ *
+ * ★ 为什么在这里（2026-09-18 v31 M2d-2 从 `study-flow-run.ts` 移入）：那个文件加归属后
+ *   涨到 405 行触 server ≤400 红线，照仓规**拆文件、不压注释**。接缝是「**走完留下了什么**」
+ *   ——正是本文件宪章（见文件头：控制流归 study-flow.ts，产物层归本文件），且本文件
+ *   已经在读 `term_library`（`deriveDomainEdges` 就是），不引入新的表依赖。
+ *   ⇒ `study-flow-run.ts` 只留「怎么走」（状态机），本文件收「留下了什么」。
+ *
+ * 定位办法：`term_library.source_session_id = 本会话` 且 `created_at >= 本步开始时刻`。
+ * ★ 时间窗用的是 SQLite 自己的 `datetime('now')`（UTC，秒级），与写入端同源，故可直接字符串比较。
+ * ★ v31 起必须带 `owner_id`：不加就会把**别人**在同时刻落的词条也认成本步产出。
+ */
+export function emitTermNodes(
+  runId: string,
+  stepId: string,
+  sessionId: string,
+  startedAt: string,
+  ownerId: string | null,
+): void {
+  const rows = getDb()
+    .prepare(
+      `SELECT id, term FROM term_library
+       WHERE source_session_id = ? AND created_at >= ? AND owner_id = ?
+       ORDER BY created_at, rowid`,
+    )
+    .all(sessionId, startedAt, ownerForWrite(ownerId)) as Array<{ id: string; term: string }>;
+  if (rows.length === 0) return;
+  const nodeIds = rows.map(
+    (t) => ensureNode({ kind: 'term', refId: t.id, refText: t.term, sourceRunId: runId, sourceStepId: stepId }).id,
+  );
+  deriveDomainEdges(nodeIds, ownerId);
 }
 
 // ── 统计 ──

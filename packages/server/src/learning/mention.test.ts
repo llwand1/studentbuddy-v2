@@ -47,7 +47,7 @@ function seedTerm(id: string, term: string, domain: string): string {
 interface MentionRow {
   term_id: string;
   domain: string;
-  owner_id: string | null;
+  owner_id: string;
   mentioned_day: string;
 }
 
@@ -68,7 +68,9 @@ describe('learning/mention — 写入', () => {
     const [row] = rows();
     expect(row?.term_id).toBe('t1');
     expect(row?.domain).toBe('js');
-    expect(row?.owner_id).toBeNull(); // null = 未登录单人本地模式，不是 ''
+    // ★ v31 起口径改为 `''`（无主行）：改前是 SQL `NULL`，与 `terms`/v30 那套"无主 = 谁都看不见"
+    //   不同源 ⇒ 每个读点都要先问"这张表是哪一套"。对齐后全族共用同一个判据。
+    expect(row?.owner_id).toBe('');
     expect(row?.mentioned_day).toBe('2026-09-18');
   });
 
@@ -177,7 +179,7 @@ describe('learning/mention — 窗口聚合', () => {
     expect(t.topDomains.map((d) => d.domain)).toEqual(['js']); // 领域的快照仍在
   });
 
-  it('ownerId 给定时只统计该 owner 的提及；null 不过滤', () => {
+  it('ownerId 给定时只统计该 owner 的提及', () => {
     const id = seedTerm('t1', '闭包', 'js');
     recordMentions([{ termId: id, domain: 'js' }], 'u1', NOW);
     recordMentions([{ termId: id, domain: 'js' }], 'u2', NOW);
@@ -185,7 +187,19 @@ describe('learning/mention — 窗口聚合', () => {
 
     expect(mentionTrend(7, 'u1', NOW).total).toBe(1);
     expect(mentionTrend(7, 'u2', NOW).total).toBe(2);
-    expect(mentionTrend(7, null, NOW).total).toBe(3); // 本地单人模式：不过滤
+  });
+
+  it("★ v31：null（无主）与真实 owner **互不可见**——改前 null 是「不过滤」⇒ 跨用户求和", () => {
+    const id = seedTerm('t1', '闭包', 'js');
+    recordMentions([{ termId: id, domain: 'js' }], null, NOW); // 无主行
+    recordMentions([{ termId: id, domain: 'js' }], 'u1', NOW);
+    recordMentions([{ termId: id, domain: 'js' }], 'u1', NOW);
+
+    expect(mentionTrend(7, null, NOW).total).toBe(1); // 未登录只看自己的无主行
+    expect(mentionTrend(7, 'u1', NOW).total).toBe(2); // 登录用户只看自己的
+    expect(mentionTrend(7, 'u2', NOW).total).toBe(0); // 别人的一条都不沾
+    // ★ 这条断言是「跨用户泄露」的直接锁：改回 ownerFilter 的"null 就不加条件"，
+    //   上面第一行会变成 3（把 u1 的两笔一起算进来）——那正是改前的行为。
   });
 
   it('days 归一：0 回落默认、负数钳到 1、过大钳到 90（防一次查询拉整张表）', () => {
@@ -228,10 +242,10 @@ describe('learning/mention — 高频词条榜（总口径）', () => {
     seedTerm('t-a', 'alpha', 'math');
     seedTerm('t-b', 'beta', 'math');
     seedTerm('t-c', 'gamma', 'english'); // 一次不提
-    for (let i = 0; i < 3; i++) countUsage('alpha');
-    countUsage('beta');
+    for (let i = 0; i < 3; i++) countUsage('alpha', null);
+    countUsage('beta', null);
 
-    expect(topMentionedTerms()).toEqual([
+    expect(topMentionedTerms(null)).toEqual([
       { term: 'alpha', count: 3 },
       { term: 'beta', count: 1 },
     ]);
@@ -240,23 +254,23 @@ describe('learning/mention — 高频词条榜（总口径）', () => {
   it('并列时按词条名升序 ⇒ **全序**（不稳定排序会让「取 top N」变成「取随机 N 个」）', () => {
     seedTerm('t-z', 'zeta', 'math');
     seedTerm('t-a', 'alpha', 'math');
-    countUsage('zeta');
-    countUsage('alpha');
+    countUsage('zeta', null);
+    countUsage('alpha', null);
 
-    expect(topMentionedTerms().map((r) => r.term)).toEqual(['alpha', 'zeta']);
+    expect(topMentionedTerms(null).map((r) => r.term)).toEqual(['alpha', 'zeta']);
   });
 
   it('limit 正常生效；传 0 视作「没传」回落默认；超大值钳到 50（不放大查询）', () => {
     for (const t of ['a', 'b', 'c', 'd', 'e']) {
       seedTerm(`t-x${t}`, `term-${t}`, 'math');
-      countUsage(`term-${t}`);
+      countUsage(`term-${t}`, null);
     }
-    expect(topMentionedTerms(2)).toHaveLength(2);
-    expect(topMentionedTerms(0)).toHaveLength(5); // 0 ⇒ 回落默认（不是「取 0 条」）
-    expect(topMentionedTerms(999)).toHaveLength(5); // 钳到 50，而库里只有 5 条
+    expect(topMentionedTerms(null, 2)).toHaveLength(2);
+    expect(topMentionedTerms(null, 0)).toHaveLength(5); // 0 ⇒ 回落默认（不是「取 0 条」）
+    expect(topMentionedTerms(null, 999)).toHaveLength(5); // 钳到 50，而库里只有 5 条
   });
 
   it('空库返回空数组（不抛、不返回 undefined）', () => {
-    expect(topMentionedTerms()).toEqual([]);
+    expect(topMentionedTerms(null)).toEqual([]);
   });
 });

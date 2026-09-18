@@ -12,7 +12,7 @@
 > 后端 `/api/pk/auth/*` 与 `pk_users` 表**原样保留**，PK 功能不受影响。
 > 删除理由：它常驻在侧栏、看着像「已登录」却不产生任何数据归属（真账号是 `AccountBox`），
 > 属「以为什么都做了」的错觉源——而错觉在权限类问题上比没有功能更危险；
-> 两套身份仍并存（AUTH-SPEC §0：M4 才合并到同一个 user）。② 房间链路：`PkRoomState`/`PkPlayer`/`PkQuestion` 类型 + 房间常量 + `pkChannel()` 频道键、
+> 两套身份仍并存（AUTH-SPEC §0.1：**微信 / 手机号登录已于 2026-09-18 拍板不做** ⇒ 原「M4 才合并到同一个 user」**已取消**，两套身份的合并路径**待重定**）。② 房间链路：`PkRoomState`/`PkPlayer`/`PkQuestion` 类型 + 房间常量 + `pkChannel()` 频道键、
 > `pk/room.ts` 内存状态机、`/rooms`·`/rooms/join`·`/rooms/:id/start`·`/rooms/:id/state` 四端点、
 > SSE `pk:` 频道与 `pk-state` 主动广播。
 > **P0-2 已完成**（2026-09-13）——出题 CD / 判分 / 答题超时 / 怠慢惩罚 / 对局时钟结算全落地

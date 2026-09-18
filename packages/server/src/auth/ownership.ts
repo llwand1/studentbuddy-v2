@@ -45,6 +45,23 @@ export function canAccessSession(sessionId: string, ownerId: string | null): boo
 }
 
 /**
+ * 读某个会话的归属用户 id（M2c，契约 TENANCY-SPEC §8.1.4）。
+ *
+ * ★ 为什么要有它：学习流 `advanceRun` 既会被 HTTP 路由推进，也会在恢复/重试路径上被推进，
+ *   而「这个 run 是谁的」是**持久事实**（`sessions.user_id`），不是「这次是谁点的」。
+ *   从持久事实取 ⇒ 任何推进路径都自动正确，不必给推进函数加参再指望每个调用点都记得传
+ *   （漏传的表现是"这一步的模型调用记到平台头上"，无声无息）。
+ * ★ 会话不存在 / 会话无主 ⇒ `null`，与 `ownerIdOf`、`ownerFilter(null)` 同一口径。
+ */
+export function ownerOfSession(sessionId: string | null): string | null {
+  if (!sessionId) return null;
+  const row = getDb().prepare('SELECT user_id FROM sessions WHERE id = ?').get(sessionId) as
+    | { user_id: string | null }
+    | undefined;
+  return row?.user_id ?? null;
+}
+
+/**
  * 建会话的**唯一落点**。
  *
  * ★ 为什么必须有这个函数：`POST /api/sessions` 与学习流 `createRun` 都会建会话，

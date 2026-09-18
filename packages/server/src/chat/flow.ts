@@ -66,7 +66,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   let visionDesc = '';
   if (opts.images && opts.images.length > 0) {
     try {
-      visionDesc = await describeImages(opts.images, opts.signal);
+      visionDesc = await describeImages(opts.images, opts.signal, opts.ownerId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '图片理解失败';
       publish(sessionId, { type: 'chat-error', sessionId, message: msg });
@@ -88,7 +88,8 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     db.prepare('UPDATE sessions SET title = ? WHERE id = ?').run(opts.text.slice(0, 30) || '新对话', sessionId);
   }
   db.prepare(`UPDATE sessions SET updated_at = datetime('now') WHERE id = ?`).run(sessionId);
-  const target = routeRole(opts.role ?? 'explain');
+  // ★ M2c：主链路的模型选择必须带归属——不带就是「用户 A 配的 key 被 B 的对话烧掉」
+  const target = routeRole(opts.role ?? 'explain', undefined, opts.ownerId);
   if (!target || !target.model) {
     const msg = !target
       ? '没有可用的服务商：请到设置页添加 provider（baseUrl + apiKey）'
@@ -305,19 +306,24 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       reasoning: reasoningAcc,
       tasks: latestTasks,
     });
-    db.prepare(`INSERT INTO token_usage (session_id, model, prompt_tokens, completion_tokens, source) VALUES (?, ?, ?, ?, ?)`)
+    // ★ v29 起带上 user_id（M2c，契约 TENANCY-SPEC §8.1.2）：**只用于归属与诊断**，不是配额账本
+    //   （§8.1.3 已把免费通道改成「额度不限、只限并发」⇒ 不做 token 聚合）。
+    db.prepare(`INSERT INTO token_usage (session_id, model, prompt_tokens, completion_tokens, source, user_id) VALUES (?, ?, ?, ?, ?, ?)`)
       .run(
         sessionId,
         target.model,
         usage?.promptTokens ?? estimateTokens(messages.map((m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content))).join('\n')),
         usage?.completionTokens ?? estimateTokens(acc),
         usage ? 'provider' : 'estimated',
+        opts.ownerId ?? null,
       );
     db.prepare(`UPDATE sessions SET updated_at = datetime('now') WHERE id = ?`).run(sessionId);
 
     publishEvent({ type: 'chat_done', sessionId });
     // 忆域 v2：回复完成后自动抽取重要词条入库（失败静默不阻塞对话）+ 命中词条计数
-    void extractTerms(`${opts.text}\n\n${acc}`.slice(0, 30000))
+    // ★ M2c 补传 `opts.ownerId`（契约 §8.1.4 表）：起点是用户请求、ownerId 现成，**此前漏传是 bug**
+    //   ——抽取是一次 LLM 调用，不带归属就只能落进平台通道（用户自带 key 时烧的却是平台的额度）。
+    void extractTerms(`${opts.text}\n\n${acc}`.slice(0, 30000), opts.ownerId)
       .then((items) => {
         if (items.length > 0) saveTerms(items, sessionId);
       })
@@ -347,7 +353,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     // done 之后发帧照样送达；失败一律静默，不能让已上屏的回答变出错。
     if (opts.grillMe) {
       await runGrillClosing({ sessionId, adapter: target.adapter, model: target.model, apiKey: target.apiKey,
-        baseUrl: target.baseUrl, messages, tools, signal: opts.signal, onStep });
+        baseUrl: target.baseUrl, messages, tools, signal: opts.signal, onStep, ownerId: opts.ownerId });
     }
     return { ok: true, assistantMessageId: assistantId };
   } catch (err) {

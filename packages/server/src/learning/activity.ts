@@ -69,15 +69,21 @@ export function last7Days(): Array<{ day: string; count: number }> {
   return out;
 }
 
-/** 今日总结：有缓存用缓存；无则走 summarizer 角色生成（失败降级为统计文本）。 */
-export async function todaySummary(): Promise<string> {
+/**
+ * 今日总结：有缓存用缓存；无则走 summarizer 角色生成（失败降级为统计文本）。
+ * ★ M2c：`ownerId` 是 LLM 调用的归属（契约 §8.1.4）。
+ *   ⚠️ 已知缺口（M2d）：`daily_activity` / `daily_summaries` 目前**仍是全局表**，
+ *   故缓存键不含 owner —— 也就是说 B 会读到 A 的今日总结。归属改造在 §8.2 那批，
+ *   本批只保证「模型调用记在谁头上」，不假装数据已经隔离。
+ */
+export async function todaySummary(ownerId?: string | null): Promise<string> {
   const day = today();
   const cached = getDb().prepare('SELECT content FROM daily_summaries WHERE day = ?').get(day) as { content: string } | undefined;
   if (cached) return cached.content;
   const st = todayStats();
   const acts = st.activities.map((a) => `${a.type}×${a.count}`).join('、') || '暂无活动';
   const fallback = `今日（${day}）：${acts}。XP ${st.xp}（Lv.${st.level}），连签 ${st.streak} 天。`;
-  const target = routeRole('summarizer');
+  const target = routeRole('summarizer', undefined, ownerId);
   if (!target || !target.model) return fallback;
   try {
     let acc = '';

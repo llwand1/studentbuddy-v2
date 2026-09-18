@@ -108,12 +108,49 @@ sessionsRouter.get('/:id/live', (req: Request, res: Response) => {
   res.json({ events: snapshot(id) });
 });
 
-// ── providers / 角色绑定 ──────────────────────────────────
+// ── providers / 角色绑定（M2c：归属，契约 docs/TENANCY-SPEC.md §8.1）────────
 export const providersRouter = Router();
 
-providersRouter.get('/', (_req, res) => {
+/**
+ * 这个 provider **能不能被当前请求改/删**？三态返回，因为三种情况的正确响应码不同。
+ *
+ * ★ **读口与写口刻意用不同判据**，这不是不一致，是两类操作的风险不同：
+ *   · **读/用**（`llm/router.ts` 的 `providerById`）＝ `平台 OR 自己的` —— 平台 provider 对谁都可用，
+ *     否则用户没法把角色绑到免费通道上，免费额度成摆设；
+ *   · **写/删**（本函数）＝ **严格自己的** —— 用户改一次平台 provider 的 baseUrl，
+ *     **全站所有人的模型都跟着变**（§8.1 原文：从「能改别人的」升级成「能改所有人的」）。
+ * ★ 平台行对登录用户回 **403 而不是 404**：该 provider **本来就在他的列表里**（读口可见），
+ *   装"不存在"是撒谎，也会让用户反复重试。而**别人的** provider 回 404——
+ *   那是「这个 id 存在，只是不是你的」，与本仓 sessions 的口径一致（TENANCY-SPEC §5）。
+ * ★ 本地单人模式（`owner === null`）可以改平台行：那时操作者**就是**平台自己。
+ */
+function editableProvider(id: string, owner: string | null): 'ok' | 'platform' | 'missing' {
+  const row = getDb().prepare('SELECT owner_id FROM providers WHERE id = ?').get(id) as
+    | { owner_id: string | null }
+    | undefined;
+  if (!row) return 'missing';
+  if (row.owner_id === null) return owner === null ? 'ok' : 'platform';
+  return row.owner_id === owner ? 'ok' : 'missing';
+}
+
+/** 写口守卫：不通过就直接回响应并返回 false（调用方据此 return）。 */
+function guardEditable(res: Response, id: string, owner: string | null): boolean {
+  const verdict = editableProvider(id, owner);
+  if (verdict === 'platform') {
+    res.status(403).json({ error: '平台服务商不可修改：它决定全站默认模型，改了会影响所有用户' });
+    return false;
+  }
+  if (verdict === 'missing') {
+    res.status(404).json({ error: 'provider 不存在' });
+    return false;
+  }
+  return true;
+}
+
+providersRouter.get('/', (req: Request, res: Response) => {
   seedIfEmpty();
-  res.json(getProviders()); // 内部已显式挑选出站字段（无 api_key），不必再 map 一层
+  // 内部已显式挑选出站字段（无 api_key），不必再 map 一层；归属过滤在 getProviders 里
+  res.json(getProviders(ownerIdOf(req)));
 });
 
 providersRouter.post('/', (req: Request, res: Response) => {
@@ -132,9 +169,10 @@ providersRouter.post('/', (req: Request, res: Response) => {
   const t = type === 'anthropic' ? 'anthropic' : 'openai';
   // stream_mode 缺省按 type 定位（池中=一次性，原生=流式）；显式传入则尊重
   const mode = streamMode === 'stream' || streamMode === 'once' ? streamMode : t === 'anthropic' ? 'stream' : 'once';
+  // ★ 新建的 provider 一律挂**当前用户**名下（未登录单人模式 ⇒ NULL = 平台自己的）
   getDb()
-    .prepare(`INSERT INTO providers (id, name, base_url, api_key, type, enabled, stream_mode) VALUES (?, ?, ?, ?, ?, 1, ?)`)
-    .run(id, name, baseUrl, encryptSecret(apiKey ?? ''), t, mode);
+    .prepare(`INSERT INTO providers (id, name, base_url, api_key, type, enabled, stream_mode, owner_id) VALUES (?, ?, ?, ?, ?, 1, ?, ?)`)
+    .run(id, name, baseUrl, encryptSecret(apiKey ?? ''), t, mode, ownerIdOf(req));
   res.status(201).json({ id, name, baseUrl });
 });
 
@@ -146,34 +184,52 @@ providersRouter.put('/:id', (req: Request, res: Response) => {
     enabled?: boolean;
     streamMode?: string;
   };
+  const id = req.params.id ?? '';
+  if (!guardEditable(res, id, ownerIdOf(req))) return;
   const db = getDb();
-  const cur = db.prepare('SELECT id FROM providers WHERE id = ?').get((req.params.id ?? '')) as { id: string } | undefined;
-  if (!cur) {
-    res.status(404).json({ error: 'provider 不存在' });
-    return;
-  }
   const mode = streamMode === 'stream' || streamMode === 'once' ? streamMode : null;
   // apiKey 传空/缺省 = 不修改；传明文 = 更新密文（幂等：已是密文则原样）
   if (apiKey === undefined || apiKey === '') {
     db.prepare(`UPDATE providers SET name = COALESCE(?, name), base_url = COALESCE(?, base_url), stream_mode = COALESCE(?, stream_mode), enabled = COALESCE(?, enabled) WHERE id = ?`)
-      .run(name ?? null, baseUrl ?? null, mode, enabled === undefined ? null : enabled ? 1 : 0, (req.params.id ?? ''));
+      .run(name ?? null, baseUrl ?? null, mode, enabled === undefined ? null : enabled ? 1 : 0, id);
   } else {
     db.prepare(`UPDATE providers SET name = COALESCE(?, name), base_url = COALESCE(?, base_url), api_key = ?, stream_mode = COALESCE(?, stream_mode), enabled = COALESCE(?, enabled) WHERE id = ?`)
-      .run(name ?? null, baseUrl ?? null, encryptSecret(apiKey), mode, enabled === undefined ? null : enabled ? 1 : 0, (req.params.id ?? ''));
+      .run(name ?? null, baseUrl ?? null, encryptSecret(apiKey), mode, enabled === undefined ? null : enabled ? 1 : 0, id);
   }
   res.json({ ok: true });
 });
 
 providersRouter.delete('/:id', (req: Request, res: Response) => {
-  getDb().prepare('DELETE FROM providers WHERE id = ?').run((req.params.id ?? ''));
-  getDb().prepare(`UPDATE role_bindings SET provider_id = 'openai-default' WHERE provider_id = ?`).run((req.params.id ?? ''));
+  const id = req.params.id ?? '';
+  const owner = ownerIdOf(req);
+  if (!guardEditable(res, id, owner)) return;
+  getDb().prepare('DELETE FROM providers WHERE id = ?').run(id);
+  // ★ 兜底改绑**必须限定同一归属**：不加 `owner_id IS ?` 会跨用户改别人的绑定
+  //   （删自己一个 provider，顺手把别人的模型指向 openai-default）。
+  getDb()
+    .prepare(`UPDATE role_bindings SET provider_id = 'openai-default' WHERE provider_id = ? AND owner_id IS ?`)
+    .run(id, owner);
   res.json({ ok: true });
 });
 
-providersRouter.get('/roles', (_req, res) => {
+providersRouter.get('/roles', (req: Request, res: Response) => {
   seedIfEmpty();
-  const rows = getDb().prepare('SELECT role, provider_id, model FROM role_bindings').all();
-  res.json({ roles: MODEL_ROLES, bindings: rows });
+  const owner = ownerIdOf(req);
+  // 平台行 + 本人行，然后**同 role 合成一条 = 实际会生效的那条**（本人的覆盖平台的）。
+  // ★ 为什么不把两组都回给前端让它自己挑：那等于把 `routeRole` 的查序在 UI 里抄第二遍，
+  //   两处迟早不一致（本仓对"同一事实写两遍"付过多次学费）。这里回的就是**结果**。
+  const rows = getDb()
+    .prepare('SELECT owner_id, role, provider_id, model FROM role_bindings WHERE owner_id IS NULL OR owner_id = ?')
+    .all(owner) as Array<{ owner_id: string | null; role: string; provider_id: string; model: string }>;
+  const effective = new Map<string, { role: string; provider_id: string; model: string }>();
+  for (const r of rows) {
+    // 后写覆盖前写，但**只有"本人的行"允许覆盖**——平台行永远不覆盖已存在的条目。
+    // 这样无论 SQL 返回的行序如何，结果都是"本人优先"，不依赖 ORDER BY。
+    if (!effective.has(r.role) || r.owner_id !== null) {
+      effective.set(r.role, { role: r.role, provider_id: r.provider_id, model: r.model });
+    }
+  }
+  res.json({ roles: MODEL_ROLES, bindings: [...effective.values()] });
 });
 
 providersRouter.put('/roles/:role', (req: Request, res: Response) => {
@@ -182,9 +238,31 @@ providersRouter.put('/roles/:role', (req: Request, res: Response) => {
     res.status(400).json({ error: 'providerId 与 model 必填' });
     return;
   }
-  getDb()
-    .prepare(`INSERT INTO role_bindings (role, provider_id, model) VALUES (?, ?, ?) ON CONFLICT(role) DO UPDATE SET provider_id = excluded.provider_id, model = excluded.model`)
-    .run(req.params.role, providerId, model);
+  const owner = ownerIdOf(req);
+  // ★ 先验 provider **可见**（平台或自己的）再落库：不验的话，把 provider_id 写成别人的 id
+  //   也能写进自己的绑定行——虽然 `routeRole` 的归属断言会让它取不到（不会泄露 key），
+  //   但用户看到的是"绑定成功了、用起来却没生效"，一个自己造出来的幽灵。
+  const visible = getDb()
+    .prepare('SELECT id FROM providers WHERE id = ? AND (owner_id IS NULL OR owner_id IS ?)')
+    .get(providerId, owner) as { id: string } | undefined;
+  if (!visible) {
+    res.status(400).json({ error: 'provider 不存在或不属于你' });
+    return;
+  }
+  // ★ 两条写路径、两个冲突目标，**不能合并**：`ON CONFLICT` 必须命中一个真实的唯一约束。
+  //   用户行命中复合 PK `(owner_id, role)`；平台行的 PK 在 SQLite 下对 NULL 不生效
+  //   （见迁移 v29 注释），只能命中**部分唯一索引**，故冲突目标要带同样的 WHERE。
+  if (owner === null) {
+    getDb()
+      .prepare(`INSERT INTO role_bindings (owner_id, role, provider_id, model) VALUES (NULL, ?, ?, ?)
+                ON CONFLICT(role) WHERE owner_id IS NULL DO UPDATE SET provider_id = excluded.provider_id, model = excluded.model`)
+      .run(req.params.role, providerId, model);
+  } else {
+    getDb()
+      .prepare(`INSERT INTO role_bindings (owner_id, role, provider_id, model) VALUES (?, ?, ?, ?)
+                ON CONFLICT(owner_id, role) DO UPDATE SET provider_id = excluded.provider_id, model = excluded.model`)
+      .run(owner, req.params.role, providerId, model);
+  }
   res.json({ ok: true });
 });
 
@@ -193,9 +271,11 @@ providersRouter.put('/roles/:role', (req: Request, res: Response) => {
  * apiKey 拉取该服务商的真实可用模型。失败返回空数组（前端保持手填输入框可用）。
  */
 providersRouter.get('/:id/models', async (req: Request, res: Response) => {
+  // ★ 归属用**读口判据**（平台 OR 自己的）：平台 provider 的模型列表必须可拉，
+  //   否则用户把角色绑到免费通道时无法选择模型（绑定表单要靠它填下拉）。
   const row = getDb()
-    .prepare('SELECT type, base_url, api_key FROM providers WHERE id = ?')
-    .get((req.params.id ?? '')) as { type: string; base_url: string; api_key: string } | undefined;
+    .prepare('SELECT type, base_url, api_key FROM providers WHERE id = ? AND (owner_id IS NULL OR owner_id IS ?)')
+    .get((req.params.id ?? ''), ownerIdOf(req)) as { type: string; base_url: string; api_key: string } | undefined;
   if (!row) {
     res.status(404).json({ error: 'provider 不存在' });
     return;
@@ -206,7 +286,7 @@ providersRouter.get('/:id/models', async (req: Request, res: Response) => {
 });
 
 /** 开发辅助：验证密钥加解密往返（密文状态自查，不回显明文）。 */
-providersRouter.get('/:id/key-status', (req: Request, res: Response) => {  const row = getDb().prepare('SELECT api_key FROM providers WHERE id = ?').get((req.params.id ?? '')) as { api_key: string } | undefined;
+providersRouter.get('/:id/key-status', (req: Request, res: Response) => {  const row = getDb().prepare('SELECT api_key FROM providers WHERE id = ? AND (owner_id IS NULL OR owner_id IS ?)').get((req.params.id ?? ''), ownerIdOf(req)) as { api_key: string } | undefined;
   if (!row) {
     res.status(404).json({ error: 'not found' });
     return;

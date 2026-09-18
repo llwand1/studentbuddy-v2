@@ -283,4 +283,64 @@ export const MIGRATIONS_V22: Array<{ version: number; statements: string[] }> = 
       `CREATE INDEX IF NOT EXISTS idx_term_library_review_enabled ON term_library(review_enabled)`,
     ],
   },
+  // ── v29 LLM 成本与配置归主（M2c，契约 docs/TENANCY-SPEC.md §8.1）──────────────────
+  //
+  // 【为什么三张表同版、不拆】M2c 的本质是「**谁付模型钱**」。拆开做只会先造出新洞：
+  //   · 只给 `providers` 加 owner 而不管 `role_bindings` ⇒ `role_bindings` 是全局表，
+  //     **任何登录用户改一次绑定，全站所有人的模型都跟着变**——从「能改别人的」升级成
+  //     「能改所有人的」，**比不做更糟**（§8.1 原文）；
+  //   · 只改表而不改 `routeRole` ⇒ 用户 A 配的 key 依然被 B 的对话烧掉（表对了，用错了）。
+  //   ⇒ 表 + 读口（`routeRole`）+ 写口（`PUT /roles/:role`）是**一片**，本批一起落。
+  //
+  // 【业务前提】老板 2026-09-18 拍板**双通道并存**：用户可以自带 key（BYOK，他付钱），
+  //   平台也提供免费额度（平台付钱）。⇒ `owner_id` 必须能区分这两条通道。
+  //
+  // 【归属值为什么是 `NULL` 而不是 `''`】`NULL` = **平台通道**的保留值，与 §3「孤儿行」同一语义；
+  //   `routeRole` 的平台分支判据就是 `owner_id IS NULL`。给 `''` 会落进「某个不存在的用户」的
+  //   空档——那是个**第三种状态**，而本仓已经有 `''` 的既有含义（`user_memory` 用 `''` 表示无主，
+  //   那是 `ON CONFLICT` 的冲突目标列语义强制的，与这里不是一回事，别类比）。
+  //
+  // ★★ 【本批开工实测发现的坑：复合主键在 SQLite 下兜不住 NULL】
+  //   `PRIMARY KEY (owner_id, role)` 对**用户行**正常（同一用户同一角色只能一条），
+  //   但 SQLite 的 UNIQUE/PK 一律把 NULL 视作**互不相同** ⇒ `(NULL, 'explain')` 可以插**任意多条**。
+  //   实测（SQLite 3.49.2，探针 `_probe/sqlite-null-pk-probe.mjs`）：`(NULL,'explain')` 连插两条
+  //   **都成功**，`('u1','explain')` 第二条被 `SQLITE_CONSTRAINT_PRIMARYKEY` 拦住。
+  //   ⚠️ 不补索引的后果**必现**、不是理论风险：`seedIfEmpty()`（`llm/router.ts`）用
+  //   `INSERT OR REPLACE` 写平台绑定，而 `OR REPLACE` 依赖「有冲突可换」——没有冲突它就只是
+  //   普通 INSERT ⇒ **每调一次多一条** `(NULL, role)`，`routeRole` 取到哪条取决于行序，绑定变抽签。
+  //   ⇒ 补**部分唯一索引** `idx_role_bindings_platform`：它管平台行，复合 PK 管用户行，
+  //     **两个约束分工不同、都要有**（与 §8.1.3.1「两层闸门不能合并」同一种判断）。
+  //
+  // ⚠️ 【连带必改，只改迁移不改那里 = 运行时 500】`PUT /api/providers/roles/:role` 的写库语句
+  //   原为 `INSERT … ON CONFLICT(role) DO UPDATE`（`routes.ts`）——主键改复合后**找不到匹配的
+  //   唯一索引会直接报错** ⇒ 同批改成 `ON CONFLICT(owner_id, role)`。
+  //
+  // ⚠️ 【回放测试】`providers` / `token_usage` 是**加列**（`ALTER TABLE ADD COLUMN` 不幂等，
+  //   退版本时必须连列一起退，本仓已四次踩过 `duplicate column name`）；`role_bindings` 是
+  //   **重建表**，回放测试里要把表删掉让它重放（否则老表结构会留下来，PK 还是单列）。
+  //   见 `storage/db.test.ts` 的回放用例。
+  {
+    version: 29,
+    statements: [
+      // ① providers 加归属列：`NULL` = 平台通道（老行回填即为 NULL，天然对齐）
+      `ALTER TABLE providers ADD COLUMN owner_id TEXT`,
+      // ② role_bindings 重建（照 §7.1 的 v24 `user_memory` 六步先例）
+      `CREATE TABLE role_bindings_v29 (
+        owner_id    TEXT,
+        role        TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        model       TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (owner_id, role)
+      )`,
+      `INSERT INTO role_bindings_v29 (owner_id, role, provider_id, model)
+         SELECT NULL, role, provider_id, model FROM role_bindings`,
+      `DROP TABLE role_bindings`,
+      `ALTER TABLE role_bindings_v29 RENAME TO role_bindings`,
+      // ③ 平台行去重（复合 PK 对 NULL 无效，见上方 ★★）
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_role_bindings_platform ON role_bindings(role) WHERE owner_id IS NULL`,
+      // ④ token_usage 加归属列：**只用于归属与诊断，不是配额账本**
+      //    （§8.1.3 已把免费通道改成「额度不限、只限并发」⇒ 不做 token 聚合，故不建索引）
+      `ALTER TABLE token_usage ADD COLUMN user_id TEXT`,
+    ],
+  },
 ];

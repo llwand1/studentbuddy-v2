@@ -14,6 +14,7 @@ import { requestRetry, useHelp } from '../pk/power.js';
 import { forfeitRoom } from '../pk/settle.js';
 import { getMatchDetail, listMatches } from '../pk/history.js';
 import { publish, subscribe } from '../chat/sse-bus.js';
+import { ownerIdOf } from '../auth/ownership.js';
 
 export const pkRouter = Router();
 
@@ -203,7 +204,15 @@ pkRouter.post('/rooms/:id/quiz', (req: Request, res: Response) => {
   if (!identity) return;
   void (async () => {
     try {
-      const state = await submitQuiz(String(req.params.id ?? ''), identity.userId, req.body?.prompt);
+      // ★ M2c：末参是**账号归属**（谁付模型钱），与 `identity.userId`（对局身份，允许游客/AI）
+      //   是两回事——见 pk/match.ts 的 submitQuiz 注释。未登录 ⇒ null = 平台通道。
+      const state = await submitQuiz(
+        String(req.params.id ?? ''),
+        identity.userId,
+        req.body?.prompt,
+        undefined,
+        ownerIdOf(req),
+      );
       res.json({ state });
     } catch (e) {
       fail(res, e);
@@ -249,7 +258,13 @@ pkRouter.post('/rooms/:id/help', (req: Request, res: Response) => {
   if (!identity) return;
   void (async () => {
     try {
-      const r = await useHelp(String(req.params.id ?? ''), identity.userId, req.body?.questionId);
+      const r = await useHelp(
+        String(req.params.id ?? ''),
+        identity.userId,
+        req.body?.questionId,
+        undefined,
+        ownerIdOf(req),
+      );
       res.json(r);
     } catch (e) {
       fail(res, e);
@@ -267,7 +282,13 @@ pkRouter.post('/rooms/:id/retry', (req: Request, res: Response) => {
   if (!identity) return;
   void (async () => {
     try {
-      const r = await requestRetry(String(req.params.id ?? ''), identity.userId, req.body?.questionId);
+      const r = await requestRetry(
+        String(req.params.id ?? ''),
+        identity.userId,
+        req.body?.questionId,
+        undefined,
+        ownerIdOf(req),
+      );
       res.json(r);
     } catch (e) {
       fail(res, e);

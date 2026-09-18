@@ -118,12 +118,15 @@ export function pushGeneratedQuestion(
 /**
  * 出题：校验（active / 在房 / CD）→ 先落 CD 并广播（双方立刻看到倒计时）
  * → 调出题管道 → 成功建题 +1 并广播；失败回滚 CD（= 契约「失败可免费重试，不计 CD」）。
+ * ★ M2c：`ownerId` = **提交者的账号**（谁付模型钱），与 `userId`（对局身份，PK 允许游客/AI）是两回事；
+ *   尾参可选同既有惯例，生产路径 `routes/pk.ts` 一律显式传 `ownerIdOf(req)`。
  */
 export async function submitQuiz(
   roomId: string,
   userId: string,
   rawPrompt: unknown,
   now = Date.now(),
+  ownerId: string | null = null,
 ): Promise<PkRoomState> {
   const room = requireRoomInternal(roomId);
   if (room.status !== 'active') fail('ROOM_NOT_ACTIVE');
@@ -163,6 +166,7 @@ export async function submitQuiz(
       undefined,
       undefined,
       true,
+      ownerId,
     );
   } catch {
     payload = null;
@@ -181,7 +185,7 @@ export async function submitQuiz(
       author.failStreak = 0; // 扣完清零：下轮重新累计，不是「一辈子背着 3 次」
     }
     // ② 只有扣分时才让裁判出建议——每次跑题都调一次模型，既烧额度又把建议说廉价了
-    const advice = struck ? await buildTopicAdvice(topic) : null;
+    const advice = struck ? await buildTopicAdvice(topic, ownerId) : null;
     rollbackCd();
     clearQuizPending(room);
     room.lastActivity = now;
@@ -354,7 +358,8 @@ export function tickMatches(now = Date.now()): void {
     }
     if (room.mode === 'pve' && !room.aiBusy && now >= room.aiNextQuizAt) {
       room.aiBusy = true;
-      void runAiQuiz(room.roomId).finally(() => {
+      // ★ M2c：ticker 无 HTTP 上下文、无唯一 owner ⇒ 显式记 `null` = 平台通道（理由见 ai-bot.ts 头注释）
+      void runAiQuiz(room.roomId, null).finally(() => {
         room.aiBusy = false;
       });
     }

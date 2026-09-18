@@ -286,11 +286,13 @@ export function coachMarkReviewed(
  * ★ 为什么带回退：老库升级后 `role_bindings` 里没有 coach 这一行，若直接用 `routeRole('coach')`
  *   会得到空 model ⇒ 用户看到「该角色还没绑定模型」，而设置页里他什么都没改过。
  *   督促本质是日常对话，用讲解模型是合理默认；想换更便宜/更凶的模型再去设置页单独绑。
+ * ★ M2c：`ownerId` 必传（请求侧有 `opts.ownerId`，定时器侧有该轮 tick 的 owner）——
+ *   回退**必须发生在同一归属内**，否则"我没绑 coach"会退化成"用别人的讲解模型"。
  */
-export function resolveCoachTarget() {
-  const own = routeRole('coach');
+export function resolveCoachTarget(ownerId: string | null) {
+  const own = routeRole('coach', undefined, ownerId);
   if (own?.model) return own;
-  return routeRole('explain') ?? own;
+  return routeRole('explain', undefined, ownerId) ?? own;
 }
 
 /** 流水 → 模型消息（只取 me/ai，且只取最近 N 条：督促是短对话，长历史既费钱又稀释上下文） */
@@ -324,7 +326,7 @@ export async function generateCoachReply(opts: {
   onToken: (chunk: string) => void;
   signal?: AbortSignal;
 }): Promise<CoachReplyResult> {
-  const target = resolveCoachTarget();
+  const target = resolveCoachTarget(opts.ownerId);
   if (!target) return { ok: false, text: '', error: '没有启用的服务商，请到设置里配一个模型服务商' };
   if (!target.model) return { ok: false, text: '', error: '督促模型还没绑定：请到设置 → 角色模型绑定里给「督促」选一个模型' };
   const snapshot = coachSnapshot();

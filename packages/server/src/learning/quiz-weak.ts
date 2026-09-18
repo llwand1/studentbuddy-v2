@@ -263,7 +263,7 @@ export function buildScenarioWeakPrompt(title: string, tasks: ScenarioTask[], wr
  *   反推在「角色绑定存在但 provider 被停用」这类边缘态会判错：那种情况 `routeRole` 返回 null，
  *   属 `no-model` 而非 `call-failed`。
  */
-export async function analyzeWeakPoints(quizId: string): Promise<WeakAnalysis> {
+export async function analyzeWeakPoints(quizId: string, ownerId?: string | null): Promise<WeakAnalysis> {
   const { quiz, wrong } = loadWrong(quizId);
   // 还没做题 / 全对：**正常空态，不是降级**。与「模型挂了退回规则版」必须分开说（契约 §2.1）
   // ——混成一句就会出现「模型没配」被说成「你还没做题」，用户照着去刷题，刷完还是那句。
@@ -276,7 +276,8 @@ export async function analyzeWeakPoints(quizId: string): Promise<WeakAnalysis> {
     analyzed: wrong.length,
   });
 
-  const target = routeRole('analyzer');
+  // M2c：薄弱点分析是一次 LLM 调用，归属取发起者（契约 §8.1.4）
+  const target = routeRole('analyzer', undefined, ownerId);
   if (!target || !target.model) return degraded('no-model');
 
   let acc = '';

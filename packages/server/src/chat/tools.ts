@@ -29,6 +29,12 @@ export interface ToolContext {
    * 会随提问一起下发，前端据此决定「选完是续本轮还是开新一轮」。普通触发不带。
    */
   grillPhase?: GrillPhase;
+  /**
+   * 归属用户 id（M2c，契约 `docs/TENANCY-SPEC.md` §8.1.4）：工具里发起的 LLM 调用记在谁头上。
+   * 目前只有 `tidy_terms` 的 auto 分支会用（整理方案是一次模型调用）；`null` = 平台通道。
+   * 可选——不碰模型的工具（搜索 / 词条增删）无需关心它，既有工具桩也不必改。
+   */
+  ownerId?: string | null;
 }
 
 export interface ToolResult {
@@ -155,7 +161,7 @@ registry.set('tidy_terms', {
     let summary: TidySummary;
     if (action === 'auto') {
       ctx.onStep('tidy_terms', 'running', '正在整理词条库');
-      summary = await tidyTerms();
+      summary = await tidyTerms(ctx.ownerId);
     } else if (action === 'merge') {
       const terms = (Array.isArray(args.terms) ? args.terms : []).map((t) => String(t)).filter(Boolean).slice(0, 20);
       if (terms.length < 2) {

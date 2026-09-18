@@ -53,6 +53,7 @@ export async function useHelp(
   userId: string,
   rawQuestionId: unknown,
   now = Date.now(),
+  ownerId: string | null = null,
 ): Promise<{ advice: PkJudgeAdvice; state: PkRoomState }> {
   const room = requireRoomInternal(roomId);
   if (room.status !== 'active') fail('ROOM_NOT_ACTIVE');
@@ -62,7 +63,8 @@ export async function useHelp(
   const q = room.questions.find((x) => x.id === rawQuestionId);
   if (!q) fail('QUESTION_NOT_FOUND');
 
-  const advice = await helpWithQuestion(q.topic ?? room.currentTopic, q.stem, q.options);
+  // M2c：求助是"当场联网搜索 + 裁判模型"两次出站，归属取发起者（契约 §8.1.4）
+  const advice = await helpWithQuestion(q.topic ?? room.currentTopic, q.stem, q.options, ownerId);
   if (!advice) fail('JUDGE_UNAVAILABLE');
 
   me.helpLeft -= 1;
@@ -90,6 +92,7 @@ export async function requestRetry(
   userId: string,
   rawQuestionId: unknown,
   now = Date.now(),
+  ownerId: string | null = null,
 ): Promise<RetryResult> {
   const room = requireRoomInternal(roomId);
   if (room.status !== 'active') fail('ROOM_NOT_ACTIVE');
@@ -106,7 +109,7 @@ export async function requestRetry(
   if (q.chosen !== undefined && q.chosen === q.answer) fail('RETRY_NO_TARGET');
 
   const topic = q.topic ?? room.currentTopic;
-  const pack = await explainAndRetry(topic, q.stem, q.options, q.answer, q.chosen ?? -1);
+  const pack = await explainAndRetry(topic, q.stem, q.options, q.answer, q.chosen ?? -1, ownerId);
   if (!pack) fail('JUDGE_UNAVAILABLE');
 
   // 落 CD：解析已经给出去了，这次机会就算用过——不落的话可以反复刷解析（虽不加分，但会拖垮对局节奏）

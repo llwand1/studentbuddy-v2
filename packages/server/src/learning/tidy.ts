@@ -196,12 +196,13 @@ export function normalizeTidyPlan(plan: TidyPlan, rows: TermRow[]): TidyPlan {
 let lastPlanError = '';
 
 /** 全库词条发 LLM 产出整理方案；null=调用失败（降级），空方案=无需整理。 */
-export async function planTidy(): Promise<TidyPlan | null> {
+export async function planTidy(ownerId?: string | null): Promise<TidyPlan | null> {
   const rows = getDb()
     .prepare('SELECT * FROM term_library ORDER BY importance DESC, usage_count DESC LIMIT ?')
     .all(TIDY_MAX_TERMS) as TermRow[];
   if (rows.length < 2) return { clusters: [], domainRenames: {} };
-  const target = routeRole('explain'); // 与词条抽取同角色；契约留扩展点：可拆独立 tidy 角色
+  // M2c：整理方案是一次 LLM 调用，归属取发起者（契约 §8.1.4）
+  const target = routeRole('explain', undefined, ownerId); // 与词条抽取同角色；契约留扩展点：可拆独立 tidy 角色
   if (!target || !target.model) {
     lastPlanError = '未配置可用的模型 provider';
     return null;
@@ -382,11 +383,11 @@ export function renameDomain(from: string, to: string): TidySummary {
 }
 
 /** 全量整理（tidy_terms 工具 auto 入口）：单次失败自动重试一次；仍失败带真实原因如实报告（ADR-4）。 */
-export async function tidyTerms(): Promise<TidySummary> {
+export async function tidyTerms(ownerId?: string | null): Promise<TidySummary> {
   let lastErr = '';
   for (let attempt = 1; attempt <= 2; attempt++) {
     if (attempt > 1) await new Promise((r) => setTimeout(r, 3000)); // 抖动多为瞬时限流，退避后再试
-    const plan = await planTidy();
+    const plan = await planTidy(ownerId);
     if (plan) return applyTidy(plan);
     lastErr = lastPlanError;
   }

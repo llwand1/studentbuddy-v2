@@ -151,7 +151,10 @@ describe('AI 出题（ticker 到点触发，与人同口径）', () => {
     // 末三参：report / styleArg 不传（AI 出题不需要出题报告与回答偏好），online=true
     // ——2026-09-13 老板拍板「PK 出题也接联网」，AI 与人同口径，两条路径都传 true
     // P0-7：首轮出题用「当前轮次主题」＝房主（甲）的主题，AI 与人同规则
-    expect(vi.mocked(generateQuiz)).toHaveBeenCalledWith('历史', undefined, PK_QUIZ_MIX, undefined, undefined, true);
+    // ★ M2c 第 7 参 ownerId = **null（平台通道）**：AI 对手是平台扮演的角色、不是任何用户的请求，
+    //   且一房两名玩家 ⇒ 不存在唯一 owner（契约 TENANCY-SPEC §8.1.4 后台路径表）。
+    //   这笔钱明确记在平台上，受 §8.1.3.1 的两层并发闸门约束——不是"漏传"。
+    expect(vi.mocked(generateQuiz)).toHaveBeenCalledWith('历史', undefined, PK_QUIZ_MIX, undefined, undefined, true, null);
     expect(room.aiBusy).toBe(false); // 在途结束
     const now = Date.now();
     expect(room.aiNextQuizAt).toBeLessThanOrEqual(now + 60_000);

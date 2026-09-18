@@ -35,8 +35,9 @@ function letter(i: number): string {
  * ★ judge 角色没绑时 **不回落到默认模型**：那会让「裁判说不准」伪装成「裁判说了」，
  *   宁可明确告诉玩家裁判没配（路由层会转成 JUDGE_UNAVAILABLE 的文案）。
  */
-async function callJudge(prompt: string): Promise<string | null> {
-  const target = routeRole('judge');
+async function callJudge(prompt: string, ownerId?: string | null): Promise<string | null> {
+  // ★ M2c：裁判是 4 个上游 LLM 调用之一，归属必须与**发起这一轮的人**一致（契约 §8.1.4）
+  const target = routeRole('judge', undefined, ownerId);
   if (!target || !target.model) return null;
   let acc = '';
   try {
@@ -111,7 +112,12 @@ export interface TopicFit {
  * ★ 判定对象是**生成的题目**而不只是提示词：模型跑偏时提示词看着贴题、题面却跑没影了，
  *   只查提示词等于把校验做在错误的对象上（老板选的口径：出题时塞主题约束 + 裁判判贴合度）。
  */
-export async function judgeTopicFit(topic: string, prompt: string, stem: string): Promise<TopicFit | null> {
+export async function judgeTopicFit(
+  topic: string,
+  prompt: string,
+  stem: string,
+  ownerId?: string | null,
+): Promise<TopicFit | null> {
   const text = await callJudge(
     [
       '你是 PK 对战的裁判，只负责判断题目的主题归属，不答题、不点评。',
@@ -125,6 +131,7 @@ export async function judgeTopicFit(topic: string, prompt: string, stem: string)
       '',
       '只输出 JSON：{"fit": true 或 false, "reason": "一句话说明"}',
     ].join('\n'),
+    ownerId,
   );
   if (!text) return null;
   const parsed = extractJson<{ fit?: unknown; reason?: unknown }>(text);
@@ -135,7 +142,7 @@ export async function judgeTopicFit(topic: string, prompt: string, stem: string)
 // ── ② 出题失败后的建议 ──────────────────────────────────────
 
 /** 出题累计失败到阈值时给的建议：能直接抄去用的选型 + 该主题的知识补给 */
-export async function buildTopicAdvice(topic: string): Promise<PkJudgeAdvice | null> {
+export async function buildTopicAdvice(topic: string, ownerId?: string | null): Promise<PkJudgeAdvice | null> {
   const { block, refs } = await gather(topic, '知识点 常见考点');
   const text = await callJudge(
     [
@@ -149,6 +156,7 @@ export async function buildTopicAdvice(topic: string): Promise<PkJudgeAdvice | n
       '',
       '只输出 JSON：{"advice": ["...","...","..."], "knowledge": "..."}',
     ].join('\n'),
+    ownerId,
   );
   if (!text) return null;
   const parsed = extractJson<{ advice?: unknown; knowledge?: unknown }>(text);
@@ -164,7 +172,12 @@ export async function buildTopicAdvice(topic: string): Promise<PkJudgeAdvice | n
  * 玩家用掉本局唯一的求助道具 → 裁判**当场联网搜索**后给建议与知识输出。
  * ★★ 硬规矩写在检索段**之前**：不得直接说出正确选项、不得把答案换个说法讲出来。
  */
-export async function helpWithQuestion(topic: string, stem: string, options: string[]): Promise<PkJudgeAdvice | null> {
+export async function helpWithQuestion(
+  topic: string,
+  stem: string,
+  options: string[],
+  ownerId?: string | null,
+): Promise<PkJudgeAdvice | null> {
   const { block, refs } = await gather(topic, stem.slice(0, 40));
   const text = await callJudge(
     [
@@ -182,6 +195,7 @@ export async function helpWithQuestion(topic: string, stem: string, options: str
       '只输出 JSON：{"advice": ["...","..."], "knowledge": "..."}',
       'advice 2~3 条思路提示（每条 60 字内，不是答案）；knowledge 是这题涉及的知识要点（300 字内）。',
     ].join('\n'),
+    ownerId,
   );
   if (!text) return null;
   const parsed = extractJson<{ advice?: unknown; knowledge?: unknown }>(text);
@@ -201,7 +215,7 @@ export interface RetryPack {
 }
 
 /** 围绕同一主题生成一道「同类考点、换了问法」的题（失败返回 null，不阻断） */
-async function generateSimilar(topic: string, nextPrompt: string): Promise<QuizQuestion | null> {
+async function generateSimilar(topic: string, nextPrompt: string, ownerId?: string | null): Promise<QuizQuestion | null> {
   try {
     // 末参 online=true：与人出题同口径（老板 2026-09-13 拍板「PK 出题一律联网」）
     const payload = await generateQuiz(
@@ -211,6 +225,7 @@ async function generateSimilar(topic: string, nextPrompt: string): Promise<QuizQ
       undefined,
       undefined,
       true,
+      ownerId,
     );
     return payload?.questions.find((x) => x.type === 'single') ?? null;
   } catch {
@@ -229,6 +244,7 @@ export async function explainAndRetry(
   options: string[],
   correctIdx: number,
   chosenIdx: number,
+  ownerId?: string | null,
 ): Promise<RetryPack | null> {
   const { block } = await gather(topic, stem.slice(0, 40));
   const text = await callJudge(
@@ -248,11 +264,12 @@ export async function explainAndRetry(
       '',
       '只输出 JSON：{"explanation": "...", "nextPrompt": "..."}',
     ].join('\n'),
+    ownerId,
   );
   if (!text) return null;
   const parsed = extractJson<{ explanation?: unknown; nextPrompt?: unknown }>(text);
   const explanation = typeof parsed?.explanation === 'string' ? parsed.explanation.trim().slice(0, 500) : '';
   if (!explanation) return null;
   const nextPrompt = typeof parsed?.nextPrompt === 'string' ? parsed.nextPrompt.trim().slice(0, PK_PROMPT_MAX) : '';
-  return { explanation, generated: nextPrompt ? await generateSimilar(topic, nextPrompt) : null };
+  return { explanation, generated: nextPrompt ? await generateSimilar(topic, nextPrompt, ownerId) : null };
 }

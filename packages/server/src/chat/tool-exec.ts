@@ -44,6 +44,8 @@ export interface ToolExecOptions {
   signal?: AbortSignal;
   /** 透传进 ToolContext 的会话 id（需要绑会话的工具用，如 ask_choice） */
   sessionId?: string;
+  /** 透传进 ToolContext 的归属用户 id（M2c：工具里发起的 LLM 调用记在谁头上） */
+  ownerId?: string | null;
 }
 
 /** 过程卡片可展开的载荷（SSE 契约 2026-09-09）：入参原文 + 结果摘要 */
@@ -151,6 +153,8 @@ export async function runToolCalls(
         signal,
         // 会话 id 透传进工具：ask_choice 据此把提问绑到当前会话（方案选择框）
         sessionId: opts.sessionId,
+        // 归属透传进工具：tidy_terms 的 auto 分支要调模型，记在发起这一轮的人头上（M2c）
+        ownerId: opts.ownerId,
       };
 
       let timer: ReturnType<typeof setTimeout> | undefined;

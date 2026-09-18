@@ -8,6 +8,26 @@ function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'sb-db-test-'));
 }
 
+/**
+ * 把 v29（M2c，LLM 成本归主）的三处改动退回「老库」形态。**每个"退版本重放"用例都要调。**
+ *
+ * 为什么三件事都得做，各自对应一条既有的踩坑：
+ *  1. `providers.owner_id` / `token_usage.user_id` 是**加列** ⇒ 必须退列
+ *     （`ALTER TABLE ADD COLUMN` 不幂等，本仓已五次踩过 `duplicate column name`）；
+ *  2. `role_bindings` 是**重建表** ⇒ 必须退回**旧结构**（`role TEXT PRIMARY KEY` 单列主键）。
+ *     留着新表虽然也能重放成功（`INSERT … SELECT` 列都对得上），但那就**测不出"老库升上来"**
+ *     这件事本身了——用例名里写的"老库升级"会名不副实；
+ *  3. ★ **不能只 `DROP TABLE` 就完事**：`migrate()` 只跑 `version > current` 的迁移，
+ *     被跳过的 v1（`CREATE TABLE IF NOT EXISTS role_bindings`）**不会再把表建回来** ⇒
+ *     只删不建会让整条链后面全报 "no such table: role_bindings"。故这里 DROP 完立刻按旧结构建回。
+ */
+function revertV29(db: ReturnType<typeof openIsolated>): void {
+  db.exec(`ALTER TABLE providers DROP COLUMN owner_id`);
+  db.exec(`ALTER TABLE token_usage DROP COLUMN user_id`);
+  db.exec(`DROP TABLE IF EXISTS role_bindings`);
+  db.exec(`CREATE TABLE role_bindings (role TEXT PRIMARY KEY, provider_id TEXT NOT NULL, model TEXT NOT NULL)`);
+}
+
 describe('storage/db — 版本化迁移（逐语句，根除 v1 大模板 TS1434 坑）', () => {
   it('建表齐全 + schema_version 记录 + 幂等（重复打开不动）', () => {
     const dir = tmp();
@@ -144,6 +164,7 @@ describe('storage/db — v11 过程回放迁移（思考链 / 任务清单随消
     v10.exec(`DROP TABLE IF EXISTS term_mention_log`);
     // v27 邮箱验证码（auth_codes）：同 v25/v26 的理由（纯建表型，回放无需 DROP 列）
     v10.exec(`DROP TABLE IF EXISTS auth_codes`);
+    revertV29(v10);
     v10.prepare('DELETE FROM schema_version WHERE version > 10').run();
     expect(cols(v10)).not.toContain('reasoning');
     v10.close();
@@ -195,6 +216,7 @@ describe('storage/db — v13 回答形态迁移（providers.stream_mode）', () 
     old.exec(`DROP TABLE IF EXISTS term_review_log`);
     // v25 督促流水：同上
     old.exec(`DROP TABLE IF EXISTS coach_messages`);
+    revertV29(old);
     old.prepare('DELETE FROM schema_version WHERE version > 12').run();
     old.close();
 
@@ -299,6 +321,7 @@ describe('storage/db — v24 长期画像归主（docs/TENANCY-SPEC.md §7）', 
     old.exec(`DROP INDEX IF EXISTS idx_term_library_review_enabled`);
     old.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
     old.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
+    revertV29(old);
     old.prepare('DELETE FROM schema_version WHERE version > 23').run();
     old.close();
 
@@ -372,6 +395,7 @@ describe('storage/db — v19 领域表迁移（term_domain，领域升为一等�
     old.exec(`DROP TABLE IF EXISTS term_review_log`);
     // v25 督促流水：同上
     old.exec(`DROP TABLE IF EXISTS coach_messages`);
+    revertV29(old);
     old.prepare('DELETE FROM schema_version WHERE version > 18').run();
     old.close();
 
@@ -489,6 +513,7 @@ describe('storage/db — v23 词条复习迁移（docs/EBBINGHAUS-SPEC.md，艾�
     old.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
     old.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
     old.exec(`DROP TABLE IF EXISTS term_review_log`);
+    revertV29(old);
     old.prepare('DELETE FROM schema_version WHERE version > 22').run();
     old.close();
 
@@ -539,6 +564,7 @@ describe('storage/db — v25 督促小窗流水迁移（docs/COACH-SPEC.md，B+C
     old.exec(`DROP INDEX IF EXISTS idx_term_library_review_enabled`);
     old.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
     old.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
+    revertV29(old);
     old.prepare('DELETE FROM schema_version WHERE version > 23').run();
     old.close();
 
@@ -622,6 +648,7 @@ describe('storage/db — v27 邮箱验证码迁移（docs/AUTH-SPEC.md §1，M1.
     old.exec(`DROP INDEX IF EXISTS idx_term_library_review_enabled`);
     old.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
     old.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
+    revertV29(old);
     old.prepare('DELETE FROM schema_version WHERE version > 26').run();
     old.close();
 
@@ -670,6 +697,7 @@ describe('storage/db — v28 复习范围迁移（docs/EBBINGHAUS-SPEC.md §9，
     old.exec(`DROP INDEX IF EXISTS idx_term_library_review_enabled`);
     old.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
     old.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
+    revertV29(old);
     old.prepare('DELETE FROM schema_version WHERE version > 27').run();
     old.close();
 
@@ -693,5 +721,106 @@ describe('storage/db — v28 复习范围迁移（docs/EBBINGHAUS-SPEC.md §9，
     expect(names.some((n) => n.startsWith('next_review'))).toBe(false);
     expect(names).not.toContain('review_in_scope');
     db.close();
+  });
+});
+
+describe('storage/db — v29 LLM 成本归主迁移（docs/TENANCY-SPEC.md §8.1，M2c）', () => {
+  const colsOf = (db: ReturnType<typeof openIsolated>, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((c) => c.name);
+
+  it('新库三处齐备：providers.owner_id / token_usage.user_id / role_bindings 复合主键 + 平台行部分唯一索引', () => {
+    const db = openIsolated(tmp());
+    expect(colsOf(db, 'providers')).toContain('owner_id');
+    expect(colsOf(db, 'token_usage')).toContain('user_id');
+    // role_bindings 列序即声明序；`pk > 0` 的两列必须是 (owner_id, role)
+    const rb = db.prepare(`PRAGMA table_info(role_bindings)`).all() as Array<{ name: string; pk: number }>;
+    expect(rb.map((c) => c.name)).toEqual(['owner_id', 'role', 'provider_id', 'model']);
+    expect(rb.filter((c) => c.pk > 0).map((c) => c.name).sort()).toEqual(['owner_id', 'role']);
+    // ★ 平台行的唯一性靠**部分唯一索引**（复合 PK 在 SQLite 下对 NULL 无效，见下一条用例）
+    const idx = db
+      .prepare(`SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'idx_role_bindings_platform'`)
+      .all() as Array<{ sql: string }>;
+    expect(idx).toHaveLength(1);
+    expect(idx[0]?.sql ?? '').toContain('WHERE owner_id IS NULL');
+    db.close();
+  });
+
+  it('★ 平台行（owner_id IS NULL）必须唯一：复合主键兜不住，是部分唯一索引在兜', () => {
+    const db = openIsolated(tmp());
+    const ins = db.prepare(
+      `INSERT INTO role_bindings (owner_id, role, provider_id, model) VALUES (NULL, 'explain', ?, '')`,
+    );
+    ins.run('p-a');
+    // 不补索引的话这里会**成功**（SQLite 的 UNIQUE/PK 一律把 NULL 视作互不相同）——
+    // 实测见 `_probe/sqlite-null-pk-probe.mjs`。后果不是理论风险：`seedIfEmpty()` 用
+    // `INSERT OR IGNORE` 写平台绑定，没有唯一约束兜底就会每调一次多一行，绑定变成抽签。
+    expect(() => ins.run('p-b')).toThrow(/UNIQUE/i);
+    const n = (db.prepare(`SELECT COUNT(*) AS c FROM role_bindings WHERE owner_id IS NULL`).get() as { c: number }).c;
+    expect(n).toBe(1);
+    db.close();
+  });
+
+  it('用户行：同人同角色只能一条（复合 PK 生效），★ 不同人同角色必须能共存', () => {
+    const db = openIsolated(tmp());
+    const ins = db.prepare(`INSERT INTO role_bindings (owner_id, role, provider_id, model) VALUES (?, 'explain', ?, '')`);
+    ins.run('u1', 'p-a');
+    expect(() => ins.run('u1', 'p-b')).toThrow(/PRIMARYKEY|UNIQUE/i);
+    ins.run('u2', 'p-c'); // ★ 这正是本批要买到的东西：B 绑自己的模型，不影响 A
+    const rows = db
+      .prepare(`SELECT owner_id, provider_id FROM role_bindings WHERE role = 'explain' ORDER BY owner_id`)
+      .all() as Array<{ owner_id: string; provider_id: string }>;
+    expect(rows).toEqual([
+      { owner_id: 'u1', provider_id: 'p-a' },
+      { owner_id: 'u2', provider_id: 'p-c' },
+    ]);
+    db.close();
+  });
+
+  it('★ 写路径的两个冲突目标都能命中：用户行走 PK，平台行走部分索引（否则运行时 500）', () => {
+    const db = openIsolated(tmp());
+    // 用户行：ON CONFLICT(owner_id, role) —— 与 `PUT /roles/:role` 的语句同型
+    const upsertUser = db.prepare(
+      `INSERT INTO role_bindings (owner_id, role, provider_id, model) VALUES (?, ?, ?, ?)
+        ON CONFLICT(owner_id, role) DO UPDATE SET provider_id = excluded.provider_id, model = excluded.model`,
+    );
+    upsertUser.run('u1', 'coach', 'p-a', 'm1');
+    upsertUser.run('u1', 'coach', 'p-b', 'm2'); // 第二次必须是更新而不是报错
+    // 平台行：ON CONFLICT(role) WHERE owner_id IS NULL —— 冲突目标必须带同样的 WHERE 才认部分索引
+    const upsertPlatform = db.prepare(
+      `INSERT INTO role_bindings (owner_id, role, provider_id, model) VALUES (NULL, ?, ?, ?)
+        ON CONFLICT(role) WHERE owner_id IS NULL DO UPDATE SET provider_id = excluded.provider_id, model = excluded.model`,
+    );
+    upsertPlatform.run('coach', 'p-x', 'mx');
+    upsertPlatform.run('coach', 'p-y', 'my');
+    const rows = db
+      .prepare(`SELECT owner_id, provider_id, model FROM role_bindings WHERE role = 'coach' ORDER BY owner_id`)
+      .all() as Array<{ owner_id: string | null; provider_id: string; model: string }>;
+    expect(rows).toEqual([
+      { owner_id: null, provider_id: 'p-y', model: 'my' },
+      { owner_id: 'u1', provider_id: 'p-b', model: 'm2' },
+    ]);
+    db.close();
+  });
+
+  it('老库升级：既有绑定回填 `NULL`（= 平台通道），★ 不是空串、也不是某个用户', () => {
+    const dir = tmp();
+    const old = openIsolated(dir);
+    // ★ 顺序要紧：先退回旧结构（`revertV29` 会 DROP 并重建 role_bindings），再往**旧表**里塞老行，
+    //   否则老行会被 DROP 掉，用例就变成了"空表升级"，测不到回填。
+    revertV29(old);
+    old.prepare(`INSERT INTO role_bindings (role, provider_id, model) VALUES ('explain', 'openai-default', 'gpt-4o')`).run();
+    old.prepare('DELETE FROM schema_version WHERE version > 28').run();
+    old.close();
+
+    const upgraded = openIsolated(dir);
+    const row = upgraded
+      .prepare(`SELECT owner_id, role, provider_id, model FROM role_bindings WHERE role = 'explain'`)
+      .get() as { owner_id: string | null; role: string; provider_id: string; model: string } | undefined;
+    expect(row).toBeDefined(); // 数据不丢
+    expect(row?.owner_id).toBeNull(); // ★ NULL（平台通道）
+    expect(row?.owner_id).not.toBe(''); // ★ 绝不能是空串：那会落进"某个不存在的用户"的空档
+    expect(row?.provider_id).toBe('openai-default');
+    expect(row?.model).toBe('gpt-4o');
+    upgraded.close();
   });
 });

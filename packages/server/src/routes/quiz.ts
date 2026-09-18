@@ -33,6 +33,7 @@ import { upsertNoteFromAnswer } from '../learning/notes.js';
 import { getDb } from '../storage/db.js';
 import { publishEvent } from '../events/bus.js';
 import { publish } from '../chat/sse-bus.js';
+import { ownerIdOf } from '../auth/ownership.js';
 
 export const quizRouter = Router();
 
@@ -75,7 +76,8 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
       const results: ScenarioMixResult[] = [];
       for (let i = 0; i < count; i++) {
         const report = emptyScenarioGenReport();
-        const gen = await generateScenario(topic ?? '综合', effectiveMaterial, report);
+        // M2c：情景题生成是一次 LLM 调用，归属取当前用户（未登录 ⇒ null = 平台通道）
+        const gen = await generateScenario(topic ?? '综合', effectiveMaterial, report, ownerIdOf(req));
         if (!gen) {
           results.push({ ok: false, failure: report.failure ?? 'parse' });
           continue;
@@ -103,7 +105,7 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
 
     // 未显式给风格时传 undefined，由 generateQuiz 自己读库内偏好（只读一处，不在此提前定级）
     const styleArg = style === undefined ? undefined : normalizeAnswerStyle(style);
-    const raw = await generateQuiz(topic ?? '综合', effectiveMaterial, requested, images, styleArg, search === true);
+    const raw = await generateQuiz(topic ?? '综合', effectiveMaterial, requested, images, styleArg, search === true, ownerIdOf(req));
     // 502 按**真因**分开说：v1.0 把「模型不可用 / JSON 解不出 / 配比裁空」混成一句，照着重试永远调不对（契约 §2.4）
     if (!raw) {
       // 2026-09-13 再拆一层：「出题模型压根没配」与「配了但输出没解析出来」是两条完全不同的行动指引。
@@ -111,7 +113,7 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
       const notConfigured = images.failure === 'no-model';
       res.status(502).json({
         error: notConfigured
-          ? `出题失败：${roleReady('quiz-generator').reason || '出题模型没配好'}——请到「设置」→「角色模型绑定」为「出题」绑定模型后再试`
+          ? `出题失败：${roleReady('quiz-generator', ownerIdOf(req)).reason || '出题模型没配好'}——请到「设置」→「角色模型绑定」为「出题」绑定模型后再试`
           : '出题失败：模型输出没能解析成题目（可重试；若反复失败，到设置页给「出题」换一个更强的模型）',
       });
       return;
@@ -163,11 +165,11 @@ quizRouter.post('/collect/preview', async (req: Request, res: Response) => {
   }
   try {
     const report = emptyCollectReport();
-    const r = await collectQuiz(topic.trim(), report);
+    const r = await collectQuiz(topic.trim(), report, { ownerId: ownerIdOf(req) });
     // 「没配模型」与「搜到抓到现场没题」是两条不同行动指引，文案分开（同 /generate 的 failure 口径）
     if (report.failure === 'no-model') {
       res.status(502).json({
-        error: `搜集失败：${roleReady('quiz-generator').reason || '出题模型没配好'}——请到「设置」→「角色模型绑定」为「出题」绑定模型后再试`,
+        error: `搜集失败：${roleReady('quiz-generator', ownerIdOf(req)).reason || '出题模型没配好'}——请到「设置」→「角色模型绑定」为「出题」绑定模型后再试`,
       });
       return;
     }
@@ -247,7 +249,8 @@ quizRouter.post('/stats/record', (req: Request, res: Response) => {
  */
 quizRouter.get('/analyze/:id', async (req: Request, res: Response) => {
   try {
-    res.json(await analyzeWeakPoints(req.params.id ?? ''));
+    // M2c：薄弱点分析要调 analyzer 模型，归属取当前用户
+    res.json(await analyzeWeakPoints(req.params.id ?? '', ownerIdOf(req)));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

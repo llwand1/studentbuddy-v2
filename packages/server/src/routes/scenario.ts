@@ -12,6 +12,7 @@ import { buildScenarioDemoPage, announceScenarioToSession, generateScenario, get
 import { emptyScenarioGenReport } from '../learning/scenario-protocol.js';
 import { roleReady } from '../llm/router.js';
 import { publishEvent } from '../events/bus.js';
+import { ownerIdOf } from '../auth/ownership.js';
 
 export const scenarioRouter = Router();
 
@@ -55,12 +56,12 @@ scenarioRouter.post('/generate', async (req: Request, res: Response) => {
   }
   const report = emptyScenarioGenReport();
   try {
-    const gen = await generateScenario(topic?.trim() || '综合', material?.trim() || undefined, report);
+    const gen = await generateScenario(topic?.trim() || '综合', material?.trim() || undefined, report, ownerIdOf(req));
     if (!gen) {
       const notConfigured = report.failure === 'no-model';
       res.status(502).json({
         error: notConfigured
-          ? `出题失败：${roleReady('quiz-generator').reason || '出题模型没配好'}——请到「设置」→「角色模型绑定」为「出题」绑定模型后再试`
+          ? `出题失败：${roleReady('quiz-generator', ownerIdOf(req)).reason || '出题模型没配好'}——请到「设置」→「角色模型绑定」为「出题」绑定模型后再试`
           : '情景题生成失败：模型输出没能解析成情景题（可重试；若反复失败，到设置页给「出题」换一个更强的模型）',
         report,
       });

@@ -10,6 +10,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { listTerms, saveOneTerm, saveTerms, extractTerms, removeTerm, updateTerm } from '../learning/terms.js';
+import { ownerIdOf } from '../auth/ownership.js';
 import { reviewOverview, listReviewQueue, markReviewed, termScope, setDomainReviewScope, setTermReviewScope } from '../learning/term-review.js';
 import {
   createDomain,
@@ -120,7 +121,8 @@ termsRouter.post('/extract', async (req: Request, res: Response) => {
     res.status(400).json({ error: 'text 必填（或先为本会话载入资料）' });
     return;
   }
-  const items = await extractTerms(body.slice(0, DOC_EXTRACT_BUDGET_CHARS));
+  // M2c：抽取要调 explain 模型，归属取当前用户（未登录 ⇒ null = 平台通道）
+  const items = await extractTerms(body.slice(0, DOC_EXTRACT_BUDGET_CHARS), ownerIdOf(req));
   if (items.length === 0) {
     res.json({ added: 0, items: [] });
     return;

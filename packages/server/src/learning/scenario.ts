@@ -169,8 +169,9 @@ export async function generateScenario(
   topic: string,
   material?: string,
   report: ScenarioGenReport = emptyScenarioGenReport(),
+  ownerId?: string | null, // M2c 归属（契约 TENANCY-SPEC §8.1.4）
 ): Promise<ScenarioGenerated | null> {
-  const target = routeRole('quiz-generator');
+  const target = routeRole('quiz-generator', undefined, ownerId);
   if (!target || !target.model) {
     report.failure = 'no-model';
     return null;

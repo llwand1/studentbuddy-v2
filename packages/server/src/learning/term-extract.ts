@@ -69,10 +69,18 @@ export function normalizeTerms(items: TermItem[]): TermItem[] {
   return out;
 }
 
-/** 一键抽取（材料 → 词条列表）；返回 [] 表示失败（降级由调用方处理）。 */
-export async function extractTerms(material: string): Promise<TermItem[]> {
+/**
+ * 一键抽取（材料 → 词条列表）；返回 [] 表示失败（降级由调用方处理）。
+ *
+ * ★ M2c：`ownerId` 是这次 LLM 调用的归属（契约 TENANCY-SPEC §8.1.4）。
+ *   本函数有**两个**入口：HTTP（`routes/terms.ts` 的「存入记忆」/文档模式）与
+ *   **响应后 fire-and-forget**（`chat/flow.ts` 的 `void extractTerms(...)`）——
+ *   后者的 ownerId 只能靠显式下传，正是 §8.1.4 选"显式穿透而非 ALS"的直接理由之一。
+ *   ⚠️ 词条**落库**的归属（`term_library`）是 M2d（§8.2），本批只管"模型记在谁头上"。
+ */
+export async function extractTerms(material: string, ownerId?: string | null): Promise<TermItem[]> {
   if (!material?.trim()) return [];
-  const target = routeRole('explain'); // 抽取复用讲解角色模型；契约留扩展点：可拆独立 extractor 角色
+  const target = routeRole('explain', undefined, ownerId); // 抽取复用讲解角色模型；契约留扩展点：可拆独立 extractor 角色
   if (!target || !target.model) return [];
   let acc = '';
   // 防领域碎裂：注入已有领域 top-12，引导新词条优先归入既有领域（TERM-TIDY-SPEC §7.2）。

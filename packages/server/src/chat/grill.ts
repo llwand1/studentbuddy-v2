@@ -66,6 +66,8 @@ export interface GrillClosingDeps {
   tools: ToolDefinition[];
   signal?: AbortSignal;
   onStep: (tool: string, status: 'running' | 'done' | 'error', detail?: string) => void;
+  /** 归属用户 id（M2c）：收尾这轮工具里若发起 LLM 调用（tidy_terms auto），记在发起者头上 */
+  ownerId?: string | null;
 }
 
 /**
@@ -78,7 +80,7 @@ export interface GrillClosingDeps {
  * 失败一律静默：收尾问不出来不该让整轮回答失败（`ok:false` 会把已上屏的回答标成出错）。
  */
 export async function runGrillClosing(deps: GrillClosingDeps): Promise<void> {
-  const { sessionId, adapter, model, apiKey, baseUrl, messages, tools, signal, onStep } = deps;
+  const { sessionId, adapter, model, apiKey, baseUrl, messages, tools, signal, onStep, ownerId } = deps;
 
   // 只问下一步，不需要会话历史之外的东西；push 到 messages 尾部即「最后一轮」
   messages.push({ role: 'user', content: GRILL_POST });
@@ -119,7 +121,7 @@ export async function runGrillClosing(deps: GrillClosingDeps): Promise<void> {
   };
 
   try {
-    await runToolCalls(calls, { onStep }, { sessionId, signal, exec, noTimeout: ['ask_choice'] });
+    await runToolCalls(calls, { onStep }, { sessionId, signal, exec, noTimeout: ['ask_choice'], ownerId });
   } catch {
     return; // 同上：收尾不是主链路
   }

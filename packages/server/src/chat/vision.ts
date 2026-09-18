@@ -65,10 +65,15 @@ export function parseIncomingImages(raw: unknown): { ok: true; images: UploadedI
  * @throws 清晰可读的错误：未配置视觉模型 / 视觉调用本身失败。调用方（flow.ts）据此
  *         向用户报「请到设置页配置视觉模型」之类真话，而不是笼统的「模型不可用」。
  */
-export async function describeImages(images: UploadedImage[], signal?: AbortSignal): Promise<string> {
+export async function describeImages(
+  images: UploadedImage[],
+  signal?: AbortSignal,
+  ownerId?: string | null,
+): Promise<string> {
   if (!images || images.length === 0) return '';
 
-  const target = routeRole('vision');
+  // ★ M2c：读图也是 LLM 调用 ⇒ 必须知道"这轮是谁在问"（契约 TENANCY-SPEC §8.1.4）
+  const target = routeRole('vision', undefined, ownerId);
   if (!target || !target.model) {
     throw new Error(
       '未配置视觉模型：请到设置页「角色模型绑定」为「视觉（看图）」绑定一个支持图片的模型' +

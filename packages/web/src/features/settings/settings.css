@@ -74,7 +74,18 @@
   font-size: var(--sb-fs-sm);
   padding: var(--sb-sp-1) var(--sb-sp-2);
 }
-.settings-del:hover { background: rgba(239, 68, 68, 0.08); border-radius: var(--sb-radius-sm); }
+.settings-del:hover:not(:disabled) { background: rgba(239, 68, 68, 0.08); border-radius: var(--sb-radius-sm); }
+.settings-del:disabled { color: var(--sb-ink-tertiary); cursor: not-allowed; }
+
+/* 平台服务商标记（M2c）：可见但不可改不可删，让限制在界面上就看得见 */
+.settings-tag {
+  margin-left: var(--sb-sp-1);
+  padding: 0 var(--sb-sp-1);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-xs);
+}
 
 .settings-msg {
   font-size: var(--sb-fs-sm);

@@ -115,11 +115,17 @@ function trendFacts(t: TrendData): string {
  * 由调用方回退到确定性模板——本函数**从不抛**（它跑在后台定时任务里，
  * 抛出去只会变成一条谁也没看见的 unhandled rejection）。
  */
-export async function summarizeTrend(data: TrendData, signal?: AbortSignal): Promise<string | null> {
+export async function summarizeTrend(
+  data: TrendData,
+  signal?: AbortSignal,
+  ownerId?: string | null,
+): Promise<string | null> {
   // ★ `resolveCoachTarget()` 也在 try 里：它读 `role_bindings`/`providers` 两张表，
   //   坏配置（半个 provider 行、解不开的密文）都可能让它抛——而**它抛不该等于卡出不来**。
   try {
-    const target = resolveCoachTarget();
+    // ★ M2c：定时器是**逐 owner 跑**的（`trendOwners()` 的循环），ownerId 现成在手 ⇒ 直接传下去。
+    //   这不是"顺手加的"：不带归属的话，给 A 生成的趋势摘要烧的是平台（或恰好第一个绑定）的额度。
+    const target = resolveCoachTarget(ownerId ?? null);
     if (!target?.model) return null;
     const messages: ChatMessage[] = [
       { role: 'system', content: TREND_SUMMARY_PROMPT },
@@ -197,7 +203,10 @@ export async function generateTrendCard(
 
   // ★ 末尾再兜一层 `.catch(() => null)`：`summarize` 是**可注入**的，注入方（测试、将来的
   //   别的摘要实现）抛错不该把整张卡带走——"回退是硬要求"在这里是**结构性**保证，不是靠约定。
-  const ai = await (opts.summarize ?? summarizeTrend)(data).catch(() => null);
+  // ★ M2c：默认实现要带上本轮的 `ownerId`，但**不改可注入签名**（`(data) => …`）——
+  //   否则每个注入点都得跟着改一遍，而注入方根本不关心归属。用一层闭包把 ownerId 绑进去。
+  const summarize = opts.summarize ?? ((d: TrendData) => summarizeTrend(d, undefined, ownerId));
+  const ai = await summarize(data).catch(() => null);
   // ★ 摘要存 `content`（它是这张卡"说给用户的那句话"），图表数据存 `meta`（只给前端渲染）——
   //   两者刻意不同列：`content` 与其它卡的 `text` 同语义，将来要检索/列流水都读得到。
   const card = appendCard(ownerId, 'trend', ai ?? trendFallbackSummary(data), {

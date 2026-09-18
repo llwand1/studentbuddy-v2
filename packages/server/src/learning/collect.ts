@@ -192,7 +192,7 @@ export interface CollectResult {
 export async function collectQuiz(
   topic: string,
   report: CollectReport,
-  opts: { signal?: AbortSignal } = {},
+  opts: { signal?: AbortSignal; ownerId?: string | null } = {},
 ): Promise<CollectResult> {
   const candidates: CollectCandidate[] = [];
   report.queries = buildCollectQueries(topic);
@@ -221,7 +221,8 @@ export async function collectQuiz(
   if (pages.length === 0) return { report, candidates };
 
   // ③ 模型摘录（出题角色现成绑定；搜集不配新角色——「摘录器」没有独立调优需求）
-  const target = routeRole('quiz-generator');
+  // M2c：摘录是一次 LLM 调用，归属取发起搜集的人（契约 §8.1.4）
+  const target = routeRole('quiz-generator', undefined, opts.ownerId);
   if (!target || !target.model) {
     report.failure = 'no-model';
     return { report, candidates };

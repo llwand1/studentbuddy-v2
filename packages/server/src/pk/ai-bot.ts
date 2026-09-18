@@ -41,8 +41,15 @@ export function parseChoice(raw: string, optionCount: number): number | null {
   return null;
 }
 
-/** AI 出题（ticker 到点调用；房已被回收/结算时静默退出） */
-export async function runAiQuiz(roomId: string): Promise<void> {
+/**
+ * AI 出题（ticker 到点调用；房已被回收/结算时静默退出）。
+ *
+ * ★ M2c：`ownerId` **必填**（契约 TENANCY-SPEC §8.1.4 后台路径表）。此处只有一个生产调用方
+ *   ——`match.ts` 的 1s ticker，它**取 `null`**（= 平台通道）：AI 对手是**平台扮演的角色**，
+ *   不是任何用户的请求，且一个房间有两名玩家、**不存在唯一 owner**。⇒ 这笔钱明确记在平台上，
+ *   受 §8.1.3.1 的两层并发闸门约束。签名不给默认值，就是为了让"这是谁在问"必须被回答一次。
+ */
+export async function runAiQuiz(roomId: string, ownerId: string | null): Promise<void> {
   let room: Room;
   try {
     room = requireRoomInternal(roomId);
@@ -69,7 +76,7 @@ export async function runAiQuiz(roomId: string): Promise<void> {
   try {
     // 末参 online=true（2026-09-13 老板拍板）：AI 出题也联网，与人出题同口径（match.ts 那侧同样开了）。
     // 失败不阻断：搜不到就退回模型知识，AI 出题失败本就按 CD 不变、可免费重试处理，计分不受影响。
-    payload = await generateQuiz(topic, undefined, PK_QUIZ_MIX, undefined, undefined, true);
+    payload = await generateQuiz(topic, undefined, PK_QUIZ_MIX, undefined, undefined, true, ownerId);
   } catch {
     payload = null;
   }

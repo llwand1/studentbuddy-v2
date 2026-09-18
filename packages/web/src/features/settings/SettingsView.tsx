@@ -13,7 +13,20 @@ import { QuizMixCard } from './QuizMixCard';
 import { QuizImageCard } from './QuizImageCard';
 import { AnswerStyleCard } from './AnswerStyleCard';
 
-type ProviderRow = { id: string; name: string; baseUrl: string; enabled: boolean; streamMode?: 'stream' | 'once' };
+type ProviderRow = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  enabled: boolean;
+  streamMode?: 'stream' | 'once';
+  /**
+   * 归属（M2c，契约 `docs/TENANCY-SPEC.md` §8.1）：`null` = **平台通道**（老板出的钱），
+   * 非 null = 我自带的 key。★ 平台的 provider **必须可见**（否则没法把角色绑到免费额度上），
+   * 但**不可改**——改了会影响全站所有用户的默认模型，服务端会回 403。
+   * 故这里据此把「回答形态」下拉与「删除」按钮禁掉：让用户看见限制，而不是点下去撞一个错误。
+   */
+  ownerId?: string | null;
+};
 type RoleBindingRow = { role: string; provider_id: string; model: string };
 
 export function SettingsView() {
@@ -141,30 +154,38 @@ export function SettingsView() {
             </tr>
           </thead>
           <tbody>
-            {providers.map((p) => (
-              <tr key={p.id}>
-                <td>{p.name}</td>
-                <td className="mono">{p.baseUrl}</td>
-                <td>
-                  <select
-                    value={p.streamMode ?? 'stream'}
-                    onChange={(e) => void setStreamMode(p.id, e.target.value)}
-                  >
-                    <option value="stream">流式逐字</option>
-                    <option value="once">一次性回答</option>
-                  </select>
-                </td>
-                <td>{p.enabled ? '启用' : '停用'}</td>
-                <td>
-                  <button className="settings-add" onClick={() => void fetchModels(p.id)}>
-                    拉模型
-                  </button>
-                  <button className="settings-del" onClick={() => void removeProvider(p.id)}>
-                    删除
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {providers.map((p) => {
+              // 平台 provider：可见、可拉模型、可被绑定，但不可改不可删（服务端同判据，见 routes.ts）
+              const isPlatform = p.ownerId === null;
+              return (
+                <tr key={p.id}>
+                  <td>
+                    {p.name}
+                    {isPlatform && <span className="settings-tag">平台</span>}
+                  </td>
+                  <td className="mono">{p.baseUrl}</td>
+                  <td>
+                    <select
+                      value={p.streamMode ?? 'stream'}
+                      disabled={isPlatform}
+                      onChange={(e) => void setStreamMode(p.id, e.target.value)}
+                    >
+                      <option value="stream">流式逐字</option>
+                      <option value="once">一次性回答</option>
+                    </select>
+                  </td>
+                  <td>{p.enabled ? '启用' : '停用'}</td>
+                  <td>
+                    <button className="settings-add" onClick={() => void fetchModels(p.id)}>
+                      拉模型
+                    </button>
+                    <button className="settings-del" disabled={isPlatform} onClick={() => void removeProvider(p.id)}>
+                      删除
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 

@@ -27,7 +27,7 @@ import { getDb } from '../storage/db.js';
 import { findFlowStepMeta, FLOW_MAX_STEPS } from '@sb/shared';
 import type { FlowPort, FlowRun, FlowRunStatus, FlowRunStep, FlowStepKind } from '@sb/shared';
 import { getDef } from './study-flow.js';
-import { insertSession } from '../auth/ownership.js';
+import { insertSession, ownerOfSession } from '../auth/ownership.js';
 import { getExecutor, registeredKinds } from './flow-registry.js';
 import type { FlowStepContext } from './flow-registry.js';
 import { ensureNode, deriveDomainEdges } from './knowledge-graph.js';
@@ -298,6 +298,7 @@ export async function advanceRun(runId: string): Promise<AdvanceResult> {
     kind: step.kind,
     params: step.params,
     sessionId: row.session_id,
+    ownerId: ownerOfSession(row.session_id),
     upstream: collectUpstream(runId),
   };
 

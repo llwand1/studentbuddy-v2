@@ -109,6 +109,13 @@ export interface FlowStepContext {
   kind: FlowStepKind;
   params: Record<string, unknown>;
   sessionId: string | null;
+  /**
+   * 归属用户 id（M2c，契约 `docs/TENANCY-SPEC.md` §8.1.4）：步骤里发起的 LLM 调用记在谁头上。
+   * `null` = 平台通道（无会话的纯编排试跑、或会话无主）。★ **必填不给默认值**：
+   * 学习流里已经有 `scenarioStep` 一个 LLM 消费者，将来还会加——"忘传"的后果是静默走平台通道，
+   * 而那正是本片要消灭的失败模式。由 `study-flow-run.ts` 从 `flow_run.session_id` 解析后填入。
+   */
+  ownerId: string | null;
   /** 该 run 中前面各步的产出摘要，按 stepId 索引 */
   upstream: Record<string, Record<string, unknown>>;
 }

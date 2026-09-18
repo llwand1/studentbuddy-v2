@@ -1,6 +1,6 @@
 # TENANCY-SPEC · 多租户数据隔离（M2）
 
-> 版本：v1.4 | 状态：[活跃] | 更新：2026-09-18（M2c 开工：**§8.1.4 上下文传递拍板为显式 `ownerId` 穿透**（不引 ALS）+ 13 个消费点清单 + 后台路径 owner 语义 + **迁移 v29**；§8.1.2 补迁移编号与 `ON CONFLICT` 连带必改点；§8.1.3 免费通道额度不限、两层并发限速；`app_settings` 改每用户）
+> 版本：v1.5 | 状态：[活跃] | 更新：2026-09-18（**M2c 归属改造已落码过测（v0.2.60）**：§8.1.2 三张表（`providers.owner_id` / `role_bindings` 重建 + **平台行部分唯一索引** / `token_usage.user_id`）随**迁移 v29** 落地，`routeRole` 第三参与 **14 个消费点**全量穿透完成，`llm/router.test.ts` 10 例 + `routes/providers-tenancy.test.ts` 13 例 + `storage/db.test.ts` +5 例在守。★ §8.1.2 那条**开工实测**发现的漏项已修——复合主键 `(owner_id, role)` 在 SQLite 下**不拦 `NULL`**（每个 NULL 互不相等）⇒ 平台行靠**部分唯一索引** `WHERE owner_id IS NULL` 去重，**两个约束分工不同、都要有**（复合 PK 管用户行、部分唯一索引管平台行）。**仍未开工**：§8.1.3.1 **两层并发闸门**（内层「每用户 2」已定、**全站封顶 N 待老板给值**，结构可先落、N 走 config）。此前 v1.4 已拍板 §8.1.4 显式 `ownerId` 穿透（不引 ALS）+ 消费点清单 + 后台路径 owner 语义；§8.1.3 免费通道额度不限；`app_settings` 改每用户）
 > 上游契约：`docs/AUTH-SPEC.md`（账号与会话）。本契约只解决「**登录之后，数据归谁**」。
 
 ---
@@ -209,6 +209,20 @@ routes/chat.ts  ownerIdOf(req)
 | `token_usage` | `id / session_id / model / prompt_tokens / completion_tokens / source / created_at` —— **无 `user_id`** | 加 `user_id`（**归属与诊断用**）。★ **不是配额账本**——§8.1.3 已把免费通道改成「额度不限、只限并发」⇒ **不做配额聚合**。★ 它已带 `session_id`、而 `sessions.user_id` 已存在 ⇒ 过渡期可先 join 拿 owner，但最终仍应直接落列 |
 
 ★ **迁移编号 v29**（三张表同版；⚠️ 提交顺序的硬约束见 §8.1.4 末尾）。`role_bindings` 的重建**照 §7.1 的 `user_memory`（v24）六步先例**：建新表 → `INSERT … SELECT` 显式回填归属列 → `DROP` 旧表 → `RENAME` → 重建索引。★ 老库既有绑定的回填值取 **`NULL`**（= 平台通道），与 `providers` 的平台 provider 对齐——**不能用 `''`**：`routeRole` 的平台分支判据是 `owner_id IS NULL`，`''` 会落进「某个不存在的用户」的空档。
+
+★★ **补漏（2026-09-18 开工实测，本小节初稿漏了）**：复合主键 `(owner_id, role)` **在 SQLite 下兜不住平台行**——UNIQUE/PRIMARY KEY 一律把 NULL 视作**互不相同**，`(NULL, 'explain')` 可以插进去**任意多条**。实测（SQLite 3.49.2，本仓 `better-sqlite3`，探针 `_probe/sqlite-null-pk-probe.mjs`）：
+
+| 插入 | 结果 |
+|---|---|
+| `(NULL, 'explain')` 第 1 条 / 第 2 条 | **两条都成功**（PK 未生效） |
+| `('u1', 'explain')` 第 1 条 / 第 2 条 | 第 2 条被 `SQLITE_CONSTRAINT_PRIMARYKEY` 拦住（用户行 PK 正常） |
+| 加 `UNIQUE INDEX … (role) WHERE owner_id IS NULL` 后再插 `(NULL,'explain')` | 被 `SQLITE_CONSTRAINT_UNIQUE` 拦住 ✅；且 `('u2','explain')` 不受影响 ✅ |
+
+⇒ **必须再建一个部分唯一索引**：`CREATE UNIQUE INDEX idx_role_bindings_platform ON role_bindings(role) WHERE owner_id IS NULL`。
+
+⚠️ 不建会怎样（不是理论风险，是必现）：`seedIfEmpty()` 用 `INSERT OR REPLACE`（`llm/router.ts:143`）写平台绑定，而 `OR REPLACE` 依赖"有冲突可换"——没有冲突它就**只是普通 INSERT** ⇒ 每调一次就多一条 `(NULL, role)`。`routeRole` 的 `SELECT … WHERE owner_id IS NULL AND role = ?` 于是取到哪条**取决于行序**，模型绑定变成抽签。
+
+★ 两个约束**分工不同、都要有**：复合 PK 管**用户行**（同一用户同一角色只能一条），部分唯一索引管**平台行**（全站同一角色只能一条）。这与 §8.1.3.1「两层闸门职责不同、不能合并」是同一种判断。
 
 ★★ **`role_bindings` 的主键必须改，这是本片最容易漏的一处**：现主键是 `role` 单列 ⇒ 全库只有**一份** `explain → provider_X` 的绑定。若只给 `providers` 加 owner 而不管它，则**任何登录用户改一次绑定，全站所有用户的模型都跟着变**——从 8.1 描述的"能改别人的"升级成"**能改所有人的**"，**比不做更糟**。而 `ALTER TABLE` 改不了主键 ⇒ **照 §7.1 的 `user_memory` 先例重建表**（v13 的 `UNIQUE(kind, content)` 与此同型）。
 

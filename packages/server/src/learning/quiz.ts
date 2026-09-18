@@ -253,8 +253,13 @@ export async function generateQuiz(
   report?: QuizImageReport,
   styleArg?: AnswerStyle, // 省略＝读库内回答方式偏好（契约 ANSWER-STYLE §3；本行不留余量，故不另起一段注释）
   online = false,
+  ownerId?: string | null, // M2c 归属（契约 TENANCY-SPEC §8.1.4）；尾参可选，见下
 ): Promise<QuizPayload | null> {
-  const target = routeRole('quiz-generator');
+  // ★ M2c：出题是**本仓最贵的 LLM 调用之一**（还带联网检索），归属不能含糊。
+  //   尾参放最后且可选：本函数的调用点有 6 处（chat 工具循环 / REST / PK 人出题 / PK AI 出题 /
+  //   裁判类似题 / 单测），中间插参会把 `styleArg`、`online` 两个位置参数全部错位——
+  //   那是最容易"改完能编译、语义全错"的一类改动。生产路径全部显式传值。
+  const target = routeRole('quiz-generator', undefined, ownerId);
   if (!target || !target.model) {
     // 真因写进 report（契约 QUIZ-SEARCH-SPEC §2.5）：路由据此报「去设置页绑模型」而不是「可重试」
     if (report) report.failure = 'no-model';

@@ -57,6 +57,16 @@ export interface Provider {
   enabled: boolean;
   /** v13 起随 provider 落库；缺省按 type：anthropic=stream，openai=once */
   streamMode?: StreamMode;
+  /**
+   * 归属用户 id（M2c，契约 `docs/TENANCY-SPEC.md` §8.1）。**`null` = 平台通道**（老板出的钱，
+   * 保留值语义与 §3 孤儿行一致），非 null 即 BYOK 用户自带的 key。
+   *
+   * ★ 为什么要出站：设置页需要据此区分「**我的**（可改可删）」与「**平台的**（只读）」——
+   *   平台的 provider 对登录用户必须**可见**（否则他没法把角色绑到免费通道上，免费额度就成了摆设），
+   *   但**不可改**（改掉全站模型就跟着变，正是 §8.1 要消灭的洞）。不给这个字段，UI 就只能
+   *   把所有 provider 都画成可编辑，用户点下去必然撞一个服务端拒绝。
+   */
+  ownerId: string | null;
 }
 
 /** 词条库条目（忆域 v2：AI 自动词条库；废弃 MemorizeItem/SRS 翻卡，2026-09-01 契约） */

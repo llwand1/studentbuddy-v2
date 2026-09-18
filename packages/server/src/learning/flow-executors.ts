@@ -74,7 +74,7 @@ async function scenarioStep(ctx: FlowStepContext): Promise<FlowStepOutcome> {
     throw new Error('情景演练需要 topic 或 material 至少一项（同 REST 生成入口的入参闸门）');
   }
   const report = emptyScenarioGenReport();
-  const gen = await generateScenario(topic || '综合', material || undefined, report);
+  const gen = await generateScenario(topic || '综合', material || undefined, report, ctx.ownerId);
   if (!gen) {
     // 真因如实抛（ADR-5）：没配模型给绑定指引；解析失败说明可重试。不静默、不假装成功。
     throw new Error(

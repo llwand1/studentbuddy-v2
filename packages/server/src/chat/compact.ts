@@ -289,7 +289,9 @@ async function runCompact(sessionId: string, ownerId?: string | null): Promise<C
   const pending = dropped.filter((m) => m.rowid > uptoRowid);
   if (pending.length === 0) return null;
 
-  const target = routeRole('summarizer');
+  // ★ M2c：压缩是**响应后 fire-and-forget** 的 LLM 调用，`ownerId` 只能显式传下来
+  //   （那时已无 req 可取，见 chat/options.ts:26-29 的说明），否则压缩烧的是平台额度
+  const target = routeRole('summarizer', undefined, ownerId);
   if (!target || !target.model) return fail(sessionId, 'no-model', tokensBefore);
 
   const prompt = buildCompactPrompt(previousSummary, serializeForSummary(pending));

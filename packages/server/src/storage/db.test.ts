@@ -137,6 +137,8 @@ describe('storage/db — v11 过程回放迁移（思考链 / 任务清单随消
     // v26 提及流水（term_mention_log）：同 v25 的理由——纯建表型迁移回放本身安全
     // （见 migrations-list-v22.ts 文件头第 11-12 行），但留着会让"老库"凭空有流水。
     v10.exec(`DROP TABLE IF EXISTS term_mention_log`);
+    // v27 邮箱验证码（auth_codes）：同 v25/v26 的理由（纯建表型，回放无需 DROP 列）
+    v10.exec(`DROP TABLE IF EXISTS auth_codes`);
     v10.prepare('DELETE FROM schema_version WHERE version > 10').run();
     expect(cols(v10)).not.toContain('reasoning');
     v10.close();
@@ -514,6 +516,84 @@ describe('storage/db — v25 督促小窗流水迁移（docs/COACH-SPEC.md，B+C
     expect(coachCols(upgraded)).toContain('kind');
     expect(
       upgraded.prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name='idx_coach_owner'`).get(),
+    ).toBeTruthy();
+    upgraded.close();
+  });
+});
+
+describe('storage/db — v27 邮箱验证码迁移（docs/AUTH-SPEC.md §1，M1.5）', () => {
+  const codeCols = (db: ReturnType<typeof openIsolated>): Array<{ name: string; type: string; pk: number; notnull: number; dflt_value: string | null }> =>
+    db.prepare(`PRAGMA table_info(auth_codes)`).all() as Array<{
+      name: string;
+      type: string;
+      pk: number;
+      notnull: number;
+      dflt_value: string | null;
+    }>;
+
+  it('新库 auth_codes 八列 + idx_auth_codes_email_purpose 索引就位', () => {
+    const db = openIsolated(tmp());
+    expect(codeCols(db).map((c) => c.name)).toEqual([
+      'id',
+      'email',
+      'code_hash',
+      'purpose',
+      'expires_at',
+      'attempts',
+      'consumed_at',
+      'created_at',
+    ]);
+    expect(db.prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name='idx_auth_codes_email_purpose'`).get()).toBeTruthy();
+    db.close();
+  });
+
+  it('★ 主键是**自增 INTEGER**、不是 email——同一邮箱多次发码必须能**留下多行**', () => {
+    const db = openIsolated(tmp());
+    const id = codeCols(db).find((c) => c.name === 'id');
+    expect(id?.pk).toBe(1);
+    expect(id?.type).toBe('INTEGER'); // AUTOINCREMENT 要求 INTEGER 主键
+    // 契约 §1 的核心依据：以 email 为主键就只能覆盖，旧码无法保留（重放审计失去依据），
+    // 且并发下 `INSERT OR REPLACE` 会**静默吞掉正在校验的那一条**
+    const ins = db.prepare(`INSERT INTO auth_codes (email, code_hash, purpose, expires_at) VALUES (?, ?, ?, ?)`);
+    ins.run('a@example.com', 'h1', 'login', 1);
+    ins.run('a@example.com', 'h2', 'login', 2);
+    expect((db.prepare(`SELECT COUNT(*) AS c FROM auth_codes WHERE email = 'a@example.com'`).get() as { c: number }).c).toBe(2);
+    db.close();
+  });
+
+  it('★ 状态列默认值：`attempts` 为 0、`consumed_at` 可空（未消费 ≠ 已消费）', () => {
+    const db = openIsolated(tmp());
+    const cols = codeCols(db);
+    expect(cols.find((c) => c.name === 'attempts')?.dflt_value).toBe('0');
+    expect(cols.find((c) => c.name === 'attempts')?.notnull).toBe(1);
+    expect(cols.find((c) => c.name === 'consumed_at')?.notnull).toBe(0);
+    expect(cols.find((c) => c.name === 'consumed_at')?.dflt_value).toBeNull();
+    // 真写一行：不传 attempts 落 0、不传 consumed_at 落 NULL
+    db.prepare(`INSERT INTO auth_codes (email, code_hash, purpose, expires_at) VALUES ('a@example.com', 'h', 'login', 1)`).run();
+    const row = db.prepare(`SELECT attempts, consumed_at FROM auth_codes`).get() as { attempts: number; consumed_at: number | null };
+    expect(row.attempts).toBe(0);
+    expect(row.consumed_at).toBeNull();
+    db.close();
+  });
+
+  it('`email` 不设外键：验证码可以**先于注册**存在（register 态就是给还没有的账号发码）', () => {
+    const db = openIsolated(tmp());
+    db.prepare(`INSERT INTO auth_codes (email, code_hash, purpose, expires_at) VALUES ('ghost@example.com', 'h', 'register', 1)`).run();
+    expect((db.prepare(`SELECT COUNT(*) AS c FROM auth_codes WHERE email = 'ghost@example.com'`).get() as { c: number }).c).toBe(1);
+    db.close();
+  });
+
+  it('老库升级：新表与索引自动补回（v27 是**纯建表**型，重放不撞 duplicate）', () => {
+    const dir = tmp();
+    const old = openIsolated(dir);
+    old.exec(`DROP TABLE IF EXISTS auth_codes`);
+    old.prepare('DELETE FROM schema_version WHERE version > 26').run();
+    old.close();
+
+    const upgraded = openIsolated(dir);
+    expect(codeCols(upgraded).map((c) => c.name)).toContain('code_hash');
+    expect(
+      upgraded.prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name='idx_auth_codes_email_purpose'`).get(),
     ).toBeTruthy();
     upgraded.close();
   });

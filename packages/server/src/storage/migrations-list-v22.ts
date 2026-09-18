@@ -3,7 +3,7 @@
  *
  * 2026-09-18 四次拆分：v24（长期画像归主，契约 docs/TENANCY-SPEC.md §7）加完后 `-v18.ts` 涨到 413 行，
  * 触 AGENTS.md「.ts ≤400 行」红线。照本仓既有规矩（**按版本区间再切，不要用压注释换行数**）
- * 把 v22~v25 切到本文件——分片注释记的是每张表**为什么这么建**，价值远高于行数。
+ * 把 v22~v27 切到本文件——分片注释记的是每张表**为什么这么建**，价值远高于行数。
  * ★ 本文件是**追加新迁移的唯一落点**（v22 及之后）；v18~v21 在 `-v18.ts`，v10~v17 在 `-v10.ts`。
  *
  * ⚠️ 回放迁移链的测试必须把**加列**也 DROP 掉（`ALTER TABLE ADD COLUMN` 不幂等，
@@ -189,6 +189,57 @@ export const MIGRATIONS_V22: Array<{ version: number; statements: string[] }> = 
       `CREATE INDEX IF NOT EXISTS idx_term_mention_term ON term_mention_log(term_id)`,
       `CREATE INDEX IF NOT EXISTS idx_term_mention_day ON term_mention_log(mentioned_day)`,
       `CREATE INDEX IF NOT EXISTS idx_term_mention_lookup ON term_mention_log(owner_id, domain, mentioned_day)`,
+    ],
+  },
+
+  // ── v27 邮箱验证码（契约 docs/AUTH-SPEC.md §1 `auth_codes` / §4.5，2026-09-18 M1.5）──
+  //
+  // 背景：v21 的登录只认密码 ⇒ **忘密码 = 账号永久失联**（SPEC §6 第 3 条，此前唯一的
+  //   「账号丢失无出路」缺口），且注册不验证邮箱归属。本表是「证明你是这个邮箱的主人」
+  //   的唯一载体，同时给 `purpose: 'register'`（邮箱验证）与 `'reset'`（找回密码）留位。
+  //
+  // ★ 主键刻意用自增 `id`，**不是 `email`**：同一邮箱会**多次**请求验证码——
+  //   以 email 为主键就只能覆盖，旧码无法保留（重放审计失去依据）；更糟的是并发请求下
+  //   `INSERT OR REPLACE` 会**静默吞掉正在校验的那一条**（用户手里是新码、库里的行已换，
+  //   表现为「码明明是对的却总说不对」，且不可复现）。
+  //
+  // ★ 只存 `code_hash`（SHA-256 十六进制）不存明文，同 `auth_sessions.token_hash` 的取向：
+  //   拖库拿到的是一堆哈希，不能直接拿去登录。
+  //   ⚠️ **但哈希本身不是防线**——6 位数字只有 10^6 空间，离线爆破是秒级的事。
+  //   真正的防线是 `attempts` 上限 + 发送侧三道限流（§4.5）；哈希只是第二道。
+  //
+  // ★ `attempts` / `consumed_at` 是**状态列**，不是派生值（不适用「派生值一律现算」）：
+  //   `attempts` 每次校验失败自增，达 `AUTH_CODE_MAX_ATTEMPTS` 即作废——**不靠过期兜底**，
+  //   因为 5 分钟窗口对一个脚本足够试几百次；`consumed_at` 非空 = 已用过，
+  //   校验成功**立刻**写入 ⇒ 重放同一个码必失败（一次性）。
+  //
+  // ★ `purpose` 按用途隔离（login / register / reset）：**登录的码不能拿去改密码**，
+  //   否则「为登录而发」的码泄露一次就等于密码重置权泄露一次。
+  //   不在库层写 CHECK：用途集合还会长（本批只接线了 `login` 一个消费端点），
+  //   加 CHECK 就得为每个新用途配一次迁移；脏值由域层归一
+  //   （`shared/auth.ts#normalizePurpose`，同 v25 `coach_messages.kind` 的取舍）。
+  //
+  // ★ `email` **不设外键**：验证码可以**先于注册**存在（`register` 态就是给还没有的账号发码）。
+  //
+  // ★ 索引取 `(email, purpose)` 而非单列：取「最新一条未消费码」与「发新码时作废同用途旧码」
+  //   是仅有的两个高频查询，两者都按这两个维度定位。
+  //
+  // ★ 本迁移是**纯建表**（`CREATE TABLE IF NOT EXISTS`），与 v18/v19/v21/v25/v26 同属
+  //   幂等型 ⇒ 回放迁移链**无需额外 DROP**（对比 v22/v23 的 `ADD COLUMN` 必须退列）。
+  {
+    version: 27,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS auth_codes (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        email       TEXT NOT NULL,
+        code_hash   TEXT NOT NULL,
+        purpose     TEXT NOT NULL,
+        expires_at  INTEGER NOT NULL,
+        attempts    INTEGER NOT NULL DEFAULT 0,
+        consumed_at INTEGER,
+        created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_auth_codes_email_purpose ON auth_codes(email, purpose)`,
     ],
   },
 ];

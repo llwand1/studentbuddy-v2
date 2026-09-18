@@ -41,6 +41,17 @@ export function findUserById(id: string): AuthUser | null {
 }
 
 /**
+ * 按**归一化邮箱**查账号（M1.5 验证码登录用）；不存在 → null。
+ * ★ 入参必须已经是 `normalizeEmail` 的结果——本函数**不重复归一化**，
+ *   否则调用方传 `Alice@Example.com` 会静默查不到（这类"看起来能查到却查不到"最难查）。
+ *   它同时是 `send-code` 判断"该不该发信"的唯一依据，故只有一处、只有一个口径。
+ */
+export function findUserByEmail(email: string): AuthUser | null {
+  const row = findByEmailRow(email);
+  return row ? toAuthUser(row) : null;
+}
+
+/**
  * 注册：建号并返回契约用户（**不含 hash**）。
  * 抛出 `EMAIL_INVALID` / `PASSWORD_WEAK` / `NICKNAME_INVALID` / `EMAIL_TAKEN`。
  */

@@ -4,8 +4,13 @@
  * 定位：把「本地单用户」推向「Web 多用户」的第一块地基——**邮箱 + 密码**账号体系。
  * 为什么是邮箱（而非微信 / 手机号）：微信网页授权与短信验证码**都要求企业资质**，
  * 个人开发者做不了（见 SPEC §0 资质矩阵）；邮箱 + 密码零资质、零第三方依赖，
- * 是当前唯一能独立上线的登录方式。微信登录列为 M4 增强（企业资质就绪后接入，
- * 统一映射到同一 user，不新建账号）。
+ * 是当前唯一能独立上线的登录方式。
+ *
+ * ★ 2026-09-18（M1.5）：**微信 / 手机号登录永久不做**（对个人主体是硬门槛，不是时间问题，
+ *   SPEC §0.1），原「M4 增强」计划作废；同批补上**邮箱验证码登录**（§2.5 / §4.5）——
+ *   它与密码登录**产出同一种会话**，不是第二套账号体系。
+ *   ★ 两者是**双通道并存**、不是替代：密码登录不依赖邮件（§4.6 缓解第 5 条），
+ *   邮件通道挂了用户仍能进；这也是「密码登录不能删」的唯一理由。
  *
  * ★ 单一事实源：常量 / 类型 / 校验一律在此定义，server 与 web 只引用不复制。
  *   **校验本身就是契约**——前端「提交前先拦」与服务端「写入前再拦」必须是同一份，
@@ -41,6 +46,41 @@ export const AUTH_MAX_LOGIN_FAILURES = 5;
 /** 失败计数窗口：15 分钟。窗口内成功登录即清零。 */
 export const AUTH_LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
+// ── 邮箱验证码常量（M1.5，契约 §2.5 / §4.5）──────────────────
+
+/**
+ * 验证码位数：**6 位数字**（10^6 空间）。
+ * ★ 位数不是随手定的：少一位空间掉一个数量级（5 位＝10 万，脚本秒级试穿），
+ *   多一位用户抄错率上升。6 位是「用户抄得动 × 暴力成本够高」的交点——
+ *   而**暴力成本够高有一半靠 `AUTH_CODE_MAX_ATTEMPTS`**，不是靠位数本身（见 §4.5）。
+ */
+export const AUTH_CODE_LEN = 6;
+/**
+ * 验证码有效期：5 分钟。
+ * ★ 下限是「用户切到邮箱、抄回来」的物理时间；上限是攻击窗口——越长，爆破与
+ *   「捡到别人旧邮件」的窗口越宽。5 分钟是常见取值，本版不做滑动续期。
+ */
+export const AUTH_CODE_TTL_MS = 5 * 60 * 1000;
+/**
+ * 同一条码允许的最大校验失败次数，达到即作废（**不靠过期兜底**）。
+ * ★★ **这是 6 位码的唯一防线**：10^6 空间对脚本是分钟级的事，限流只挡「发码」、
+ *   挡不住「拿一条已发的码反复试」。此值必须与位数一起改（改小一位就要同步收紧）。
+ */
+export const AUTH_CODE_MAX_ATTEMPTS = 5;
+/** 同邮箱两次发码的最小间隔：60 秒（防连点，也顺带防「点两次拿到两个可用码」）。 */
+export const AUTH_CODE_RESEND_INTERVAL_MS = 60 * 1000;
+/**
+ * 同邮箱每小时最多发几封。
+ * ★ 与发信厂商免费额度**是一套账**：Resend 免费 3000 封/月 ≈ 100 封/天，
+ *   而本值 5 ⇒ **单个账号一小时就能吃掉 5% 的日额度**（SPEC §4.6 末条）。
+ *   ⇒ 改这个数必须回头重算额度，反之亦然。
+ */
+export const AUTH_CODE_MAX_PER_HOUR = 5;
+/** 同 IP 每小时最多发几封（防「换邮箱刷」——只按邮箱限流的话换个地址就绕过了）。 */
+export const AUTH_CODE_MAX_PER_IP_HOUR = 20;
+/** 上述「每小时」类限流的统计窗口。单列常量，避免三处各写一个 `60 * 60 * 1000`。 */
+export const AUTH_CODE_WINDOW_MS = 60 * 60 * 1000;
+
 // ── 类型 ───────────────────────────────────────────────────
 
 /**
@@ -54,6 +94,15 @@ export interface AuthUser {
   /** ISO 字符串（`datetime('now')` 的库内格式） */
   createdAt: string;
 }
+
+/**
+ * 验证码用途。★ **按用途隔离不是洁癖**：登录的码若能拿去改密码，则「为登录而发」的
+ * 码泄露一次 = 密码重置权泄露一次。库内 `auth_codes.purpose` 与校验时的入参必须同值。
+ */
+export type AuthCodePurpose = 'login' | 'register' | 'reset';
+
+/** 用途全集（校验用；顺序即 UI 展示顺序）。 */
+export const AUTH_CODE_PURPOSES: readonly AuthCodePurpose[] = ['login', 'register', 'reset'];
 
 /**
  * 账号域错误码。**域层不碰 HTTP**——抛这个码，由薄路由映射状态码（同 `PkRoomError` 手法）。
@@ -72,7 +121,18 @@ export type AuthError =
   /** 失败次数超限、暂时锁定 → 429 */
   | 'TOO_MANY_ATTEMPTS'
   /** 未登录 / 会话失效 → 401 */
-  | 'UNAUTHENTICATED';
+  | 'UNAUTHENTICATED'
+  /** 验证码用途不是 `login`/`register`/`reset` → 400（M1.5） */
+  | 'PURPOSE_INVALID'
+  /** 发码过频（三道限流任一命中）→ 429（M1.5；★ 不区分是哪一道，理由见 SPEC §4.5） */
+  | 'CODE_RATE_LIMITED'
+  /** 验证码不对 / 不存在 / 已用过 / 尝试次数耗尽 → 400（M1.5） */
+  | 'CODE_INVALID'
+  /** 验证码已过期 → 400（M1.5；★ 与 `CODE_INVALID` 分开，因为用户动作不同：重发 vs 重输） */
+  | 'CODE_EXPIRED'
+  /** 验证码邮件没发出去（发信通道故障）→ 502（M1.5） */
+  | 'MAIL_SEND_FAILED';
+
 
 // ── 纯校验（前后端共用一份）────────────────────────────────
 
@@ -120,3 +180,42 @@ export function nicknameFromEmail(email: string): string {
   if (!trimmed) return '学习者';
   return trimmed.slice(0, AUTH_NICKNAME_MAX);
 }
+
+// ── 验证码纯校验（M1.5，前后端共用一份）──────────────────────
+
+/**
+ * 用途归一化：命中 `AUTH_CODE_PURPOSES` 才返回，其余（含缺省 / 非字符串）一律 `null`。
+ * ★ **不给缺省值**：默认成 `login` 看着方便，但「忘传 purpose」会被静默当成登录请求，
+ *   而它本该是 400——**默认值要落在能被发现的那一侧**。
+ */
+export function normalizePurpose(raw: unknown): AuthCodePurpose | null {
+  if (typeof raw !== 'string') return null;
+  const p = raw.trim();
+  return (AUTH_CODE_PURPOSES as readonly string[]).includes(p) ? (p as AuthCodePurpose) : null;
+}
+
+/**
+ * 验证码归一化：去空白后必须**恰好 `AUTH_CODE_LEN` 位且全是数字**，否则 `null`。
+ *
+ * ★ 为什么先 `trim` 再判长：用户从邮件里复制常带上首尾空格/换行，为此回 400
+ *   属「把实现细节当用户错误」。
+ * ★ 为什么**不做**「去掉中间空格 / 连字符」（`123 456`、`123-456`）：那是在猜用户意图，
+ *   猜错就是把 `123456` 和 `123 456` 当成同一个码，白送一次尝试机会。
+ */
+export function normalizeCode(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const code = raw.trim();
+  if (code.length !== AUTH_CODE_LEN) return null;
+  return /^\d+$/.test(code) ? code : null;
+}
+
+/**
+ * 由整数造 6 位码字符串（**补零**：`7` → `'000007'`）。
+ * ★ 补零不是装饰：不补的话 `'7'` 与用户的 `'000007'` 对不上，且长度校验会把它拒掉。
+ * ★ 取值上界由调用方给（`crypto.randomInt(0, 10 ** AUTH_CODE_LEN)`）——本函数是纯格式化，
+ *   不负责随机性（随机源在 server 侧，见 `auth/codes.ts`，**绝不用 `Math.random()`**）。
+ */
+export function formatCode(n: number): string {
+  return String(n).padStart(AUTH_CODE_LEN, '0');
+}
+

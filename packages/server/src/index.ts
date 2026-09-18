@@ -29,6 +29,7 @@ import { wireObsEvents } from './storage/obs.js';
 import { getDb } from './storage/db.js';
 import { requireAuth, attachUser } from './auth/middleware.js';
 import { purgeExpiredSessions } from './auth/session.js';
+import { purgeExpiredCodes } from './auth/codes.js';
 import type { StatusResponse } from '@sb/shared';
 import { VERSION } from './version.js';
 
@@ -147,6 +148,9 @@ if (process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('index.js
   if (swept > 0) console.log(`[sb-server] 已作废 ${swept} 条重启前挂起的方案选择`);
   // 账号：启动兜底清理过期会话（除惰性清理外，保证长跑实例的 auth_sessions 不被过期行撑大）
   purgeExpiredSessions();
+  // 账号（M1.5）：同理清理**过期且未消费**的验证码行。
+  // ★ 只删"过期且未消费"的——**已消费的行留着**（审计），它们不是垃圾（见 auth/codes.ts）。
+  purgeExpiredCodes();
   startServer();
   // 记忆联动 P4（契约 docs/MEMORY-TREND-SPEC.md §4.2）：督促趋势定时器。
   // ★ 放在启动链**最后**：它起服即先跑一次（否则首张图要等 6 小时），但全程 fire-and-forget，

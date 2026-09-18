@@ -9,7 +9,7 @@
  *
  * 翻牌状态（`revealed`）留在本组件内：它纯属浏览态，不该污染卡片数据的合并逻辑。
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CoachCard } from '@sb/shared';
 import type { ReviewTermItem } from '../../lib/api';
 import { QueueCard, StreamCard } from './CoachCardViews';
@@ -19,16 +19,35 @@ export function CoachFeed({
   queue,
   busyTerm,
   onReview,
+  focusCardId,
+  onFocused,
 }: {
   cards: CoachCard[];
   queue: ReviewTermItem[];
   /** 正在打卡的词条 id（防重复点击） */
   busyTerm: string | null;
   onReview: (termId: string, remembered: boolean) => void;
+  /** 要滚过去的卡 id（气泡点开时由 `CoachDock` 传入；`null`/缺省＝不滚） */
+  focusCardId?: string | null;
+  /** 滚完通知调用方清位（避免下次开抽屉又滚回去） */
+  onFocused?: () => void;
 }) {
   const [revealed, setRevealed] = useState<string[]>([]);
+  const streamRef = useRef<HTMLDivElement | null>(null);
   const toggle = (id: string) =>
     setRevealed((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  // 滚到指定卡：抽屉与 `focusCardId` 在同一次 `setState` 批次里落地（`openDrawer`），
+  // 故本次 effect 跑时目标节点必然已挂载，不需要 rAF/重试。
+  // ★ 用**属性值比对**而不是把 id 拼进 CSS 选择器——卡片 id 来自库，拼进选择器就开了注入面。
+  useEffect(() => {
+    if (!focusCardId) return;
+    const hit = Array.from(streamRef.current?.querySelectorAll('[data-card-id]') ?? []).find(
+      (el) => el.getAttribute('data-card-id') === focusCardId,
+    );
+    hit?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    onFocused?.();
+  }, [focusCardId, onFocused]);
 
   return (
     <div className="coach-feed">
@@ -67,7 +86,7 @@ export function CoachFeed({
             还没有记录。下面问我一句「今天先背哪个」，或者直接翻上面的牌开始复习。
           </div>
         ) : (
-          <div className="coach-stream">
+          <div className="coach-stream" ref={streamRef}>
             {cards.map((c) => (
               <StreamCard key={c.id} card={c} />
             ))}

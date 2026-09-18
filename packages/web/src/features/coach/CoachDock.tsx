@@ -13,8 +13,10 @@
  *  ③ **常连一条 SSE**：token 只在流里出现一次，断线重连由 `lib/sse-client` 负责
  *     （指数退避 + seq 去重 + `/live` 快照对齐）。这条连接很轻（15s 一个 ping），
  *     换来的是「打开就能发、发了就有字」，比"打开才连"值。
+ *  ④ **服务端也能主动推卡**（P5 起）：定时任务生成的趋势卡经 `coach-card` 事件到达，
+ *     抽屉关着时在胶囊旁冒个气泡——**不自动展开抽屉、不动胶囊红点**（契约 `MEMORY-TREND-SPEC` §4.4）。
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CoachCard, CoachSnapshot } from '@sb/shared';
 import { api, type ReviewTermItem } from '../../lib/api';
 import { COACH_LIVE_URL, COACH_STREAM_URL, coachApi } from '../../lib/api-coach';
@@ -23,7 +25,7 @@ import { MinusIcon } from '../../components/icons';
 import { CoachCapsule } from './CoachCapsule';
 import { CoachComposer } from './CoachComposer';
 import { CoachFeed } from './CoachFeed';
-import { mergeCards, withStreaming } from './coach-cards';
+import { mergeCards, trendBubble, withStreaming, type CoachBubble } from './coach-cards';
 import './coach.css';
 
 /** 队列取几条：小窗一屏能横向滚动的量，再多就该回词条页的复习面板处理 */
@@ -42,6 +44,22 @@ export function CoachDock() {
   const [error, setError] = useState('');
   const [queue, setQueue] = useState<ReviewTermItem[]>([]);
   const [busyTerm, setBusyTerm] = useState<string | null>(null);
+  /** 趋势卡气泡（P5）：持整份载荷（文案 + 落点），渲染时不再重算判定 */
+  const [bubble, setBubble] = useState<CoachBubble | null>(null);
+  /** 气泡点开后要滚到的卡 id（滚完由 `CoachFeed` 回调清位，免得下次开抽屉又滚回去） */
+  const [focusCard, setFocusCard] = useState<string | null>(null);
+
+  /**
+   * 抽屉开合的真值**同时**留一份在 ref 里：SSE 回调是长生命周期闭包，直接读 `open`
+   * 会读到订阅那一刻的旧值（症状是"抽屉明明开着，趋势卡到了还是弹气泡"）；
+   * 而「每次开合都重建连接」更糟——重连要重新对账 seq，还会丢掉这期间到达的帧。
+   * 故只此一个写入口，ref 与 state 一起改，永远不会漂。
+   */
+  const openRef = useRef(false);
+  const setOpenBoth = useCallback((v: boolean) => {
+    openRef.current = v;
+    setOpen(v);
+  }, []);
 
   const refreshState = useCallback(async () => {
     try {
@@ -67,7 +85,8 @@ export function CoachDock() {
     return () => clearInterval(timer);
   }, [reload, refreshState]);
 
-  // SSE：token 累积成临时卡，done 后整表重拉（服务端此刻已把这一轮落库）
+  // SSE：token 累积成临时卡，done 后整表重拉（服务端此刻已把这一轮落库）；
+  // `coach-card` 是服务端**主动推送**的新卡（P4 起的定时趋势卡），不需要用户交互。
   useEffect(() => {
     const client = connectSse(COACH_STREAM_URL, { reconcileUrl: COACH_LIVE_URL });
     const off = client.onEvent((ev) => {
@@ -78,6 +97,12 @@ export function CoachDock() {
         setBusy(false);
         void reload().catch(() => undefined);
         void refreshState();
+      } else if (ev.type === 'coach-card') {
+        // ★ 顺序刻意如此：**先并进流水、再决定冒不冒泡**——即便不冒泡（抽屉开着），
+        //   这张卡也必须立刻出现在用户眼前；反过来写的话，抽屉开着时这张卡会"丢一件"。
+        setCards((prev) => mergeCards(prev, [ev.card]));
+        const bub = trendBubble(ev.card, openRef.current);
+        if (bub) setBubble(bub);
       } else if (ev.type === 'chat-error') {
         setError(ev.message);
         setBusy(false);
@@ -89,18 +114,26 @@ export function CoachDock() {
     };
   }, [reload, refreshState]);
 
-  /** 打开抽屉：顺手催一次 + 拉队列。冷却在服务端把 —— 同一小时内反复开关也只会有一条提醒卡 */
-  const openDrawer = useCallback(async () => {
-    setOpen(true);
-    try {
-      const [n, q] = await Promise.all([coachApi.nudge(), api.terms.queue(QUEUE_LIMIT)]);
-      if (n.card) setCards((prev) => mergeCards(prev, [n.card as CoachCard]));
-      setQueue(q);
-      void refreshState(); // 刚落过提醒卡 ⇒ 冷却生效，红点由服务端判定自动熄掉
-    } catch {
-      // 拉不到就先用旧数据把抽屉打开，别让人点不开
-    }
-  }, [refreshState]);
+  /** 打开抽屉：顺手催一次 + 拉队列。冷却在服务端把 —— 同一小时内反复开关也只会有一条提醒卡
+   *  `focus` 由气泡传入（点「你的趋势图生成了」时抽屉要**直接落到那张卡**，而不是让人自己翻） */
+  const openDrawer = useCallback(
+    async (focus?: string) => {
+      setOpenBoth(true);
+      setBubble(null);
+      setFocusCard(focus ?? null);
+      try {
+        const [n, q] = await Promise.all([coachApi.nudge(), api.terms.queue(QUEUE_LIMIT)]);
+        if (n.card) setCards((prev) => mergeCards(prev, [n.card as CoachCard]));
+        setQueue(q);
+        void refreshState(); // 刚落过提醒卡 ⇒ 冷却生效，红点由服务端判定自动熄掉
+      } catch {
+        // 拉不到就先用旧数据把抽屉打开，别让人点不开
+      }
+    },
+    [refreshState, setOpenBoth],
+  );
+
+  const clearFocus = useCallback(() => setFocusCard(null), []);
 
   const send = useCallback(async (text: string) => {
     setError('');
@@ -145,12 +178,29 @@ export function CoachDock() {
 
   return (
     <>
-      <CoachCapsule
-        snapshot={snapshot}
-        open={open}
-        nudge={nudge}
-        onToggle={() => (open ? setOpen(false) : void openDrawer())}
-      />
+      {/* 悬浮舱：胶囊与气泡**同舱**（`.coach-dock-rail` 的 flex 列），气泡天然排在胶囊正上方——
+          不靠"手算一个等于胶囊高度的 bottom 偏移"，那种写法在文案变长时会压上去。 */}
+      <div className="coach-dock-rail">
+        {/* 趋势卡气泡（P5）：★ 刻意**不是模态、也不自动展开抽屉**——老板要的是"冒出来一个
+            小的对话框"，自动弹开等于抢屏幕（与督促的克制同一条纪律，契约 §4.4）。
+            点它才把抽屉开开并滚到那张卡；右侧 × 是"先不看了"。 */}
+        {bubble && (
+          <div className="coach-bubble" role="status">
+            <button className="coach-bubble-main" onClick={() => void openDrawer(bubble.cardId)}>
+              {bubble.text}
+            </button>
+            <button className="coach-bubble-x" onClick={() => setBubble(null)} title="先不看了">
+              ×
+            </button>
+          </div>
+        )}
+        <CoachCapsule
+          snapshot={snapshot}
+          open={open}
+          nudge={nudge}
+          onToggle={() => (open ? setOpenBoth(false) : void openDrawer())}
+        />
+      </div>
       {open && (
         <aside className="coach-drawer" aria-label="复习督促小窗">
           <header className="coach-drawer-head">
@@ -162,12 +212,19 @@ export function CoachDock() {
                   : '正在读取欠账…'}
               </div>
             </div>
-            <button className="coach-drawer-close" onClick={() => setOpen(false)} title="收起小窗">
+            <button className="coach-drawer-close" onClick={() => setOpenBoth(false)} title="收起小窗">
               <MinusIcon size={15} />
             </button>
           </header>
           {error && <div className="coach-error">{error}</div>}
-          <CoachFeed cards={visible} queue={queue} busyTerm={busyTerm} onReview={(id, r) => void review(id, r)} />
+          <CoachFeed
+            cards={visible}
+            queue={queue}
+            busyTerm={busyTerm}
+            onReview={(id, r) => void review(id, r)}
+            focusCardId={focusCard}
+            onFocused={clearFocus}
+          />
           <CoachComposer busy={busy} onSend={(t) => void send(t)} onStop={stop} />
         </aside>
       )}

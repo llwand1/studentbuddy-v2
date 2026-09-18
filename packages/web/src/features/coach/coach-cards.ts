@@ -84,3 +84,27 @@ export function capsuleTone(s: { due: number; overdue: number }): 'ok' | 'warn' 
   if (s.due > 0) return 'warn';
   return 'ok';
 }
+
+/** 趋势卡气泡文案（契约 `docs/MEMORY-TREND-SPEC.md` §4.4 的原话） */
+export const TREND_BUBBLE_TEXT = '你的近期学习趋势生成了！';
+
+/** 气泡载荷：`cardId` 是「点开之后滚到哪张卡」的落点，文案随载荷一起带（不在渲染时重算判定） */
+export interface CoachBubble {
+  cardId: string;
+  text: string;
+}
+
+/**
+ * 该不该为新到的卡冒一个气泡 —— **只有趋势卡、且抽屉关着时**才冒（契约 §4.4 两条纪律）。
+ *
+ * ★ 抽屉开着 ⇒ 卡片会自己出现在用户眼前，再弹一个气泡是**重复告知**；
+ * ★ 非趋势卡（尤其是提醒卡）⇒ 胶囊上已经有「报数 + 红点」这套语义了，叠加第二次提醒
+ *   会让用户分不清「欠账」和「有消息」哪个更急——这正是 §4.2 说的"气泡不更新红点"。
+ * ★ 判定与 `summarySource` **无关**：模型不可用时卡片照常生成（§4.3），
+ *   气泡宣告的是"图出来了"，不是"模型说话了"；按摘要来源决定弹不弹，等于把功能
+ *   重新绑死在可选依赖上。
+ */
+export function trendBubble(card: CoachCard, open: boolean): CoachBubble | null {
+  if (open || card.kind !== 'trend') return null;
+  return { cardId: card.id, text: TREND_BUBBLE_TEXT };
+}

@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import type { CoachCard } from '@sb/shared';
 import {
   STREAMING_CARD_ID,
+  TREND_BUBBLE_TEXT,
   capsuleTone,
   dropStreaming,
   formatCardTime,
@@ -15,6 +16,7 @@ import {
   retentionLevel,
   reviewCardResult,
   sortCards,
+  trendBubble,
   withStreaming,
 } from './coach-cards';
 
@@ -32,6 +34,19 @@ const reviewCard = (id: string, at: string, remembered = true): CoachCard => ({
   remembered,
   stage: 1,
   intervalDays: 2,
+});
+/** 趋势卡（记忆联动 P4 起的第 5 种 kind）：图与榜的数据都由服务端 SQL 出 */
+const trendCard = (id: string, at: string): CoachCard => ({
+  id,
+  kind: 'trend',
+  at,
+  windowDays: 7,
+  labels: ['09-12', '09-13', '09-14'],
+  values: [1, 3, 2],
+  topDomains: [{ domain: 'math', count: 4 }],
+  topTerms: [{ term: '二分查找', count: 3 }],
+  summary: '近 7 天共提及 6 次，最活跃的是「math」（4 次）。',
+  summarySource: 'ai',
 });
 
 describe('mergeCards — 合并而不是追加', () => {
@@ -138,5 +153,33 @@ describe('展示派生值', () => {
     expect(capsuleTone({ due: 3, overdue: 1 })).toBe('alert');
     expect(capsuleTone({ due: 3, overdue: 0 })).toBe('warn');
     expect(capsuleTone({ due: 0, overdue: 0 })).toBe('ok');
+  });
+});
+
+/**
+ * 趋势卡气泡（P5，契约 MEMORY-TREND-SPEC §4.4）。
+ * 准入条件只有两条：**是趋势卡** + **抽屉关着**。这两条各挡住一个具体的错：
+ * 前者挡住"胶囊同时报数又报消息、用户分不清哪个更急"，后者挡住"卡片就在眼前还弹一个"。 */
+describe('trendBubble — 趋势卡气泡的准入条件', () => {
+  it('趋势卡 + 抽屉关着 ⇒ 冒泡：文案是契约原话，落点是那张卡自己', () => {
+    expect(trendBubble(trendCard('t9', '2026-09-18 05:00:00'), false)).toEqual({
+      cardId: 't9',
+      text: TREND_BUBBLE_TEXT,
+    });
+  });
+
+  it('抽屉开着 ⇒ 不冒泡（卡片会自己出现在他眼前，再弹一个只是重复告知）', () => {
+    expect(trendBubble(trendCard('t9', '2026-09-18 05:00:00'), true)).toBeNull();
+  });
+
+  it('非趋势卡 ⇒ 不冒泡（提醒卡的红点语义已在胶囊上，叠加会让用户分不清哪个更急）', () => {
+    expect(trendBubble(nudgeCard('n1', '2026-09-18 05:00:00'), false)).toBeNull();
+    expect(trendBubble(aiCard('a1', '2026-09-18 05:00:00'), false)).toBeNull();
+    expect(trendBubble(reviewCard('r1', '2026-09-18 05:00:00'), false)).toBeNull();
+  });
+
+  it('回退摘要照样冒泡：气泡宣告的是"图出来了"，与那句摘要由谁写无关（§4.3）', () => {
+    const fb = { ...trendCard('t9', '2026-09-18 05:00:00'), summarySource: 'fallback' as const };
+    expect(trendBubble(fb, false)?.cardId).toBe('t9');
   });
 });

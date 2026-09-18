@@ -289,8 +289,18 @@ const st = await evalJs(`(() => JSON.stringify({
 }))()`);
 const s1 = JSON.parse(st ?? '{}');
 check('流水区二选一：有卡 或 空态文案（不得是空壳）', (s1.n > 0 && s1.empty === null) || (s1.n === 0 && !!s1.empty), `cards=${s1.n} empty=${JSON.stringify((s1.empty ?? '').slice(0, 20))}`);
-const apiCards = snap0.cards ?? [];
-check('流水卡数与 /coach/messages 一致', s1.n === apiCards.length, `DOM=${s1.n} API=${apiCards.length}`);
+// ★★ 期望值必须**与 DOM 同刻**现取，不能用开场那份快照：抽屉打开时 `openDrawer` 会打一次
+//   `POST /coach/nudge`，而服务端的冷却（`NUDGE_COOLDOWN_MS = 2h`）**过期时它当场落一张提醒卡**
+//   ⇒ 此刻 DOM 比开场快照多一张是**正确的**，拿旧快照比会假红。
+//   本探针 2026-09-18（P5 批）就这么误报过一次：DOM=26 / 开场快照=25，差值恰好是那张 nudge 卡
+//   （同一次运行后面「再次打开提醒卡不翻倍 前=2 后=2」正是它的自证）。★ 这也是条文档探针的通则：
+//   **先问「谁的真值更可信」，再改断言**——不是把断言改松让它变绿。
+const freshCount = await evalJs(`fetch('/api/coach/messages').then(r => r.json()).then(j => j.cards.length)`);
+check(
+  '流水卡数与 /coach/messages 同刻一致',
+  s1.n === freshCount,
+  `DOM=${s1.n} API=${freshCount}（开场快照=${(snap0.cards ?? []).length}；差额＝抽屉开启时 nudge 落的那张卡）`,
+);
 
 // ── 5. 输入区 + 快捷指令（契约文案） ────────────────────────────────────────
 const comp = await evalJs(`(() => JSON.stringify({

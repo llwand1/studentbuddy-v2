@@ -2,12 +2,33 @@
    视觉全走 tokens，无组件内联样式（gates 对 style={{}} 有红线）。
    这一层是「悬浮」的：胶囊钉在右下角，抽屉从右侧滑入——两者都不占主区布局，不挤压任何页面。 */
 
-/* ── 折叠态：任务胶囊（B）──────────────────────────────────────── */
-.coach-cap {
+/* ── 悬浮舱：**一个 fixed 容器托着胶囊与趋势气泡** ──────────────────
+   ★ 为什么不是各自 fixed：气泡要"钉在胶囊正上方"，若各自算 `bottom`，那个偏移量就得等于
+     胶囊高度——而它由字号/内边距/文案换行共同决定，文案一长气泡就压上去了。
+     交给 flex 列 + gap 之后，重叠在**结构上**不可能发生（同 B-008 那条"用布局约束代替手算尺寸"）。
+   ★ `pointer-events: none`：容器本身是右下角一块空区域，不该吃点击；只有里面两个控件可点。 */
+.coach-dock-rail {
   position: fixed;
   right: var(--sb-sp-5);
   bottom: var(--sb-sp-5);
   z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+.coach-dock-rail > * {
+  pointer-events: auto;
+}
+/* 预览面板开着时，整舱让位到它左边（:has 检测面板是否在 DOM 里，
+   面板为空时不渲染 .sb-browser，故这个选择器天然只在其打开时生效） */
+.sb-shell:has(.sb-browser) .coach-dock-rail {
+  right: calc(min(var(--sb-browser-w), 46vw) + var(--sb-sp-4));
+}
+
+/* ── 折叠态：任务胶囊（B）──────────────────────────────────────── */
+.coach-cap {
   display: flex;
   align-items: center;
   gap: var(--sb-sp-2);
@@ -64,10 +85,57 @@
   }
 }
 
-/* 预览面板开着时，胶囊让位到它左边（:has 检测面板是否在 DOM 里，
-   面板为空时不渲染 .sb-browser，故这个选择器天然只在其打开时生效） */
-.sb-shell:has(.sb-browser) .coach-cap {
-  right: calc(min(var(--sb-browser-w), 46vw) + var(--sb-sp-4));
+/* ── 趋势卡气泡（P5）：由 `.coach-dock-rail` 的 flex 列托在胶囊正上方 ────
+   契约 MEMORY-TREND-SPEC §4.4：服务端定时出卡后，抽屉**关着**时冒这一颗。
+   ★ 刻意不是模态、不自动展开抽屉——老板要的是"冒出来一个小的对话框"，
+     自动弹开等于抢屏幕（与督促的克制同一条纪律）。
+   ★ 左侧竖线沿用趋势卡的中性灰（#6b7c93）而不是主色蓝：这颗气泡宣告的是
+     "一份数据出来了"，不是"我在催你"，不该抢红点/报数那套语义的注意力。 */
+.coach-bubble {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: min(300px, 72vw);
+  padding: 7px 6px 7px 11px;
+  border: 1px solid var(--sb-line);
+  border-left: 3px solid #6b7c93;
+  border-radius: var(--sb-radius-md);
+  background: var(--sb-surface);
+  box-shadow: var(--sb-shadow-2);
+  animation: coach-bubble-in 0.2s ease-out;
+}
+.coach-bubble-main {
+  padding: 0;
+  text-align: left;
+  font-size: var(--sb-fs-xs);
+  font-weight: 600;
+  line-height: var(--sb-lh);
+  color: var(--sb-ink);
+  cursor: pointer;
+}
+.coach-bubble-main:hover {
+  color: var(--sb-primary);
+}
+.coach-bubble-x {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: var(--sb-radius-sm);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+.coach-bubble-x:hover {
+  background: var(--sb-bg);
+  color: var(--sb-ink);
+}
+@keyframes coach-bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
 }
 
 /* ── 展开态：右侧抽屉（C）────────────────────────────────────── */
@@ -337,6 +405,41 @@
   color: var(--sb-ink);
   white-space: pre-wrap;
   word-break: break-word;
+}
+/* 折线画布（P5）：SVG 带 viewBox 与固定 width/height，这里按容器宽铺开、高度自动等比，
+   320×112 的设计尺寸在 400 抽屉里几乎不用缩放（见 chart-utils 的 TREND_W/TREND_H 注释）。 */
+.coach-tr-chart {
+  margin: 6px 0 2px;
+}
+.coach-tr-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+/* top 榜（契约 §6.3「单序列 + top 榜」）：领域在前、术语在后，都与摘要同一次取数 */
+.coach-tr-ranks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.coach-tr-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 1px 8px;
+  border: 1px solid var(--sb-line);
+  border-radius: 999px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+}
+/* 术语 chip 压一层底色：与领域 chip 区分「我常学的方向」和「我常提的具体词」 */
+.coach-tr-chip.term {
+  background: var(--sb-bg);
+}
+.coach-tr-n {
+  font-weight: 700;
+  color: #55637a;
 }
 .coach-card-review {
   display: flex;

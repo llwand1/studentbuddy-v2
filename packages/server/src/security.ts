@@ -4,11 +4,23 @@
  */
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 
+/**
+ * ★ M2 收口（launch-plan §3.1 闸门 2，2026-09-19）：`SB_ALLOWED_ORIGINS` 把部署域名注进白名单。
+ * 改前这里是**硬编码的 localhost 集合** ⇒ 浏览器带 `Origin: https://<域名>` 时所有 POST 一律 403
+ * ⇒ **全站瘫痪**（登录、发码、出题、打卡全挂）——本机开发无感、上线即挂的那类闸门。
+ * ★ 逗号分隔、逐条 trim、空串丢弃；**localhost 兜底正则保留**（本地开发不因忘了配 env 而挂），
+ *   生产域名的唯一入口就是本 env。originCheck 在写操作上强校验，env 配错的症状是"合法域名也 403"，
+ *   宁可显式失败也不放宽（放行通配符等于没有这道闸）。
+ */
 const ALLOWED_ORIGINS = new Set([
   'http://127.0.0.1:5173',
   'http://localhost:5173',
   'http://127.0.0.1:18791',
   'http://localhost:18791',
+  ...(process.env.SB_ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
 ]);
 
 export function isAllowedOrigin(origin: string | undefined): boolean {

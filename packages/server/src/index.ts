@@ -34,10 +34,28 @@ import type { StatusResponse } from '@sb/shared';
 import { VERSION } from './version.js';
 
 const PORT = Number(process.env.SB_PORT ?? 18791);
-const HOST = '127.0.0.1';
+/**
+ * ★ M2 收口（launch-plan §3.1 闸门 3）：`SB_HOST` 可配。改前硬编码 `'127.0.0.1'` ⇒
+ *   容器内只监听回环、Caddy 连不上后端（本机开发无感，上线即挂）。
+ */
+const HOST = process.env.SB_HOST ?? '127.0.0.1';
 
 const app = express();
 export { app };
+
+/**
+ * ★ M2 收口（launch-plan §3.1 闸门 1）：`SB_TRUST_PROXY` 打开 Express 的反代信任。
+ * 不配时 `req.ip` 恒为 socket 对端（本机部署即真实 IP，行为不变）；反代（Caddy）后必须配，
+ * 否则 `req.ip` 恒为反代自身地址 ⇒ 全站共用一个 IP 桶 ⇒ `send-code` 的 IP 限流
+ * **静默退化成全站上限**（AUTH-SPEC §4.6 末段的现场证据在 `routes/auth.ts#clientIp`）。
+ * ★ 取值透传 Express 语义：`'1'`（＝信任最近 1 跳，单层 Caddy 的标准配法）或
+ *   `'loopback'` 等 Express 认的字符串原样生效。**缺省不信任**——盲信
+ *   `X-Forwarded-For` 等于把限流的键交给请求方可任意伪造的头。
+ */
+const TRUST_PROXY = process.env.SB_TRUST_PROXY;
+if (TRUST_PROXY) {
+  app.set('trust proxy', TRUST_PROXY === '1' ? 1 : TRUST_PROXY);
+}
 
 app.disable('x-powered-by');
 app.use(securityHeaders);

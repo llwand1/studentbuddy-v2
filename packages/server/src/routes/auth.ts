@@ -66,8 +66,9 @@ const ERROR_TEXT: Record<AuthError, string> = {
  * ⚠️ **反代后的连带后果（部署前必读）**：未配 `app.set('trust proxy', …)` 时 `req.ip`
  *   恒为**反代自身地址** ⇒ 全站共用一个 IP 桶 ⇒ `AUTH_CODE_MAX_PER_IP_HOUR`(20)
  *   **静默退化成"全站每小时 20 封"**，100 个用户抢 20 个名额，其余全部 429。
- *   ⇒ M3 部署清单里必须同时做两件事：Caddy 下发 `X-Forwarded-For` + Express 打开 trust proxy。
- *   本行注释是那条要求的**代码侧现场证据**（改了 trust proxy 不必改这里）。
+ *   ⇒ 代码侧已由 M2 收口把 `SB_TRUST_PROXY` 接进 `index.ts`（`app.set('trust proxy', …)`）；
+ *   M3 部署清单还差配套的一半：Caddy 必须真的下发 `X-Forwarded-For`，且**生产必须配 `SB_TRUST_PROXY=1`**
+ *   （不配则本注释描述的退化依旧发生——代码给开关，部署给配置，两者缺一不可）。
  */
 function clientIp(req: Request): string {
   return req.ip ?? '';

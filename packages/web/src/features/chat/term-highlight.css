@@ -1,0 +1,184 @@
+/**
+ * term-highlight — 正文词条高亮 + 词条卡（契约 `docs/TERM-HIGHLIGHT-SPEC.md` §3）。
+ *
+ * 视觉口径（老板拍板 G 方案）：
+ *   · 首现 = 实线下划线 + 极淡主色底（「这个词你学过」）
+ *   · 复现 = 只剩虚点线（同一段里第二次出现不再抢注意力）
+ *   · 悬停 = 速览卡；点击 = 完整卡（固定）
+ * 颜色与间距一律取 `tokens.css` 的变量；少量半透明叠加色沿用仓内既有写法（如 `.sb-line`）。
+ */
+
+/* 高亮片段的包裹层：display:contents 让它不参与布局（只为挂事件委托，不影响段落排版） */
+.term-text {
+  display: contents;
+}
+
+.term-hl {
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.12s ease;
+}
+
+.term-hl.first {
+  text-decoration: underline solid 1.5px rgba(0, 122, 255, 0.5);
+  text-underline-offset: 3px;
+  background: var(--sb-primary-weak);
+}
+
+.term-hl.again {
+  text-decoration: underline dotted 1px rgba(0, 122, 255, 0.3);
+  text-underline-offset: 3px;
+}
+
+.term-hl:hover {
+  background: rgba(0, 122, 255, 0.14);
+  text-decoration: underline solid 1.5px var(--sb-primary);
+}
+
+/* ── 卡片层（portal 到 body，fixed 定位；坐标由 TermText 命令式写入） ── */
+.term-card-layer {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 60;
+}
+
+.term-card {
+  width: 268px;
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  box-shadow: var(--sb-shadow-2);
+  padding: var(--sb-sp-3);
+  font-size: var(--sb-fs-sm);
+  line-height: 1.6;
+  color: var(--sb-ink);
+}
+
+.term-card.mini {
+  width: 214px;
+}
+
+.term-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-1);
+  margin-bottom: 6px;
+}
+
+.term-card-name {
+  font-size: var(--sb-fs-md);
+  font-weight: 600;
+}
+
+.term-card-domain {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  border: 1px solid var(--sb-line);
+  border-radius: 4px;
+  padding: 0 5px;
+}
+
+.term-card-use {
+  margin-left: auto;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.term-card-x {
+  border: none;
+  background: none;
+  color: var(--sb-ink-tertiary);
+  cursor: pointer;
+  font-size: var(--sb-fs-md);
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.term-card-x:hover {
+  color: var(--sb-ink);
+}
+
+.term-card-def {
+  color: var(--sb-ink-secondary);
+}
+
+.term-card-alias {
+  margin-top: 7px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.term-card-alias i {
+  font-style: normal;
+  color: #b45309;
+  background: #fff8ec;
+  border: 1px solid #f6e2c0;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+/* 复习状态条：中性色——「N 天没复习」是提示不是警报，上红会吓人 */
+.term-card-rv {
+  margin-top: 8px;
+  padding: 5px 7px;
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-bg);
+  border: 1px solid var(--sb-line);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+}
+
+.term-card-rv.out {
+  color: var(--sb-ink-tertiary);
+  border-style: dashed;
+}
+
+.term-card-acts {
+  margin-top: 9px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.term-card-btn {
+  border: 1px solid var(--sb-line);
+  background: var(--sb-surface);
+  color: var(--sb-ink-secondary);
+  border-radius: var(--sb-radius-sm);
+  padding: 3px 9px;
+  font-family: inherit;
+  font-size: var(--sb-fs-xs);
+  cursor: pointer;
+}
+
+.term-card-btn:hover:not(:disabled) {
+  border-color: var(--sb-primary);
+  color: var(--sb-primary);
+}
+
+.term-card-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.term-card-btn.primary {
+  background: var(--sb-primary);
+  border-color: var(--sb-primary);
+  color: #fff;
+}
+
+.term-card-btn.primary:hover:not(:disabled) {
+  opacity: 0.88;
+  color: #fff;
+}
+
+.term-card-msg {
+  margin-top: 7px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+}

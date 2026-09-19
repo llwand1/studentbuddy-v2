@@ -8,7 +8,7 @@
  * 投降两段确认。判分权威在服务端，本组件只发请求 + 渲染。
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, fireEvent, cleanup, waitFor } from '@testing-library/react';
+import { render, fireEvent, cleanup, waitFor, act } from '@testing-library/react';
 import type { PkPlayer, PkQuestion, PkRoomState } from '@sb/shared';
 import { ApiError, api } from '../../lib/api';
 import { PkMatch } from './PkMatch';
@@ -105,6 +105,42 @@ describe('PkMatch 对局视图', () => {
     expect(container.querySelector('.sb-pk-fold-sum')?.textContent).toContain('出题 · ');
     inFold(container);
     expect(container.querySelector('.sb-pk-fold-body')?.textContent).toContain('出题给对手'); // 入口永远可达
+  });
+
+  /**
+   * 两条闪光各自挂一条独立计时器是旧实现的坑：第一条到点会把第二条刚亮起来的判定一起抹掉，
+   * 玩家连答两题时第二条几乎看不见。时间线用假计时器钉死（两次闪光间隔 1000ms < 2500ms），
+   * 再推进到「第一条已到期、第二条还没」的那一帧断言它仍在。
+   */
+  it('连答两题：后一条判定不被前一条的计时器提前抹掉', async () => {
+    vi.useFakeTimers();
+    try {
+      pk.submitAnswer
+        .mockResolvedValueOnce({ correct: true, delta: 2 })
+        .mockResolvedValueOnce({ correct: false, delta: -1 });
+      const { container } = setup(room({ questions: [question()] }));
+      const opt = container.querySelectorAll('.sb-pk-option')[1] as Element;
+      const flash = () => container.querySelector('.sb-pk-verdict-flash');
+      /** act 只刷 microtask 与 React 待渲染队列、不推进假计时器，所以两条闪光各自的到期点可算 */
+      const settle = () => act(async () => {});
+      await act(async () => {
+        fireEvent.click(opt);
+      });
+      expect(flash()?.textContent).toContain('答对 +2');
+      vi.advanceTimersByTime(1000);
+      await act(async () => {
+        fireEvent.click(opt);
+      });
+      expect(flash()?.textContent).toContain('答错');
+      vi.advanceTimersByTime(1600); // t=2600：第一条的 2500ms 已过，第二条只走了 1600ms
+      await settle();
+      expect(flash()?.textContent).toContain('答错'); // 旧实现：这里已被第一条抹成 null
+      vi.advanceTimersByTime(1000); // t=3600：第二条自己的 2500ms 到点，该收了
+      await settle();
+      expect(flash()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('点选项 → POST answer → 判分反馈回显（答题只发选择，判分在服务端）', async () => {

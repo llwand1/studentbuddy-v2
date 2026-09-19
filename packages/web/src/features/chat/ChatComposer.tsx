@@ -114,20 +114,30 @@ export function ChatComposer({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const MAX_IMAGES = 4;
+  /**
+   * 已发起读取、还没落进 attachments 的张数。★ 上限必须把它算进来：`attachments` 是**本次渲染的
+   * 快照**，连续两次粘贴/选图在同一 tick 内都读到旧值，只按它算余量的话 4 张的上限会被突破
+   * （服务端 `chat/vision.ts` 与 24mb body 限额是同一套账，超了的症状是「点发送没反应」）。
+   */
+  const inflight = useRef(0);
 
   /** 把选中的/粘贴的图片文件转 base64 dataURL 追加进附件（上限 4 张，非图片忽略） */
   const addImages = (files: File[]) => {
-    const room = MAX_IMAGES - attachments.length;
+    const room = MAX_IMAGES - attachments.length - inflight.current;
     if (room <= 0) return;
-    let added = 0;
-    for (const file of files) {
-      if (!file.type.startsWith('image/') || added >= room) continue;
-      added += 1;
+    for (const file of files.filter((f) => f.type.startsWith('image/')).slice(0, room)) {
+      inflight.current += 1;
       const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-        if (dataUrl) setAttachments((a) => [...a, { dataUrl, name: file.name }]);
+      const release = () => {
+        inflight.current -= 1;
       };
+      reader.onload = () => {
+        release();
+        const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+        // 函数式更新里再兜一次硬上限：名额计数若与真实状态对不上，宁可丢弃也不越线
+        if (dataUrl) setAttachments((a) => (a.length >= MAX_IMAGES ? a : [...a, { dataUrl, name: file.name }]));
+      };
+      reader.onerror = release; // 读失败也要还名额，否则余量永久缩水
       reader.readAsDataURL(file);
     }
   };
@@ -233,11 +243,17 @@ export function ChatComposer({
           }}
         />
         {busy ? (
-          <button className="chat-stop" onClick={onStop} title="停止生成" aria-label="停止生成">
+          <button type="button" className="chat-stop" onClick={onStop} title="停止生成" aria-label="停止生成">
             <StopIcon size={14} />
           </button>
         ) : (
-          <button className="chat-send" disabled={!input.trim() || blocked} onClick={onSubmit} title="发送">
+          <button
+            type="button"
+            className="chat-send"
+            disabled={!input.trim() || blocked}
+            onClick={onSubmit}
+            title="发送"
+          >
             <SendIcon />
           </button>
         )}

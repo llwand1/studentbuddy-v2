@@ -12,7 +12,7 @@
  * 全部计时读服务端时间戳（nextQuizAt/deadlineAt），本组件的 500ms interval 只驱动展示。
  * 判分不在这里算：点选项 → POST answer → 服务端判分 → SSE pk-state 回灌快照（单一事实源）。
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { isAiUserId, type PkJudgeAdvice, type PkRoomState } from '@sb/shared';
 import { api, ApiError } from '../../lib/api';
 import {
@@ -88,10 +88,22 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
   /** 底部折叠区（出题入口 / 已发出 / 已判定 / 投降） */
   const [open, setOpen] = useState(false);
 
+  /**
+   * 闪光计时句柄。★ 必须存下来：不存的话连点两个选项会挂着两条独立计时器，第一条到点就把
+   * 第二条刚亮起来的判定抹掉（第二条只闪零点几秒，等于白答一次没反馈），卸载后还会继续 setState。
+   */
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flash = useCallback((v: Verdict) => {
+    if (flashTimer.current) clearTimeout(flashTimer.current);
     setVerdict(v);
-    setTimeout(() => setVerdict(null), VERDICT_MS);
+    flashTimer.current = setTimeout(() => setVerdict(null), VERDICT_MS);
   }, []);
+  useEffect(
+    () => () => {
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+    },
+    [],
+  );
 
   const mine = myPendingQuestion(state, userId);
   const sent = pendingToOpponent(state, userId);

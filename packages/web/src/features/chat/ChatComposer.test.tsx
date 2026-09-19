@@ -4,10 +4,11 @@
  *
  * 判定逻辑（menuStatus 等）已有纯函数测试兜着；这里锁的是**渲染与交互契约**：
  * 三态 placeholder、发送/停止按钮互换、IME 组字回车不误发（中文用户的事故位）、
- * 菜单在无会话时整体禁用、mixTip 的会话门、附件移除回传。
- * 纯函数测试测不到「按钮换没换」「占位文案给没给对」这一层。
+ * 菜单在无会话时整体禁用、mixTip 的会话门、附件移除回传、**附件 4 张上限的同一 tick 竞态**。
+ * 纯函数测试测不到「按钮换没换」「占位文案给没给对」「连粘两次会不会超上限」这一层。
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
+import { useState } from 'react';
 import { render, fireEvent, screen, cleanup, type RenderResult } from '@testing-library/react';
 import { ChatComposer } from './ChatComposer';
 import type { DocMode } from './useDocMode';
@@ -174,5 +175,46 @@ describe('ChatComposer 输入区', () => {
     fireEvent.click(item);
     expect(props.setOnline).toHaveBeenCalledWith(true);
     expect(screen.queryByRole('menu')).toBeTruthy(); // toggle 不收菜单（可连翻验证）
+  });
+
+  it('发送/停止按钮显式 type="button"（将来外层包进 form 也不会变成提交按钮）', () => {
+    const idle = setup({});
+    expect(idle.container.querySelector('.chat-send')?.getAttribute('type')).toBe('button');
+    const busy = setup({ busy: true });
+    expect(busy.container.querySelector('.chat-stop')?.getAttribute('type')).toBe('button');
+  });
+
+  /**
+   * 附件上限的真竞态位：`attachments` 是**本次渲染的快照**，同一 tick 内两次粘贴都读到旧值。
+   * 所以这里必须挂真 `useState`（`vi.fn()` 的 setter 不累加，测的是假状态），
+   * 并且两次 paste 之间不给重渲染的机会。
+   */
+  it('附件上限 4 张锁得住：同一 tick 连续两次各粘 3 张，只收 4 张', async () => {
+    function Harness() {
+      const [imgs, setImgs] = useState<Array<{ dataUrl: string; name?: string }>>([]);
+      return <ChatComposer {...base({ attachments: imgs, setAttachments: setImgs })} />;
+    }
+    const { container } = render(<Harness />);
+    const paste = (n: number, tag: string) => {
+      const ev = new Event('paste', { bubbles: true, cancelable: true }) as Event & {
+        clipboardData: { items: Array<{ type: string; getAsFile: () => File }> };
+      };
+      ev.clipboardData = {
+        items: Array.from({ length: n }, (_, i) => {
+          const f = new File([new Uint8Array([1, 2, 3])], `${tag}${i}.png`, { type: 'image/png' });
+          return { type: f.type, getAsFile: () => f };
+        }),
+      };
+      fireEvent(ta(), ev);
+    };
+    paste(3, 'a');
+    paste(3, 'b'); // 此刻 attachments 仍是空数组：只有「在途名额」能挡住这 3 张
+    const names = () =>
+      Array.from(container.querySelectorAll('.chat-att img')).map((im) => im.getAttribute('alt'));
+    await vi.waitFor(() => {
+      expect(names().length).toBe(4);
+    });
+    // 收的是先到的 4 张，越线那张连读取都不该发起
+    expect(names()).toEqual(['a0.png', 'a1.png', 'a2.png', 'b0.png']);
   });
 });

@@ -71,7 +71,13 @@ const FOLD_LINES = 25;
 function CodeBlock({ block }: { block: Extract<Block, { kind: 'code' }> }) {
   const [copied, setCopied] = useState(false);
   const lineCount = useMemo(() => block.text.split('\n').length, [block.text]);
-  const [folded, setFolded] = useState(lineCount > FOLD_LINES);
+  /**
+   * 折叠是**派生**的，不是挂载时算一次的 state：流式时这个组件一直挂着，`useState(初始值)` 的
+   * 话代码块从第 3 行长到第 40 行也不会折叠（要等下一轮重挂载）。用户手动「展开全部」后置
+   * `userExpanded`，此后不再被流式拉回折叠——每帧跟他抢状态比不折更糟。
+   */
+  const [userExpanded, setUserExpanded] = useState(false);
+  const folded = lineCount > FOLD_LINES && !userExpanded;
   /**
    * 高亮分两档：围栏闭合后全量重算（最准）；流式中只给「已完整换行」的部分上色——
    * 末行内容每帧都在变，对它上色会整块闪；已换行的行内容已定，可以稳定着色。
@@ -122,7 +128,7 @@ function CodeBlock({ block }: { block: Extract<Block, { kind: 'code' }> }) {
         </code>
       </pre>
       {lineCount > FOLD_LINES && (
-        <button className="md-pre-toggle" onClick={() => setFolded((f) => !f)}>
+        <button className="md-pre-toggle" onClick={() => setUserExpanded((e) => !e)}>
           {folded ? `展开全部 ${lineCount} 行` : '收起'}
         </button>
       )}

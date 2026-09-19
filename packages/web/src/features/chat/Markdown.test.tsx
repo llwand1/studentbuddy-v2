@@ -94,6 +94,20 @@ describe('Markdown 组件渲染', () => {
     expect(q(container, 'button.md-pre-toggle')!.textContent).toBe('收起');
   });
 
+  it('流式中代码块长过 25 行当场就该折；用户手动展开后不再被拉回折叠', () => {
+    const el = document.createElement('div');
+    const code = (n: number) => '```python\n' + Array.from({ length: n }, (_, i) => `line${i}`).join('\n');
+    const r = render(<Markdown text={code(5)} streaming />, { container: el });
+    expect(q(el, 'pre')!.className).not.toContain('md-pre-folded'); // 短块不该有折叠条
+    // 流到 30 行的这一帧就要折：旧实现只在挂载时求值一次，会一路全展开
+    r.rerender(<Markdown text={code(30)} streaming />);
+    expect(q(el, 'pre')!.className).toContain('md-pre-folded');
+    // 手动放开之后，继续流入也不许跟用户抢状态
+    fireEvent.click(q(el, 'button.md-pre-toggle')!);
+    r.rerender(<Markdown text={code(40)} streaming />);
+    expect(q(el, 'pre')!.className).not.toContain('md-pre-folded');
+  });
+
   it('```html 围栏永不内联：无 iframe、原文不成为活元素，只给卡片入口', () => {
     const { container } = render(
       <Markdown text={'```html\n<b>粗体</b>\n```'} />,

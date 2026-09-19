@@ -33,7 +33,7 @@ import type { ToolContext, ToolResult } from './tools/registry.js';
 import { runTool, toolMeta } from './tools/index.js';
 import { publishEvent } from '../events/bus.js';
 import { canonicalToolArgs } from '@sb/shared';
-import { DEFAULT_TOOL_TIMEOUT_MS, ToolTimeoutError, resolveToolTimeoutMs } from './tool-timeout.js';
+import { ToolTimeoutError, resolveToolTimeoutMs } from './tool-timeout.js';
 
 // 档位解析已拆到 `tool-timeout.ts`（本文件 404/400 触线，仓规拆文件）；re-export 保住
 // 既有导入面——`tool-exec.test.ts` 的分档用例、未来 flow 侧的引用都不用改 import 路径。

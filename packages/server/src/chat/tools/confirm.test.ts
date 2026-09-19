@@ -181,7 +181,7 @@ describe('write-gate — 拒绝/超时的 apply 恒 0 死锁（§4.6-4，本文�
     const ac = new AbortController();
     const { ctx } = probeCtx('s-abort', ac.signal);
     const p = runTool('__probe_always', '{"n":4}', ctx);
-    const frame = await confirmFrame('s-abort');
+    await confirmFrame('s-abort'); // 只等卡发出，值无断言价值（收口断言在 settleFrameCount）
     ac.abort();
     const r = await p;
     expect(r.meta?.confirm).toBe('deny');

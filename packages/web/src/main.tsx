@@ -16,6 +16,13 @@ import { api } from './lib/api';
 import type { AuthUser } from '@sb/shared';
 import './styles/tokens.css';
 
+/** GoatCounter 统计脚本（index.html 注入）的最低类型面；SPA 路由切换时手动补计数 */
+declare global {
+  interface Window {
+    goatcounter?: { count?: (opt?: { path?: string }) => void };
+  }
+}
+
 function isPkHash(): boolean {
   const h = window.location.hash;
   return h === '#/pk' || h.startsWith('#/pk/');
@@ -35,6 +42,12 @@ function Root() {
       .me()
       .then((u) => setUser(u))
       .catch(() => setUser(null)); // 401 = 未登录，是正常状态不是异常
+  }, []);
+  // SPA 路由计数：hash 变化不会触发整页加载，GoatCounter 的自动计数覆盖不到，手动补一针
+  useEffect(() => {
+    const count = () => window.goatcounter?.count?.({ path: location.pathname + location.hash });
+    window.addEventListener('hashchange', count);
+    return () => window.removeEventListener('hashchange', count);
   }, []);
   if (pk) return <PkApp />;
   if (user === undefined) return null; // 登录态查询中的空窗，避免「落地页闪一下又进应用」

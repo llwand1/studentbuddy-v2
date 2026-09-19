@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts"
+    "start": "tsx src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --sourcemap --outfile=dist/index.js --external:express --external:cors --external:better-sqlite3 --external:pino",
+    "start:prod": "node dist/index.js"
   },
   "dependencies": {
     "@sb/shared": "*",
@@ -15,6 +17,7 @@
     "pino": "^9.6.0"
   },
   "devDependencies": {
+    "esbuild": "^0.25.12",
     "tsx": "^4.19.2"
   }
 }

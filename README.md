@@ -1,5 +1,6 @@
 # studentbuddy v2
 
+[![CI](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
 ![tests](https://img.shields.io/badge/tests-148%20files%20%2F%202069%20cases-brightgreen)

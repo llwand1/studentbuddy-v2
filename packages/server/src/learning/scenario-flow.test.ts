@@ -62,7 +62,7 @@ describe('announceScenarioToSession（下发共享函数：REST 与编排执行�
       { id: 't1', prompt: '选出危险源', criteria: { kind: 'choice' as const, answer: [1] } },
       { id: 't2', prompt: '完成断电操作', criteria: { kind: 'state' as const, key: 'power', value: 'off' } },
     ];
-    const saved = saveScenario({ title: '下发测试', tasks }, '<!doctype html><html><body><button id="sb-t1"></button></body></html>');
+    const saved = saveScenario({ title: '下发测试', tasks }, '<!doctype html><html><body><button id="sb-t1"></button></body></html>', null);
     expect(saved).not.toBeNull();
     const gen = { quizId: saved!.quizId, demoId: saved!.demoId, payload: { title: '下发测试', tasks } };
     const sid = 'sess-announce-' + String(Date.now());

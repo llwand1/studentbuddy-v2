@@ -33,7 +33,7 @@ import { upsertNoteFromAnswer } from '../learning/notes.js';
 import { getDb } from '../storage/db.js';
 import { publishEvent } from '../events/bus.js';
 import { publish } from '../chat/sse-bus.js';
-import { ownerIdOf } from '../auth/ownership.js';
+import { ownerIdOf, ownerForWrite } from '../auth/ownership.js';
 
 export const quizRouter = Router();
 
@@ -129,7 +129,7 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
     // 交付图数在裁剪**后**数：模型画了 3 张、被配比裁剩 1 张带图的题，就只报 1
     images.delivered = countQuizImages(quiz);
     let quizId: string | undefined;
-    if (save) quizId = saveQuiz(quiz, 'ai');
+    if (save) quizId = saveQuiz(quiz, 'ai', ownerIdOf(req));
     if (quizId) publishEvent({ type: 'quiz_generated', quizId, ownerId: ownerIdOf(req) });
     if (sessionId) {
       // 内容块流（演进③）：quiz 经 SSE block 事件下发聊天视图
@@ -191,29 +191,29 @@ quizRouter.post('/collect/commit', (req: Request, res: Response) => {
     res.status(400).json({ error: '入库失败：没有一道通过服务端复校验（请先预览，再勾选确认的题提交）' });
     return;
   }
-  const quizId = saveQuiz(quiz, 'collect');
+  const quizId = saveQuiz(quiz, 'collect', ownerIdOf(req));
   publishEvent({ type: 'quiz_generated', quizId, ownerId: ownerIdOf(req) });
   res.json({ quizId, count: quiz.questions.length });
 });
 
-quizRouter.get('/bank', (_req, res) => {
-  res.json(listQuiz());
+quizRouter.get('/bank', (req: Request, res: Response) => {
+  res.json(listQuiz(ownerIdOf(req)));
 });
 
 quizRouter.get('/bank/:id', (req: Request, res: Response) => {
-  const quiz = getQuiz(req.params.id ?? '');
+  const quiz = getQuiz(req.params.id ?? '', ownerIdOf(req));
   if (!quiz) {
     res.status(404).json({ error: '题库不存在' });
     return;
   }
   const stats = getDb()
-    .prepare('SELECT question_index, attempts, correct, streak, best_streak FROM quiz_stats WHERE quiz_id = ?')
-    .all(req.params.id ?? '');
+    .prepare('SELECT question_index, attempts, correct, streak, best_streak FROM quiz_stats WHERE quiz_id = ? AND owner_id = ?')
+    .all(req.params.id ?? '', ownerForWrite(ownerIdOf(req)));
   res.json({ quiz, stats });
 });
 
 quizRouter.delete('/bank/:id', (req: Request, res: Response) => {
-  deleteQuiz(req.params.id ?? '');
+  deleteQuiz(req.params.id ?? '', ownerIdOf(req));
   // 情景题连带删 demo 行（quiz_bank 无外键，1:1 关系靠这里维持；普通题删零行幂等）
   deleteScenarioDemoByQuiz(req.params.id ?? '');
   res.json({ ok: true });
@@ -230,13 +230,13 @@ quizRouter.post('/stats/record', (req: Request, res: Response) => {
     res.status(400).json({ error: 'quizId/questionIndex/correct 必填' });
     return;
   }
-  recordAnswer(quizId, questionIndex, correct);
+  recordAnswer(quizId, questionIndex, correct, ownerIdOf(req));
   // 刷题笔记（QUIZ-NOTES-SPEC）：提交答案即落草稿。answer 可选（老客户端不传 = 只记对错），
   // 只收可序列化的下标数组/文本，其余形状丢弃（不可信输入不进快照）。
   let snapshot: number[] | string | undefined;
   if (Array.isArray(answer) && answer.every((a) => typeof a === 'number')) snapshot = answer as number[];
   else if (typeof answer === 'string') snapshot = answer.slice(0, 2000);
-  upsertNoteFromAnswer(quizId, questionIndex, correct, snapshot ?? null);
+  upsertNoteFromAnswer(quizId, questionIndex, correct, ownerIdOf(req), snapshot ?? null);
   res.json({ ok: true });
 });
 

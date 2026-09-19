@@ -23,6 +23,7 @@ import {
 import { getMaxOutputTokens } from '../llm/model-limits.js';
 import { routeRole } from '../llm/router.js';
 import { getDb } from '../storage/db.js';
+import { ownerForWrite } from '../auth/ownership.js';
 import { repairJsonBrackets, repairJsonEscapes } from './quiz-json-repair.js';
 import { getQuiz } from './quiz.js';
 
@@ -128,16 +129,16 @@ function describeAnswer(q: QuizQuestion, raw: string | null): string {
  *
  * 越界题号直接滤掉：题库被重新生成后题号可能超出新题量，那是垃圾数据，显示给用户只会造成困惑。
  */
-function loadWrong(quizId: string): { quiz: QuizPayload | null; wrong: WrongItem[] } {
-  const quiz = getQuiz(quizId);
+function loadWrong(quizId: string, ownerId: string | null): { quiz: QuizPayload | null; wrong: WrongItem[] } {
+  const quiz = getQuiz(quizId, ownerId);
   const stats = getDb()
-    .prepare('SELECT question_index, attempts, correct FROM quiz_stats WHERE quiz_id = ?')
-    .all(quizId) as Array<{ question_index: number; attempts: number; correct: number }>;
+    .prepare('SELECT question_index, attempts, correct FROM quiz_stats WHERE quiz_id = ? AND owner_id = ?')
+    .all(quizId, ownerForWrite(ownerId)) as Array<{ question_index: number; attempts: number; correct: number }>;
   const wrong = stats.filter((s) => s.attempts > 0 && s.correct / s.attempts < WEAK_WRONG_RATE);
   if (!quiz || wrong.length === 0) return { quiz, wrong: [] };
   const notes = getDb()
-    .prepare('SELECT question_index, my_answer FROM quiz_notes WHERE quiz_id = ?')
-    .all(quizId) as Array<{ question_index: number; my_answer: string | null }>;
+    .prepare('SELECT question_index, my_answer FROM quiz_notes WHERE quiz_id = ? AND owner_id = ?')
+    .all(quizId, ownerForWrite(ownerId)) as Array<{ question_index: number; my_answer: string | null }>;
   const byIndex = new Map(notes.map((n) => [n.question_index, n.my_answer]));
   // 题量按形状取：情景题 question_index 是任务下标（上限 tasks.length），传统题是题目下标
   const tasks = scenarioTasksOf(quiz);
@@ -224,8 +225,8 @@ export function parseWeakJson(text: string): unknown | null {
  * 文案与旧实现**逐字一致**；唯一差异是题号列表会过滤越界项并封顶 `WEAK_MAX_QUESTIONS` 道
  * （旧实现会把题库改小后的越界题号原样显示成不存在的题）。
  */
-export function localWeakPoints(quizId: string): WeakPoint[] {
-  const { quiz, wrong } = loadWrong(quizId);
+export function localWeakPoints(quizId: string, ownerId: string | null): WeakPoint[] {
+  const { quiz, wrong } = loadWrong(quizId, ownerId);
   if (!quiz || wrong.length === 0) return [];
   return [
     {
@@ -263,14 +264,14 @@ export function buildScenarioWeakPrompt(title: string, tasks: ScenarioTask[], wr
  *   反推在「角色绑定存在但 provider 被停用」这类边缘态会判错：那种情况 `routeRole` 返回 null，
  *   属 `no-model` 而非 `call-failed`。
  */
-export async function analyzeWeakPoints(quizId: string, ownerId?: string | null): Promise<WeakAnalysis> {
-  const { quiz, wrong } = loadWrong(quizId);
+export async function analyzeWeakPoints(quizId: string, ownerId: string | null): Promise<WeakAnalysis> {
+  const { quiz, wrong } = loadWrong(quizId, ownerId);
   // 还没做题 / 全对：**正常空态，不是降级**。与「模型挂了退回规则版」必须分开说（契约 §2.1）
   // ——混成一句就会出现「模型没配」被说成「你还没做题」，用户照着去刷题，刷完还是那句。
   if (!quiz || wrong.length === 0) return { weak: [], fallback: false, analyzed: 0 };
 
   const degraded = (failure: WeakFailure): WeakAnalysis => ({
-    weak: localWeakPoints(quizId),
+    weak: localWeakPoints(quizId, ownerId),
     fallback: true,
     failure,
     analyzed: wrong.length,

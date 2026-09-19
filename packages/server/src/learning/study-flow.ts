@@ -16,6 +16,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
+import { ownerForWrite } from '../auth/ownership.js';
 import type { FlowDef, FlowDefInput, FlowEdgeDef, FlowPort, FlowStepDef, FlowStepKind } from '@sb/shared';
 import { validateStepParams } from './flow-registry.js';
 
@@ -174,8 +175,10 @@ const readSteps = (defId: string): FlowStepDef[] =>
 const readEdges = (defId: string): FlowEdgeDef[] =>
   (getDb().prepare('SELECT * FROM flow_edge WHERE def_id = ? ORDER BY rowid').all(defId) as EdgeRow[]).map(toEdge);
 
-export function getDef(id: string): FlowDef | null {
-  const row = getDb().prepare('SELECT * FROM flow_def WHERE id = ?').get(id) as DefRow | undefined;
+export function getDef(id: string, ownerId: string | null): FlowDef | null {
+  const row = getDb()
+    .prepare('SELECT * FROM flow_def WHERE id = ? AND owner_id = ?')
+    .get(id, ownerForWrite(ownerId)) as DefRow | undefined;
   if (!row) return null;
   return {
     id: row.id,
@@ -189,10 +192,10 @@ export function getDef(id: string): FlowDef | null {
   };
 }
 
-export function listDefs(): FlowDef[] {
+export function listDefs(ownerId: string | null): FlowDef[] {
   const rows = getDb()
-    .prepare('SELECT * FROM flow_def ORDER BY updated_at DESC, rowid DESC')
-    .all() as DefRow[];
+    .prepare('SELECT * FROM flow_def WHERE owner_id = ? ORDER BY updated_at DESC, rowid DESC')
+    .all(ownerForWrite(ownerId)) as DefRow[];
   return rows.map((row) => ({
     id: row.id,
     name: row.name,
@@ -224,7 +227,7 @@ function writeStepsAndEdges(defId: string, steps: PreparedStep[], edges: Prepare
 
 export type CreateDefResult = { ok: true; def: FlowDef } | { ok: false; error: string };
 
-export function createDef(input: unknown): CreateDefResult {
+export function createDef(input: unknown, ownerId: string | null): CreateDefResult {
   const check = validateDefInput(input);
   if (!check.ok) return check;
   const src = input as FlowDefInput;
@@ -232,14 +235,15 @@ export function createDef(input: unknown): CreateDefResult {
   const id = randomUUID();
   const description = typeof src.description === 'string' ? src.description.trim().slice(0, 300) : '';
   db.transaction(() => {
-    db.prepare('INSERT INTO flow_def (id, name, description, version) VALUES (?, ?, ?, 1)').run(
+    db.prepare('INSERT INTO flow_def (id, name, description, version, owner_id) VALUES (?, ?, ?, 1, ?)').run(
       id,
       String(src.name).trim().slice(0, 60),
       description,
+      ownerForWrite(ownerId),
     );
     writeStepsAndEdges(id, check.steps, check.edges);
   })();
-  return { ok: true, def: getDef(id)! };
+  return { ok: true, def: getDef(id, ownerId)! };
 }
 
 /**
@@ -248,8 +252,10 @@ export function createDef(input: unknown): CreateDefResult {
  *   整体重建的代价可忽略，而 diff 会引入一大片易错状态机。**版本号递增**供运行快照区分。
  * ★ 已跑过的运行**不受影响**——它们用的是自己的 `def_snapshot`。
  */
-export function updateDef(id: string, input: unknown): CreateDefResult {
-  const existing = getDb().prepare('SELECT id, version FROM flow_def WHERE id = ?').get(id) as
+export function updateDef(id: string, input: unknown, ownerId: string | null): CreateDefResult {
+  const existing = getDb()
+    .prepare('SELECT id, version FROM flow_def WHERE id = ? AND owner_id = ?')
+    .get(id, ownerForWrite(ownerId)) as
     | { id: string; version: number }
     | undefined;
   if (!existing) return { ok: false, error: '学习流不存在' };
@@ -270,22 +276,22 @@ export function updateDef(id: string, input: unknown): CreateDefResult {
     );
     writeStepsAndEdges(id, check.steps, check.edges);
   })();
-  return { ok: true, def: getDef(id)! };
+  return { ok: true, def: getDef(id, ownerId)! };
 }
 
 /** 删定义。★ 不级联删运行实例：运行是「已发生的事」，历史要留得住。 */
-export function removeDef(id: string): boolean {
+export function removeDef(id: string, ownerId: string | null): boolean {
   const db = getDb();
   return db.transaction(() => {
     db.prepare('DELETE FROM flow_step WHERE def_id = ?').run(id);
     db.prepare('DELETE FROM flow_edge WHERE def_id = ?').run(id);
-    return db.prepare('DELETE FROM flow_def WHERE id = ?').run(id).changes === 1;
+    return db.prepare('DELETE FROM flow_def WHERE id = ? AND owner_id = ?').run(id, ownerForWrite(ownerId)).changes === 1;
   })();
 }
 
 /** 克隆成一条新流（「固定化复用」最常用的动作：拿一条跑过的流改一版） */
-export function cloneDef(id: string, name?: string): CreateDefResult {
-  const src = getDef(id);
+export function cloneDef(id: string, ownerId: string | null, name?: string): CreateDefResult {
+  const src = getDef(id, ownerId);
   if (!src) return { ok: false, error: '学习流不存在' };
   return createDef({
     name: name?.trim() || `${src.name} 副本`,
@@ -304,5 +310,5 @@ export function cloneDef(id: string, name?: string): CreateDefResult {
       fromPort: e.fromPort,
       label: e.label,
     })),
-  });
+  }, ownerId);
 }

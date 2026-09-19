@@ -180,4 +180,31 @@ export const MIGRATIONS_V31: Array<{ version: number; statements: string[] }> = 
       `ALTER TABLE messages ADD COLUMN duration_ms INTEGER`,
     ],
   },
+  // ── v33（2026-09-19，M2d-3 其余表归主：quiz_* / flow_* / knowledge_* 八处加列，契约 TENANCY-SPEC §8.2）──
+  // ★ 这组表的主键全是**全局唯一 uuid**（不跨用户撞键）⇒ **加列即可**（判据见 §8.2 表头，不是重建）。
+  // ★ 归属值口径照抄 M2d-1/M2d-2：`NOT NULL DEFAULT ''`——`''` = 无主行 = **谁都看不见**（与 v29
+  //   `providers` 的 NULL=平台可见**刻意相反**）；老行全部落 `''`（迁移那一刻无人知道老数据属于谁，
+  //   判给任何用户都是把别人的题库/知识图谱送人），登录后由 `_probe/claim-legacy.mjs` 显式认领
+  //   （该脚本 M2d-1 批已预置本批八张表，表或列不存在即跳过）。
+  // ★ **收口一个已上线的旧洞**：`knowledge_node`/`knowledge_edge` 此前**无任何归属过滤**
+  //   ⇒ A 的知识图谱 B 能看见（M2d-1 普查发现，挂账至今）。
+  // ★ 子表不加列的判据：`flow_step`/`flow_edge` 恒经 `def_id` 触达（归属随 `flow_def` 传递，
+  //   「子表随父表」同 `messages` 不加 user_id 的既定口径）；`quiz_notes`/`quiz_stats` 虽也有父键
+  //   （quiz_id），但契约 §8.2 点名加列（统计/笔记有**不经父表的聚合与列表读**），照契约办。
+  // ★ 不新建索引：本批只加归属条件，既有查询路径（id/quiz_id/def_id/run_id 主键或索引）先行，
+  //   owner 过滤是等值附加条件；单机规模下不构成新瓶颈（v29 同判不加）。
+  // ⚠ 回放纪律同 v28/v32：本迁移不幂等，回放链的撤销点要先 DROP 本批八列，别顺手 DROP 别的。
+  {
+    version: 33,
+    statements: [
+      `ALTER TABLE quiz_bank ADD COLUMN owner_id TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE quiz_stats ADD COLUMN owner_id TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE quiz_notes ADD COLUMN owner_id TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE flow_def ADD COLUMN owner_id TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE flow_run ADD COLUMN owner_id TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE flow_run_step ADD COLUMN owner_id TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE knowledge_node ADD COLUMN owner_id TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE knowledge_edge ADD COLUMN owner_id TEXT NOT NULL DEFAULT ''`,
+    ],
+  },
 ];

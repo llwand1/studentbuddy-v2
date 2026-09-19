@@ -161,10 +161,10 @@ describe('study-flow — 定义 CRUD', () => {
   };
 
   it('创建后可原样读回（步骤参数、边、端口都落库）', () => {
-    const r = createDef(sample);
+    const r = createDef(sample, null);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    const got = getDef(r.def.id);
+    const got = getDef(r.def.id, null);
     expect(got).not.toBeNull();
     expect(got!.steps).toHaveLength(4);
     expect(got!.edges).toHaveLength(3);
@@ -175,9 +175,9 @@ describe('study-flow — 定义 CRUD', () => {
   });
 
   it('更新递增版本号（运行快照据此区分新旧定义）', () => {
-    const r = createDef(sample);
+    const r = createDef(sample, null);
     if (!r.ok) return;
-    const r2 = updateDef(r.def.id, { ...sample, name: '改过的名字' });
+    const r2 = updateDef(r.def.id, { ...sample, name: '改过的名字' }, null);
     expect(r2.ok).toBe(true);
     if (!r2.ok) return;
     expect(r2.def.version).toBe(2);
@@ -185,7 +185,7 @@ describe('study-flow — 定义 CRUD', () => {
   });
 
   it('更新是整体替换：删掉的步骤不会残留', () => {
-    const r = createDef(sample);
+    const r = createDef(sample, null);
     if (!r.ok) return;
     const r2 = updateDef(r.def.id, {
       name: '只剩两步',
@@ -194,7 +194,7 @@ describe('study-flow — 定义 CRUD', () => {
         { id: 's2', kind: 'summary', params: {} },
       ],
       edges: [{ fromStepId: 's1', toStepId: 's2' }],
-    });
+    }, null);
     expect(r2.ok).toBe(true);
     if (!r2.ok) return;
     expect(r2.def.steps).toHaveLength(2);
@@ -202,15 +202,15 @@ describe('study-flow — 定义 CRUD', () => {
   });
 
   it('校验失败时**不写半截**（库里不留残行）', () => {
-    const r = createDef({ name: '坏的', steps: [{ kind: 'explain', params: {} }], edges: [] });
+    const r = createDef({ name: '坏的', steps: [{ kind: 'explain', params: {} }], edges: [] }, null);
     expect(r.ok).toBe(false);
-    expect(listDefs()).toHaveLength(0);
+    expect(listDefs(null, )).toHaveLength(0);
   });
 
   it('克隆出一份独立新流（id 不同、步骤边一致）', () => {
-    const r = createDef(sample);
+    const r = createDef(sample, null);
     if (!r.ok) return;
-    const c = cloneDef(r.def.id);
+    const c = cloneDef(r.def.id, null);
     expect(c.ok).toBe(true);
     if (!c.ok) return;
     expect(c.def.id).not.toBe(r.def.id);
@@ -219,10 +219,10 @@ describe('study-flow — 定义 CRUD', () => {
   });
 
   it('删除时把步骤与边一并清掉（不留孤儿行）', () => {
-    const r = createDef(sample);
+    const r = createDef(sample, null);
     if (!r.ok) return;
-    expect(removeDef(r.def.id)).toBe(true);
-    expect(getDef(r.def.id)).toBeNull();
-    expect(listDefs()).toHaveLength(0);
+    expect(removeDef(r.def.id, null)).toBe(true);
+    expect(getDef(r.def.id, null)).toBeNull();
+    expect(listDefs(null, )).toHaveLength(0);
   });
 });

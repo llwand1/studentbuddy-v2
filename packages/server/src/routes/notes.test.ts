@@ -23,7 +23,7 @@ const quiz: QuizPayload = {
     { type: 'single', question: 'Q1', options: ['a', 'b'], answer: [0], explanation: '解析A' },
   ],
 };
-const quizId = saveQuiz(quiz, 'ai');
+const quizId = saveQuiz(quiz, 'ai', null);
 
 const record = (body: Record<string, unknown>) =>
   request(app).post('/api/quiz/stats/record').set('Origin', origin).send(body);

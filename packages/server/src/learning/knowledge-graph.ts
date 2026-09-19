@@ -90,45 +90,49 @@ export function ensureNode(input: {
   refText: string;
   sourceRunId?: string | null;
   sourceStepId?: string | null;
+  ownerId: string | null; // M2d-3：knowledge_node 归主（v33）——此前全站一张图，A 的节点 B 能看见
 }): KnowledgeNode {
   const db = getDb();
+  const owner = ownerForWrite(input.ownerId);
   const refId = input.refId ?? null;
   if (refId) {
     const found = db
-      .prepare('SELECT * FROM knowledge_node WHERE kind = ? AND ref_id = ?')
-      .get(input.kind, refId) as NodeRow | undefined;
+      .prepare('SELECT * FROM knowledge_node WHERE kind = ? AND ref_id = ? AND owner_id = ?')
+      .get(input.kind, refId, owner) as NodeRow | undefined;
     if (found) return toNode(found);
   }
   const id = randomUUID();
   db.prepare(
-    `INSERT OR IGNORE INTO knowledge_node (id, kind, ref_id, ref_text, source_run_id, source_step_id)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(id, input.kind, refId, input.refText.slice(0, 500), input.sourceRunId ?? null, input.sourceStepId ?? null);
+    `INSERT OR IGNORE INTO knowledge_node (id, kind, ref_id, ref_text, source_run_id, source_step_id, owner_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(id, input.kind, refId, input.refText.slice(0, 500), input.sourceRunId ?? null, input.sourceStepId ?? null, owner);
   const row = db.prepare('SELECT * FROM knowledge_node WHERE id = ?').get(id) as NodeRow;
   return toNode(row);
 }
 
-export function getNode(id: string): KnowledgeNode | null {
-  const row = getDb().prepare('SELECT * FROM knowledge_node WHERE id = ?').get(id) as NodeRow | undefined;
+export function getNode(id: string, ownerId: string | null): KnowledgeNode | null {
+  const row = getDb()
+    .prepare('SELECT * FROM knowledge_node WHERE id = ? AND owner_id = ?')
+    .get(id, ownerForWrite(ownerId)) as NodeRow | undefined;
   return row ? toNode(row) : null;
 }
 
-export function listNodes(kind?: KnowledgeNodeKind, limit = 200): KnowledgeNode[] {
+export function listNodes(ownerId: string | null, kind?: KnowledgeNodeKind, limit = 200): KnowledgeNode[] {
   const db = getDb();
   const cap = Math.min(Math.max(limit, 1), 1000);
   const rows = (
     kind
-      ? db.prepare('SELECT * FROM knowledge_node WHERE kind = ? ORDER BY created_at DESC, rowid DESC LIMIT ?').all(kind, cap)
-      : db.prepare('SELECT * FROM knowledge_node ORDER BY created_at DESC, rowid DESC LIMIT ?').all(cap)
+      ? db.prepare('SELECT * FROM knowledge_node WHERE kind = ? AND owner_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?').all(kind, ownerForWrite(ownerId), cap)
+      : db.prepare('SELECT * FROM knowledge_node WHERE owner_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?').all(ownerForWrite(ownerId), cap)
   ) as NodeRow[];
   return rows.map(toNode);
 }
 
 /** 一次运行产出的全部节点（运行详情页「本次学到了什么」用） */
-export function nodesOfRun(runId: string): KnowledgeNode[] {
+export function nodesOfRun(runId: string, ownerId: string | null): KnowledgeNode[] {
   const rows = getDb()
-    .prepare('SELECT * FROM knowledge_node WHERE source_run_id = ? ORDER BY created_at, rowid')
-    .all(runId) as NodeRow[];
+    .prepare('SELECT * FROM knowledge_node WHERE source_run_id = ? AND owner_id = ? ORDER BY created_at, rowid')
+    .all(runId, ownerForWrite(ownerId)) as NodeRow[];
   return rows.map(toNode);
 }
 
@@ -147,17 +151,19 @@ export function addEdge(input: {
   origin: KnowledgeEdgeOrigin;
   weight?: number;
   evidence?: string | null;
+  ownerId: string | null; // M2d-3：knowledge_edge 归主（v33）
 }): KnowledgeEdge | null {
   const db = getDb();
+  const owner = ownerForWrite(input.ownerId);
   if (input.fromNodeId === input.toNodeId) return null; // 自环无意义，静默丢弃
   const existing = db
-    .prepare('SELECT * FROM knowledge_edge WHERE from_node_id = ? AND to_node_id = ? AND kind = ?')
-    .get(input.fromNodeId, input.toNodeId, input.kind) as EdgeRow | undefined;
+    .prepare('SELECT * FROM knowledge_edge WHERE from_node_id = ? AND to_node_id = ? AND kind = ? AND owner_id = ?')
+    .get(input.fromNodeId, input.toNodeId, input.kind, owner) as EdgeRow | undefined;
   if (existing) return toEdge(existing);
   const id = randomUUID();
   db.prepare(
-    `INSERT OR IGNORE INTO knowledge_edge (id, from_node_id, to_node_id, kind, origin, weight, evidence)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR IGNORE INTO knowledge_edge (id, from_node_id, to_node_id, kind, origin, weight, evidence, owner_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     input.fromNodeId,
@@ -166,14 +172,17 @@ export function addEdge(input: {
     input.origin,
     Math.min(1, Math.max(0, input.weight ?? 0.5)),
     input.evidence ?? null,
+    owner,
   );
   const row = db.prepare('SELECT * FROM knowledge_edge WHERE id = ?').get(id) as EdgeRow | undefined;
   return row ? toEdge(row) : null;
 }
 
 /** 删一条边（用户手工纠正 AI 的幻觉边时用） */
-export function removeEdge(id: string): boolean {
-  return getDb().prepare('DELETE FROM knowledge_edge WHERE id = ?').run(id).changes === 1;
+export function removeEdge(id: string, ownerId: string | null): boolean {
+  return getDb()
+    .prepare('DELETE FROM knowledge_edge WHERE id = ? AND owner_id = ?')
+    .run(id, ownerForWrite(ownerId)).changes === 1;
 }
 
 /**
@@ -182,14 +191,16 @@ export function removeEdge(id: string): boolean {
  *   `user` 边是用户自己搭的、更不该被程序清掉。给规则一个「重算」的后悔药，
  *   但不给程序一个「一键清空用户劳动成果」的危险能力。
  */
-export function purgeDerivedEdges(): number {
-  return getDb().prepare(`DELETE FROM knowledge_edge WHERE origin = 'derived'`).run().changes;
+export function purgeDerivedEdges(ownerId: string | null): number {
+  return getDb()
+    .prepare(`DELETE FROM knowledge_edge WHERE origin = 'derived' AND owner_id = ?`)
+    .run(ownerForWrite(ownerId)).changes;
 }
 
 // ── 邻域查询（前端局部图渲染的唯一入口）──
 
-export function neighborhood(nodeId: string, depth = 2): KnowledgeNeighborhood | null {
-  const center = getNode(nodeId);
+export function neighborhood(nodeId: string, ownerId: string | null, depth = 2): KnowledgeNeighborhood | null {
+  const center = getNode(nodeId, ownerId);
   if (!center) return null;
   const db = getDb();
   const maxDepth = Math.min(Math.max(depth, 1), NEIGHBORHOOD_MAX_DEPTH);
@@ -216,7 +227,7 @@ export function neighborhood(nodeId: string, depth = 2): KnowledgeNeighborhood |
           truncated = true;
           continue;
         }
-        const n = getNode(nid);
+        const n = getNode(nid, ownerId);
         if (!n) continue;
         nodes.set(nid, n);
         next.push(nid);
@@ -250,8 +261,8 @@ export function deriveDomainEdges(termNodeIds: string[], ownerId: string | null)
   const db = getDb();
   const placeholders = termNodeIds.map(() => '?').join(',');
   const rows = db
-    .prepare(`SELECT id, ref_id FROM knowledge_node WHERE id IN (${placeholders})`)
-    .all(...termNodeIds) as Array<Pick<NodeRow, 'id' | 'ref_id'>>;
+    .prepare(`SELECT id, ref_id FROM knowledge_node WHERE id IN (${placeholders}) AND owner_id = ?`)
+    .all(...termNodeIds, ownerForWrite(ownerId)) as Array<Pick<NodeRow, 'id' | 'ref_id'>>;
   const refIds = rows.map((r) => r.ref_id).filter((v): v is string => typeof v === 'string');
   if (refIds.length < 2) return 0;
   const ph2 = refIds.map(() => '?').join(',');
@@ -271,7 +282,7 @@ export function deriveDomainEdges(termNodeIds: string[], ownerId: string | null)
   for (const [domain, ids] of byDomain) {
     for (let i = 0; i < ids.length; i++) {
       for (let j = i + 1; j < ids.length; j++) {
-        if (addEdge({ fromNodeId: ids[i]!, toNodeId: ids[j]!, kind: 'relates', origin: 'derived', weight: 0.3, evidence: `同域：${domain}` })) {
+        if (addEdge({ fromNodeId: ids[i]!, toNodeId: ids[j]!, kind: 'relates', origin: 'derived', weight: 0.3, evidence: `同域：${domain}`, ownerId })) {
           made++;
         }
       }
@@ -309,25 +320,27 @@ export function emitTermNodes(
     .all(sessionId, startedAt, ownerForWrite(ownerId)) as Array<{ id: string; term: string }>;
   if (rows.length === 0) return;
   const nodeIds = rows.map(
-    (t) => ensureNode({ kind: 'term', refId: t.id, refText: t.term, sourceRunId: runId, sourceStepId: stepId }).id,
+    (t) =>
+      ensureNode({ kind: 'term', refId: t.id, refText: t.term, sourceRunId: runId, sourceStepId: stepId, ownerId }).id,
   );
   deriveDomainEdges(nodeIds, ownerId);
 }
 
 // ── 统计 ──
 
-export function graphStats(): KnowledgeGraphStats {
+export function graphStats(ownerId: string | null): KnowledgeGraphStats {
   const db = getDb();
-  const total = (sql: string): number => (db.prepare(sql).get() as { c: number }).c;
+  const owner = ownerForWrite(ownerId);
+  const total = (sql: string): number => (db.prepare(sql).get(owner) as { c: number }).c;
   const byKind = db
-    .prepare('SELECT kind, COUNT(*) AS c FROM knowledge_node GROUP BY kind ORDER BY c DESC')
-    .all() as Array<{ kind: string; c: number }>;
+    .prepare('SELECT kind, COUNT(*) AS c FROM knowledge_node WHERE owner_id = ? GROUP BY kind ORDER BY c DESC')
+    .all(owner) as Array<{ kind: string; c: number }>;
   const byOrigin = db
-    .prepare('SELECT origin, COUNT(*) AS c FROM knowledge_edge GROUP BY origin ORDER BY c DESC')
-    .all() as Array<{ origin: string; c: number }>;
+    .prepare('SELECT origin, COUNT(*) AS c FROM knowledge_edge WHERE owner_id = ? GROUP BY origin ORDER BY c DESC')
+    .all(owner) as Array<{ origin: string; c: number }>;
   return {
-    nodes: total('SELECT COUNT(*) AS c FROM knowledge_node'),
-    edges: total('SELECT COUNT(*) AS c FROM knowledge_edge'),
+    nodes: total('SELECT COUNT(*) AS c FROM knowledge_node WHERE owner_id = ?'),
+    edges: total('SELECT COUNT(*) AS c FROM knowledge_edge WHERE owner_id = ?'),
     byKind: byKind.map((r) => ({ kind: r.kind as KnowledgeNodeKind, count: r.c })),
     byOrigin: byOrigin.map((r) => ({ origin: r.origin as KnowledgeEdgeOrigin, count: r.c })),
   };

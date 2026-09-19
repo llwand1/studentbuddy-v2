@@ -32,7 +32,7 @@ scenarioRouter.get('/by-quiz/:quizId', (req: Request, res: Response) => {
  */
 scenarioRouter.post('/seed', (req: Request, res: Response) => {
   const { title, html, tasks } = req.body as { title?: unknown; html?: unknown; tasks?: unknown };
-  const saved = saveScenario({ title, tasks }, html);
+  const saved = saveScenario({ title, tasks }, html, ownerIdOf(req));
   if (!saved) {
     res.status(400).json({ error: '登记失败：title/tasks/html 缺失、tasks 无合法评分点（每条须带 criteria）或 html 超限' });
     return;
@@ -97,7 +97,7 @@ scenarioRouter.post('/report', (req: Request, res: Response) => {
     res.status(400).json({ error: 'demoId/taskId 必填' });
     return;
   }
-  const r = reportScenario(demoId, taskId, observed);
+  const r = reportScenario(demoId, taskId, observed, ownerIdOf(req));
   if (!r.ok) {
     res.status(404).json({ error: r.reason === 'no-task' ? '评分点不存在（不在该套题的白名单内）' : '情景题不存在' });
     return;

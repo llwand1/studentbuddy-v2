@@ -1,6 +1,6 @@
 # 上线台账（launch-plan）
 
-> 版本：v0.1.4 | 状态：[活跃] | 更新：2026-09-19（**第 5 次总体进展汇报**：**M2d-2 词条库归主**已交付过测（迁移 v31，`term_library`/`term_domain`/`term_mention_log` 三张重建 + `SCOPE_JOIN` 跨用户串台修复）⇒ 阶梯 **12 个批次 10 个已交付**；§2 `M2d-2` 行转 ✅ 并写入「开工实测逮到契约没写的串台」这条证据）。**前任 v0.1.3（第 4 次汇报：M2d-1 设置与反馈环归主交付）见 §5**
+> 版本：v0.1.5 | 状态：[活跃] | 更新：2026-09-19（**第 6 次总体进展汇报**：**M2d-3 其余表归主**已交付过测（迁移 v33，八张 uuid 主键表加列 `owner_id` + `knowledge_node`/`knowledge_edge` 已上线旧洞收口）⇒ 阶梯 **12 个批次 11 个已交付**；§2 `M2d-3` 行转 ✅。**M2d 至此全部完成**，最快路径只剩「M2 收口 → M3 部署」）。**前任 v0.1.4**第 5 次总体进展汇报**：**M2d-2 词条库归主**已交付过测（迁移 v31，`term_library`/`term_domain`/`term_mention_log` 三张重建 + `SCOPE_JOIN` 跨用户串台修复）⇒ 阶梯 **12 个批次 10 个已交付**；§2 `M2d-2` 行转 ✅ 并写入「开工实测逮到契约没写的串台」这条证据）。**前任 v0.1.3（第 4 次汇报：M2d-1 设置与反馈环归主交付）见 §5**
 >
 > **这份文档回答一个问题：什么时候可以正式部署上线。** 它是**唯一的进展台账**——
 > 每次完成一个「上线」规划里的小任务，就在 §2 改状态、在 §5 追加一次总体进展汇报。
@@ -44,7 +44,7 @@
 | **M2c**（两层并发闸门） | 内层「每用户 2」＋ 外层「全站封顶 N」（`llm/upstream-gate.ts` 加 owner 维度 + 第二个全站桶） | ✅ **已交付** 2026-09-18 `8b43518`（本批 v0.2.61） | 单测 **+0 文件 / +15 例**（`llm/upstream-gate.test.ts` 13→**24** + `llm/router.test.ts` 10→**14**）；全量 **127 文件 / 1810 例（1809 绿 + 1 skipped）0 failed**；契约 `TENANCY-SPEC` §8.1.3.1（v1.6）。★ 配额经 `bindQuota()` **绑在 `routeRole` 返回的 adapter 上** ⇒ 15 个调用点零改动、结构上不可能漏传。★ **新锁非空转已按 §7 三次取证**（忽略 owner 分桶→6 例红；不归还内层槽→恰好 1 例红；`bindQuota` 原样返回→3 例红）。★ **N 仍是占位值 8**（`SB_UPSTREAM_SITE_MAX_CONCURRENT`，队列上限 20）——**待老板给业务值**；★ 已知边界：进程内 `Map`，多实例部署容量 × 实例数（本批不做） |
 | **M2d-1** | 设置与反馈环归主：`app_settings` / `daily_activity` / `daily_summaries` / `user_stats`——四张「约束会跨用户撞键」的表重建（**迁移 v30**） | ✅ **已交付** 2026-09-18 `d39e987`（本批 v0.2.62） | 单测 **+1 文件 / +17 例**（新 `routes/settings-tenancy.test.ts` 端到端 + `storage/db.test.ts` 40→**45** + `learning/quiz-search.test.ts` 1 例升级为归属锁）；全量 **128 文件 / 1827 例（1826 绿 + 1 skipped）0 failed**；契约 `TENANCY-SPEC` §8.2。★ 改前这四张表**全是全局表**：`app_settings` 是**全局写口**（A 改出题配比／回答方式／配图开关／搜索 key，**全站所有人跟着变**）、`user_stats` 里的 `xp`（**A 和 B 的 XP 是同一个数**）、`daily_summaries` 的 `PK(day)`（**B 直接读到 A 的今日总结**，改前注释已把这条记为「已知缺口」）、`daily_activity` 的 `PK(day,type)`（**A、B 同一天聊天直接撞主键**）。★★ 归属值取 `''`（**不是 NULL**，与 v29 `providers` **刻意相反**：v29 的 NULL = 平台通道 = **所有人可见**，本批的 `''` = 无主行 = **谁都看不见**——同一个「没有主人」在两组表里可见性相反，取值就必须不同）。★★ **读写两侧同口径（本批最关键的一处纠正）**：初稿按 `ownerFilter` 的「`null` 就不加条件」写读侧，开工时发现这四张表的读形状是**单值或聚合**（`.get()` / `SUM`）⇒ 豁免过滤后库里多行会返回**任意一行** ⇒ 全部改成 `ownerForWrite`。判据一句话：**读形状是「一批行」的用 `ownerFilter`（`sessions`/`user_memory`），是「一个值」的用 `ownerForWrite`**。★ 4 处 `ON CONFLICT(key)` / `ON CONFLICT(day)` **必须跟着主键改**（SQL 是字符串，**编译期零信号，不改就是运行时 500**）；`events/bus.ts` 四个活动类事件的 `ownerId` 改**必填**（订阅者按人记 XP，漏传是静默少算）⇒ 6 个发布点被 `tsc` 逼着回答「这笔算在谁头上」。★ 另扩展 `_probe/claim-legacy.mjs`：**补上 M2b 漏掉的 `user_memory`**（那个洞此前没有任何认领通道）＋ v30 四张表，并预置 M2d-2/M2d-3 的表（表或列不存在即跳过） |
 | **M2d-2** | `term_library` / `term_domain` 归主（`UNIQUE(term,domain)` → 含 `owner_id`；`name` 单列 PK → `PK(owner_id,name)`）+ `term_mention_log` 口径对齐（现 `NULL`=无主，且 `mentionTrend` 在未登录时会**跨用户求和**） | ✅ **已交付** 2026-09-18（本批 v0.2.63） | 单测 **+1 文件 / +18 例**（新 `routes/terms-tenancy.test.ts` 8 例端到端 + `storage/db.test.ts` 52→**62**）；全量 **129 文件 / 1845 例（1844 绿 + 1 skipped）0 failed**；契约 `TENANCY-SPEC` §8.2。★ 改前三处洞：`term_library` 的 `UNIQUE(term,domain)`（**A、B 各有一条「牛顿第二定律/物理」就互相并入**）、`term_domain` 的 `name` 单列 PK（**A 建了「物理」B 就建不了**）、`term_mention_log` 口径（未登录 `mentionTrend` **跨用户求和**）。★★ **开工实测逮到一处契约没写的跨用户串台**：`term-review.ts` 的 `SCOPE_JOIN` 原先**只按 `name` 连领域** ⇒ `term_domain` 归主后 A 的词条会读到 **B 的同名领域开关** ⇒ 连接条件补 `owner_id`。★ **`general` 改每用户懒建 + 读路径补建**（老板拍板）：写入侧已有 `INSERT OR IGNORE` 自动登记，领域接口首次访问再补建一份自己的 ⇒ 领域 Tab 恒有一格 `general`（观感不变）。★ **拆文件（被 server ≤400 红线逼出，照仓规不压注释）**：`terms.ts` → `term-usage.ts`；`tidy.ts` → `tidy-plan.ts`；`term-review.ts` → `term-review-scope.ts`；`study-flow-run.ts` 的 `emitTermNodes` 移入 `knowledge-graph.ts`。★ 连带必改：`terms.ts` 两处 `ON CONFLICT(term,domain)` 同步改复合；`ToolCtx.ownerId` 由可选改**必填**（逼出 `chat/flow.ts` 一处漏传——此前工具里的词条增删改查全落无主行）。|
-| **M2d-3** | 其余表：`quiz_bank`/`quiz_stats`/`quiz_notes`、`flow_def`/`flow_run`(+step)、`knowledge_node`/`knowledge_edge`——**加列即可**（主键是全局唯一 uuid，不会跨用户撞键） | ⬜ 未开工 | 契约 `TENANCY-SPEC` §8.2。★ 加列虽简单，但**消费点最多**（`quiz_*` 25 个文件、`flow_*` 9 个）；★ 已知一处**已上线的旧洞**：`knowledge_node`/`knowledge_edge` 目前无任何归属过滤 ⇒ **A 的知识图谱 B 能看见**（本批普查发现，随 M2d-3 收口） |
+| **M2d-3** | 其余表：`quiz_bank`/`quiz_stats`/`quiz_notes`、`flow_def`/`flow_run`(+step)、`knowledge_node`/`knowledge_edge`——**加列即可**（主键是全局唯一 uuid，不会跨用户撞键） | ✅ **已交付** 2026-09-19（本批 v0.2.67，迁移 v33 八处加列） | 单测 **+1 文件 / +9 例**（新 `routes/quiz-tenancy.test.ts` 6 + `db.test.ts` 65→68）；全量 **137 文件 / 1948 例 0 failed**；契约 `TENANCY-SPEC` §8.2。★ **收口一条已上线旧洞**：`knowledge_node`/`knowledge_edge` 改前无任何归属过滤（A 的知识图谱 B 能看见，M2d-1 普查发现），归属过滤随本批上线并由 e2e 锁死（B 的 stats 零图、邻域 404）。★ 子表 `flow_step`/`flow_edge` 刻意不加列（恒经 def_id 触达，归属随 flow_def 传递，同 messages 口径）。★ 两条口径照抄 M2d-1/M2d-2：归属值 `''`（无主谁都看不见）、读写两侧 `ownerForWrite`。★ 按仓规拆 `recordAnswer` 入新 `quiz-record.ts`（quiz.ts 加归属触 400 红线）。★ 未做（挂 §6 观察）：`scenario_demo` 与 `evolution_*` 未加列（契约未点名；触达均经已归主父表的闸门） | 契约 `TENANCY-SPEC` §8.2。★ 加列虽简单，但**消费点最多**（`quiz_*` 25 个文件、`flow_*` 9 个）；★ 已知一处**已上线的旧洞**：`knowledge_node`/`knowledge_edge` 目前无任何归属过滤 ⇒ **A 的知识图谱 B 能看见**（本批普查发现，随 M2d-3 收口） |
 | **M2 收口** | 与 `SB_REQUIRE_AUTH=1` **同批开**（在此之前强开会让全站既有接口一律 401） | ⬜ 未开工 | `AUTH-SPEC` §3 |
 | **M3** | **部署上线**：Docker + Caddy 自动 TLS + 海外域名 + 持久卷 + 备份 + 发信域 DNS | ⬜ 未开工 | 见下方 §3 闸门清单 |
 
@@ -113,6 +113,19 @@
 ---
 
 ## 5. 进展汇报（按时间倒序，**只追加**）
+
+### 2026-09-19 10:45 — 第 6 次总体进展汇报
+
+**本批（刚完成）**：**M2d-3 其余表归主** —— 迁移 v33 给八张「主键是全局 uuid」的表加列 `owner_id`（`NOT NULL DEFAULT ''`），**并收口一条已上线旧洞**（`knowledge_node`/`knowledge_edge` 此前无任何归属过滤）。代码与文档已完成并过测，本批随并行会话的工具生态批次一并通过 `npm run check`（137 文件 / 1948 例 0 failed）。
+
+**总体进展**：上线阶梯 **12 个批次里 11 个已交付**（M1 / M1.5 / M1.6 / M2a / M2b / M2c×2 / M2d-1 / M2d-2 / M2d-3 / `retryAfterMs` 收口）。**M2d 全部完成**。
+
+1. **M2 收口** —— 契约 §9 验收判据逐条过（跨用户不可见 e2e 汇总、claim-legacy 全表认领、§3.1 五条代码闸门：`trust proxy` / `ALLOWED_ORIGINS` / `HOST` / `SB_COOKIE_SECURE` / `SB_REQUIRE_AUTH`）；
+2. **M3 部署** —— 依赖 §3.2 配置闸门（外层并发 N 待老板给业务值）与 §3.3 域名/服务器/邮件送达。
+
+**⇒ 结论：仍不能部署上线。** 代码面只剩「M2 收口」一批 + §3.1 五条闸门；§3.3 域名未购、§3.4 人工验收未做。
+
+**下一步**：M2 收口。★ 两件只能老板推进：全站并发封顶 N 的业务值、域名/DNS/服务器与邮件送达判定。
 
 ### 2026-09-19 00:55 — 第 5 次总体进展汇报
 
@@ -243,6 +256,7 @@
 
 | 日期 | 版本 | 变更 |
 |---|---|---|
+| 2026-09-19 | v0.1.5 | **第 6 次总体进展汇报（M2d-3 其余表归主交付）**。§2 `M2d-3` 行转 ✅（迁移 v33 八处加列 + `knowledge_node`/`knowledge_edge` 旧洞收口）；§5 追加第 6 次汇报。★ M2d 三批至此全部完成——12 个批次 11 个已交付，代码面只剩 M2 收口 + §3.1 五条部署闸门 |
 | 2026-09-19 | v0.1.4 | **第 5 次总体进展汇报（M2d-2 词条库归主交付）**。§2 `M2d-2` 行转 ✅ 并写入实测证据；§5 追加第 5 次汇报。★ 本批最有价值的一条是**开工实测逮到契约没写的跨用户串台**——`term-review.ts` 的 `SCOPE_JOIN` 只按 `name` 连领域，`term_domain` 归主后 A 的词条会读到 B 的同名领域开关；★ 同时登记本批的四处拆文件（`term-usage`/`tidy-plan`/`term-review-scope` + `emitTermNodes` 移入 `knowledge-graph`），都是被 server ≤400 红线逼出的、照仓规不压注释 |
 | 2026-09-18 | v0.1.3 | **第 4 次总体进展汇报（M2d-1 设置与反馈环归主交付）**。§2 把原 `M2d` 一行**拆成三行**（M2d-1 ✅ / M2d-2 ⬜ / M2d-3 ⬜）——此前一行混装会让「M2d 做完了吗」有三个答案；`M2c（两层并发闸门）` 补提交号 `8b43518`；§5 追加第 4 次汇报。★ 本批把「**判据不是习惯，是约束本身**」写进 §2 证据列（PK/UNIQUE 含全局取值列 ⇒ 必须重建；主键是 uuid ⇒ 加列即可）；★★ 并把一条**反向泄露风险**固化：本批归属值取 `''`（无主 = 谁都看不见），与 M2c 的 `NULL`（平台通道 = 所有人可见）**刻意相反**——若图省事统一，会把「孤儿不可见」静默变成「全站可见」 |
 | 2026-09-18 | v0.1.2 | **第 3 次总体进展汇报（M2c 两层并发闸门交付 ⇒ M2c 全部完成）**。§2 `M2c（归属改造）` 补提交号 `9bb5f88`、`M2c（两层并发闸门）` 转 ✅；§5 追加第 3 次汇报。★ 本批把闸门从「一层技术闸门」改成「内层业务 + 外层业务」，并把三条**"写反了也不报错"**的口径写进 §2 证据列；★ 同时登记一条纪律事件——**§0.15 收敛计数达 3/3 ⇒ 强制换策略**（本批 `innerKey` 把 `null` 与 `''` 折叠成一个桶，与 M1.5／M1.6 两次同族：共同形状＝「把语义不同的两个东西写成同一个值」，三次都没有任何运行时错误）⇒ 换为「键的构造只允许经单一入口 + 每类键都配一条"不同语义必须落不同桶"的锁」 |

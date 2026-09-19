@@ -21,11 +21,12 @@ import {
   normalizeScenarioPayload,
 } from '@sb/shared';
 import { getDb } from '../storage/db.js';
+import { ownerForWrite } from '../auth/ownership.js';
 import { recordAnswer } from './quiz.js';
 import { publish } from '../chat/sse-bus.js';
 import { routeRole } from '../llm/router.js';
 import { QUIZ_TEMPERATURE, getQuizMaxOutputTokens } from '../llm/model-limits.js';
-import { emptyScenarioGenReport, parseScenarioBlock, SCENARIO_PROTOCOL, type ScenarioGenReport } from './scenario-protocol.js';
+import { parseScenarioBlock, SCENARIO_PROTOCOL, type ScenarioGenReport } from './scenario-protocol.js';
 
 /** reportScenario 的失败真因（ADR-5 谁真知道谁填，路由只映射状态码不反推） */
 export type ScenarioReportFailure = 'no-demo' | 'no-task';
@@ -42,7 +43,7 @@ export interface ScenarioReportResult {
  * 入参整体 unknown——信任边界在域层不在路由（/seed 的 body 与 M2 的模型输出走同一个闸门）。
  * 非法输入返回 null（路由 400），**绝不部分落库**：先 normalize 全过再开写。
  */
-export function saveScenario(input: unknown, html: unknown): { quizId: string; demoId: string } | null {
+export function saveScenario(input: unknown, html: unknown, ownerId: string | null): { quizId: string; demoId: string } | null {
   const payload = normalizeScenarioPayload(input);
   if (!payload) return null;
   if (typeof html !== 'string' || !html.trim() || html.length > MAX_SCENARIO_HTML_CHARS) return null;
@@ -50,11 +51,12 @@ export function saveScenario(input: unknown, html: unknown): { quizId: string; d
   const quizId = randomUUID();
   const demoId = randomUUID();
   const write = db.transaction(() => {
-    db.prepare('INSERT OR REPLACE INTO quiz_bank (id, title, source, data) VALUES (?, ?, ?, ?)').run(
+    db.prepare('INSERT OR REPLACE INTO quiz_bank (id, title, source, data, owner_id) VALUES (?, ?, ?, ?, ?)').run(
       quizId,
       payload.title,
       SCENARIO_SOURCE,
       JSON.stringify(payload),
+      ownerForWrite(ownerId),
     );
     db.prepare('INSERT INTO scenario_demo (id, quiz_id, html) VALUES (?, ?, ?)').run(demoId, quizId, html);
   });
@@ -62,9 +64,11 @@ export function saveScenario(input: unknown, html: unknown): { quizId: string; d
   return { quizId, demoId };
 }
 
-/** 读一套情景题的评分点（题库 JSON 解析失败返回 null，数据容错 ADR-6） */
-export function getScenario(quizId: string): ScenarioPayload | null {
-  const row = getDb().prepare('SELECT data FROM quiz_bank WHERE id = ?').get(quizId) as
+/** 读一套情景题的评分点（题库 JSON 解析失败或不是你的返回 null，数据容错 ADR-6） */
+export function getScenario(quizId: string, ownerId: string | null): ScenarioPayload | null {
+  const row = getDb()
+    .prepare('SELECT data FROM quiz_bank WHERE id = ? AND owner_id = ?')
+    .get(quizId, ownerForWrite(ownerId)) as
     | { data: string }
     | undefined;
   if (!row) return null;
@@ -102,20 +106,20 @@ export function buildScenarioDemoPage(demoId: string): string | null {
  * 判分与记账同事务语义上必须一致：recordAnswer 内部自带 upsert，判完即记，失败抛错由路由兜。
  * observed 原样进 judgeTask、**不落库原文**（M1 边界，契约 §9）。
  */
-export function reportScenario(demoId: string, taskId: string, observed: unknown): ScenarioReportResult {
+export function reportScenario(demoId: string, taskId: string, observed: unknown, ownerId: string | null): ScenarioReportResult {
   const db = getDb();
   const demo = db.prepare('SELECT quiz_id FROM scenario_demo WHERE id = ?').get(demoId) as
     | { quiz_id: string }
     | undefined;
   if (!demo) return { ok: false, reason: 'no-demo' };
-  const payload = getScenario(demo.quiz_id);
+  const payload = getScenario(demo.quiz_id, ownerId);
   if (!payload) return { ok: false, reason: 'no-demo' };
   const taskIndex = payload.tasks.findIndex((t: ScenarioTask) => t.id === taskId);
   if (taskIndex < 0) return { ok: false, reason: 'no-task' };
   const task = payload.tasks[taskIndex];
   if (!task) return { ok: false, reason: 'no-task' };
   const correct = judgeTask(task.criteria, observed);
-  recordAnswer(demo.quiz_id, taskIndex, correct);
+  recordAnswer(demo.quiz_id, taskIndex, correct, ownerId);
   return { ok: true, correct, taskIndex };
 }
 
@@ -167,9 +171,9 @@ export interface ScenarioGenerated {
  */
 export async function generateScenario(
   topic: string,
-  material?: string,
-  report: ScenarioGenReport = emptyScenarioGenReport(),
-  ownerId?: string | null, // M2c 归属（契约 TENANCY-SPEC §8.1.4）
+  material: string | undefined,
+  report: ScenarioGenReport,
+  ownerId: string | null, // M2c 归属（契约 TENANCY-SPEC §8.1.4）；M2d-3 起必填——saveScenario 要落 owner_id
 ): Promise<ScenarioGenerated | null> {
   const target = routeRole('quiz-generator', undefined, ownerId);
   if (!target || !target.model) {
@@ -198,7 +202,7 @@ export async function generateScenario(
     report.failure = 'parse';
     return null;
   }
-  const saved = saveScenario(parsed.payload, parsed.html);
+  const saved = saveScenario(parsed.payload, parsed.html, ownerId);
   // parseScenarioBlock 已过同一 normalize 闸门，这里失败只剩竞态/IO，如实归入 parse 报给路由
   if (!saved) {
     report.failure = 'parse';

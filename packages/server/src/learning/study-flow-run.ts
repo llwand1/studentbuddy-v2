@@ -27,7 +27,7 @@ import { getDb } from '../storage/db.js';
 import { findFlowStepMeta, FLOW_MAX_STEPS } from '@sb/shared';
 import type { FlowPort, FlowRun, FlowRunStatus, FlowRunStep, FlowStepKind } from '@sb/shared';
 import { getDef } from './study-flow.js';
-import { insertSession, ownerOfSession } from '../auth/ownership.js';
+import { insertSession, ownerOfSession, ownerForWrite } from '../auth/ownership.js';
 import { getExecutor, registeredKinds } from './flow-registry.js';
 import type { FlowStepContext } from './flow-registry.js';
 import { emitTermNodes } from './knowledge-graph.js';
@@ -136,7 +136,7 @@ export type CreateRunResult = { ok: true; run: FlowRun } | { ok: false; error: s
  *   （比泄露更隐蔽的 bug：学习流跑完却找不到会话），故由调用方显式从 `ownerIdOf(req)` 传入。
  */
 export function createRun(defId: string, opts?: { sessionId?: string | null; userId?: string | null }): CreateRunResult {
-  const def = getDef(defId);
+  const def = getDef(defId, opts?.userId ?? null);
   if (!def) return { ok: false, error: '学习流不存在' };
   if (def.steps.length === 0) return { ok: false, error: '这条学习流没有步骤，无法运行' };
 
@@ -158,16 +158,18 @@ export function createRun(defId: string, opts?: { sessionId?: string | null; use
       insertSession(sessionId, opts?.userId ?? null, `学习流：${def.name}`);
     }
     db.prepare(
-      `INSERT INTO flow_run (id, def_id, def_snapshot, def_version, session_id, status)
-       VALUES (?, ?, ?, ?, ?, 'running')`,
-    ).run(runId, def.id, JSON.stringify(snapshot), def.version, sessionId);
+      `INSERT INTO flow_run (id, def_id, def_snapshot, def_version, session_id, status, owner_id)
+       VALUES (?, ?, ?, ?, ?, 'running', ?)`,
+    ).run(runId, def.id, JSON.stringify(snapshot), def.version, sessionId, ownerForWrite(opts?.userId ?? null));
   })();
 
-  return { ok: true, run: getRun(runId, true)! };
+  return { ok: true, run: getRun(runId, true, opts?.userId ?? null)! };
 }
 
-export function getRun(id: string, withSteps = false): FlowRun | null {
-  const row = getDb().prepare('SELECT * FROM flow_run WHERE id = ?').get(id) as RunRow | undefined;
+export function getRun(id: string, withSteps: boolean, ownerId: string | null): FlowRun | null {
+  const row = getDb()
+    .prepare('SELECT * FROM flow_run WHERE id = ? AND owner_id = ?')
+    .get(id, ownerForWrite(ownerId)) as RunRow | undefined;
   if (!row) return null;
   const steps = withSteps
     ? (getDb().prepare('SELECT * FROM flow_run_step WHERE run_id = ? ORDER BY seq').all(id) as RunStepRow[]).map(toRunStep)
@@ -175,17 +177,19 @@ export function getRun(id: string, withSteps = false): FlowRun | null {
   return toRun(row, steps);
 }
 
-export function listRuns(limit = 50): FlowRun[] {
+export function listRuns(ownerId: string | null, limit = 50): FlowRun[] {
   const cap = Math.min(Math.max(limit, 1), 200);
   const rows = getDb()
-    .prepare('SELECT * FROM flow_run ORDER BY created_at DESC, rowid DESC LIMIT ?')
-    .all(cap) as RunRow[];
+    .prepare('SELECT * FROM flow_run WHERE owner_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?')
+    .all(ownerForWrite(ownerId), cap) as RunRow[];
   return rows.map((r) => toRun(r));
 }
 
 /** 运行详情里带「本次学到了什么」——运行产出的知识节点（回看价值最高的一块） */
-export function runSnapshotMeta(runId: string): { defName: string | null; stepCount: number } {
-  const row = getDb().prepare('SELECT def_snapshot, step_count FROM flow_run WHERE id = ?').get(runId) as
+export function runSnapshotMeta(runId: string, ownerId: string | null): { defName: string | null; stepCount: number } {
+  const row = getDb()
+    .prepare('SELECT def_snapshot, step_count FROM flow_run WHERE id = ? AND owner_id = ?')
+    .get(runId, ownerForWrite(ownerId)) as
     | Pick<RunRow, 'def_snapshot' | 'step_count'>
     | undefined;
   if (!row) return { defName: null, stepCount: 0 };
@@ -242,9 +246,11 @@ export type AdvanceResult =
  * 再推进正是恢复语义本身）；`done`/`failed`/`cancelled` 一律 409，错误里带上当前状态原文
  * （状态语义不在路由里反推，ADR-5）。
  */
-export async function advanceRun(runId: string): Promise<AdvanceResult> {
+export async function advanceRun(runId: string, ownerId: string | null): Promise<AdvanceResult> {
   const db = getDb();
-  const row = db.prepare('SELECT * FROM flow_run WHERE id = ?').get(runId) as RunRow | undefined;
+  const row = db
+    .prepare('SELECT * FROM flow_run WHERE id = ? AND owner_id = ?')
+    .get(runId, ownerForWrite(ownerId)) as RunRow | undefined;
   if (!row) return { ok: false, status: 404, error: '运行实例不存在' };
   // ★ running 与 paused **都可推进**：paused 只是「停在某步等用户」，用户做完该做的事再推进
   //   正是恢复语义本身。故这里把它自动翻回 running，前端不需要先调一个单独的 resume 端点
@@ -266,7 +272,7 @@ export async function advanceRun(runId: string): Promise<AdvanceResult> {
   const step = pickNextStep(snap, row.current_step_id, row.cursor as FlowPort | null);
   if (!step) {
     finishRun(runId);
-    return { ok: true, run: getRun(runId, true)!, executed: null, note: '流程已走到终点' };
+    return { ok: true, run: getRun(runId, true, ownerId)!, executed: null, note: '流程已走到终点' };
   }
 
   const exec = getExecutor(step.kind);
@@ -282,9 +288,9 @@ export async function advanceRun(runId: string): Promise<AdvanceResult> {
   const startedAt = db.prepare(`SELECT datetime('now') AS t`).get() as { t: string };
 
   db.prepare(
-    `INSERT INTO flow_run_step (id, run_id, step_id, kind, seq, status, input)
-     VALUES (?, ?, ?, ?, ?, 'running', ?)`,
-  ).run(stepRowId, runId, step.id, step.kind, seq, JSON.stringify({ params: step.params }));
+    `INSERT INTO flow_run_step (id, run_id, step_id, kind, seq, status, input, owner_id)
+     VALUES (?, ?, ?, ?, ?, 'running', ?, ?)`,
+  ).run(stepRowId, runId, step.id, step.kind, seq, JSON.stringify({ params: step.params }), ownerForWrite(ownerId));
   // 先把「正在跑哪一步」落库、并把 paused 翻回 running：此刻进程若挂掉，
   // 重启后能一眼看出停在哪里（不静默），且状态不会卡在 paused 上再也推不动。
   db.prepare(
@@ -328,7 +334,7 @@ export async function advanceRun(runId: string): Promise<AdvanceResult> {
     }
     return {
       ok: true,
-      run: getRun(runId, true)!,
+      run: getRun(runId, true, ownerId)!,
       executed: toRunStep(
         db.prepare('SELECT * FROM flow_run_step WHERE id = ?').get(stepRowId) as RunStepRow,
       ),
@@ -365,7 +371,7 @@ function failRun(runId: string, message: string): void {
 }
 
 /** 用户主动终止（逃生口：与 `chat/choice.ts` 的 cancelChoicesBySession 同一取向——事后可恢复） */
-export function cancelRun(runId: string, reason: string): FlowRun | null {
+export function cancelRun(runId: string, reason: string, ownerId: string | null): FlowRun | null {
   const r = getDb()
     .prepare(
       `UPDATE flow_run SET status = 'cancelled', pause_reason = NULL, error = ?,
@@ -374,5 +380,5 @@ export function cancelRun(runId: string, reason: string): FlowRun | null {
     )
     .run(reason.slice(0, 200), runId);
   if (r.changes !== 1) return null;
-  return getRun(runId, true);
+  return getRun(runId, true, ownerId);
 }

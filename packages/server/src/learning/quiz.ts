@@ -314,18 +314,21 @@ export async function generateQuiz(
 }
 
 // ── 题库 ──
-export function saveQuiz(data: QuizPayload, source: string, id?: string): string {
+// ★ M2d-3（迁移 v33）：quiz_bank 加 owner_id，归属值口径照抄 M2d-1/M2d-2（'' = 无主 = 谁都看不见）。
+//   读写两侧同用 ownerForWrite——listQuiz 虽是"一批行"，但登录用户只许见自己的题库、
+//   未登录只许见无主行，"null 豁免过滤"会把别人的题列进来（契约 §8.2 第 2 条口径）。
+export function saveQuiz(data: QuizPayload, source: string, ownerId: string | null, id?: string): string {
   const qid = id ?? randomUUID();
   getDb()
-    .prepare('INSERT OR REPLACE INTO quiz_bank (id, title, source, data) VALUES (?, ?, ?, ?)')
-    .run(qid, data.title ?? '练习题', source, JSON.stringify(data));
+    .prepare('INSERT OR REPLACE INTO quiz_bank (id, title, source, data, owner_id) VALUES (?, ?, ?, ?, ?)')
+    .run(qid, data.title ?? '练习题', source, JSON.stringify(data), ownerForWrite(ownerId));
   return qid;
 }
 
-export function listQuiz(): Array<{ id: string; title: string; source: string; count: number; created_at: string }> {
+export function listQuiz(ownerId: string | null): Array<{ id: string; title: string; source: string; count: number; created_at: string }> {
   const rows = getDb()
-    .prepare('SELECT id, title, source, data, created_at FROM quiz_bank ORDER BY created_at DESC')
-    .all() as Array<{ id: string; title: string; source: string; data: string; created_at: string }>;
+    .prepare('SELECT id, title, source, data, created_at FROM quiz_bank WHERE owner_id = ? ORDER BY created_at DESC')
+    .all(ownerForWrite(ownerId)) as Array<{ id: string; title: string; source: string; data: string; created_at: string }>;
   return rows.map((r) => {
     let count = 0;
     try {
@@ -340,8 +343,10 @@ export function listQuiz(): Array<{ id: string; title: string; source: string; c
   });
 }
 
-export function getQuiz(id: string): QuizPayload | null {
-  const row = getDb().prepare('SELECT data FROM quiz_bank WHERE id = ?').get(id) as { data: string } | undefined;
+export function getQuiz(id: string, ownerId: string | null): QuizPayload | null {
+  const row = getDb()
+    .prepare('SELECT data FROM quiz_bank WHERE id = ? AND owner_id = ?')
+    .get(id, ownerForWrite(ownerId)) as { data: string } | undefined;
   if (!row) return null;
   try {
     return JSON.parse(row.data) as QuizPayload;
@@ -350,28 +355,15 @@ export function getQuiz(id: string): QuizPayload | null {
   }
 }
 
-export function deleteQuiz(id: string): void {
-  getDb().prepare('DELETE FROM quiz_bank WHERE id = ?').run(id);
-  getDb().prepare('DELETE FROM quiz_stats WHERE quiz_id = ?').run(id);
+export function deleteQuiz(id: string, ownerId: string | null): void {
+  getDb().prepare('DELETE FROM quiz_bank WHERE id = ? AND owner_id = ?').run(id, ownerForWrite(ownerId));
+  getDb().prepare('DELETE FROM quiz_stats WHERE quiz_id = ? AND owner_id = ?').run(id, ownerForWrite(ownerId));
 }
 
-// ── 逐题统计（析环数据源）──
-export function recordAnswer(quizId: string, index: number, correct: boolean): void {
-  const db = getDb();
-  const cur = db
-    .prepare('SELECT attempts, correct, streak, best_streak FROM quiz_stats WHERE quiz_id = ? AND question_index = ?')
-    .get(quizId, index) as { attempts: number; correct: number; streak: number; best_streak: number } | undefined;
-  const attempts = (cur?.attempts ?? 0) + 1;
-  const correctCount = (cur?.correct ?? 0) + (correct ? 1 : 0);
-  const streak = correct ? (cur?.streak ?? 0) + 1 : 0;
-  const best = Math.max(cur?.best_streak ?? 0, streak);
-  db.prepare(
-    `INSERT INTO quiz_stats (quiz_id, question_index, attempts, correct, streak, best_streak, last_answer)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(quiz_id, question_index) DO UPDATE SET attempts=excluded.attempts, correct=excluded.correct,
-       streak=excluded.streak, best_streak=excluded.best_streak, last_answer=excluded.last_answer, updated_at=datetime('now')`,
-  ).run(quizId, index, attempts, correctCount, streak, best, correct ? 'correct' : 'wrong');
-}
+// ── 逐题统计已迁出（2026-09-19 M2d-3）──
+// recordAnswer 移到 `learning/quiz-record.ts`：本文件加归属参数后触 400 行红线，按仓规拆文件不压注释。
+// quiz_stats 的读形状是聚合（薄弱点分析/判分统计），归属口径同 ownerForWrite（见该文件头注）。
+export { recordAnswer } from './quiz-record.js';
 
 // ── 薄弱点分析已迁出（2026-09-15）──
 // 旧实现在此：纯本地规则，产出两句硬编码文案（'正确率低于 60% 的题目' / '针对这些题重新练习，并阅读解析'），

@@ -74,11 +74,11 @@ const single = (i: number): QuizPayload['questions'][number] => ({
   answer: [2],
 });
 
-const seed = (count = 3): string => saveQuiz({ title: '二重积分练习', questions: Array.from({ length: count }, (_, i) => single(i)) }, 'test');
+const seed = (count = 3): string => saveQuiz({ title: '二重积分练习', questions: Array.from({ length: count }, (_, i) => single(i)) }, 'test', null);
 
 /** 让某题成为错题：默认 2 次全错（正确率 0 < 0.6） */
 function markWrong(quizId: string, index: number, times = 2): void {
-  for (let i = 0; i < times; i++) recordAnswer(quizId, index, false);
+  for (let i = 0; i < times; i++) recordAnswer(quizId, index, false, null);
 }
 
 const ok = (body: unknown): TokenChunk[] => [{ content: JSON.stringify(body), done: true }];
@@ -92,7 +92,7 @@ describe('analyzeWeakPoints — AI 实时分析为主路径', () => {
       { topic: '二重积分换元', questionIndexes: [0, 2], reason: '极坐标换元时漏乘 r', suggestion: '先画积分区域再定 r 的范围' },
       { topic: '积分次序', questionIndexes: [1], reason: '交换次序后上下限没跟着换', suggestion: '交换次序后重画区域图' },
     ]);
-    const r = await analyzeWeakPoints(id);
+    const r = await analyzeWeakPoints(id, null);
     expect(r.fallback).toBe(false);
     expect(r.failure).toBeUndefined();
     expect(r.analyzed).toBe(2);
@@ -105,9 +105,9 @@ describe('analyzeWeakPoints — AI 实时分析为主路径', () => {
   it('提示词带上题干/选项/正确答案/学生所选/正确率——错选是「真洞察」的唯一来源', async () => {
     const id = seed();
     markWrong(id, 0);
-    upsertNoteFromAnswer(id, 0, false, [1]);
+    upsertNoteFromAnswer(id, 0, false, null, [1]);
     stub.turn = ok([]);
-    await analyzeWeakPoints(id);
+    await analyzeWeakPoints(id, null);
     expect(stub.lastPrompt).toContain('[0] 单选');
     expect(stub.lastPrompt).toContain('题干：Q0');
     expect(stub.lastPrompt).toContain('选项：A. a B. b C. c');
@@ -120,7 +120,7 @@ describe('analyzeWeakPoints — AI 实时分析为主路径', () => {
     const id = seed();
     markWrong(id, 0);
     stub.turn = ok([]);
-    await analyzeWeakPoints(id);
+    await analyzeWeakPoints(id, null);
     expect(stub.lastPrompt).toContain('学生所选：未记录');
   });
 
@@ -128,7 +128,7 @@ describe('analyzeWeakPoints — AI 实时分析为主路径', () => {
     const id = seed();
     markWrong(id, 1);
     stub.turn = ok([{ topic: 'T', questionIndexes: [1, 99], reason: 'r', suggestion: 's' }]);
-    const r = await analyzeWeakPoints(id);
+    const r = await analyzeWeakPoints(id, null);
     expect(r.fallback).toBe(false);
     expect(r.weak[0]?.questionIndexes).toEqual([1]);
   });
@@ -137,20 +137,20 @@ describe('analyzeWeakPoints — AI 实时分析为主路径', () => {
 describe('analyzeWeakPoints — 正常空态与降级必须分开说', () => {
   it('还没做题 → 空态，fallback=false（不是降级）', async () => {
     const id = seed();
-    const r = await analyzeWeakPoints(id);
+    const r = await analyzeWeakPoints(id, null);
     expect(r).toEqual({ weak: [], fallback: false, analyzed: 0 });
   });
 
   it('题库不存在 → 空态，且不触模型调用', async () => {
-    const r = await analyzeWeakPoints('no-such-quiz');
+    const r = await analyzeWeakPoints('no-such-quiz', null);
     expect(r).toEqual({ weak: [], fallback: false, analyzed: 0 });
     expect(stub.lastPrompt).toBe('');
   });
 
   it('全对 → 空态（正确率 1.0 不算错题）', async () => {
     const id = seed();
-    recordAnswer(id, 0, true);
-    expect((await analyzeWeakPoints(id)).analyzed).toBe(0);
+    recordAnswer(id, 0, true, null);
+    expect((await analyzeWeakPoints(id, null)).analyzed).toBe(0);
   });
 });
 
@@ -159,7 +159,7 @@ describe('analyzeWeakPoints — 三条降级真因（ADR-5 谁真知道谁填）
     stub.target = null;
     const id = seed();
     markWrong(id, 0);
-    const r = await analyzeWeakPoints(id);
+    const r = await analyzeWeakPoints(id, null);
     expect(r.fallback).toBe(true);
     expect(r.failure).toBe('no-model');
     expect(r.analyzed).toBe(1);
@@ -171,14 +171,14 @@ describe('analyzeWeakPoints — 三条降级真因（ADR-5 谁真知道谁填）
     stub.target = { model: '' };
     const id = seed();
     markWrong(id, 0);
-    expect((await analyzeWeakPoints(id)).failure).toBe('no-model');
+    expect((await analyzeWeakPoints(id, null)).failure).toBe('no-model');
   });
 
   it('模型调用抛错 → call-failed', async () => {
     const id = seed();
     markWrong(id, 0);
     stub.turn = new Error('boom');
-    const r = await analyzeWeakPoints(id);
+    const r = await analyzeWeakPoints(id, null);
     expect(r.failure).toBe('call-failed');
     expect(r.fallback).toBe(true);
   });
@@ -187,21 +187,21 @@ describe('analyzeWeakPoints — 三条降级真因（ADR-5 谁真知道谁填）
     const id = seed();
     markWrong(id, 0);
     stub.turn = [{ content: '你的薄弱点主要在于基础不牢，建议多练习。', done: true }];
-    expect((await analyzeWeakPoints(id)).failure).toBe('parse');
+    expect((await analyzeWeakPoints(id, null)).failure).toBe('parse');
   });
 
   it('模型输出空串 → parse', async () => {
     const id = seed();
     markWrong(id, 0);
     stub.turn = [{ content: '', done: true }];
-    expect((await analyzeWeakPoints(id)).failure).toBe('parse');
+    expect((await analyzeWeakPoints(id, null)).failure).toBe('parse');
   });
 
   it('模型给了 JSON 但题号全部越界 → parse（不拿半成品糊弄用户）', async () => {
     const id = seed();
     markWrong(id, 0);
     stub.turn = ok([{ topic: 'T', questionIndexes: [99], reason: 'r', suggestion: 's' }]);
-    const r = await analyzeWeakPoints(id);
+    const r = await analyzeWeakPoints(id, null);
     expect(r.failure).toBe('parse');
     expect(r.weak[0]?.reason).toBe('正确率低于 60% 的题目'); // 退回规则版
   });
@@ -212,34 +212,34 @@ describe('analyzeWeakPoints — 三条降级真因（ADR-5 谁真知道谁填）
     markWrong(id, 0);
     markWrong(id, 1);
     markWrong(id, 2);
-    expect((await analyzeWeakPoints(id)).analyzed).toBe(3);
+    expect((await analyzeWeakPoints(id, null)).analyzed).toBe(3);
   });
 });
 
 describe('localWeakPoints — 降级落点，不许删', () => {
   it('判据与旧实现一致：正确率 < 0.6 才算错题', async () => {
     const id = seed();
-    recordAnswer(id, 0, false);
-    recordAnswer(id, 0, false);
-    recordAnswer(id, 0, true); // 1/3 ≈ 0.33 → 错题
-    recordAnswer(id, 1, true);
-    recordAnswer(id, 1, true);
-    recordAnswer(id, 1, false); // 2/3 ≈ 0.67 → 不算
-    const r = await analyzeWeakPoints(id);
+    recordAnswer(id, 0, false, null);
+    recordAnswer(id, 0, false, null);
+    recordAnswer(id, 0, true, null); // 1/3 ≈ 0.33 → 错题
+    recordAnswer(id, 1, true, null);
+    recordAnswer(id, 1, true, null);
+    recordAnswer(id, 1, false, null); // 2/3 ≈ 0.67 → 不算
+    const r = await analyzeWeakPoints(id, null);
     expect(r.analyzed).toBe(1);
-    expect(localWeakPoints(id)[0]?.questionIndexes).toEqual([0]);
+    expect(localWeakPoints(id, null)[0]?.questionIndexes).toEqual([0]);
   });
 
   it('没有错题时返回空数组（不是造一条空的）', () => {
     const id = seed();
-    expect(localWeakPoints(id)).toEqual([]);
+    expect(localWeakPoints(id, null)).toEqual([]);
   });
 
   it(`错题超过 ${WEAK_MAX_QUESTIONS} 道时封顶（窗口与可读性双约束）`, async () => {
     const id = seed(15);
     for (let i = 0; i < 15; i++) markWrong(id, i);
     stub.target = null;
-    expect((await analyzeWeakPoints(id)).analyzed).toBe(WEAK_MAX_QUESTIONS);
+    expect((await analyzeWeakPoints(id, null)).analyzed).toBe(WEAK_MAX_QUESTIONS);
   });
 });
 
@@ -282,7 +282,7 @@ describe('analyzeWeakPoints — 情景题（tasks 形状）', () => {
             ? { kind: 'state' as const, value: 'off' }
             : { kind: 'order' as const, answer: ['a', 'b', 'c'] },
     }));
-    const saved = saveScenario({ title: '用电安全情景演练', tasks }, '<!doctype html><html><body></body></html>');
+    const saved = saveScenario({ title: '用电安全情景演练', tasks }, '<!doctype html><html><body></body></html>', null);
     if (!saved) throw new Error('seed 失败');
     for (const i of wrongAt) markWrong(saved.quizId, i);
     return saved.quizId;
@@ -291,7 +291,7 @@ describe('analyzeWeakPoints — 情景题（tasks 形状）', () => {
   it('提示词用任务+判据做素材（不是题干选项），学生操作如实「未记录」', async () => {
     const id = seedScenario([0]);
     stub.turn = ok([]);
-    await analyzeWeakPoints(id);
+    await analyzeWeakPoints(id, null);
     expect(stub.lastPrompt).toContain('[0] 情景任务');
     expect(stub.lastPrompt).toContain('任务：情景任务1：选出危险源');
     expect(stub.lastPrompt).toContain('对错标准：应选选项 [1]');
@@ -305,7 +305,7 @@ describe('analyzeWeakPoints — 情景题（tasks 形状）', () => {
       { topic: '危险源识别', questionIndexes: [0, 99], reason: 'r', suggestion: 's' },
       { topic: '操作顺序', questionIndexes: [2], reason: 'r', suggestion: 's' },
     ]);
-    const r = await analyzeWeakPoints(id);
+    const r = await analyzeWeakPoints(id, null);
     expect(r.fallback).toBe(false);
     expect(r.weak).toHaveLength(2);
     expect(r.weak[0]?.questionIndexes).toEqual([0]);
@@ -315,7 +315,7 @@ describe('analyzeWeakPoints — 情景题（tasks 形状）', () => {
   it('没有模型 → 降级规则版照常出（情景题不错过兜底）', async () => {
     const id = seedScenario([1]);
     stub.target = null;
-    const r = await analyzeWeakPoints(id);
+    const r = await analyzeWeakPoints(id, null);
     expect(r.fallback).toBe(true);
     expect(r.failure).toBe('no-model');
     expect(r.weak[0]?.questionIndexes).toEqual([1]);

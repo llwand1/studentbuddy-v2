@@ -55,7 +55,7 @@ const linear = {
 };
 
 function makeRun() {
-  const r = createDef(linear);
+  const r = createDef(linear, null);
   if (!r.ok) throw new Error(r.error);
   const run = createRun(r.def.id);
   if (!run.ok) throw new Error(run.error);
@@ -69,26 +69,26 @@ describe('study-flow-run — 步进式推进', () => {
     registerExecutor('quiz', ok('quiz'));
     registerExecutor('summary', ok('summary'));
 
-    const a1 = await advanceRun(runId);
+    const a1 = await advanceRun(runId, null);
     expect(a1.ok).toBe(true);
     if (!a1.ok) return;
     expect(a1.executed?.kind).toBe('explain');
     expect(a1.run.status).toBe('running');
     expect(a1.run.stepCount).toBe(1);
 
-    const a2 = await advanceRun(runId);
+    const a2 = await advanceRun(runId, null);
     expect(a2.ok).toBe(true);
     if (!a2.ok) return;
     expect(a2.executed?.kind).toBe('quiz');
     expect(a2.run.stepCount).toBe(2);
 
-    const a3 = await advanceRun(runId);
+    const a3 = await advanceRun(runId, null);
     expect(a3.ok).toBe(true);
     if (!a3.ok) return;
     expect(a3.executed?.kind).toBe('summary');
 
     // 第四步：没有下一步 ⇒ 正常收尾
-    const a4 = await advanceRun(runId);
+    const a4 = await advanceRun(runId, null);
     expect(a4.ok).toBe(true);
     if (!a4.ok) return;
     expect(a4.executed).toBeNull();
@@ -102,8 +102,8 @@ describe('study-flow-run — 步进式推进', () => {
     registerExecutor('explain', ok('explain'));
     registerExecutor('quiz', ok('quiz'));
 
-    await advanceRun(runId); // explain
-    const a2 = await advanceRun(runId); // quiz
+    await advanceRun(runId, null); // explain
+    const a2 = await advanceRun(runId, null); // quiz
     expect(a2.ok).toBe(true);
     if (!a2.ok) return;
     expect(a2.run.status).toBe('paused');
@@ -117,13 +117,13 @@ describe('study-flow-run — 步进式推进', () => {
     registerExecutor('quiz', ok('quiz'));
     registerExecutor('summary', ok('summary'));
 
-    await advanceRun(runId);
-    const paused = await advanceRun(runId);
+    await advanceRun(runId, null);
+    const paused = await advanceRun(runId, null);
     expect(paused.ok).toBe(true);
     if (!paused.ok) return;
     expect(paused.run.status).toBe('paused');
 
-    const resumed = await advanceRun(runId);
+    const resumed = await advanceRun(runId, null);
     expect(resumed.ok).toBe(true);
     if (!resumed.ok) return;
     expect(resumed.executed?.kind).toBe('summary');
@@ -136,12 +136,12 @@ describe('study-flow-run — 步进式推进', () => {
     registerExecutor('explain', ok('explain'));
     registerExecutor('quiz', ok('quiz'));
     registerExecutor('summary', ok('summary'));
-    await advanceRun(runId);
-    await advanceRun(runId);
-    await advanceRun(runId);
-    await advanceRun(runId); // 收尾 done
+    await advanceRun(runId, null);
+    await advanceRun(runId, null);
+    await advanceRun(runId, null);
+    await advanceRun(runId, null); // 收尾 done
 
-    const r = await advanceRun(runId);
+    const r = await advanceRun(runId, null);
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.status).toBe(409);
@@ -162,19 +162,19 @@ describe('study-flow-run — 定义快照隔离（本批最关键的不变量）
       name: '换过的流',
       steps: [{ id: 'z1', kind: 'digest', params: { domain: 'math' } }],
       edges: [],
-    });
+    }, null);
     expect(r.ok).toBe(true);
 
-    const a1 = await advanceRun(runId);
+    const a1 = await advanceRun(runId, null);
     expect(a1.ok).toBe(true);
-    const a2 = await advanceRun(runId);
+    const a2 = await advanceRun(runId, null);
     expect(a2.ok).toBe(true);
     if (!a2.ok) return;
     // 第二步走的是**快照里的** quiz，而不是新定义里唯一的 digest
     expect(a2.executed?.kind).toBe('quiz');
     expect(calls).toEqual(['explain:s1', 'quiz:s2']);
     expect(calls.some((c) => c.startsWith('digest'))).toBe(false);
-    expect(getRun(runId)!.defVersion).toBe(1);
+    expect(getRun(runId, false, null)!.defVersion).toBe(1);
     expect(r.ok && r.def.version).toBe(2);
   });
 
@@ -187,7 +187,7 @@ describe('study-flow-run — 定义快照隔离（本批最关键的不变量）
     getDb().prepare('DELETE FROM flow_step WHERE def_id = ?').run(defId);
     getDb().prepare('DELETE FROM flow_edge WHERE def_id = ?').run(defId);
 
-    const a1 = await advanceRun(runId);
+    const a1 = await advanceRun(runId, null);
     expect(a1.ok).toBe(true);
     if (!a1.ok) return;
     expect(a1.executed?.kind).toBe('explain');
@@ -200,16 +200,16 @@ describe('study-flow-run — 如实报错（不静默）', () => {
     // 只注册 explain，故意不注册 s1 之外的类型
     registerExecutor('explain', ok('explain'));
 
-    const a1 = await advanceRun(runId);
+    const a1 = await advanceRun(runId, null);
     expect(a1.ok).toBe(true); // 第一步 explain 有执行器
 
-    const a2 = await advanceRun(runId); // 第二步 quiz 没有
+    const a2 = await advanceRun(runId, null); // 第二步 quiz 没有
     expect(a2.ok).toBe(false);
     if (a2.ok) return;
     expect(a2.status).toBe(409);
     expect(a2.error).toContain('quiz');
     expect(a2.error).toContain('尚未接入执行器');
-    expect(getRun(runId)!.status).toBe('failed');
+    expect(getRun(runId, false, null)!.status).toBe('failed');
   });
 
   it('执行器抛错 ⇒ 该步标 failed、运行标 failed，错误原文留档', async () => {
@@ -218,13 +218,13 @@ describe('study-flow-run — 如实报错（不静默）', () => {
       throw new Error('模型连接超时');
     });
 
-    const a = await advanceRun(runId);
+    const a = await advanceRun(runId, null);
     expect(a.ok).toBe(false);
     if (a.ok) return;
     expect(a.status).toBe(502);
     expect(a.error).toContain('模型连接超时');
 
-    const run = getRun(runId, true)!;
+    const run = getRun(runId, true, null)!;
     expect(run.status).toBe('failed');
     expect(run.error).toContain('模型连接超时');
     expect(run.steps![0]!.status).toBe('failed');
@@ -237,11 +237,11 @@ describe('study-flow-run — 如实报错（不静默）', () => {
     // 直接把已执行步数顶到上限，省去循环 30 次
     getDb().prepare('UPDATE flow_run SET step_count = ? WHERE id = ?').run(FLOW_MAX_STEPS, runId);
 
-    const a = await advanceRun(runId);
+    const a = await advanceRun(runId, null);
     expect(a.ok).toBe(false);
     if (a.ok) return;
     expect(a.error).toContain('防死循环');
-    expect(getRun(runId)!.status).toBe('failed');
+    expect(getRun(runId, false, null)!.status).toBe('failed');
   });
 });
 
@@ -250,13 +250,13 @@ describe('study-flow-run — 取消与产物', () => {
     const { runId } = makeRun();
     registerExecutor('explain', ok('explain'));
     registerExecutor('quiz', ok('quiz'));
-    await advanceRun(runId);
-    await advanceRun(runId); // paused
+    await advanceRun(runId, null);
+    await advanceRun(runId, null); // paused
 
-    const c = cancelRun(runId, '用户不学了');
+    const c = cancelRun(runId, '用户不学了', null);
     expect(c).not.toBeNull();
     expect(c!.status).toBe('cancelled');
-    expect(cancelRun(runId, '再取消一次')).toBeNull();
+    expect(cancelRun(runId, '再取消一次', null)).toBeNull();
   });
 
   it('产出词条的步骤会把词条登记成知识节点（本会话内新增才算）', async () => {
@@ -264,7 +264,7 @@ describe('study-flow-run — 取消与产物', () => {
       name: '沉淀一步',
       steps: [{ id: 'd1', kind: 'digest' as const, params: { domain: 'english' } }],
       edges: [],
-    });
+    }, null);
     if (!r.ok) return;
     const created = createRun(r.def.id);
     if (!created.ok) return;
@@ -279,10 +279,10 @@ describe('study-flow-run — 取消与产物', () => {
       return { output: { ran: 'digest' } };
     });
 
-    const a = await advanceRun(runId);
+    const a = await advanceRun(runId, null);
     expect(a.ok).toBe(true);
 
-    const nodes = listNodes('term');
+    const nodes = listNodes(null, 'term');
     expect(nodes).toHaveLength(1);
     expect(nodes[0]!.refText).toBe('subjunctive');
     expect(nodes[0]!.sourceRunId).toBe(runId);

@@ -93,7 +93,7 @@ sessionsRouter.get('/:id/messages', (req: Request, res: Response) => {
   }
   const rows = getDb()
     .prepare(
-      `SELECT id, role, content, tool_calls, tool_call_id, reasoning, tasks, images, created_at FROM messages WHERE session_id = ? ORDER BY created_at, rowid`,
+      `SELECT id, role, content, tool_calls, tool_call_id, reasoning, tasks, images, thinking_ms, duration_ms, created_at FROM messages WHERE session_id = ? ORDER BY created_at, rowid`,
     )
     .all(id);
   res.json(rows);

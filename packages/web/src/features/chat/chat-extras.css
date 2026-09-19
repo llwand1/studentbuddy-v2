@@ -171,6 +171,16 @@
     transform: rotate(360deg);
   }
 }
+/* P1 耗时徽标（§4.7）：running 期是本地 tick，终态换服务端实测值；缺值不渲染，无占位 */
+.chat-step-duration {
+  flex: none;
+  font-size: var(--sb-fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--sb-ink-tertiary);
+}
+.chat-step-error-text {
+  color: var(--sb-danger, #c0392b);
+}
 .chat-step-caret {
   margin-left: auto;
   flex: none;

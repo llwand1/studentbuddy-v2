@@ -27,6 +27,10 @@ export interface HistoryRow {
   tasks?: string | null;
   /** v17 看图：用户上传图片（base64 dataURL JSON 数组），仅作缩略图回显 */
   images?: string | null;
+  /** v32（P1）：assistant 回答行的思考耗时（ms）；NULL＝该消息没有实测值（老数据/没出过思考） */
+  thinking_ms?: number | null;
+  /** v32（P1）：tool 结果行的实测执行耗时（ms）——刷新/切会话后卡片耗时不变的事实源 */
+  duration_ms?: number | null;
   created_at: string;
 }
 
@@ -120,6 +124,7 @@ export function foldToolRounds(rows: HistoryRow[]): StreamMessage[] {
         ts: r.created_at,
         steps: pending.length > 0 ? pending : undefined,
         reasoning: r.reasoning || undefined,
+        ...(r.thinking_ms != null ? { thinkingMs: r.thinking_ms } : {}), // 思考耗时与 done 帧同源（v32 列）
         tasks: parseTasks(r.tasks),
       });
       pending = [];
@@ -132,6 +137,8 @@ export function foldToolRounds(rows: HistoryRow[]): StreamMessage[] {
       if (step) {
         step.status = 'done';
         step.result = r.content.slice(0, RESULT_CAP);
+        // v32：工具实测耗时随行落库，回放同值（§4.7「刷新后数字不变」判据的存储侧）
+        if (r.duration_ms != null) step.durationMs = r.duration_ms;
       }
     }
   }

@@ -38,13 +38,14 @@
 | `token` | content | 助手文本增量（前端按序追加） |
 | `reasoning` | content | 推理过程增量。**2026-09-12 修订（v11）**：已随后续消息落库（`messages.reasoning` 列）并在重开会话时回放——原「仅流式呈现不落库」的说法作废；该列存原文，历史由 `web/features/chat/history-fold.ts` 折回那条回答 |
 | `block` | blockId/payload/done | 结构化内容块（演进③；M2 起启用，payload 见 shared/content-blocks）。**2026-09-06 登记 `kind:'verdict'`**：深度理解判定块（DEEP-UNDERSTANDING-SPEC §9.1），payload=`Verdict`（shared/domain，v1.1 含 `met`），`blockId='evo-<termId>-<ts>'`；由 flow 端 `[VERDICT]` 流式闸门吞掉正文后发射——判定块不上屏、不落 messages，「屏上文本==库内文本」铁律不破 |
-| `step` | tool/status/detail/args?/result? | 工具执行进度：`running`（detail=入参摘要）→ `done`（detail=结果概览）/ `error`（detail=失败原因，不静默）；前端渲染为过程卡片。**2026-09-09 增强**：终态事件附 `args`（工具入参原文 JSON 串）与 `result`（结果摘要截 ~400 字），前端点击卡片展开查看输入/输出；终态由 tool-exec 调度器统一发射（每张卡片有且只有一个终态）。生成完成后 steps 不再清空（与 reasoning 同策略），清空点在下一轮 send/regenerate 与切会话 |
+| `step` | tool/status/detail/args?/result? | 工具执行进度：`running`（detail=入参摘要）→ `done`（detail=结果概览）/ `error`（detail=失败原因，不静默）；前端渲染为过程卡片。**2026-09-09 增强**：终态事件附 `args`（工具入参原文 JSON 串）与 `result`（结果摘要截 ~400 字），前端点击卡片展开查看输入/输出；终态由 tool-exec 调度器统一发射（每张卡片有且只有一个终态）。生成完成后 steps 不再清空（与 reasoning 同策略），清空点在下一轮 send/regenerate 与切会话。**2026-09-18 v1.3 扩展（已登记，P1 落地）**：终态帧新增 `toolCallId`（同名并行调用按 id 配对，替代「name+running 倒扫」）、`durationMs`（**服务端实测**执行耗时，随消息落库、历史回放同值——计时不用前端掐表也不蹭 AG-UI 时间戳，依据逐条见 `TOOL-ECOSYSTEM-SPEC.md` §4.7）、`errorText`（error 终态人读错误，与 `result` 互斥）；`preliminary`（长工具中间输出）先行登记、P4 启用 |
 | `tasks` | items | **2026-09-09 登记（标准 CoT 任务清单）**：模型经 `update_tasks` 工具（不在 tools.ts 注册表，flow.ts exec 注入接入）。**2026-09-12 修订**：items 恒为**服务端合并后的完整清单** `TaskItem[]`（三态 `pending`/`in_progress`/`done`，≤10 条，类型单一事实源＝`shared/src/task-list.ts`）；模型入参有两种模式（`tasks` 全量覆盖 / `updates` 按 1 基序号增量），**合并永远在服务端做**，事件侧只有「全量下发」一种语义——前端仍整表替换、不做本地合并；前端渲染为打勾进度面板（n/m 计数，`in_progress` 当前条目高亮转环），全部完成后默认收起、done 后保留可回看 |
 | `choice-asked` | sessionId / request | **2026-09-14 登记（方案选择框，契约 `docs/ASK-CHOICE-SPEC.md`）**：AI 调 `ask_choice` 工具请求学习者拍板，UI 在输入框上方弹浮层。`request` 为 `AskChoiceRecord`（唯一事实源 `shared/choice.ts`）。前端按 `request.id` 幂等——断线重连会回放同一帧，覆盖而非二次入队。归 `sessionId` 频道，**不经** `pk:` 前缀隔离 |
 | `choice-replied` | sessionId / requestId / reply | 答复已落库（本端点的答复、别的客户端的答复都走这条路——服务端是唯一事实源）。前端切已选态但**不出队**：首 token 常有延迟，卡片凭空消失会让人以为没点成功 |
 | `choice-cancelled` | sessionId / requestId / reason | 提问作废（逃生口：停止生成 / 删会话 / 进程重启清理，见 SPEC §5）。前端切作废态如实告知，不静默消失 |
 | `chat-error` | message | 本轮失败（用户中止为「已停止」） |
-| `done` | usage? | 本轮收口；usage.source=provider/estimated |
+| `done` | usage? / thinkingMs? | 本轮收口；usage.source=provider/estimated。**2026-09-19 P1 扩展**：`thinkingMs`＝服务端实测的**本轮思考耗时**（起点＝首个 reasoning 分片发出，终点＝首个正文分片发出，无正文则收口时刻；未出过思考分片则不带该字段）。落库先于本帧发布 ⇒ done 携带的是**已入库的同一事实**（`messages.thinking_ms`），前端收口直接用、不本地掐表（口径依据 `TOOL-ECOSYSTEM-SPEC.md` §4.7，反面教材＝LobeChat 断线重连丢起点） |
+| `round-start` | startedAt | **2026-09-19 登记（P0.5 热修，B-009）**：`flow.ts` 在 `startNewRound` 后发布的首帧，`startedAt`＝服务端 `Date.now()`。前端「思考中」已用时的**唯一基准**——组件挂载时刻 ≠ 轮开始时刻，切会话/重挂靠回放本帧续表、不从头起（服务只绑 127.0.0.1，同机时钟直减成立）。已知边界：缓冲 60s TTL 回收后无帧可回放，计时退回重挂时刻起算（与回放超时同口径）；督促/PK 频道**不发**该帧 |
 | `ping` | — | 心跳 |
 
 ### 2.1 PK 频道事件（AI 出题双人对战，契约 `docs/PK-SPEC.md` §2.2）
@@ -142,6 +143,9 @@
 
 | 日期 | 变更 |
 |------|------|
+| 2026-09-19 | **P1 计时呈现批**：`done` 帧扩展 `thinkingMs`（服务端实测本轮思考耗时，落库先于发布 ⇒ 线上值与库内值同源，见 §2 该行）；`step` 帧 2026-09-18 登记的 `toolCallId`/`durationMs`/`errorText` 三字段**由登记转已落码**（tool-exec 调度器统一发射，flow/grill 两消费面自动透传；`preliminary` 仍留 P4）。落库面：`messages` 加 `thinking_ms`（assistant 行）与 `duration_ms`（tool 行）两列（迁移 v32，`ADD COLUMN` 型）——§4.7 判据「刷新/切会话后耗时数字不变」的事实源从流帧换成库行 |
+| 2026-09-19 | **P0.5 热修批（B-009）**：§2 登记 `round-start` 帧（轮起点=服务端时刻，每轮缓冲第一帧、随回放恢复计时基准）。实现同批落地：`flow.ts` 发布 + 前端 `useChatStream`/`Thinking` 改吃该基准（切会话清基准，本地 `Date.now()` 仅兜底）。回归锁：`sse-bus.test.ts` +1（回放首帧必是 round-start）、`flow.test.ts` +2（成功轮/失败轮均发帧）。P1 的落库耗时（TOOL-ECOSYSTEM-SPEC §4.7）踩这份基准做，不重复施工 |
+| 2026-09-18 | **工具生态 v1.3 契约登记（P0-b，未动实现）**：`step` 帧新增 `toolCallId`/`durationMs`/`errorText`/`preliminary`（`shared/sse-events.ts` 同步）；计时口径定档「服务端测差值+落库」；单工具超时改 per-tool 按 kind 分档（read/write 30s / network·external 60s / 内部调 LLM 的工具 120s，原「network 15s」草案作废，`ask_choice` 豁免照旧）；文件工具 `read_file`/`write_file` 申请式沙箱立项（`path_grants` 持久授权）。细则与证据全部在 `docs/TOOL-ECOSYSTEM-SPEC.md` v1.3（§4.2/§4.7/§5.2/§10） |
 | 2026-09-18 | **督促趋势卡**（契约 `docs/MEMORY-TREND-SPEC.md` §4）：新增 SSE 事件 `coach-card`（归 `coach:<owner>` 频道，与 `sessionId`/`pk:` 三向隔离）+ 新增 §2.2 督促频道事件小节（此前 `token`/`done`/`chat-error` 三条共用事件一直未在本文件登记，本次一并补登）。载荷 `card` ＝ `CoachTrendCard`（结构化数据，**不是 SVG 字符串**：窗口改天数/换主题/导出数据表都不该让模型重画一遍）。服务端由 `learning/trend.ts` 定时生成（每 6 小时检查、每天最多一张、窗口内提及 < 3 次不出卡），模型只写一句摘要且**失败仍出卡**（`summarySource:'fallback'`） |
 | 2026-09-14 | **方案选择框**（契约 `docs/ASK-CHOICE-SPEC.md`）：新增 3 个 SSE 事件（`choice-asked` / `choice-replied` / `choice-cancelled`，归 `sessionId` 频道）+ 2 个端点（`GET /api/choices`、`POST /api/choices/:id/reply`）+ `ask_choice` 工具（**长等待**：在 `flow.ts` 的 `runToolCalls` 里登记 `noTimeout`，豁免 30s 默认工具超时）；迁移 v14 建 `ask_choices` 表；已注册工具清单同步更新 |
 | 2026-08-23 | M1 首版（SSE/会话/发送/中止/服务商+角色绑定） |

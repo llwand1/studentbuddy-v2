@@ -61,6 +61,7 @@ export function ChatView({
     error,
     usage,
     elapsedMs,
+    startedAtMs,
     send,
     stop,
     regenerate,
@@ -210,7 +211,7 @@ export function ChatView({
         {/* 回复中等待态（v13）：三点弹跳 + 阶段感知状态行（有工具跑报真实动作）+ 已用时。
             覆盖发起后到首 token 落屏前的空窗（含纯工具执行期），以及池中 AI
             （stream_mode='once'）的整个生成期——它没有逐字流，等待态就是回答中的本体 */}
-        {busy && !streamingText && <Thinking steps={steps} reasoningLen={reasoning.length} />}
+        {busy && !streamingText && <Thinking steps={steps} reasoningLen={reasoning.length} startedAtMs={startedAtMs} />}
         {streamingText && (
           <div className="chat-row">
             <div className="chat-bubble md streaming">

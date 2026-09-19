@@ -3,7 +3,7 @@
  * 文案池轮播节奏（4s/条）与已用时格式化是用户直接看到的体验细节，钉死防回归。
  */
 import { describe, expect, it } from 'vitest';
-import { formatElapsed, phaseStatus, thinkingPhrase } from './thinking-status';
+import { formatDuration, formatElapsed, phaseStatus, thinkingPhrase } from './thinking-status';
 
 describe('thinkingPhrase（轮播短语）', () => {
   it('起点与首 4s 显示第一条，不撒谎（此刻什么都还没发生）', () => {
@@ -28,6 +28,31 @@ describe('formatElapsed（已用时）', () => {
   it('跨分钟换「分秒」口径，秒位补零', () => {
     expect(formatElapsed(61_000)).toBe('1分01秒');
     expect(formatElapsed(125_400)).toBe('2分05秒');
+  });
+});
+
+describe('formatDuration（卡片耗时三档，P1 §4.7 抄 LobeChat ExecutionTime 口径）', () => {
+  it('亚秒显示 ms 整数：0.8s 精度不够还显得没跑完，823ms 才是事实', () => {
+    expect(formatDuration(0)).toBe('0ms');
+    expect(formatDuration(823)).toBe('823ms');
+    expect(formatDuration(999.4)).toBe('999ms');
+  });
+
+  it('秒档保留一位小数（0 也如实是 0ms——它属亚秒档，不是「缺失」）', () => {
+    expect(formatDuration(1000)).toBe('1.0s');
+    expect(formatDuration(4200)).toBe('4.2s');
+    expect(formatDuration(59_999)).toBe('60.0s');
+  });
+
+  it('跨分钟换 min/s 口径，秒位补零；小时不再升档（工具卡不会跑一小时）', () => {
+    expect(formatDuration(60_000)).toBe('1min00s');
+    expect(formatDuration(72_000)).toBe('1min12s');
+    expect(formatDuration(3_600_000)).toBe('60min00s');
+  });
+
+  it('与 formatElapsed 刻意分叉：同一个 61s，等待态是「1分01秒」，终态卡是「1min01s」', () => {
+    expect(formatElapsed(61_000)).toBe('1分01秒');
+    expect(formatDuration(61_000)).toBe('1min01s');
   });
 });
 

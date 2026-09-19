@@ -27,6 +27,12 @@ export interface ToolOutcome {
   /** 回灌给模型的内容：成功是工具返回，失败是「怎么改对」的指示（契约 §4.2 纠错口径） */
   content: string;
   ok: boolean;
+  /**
+   * 服务端实测执行耗时（ms），随消息落库（`messages.duration_ms`，迁移 v32）。
+   * `undefined` 只有一种来源：**进入执行前就已中止**——那次调用没跑过，落 0 是谎话
+   * （§4.7：耗时缺失退「无时长」而不是「0 秒」，存储侧同口径留 NULL）。
+   */
+  durationMs?: number;
 }
 
 export interface ToolExecOptions {
@@ -53,10 +59,21 @@ export interface ToolExecOptions {
   ownerId: string | null;
 }
 
-/** 过程卡片可展开的载荷（SSE 契约 2026-09-09）：入参原文 + 结果摘要 */
+/**
+ * 过程卡片可展开的载荷（SSE 契约 2026-09-09）：入参原文 + 结果摘要。
+ * ★ P1（2026-09-19，契约 TOOL-ECOSYSTEM-SPEC §4.7）扩三字段，**全部由本文件的调度器统一注入**——
+ *   工具实现（tools.ts）与消费面（flow/grill 的 onStep）都不碰它们：注入点只有一处，
+ *   漏注入 = 编译期可查，而"各调用点自己记得带"就是这次 B-009 之前 `ownerId` 漏传的形态。
+ */
 export interface StepPayload {
   args?: string;
   result?: string;
+  /** 模型侧 call id：同名并行调用据此配对卡片，替代前端「name+running 倒扫」（会串卡） */
+  toolCallId?: string;
+  /** 服务端实测执行耗时（ms），仅终态帧携带 */
+  durationMs?: number;
+  /** error 终态的人读错误（对齐 AI SDK output-error.errorText）：与 result 互斥 */
+  errorText?: string;
 }
 
 /** 结果摘要截断上限：给用户点开看的，不是回灌模型的（回灌另有 MAX_TOOL_RESULT_CHARS） */
@@ -140,21 +157,24 @@ export async function runToolCalls(
   try {
     const tasks = calls.map(async (call) => {
       if (signal?.aborted) {
-        ctx.onStep(call.name, 'error', '已停止');
+        ctx.onStep(call.name, 'error', '已停止', { toolCallId: call.id, errorText: '已停止' });
         return { id: call.id, name: call.name, content: ABORT_HINT, ok: false };
       }
+      /** 执行起点：本次调用**真实开跑**的那一刻（前置中止的分支根本走不到这里） */
+      const t0 = Date.now();
+      const elapsed = () => Date.now() - t0;
 
       /**
        * 终态接管：工具实现（tools.ts）内部会自己发 done/error，这里**拦下缓存、
        * 不直接透出**，等 race 出结果后由本调度器统一重发一次并附上 args/result 载荷——
        * 保证每张过程卡片有且只有一个终态，且点开能看到输入输出（SSE 契约 2026-09-09）。
-       * running 原样透传（过程态要实时）。
+       * running 原样透传（过程态要实时），但顺手挂上 toolCallId——注入只在这一处（见 StepPayload 头注）。
        */
       let terminal: { status: 'done' | 'error'; detail?: string } | undefined;
       const callCtx: ToolContext = {
         onStep: (tool, status, detail) => {
           if (status === 'running') {
-            ctx.onStep(tool, 'running', detail);
+            ctx.onStep(tool, 'running', detail, { toolCallId: call.id });
             return;
           }
           terminal = { status, detail };
@@ -181,16 +201,24 @@ export async function runToolCalls(
         }
         if (abortRace) racers.push(abortRace);
         const r = await Promise.race(racers);
+        const durationMs = elapsed();
         // 工具内部已自判 error 却正常返回（如搜索词为空）：如实重发 error，不再补 done
         if (terminal?.status === 'error') {
-          ctx.onStep(call.name, 'error', terminal.detail, { args: call.arguments });
+          ctx.onStep(call.name, 'error', terminal.detail, {
+            args: call.arguments,
+            toolCallId: call.id,
+            durationMs,
+            errorText: terminal.detail,
+          });
         } else {
           ctx.onStep(call.name, 'done', terminal?.detail, {
             args: call.arguments,
             result: r.content.slice(0, RESULT_SNIPPET_CHARS),
+            toolCallId: call.id,
+            durationMs,
           });
         }
-        return { id: call.id, name: call.name, content: r.content, ok: true };
+        return { id: call.id, name: call.name, content: r.content, ok: true, durationMs };
       } catch (err) {
         const aborted = signal?.aborted === true;
         const timedOut = err instanceof ToolTimeoutError;
@@ -201,12 +229,15 @@ export async function runToolCalls(
             : err instanceof Error
               ? err.message
               : String(err);
-        ctx.onStep(call.name, 'error', detail, { args: call.arguments });
+        // 中止/超时同样有真实耗时（等了多久是事实）；errorText 与 result 互斥——失败原因不伪装成结果摘要
+        const durationMs = elapsed();
+        ctx.onStep(call.name, 'error', detail, { args: call.arguments, toolCallId: call.id, durationMs, errorText: detail });
         return {
           id: call.id,
           name: call.name,
           content: aborted ? ABORT_HINT : timedOut ? TIMEOUT_HINT : `工具执行失败：${detail}`,
           ok: false,
+          durationMs,
         };
       } finally {
         // 必须清：不清的话每个工具都会挂一个 timer 拖到超时点，Node 进程退出被推迟

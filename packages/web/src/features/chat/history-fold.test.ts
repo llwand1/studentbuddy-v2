@@ -177,4 +177,39 @@ describe('foldToolRounds', () => {
     expect(out.map((m) => m.reasoning)).toEqual([undefined, undefined, undefined, undefined]);
     expect(out.map((m) => m.tasks)).toEqual([undefined, undefined, undefined, undefined]);
   });
+
+  // —— P1（v32 两列）：实测耗时随行回放，刷新/切会话后卡片数字不变 ——
+
+  it('thinking_ms / duration_ms 还原到消息与工具卡（与流式期 done/终态帧同源）', () => {
+    const out = foldToolRounds([
+      row({ role: 'user', content: 'q' }),
+      row({ role: 'assistant', content: '', tool_calls: calls(['c1', 'search_web', '{}']) }),
+      row({ role: 'tool', content: 'R', tool_call_id: 'c1', duration_ms: 4200 }),
+      row({ role: 'assistant', content: 'a', reasoning: '想了想', thinking_ms: 7300 }),
+    ]);
+    expect(out[1]?.thinkingMs).toBe(7300);
+    expect(out[1]?.steps?.[0]?.durationMs).toBe(4200);
+  });
+
+  it('老行没有实测值（NULL）→ 不挂空壳键：缺就是缺，退「无时长」而不是 0 秒', () => {
+    const out = foldToolRounds([
+      row({ role: 'user', content: 'q' }),
+      row({ role: 'assistant', content: '', tool_calls: calls(['c1', 'search_web', '{}']) }),
+      row({ role: 'tool', content: 'R', tool_call_id: 'c1', duration_ms: null }),
+      row({ role: 'assistant', content: 'a', thinking_ms: null }),
+    ]);
+    expect('thinkingMs' in (out[1] ?? {})).toBe(false);
+    expect(out[1]?.steps?.[0]?.durationMs).toBeUndefined();
+  });
+
+  it('0 毫秒如实回放（与 NULL 可分辨）：真测出 0 就存 0 就显示，不伪装成缺失', () => {
+    const out = foldToolRounds([
+      row({ role: 'user', content: 'q' }),
+      row({ role: 'assistant', content: '', tool_calls: calls(['c1', 'tidy_terms', '{}']) }),
+      row({ role: 'tool', content: 'R', tool_call_id: 'c1', duration_ms: 0 }),
+      row({ role: 'assistant', content: 'a', thinking_ms: 0 }),
+    ]);
+    expect(out[1]?.thinkingMs).toBe(0);
+    expect(out[1]?.steps?.[0]?.durationMs).toBe(0);
+  });
 });

@@ -15,13 +15,16 @@ import type { TaskItem } from './task-list.js';
  * 工具轮 + 最终回答原子落库（v1 语义）：中途失败/中止时整体不落，历史里不会
  * 出现以孤立 tool 消息结尾的轮次（OpenAI 要求 tool 消息前必有对应 assistant tool_calls）。
  * v11 起同时落「思考」与「任务清单」——过程归属于这条回答，重开会话由 history-fold 回放。
+ * ★ P1（迁移 v32）追加两份耗时，全部是**服务端实测值**（口径 TOOL-ECOSYSTEM-SPEC §4.7）：
+ *   `durations` 与 `results` 同序落进各 tool 行的 `duration_ms`；`thinkingMs` 落进回答行的
+ *   `thinking_ms`。两者缺省即 NULL——「没测到」与「0ms」在库里必须可分辨。
  */
 export function persistRounds(
   sessionId: string,
-  rounds: Array<{ calls: ToolCall[]; results: ChatMessage[] }>,
+  rounds: Array<{ calls: ToolCall[]; results: ChatMessage[]; durations?: Array<number | undefined> }>,
   finalContent: string,
   tokens: number,
-  proc: { reasoning: string; tasks: TaskItem[] },
+  proc: { reasoning: string; tasks: TaskItem[]; thinkingMs?: number },
 ): string {
   const db = getDb();
   const assistantId = randomUUID();
@@ -29,13 +32,14 @@ export function persistRounds(
     for (const r of rounds) {
       db.prepare(`INSERT INTO messages (id, session_id, role, content, tool_calls) VALUES (?, ?, 'assistant', '', ?)`)
         .run(randomUUID(), sessionId, JSON.stringify(r.calls));
-      for (const t of r.results) {
-        db.prepare(`INSERT INTO messages (id, session_id, role, content, tool_call_id) VALUES (?, ?, 'tool', ?, ?)`)
-          .run(randomUUID(), sessionId, t.content, t.toolCallId ?? null);
-      }
+      r.results.forEach((t, i) => {
+        db.prepare(
+          `INSERT INTO messages (id, session_id, role, content, tool_call_id, duration_ms) VALUES (?, ?, 'tool', ?, ?, ?)`,
+        ).run(randomUUID(), sessionId, t.content, t.toolCallId ?? null, r.durations?.[i] ?? null);
+      });
     }
     db.prepare(
-      `INSERT INTO messages (id, session_id, role, content, tokens, reasoning, tasks) VALUES (?, ?, 'assistant', ?, ?, ?, ?)`,
+      `INSERT INTO messages (id, session_id, role, content, tokens, reasoning, tasks, thinking_ms) VALUES (?, ?, 'assistant', ?, ?, ?, ?, ?)`,
     ).run(
       assistantId,
       sessionId,
@@ -43,6 +47,7 @@ export function persistRounds(
       tokens,
       proc.reasoning || null,
       proc.tasks.length > 0 ? JSON.stringify(proc.tasks) : null,
+      proc.thinkingMs ?? null,
     );
   });
   apply();

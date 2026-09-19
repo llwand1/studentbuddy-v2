@@ -13,6 +13,8 @@ import { createTokenDrain, type TokenDrain } from './stream-smooth';
 import { foldToolRounds } from './history-fold';
 import { useChoiceQueue } from './useChoiceQueue';
 import { useSendActions } from './useSendActions';
+import { useRoundBegin } from './useRoundBegin';
+import { foldStepEvent, type ToolStep } from './step-fold';
 import { applyChatBlock, type QuizBlockView, type ScenarioBlockView } from './chat-blocks';
 export type { TaskItem, TaskStatus } from '@sb/shared';
 
@@ -36,19 +38,14 @@ export interface StreamMessage {
   steps?: ToolStep[];
   /** 这条回答的思考链原文（v11 起落库；历史由 history-fold 读列、本轮由 done 归并） */
   reasoning?: string;
+  /** 本轮思考耗时（P1，服务端实测）：done 帧带来、历史读 `thinking_ms` 列——两者同源（§4.7） */
+  thinkingMs?: number;
   /** 这条回答最终声明的任务清单（同上；update_tasks 是全量覆盖语义） */
   tasks?: TaskItem[];
 }
 
-export interface ToolStep {
-  tool: string;
-  status: 'running' | 'done' | 'error';
-  detail?: string;
-  /** 工具入参原文（JSON 串）：过程卡片点开看 */
-  args?: string;
-  /** 工具结果摘要（截断 ~400 字）：同上 */
-  result?: string;
-}
+/** 过程卡片形状与 step 帧折叠都在 `step-fold.ts`（2026-09-19 P1 抽出；此处 re-export 保住既有导入面） */
+export type { ToolStep } from './step-fold';
 
 /**
  * 任务清单条目（SSE tasks 事件）：**契约在 @sb/shared**（三态 pending/in_progress/done），
@@ -126,7 +123,7 @@ export function useChatStream(
   const clientRef = useRef<ReturnType<typeof connectSse> | null>(null);
   /** 历史是否已落定：未落定前禁发，否则 messages 响应后到会把刚发的用户消息整表覆盖掉 */
   const historyLoadedRef = useRef(false);
-  /** 本轮发起时刻：done 时与它相减得上屏耗时（usage 是服务端口径，耗时只能前端自己量） */
+  /** 本轮起点（服务端 round-start 帧为唯一事实源；SSE 回调闭包读不到 state，ref 与镜像一起写，镜像在 useRoundBegin） */
   const startedAtRef = useRef(0);
   // busy 上报给壳层：ref 锁回调解耦渲染，effect 只在 busy/sessionId 翻转时触发
   const busyCbRef = useRef(onBusyChange);
@@ -180,9 +177,10 @@ export function useChatStream(
     const roundReasoning = reasoningRef.current;
     const roundTasks = tasksRef.current;
     /** 只挂有内容的那几项，别给每条普通回答塞一堆 undefined 键（导出/序列化都会带上） */
-    const proc: Pick<StreamMessage, 'steps' | 'reasoning' | 'tasks'> = {
+    const proc: Pick<StreamMessage, 'steps' | 'reasoning' | 'tasks' | 'thinkingMs'> = {
       ...(roundSteps.length > 0 ? { steps: roundSteps } : {}),
       ...(roundReasoning ? { reasoning: roundReasoning } : {}),
+      ...(ev.thinkingMs ? { thinkingMs: ev.thinkingMs } : {}), // 服务端实测值（P1）：done 帧带来，前端不掐表
       ...(roundTasks.length > 0 ? { tasks: roundTasks } : {}),
     };
     const hasProc = Object.keys(proc).length > 0;
@@ -253,6 +251,7 @@ export function useChatStream(
     clearReasoning();
     setUsage(null);
     setElapsedMs(0);
+    startedAtRef.current = 0; // 上一轮/上一间会话的基准不许漂过来（B-009）；进行中的轮换回放 round-start 帧重发
     const client = connectSse(`/api/chat/stream?sessionId=${encodeURIComponent(sessionId)}`, {
       // 断线重连成功后拉 /live 快照对齐（契约「断线恢复」的客户端半边，v13 接通）：
       // 重连回放与快照的重叠帧由 sse-client 的 seq 去重拦下
@@ -264,36 +263,19 @@ export function useChatStream(
       // 方案选择框的三种帧（asked/replied/cancelled）由 useChoiceQueue 自行消化；
       // 消化掉就 return，其余事件照旧往下分发
       if (applyChoiceEvent(ev)) return;
-      if (ev.type === 'token') {
+      if (ev.type === 'round-start') {
+        // 轮起点以服务端为事实源：切回会话时重挂的 Thinking 靠回放的本帧续表，不从头起（B-009）
+        startedAtRef.current = ev.startedAt;
+        setRoundStartedAt(ev.startedAt);
+      } else if (ev.type === 'token') {
         pushTokens(ev.content);
         setBusy(true);
       } else if (ev.type === 'reasoning') {
         pushReasoning(ev.content);
       } else if (ev.type === 'step') {
         setBusy(true);
-        if (ev.status === 'running') {
-          commitSteps([...stepsRef.current, { tool: ev.tool, status: ev.status, detail: ev.detail }]);
-        } else {
-          const next = [...stepsRef.current];
-          const settled: ToolStep = {
-            tool: ev.tool,
-            status: ev.status,
-            detail: ev.detail,
-            args: ev.args,
-            result: ev.result,
-          };
-          let hit = -1;
-          for (let i = next.length - 1; i >= 0; i--) {
-            if (next[i]?.tool === ev.tool && next[i]?.status === 'running') {
-              hit = i;
-              break;
-            }
-          }
-          // 配不上 running（重连补发的终态、或 running 帧丢失）就新开一条：过程宁可多一条也不丢
-          if (hit >= 0) next[hit] = settled;
-          else next.push(settled);
-          commitSteps(next);
-        }
+        // 折叠（含 toolCallId 配对）在 step-fold.ts——纯函数才能上测链路（P1）
+        commitSteps(foldStepEvent(stepsRef.current, ev, Date.now()));
       } else if (ev.type === 'tasks') {
         // 任务清单是全量覆盖语义：面板整表替换，模型每次 update_tasks 都发完整列表
         setBusy(true);
@@ -342,25 +324,21 @@ export function useChatStream(
   ]);
 
   /**
-   * 新一轮公共前置：清上一轮残留（token 缓冲 / 流式文本 / 过程三件套 / 用量耗时）并计时。
-   * 过程三件套一律走 ref 感知的 setter（只 setState 清不掉 ref，会串到新一轮的 done 归并里）；
-   * 终止帧丢失时不清缓冲，新 token 会拼到旧半句后面。
+   * 新一轮公共前置（清残留 + 计时起点）——重置逻辑与理由在 useRoundBegin 文件头（2026-09-19 拆出：本文件贴 400 行红线）。
    */
-  const beginRound = useCallback(() => {
-    resetTokens();
-    commitStreaming('');
-    clearReasoning();
-    commitSteps([]);
-    commitTasks([]);
-    // 方案选择框：上一轮遗留的卡片（含已选/已作废的确认态）退场——它属于上一轮，不该漂过来
-    resetChoices();
-    setUsage(null);
-    setElapsedMs(0);
-    startedAtRef.current = Date.now();
-  }, [resetTokens, clearReasoning, commitSteps, commitTasks, commitStreaming, resetChoices]);
+  const { begin: beginRound, startedAtMs, setStartedAtMs: setRoundStartedAt } = useRoundBegin({
+    resetTokens,
+    clearReasoning,
+    commitSteps,
+    commitTasks,
+    commitStreaming,
+    resetChoices,
+    startedAtRef,
+    // 上一轮的用量/耗时不漂进新一轮（与旧 beginRound 内联版同口径）
+    clearRoundMeta: () => { setUsage(null); setElapsedMs(0); },
+  });
 
-  // 发送 / 重跑 / 停止这组动作在 useSendActions（2026-09-14 拆出：本文件触 400 行红线）。
-  // 它们只发请求与撤屏，不认识流式事件；本文件专心管 SSE 呈现。
+  // 发送 / 重跑 / 停止这组动作在 useSendActions（2026-09-14 拆出：本文件触 400 行红线）；只发请求与撤屏，不认识流式事件。
   const { send, stop, regenerate, resend } = useSendActions({
     sessionId,
     ready,
@@ -384,6 +362,7 @@ export function useChatStream(
     error,
     usage,
     elapsedMs,
+    startedAtMs,
     send,
     stop,
     regenerate,

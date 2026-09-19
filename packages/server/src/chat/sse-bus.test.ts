@@ -83,6 +83,25 @@ describe('sse-bus — 按 sessionId 隔离广播（v1 串台防护回归）', ()
     expect(tokens[0]).toMatchObject({ content: '半句' });
   });
 
+  it('★ 计时基准可恢复（B-009）：进行中的一轮重订阅，回放第一帧必是 round-start 且带原 startedAt', () => {
+    const startedAt = 1_700_000_000_000;
+    publish('s1', { type: 'round-start', sessionId: 's1', startedAt });
+    publish('s1', { type: 'token', sessionId: 's1', content: '半句' });
+
+    const back = fakeRes();
+    subscribe('s1', back); // 切回会话＝全新订阅（since 0）：基准随回放自动恢复
+    const evs = back.frames.map(parse);
+    expect(evs[0]?.type).toBe('round-start');
+    if (evs[0]?.type !== 'round-start') return; // tsc 收窄，判据在上一行已钉死
+    expect(evs[0].startedAt).toBe(startedAt);
+
+    // 同轮已收过 round-start 的连接重连带 since≥1：基准不必也不该再发（帧按 seq 增量补）
+    const skip = fakeRes();
+    subscribe('s1', skip, 1);
+    expect(skip.frames.map(parse).filter((e) => e.type === 'round-start')).toHaveLength(0);
+    expect(skip.frames.map(parse).filter((e) => e.type === 'token')).toHaveLength(1);
+  });
+
   it('★ 陈旧 since 重连不被饿死（B-007）：带上一轮的 since 订阅，新一轮的帧仍全部送达', () => {
     // 场景：上一轮 seq 已到 101；`startNewRound` 清缓冲后 seq 从 1 重计；
     // 客户端带着**上一轮的** since=101 重连。若照单全收这个 since，`publish` 里

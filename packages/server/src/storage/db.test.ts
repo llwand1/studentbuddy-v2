@@ -68,6 +68,20 @@ function revertV30(db: ReturnType<typeof openIsolated>): void {
   db.exec(`CREATE TABLE user_stats (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
 }
 
+/**
+ * 把 v32（P1 计时呈现线，契约 TOOL-ECOSYSTEM-SPEC §4.7）的两处加列退回「老库」形态。
+ * **每个"退版本重放"用例都要调**（v32 落在链尾 ⇒ 只要退到的版本 < 32 就要退列）。
+ *
+ * ★ 两列都是**纯加列**（`messages.thinking_ms` / `messages.duration_ms`，无索引无约束）
+ *   ⇒ 退回动作只有 DROP，无需建回（对比 v29/v30 的「DROP 后按旧结构建回」）。
+ * ★ 回放纪律同 v28：`ALTER TABLE ADD COLUMN` 不幂等，漏退一列，重放整条链时
+ *   v32 的 ADD COLUMN 就报 `duplicate column name`（本仓第六次踩同一坑，见 v11 用例内注释）。
+ */
+function revertV32(db: ReturnType<typeof openIsolated>): void {
+  db.exec(`ALTER TABLE messages DROP COLUMN thinking_ms`);
+  db.exec(`ALTER TABLE messages DROP COLUMN duration_ms`);
+}
+
 describe('storage/db — 版本化迁移（逐语句，根除 v1 大模板 TS1434 坑）', () => {
   it('建表齐全 + schema_version 记录 + 幂等（重复打开不动）', () => {
     const dir = tmp();
@@ -205,6 +219,7 @@ describe('storage/db — v11 过程回放迁移（思考链 / 任务清单随消
     // v27 邮箱验证码（auth_codes）：同 v25/v26 的理由（纯建表型，回放无需 DROP 列）
     v10.exec(`DROP TABLE IF EXISTS auth_codes`);
     revertV29(v10);
+    revertV32(v10);
     v10.prepare('DELETE FROM schema_version WHERE version > 10').run();
     expect(cols(v10)).not.toContain('reasoning');
     v10.close();
@@ -257,6 +272,7 @@ describe('storage/db — v13 回答形态迁移（providers.stream_mode）', () 
     // v25 督促流水：同上
     old.exec(`DROP TABLE IF EXISTS coach_messages`);
     revertV29(old);
+    revertV32(old);
     old.prepare('DELETE FROM schema_version WHERE version > 12').run();
     old.close();
 
@@ -362,6 +378,7 @@ describe('storage/db — v24 长期画像归主（docs/TENANCY-SPEC.md §7）', 
     old.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
     old.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
     revertV29(old);
+    revertV32(old);
     old.prepare('DELETE FROM schema_version WHERE version > 23').run();
     old.close();
 
@@ -436,6 +453,7 @@ describe('storage/db — v19 领域表迁移（term_domain，领域升为一等�
     // v25 督促流水：同上
     old.exec(`DROP TABLE IF EXISTS coach_messages`);
     revertV29(old);
+    revertV32(old);
     old.prepare('DELETE FROM schema_version WHERE version > 18').run();
     old.close();
 
@@ -554,6 +572,7 @@ describe('storage/db — v23 词条复习迁移（docs/EBBINGHAUS-SPEC.md，艾�
     old.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
     old.exec(`DROP TABLE IF EXISTS term_review_log`);
     revertV29(old);
+    revertV32(old);
     old.prepare('DELETE FROM schema_version WHERE version > 22').run();
     old.close();
 
@@ -605,6 +624,7 @@ describe('storage/db — v25 督促小窗流水迁移（docs/COACH-SPEC.md，B+C
     old.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
     old.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
     revertV29(old);
+    revertV32(old);
     old.prepare('DELETE FROM schema_version WHERE version > 23').run();
     old.close();
 
@@ -689,6 +709,7 @@ describe('storage/db — v27 邮箱验证码迁移（docs/AUTH-SPEC.md §1，M1.
     old.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
     old.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
     revertV29(old);
+    revertV32(old);
     old.prepare('DELETE FROM schema_version WHERE version > 26').run();
     old.close();
 
@@ -738,6 +759,7 @@ describe('storage/db — v28 复习范围迁移（docs/EBBINGHAUS-SPEC.md §9，
     old.exec(`ALTER TABLE term_library DROP COLUMN review_enabled`);
     old.exec(`ALTER TABLE term_domain DROP COLUMN review_enabled`);
     revertV29(old);
+    revertV32(old);
     old.prepare('DELETE FROM schema_version WHERE version > 27').run();
     old.close();
 
@@ -849,6 +871,7 @@ describe('storage/db — v29 LLM 成本归主迁移（docs/TENANCY-SPEC.md §8.1
     //   否则老行会被 DROP 掉，用例就变成了"空表升级"，测不到回填。
     revertV29(old);
     old.prepare(`INSERT INTO role_bindings (role, provider_id, model) VALUES ('explain', 'openai-default', 'gpt-4o')`).run();
+    revertV32(old);
     old.prepare('DELETE FROM schema_version WHERE version > 28').run();
     old.close();
 
@@ -958,6 +981,7 @@ describe('storage/db — v30 设置与反馈环归主迁移（docs/TENANCY-SPEC.
     old.prepare(`INSERT INTO daily_activity (day, type, count) VALUES ('2026-09-18', 'chat_done', 9)`).run();
     old.prepare(`INSERT INTO daily_summaries (day, content) VALUES ('2026-09-18', '老总结')`).run();
     old.prepare(`INSERT INTO user_stats (key, value) VALUES ('xp', '250')`).run();
+    revertV32(old);
     old.prepare('DELETE FROM schema_version WHERE version > 29').run();
     old.close();
 
@@ -984,6 +1008,7 @@ describe('storage/db — v30 设置与反馈环归主迁移（docs/TENANCY-SPEC.
     const dir = tmp();
     const old = openIsolated(dir);
     revertV30(old);
+    revertV32(old);
     old.prepare('DELETE FROM schema_version WHERE version > 29').run();
     old.close();
     const up = openIsolated(dir);
@@ -1185,6 +1210,7 @@ describe('storage/db — v31 词条库/领域归主迁移（docs/TENANCY-SPEC.md
     const old = openIsolated(dir);
     revertV31(old);
     old.prepare(`INSERT INTO term_mention_log (id, term_id, domain, owner_id) VALUES ('m1', 't1', 'js', NULL)`).run();
+    revertV32(old);
     old.prepare(`DELETE FROM schema_version WHERE version > 30`).run();
     old.close();
 
@@ -1206,6 +1232,7 @@ describe('storage/db — v31 词条库/领域归主迁移（docs/TENANCY-SPEC.md
       .run();
     old.prepare(`INSERT INTO term_domain (name, note, review_enabled) VALUES ('cs', '计算机', 1)`).run();
     old.prepare(`INSERT INTO term_mention_log (id, term_id, domain) VALUES ('m1', 't1', 'cs')`).run();
+    revertV32(old);
     old.prepare(`DELETE FROM schema_version WHERE version > 30`).run();
     old.close();
 
@@ -1241,6 +1268,7 @@ describe('storage/db — v31 词条库/领域归主迁移（docs/TENANCY-SPEC.md
     const dir = tmp();
     const old = openIsolated(dir);
     revertV31(old);
+    revertV32(old);
     old.prepare(`DELETE FROM schema_version WHERE version > 30`).run();
     old.close();
     const up = openIsolated(dir);
@@ -1256,3 +1284,52 @@ describe('storage/db — v31 词条库/领域归主迁移（docs/TENANCY-SPEC.md
     up.close();
   });
 });
+
+/**
+ * v32（P1 计时呈现线，契约 TOOL-ECOSYSTEM-SPEC §4.7）：messages 两处纯加列。
+ * `thinking_ms` 挂 assistant 行（本轮思考耗时），`duration_ms` 挂 tool 行（单工具执行耗时）。
+ * ★ 本仓纪律：每加一列迁移，所有「退版本重放」用例都要跟着多退一列——revertV32 已进全部先例，
+ *   这里锁的是列本身的存在与「NULL≠0」口径（耗时缺失落 NULL，显示侧退「无时长」而不是「0 秒」）。
+ */
+describe('storage/db — v32 计时落库迁移（thinking_ms / duration_ms）', () => {
+  const msgCols = (db: ReturnType<typeof openIsolated>): string[] =>
+    (db.prepare(`PRAGMA table_info(messages)`).all() as Array<{ name: string }>).map((c) => c.name);
+
+  it('新库的 messages 含 thinking_ms / duration_ms 两列', () => {
+    const db = openIsolated(tmp());
+    expect(msgCols(db)).toEqual(expect.arrayContaining(['thinking_ms', 'duration_ms']));
+    db.close();
+  });
+
+  it('缺省落 NULL、显式 0 存 0：「没测到」与「0 毫秒」在库里必须可分辨', () => {
+    const db = openIsolated(tmp());
+    db.prepare(`INSERT INTO sessions (id) VALUES ('s1')`).run();
+    db.prepare(`INSERT INTO messages (id, session_id, role, content) VALUES ('m1', 's1', 'assistant', 'x')`).run();
+    db.prepare(`INSERT INTO messages (id, session_id, role, content, thinking_ms, duration_ms) VALUES ('m2', 's1', 'tool', 'y', 0, 0)`).run();
+    const m1 = db.prepare(`SELECT thinking_ms, duration_ms FROM messages WHERE id = 'm1'`).get() as {
+      thinking_ms: number | null;
+      duration_ms: number | null;
+    };
+    expect(m1).toEqual({ thinking_ms: null, duration_ms: null });
+    const m2 = db.prepare(`SELECT thinking_ms, duration_ms FROM messages WHERE id = 'm2'`).get() as {
+      thinking_ms: number | null;
+      duration_ms: number | null;
+    };
+    expect(m2).toEqual({ thinking_ms: 0, duration_ms: 0 });
+    db.close();
+  });
+
+  it('退到 v31 重开不撞 duplicate column：两列自动补回（ADD COLUMN 不幂等的第六次先例）', () => {
+    const dir = tmp();
+    const old = openIsolated(dir);
+    revertV32(old);
+    old.prepare('DELETE FROM schema_version WHERE version > 31').run();
+    expect(msgCols(old)).not.toContain('thinking_ms');
+    old.close();
+
+    const up = openIsolated(dir);
+    expect(msgCols(up)).toEqual(expect.arrayContaining(['thinking_ms', 'duration_ms']));
+    up.close();
+  });
+});
+

@@ -12,18 +12,23 @@ import { formatElapsed, phaseStatus, type PhaseStep } from './thinking-status';
 export function Thinking({
   steps = [],
   reasoningLen = 0,
+  startedAtMs = 0,
 }: {
   steps?: PhaseStep[];
   /** 思考链已流出的字数（reasoning.length）：非零即「深度思考中」 */
   reasoningLen?: number;
+  /** 轮起点（服务端 round-start 帧）：已用时从它起算，切回会话不重置（bug-ledger B-009） */
+  startedAtMs?: number;
 }) {
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
-    const start = Date.now();
-    setElapsed(0);
-    const timer = window.setInterval(() => setElapsed(Date.now() - start), 200);
+    // 挂载时刻 ≠ 轮开始时刻：没收到 round-start 帧时才退回本地起表（首帧未到 / 督促等无此帧的频道）
+    const start = startedAtMs > 0 ? startedAtMs : Date.now();
+    const tick = () => setElapsed(Math.max(0, Date.now() - start));
+    tick();
+    const timer = window.setInterval(tick, 200);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [startedAtMs]);
   return (
     <div className="chat-row">
       <div className="chat-bubble chat-typing" role="status" aria-label="回复中">

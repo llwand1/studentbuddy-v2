@@ -168,7 +168,7 @@ export function MessageRow({
               空正文的过程行照常全量铺开（纯工具轮/被停止的半轮，过程就是全部内容）。 */}
           {hasProc && (!collapsible || procExpanded) && (
             <>
-              {hasReasoning && <ThoughtPanel text={m.reasoning ?? ''} streaming={false} />}
+              {hasReasoning && <ThoughtPanel text={m.reasoning ?? ''} streaming={false} ms={m.thinkingMs} />}
               {hasTasks && <TaskPanel items={m.tasks ?? []} streaming={false} />}
               {hasSteps && <ToolSteps steps={m.steps ?? []} />}
             </>

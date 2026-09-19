@@ -24,6 +24,18 @@ export function formatElapsed(ms: number): string {
 }
 
 /**
+ * 卡片耗时三档（P1，抄 LobeChat `ExecutionTime.tsx` 口径，契约 TOOL-ECOSYSTEM-SPEC §4.7）：
+ * `<1000ms → 823ms`（亚秒工具显示 ms，`(0.8s)` 精度不够还显得没跑完）、`<60s → 4.2s`、否则 `1min12s`。
+ * ★ 与 `formatElapsed` 刻意分开：那个是「等待中已用时」（每 200ms 跳动，秒位无意义以下都是噪声），
+ *   这个是「终态后冻结的实测值」（要精确）。两口径合并必然一头将就另一头——存储恒为 ms，格式化只在展示层。
+ */
+export function formatDuration(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.floor(ms / 60_000)}min${String(Math.floor((ms % 60_000) / 1000)).padStart(2, '0')}s`;
+}
+
+/**
  * 阶段感知的状态文案（v13 体验升级 P0）：不再盲转——
  * 有工具在跑就说真话（「联网搜索：闭包」），思考链在流就说「深度思考中」，
  * 都没有才回落到轮播短语池。数据全部来自已有的 step / reasoning 事件，零新事件。

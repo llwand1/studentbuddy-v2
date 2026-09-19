@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ToolCall } from '../llm/types.js';
 import type { ToolContext, ToolResult } from './tools.js';
-import { ABORT_HINT, DEFAULT_TOOL_TIMEOUT_MS, TIMEOUT_HINT, runToolCalls } from './tool-exec.js';
+import { ABORT_HINT, DEFAULT_TOOL_TIMEOUT_MS, TIMEOUT_HINT, runToolCalls, type StepPayload } from './tool-exec.js';
 
 const call = (id: string, name: string, args = '{}'): ToolCall => ({ id, name, arguments: args });
 
@@ -171,5 +171,104 @@ describe('runToolCalls — signal 透传（v13 体验升级）', () => {
       },
     });
     expect(seen).toBeUndefined();
+  });
+});
+
+describe('runToolCalls — P1 计时与配对字段（契约 TOOL-ECOSYSTEM-SPEC §4.7）', () => {
+  /** 捕获完整 onStep（含第 4 参 payload）：P1 三字段全靠它，3 参桩看不见就是没测 */
+  function payloadCtx(): { ctx: { onStep: (t: string, s: 'running' | 'done' | 'error', d?: string, p?: StepPayload) => void }; frames: Array<{ tool: string; status: string; detail?: string; payload?: StepPayload }> } {
+    const frames: Array<{ tool: string; status: string; detail?: string; payload?: StepPayload }> = [];
+    return {
+      ctx: { onStep: (tool, status, detail, payload) => frames.push({ tool, status, detail, payload }) },
+      frames,
+    };
+  }
+
+  it('done 终态帧带服务端实测 durationMs（≈墙钟：60ms 的工具不该落在 40ms 以下或 2s 以上）', async () => {
+    const { ctx, frames } = payloadCtx();
+    await runToolCalls([call('c1', 'slow')], ctx, { ownerId: null, exec: async () => { await delay(60); return { content: 'ok' }; } });
+    const term = frames[frames.length - 1];
+    expect(term?.status).toBe('done');
+    expect(typeof term?.payload?.durationMs).toBe('number');
+    expect((term?.payload?.durationMs as number) ?? 0).toBeGreaterThanOrEqual(40);
+    expect((term?.payload?.durationMs as number) ?? 0).toBeLessThan(2000);
+  });
+
+  it('running 帧只挂 toolCallId 不挂 durationMs：计时只在终态定稿（assistant-ui 口径）', async () => {
+    const { ctx, frames } = payloadCtx();
+    await runToolCalls([call('c1', 'a')], ctx, {
+      ownerId: null,
+      exec: async (_n, _a, tctx) => {
+        tctx.onStep('a', 'running', '干活中');
+        return { content: 'ok' };
+      },
+    });
+    const running = frames.find((f) => f.status === 'running');
+    expect(running?.payload?.toolCallId).toBe('c1');
+    expect(running?.payload?.durationMs).toBeUndefined();
+  });
+
+  it('error 终态帧同时带 durationMs 与 errorText，且不带 result（失败原因不伪装成结果摘要）', async () => {
+    const { ctx, frames } = payloadCtx();
+    await runToolCalls([call('c1', 'bad')], ctx, { ownerId: null, exec: async () => { throw new Error('boom'); } });
+    const term = frames[frames.length - 1];
+    expect(term?.status).toBe('error');
+    expect(term?.payload?.errorText).toBe('boom');
+    expect(typeof term?.payload?.durationMs).toBe('number');
+    expect(term?.payload?.result).toBeUndefined();
+  });
+
+  it('超时结算也是真耗时：等了 timeoutMs 是事实，durationMs ≥ 设定值', async () => {
+    const { ctx, frames } = payloadCtx();
+    let release: (() => void) | undefined;
+    const exec = (): Promise<ToolResult> => new Promise((r) => { release = () => r({ content: 'late' }); });
+    try {
+      await runToolCalls([call('c1', 'hang')], ctx, { ownerId: null, exec, timeoutMs: 60 });
+      const term = frames[frames.length - 1];
+      expect(term?.status).toBe('error');
+      expect(String(term?.payload?.errorText)).toContain('超时');
+      expect((term?.payload?.durationMs as number) ?? 0).toBeGreaterThanOrEqual(55);
+    } finally {
+      release?.();
+    }
+  });
+
+  it('进入执行前已中止：error 帧带 errorText 但 durationMs 缺省——没跑过，落 0 是谎话（§4.7 无时长口径）', async () => {
+    const { ctx, frames } = payloadCtx();
+    const ac = new AbortController();
+    ac.abort();
+    const out = await runToolCalls([call('c1', 'a')], ctx, { ownerId: null, exec: async () => ({ content: 'ok' }), signal: ac.signal });
+    expect(frames[0]?.payload?.errorText).toBe('已停止');
+    expect(frames[0]?.payload?.toolCallId).toBe('c1');
+    expect(frames[0]?.payload?.durationMs).toBeUndefined();
+    expect(out[0]?.durationMs).toBeUndefined();
+  });
+
+  it('同名并行两调用各带各的 toolCallId：前端配对不再依赖倒扫（B-010 的服务端半边）', async () => {
+    const { ctx, frames } = payloadCtx();
+    // 两卡故意错开完成（b 先完、a 后完）：倒扫实现会把 b 的终态盖到 a 的卡上，
+    // 正是这次拆掉的配对方式——现在两卡各带各的 id，前端按 id 找得到北。
+    const exec = async (_name: string, argsJson: string, tctx: ToolContext): Promise<ToolResult> => {
+      tctx.onStep('twin', 'running');
+      const { d } = JSON.parse(argsJson) as { d: number };
+      await delay(d);
+      return { content: `ok-${d}` };
+    };
+    const out = await runToolCalls([call('id-a', 'twin', '{"d":40}'), call('id-b', 'twin', '{"d":5}')], ctx, {
+      ownerId: null,
+      exec,
+    });
+    const runs = frames.filter((f) => f.status === 'running').map((f) => f.payload?.toolCallId);
+    expect(runs).toEqual(['id-a', 'id-b']);
+    const terms = frames.filter((f) => f.status === 'done');
+    // 完成顺序是 b→a（并行），但 id 各归各
+    expect(terms.map((f) => f.payload?.toolCallId)).toEqual(['id-b', 'id-a']);
+    expect(out.map((o) => o.id)).toEqual(['id-a', 'id-b']); // 回灌仍按调用顺序
+  });
+
+  it('ToolOutcome.durationMs 随结果带出：收口落库（messages.duration_ms）唯一的取值来源', async () => {
+    const { ctx } = payloadCtx();
+    const out = await runToolCalls([call('c1', 'a')], ctx, { ownerId: null, exec: async () => ({ content: 'ok' }) });
+    expect(typeof out[0]?.durationMs).toBe('number');
   });
 });

@@ -1,7 +1,7 @@
 # 工具生态（Tool Ecosystem）功能契约 v1
 
-> 版本：v1.2.0 | 状态：**分期与取向已拍板，余下待定项见 §10**；**截至 2026-09-14 实施状态**：S1 内核「调度器」部分（并行/超时/取消）+ `manage_terms` 直写工具**已落地**（2026-09-13，提交 `0c16251`/`54e2737`/`67d2bf9`）；**S1 注册表拆目录与契约字段、S2 确认门与删除撤销、S3 MCP 接入仍未开工**（分期进度见 §3）
-> 日期：2026-09-06 立 v1.0.0 · 同日修订 v1.1.0（MCP 定位改：首任客户＝自研 server）· **同日再修订 v1.2.0（词条升为 AI 全权 CRUD、确认门扩至内建 write）** | 适用仓库：`Desktop\studentbuddy-v2`（monorepo：server / shared / web）
+> 版本：v1.3.1 | 状态：**分期与取向已拍板，余下待定项见 §10**；**实施状态**：S1 内核「调度器」部分（并行/超时/取消）+ `manage_terms` 直写工具**已落地**（2026-09-13，提交 `0c16251`/`54e2737`/`67d2bf9`）；**S1 注册表拆目录与契约字段、S2 确认门与删除撤销、S3 MCP 接入仍未开工**（分期进度见 §3）；**v1.3（2026-09-18）新增三份契约：执行计时（§4.7）、文件工具申请式沙箱（§5.2）、超时按 kind 分档（§4.2）**；★ **v1.3.1（2026-09-19）状态更新：§4.7 执行计时已落码（P1 批 v0.2.65，与 P0.5 同批交付）**——`step` 终态帧 `toolCallId`/`durationMs`/`errorText` 由 tool-exec 调度器统一注入、`done.thinkingMs`、迁移 v32 两列落库、帧与库同源、思考卡三态标题与耗时徽标、B-010 配对修复；§4.7 呈现口径示例同步订正为「用时 4.2s」（原文案「4.2 秒」与其下数字三档互斥，以实现为准）。**§5.2 沙箱与 §4.2 分档超时仍只完成契约登记**（step 帧字段已入 `shared/sse-events.ts`），实现顺序见 §10 拍板⑨–⑬
+> 日期：2026-09-06 立 v1.0.0 · 同日修订 v1.1.0（MCP 定位改：首任客户＝自研 server）· **同日再修订 v1.2.0（词条升为 AI 全权 CRUD、确认门扩至内建 write）** · **2026-09-18 修订 v1.3.0（老板四项拍板 + AG-UI/assistant-ui/AI SDK/OpenWebUI/LobeChat 五源调研，逐条源码实证，见 §12 末行）** · **2026-09-19 修订 v1.3.1（§4.7 执行计时随 P1 批落码转「已落码」+ 呈现口径示例订正，纯状态不改承诺）** | 适用仓库：`Desktop\studentbuddy-v2`（monorepo：server / shared / web）
 > 铁律来源：`AGENTS.md` 六条 ADR + 工程红线；本文是「先改契约再改码」的载体。
 > 老板拍板（2026-09-06 白天，五项）：① **先做 P0 内核加固**（不先堆工具）；② 外部接入要有、**目标是 MCP 生态**（否掉「只做声明式 HTTP 工具」的保守方案）；③ **MCP 的首任客户＝老板之后自研的 server，本批按「先准备一下」的定位做**（v1.1 由此而来）；④ ~~确认门只给 MCP 外部工具，内建 write 类免确认~~ **（v1.2 修订：确认门扩至内建 write，按影响条数分档，见拍板⑦）**；⑤ 里程碑**单开 M5 工具生态**。
 > **老板拍板（2026-09-06 深夜，v1.2 三项）**：⑥ **词条库升为 AI 全权增删改查**，删除权限给足但 **必确认 + 可撤销**（原话「现在这个整理term的功能,你看看能不能融到工具生态里,让他变成ai自动增删改查,但是如果改动多就要向用户确认」）；⑦ 确认触发口径 = **按影响条数分档**——`read` 永不问、写操作影响 ≤3 条直接做、>3 条弹卡、**删除无视条数一律弹**、阈值设置页可调；⑧ 排期 = **并进 M5 顺做，确认门机制由 S3a 提前到 S2**（内建工具今天就用得上，不排队等 MCP）。
@@ -85,7 +85,7 @@ interface PendingWrite {
 interface RegisteredTool {
   definition: ToolDefinition;
   kind: ToolKind;                 // 决定默认权限与是否进审计
-  timeoutMs?: number;             // 默认 30_000；network/external 默认 15_000
+  timeoutMs?: number;             // v1.3 修订（原「network/external 默认 15_000」草案作废）：缺省按 kind——read/write=30_000、network/external=60_000；内部再调 LLM 的工具（`tidy_terms auto`、未来 `generate_quiz`）显式 120_000
   needsConfirm?: ConfirmPolicy;   // v1.2 三态；默认 read/network=false，write='by_size'，external=true
   confirmThreshold?: number;      // 'by_size' 时的阈值，缺省取全局设置（默认 3）；0=从不等
   scenes?: ModelRole[];           // 缺省 = 全角色可见；用于裁剪下发清单
@@ -102,6 +102,8 @@ interface ToolResult {
 ```
 
 **纠错口径制度化**：参数非法/缺省时，`content` 必须是「一句怎么改对 + 最小可用示例」，让模型能自纠（现 `search_web` 空词回灌已是此形态，`tools.ts:44`，提升为契约）。
+
+**v1.3 超时分档理由（2026-09-18 拍板⑪）**：老板诉求是「单工具超时延长」，落点＝**per-tool 按 kind 分档，否决全局调大**。三条实证：① 全局调到 60/90s 时最坏等待 = 15 轮 × 单轮多工具 × 新超时，量级失控；② 超时后**被放弃的调用仍在后台跑完**（`tool-exec.ts` 头注释自陈能力边界），全局值＝给所有工具挂最长的后台残留；③ 真正需要长超时的是内部再调 LLM 的工具（`tidy_terms auto` 全库整理、未来 `generate_quiz` 配比→配图三段），本地 fs 类反而用不到。`ask_choice` 维持 `noTimeout` 豁免不变（等的是人，不是机器）。
 
 ### 4.3 执行策略（registry.ts）
 
@@ -173,7 +175,26 @@ CREATE INDEX IF NOT EXISTS idx_tdl_batch ON term_delete_log(affected_batch, crea
 
 **已知绕过面（如实标注，首版不拦）**：模型可把一次 20 条的改动拆成 7 次 ≤3 条的小调用规避阈值。处置＝**靠审计、不靠机制**：`tool_stats` 记每次 `affected`，设置页可看「本会话 AI 累计改动 N 条」；不做滑动窗口限流（ADR-2 禁重型策略，见 §11 澄清）。
 
-## 5. S2 契约：内循环工具（9 个，零新引擎）
+### 4.7 执行计时（v1.3 新增，P1 实施口径）
+
+**定档（拍板⑩）：服务端测差值 + 落库，前端只在 running 期本地 tick。** 三条调研证据（2026-09-18 逐源码实证）：
+- AG-UI 1.0 spec 逐字：事件 `timestamp` 是 "Informational: a consumer MUST NOT use it to order events"，全 spec 搜 `duration|elapsed` 零命中——**计时没有现成轮子可抄，任何协议都要自留**；
+- OpenWebUI＝服务端测：首个 reasoning delta 记 `started_at`、首个正文 delta 记 `ended_at`，差值随消息落库（`middleware.py:3588-3600`）——与本方案同构，业界正确档；
+- LobeChat＝前端掐表（`StreamingHandler.ts:335-351`），缺陷实证：起点＝首包到达（不含排队/TTFT）、断线重连后起点丢失。反面教材还有它的降级「已深度思考」（无时长）与 OpenWebUI 的 `Thought for 0 seconds`。
+
+**实施要点**：
+1. `tool-exec.ts` 的 timer 天然在手，race 出结果一刻写 `durationMs` 进终态帧（done 与 error 都带）；同批发 `toolCallId`（=模型侧 call id，同名并行调用不再靠倒扫配对）。字段已于 2026-09-18 登记进 `shared/sse-events.ts` + `SSE-CONTRACT.md`。
+2. **error 终态补 `errorText`**（对齐 AI SDK `output-error.errorText`，与 `result` 互斥）：失败的人读原因不再混进结果摘要。
+3. **思考耗时**按 OpenWebUI 同款口径：起点＝本轮首个 reasoning chunk（`flow.ts:231` 分支），终点＝首个正文 token（`flow.ts:237` 分支）或本轮收口；`persistRounds` 时与 reasoning 一并落库（`messages` 新列，号按 §4.5 取号纪律开工时 grep）。
+4. **呈现规范（抄 LobeChat zh-CN 文案 + assistant-ui 交互）**：
+   - 思考卡标题三态：`深度思考中…`（流式）→ `已深度思考（用时 4.2s）`（有耗时；数字按下一条三档格式化，v1.3.1 订正原示例「4.2 秒」——它照抄了 LobeChat zh-CN 文案却与自家三档口径互斥，以实现 `formatDuration` 为准）→ `已深度思考`（耗时缺失）。**耗时缺失禁显示「0 秒」**；
+   - 数字格式三档（LobeChat `ExecutionTime.tsx` 口径）：`<1000ms → 823ms`、`<60s → 4.2s`、否则 `1min12s`；存储恒为 ms，格式化只在展示层；
+   - 耗时**只在终态后显示**；running 徽标前端 1s tick，终态帧到达即冻结并换用服务端值（assistant-ui 原注："timing 只在流结束时定稿，live badge 必须自己起 timer"）；
+   - 思考块**默认收起**（老板点名口径，同 OpenWebUI `expandDetails:false` 与 AG-UI Reasoning 默认折叠）。LobeChat/assistant-ui 的「流式中自动展开、结束收起」变体**本轮不采**，要则验收时另拍；
+   - 相邻多工具卡按 assistant-ui/OpenWebUI 惯例合并计数行（`N tool calls` / `已探索 N 步`），不为此加协议帧。
+5. **本小节推翻 2026-09-12「ThoughtPanel 用字数不用耗时」决策**——其前提「耗时没有随消息落库」被第 3 条解决。按作废纪律：`ThoughtPanel.tsx` 头注释在 P1 同批改注（原决策撤销、指向本节），字数降级为副信息保留，不静默删除。
+
+## 5. S2 契约：内循环工具（9 个 + v1.3 文件工具 2 个，零新引擎）
 
 | 工具 | 复用的既有函数 | kind | needsConfirm | 备注 |
 |---|---|---|---|---|
@@ -200,6 +221,39 @@ CREATE INDEX IF NOT EXISTS idx_tdl_batch ON term_delete_log(affected_batch, crea
 **确认卡内容硬要求（否则确认形同走过场）**：卡上必须有 ① 动作一句话 ② `affected` 条数 ③ `items` ≤8 行具体是哪些词条 ④「拒绝后 AI 不会重复发起」的说明。**只有条数没有清单的确认卡不许上线**（ADR-5）。
 
 **仍不做**（负面清单见 §11）：**题库删除**工具（涉用户已做题记录，不扩权）、批量 upsert（>1 条的存词由 `tidy_terms auto` 覆盖）、`restore_all`（全量回滚）。
+
+### 5.2 文件工具（v1.3 新增，`read_file` / `write_file`，排 P4＝确认门之后实施）
+
+拍板⑨（2026-09-18，老板原话「也搞成一个申请式……涉及到外部信息的获取，比如读取我桌面的文档，就会有一个权限申请，也就是各类通用 agent 的同意/一直同意/拒绝的模式」）。**前置依赖：§4.6 两阶段写 + P3 确认门通道必须先落地**——今天 `tidy_terms auto` 这类无确认全库写已是最大风险面，在其上直接叠磁盘写等于风险叠加（P3 同批把这两处收编）。
+
+**分区表（路径判定唯一事实源＝`chat/tools/fs-guard.ts`，零 mock 可单测）**：
+
+| 区 | read_file | write_file |
+|---|---|---|
+| ① agent 工作区 `%APPDATA%/studentbuddy-v2/agent-workspace/` | 放行 | 走 §4.6 两阶段，**一律弹确认**（覆盖是 irreversible 单条动作，条数度量不了损失，不适用 `by_size`） |
+| ② 会话资料（`sessions.doc_text`，DB 非磁盘） | 经 `read_session_doc` 只读 | 禁写（资料替换仍走既有 REST 整篇语义，不开 AI 写面） |
+| ③ 区外路径（桌面/文档等真实磁盘） | **申请式卡**：同意一次 / 一直同意 / 拒绝 | **永远逐次必确认**；「一直同意」只授读，写永不禁长效 |
+| ④ 禁区（`studentbuddy.db`、crypto 主密钥与 providers 密钥所在目录） | **硬拒**，不弹卡、错误文案不含路径存在性信息（弹卡本身＝注入攻击的探测面） | 同左 |
+
+**「一直同意」需要持久化授权——这是对 §6.3-4「批准态只存内存」的有意例外**（一次同意终身有效的只有用户显式选择的长效项，且可见可撤）：
+
+```sql
+-- 迁移号按 §4.5 取号纪律开工时 grep db.ts 现取
+CREATE TABLE IF NOT EXISTS path_grants (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  prefix TEXT NOT NULL,             -- 规范化后的绝对路径前缀（Windows 大小写不敏感比对）
+  mode TEXT NOT NULL DEFAULT 'read', -- 只有 'read'：长效写授权不存在（见分区表③）
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+```
+- 设置页「工具」卡列出全部 grants，**逐条可撤**（授权不许是暗箱，与 §6.3-4b trusted 常驻标记同构）；
+- 「同意一次」仅本轮有效；「拒绝」对本会话同一路径持续有效，回灌文本必须含「用户已拒绝该路径，勿再尝试」防模型换写法重试。
+
+**路径守卫（抄通用 agent 防御最厚的一层，逐条可验证）**：先 `path.resolve` 规范化再分区（原始串比对无意义）；盘符相对路径（`C:file.txt`）、UNC、`..`、设备路径（`\\.\`）逐项拒；大小写折叠比对（Windows 文件系统不区分）；**junction/symlink 在分区判定前 realpath 解析**，目标落区外即按区外申请处理（防「工作区里放个链接指向 C 盘根」）；文件超字节上限（默认 256KB）截断并如实标注「已截断」，绝不静默截半回灌；编码 UTF-8 优先、失败回退 GBK 并标注，二进制特征命中直接拒读。
+
+**write_file 两阶段强化**：`planWrite` 产 `PendingWrite{affected:1, items:[路径+字节数+是否覆盖已有文件], apply}`；目标已存在时 `apply` 前先把原件复制到 `agent-workspace/.bak/<ISO时>-<名>`——§4.3 明言「超时被放弃的调用仍在后台跑完」，磁盘写半态与误覆盖都靠这份备份兜底回滚。
+
+**与既有工具的关系**：`read_file` 与 §5 的 `read_session_doc` 是近亲不合并——后者是会话已载资料的省窗口读法，前者是磁盘新文件入口；读区②类文件**不自动进 RAG 注入**（读归读、注入归注入，预算各算各的）。工具总数：S2 的 9 + 文件 2 ＝ 11，仍在 §4.4 下发上限 16 内，加 MCP 前不会触顶。
 
 ## 6. S3 契约：MCP 外部工具接入
 
@@ -313,6 +367,13 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
 | `storage/mcp-servers.ts`、`routes/mcp.ts` | S3a | 新建（含 reload） | 110 / 150 |
 | `web/features/settings/ToolsCard.tsx` | S3a/S3b | 新建（禁内联 style；工具清单/调试展开视图行数多则抽 `McpServerDetail.tsx`） | ~180 + ~120（各 ≤300 ✓） |
 | `chat/flow.ts` 确认门接线 | **S2（v1.2 提前）** | 唯一一次改 flow 的循环体（S3a 复用，不再改第二次） | +~30 |
+| `chat/tool-exec.ts` | **P1（v1.3）** | 改：终态实测 `durationMs`、透传 `toolCallId`、error 帧 `errorText` | +~15 |
+| `chat/persist.ts` / `storage/db.ts` | **P1（v1.3）** | 改：思考耗时与逐工具耗时落库（迁移尾追，号现取） | +~25 |
+| `web/features/chat/{ToolSteps,ThoughtPanel,history-fold}` | **P1（v1.3）** | 改：耗时徽标、文案三态（§4.7 口径）、回放还原；各文件红线不变 | 合计 3 文件 |
+| `chat/tools/fs-guard.ts` | **P4（v1.3）** | 新建：分区判定/路径规范化/symlink 复检/超限与编码治理 | ~120 |
+| `chat/tools/file-ops.ts` | **P4（v1.3）** | 新建：`read_file`/`write_file`（write 走 §4.6 两阶段 + `.bak` 原件备份） | ~180 |
+| `storage/path-grants.ts` | **P4（v1.3）** | 新建：持久授权读写 + 撤销 | ~60 |
+| `web/features/settings/ToolsCard.tsx` | **P4（v1.3）** | 改：path_grants 列表与撤销入口（超行则抽 `GrantsList.tsx`） | +~80 |
 
 里程碑表（`AGENTS.md`）**已拍板单开一行 M5 工具生态（S1/S2/S3）**；但 README 的 `docs/` 索引表本期不动（README 正被同期会话改，避免互相覆盖），待下一批补登记。
 
@@ -333,6 +394,11 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
 | `storage/term-delete-log.test.ts`（新，v1.2） | 快照逐字段可逆（删→撤销→与原行逐字段比对，含 aliases/usage_count/importance/created_at）；同批整回；撤销前手动加了同名词 → 报冲突不覆盖；二次撤销同一批如实报「无可撤销」 |
 | `learning/tidy.test.ts`（既有） | **不许改断言**（`planTidy`/`applyTidy` 本体未动）；新增仅：`auto` 的 `affected` 计数＝Σ簇成员+改名命中 的算例 |
 | 端到端（真机，非 CI） | 接一个自研/mock server 完成一次调用（两种 transport）；对话里一句话出题走 `generate_quiz` 并出 QuizCard；**v1.2 加**：一句话删词条 → 弹卡清单与实际库内变化一致 → 撤销还原 |
+| `chat/tool-exec.test.ts`（既有用例扩展，v1.3/P1） | 终态帧 `durationMs`≈墙钟（放时钟精度容差）；error 终态也带 `durationMs`+`errorText`；同名并行两调用按 `toolCallId` 配对不串卡 |
+| 计时回放（真机，v1.3/P1 判据） | **预言可证伪**：秒表对照卡片耗时 ±5% 内；刷新/切会话后思考卡与工具卡耗时数字不变；provider 未回耗时字段的老消息显示「已深度思考」而非 0 秒 |
+| `chat/tools/fs-guard.test.ts`（新，v1.3/P4） | 大小写盘符/UNC/`..`/盘符相对/设备路径逐项拒；symlink 逃逸降为区外申请；超限截断如实标注；二进制拒读；禁区错误文案不泄露存在性 |
+| `storage/path-grants.test.ts`（新，v1.3/P4） | 前缀匹配大小写不敏感；`mode` 只认 read（长效写授权写入必拒）；撤销即时生效；拒绝回灌文本含「勿再尝试」 |
+| `chat/tools/file-ops.test.ts`（新，v1.3/P4） | 覆盖写前 `.bak` 原件备份存在且可回滚；区外读未批/被拒时 `apply`/实际读零发生（spy）；工作区写一律弹卡（不受 by_size 影响） |
 
 ## 9. 风险与处置
 
@@ -350,6 +416,7 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
 | P2 | Windows 下 `npx` 是 `.cmd`，禁 `shell:true` 时启动失败 | 契约要求命令解析在配置期完成（校验可执行存在 + 建议 `node <cli>` 形式），启动失败在 ping 接口给明确人话错误 |
 | P2 | 服务重启后 stdio 子进程成孤儿 | 退出钩子统一 kill + 启动时清理遗留（记 PID 于内存，不做跨进程锁） |
 | P2 | 预览沙箱页（源 `null`）想调 `/api/mcp/*` | 已被 `security.ts` 现有 Origin 校验挡；补一条回归用例钉住 |
+| P1 | **磁盘读写权滥用**（v1.3 新面：`read_file` 可读到用户授权的任意敏感文件、`write_file` 可覆盖） | §5.2 四层结构：禁区硬拒且不泄露存在性／区外读走申请式（一次/长效只授读/拒绝）／写一律逐次确认＋落库前 `.bak` 原件备份／`path_grants` 设置页可见可撤；`tool_stats` 全量审计；间接注入防护复用 §6.3-5 数据护栏口径 |
 
 ## 10. 拍板结果与待定项
 
@@ -368,7 +435,17 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
 |---|---|---|
 | 5 | AI 的删除权限怎么给（`removeTerm` 是物理 DELETE、不可恢复） | **能删 + 必确认 + 可撤销**（快照表 `term_delete_log`，按批整回；否掉「只能删低价值词条」与「首版不给删」） |
 | 6 | 「改动多」的口径 | **按影响条数分档**：read 永不问 / 写 ≤3 条直接做 / >3 条弹卡 / 删除一律弹 / 阈值设置页可调（否掉「只按动作类型」与「每次都问」） |
-| 7 | 排期落点 | **并进 M5、S1→S2 顺做**，确认门机制由 S3a 提前到 S2（否掉「单开 S2b」与「只改契约不动码」） |
+| 7 | S2 排期落点 | **并进 M5、S1→S2 顺做**，确认门机制由 S3a 提前到 S2（否掉「单开 S2b」与「只改契约不动码」） |
+
+**v1.3 已定（2026-09-18 结构化选项，除⑨外均选推荐档）**：
+
+| # | 问 | 结果 |
+|---|---|---|
+| 9 | 文件工具沙箱边界 | **申请式**（老板定制档，非三选项原样）：默认工作区可写+资料只读，区外路径弹「同意一次/一直同意/拒绝」，长效授权落 `path_grants` 表且设置页可撤（§5.2） |
+| 10 | 计时口径 | **服务端测差值 + 落库**（与 OpenWebUI 同构），推翻 09-12「字数不用耗时」决策；否决「全事件打时间戳」（AG-UI spec 明令 timestamp 不参与计算，且回放时戳失真）（§4.7） |
+| 11 | 超时延长 | **per-tool 按 kind 分档**（30/60/120s），否决全局调大（15 轮放大最坏等待 + 后台残留时长）（§4.2） |
+| 12 | 施工顺序 | **呈现线（P1 计时）先 → S1 内核（P2）→ 确认门（P3）→ 文件工具（P4）**；P1 与 P2 可并行（仅 flow.ts 十行交集） |
+| 13 | AG-UI 对齐深度 | **形状对齐、不换线格式**：保留小写帧名与 sse-bus 的 seq/回放体系，字段级对齐 AI SDK/AG-UI（`toolCallId`/`errorText`/`preliminary`/`durationMs`）；否决「31 事件全量上协议」——AG-UI 无工具耗时/失败态，换线格式躲不掉自留部分，且接不进零依赖自写 CSS 的前端 |
 
 **仍待定（不阻塞 S1，开工前答复即可）**：
 
@@ -389,3 +466,5 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
 | 2026-09-06 | v1.0.0 | 首次立约：S1 内核（拆目录/契约字段/并行超时取消去重重试/schema 校验/工具定义计入预算/tool_stats）、S2 内循环六工具、S3 MCP stdio 客户端（手写不引 SDK）与安全边界八条；迁移号定 v9（v8 已被深度理解契约占用） |
 | 2026-09-06 | v1.2.0 | **词条升为 AI 全权 CRUD + 确认门扩至内建 write**（拍板⑥⑦⑧）。八处修订：① §5 撤销「不做 `save_terms`/删除类工具」两条，新增 **§5.1 词条一族**（`lookup_terms`/`upsert_term`/`delete_terms` + 现役 `tidy_terms` 改造，S2 工具数 6→9）；② §4.2 `needsConfirm` 由 `boolean` 扩为 `ConfirmPolicy` 三态 + `confirmThreshold`，新增 `planWrite`/`PendingWrite`；③ 新增 **§4.6 两阶段写**（plan→confirm→apply，批准后同轮执行、apply 前重校验、拒绝即 `apply()` 零调用）；④ 确认门范围由「只 `external`」改为「`external` 全部非 trusted + 内建 write 分档」（§6.3-4），**取代 09-03「直接应用不预览」拍板**并在 `TERM-TIDY-SPEC.md` 同步注记；⑤ 机制由 S3a 提前到 S2（§3、§7），`tool-confirm-request` 的 `argsSummary` 换成 `affected`+`items` 并硬性要求卡上有清单；⑥ 新增 `term_delete_log` 快照表与**按批撤销**（明确否决软删列，省 10+ 处查询改动）；⑦ **迁移取号纪律纠错**——原 §4.5/§6.2 预写的 v9 已被 `53b7ce0` 占用，改为「开工时 grep 取号、禁止插低号」并说明 `MAX(version)` 跳号后果；⑧ §9 加确认疲劳/批准-执行漂移/小批量绕过三条 P1，§11 澄清确认门≠审批引擎（ADR-2），§10 记本轮三项拍板与两项新增待定，§3 记 **S1 前置已满足但 v8 迁移未提交是开工前唯一硬前置** |
 | 2026-09-06 | v1.1.0 | **定位改：MCP 首任客户＝自研 server**（老板原话「我打算接入我之后自己可能会开发的 mcp，所以就先准备一下」）。六处修订：① §3 S3 拆 S3a 通道 / S3b 自研友好层（后者由可选提为必做，社区兼容验证退 S4）；② §6.1 transport 由「只 stdio」改为 **stdio + Streamable HTTP 双做**（共用 JSON-RPC 内核，差异只在收发端）；③ §6.2 `mcp_servers` 加 `transport`/`url`/`trusted` 三列；④ §6.3 确认门限定只 `external`（拍板④）+ 新增 4b `trusted` 免确认档（不豁免其余七条）⇒ 安全边界共九条；⑤ 新增 **§6.6 自研 MCP 最小实现规范**（三方法清单 + 分帧口径 + 自研三条硬约定 + `mock-server.mjs` 当起步骨架）与 §6.4 调试可见性三样、`/reload` 热重取；⑥ §10 改为「拍板结果 + 仍待定三项」，§3 补 S1 开工前置硬条件（等 doc-rag 批次提交） |
+| 2026-09-18 | v1.3.0 | **三新增两修订**（老板四项拍板 ⑨–⑬，全程五源调研逐源码实证：AG-UI 1.0 spec/生成类型、AI SDK `ui-messages.ts`、assistant-ui ChainOfThought/Reasoning 文档、OpenWebUI `middleware.py`、LobeChat `StreamingHandler.ts`/`Thinking` 组件）。① 新增 **§4.7 执行计时**——`durationMs` 服务端测差值+落库（与 OpenWebUI 同构；LobeChat 前端掐表与 AG-UI timestamp 被引为反面证据），文案三态（`深度思考中…`→`已深度思考（用时 4.2 秒）`→缺值兜底，禁「0 秒」），数字三档 `823ms/4.2s/1min12s`，**推翻 09-12「ThoughtPanel 字数不用耗时」决策**（按其撤销纪律改注不静默删）；② 新增 **§5.2 文件工具**——`read_file`/`write_file` 申请式沙箱（四分区表＋`path_grants` 持久授权〔对 §6.3-4「只存内存」的有意例外，只授读、可撤〕＋Windows 路径守卫/symlink 复检/256KB 上限/GBK 回退＋`.bak` 写前备份），排 P4（确认门之后）；③ **§4.2 超时改 per-tool 分档**（read/write 30s、network/external 60s、内部调 LLM 显式 120s，原「network 15s」草案作废，全局调大被否决）；④ `step` 帧 v1.3 字段登记（`toolCallId`/`durationMs`/`errorText`/`preliminary`，同步 `shared/sse-events.ts`＋`SSE-CONTRACT.md`；顺带发现并修登记缺陷：同名并行调用的倒扫配对改按 id）；⑤ 拍板 **AG-UI 对齐＝形状对齐不换线格式**（保留小写帧名与 seq/回放体系）；⑥ §3 施工顺序 P1 呈现线先行、`tidy_terms auto`/`manage_terms delete` 的无确认写在 P3 收编为确认门首批客户 |
+| 2026-09-19 | v1.3.1 | **§4.7 执行计时转「已落码」（纯状态更新，不改承诺）**：P1 批（`test-plan` v0.2.65，与 P0.5 热修同批交付）落地 `step` 终态帧 `toolCallId`/`durationMs`/`errorText`（`tool-exec` 调度器单点注入）＋ `done.thinkingMs` ＋ 迁移 v32 两列落库（帧与库同源、NULL≠0 三层口径）＋ 思考卡三态标题／耗时徽标／历史回放；B-010（同名并行串卡）随批修复并立 7 例配对锁。★ 另订正一处**登记时自相矛盾的文案示例**：§4.7 呈现规范标题原写「已深度思考（用时 4.2 秒）」，与其下「数字三档 `<60s → 4.2s`」互斥（前者照抄 LobeChat zh-CN、后者抄 `ExecutionTime.tsx`），实现按三档走 `formatDuration` ⇒ 契约示例改为「用时 4.2s」，`ThoughtPanel.tsx` 头注释同批对齐。**§5.2 沙箱（P4）与 §4.2 分档超时（P2）仍只完成契约登记** |

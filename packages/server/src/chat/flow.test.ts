@@ -28,6 +28,11 @@ const stub = vi.hoisted(() => ({
   allMessages: [] as Array<Array<{ role: string; content: string }>>,
   /** 每次 chat() 收到的 toolChoice（按序）——v18.4 断言「首轮强绑、turn 1 放开」 */
   toolChoices: [] as unknown[],
+  /**
+   * 分片间隔（P1 计时锁用）：桩里两个分片之间真等这么多毫秒。
+   * 默认 0＝行为与旧桩逐字一致；thinkingMs 是墙钟差值，同步桩里恒 0 会退化成「无时长」，测不到链路。
+   */
+  gapMs: 0,
 }));
 
 vi.mock('../llm/router.js', () => ({
@@ -51,7 +56,11 @@ vi.mock('../llm/router.js', () => ({
         stub.toolChoices.push(args.toolChoice);
         const turn = stub.turns[stub.idx++];
         if (turn instanceof Error) throw turn;
-        for (const chunk of turn ?? []) yield chunk;
+        for (const chunk of turn ?? []) {
+          // P1 计时锁：分片间真等 gapMs（墙钟测差没有假钟可掐，见 stub.gapMs 注释）
+          if (stub.gapMs) await new Promise((r) => setTimeout(r, stub.gapMs));
+          yield chunk;
+        }
       },
       async listModels() {
         return [];
@@ -188,6 +197,7 @@ beforeEach(() => {
   stub.lastMessages = [];
   stub.allMessages = [];
   stub.toolChoices = [];
+  stub.gapMs = 0;
   resetAnswerStyle(null); // 偏好落 app_settings（v30 起每用户一份），不清就会流到下一个测例
   termsStub.relevant = [];
   termsStub.queries = [];
@@ -876,6 +886,127 @@ describe('联网开关的首轮强绑（v18.4）', () => {
     // 两段指令合成一条开场消息（不拆两条）：位置与用途相同，拆开只多占一次消息开销
     const opening = stub.allMessages[0]!.find((m) => m.content.includes('已开启联网搜索'));
     expect(opening?.content).toContain('第一个动作必须是调用 ask_choice');
+  });
+});
+
+/**
+ * P0.5 热修批（bug-ledger B-009）：轮起点帧。
+ * 「思考中」的已用时必须以服务端轮起点为基准——前端组件挂载时刻 ≠ 轮开始时刻，
+ * 切走会话再回来（Thinking 重挂）若各自本地起表，已用时会被清零重数。
+ * 这组用例钉的是恢复链的地基：每一轮缓冲的**第一帧**必须是 round-start（回放必带着它）。
+ */
+describe('round-start 轮起点帧（P0.5 / B-009）', () => {
+  it('handleMessage 后缓冲第一帧即 round-start，startedAt 为合法服务器时刻', async () => {
+    const sid = newSession();
+    stub.turns = [[{ content: '正文', done: true }]];
+    const before = Date.now();
+
+    await handleMessage({ sessionId: sid, text: 'q' });
+
+    const first = snapshot(sid)[0];
+    expect(first?.type).toBe('round-start');
+    if (first?.type !== 'round-start') return; // tsc 收窄，断言在上面已钉死
+    expect(first.startedAt).toBeGreaterThanOrEqual(before - 1000);
+    expect(first.startedAt).toBeLessThanOrEqual(Date.now() + 1000);
+  });
+
+  it('失败轮同样有基准：发起即发帧，不等模型回话（错误轮重挂也不该从零起表）', async () => {
+    const sid = newSession();
+    stub.turns = [new Error('上游 500')];
+    await handleMessage({ sessionId: sid, text: 'q' });
+    expect(snapshot(sid)[0]?.type).toBe('round-start');
+  });
+});
+
+/**
+ * P1（2026-09-19，契约 TOOL-ECOSYSTEM-SPEC §4.7）：服务端实测思考耗时的双通道下发。
+ * 口径：起点＝首个 reasoning 分片发出，终点＝首个正文分片发出（无正文则收口时刻）。
+ * done 帧与 messages.thinking_ms **同源**（persistRounds 先于 done 发布）⇒ 线上值＝库里值，
+ * 刷新前后不跳数。计时是墙钟差值，没有假钟可掐，测例用 stub.gapMs 真等。
+ */
+describe('P1 思考耗时 thinkingMs（done 帧 + 落库）', () => {
+  function procCols(sessionId: string) {
+    return getDb()
+      .prepare(`SELECT role, thinking_ms, duration_ms FROM messages WHERE session_id = ? ORDER BY created_at, rowid`)
+      .all(sessionId) as Array<{ role: string; thinking_ms: number | null; duration_ms: number | null }>;
+  }
+
+  it('思考→正文间隔被测出：done 帧带 thinkingMs，且与落库值逐字相等（同源不分叉）', async () => {
+    const sid = newSession();
+    // 50ms 而非更短的值：Windows 的 Date.now() 有 ~15.6ms 计时器粒度，间隔太短时
+    // 两个时间戳会落进同一个刻度、差值算出 0（全量跑时实测红过一次）。50ms 必跨 3 个刻度。
+    stub.gapMs = 50;
+    stub.turns = [[{ reasoning: '先理一下思路。', content: '', done: false }, { content: '答案正文', done: false }, { content: '', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: 'q' });
+
+    const done = snapshot(sid).find((e) => e.type === 'done');
+    expect(done?.type).toBe('done');
+    if (done?.type !== 'done') return; // tsc 收窄
+    expect(typeof done.thinkingMs).toBe('number');
+    expect(done.thinkingMs ?? 0).toBeGreaterThanOrEqual(25); // 真等了 50ms，阈值仍留调度抖动的余量
+    const last = procCols(sid).at(-1);
+    expect(last?.role).toBe('assistant');
+    expect(last?.thinking_ms).toBe(done.thinkingMs);
+  });
+
+  it('只有思考没有正文（纯思考轮）：终点取收口时刻，同样出数', async () => {
+    const sid = newSession();
+    stub.gapMs = 50; // 50ms 同上：跨过 Windows Date.now() 的 ~15.6ms 粒度窗口
+    stub.turns = [[{ reasoning: '只想了想，没作答。', content: '', done: false }, { content: '', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: 'q' });
+
+    const done = snapshot(sid).find((e) => e.type === 'done');
+    expect(done?.type).toBe('done');
+    if (done?.type !== 'done') return; // tsc 收窄
+    expect(done.thinkingMs ?? 0).toBeGreaterThanOrEqual(25);
+    expect(procCols(sid).at(-1)?.thinking_ms).toBe(done.thinkingMs);
+  });
+
+  it('没出过思考分片：done 帧不带 thinkingMs 字段，库里落 NULL（0 秒是谎话，缺就是缺）', async () => {
+    const sid = newSession();
+    stub.turns = [[{ content: '直接作答', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: 'q' });
+
+    const done = snapshot(sid).find((e) => e.type === 'done');
+    expect(done?.type).toBe('done');
+    if (done?.type !== 'done') return;
+    expect('thinkingMs' in done).toBe(false);
+    expect(procCols(sid).at(-1)?.thinking_ms).toBeNull();
+  });
+
+  it('工具轮执行耗时随 tool 行落库（messages.duration_ms），最终回答行不带', async () => {
+    const sid = newSession();
+    stub.turns = [toolCallTurn('我先查一下'), [{ content: '答', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: 'q' });
+
+    const list = procCols(sid);
+    const toolRow = list.find((x) => x.role === 'tool');
+    expect(typeof toolRow?.duration_ms).toBe('number');
+    expect(toolRow?.duration_ms ?? -1).toBeGreaterThanOrEqual(0);
+    expect(list.at(-1)?.duration_ms).toBeNull(); // duration_ms 只属于 tool 行（与调用 1:1）
+  });
+
+  it('生成中断也带上已测出的思考耗时（过程不因失败而丢，v11 reasoning 同款口径）', async () => {
+    const sid = newSession();
+    stub.gapMs = 50; // 50ms 同上：跨过 Windows Date.now() 的 ~15.6ms 粒度窗口
+    stub.turns = [
+      [
+        { reasoning: '我打算查点资料。', content: '', done: false },
+        { content: '半截正文', done: false, toolCalls: [{ id: 'c1', name: 'search_web', arguments: '{"query":"q"}' }] },
+      ],
+      new Error('上游 500'),
+    ];
+
+    const r = await handleMessage({ sessionId: sid, text: 'q' });
+    expect(r.ok).toBe(false);
+
+    const last = procCols(sid).at(-1);
+    expect(last?.role).toBe('assistant');
+    expect(last?.thinking_ms ?? 0).toBeGreaterThanOrEqual(25);
   });
 });
 

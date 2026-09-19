@@ -11,14 +11,14 @@ import { getMaxOutputTokens } from '../llm/model-limits.js';
 import { publish, startNewRound } from './sse-bus.js';
 import { publishEvent } from '../events/bus.js';
 import { estimateTokens, truncateHistoryToBudget, getContextLimit } from './context.js';
-import { toolDefinitions, runTool } from './tools.js';
-import type { ToolContext, ToolResult } from './tools.js';
+import { toolDefinitions } from './tools.js';
 import { runToolCalls, type StepPayload } from './tool-exec.js';
+import { createExecTool } from './tool-dispatch.js';
 import { persistRounds, loadHistory } from './persist.js';
 import { cancelChoicesBySession } from './choice.js';
 import { compactIfNeeded } from './compact.js';
 import { assembleContextMessages, collectContextSegments } from './context-segments.js';
-import { TASKS_TOOL, parseTaskArgs, applyTaskPatch, formatTaskList, type TaskItem } from './task-list.js';
+import { TASKS_TOOL, type TaskItem } from './task-list.js';
 import { saveTerms, extractTerms, countUsage } from '../learning/terms.js';
 import type { ChatMessage, ToolCall } from '../llm/types.js';
 import { contentToText } from '../llm/types.js';
@@ -99,6 +99,8 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   }
 
   startNewRound(sessionId);
+  // 轮起点帧：缓冲第一帧，切会话/重连回放时前端据此恢复计时基准（bug-ledger B-009，契约 SSE-CONTRACT §2）
+  publish(sessionId, { type: 'round-start', sessionId, startedAt: Date.now() });
 
   // 组装上下文。附加 system 段（摘要/词条/资料/偏好/画像/触发增强）的**构造、落位与预算核算**
   // 全在 chat/context-segments.ts —— 此前这三件事在本文件里各写一遍（同一份清单写两遍），
@@ -141,6 +143,13 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
    * 「它刚才是怎么想的」在学习场景里是答案的一部分，故与正文同等持久化（v11 迁移加列）。
    */
   let reasoningAcc = '';
+  /**
+   * 本轮思考耗时（P1，契约 TOOL-ECOSYSTEM-SPEC §4.7）：起点＝首个 reasoning 分片发出时刻，
+   * 终点＝首个正文分片（无正文则收口时刻）；**服务端测差值**——前端掐表在断线/切会话后丢起点
+   * （LobeChat 反面教材），AG-UI 时间戳 spec 明令不得参与计算。0＝本轮没出过思考（落 NULL，不是 0 秒）。
+   */
+  let reasoningStartMs = 0;
+  let thinkingMs = 0;
   /** 本轮的最终任务清单：patch 模式基于它增量合并，收口时随消息落库 */
   let latestTasks: TaskItem[] = [];
   let usage: { promptTokens: number; completionTokens: number } | undefined;
@@ -165,39 +174,22 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     detail?: string,
     payload?: StepPayload,
   ) => {
-    publish(sessionId, {
-      type: 'step',
-      sessionId,
-      tool,
-      status,
-      detail,
-      args: payload?.args,
-      result: payload?.result,
-    });
+    // StepPayload（调度器统一注入 toolCallId/durationMs/errorText）整包摊进 step 帧——
+    // 逐字段列写会两头各记一份清单，加字段必漏一边（P1，契约 SSE-CONTRACT §2）
+    publish(sessionId, { type: 'step', sessionId, tool, status, detail, ...payload });
   };
-  /**
-   * 任务清单工具执行器：两种模式（全量 tasks / 增量 updates）→ 合并当前清单 →
-   * 发 tasks 事件（**恒为完整清单**，前端整表替换）→ 回灌带序号的清单确认。
-   * 回灌必须带序号：patch 模式靠 index 定位，模型看不到序号下一次就会错位。
-   */
-  const execTool = (name: string, argsJson: string, ctx: ToolContext): Promise<ToolResult> => {
-    // grill-me 开场：给强绑产生的 ask_choice 打 pre 标记，前端据此把它沉进消息流（普通触发不带）
-    if (name !== 'update_tasks') return runTool(name, argsJson, name === 'ask_choice' && opening.grill ? { ...ctx, grillPhase: 'pre' } : ctx);
-    const parsed = parseTaskArgs(argsJson);
-    if (!parsed.ok) return Promise.resolve({ content: parsed.content });
-    if (parsed.mode === 'replace') {
-      latestTasks = parsed.items;
-    } else {
-      const applied = applyTaskPatch(latestTasks, parsed.ops);
-      // 整批原子：任一条非法就整批不生效，把「当前清单 + 序号」回灌给模型自纠
-      if (!applied.ok) return Promise.resolve({ content: applied.content });
-      latestTasks = applied.items;
-    }
-    publish(sessionId, { type: 'tasks', sessionId, items: latestTasks });
-    return Promise.resolve({ content: formatTaskList(latestTasks) });
-  };
-  /** 工具轮攒到最终答案确认后一并落库：中途失败/中止不留孤儿 tool 消息（v1 语义） */
-  const rounds: Array<{ calls: ToolCall[]; results: ChatMessage[] }> = [];
+  // update_tasks 的清单合并与非清单工具转发在 chat/tool-dispatch.ts（P1 拆文件：本文件加计时线后破线）
+  const execTool = createExecTool({
+    sessionId,
+    grill: opening.grill,
+    getTasks: () => latestTasks,
+    setTasks: (items) => {
+      latestTasks = items;
+    },
+  });
+  /** 工具轮攒到最终答案确认后一并落库：中途失败/中止不留孤儿 tool 消息（v1 语义）。
+   *  `durations` 与 `results` 同序（P1：每次调用的实测耗时落 `messages.duration_ms`） */
+  const rounds: Array<{ calls: ToolCall[]; results: ChatMessage[]; durations: Array<number | undefined> }> = [];
   const abortIfNeeded = () => {
     if (opts.signal?.aborted) throw new Error('已停止');
   };
@@ -230,11 +222,13 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         abortIfNeeded();
         if (chunk.reasoning) {
           // 边流式呈现、边累积落库（v11）：只发布不落库的话刷新即丢，重开会话看不到当时怎么想的
+          if (!reasoningStartMs) reasoningStartMs = Date.now();
           turnReasoning += chunk.reasoning;
           reasoningAcc += chunk.reasoning;
           publish(sessionId, { type: 'reasoning', sessionId, content: chunk.reasoning });
         }
         if (chunk.content) {
+          if (reasoningStartMs && !thinkingMs) thinkingMs = Date.now() - reasoningStartMs; // 正文开始＝思考结束（§4.7 口径）
           turnText += chunk.content;
           acc += chunk.content;
           publish(sessionId, { type: 'token', sessionId, content: chunk.content });
@@ -266,15 +260,17 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         sessionId,
         // ask_choice 要等学习者点选、契约不设超时——不豁免就会被 30s 默认超时掐断（见 tool-exec.ts）
         noTimeout: ['ask_choice'],
-      });
-      abortIfNeeded();
         // ★ M2d-2 补传（v31）：此前这里没有 ownerId ⇒ `manage_terms` 的词条增删改查全落**无主行**
         //   （主人自己登录后看不到），而**全程不报错**。必填化就是为了逼出这类静默错误。
         ownerId: opts.ownerId ?? null,
+      });
+      abortIfNeeded();
+      const durations: Array<number | undefined> = [];
       for (const o of outcomes) {
         results.push({ role: 'tool', content: o.content.slice(0, MAX_TOOL_RESULT_CHARS), toolCallId: o.id });
+        durations.push(o.durationMs);
       }
-      rounds.push({ calls: turnToolCalls, results });
+      rounds.push({ calls: turnToolCalls, results, durations });
       messages.push({ role: 'assistant', content: '', toolCalls: turnToolCalls, reasoning: turnReasoning || undefined }, ...results);
       toolTokens +=
         estimateTokens(JSON.stringify(turnToolCalls)) + results.reduce((s, r) => s + estimateTokens(contentToText(r.content)), 0);
@@ -305,9 +301,11 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       publish(sessionId, { type: 'chat-error', sessionId, message: capMsg });
     }
 
+    if (reasoningStartMs && !thinkingMs) thinkingMs = Date.now() - reasoningStartMs; // 只有思考没有正文（纯工具轮收口）：终点=收口时刻
     const assistantId = persistRounds(sessionId, rounds, acc, usage?.completionTokens ?? estimateTokens(acc), {
       reasoning: reasoningAcc,
       tasks: latestTasks,
+      thinkingMs: thinkingMs || undefined,
     });
     // ★ v29 起带上 user_id（M2c，契约 TENANCY-SPEC §8.1.2）：**只用于归属与诊断**，不是配额账本
     //   （§8.1.3 已把免费通道改成「额度不限、只限并发」⇒ 不做 token 聚合）。
@@ -344,6 +342,8 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     publish(sessionId, {
       type: 'done',
       sessionId,
+      // 思考耗时随收口帧下发（与刚落的 `thinking_ms` 同源——落库先于发布，屏上与库内不会分叉）
+      ...(thinkingMs ? { thinkingMs } : {}),
       usage: {
         promptTokens: usage?.promptTokens ?? 0,
         completionTokens: usage?.completionTokens ?? 0,
@@ -374,8 +374,9 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       appendFinal(`（${aborted ? '已停止' : '生成中断'}）`);
       // 中断也把已攒下的思考与任务清单带上：工具轮不落（防孤儿 tool 消息），
       // 但过程文本本身无害且有用——「它刚才想到哪一步」正是中断后最想看的
+      if (reasoningStartMs && !thinkingMs) thinkingMs = Date.now() - reasoningStartMs; // 中断时刻即思考终点
       db.prepare(
-        `INSERT INTO messages (id, session_id, role, content, tokens, reasoning, tasks) VALUES (?, ?, 'assistant', ?, ?, ?, ?)`,
+        `INSERT INTO messages (id, session_id, role, content, tokens, reasoning, tasks, thinking_ms) VALUES (?, ?, 'assistant', ?, ?, ?, ?, ?)`,
       ).run(
         randomUUID(),
         sessionId,
@@ -383,6 +384,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         estimateTokens(acc),
         reasoningAcc || null,
         latestTasks.length > 0 ? JSON.stringify(latestTasks) : null,
+        thinkingMs || null,
       );
     }
     publish(sessionId, { type: 'chat-error', sessionId, message: aborted ? '已停止' : `生成失败：${msg}` });

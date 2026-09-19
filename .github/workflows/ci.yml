@@ -14,7 +14,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [20, 22]
+        # 与 package.json engines（Node ≥22.11）对齐：Node 20 的内置 undici 缺新 API，
+        # 依赖链在它上面必炸（webidl.util.markAsUncloneable is not a function）
+        node-version: [22]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

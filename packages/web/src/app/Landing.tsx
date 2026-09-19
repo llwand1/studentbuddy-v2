@@ -119,6 +119,29 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
           )}
         </section>
 
+        {/* GitHub 横幅（老板 2026-09-19：项目地址放显眼位置 + 本地安装包版引导） */}
+        <section className="landing-github" aria-label="开源仓库与本地版">
+          <div className="landing-github-main">
+            <span className="landing-github-title">本项目完全开源</span>
+            <a
+              className="landing-github-link"
+              href="https://github.com/llwand1/studentbuddy-v2"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              github.com/llwand1/studentbuddy-v2
+            </a>
+          </div>
+          <a
+            className="landing-github-note"
+            href="https://github.com/llwand1/studentbuddy-v2#快速开始"
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            更加完整的体验在<b>本地安装包版</b>，欢迎体验 →
+          </a>
+        </section>
+
         <section className="landing-section" aria-label="五环闭环">
           <h2 className="landing-h2">
             一条自动运转的<span className="landing-accent">学习闭环</span>

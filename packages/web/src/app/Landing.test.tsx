@@ -41,6 +41,10 @@ describe('Landing — 未登录门面', () => {
     expect(getByText('AI 输出可靠性工程')).toBeTruthy();
     expect(getByText('不锁定供应商')).toBeTruthy();
     expect(getByText('免费注册')).toBeTruthy(); // 隐私段的 CTA（标题跨 span 拆分，不整串匹配）
+    // GitHub 横幅（显眼位）与本地安装包版引导
+    expect(getByText('本项目完全开源')).toBeTruthy();
+    expect(getByText('github.com/llwand1/studentbuddy-v2')).toBeTruthy();
+    expect(getByText('本地安装包版')).toBeTruthy(); // 引导句被 <b> 拆分，锚定粗体词
     expect(getByText('邮箱注册账号')).toBeTruthy();
     expect(queryByPlaceholderText('邮箱')).toBeNull(); // 默认收起：介绍在前，表单不抢镜
   });

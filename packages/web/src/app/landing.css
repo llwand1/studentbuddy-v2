@@ -319,3 +319,48 @@
     gap: 18px;
   }
 }
+
+/* ── GitHub 横幅（显眼位：hero 正下方首屏内） ── */
+.landing-github {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 26px;
+  padding: 16px 22px;
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-left: 3px solid var(--sb-primary, #007aff);
+  border-radius: 12px;
+}
+.landing-github-main {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.landing-github-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+.landing-github-link {
+  font-size: 13px;
+  color: var(--sb-primary, #007aff);
+  text-decoration: none;
+  word-break: break-all;
+}
+.landing-github-link:hover {
+  text-decoration: underline;
+}
+.landing-github-note {
+  font-size: 13px;
+  color: var(--sb-text-secondary, #6e6e73);
+  text-decoration: none;
+}
+.landing-github-note b {
+  color: var(--sb-text, #1d1d1f);
+}
+.landing-github-note:hover b {
+  color: var(--sb-primary, #007aff);
+}

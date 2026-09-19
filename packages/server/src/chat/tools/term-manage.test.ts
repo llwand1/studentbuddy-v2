@@ -1,15 +1,17 @@
 /**
- * chat/tools — manage_terms 工具回归（词条直接写路径）。
+ * chat/tools/term-manage —— manage_terms 工具回归（词条直接写路径；原 chat/tools.test.ts 随 S1 拆目录迁入）。
  * 不触 LLM：tidy_terms 等在别处已覆盖，这里只测 manage_terms 的参数校验与落库语义。
+ * ★ 「add 需要」「没找到」「至少要给」「add / update / delete」等断言文本是 schema 预闸的
+ *   兼容锁（枚举提示必须以 ` / ` 连接枚举值），改文案先改这里。
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { openIsolated, closeDb } from '../storage/db.js';
-import { runTool, toolDefinitions } from './tools.js';
-import { saveOneTerm, findTermByName, listTerms } from '../learning/terms.js';
-import type { ToolContext } from './tools.js';
+import { openIsolated, closeDb } from '../../storage/db.js';
+import { runTool, toolDefinitions } from './index.js';
+import { saveOneTerm, findTermByName, listTerms } from '../../learning/terms.js';
+import type { ToolContext } from './registry.js';
 
 let dir: string;
 

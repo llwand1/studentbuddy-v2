@@ -4,14 +4,15 @@
  * 为什么搬：flow.ts 加计时线后 410/400 破线，按仓规**拆文件不压注释**（先例 persist.ts 同因搬出）。
  * 搬的是内聚的一块：`update_tasks` 的清单合并语义 + 非清单工具转发 `runTool` + grill 开场打 pre 标记。
  *
- * ★ `update_tasks` 刻意**不进 tools.ts 注册表**（该文件常有并行会话在途改动，R1 避让）：
- *   definition 由调用方拼进 tools 列表，执行走 runToolCalls 的 exec 注入点——零改动 tools.ts。
+ * ★ `update_tasks` 刻意**不进注册表（`chat/tools/`）**：它带每轮清单状态，与注册表工具的
+ *   无状态签名不同接缝（原「R1 避让 tools.ts」理由已随 2026-09-19 S1 拆目录消失，接入方式
+ *   因 P2 纯重构口径保持不变）：definition 由调用方拼进 tools 列表，执行走 runToolCalls 的 exec 注入点。
  * ★ 清单状态走 `getTasks/setTasks` 闭包注入而非本文件持有：归属权仍在 flow.ts 的 `latestTasks`
  *   （收口落库读的是同一份），这里只是唯一写口。
  */
 import { publish } from './sse-bus.js';
-import { runTool } from './tools.js';
-import type { ToolContext, ToolResult } from './tools.js';
+import { runTool } from './tools/index.js';
+import type { ToolContext, ToolResult } from './tools/index.js';
 import { parseTaskArgs, applyTaskPatch, formatTaskList, type TaskItem } from './task-list.js';
 
 export function createExecTool(deps: {

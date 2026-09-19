@@ -21,3 +21,4 @@ export * from './scenario.js';
 export * from './auth.js';
 export * from './ebbinghaus.js';
 export * from './coach.js';
+export * from './tool-ecosystem.js';

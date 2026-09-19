@@ -25,7 +25,7 @@ import type { ChatMessage, LLMAdapter, ToolCall, ToolDefinition } from '../llm/t
 import { getMaxOutputTokens } from '../llm/model-limits.js';
 import { runToolCalls } from './tool-exec.js';
 import { runChoiceTool } from './choice-tool.js';
-import { runTool, type ToolContext, type ToolResult } from './tools.js';
+import { runTool, type ToolContext, type ToolResult } from './tools/index.js';
 
 /**
  * 开场硬指令（pre）：强制模型第一个动作就是 ask_choice。

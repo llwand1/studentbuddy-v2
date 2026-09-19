@@ -2,16 +2,16 @@
  * chat/choice-tool — `ask_choice` 工具（方案选择框的模型侧入口）。
  *
  * 单独成文件的理由（不是拆着好看）：
- * ① `tools.ts` 是「一次调用即返回」的工具集合，本工具的性质是**长时间挂起**——混在一起会让
+ * ① 注册表里的工具集合是「一次调用即返回」的，本工具的性质是**长时间挂起**——混在一起会让
  *    「工具都能秒回」这个隐含假设失效，单独一份便于把这个例外讲清楚。
  * ② 工具描述（何时该问 / 何时不该问）是**提示词**，会随实测反复调，与调度逻辑分开改。
  *
- * 与 `tools.ts` 的关系：本文件只导出「定义 + 执行函数」，注册动作仍在 `tools.ts` 一处完成
- * （单一注册入口，避免工具清单出现第二份事实源）。
- * 类型只做 `import type`，故不构成 tools.ts ↔ choice-tool.ts 的运行时循环依赖。
+ * 与注册表的关系：本文件只导出「定义 + 执行函数」，注册动作在 `chat/tools/index.ts` 一处完成
+ * （单一注册入口，避免工具清单出现第二份事实源；原 `tools.ts` 已随 S1 拆目录，2026-09-19）。
+ * 类型只做 `import type`，故不构成 index ↔ choice-tool.ts 的运行时循环依赖。
  */
 import type { ToolDefinition } from '../llm/types.js';
-import type { ToolContext, ToolResult } from './tools.js';
+import type { ToolContext, ToolResult } from './tools/registry.js';
 import { askChoice, offerChoice, choiceToolHint } from './choice.js';
 
 export const CHOICE_TOOL: ToolDefinition = {

@@ -2,7 +2,7 @@
  * chat/flow — 单轮对话编排（chat 域唯一入口）。
  * 职责：会话串行锁（同会话消息不交错）/ abort 真断流 / 流式经 sse-bus 广播 /
  * 边流边累积末尾一次落库 / 用量兜底估算落库（v1 全部踩坑语义继承）。
- * 单轨原则（ADR/G3）：仅原生 function-calling，工具注册表见 chat/tools.ts。
+ * 单轨原则（ADR/G3）：仅原生 function-calling，工具注册表见 chat/tools/（S1 拆目录）。
  */
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
@@ -11,7 +11,7 @@ import { getMaxOutputTokens } from '../llm/model-limits.js';
 import { publish, startNewRound } from './sse-bus.js';
 import { publishEvent } from '../events/bus.js';
 import { estimateTokens, truncateHistoryToBudget, getContextLimit } from './context.js';
-import { toolDefinitions } from './tools.js';
+import { toolDefinitions, toolDefinitionTokens } from './tools/index.js';
 import { runToolCalls, type StepPayload } from './tool-exec.js';
 import { createExecTool } from './tool-dispatch.js';
 import { persistRounds, loadHistory } from './persist.js';
@@ -102,6 +102,10 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   // 轮起点帧：缓冲第一帧，切会话/重连回放时前端据此恢复计时基准（bug-ledger B-009，契约 SSE-CONTRACT §2）
   publish(sessionId, { type: 'round-start', sessionId, startedAt: Date.now() });
 
+  // 单轨工具循环（G3，见 chat/tools/）：update_tasks 不进注册表（有状态工具，理由见 task-list.ts 头注），
+  // definition 拼进列表、执行走 exec 注入。★ 必须在预算前声明：tools JSON 现计入 systemPromptTokens（契约 §4.4 第 1 条）。
+  const tools = [...toolDefinitions(), TASKS_TOOL.definition];
+
   // 组装上下文。附加 system 段（摘要/词条/资料/偏好/画像/触发增强）的**构造、落位与预算核算**
   // 全在 chat/context-segments.ts —— 此前这三件事在本文件里各写一遍（同一份清单写两遍），
   // 加一段要改三处且漏一处不报错、只静默漂，故收成一份清单（理由见该文件头注释）。
@@ -116,7 +120,8 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   // 顺序不可换：截断要用段清单算出的预算，装配要用截断后的历史（截断含工具轮对齐）
   const truncated = truncateHistoryToBudget(liveHistory, {
     limit: getContextLimit(target.model),
-    systemPromptTokens,
+    // §4.4 第 1 条：工具定义逐轮全量下发，与 system 段同口径进预算（此前不进任何账 ⇒ 截断恒少算）
+    systemPromptTokens: systemPromptTokens + toolDefinitionTokens(tools),
   });
   const { messages, nudgeMsg } = assembleContextMessages(segments, truncated);
   // 开场硬指令（grill-me / 联网，装配见 chat/opening.ts）：只在内存 messages 里活，不落库——它是指令不是发言
@@ -129,7 +134,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   const toolBudget = Math.max(
     0,
     getContextLimit(target.model) -
-      systemPromptTokens -
+      (systemPromptTokens + toolDefinitionTokens(tools)) -
       truncated.reduce((s, m) => s + estimateTokens((m.content || '') + (m.toolCalls ? JSON.stringify(m.toolCalls) : '')), 0) -
       20_000,
   );
@@ -164,10 +169,6 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     publish(sessionId, { type: 'token', sessionId, content: delta });
   };
 
-  // 单轨工具循环（G3）：toolCalls → 执行 → tool 回灌 → 再生成；上限 MAX_TOOL_TURNS 轮。
-  // update_tasks（任务清单）不在 tools.ts 注册表（该文件被并行会话在途改动，R1 避让）：
-  // definition 拼进 tools 列表、执行走 exec 注入（runToolCalls 支持自定义执行器），零改动 tools.ts。
-  const tools = [...toolDefinitions(), TASKS_TOOL.definition];
   const onStep = (
     tool: string,
     status: 'running' | 'done' | 'error',

@@ -4,8 +4,8 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { ToolCall } from '../llm/types.js';
-import type { ToolContext, ToolResult } from './tools.js';
-import { ABORT_HINT, DEFAULT_TOOL_TIMEOUT_MS, TIMEOUT_HINT, runToolCalls, type StepPayload } from './tool-exec.js';
+import type { ToolContext, ToolResult } from './tools/registry.js';
+import { ABORT_HINT, DEFAULT_TOOL_TIMEOUT_MS, TIMEOUT_HINT, resolveToolTimeoutMs, runToolCalls, type StepPayload } from './tool-exec.js';
 
 const call = (id: string, name: string, args = '{}'): ToolCall => ({ id, name, arguments: args });
 
@@ -270,5 +270,139 @@ describe('runToolCalls — P1 计时与配对字段（契约 TOOL-ECOSYSTEM-SPEC
     const { ctx } = payloadCtx();
     const out = await runToolCalls([call('c1', 'a')], ctx, { ownerId: null, exec: async () => ({ content: 'ok' }) });
     expect(typeof out[0]?.durationMs).toBe('number');
+  });
+});
+
+/** 捕获含 payload 的终态帧（S2 用例复用；与 P1 的 payloadCtx 同法） */
+function s2Frames(): {
+  ctx: { onStep: (t: string, s: 'running' | 'done' | 'error', d?: string, p?: StepPayload) => void };
+  frames: Array<{ tool: string; status: string; detail?: string; payload?: StepPayload }>;
+} {
+  const frames: Array<{ tool: string; status: string; detail?: string; payload?: StepPayload }> = [];
+  return { ctx: { onStep: (tool, status, detail, payload) => frames.push({ tool, status, detail, payload }) }, frames };
+}
+
+describe('runToolCalls — S2 分档超时（契约 §4.2 / v1.3 拍板⑪）', () => {
+  it('优先级：显式 timeoutMs ＞ 逐工具（tidy_terms 120s）＞ kind 档（network 60s / write·read 30s）＞ 全局缺省', () => {
+    expect(resolveToolTimeoutMs('a', 1234)).toBe(1234);
+    expect(resolveToolTimeoutMs('tidy_terms')).toBe(120_000);
+    expect(resolveToolTimeoutMs('search_web')).toBe(60_000);
+    expect(resolveToolTimeoutMs('manage_terms')).toBe(30_000);
+    expect(resolveToolTimeoutMs('ask_choice')).toBe(30_000);
+    expect(resolveToolTimeoutMs('not_registered')).toBe(DEFAULT_TOOL_TIMEOUT_MS);
+  });
+});
+
+describe('runToolCalls — S2 同轮去重（契约 §4.3-4）', () => {
+  it('同名同参（JSON 键序不同也算同一调用）只执行一次：两卡各归各的 toolCallId，复用卡标「去重复用」', async () => {
+    const { ctx, frames } = s2Frames();
+    const spy = vi.fn(async (name: string): Promise<ToolResult> => ({ content: `ok:${name}` }));
+    const out = await runToolCalls(
+      [call('1', 'search_web', '{"query":"a","k":2}'), call('2', 'search_web', '{"k":2,"query":"a"}')],
+      ctx,
+      { ownerId: null, exec: spy },
+    );
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(out.map((o) => o.id)).toEqual(['1', '2']);
+    expect(out[0]?.content).toBe(out[1]?.content);
+    const terms = frames.filter((f) => f.status === 'done');
+    expect(terms.map((f) => f.payload?.toolCallId)).toEqual(['1', '2']);
+    expect(String(terms[0]?.detail ?? '')).not.toContain('去重复用');
+    expect(terms[1]?.detail).toContain('（去重复用）');
+  });
+
+  it('嵌套对象键序也归一（canonicalToolArgs 的深层稳定性）', async () => {
+    const { ctx } = s2Frames();
+    const spy = vi.fn(async (): Promise<ToolResult> => ({ content: 'ok' }));
+    await runToolCalls(
+      [call('1', 'twin2', '{"o":{"b":1,"a":[2,3]}}'), call('2', 'twin2', '{"o":{"a":[2,3],"b":1}}')],
+      ctx,
+      { ownerId: null, exec: spy },
+    );
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('同名不同参不合并（去重键含参数，不是按工具名一刀切）', async () => {
+    const { ctx } = s2Frames();
+    const spy = vi.fn(async (_n: string, argsJson: string): Promise<ToolResult> => ({ content: argsJson }));
+    await runToolCalls([call('1', 'search_web', '{"query":"a"}'), call('2', 'search_web', '{"query":"b"}')], ctx, {
+      ownerId: null,
+      exec: spy,
+    });
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('runToolCalls — S2 network 静默重试（契约 §4.3-5）', () => {
+  it('search_web 首次抛错→重试成功：exec 两次、只有一张 done 卡（重试对用户不可见）', async () => {
+    const { ctx, frames } = s2Frames();
+    let n = 0;
+    const exec = async (): Promise<ToolResult> => {
+      n += 1;
+      if (n === 1) throw new Error('网络抖动');
+      return { content: 'ok' };
+    };
+    const out = await runToolCalls([call('1', 'search_web')], ctx, { ownerId: null, exec });
+    expect(n).toBe(2);
+    expect(out[0]?.ok).toBe(true);
+    expect(frames.filter((f) => f.status === 'done')).toHaveLength(1);
+    expect(frames.filter((f) => f.status === 'error')).toHaveLength(0);
+  });
+
+  it('重试仍失败：exec 恰好两次封顶，error 帧只有一个（用户不看两次失败）', async () => {
+    const { ctx, frames } = s2Frames();
+    let n = 0;
+    const exec = async (): Promise<ToolResult> => {
+      n += 1;
+      throw new Error('网络持续抖动');
+    };
+    const out = await runToolCalls([call('1', 'search_web')], ctx, { ownerId: null, exec });
+    expect(n).toBe(2);
+    expect(out[0]?.ok).toBe(false);
+    expect(out[0]?.content).toContain('网络持续抖动');
+    expect(frames.filter((f) => f.status === 'error')).toHaveLength(1);
+  });
+
+  it('超时也 Retry 一次：首挂二成结算 done（第一次的挂起 promise 及时 release，不留 pending）', async () => {
+    const { ctx, frames } = s2Frames();
+    let n = 0;
+    let release: (() => void) | undefined;
+    const exec = (): Promise<ToolResult> => {
+      n += 1;
+      if (n === 1) return new Promise((r) => { release = () => r({ content: 'late' }); });
+      return Promise.resolve({ content: 'ok-after-retry' });
+    };
+    try {
+      const out = await runToolCalls([call('1', 'search_web')], ctx, { ownerId: null, exec, timeoutMs: 60 });
+      expect(n).toBe(2);
+      expect(out[0]?.content).toBe('ok-after-retry');
+      expect(frames.filter((f) => f.status === 'done')).toHaveLength(1);
+    } finally {
+      release?.();
+    }
+  });
+
+  it('write 类（manage_terms）异常不重试：重放=二次副作用风险', async () => {
+    const { ctx } = s2Frames();
+    const spy = vi.fn(async (): Promise<ToolResult> => {
+      throw new Error('boom');
+    });
+    const out = await runToolCalls([call('1', 'manage_terms')], ctx, { ownerId: null, exec: spy });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(out[0]?.ok).toBe(false);
+  });
+
+  it('中止不重试：用户已表态，再打一次外部请求是冒犯', async () => {
+    const { ctx } = s2Frames();
+    const ac = new AbortController();
+    let n = 0;
+    const exec = async (): Promise<ToolResult> => {
+      n += 1;
+      ac.abort();
+      throw new Error('抖动在中止之后');
+    };
+    const out = await runToolCalls([call('1', 'search_web')], ctx, { ownerId: null, exec, signal: ac.signal });
+    expect(n).toBe(1);
+    expect(out[0]?.content).toBe(ABORT_HINT);
   });
 });

@@ -16,7 +16,7 @@ import type { ChatRequest, LLMAdapter, TokenChunk } from '../llm/types.js';
 import { closeDb, openIsolated } from '../storage/db.js';
 import { listPendingChoices } from './choice.js';
 import { snapshot } from './sse-bus.js';
-import { toolDefinitions } from './tools.js';
+import { toolDefinitions } from './tools/index.js';
 import { GRILL_POST, GRILL_PRE, GRILL_TOOL_CHOICE, grillInstruction, runGrillClosing } from './grill.js';
 
 let tmpDir = '';

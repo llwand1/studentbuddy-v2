@@ -13,9 +13,10 @@
  * ★ 视觉纪律（AGENTS.md）：禁 emoji，图标全部用 `components/icons.tsx` 的自绘 line-icon；
  *   配色只取 tokens.css 的既有 token（#007aff 主色 / #fafafa 底），不另起色板。
  */
-import { useState } from 'react';
-import type { AuthUser } from '@sb/shared';
+import { useEffect, useState } from 'react';
+import type { AuthProviders, AuthUser } from '@sb/shared';
 import { AccountBox } from '../components/AccountBox';
+import { GithubLoginButton } from '../components/GithubLoginButton';
 import { Mascot } from '../features/chat/Mascot';
 import {
   ChatIcon,
@@ -75,6 +76,15 @@ const PRIVACY: string[] = [
 
 export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
   const [card, setCard] = useState<AuthCard>('closed');
+  // GitHub 登录入口是否可用（契约 AUTH-SPEC §2.8）：服务端没配凭据就不画按钮，
+  // 请求失败（非 2xx / 网络）按「不可用」处理——宁少一个入口，不给用户一个点了报错的按钮
+  const [githubEnabled, setGithubEnabled] = useState(false);
+  useEffect(() => {
+    fetch('/api/auth/providers')
+      .then((r) => (r.ok ? (r.json() as Promise<{ providers: AuthProviders }>) : null))
+      .then((d) => setGithubEnabled(Boolean(d?.providers.github)))
+      .catch(() => setGithubEnabled(false));
+  }, []);
 
   return (
     <div className="landing">
@@ -87,6 +97,7 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
           <a className="landing-ghost landing-gh" href="https://github.com/llwand1/studentbuddy-v2" target="_blank" rel="noreferrer noopener">
             GitHub
           </a>
+          {githubEnabled && <GithubLoginButton className="landing-ghost" label="GitHub 登录" />}
           <button type="button" className="landing-ghost" onClick={() => setCard(card === 'login' ? 'closed' : 'login')}>
             登录
           </button>
@@ -115,6 +126,13 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
           {card !== 'closed' && (
             <div className="landing-auth-card">
               <AccountBox key={card} standalone initialMode={card} onAuthChange={(u) => u && onAuthed(u)} />
+              {githubEnabled && (
+                <div className="landing-auth-github">
+                  <span className="landing-auth-github-or">或</span>
+                  <GithubLoginButton className="landing-github-btn" label="使用 GitHub 登录" />
+                  <span className="landing-github-hint">GitHub 已验证邮箱与本站账号相同时，直接登入原账号</span>
+                </div>
+              )}
             </div>
           )}
         </section>

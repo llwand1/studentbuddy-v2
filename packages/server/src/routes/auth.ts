@@ -37,6 +37,12 @@ const ERROR_STATUS: Record<AuthError, number> = {
   CODE_INVALID: 400,
   CODE_EXPIRED: 400,
   MAIL_SEND_FAILED: 502,
+  // GitHub OAuth（§2.8）：四个码只经 routes/auth-github.ts 的错误页出口，这里登记
+  // 是为 AuthError 联合类型的穷尽性——Record<AuthError, …> 两张表编译期强制全覆盖
+  GITHUB_NOT_CONFIGURED: 503,
+  GITHUB_AUTH_FAILED: 502,
+  GITHUB_STATE_INVALID: 400,
+  GITHUB_EMAIL_UNAVAILABLE: 502,
 };
 
 /** 域错误码 → 人话文案（ADR-5：失败必须可读、可重试，不裸抛码）。 */
@@ -56,6 +62,11 @@ const ERROR_TEXT: Record<AuthError, string> = {
   CODE_EXPIRED: '验证码已过期，请重新获取',
   // ★ 不写"请稍后重试"以外的话：发信通道故障是服务端的事，用户能做的只有重试或改用密码
   MAIL_SEND_FAILED: '验证码邮件没能发出去，请稍后重试，或改用密码登录',
+  // GitHub OAuth（§2.8）：JSON 通道不会走到这四个文案（错误页在 auth-github.ts），登记同上
+  GITHUB_NOT_CONFIGURED: 'GitHub 登录尚未配置',
+  GITHUB_AUTH_FAILED: 'GitHub 登录没能完成，请重试',
+  GITHUB_STATE_INVALID: '登录会话已失效，请重新发起 GitHub 登录',
+  GITHUB_EMAIL_UNAVAILABLE: 'GitHub 账号没有已验证的邮箱，无法建立登录',
 };
 
 /**

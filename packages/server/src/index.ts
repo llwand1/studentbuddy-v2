@@ -19,6 +19,7 @@ import { obsRouter } from './routes/obs.js';
 import { previewRouter } from './routes/preview.js';
 import { pkRouter } from './routes/pk.js';
 import { authRouter } from './routes/auth.js';
+import { githubAuthRouter } from './routes/auth-github.js';
 import { studyFlowRouter } from './routes/study-flow.js';
 import { scenarioRouter } from './routes/scenario.js';
 import { coachRouter } from './routes/coach.js';
@@ -122,6 +123,8 @@ app.get<never, StatusResponse>('/api/status', (_req, res) => {
 });
 
 app.use('/api/auth', authRouter);
+// GitHub OAuth（契约 docs/AUTH-SPEC.md §2.8）：与邮箱通道同挂 /api/auth，产出同一种会话
+app.use('/api/auth', githubAuthRouter);
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/providers', providersRouter);

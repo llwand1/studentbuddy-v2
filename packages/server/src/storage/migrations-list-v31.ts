@@ -261,4 +261,19 @@ export const MIGRATIONS_V31: Array<{ version: number; statements: string[] }> = 
       `CREATE INDEX IF NOT EXISTS idx_tool_stats_tool ON tool_stats(tool, created_at)`,
     ],
   },
+  // ── v36（2026-09-20，GitHub OAuth 登录，契约 AUTH-SPEC §2.8：users 加第三方身份列）──
+  // `github_id` 存 GitHub 用户数字 id（字符串落库）：按邮箱归并后回填，登录时若列已对本 id
+  // 归属其他账号可一眼定位撞号（契约 §2.8 第 4 条）。**可空 + 部分唯一索引**：邮箱注册的
+  // 老账号此列为 NULL，普通唯一索引会把多个 NULL 当冲突（SQLite 默认 NULL≠NULL，
+  // 普通索引其实也放行——但部分索引把「只有非空才唯一」的意图写成约束，不靠读者猜）。
+  // ★ 只加列、不动 `password_hash NOT NULL`：GitHub 建号的账号写入**随机不可知口令的
+  //   scrypt 哈希**（auth/github.ts），密码登录对它永远 CREDENTIALS_INVALID——
+  //   改 NOT NULL 约束在 SQLite 要整表重建，为省一个空串哨兵不值当（ADR-2 简洁优先）。
+  {
+    version: 36,
+    statements: [
+      `ALTER TABLE users ADD COLUMN github_id TEXT`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id) WHERE github_id IS NOT NULL`,
+    ],
+  },
 ];

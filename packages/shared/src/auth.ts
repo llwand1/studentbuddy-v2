@@ -173,8 +173,36 @@ export type AuthError =
   /** 验证码已过期 → 400（M1.5；★ 与 `CODE_INVALID` 分开，因为用户动作不同：重发 vs 重输） */
   | 'CODE_EXPIRED'
   /** 验证码邮件没发出去（发信通道故障）→ 502（M1.5） */
-  | 'MAIL_SEND_FAILED';
+  | 'MAIL_SEND_FAILED'
+  /** GitHub OAuth 未配置（缺 SB_GITHUB_CLIENT_ID/SECRET）→ 503（M1.8，§2.8） */
+  | 'GITHUB_NOT_CONFIGURED'
+  /** GitHub 侧换 token / 拉身份失败 → 502（M1.8，§2.8） */
+  | 'GITHUB_AUTH_FAILED'
+  /** OAuth state 校验不过（CSRF 防线）→ 400（M1.8，§2.8） */
+  | 'GITHUB_STATE_INVALID'
+  /** GitHub 账号拿不到已验证邮箱 → 502（M1.8，§2.8） */
+  | 'GITHUB_EMAIL_UNAVAILABLE';
 
+
+// ── GitHub OAuth 常量（M1.8，契约 §2.8）──────────────────────
+
+/**
+ * OAuth state（CSRF 防线）的短期 cookie 名。
+ * ★ 与会话 cookie `sb_sid` 分离：state 是**一次性的握手凭据**，10 分钟即过期，
+ *   不该和 30 天的登录态共用命名空间——混用会让「清 state」误伤登录态（反之亦然）。
+ */
+export const AUTH_GITHUB_STATE_COOKIE = 'sb_gst';
+/** state cookie 有效期：10 分钟。覆盖「跳 GitHub → 用户输入凭据 → 跳回来」的常规耗时。 */
+export const AUTH_GITHUB_STATE_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * 登录方式可用性（`GET /api/auth/providers` 响应主体）。
+ * ★ 前端据此决定渲染不渲染 GitHub 按钮——**按钮常在、点了 503** 是坏体验；
+ *   服务端没配 GitHub 凭据时前端就不画这个入口（ADR-5：失败态能在第一时间被看见）。
+ */
+export interface AuthProviders {
+  github: boolean;
+}
 
 // ── 纯校验（前后端共用一份）────────────────────────────────
 

@@ -1,7 +1,7 @@
 # 账号与会话契约（AUTH-SPEC）
 
-> 版本：v0.5.1 | 状态：**M1 后端+前端已落码（2026-09-17~18）· M2a/M2b 数据隔离已完成 · M1.5 邮箱验证码登录已交付（2026-09-18）· **M1.6 注册即验证已落码**（§2.7，2026-09-18 提交 `d512e81`）· **429 响应体已补 `retryAfterMs`**（§2.5/§4.5，v0.5.1——此前只是文档承诺，真机冒烟才逮到它没上线）· 发信域名已定（§0.3：主站 `.xyz` + 发信 `.com` 双域）· M2c/M2d 待做** | 更新：2026-09-18
-> 定位：studentbuddy 从**本地单用户**走向 **Web 多用户**的第一块地基——**邮箱**账号体系与会话（**密码 + 验证码双通道**）。
+> 版本：v0.6.0 | 状态：**M1 后端+前端已落码（2026-09-17~18）· M2a/M2b/M2c/M2d 数据隔离已完成 · M1.5 邮箱验证码登录已交付（2026-09-18）· M1.6 注册即验证已落码（§2.7）· 429 响应体已补 `retryAfterMs`（§2.5/§4.5）· 发信域名已定（§0.3）· **M1.8 GitHub OAuth 登录已落码**（§2.8，2026-09-20，迁移 v36；真机 OAuth 全链待配凭据后验）** | 更新：2026-09-20
+> 定位：studentbuddy 从**本地单用户**走向 **Web 多用户**的第一块地基——**邮箱**账号体系与会话（**密码 + 验证码双通道**；2026-09-20 起叠加 GitHub OAuth 第三通道，产出同一种会话）。
 > 原则：**先立契约再改码**（AGENTS.md 已知约束）；契约先行、实现随后；前端登录 UI 与后端零耦合（只认 §2 的端点）。
 
 ---
@@ -72,6 +72,7 @@
 | `email` | TEXT NOT NULL **UNIQUE** | **写入前归一化**（trim + 小写，见 `normalizeEmail`）；UNIQUE 是库层兜底 |
 | `password_hash` | TEXT NOT NULL | scrypt 派生串（见 §4.1）。**永不出接口** |
 | `nickname` | TEXT NOT NULL DEFAULT '' | 不传则从邮箱派生（`nicknameFromEmail`） |
+| `github_id` | TEXT（迁移 v36 加列，可空） | GitHub 数字用户 id 的字符串形态（§2.8）。可空 + 部分唯一索引：邮箱注册的账号恒为 NULL；GitHub 归并/建号时写入，**幂等回填**（已有值且相同不再 UPDATE，已有值且不同＝撞号显式失败） |
 | `created_at` / `updated_at` | TEXT | `datetime('now')` |
 
 ### auth_sessions
@@ -215,6 +216,42 @@
 3. ⚠️ **未做、留作后备（记账）**：人机验证（Cloudflare Turnstile，免费，且站点本就规划走 Cloudflare DNS，见 §0.3）——**本批不做**（§0.7 简洁优先：先上线观察**实际**滥用，不做没有证据的防御）。**触发条件**：日志里同一 IP 的 `register` 发信被 429 拒绝**持续出现**，或额度被异常烧光。**判定权在老板。**
 
 ⚠️ **连带代价（诚实记账，不掩盖）**：注册即验证把「能不能建号」绑死在发信可达性上——**§4.6 的送达率风险从「登录受影响」升级为「注册受影响」**。这是本次决策的**真实代价**，不是附带说明。缓解有三层：① 已有账号**完全不受影响**（密码登录不依赖邮件，§4.6 缓解第 5 条）；② 发信失败回 **502 `MAIL_SEND_FAILED`**（§2.5 已定义，文案必须给出「稍后重试」的明确指引）；③ 运维侧可人工建号兜底（老板自己/内测用户）。
+
+### §2.8 GitHub OAuth 登录（M1.8，2026-09-20 落码）
+
+> 定位：**第三条登录通道**（密码 / 验证码之外）。产出与前两条**完全相同**的会话（同一个 `createSession` + `sb_sid` cookie，30 天）——只是「证明你是谁」的方式变了，后续所有归属逻辑（TENANCY-SPEC）**零分支**。
+
+**三个口径（2026-09-20 老板拍板）**：
+1. **按邮箱自动归并**：GitHub 的**已验证邮箱**命中现有 `users.email` ⇒ 直接登入该账号并回填 `github_id`；没命中 ⇒ 新建账号。符合 §0.1「两套身份映射到同一 user」的既定原则，用户零操作。
+2. **新用户直接建号**：封闭打磨期不做额外审批（与现有注册口径一致——注册本身没做白名单拦截，封闭靠不公开传播控制）。
+3. **会话时长保持 30 天**（`AUTH_SESSION_TTL_MS` 不动）。
+
+**三端点（全是 GET——OAuth 重定向流必须浏览器整页跳转，没有 fetch 版本）**：
+
+| 端点 | 行为 | 失败 |
+|---|---|---|
+| `GET /api/auth/providers` | `200 { providers: { github: boolean } }`——**前端画不画 GitHub 按钮的唯一依据**（按钮常在、点了 503 是坏体验） | — |
+| `GET /api/auth/github` | 发一次性 state cookie（`sb_gst`，httpOnly，10 分钟）→ 302 到 `github.com/login/oauth/authorize`（scope **只要 `user:email`**，最小权限） | 未配置 → 503 `GITHUB_NOT_CONFIGURED` 错误页 |
+| `GET /api/auth/github/callback` | 验 state（**`timingSafeEqual` 逐字节**，先验后清 cookie）→ 换 token → 拉 `/user` + `/user/emails` → 归并/建号 → 发会话 → 302 回 `/` | 见下表 |
+
+**错误码（`AuthError` 联合类型新增四个；失败呈现走内联 HTML 错误页而非 JSON——此刻用户在浏览器导航里，fetch 错误形状没人能看见；错误页必带「返回首页」链接，ADR-5）**：
+
+`GITHUB_NOT_CONFIGURED`→503（缺 `SB_GITHUB_CLIENT_ID`/`SB_GITHUB_CLIENT_SECRET`）/
+`GITHUB_STATE_INVALID`→400（state 不过 = CSRF，**不发会话不落库**）/
+`GITHUB_AUTH_FAILED`→502（换 token / 拉身份失败，或 `github_id` 已绑定其他邮箱——**显式失败不顶替**）/
+`GITHUB_EMAIL_UNAVAILABLE`→502（拿不到**已验证**邮箱）。
+
+**四条硬约束（做不对就是洞）**：
+1. **只认已验证邮箱**（`primary && verified` 优先，退而求其次任一 `verified`）：GitHub 上未验证的邮箱任何人都能往账号上填，拿它归并等于把「知道某人的邮箱」升级成「能登入某人的账号」。归并的正确性建立在 **GitHub 的邮箱验证体系**上，不建立在我们自己的邮箱验证上。
+2. **state 是 CSRF 防线**：授权前发、callback 里逐字节比对、无论成败先清（留着只会让重试撞上过期脏值）。
+3. **授权与回调两步的 `redirect_uri` 必须同源派生**（`SB_PUBLIC_ORIGIN` 优先，反代后 `req.protocol`/`host` 可能失真；未配则从请求推导，本地开发即正确）——GitHub 对两步做比对，不一致直接拒（`redirect_uri_mismatch`）。
+4. **GitHub 建号的账号 `password_hash` 写两次 `randomUUID` 拼接的 scrypt 哈希**：列是 NOT NULL 而这类账号没有口令——随机串让密码登录对它永远 `CREDENTIALS_INVALID`（等价「口令不可知」），**不为它把约束改可空再整表重建**（ADR-2）。
+
+**数据模型（迁移 v36）**：`users` 加 `github_id TEXT` 可空列 + 部分唯一索引 `idx_users_github_id ON users(github_id) WHERE github_id IS NOT NULL`（部分索引把「只有非空才唯一」写成约束，不靠读者知道 SQLite 的 NULL≠NULL）。回填是幂等的：同邮箱第二次登录列已有值且相同 ⇒ 不再 UPDATE。
+
+**部署配置（M3 外部依赖，未配置时功能整体静默下线——前端按 providers 探针不画按钮）**：
+- GitHub 侧注册 **OAuth App**（Settings → Developer settings → OAuth Apps），Homepage `https://11wand.com`，**Authorization callback URL `https://11wand.com/api/auth/github/callback`**。
+- 服务器 env：`SB_GITHUB_CLIENT_ID` / `SB_GITHUB_CLIENT_SECRET`；反代后显式配 `SB_PUBLIC_ORIGIN=https://11wand.com`。本地开发另注册一个 callback 为 `http://localhost:5173/api/auth/github/callback` 的 App（GitHub 不允许 localhost 生产凭据混用）。
 
 ---
 

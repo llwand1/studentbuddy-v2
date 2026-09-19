@@ -101,6 +101,52 @@
   text-align: left;
 }
 
+/* 登录卡内的 GitHub 入口（契约 AUTH-SPEC §2.8）：「或」分隔线 + 整宽按钮 + 归并提示 */
+.landing-auth-github {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.landing-auth-github-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+.landing-auth-github-or::before,
+.landing-auth-github-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--sb-border, #e5e5ea);
+}
+.landing-github-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--sb-border, #e5e5ea);
+  background: var(--sb-surface, #fff);
+  color: inherit;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+.landing-github-btn:hover {
+  border-color: var(--sb-primary, #007aff);
+  color: var(--sb-primary, #007aff);
+}
+.landing-github-hint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+
 /* ── 功能六宫格 ── */
 .landing-features {
   display: grid;

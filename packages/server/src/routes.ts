@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { getDb } from './storage/db.js';
 import { cancelChoicesBySession } from './chat/choice.js';
+import { cancelConfirmationsBySession } from './chat/tools/confirm.js';
 import { snapshot, startHeartbeat } from './chat/sse-bus.js';
 import { getProviders, seedIfEmpty, MODEL_ROLES } from './llm/router.js';
 import { OpenAICompatibleAdapter } from './llm/openai.js';
@@ -55,7 +56,9 @@ sessionsRouter.delete('/:id', (req: Request, res: Response) => {
   }
   // 逃生口②：删会话连带作废挂起的方案选择。会话都没了，那张卡再也无人能点，
   // 不作废则对应的 ask_choice 永久悬挂（与「停止生成」同源处置，见 chat/flow.ts）。
+  // P3 同口：挂起的确认卡一并 deny 收口，且「本会话允许」授权表随会话清空（chat/tools/confirm.ts）。
   cancelChoicesBySession(id, '会话已删除');
+  cancelConfirmationsBySession(id);
   getDb().prepare(`UPDATE sessions SET deleted_at = datetime('now') WHERE id = ?`).run(id);
   res.json({ ok: true });
 });

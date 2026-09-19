@@ -217,7 +217,7 @@ export function saveOneTerm(
   const owner = ownerForWrite(ownerId);
   const d = (domain ?? '').trim().toLowerCase().slice(0, 30) || 'general';
   const t = term.trim();
-  // 同 saveTerms：先登记领域再落词条（v19 不变式）——列表页「添加」与对话工具 manage_terms 都走这里
+  // 同 saveTerms：先登记领域再落词条（v19 不变式）——列表页「添加」与对话工具 upsert_term 都走这里
   db.prepare('INSERT OR IGNORE INTO term_domain (owner_id, name) VALUES (?, ?)').run(owner, d);
   const hit = buildTermIndex(ownerId).find(t, d);
   let rowId = hit;

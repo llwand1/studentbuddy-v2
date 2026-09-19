@@ -8,12 +8,14 @@
  * §4.2 新增元数据字段（kind/timeoutMs/idempotent/scenes/needsConfirm）在此声明：
  * - `kind` 必填——它是分档超时（tool-exec）、同轮重试（network+idempotent）、
  *   确认门缺省（P3）三个消费方的共同事实源，漏声明 = 编译期报错。
- * - `needsConfirm` P2 只落类型不生效（P3 接确认门），避免半条链路。
+ * - 确认门（P3 已生效）**不堆在本文件**：决策与挂起在 `write-gate.ts` + `confirm.ts`，
+ *   这里只留一个接缝——`planWrite` 在场就把执行权整个交给 gate（§4.2「新增逻辑一律新文件」）。
  */
 import type { ToolDefinition } from '../../llm/types.js';
-import type { ConfirmPolicy, GrillPhase, ModelRole, ToolKind } from '@sb/shared';
+import type { ConfirmPolicy, GrillPhase, ModelRole, ToolConfirmDecision, ToolKind } from '@sb/shared';
 import { MAX_DISPATCHED_TOOLS } from '@sb/shared';
 import { validateToolArgs } from './schema.js';
+import { runWriteGate } from './write-gate.js';
 
 export interface ToolContext {
   /** 工具步骤回调（step 事件上屏） */
@@ -48,13 +50,51 @@ export interface ToolContext {
 }
 
 export interface ToolResult {
-  /** 回灌给模型的 tool 消息内容 */
+  /** 回灌给模型的内容 */
   content: string;
+  /**
+   * P3（§4.2）：调度器（tool-exec）据此落 `tool_stats`——`affected` 只写类工具有值
+   * （NULL≠0：没改与改了 0 条是两回事，v32 耗时列同口径），`confirm` 是放行/拒绝留痕。
+   * `bytes/ignoredBlocks` 是契约预留给 MCP 结果治理（S3a）的，本批恒空。
+   * 由 write-gate 统一注入（工具实现的 `apply()` 可不填），调度器侧零反推。
+   */
+  meta?: { bytes?: number; ignoredBlocks?: number; affected?: number | null; confirm?: ToolConfirmDecision | null };
+}
+
+/**
+ * 两阶段写的「计划」（§4.2/§4.6）：`planWrite` 只算不改，registry 据 `affected` 决定弹不弹卡，
+ * `apply()` 是**唯一落库入口**——registry 保证只在「批准或免确认档」后调用，
+ * 拒绝/超时路径下 `apply()` 调用次数恒为 0（P3 回归锁直接钉这一条）。
+ * `actionSummary` 是确认卡的「动作一句话」（§5.1 硬要求①，只有条数的卡不许上线）。
+ */
+export interface PendingWrite {
+  affected: number;
+  actionSummary: string;
+  /** 给人看的清单（原始条数可超，卡片呈现前由 write-gate 裁成 ≤8 行×≤40 字 + 「…等 N 条」） */
+  items: string[];
+  apply(): Promise<ToolResult>;
+}
+
+/**
+ * 「本次零改动」的计划（参数不全/没找到目标）：affected 0 → gate 不弹卡直接 apply，
+ * 由 apply 回灌「怎么改对」给模型自纠（词条族与 tidy 共用，别各写一份）。
+ */
+export function zeroWritePlan(content: string): PendingWrite {
+  return {
+    affected: 0,
+    actionSummary: '本次调用未产生改动',
+    items: [],
+    apply: async (): Promise<ToolResult> => ({ content, meta: { affected: 0 } }),
+  };
 }
 
 export interface RegisteredTool {
   definition: ToolDefinition;
-  run(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>;
+  /**
+   * 执行入口。P3 起对**有写副作用的工具可选**（给了 `planWrite` 就走 gate，`run` 不再被调用）；
+   * 两者都没给是注册错误，`runTool` 兜底如实报（不静默）。
+   */
+  run?(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>;
   /** 工具类别：分档超时 / 重试资格 / 确认门缺省的共同事实源（§4.2） */
   kind: ToolKind;
   /**
@@ -66,12 +106,23 @@ export interface RegisteredTool {
   /** 同参重放无副作用——network 失败重试 1 次的资格要件（§4.3-5，与 kind='network' 同时成立才重试） */
   idempotent?: boolean;
   /**
-   * 确认门策略（§4.6）。**P2 只落类型，P3 才生效**——
-   * 届时缺省 read/network=false、write='by_size'、external=true。
+   * 确认门策略（§4.6，**P3 已生效**）。缺省按 kind：read/network=false、write='by_size'、
+   * external=true（缺省判定住 `write-gate.defaultConfirmPolicy`，别处不重复推演）。
    */
   needsConfirm?: ConfirmPolicy;
+  /**
+   * 'by_size' 的逐工具阈值；缺省取**按人设置**（`storage/confirm-threshold.ts`，默认 5，
+   * v1.4 拍板⑮）。只给「语义上永远该问/该免」的例外用（如 `delete_terms` 直接 `needsConfirm:true`）。
+   */
+  confirmThreshold?: number;
   /** 场景裁剪（§4.4）：不给 = 全场景下发；给 = 仅列出的模型角色下发。P2 现役工具均不限场景 */
   scenes?: ModelRole[];
+  /**
+   * **有写副作用的工具必须提供 `planWrite`**（§4.2/§4.6）：只算不改，产出 `PendingWrite`；
+   * 给了它 `run` 就不再被调用（写门面只有一个，旁路即漏洞）。返回 `undefined` ＝「核对后
+   * 确认无改动」——gate 按 affected 0 收口，不弹没有对象的批准卡（§4.6 落码注）。
+   */
+  planWrite?(args: Record<string, unknown>, ctx: ToolContext): Promise<PendingWrite | undefined>;
 }
 
 const registry = new Map<string, RegisteredTool>();
@@ -134,6 +185,13 @@ export async function runTool(name: string, argsJson: string, ctx: ToolContext):
     return { content: hint };
   }
   try {
+    // 两阶段写的接缝（§4.6-2）：给了 `planWrite` 的工具，「决定弹不弹卡 + 何时 apply」全归
+    // write-gate——`run` 不再被调用，写门面只有一条路（旁路即漏洞，同 manage_terms 退役理由）。
+    if (tool.planWrite) return await runWriteGate(name, tool, args, ctx);
+    if (!tool.run) {
+      ctx.onStep(name, 'error', '工具缺执行入口');
+      return { content: `工具 ${name} 注册异常：run 与 planWrite 都没给，请联系维护者。` };
+    }
     return await tool.run(args, ctx);
   } catch (err) {
     ctx.onStep(name, 'error', err instanceof Error ? err.message : String(err));

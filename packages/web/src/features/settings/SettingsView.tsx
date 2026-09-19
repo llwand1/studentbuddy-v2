@@ -12,6 +12,7 @@ import { SearchKeysCard } from './SearchKeysCard';
 import { QuizMixCard } from './QuizMixCard';
 import { QuizImageCard } from './QuizImageCard';
 import { AnswerStyleCard } from './AnswerStyleCard';
+import { ToolsCard } from './ToolsCard';
 
 type ProviderRow = {
   id: string;
@@ -134,7 +135,6 @@ export function SettingsView() {
     }
   };
 
-
   return (
     <div className="settings-view">
       <h2>设置</h2>
@@ -233,11 +233,11 @@ export function SettingsView() {
           </tbody>
         </table>
       </section>
-
       <AnswerStyleCard flash={flash} />
       <QuizMixCard flash={flash} />
       <QuizImageCard flash={flash} />
       <SearchKeysCard flash={flash} />
+      <ToolsCard flash={flash} />
     </div>
   );
 }

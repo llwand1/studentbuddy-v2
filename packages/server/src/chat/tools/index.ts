@@ -13,7 +13,8 @@ import { CHOICE_TOOL, runChoiceTool } from '../choice-tool.js';
 import { registerTool } from './registry.js';
 import './web-search.js';
 import './term-tidy.js';
-import './term-manage.js';
+// P3 拍板⑭：term-manage（manage_terms 四合一裸写口）退役，词条写门面收进 term-ops 三工具
+import './term-ops.js';
 
 // §4.2 元数据：对模型是「读一个决策」、对系统是挂起等待——kind 'read'（30s 档）。
 // 但等待时长取决于人 not 机器，**30s 档照样会掐死它**：豁免靠 tool-exec 的 `noTimeout`
@@ -25,5 +26,5 @@ registerTool('ask_choice', {
 });
 
 export { toolDefinitions, toolNames, runTool, toolMeta, registerTool } from './registry.js';
-export type { ToolContext, ToolResult, RegisteredTool } from './registry.js';
+export type { ToolContext, ToolResult, RegisteredTool, PendingWrite } from './registry.js';
 export { toolDefinitionTokens } from './budget.js';

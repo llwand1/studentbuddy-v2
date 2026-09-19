@@ -17,6 +17,8 @@ export function useRoundBegin(deps: {
   commitTasks: (next: never[]) => void;
   commitStreaming: (next: string) => void;
   resetChoices: () => void;
+  /** 确认门卡同口径退场（P3：settled 的批准/拒绝态不漂进新一轮） */
+  resetConfirms: () => void;
   startedAtRef: MutableRefObject<number>;
   /** 上一轮的用量/耗时退场（setUsage(null) + setElapsedMs(0)） */
   clearRoundMeta: () => void;
@@ -34,6 +36,8 @@ export function useRoundBegin(deps: {
     d.commitTasks([]);
     // 方案选择框：上一轮遗留的卡片（含已选/已作废的确认态）退场——它属于上一轮，不该漂过来
     d.resetChoices();
+    // 确认门卡同口径退场（P3）
+    d.resetConfirms();
     d.clearRoundMeta();
     d.startedAtRef.current = Date.now();
     setStartedAtMs(d.startedAtRef.current);

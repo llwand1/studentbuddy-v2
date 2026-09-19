@@ -8,6 +8,7 @@ import type { TaskItem } from './task-list.js';
 import type { PkQuestion, PkRoomState } from './pk.js';
 import type { AskChoiceRecord, AskChoiceReply } from './choice.js';
 import type { CoachTrendCard } from './coach.js';
+import type { ToolConfirmDecision } from './tool-ecosystem.js';
 
 
 /** 服务端按会话推送的事件（seq 单调递增，新一轮对话从 1 重新计数） */
@@ -47,6 +48,8 @@ export type SseEvent =
       errorText?: string;
       /** 长耗时工具的中间输出（对齐 AI SDK preliminary）：收口前可多次 done+preliminary。P4 启用，先行登记 */
       preliminary?: boolean;
+      /** 工具来源（契约 §6.4，v1.4/P3 登记）：P3 起恒 'builtin'，S3 接 MCP 后外部工具必带；老前端忽略即兼容 */
+      source?: 'builtin' | 'mcp';
     }
   | {
       /**
@@ -115,6 +118,35 @@ export type SseEvent =
   // ★ 只对 `trend` 卡发这个事件：`nudge` 的红点语义已经在胶囊上，两者叠加会让胶囊
   //   同时"报数 + 报消息"，用户分不清哪个更急（契约 §4.4 末条）。
   | { type: 'coach-card'; seq: number; sessionId: string; card: CoachTrendCard }
+  // ── 工具确认门（P3，2026-09-19 登记，契约 TOOL-ECOSYSTEM-SPEC §4.6/§6.4）──────────
+  // ★ 归 `sessionId` 空间、与 choice-asked 家族同形：两阶段的写（planWrite 出方案）触到
+  //   确认门时服务端发 request，用户回执或服务端 60s 超时（按拒绝，保守档）发 resolved。
+  //   前端不本地判超时——expiresAt 只做倒计时显示，裁决权在服务端定时器（单一裁决者）。
+  //   request/resolved 按 requestId 配对；resolved 未到前确认卡不许自行动作（防双击竞态）。
+  | {
+      type: 'tool-confirm-request';
+      seq: number;
+      sessionId: string;
+      requestId: string;
+      tool: string;
+      source: 'builtin' | 'mcp';
+      /** 仅 MCP 带（server 名）：内置工具省略 */
+      server?: string;
+      /** 动作一句话（§5.1 卡硬要求①） */
+      actionSummary: string;
+      /** 将要改动的条数；items ≤8 行×≤40 字清单，超出折叠「…等 N 条」 */
+      affected: number;
+      items: string[];
+      /** 绝对过期时刻（ms）：前端倒计时基准；到期由服务端代答 decision:'timeout' */
+      expiresAt: number;
+    }
+  | {
+      type: 'tool-confirm-resolved';
+      seq: number;
+      sessionId: string;
+      requestId: string;
+      decision: ToolConfirmDecision;
+    }
   | { type: 'ping' };
 
 export interface TokenUsage {

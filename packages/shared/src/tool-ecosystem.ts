@@ -29,6 +29,52 @@ export const TOOL_LLM_INNER_TIMEOUT_MS = 120_000;
  */
 export type ConfirmPolicy = false | true | 'by_size';
 
+// ── P3 确认门实施口径（2026-09-19 登记，契约 TOOL-ECOSYSTEM-SPEC §4.2/§4.6/§6.3-4）──────
+
+/** `by_size` 缺省阈值（v1.4 拍板⑮：立约时 3 改定为 5；设置页可调，0＝从不等） */
+export const DEFAULT_CONFIRM_THRESHOLD = 5;
+
+/** 无回执多久按拒绝收口（保守，§6.3-4：等不到答案就当不同意） */
+export const CONFIRM_TIMEOUT_MS = 60_000;
+
+/** 阈值的设置存储键（`app_settings`，v30 起每用户一份；读不到/坏值回退默认 5） */
+export const SETTING_KEY_CONFIRM_THRESHOLD = 'confirm_threshold';
+
+/** 设置页三档（§6.3-4 拍板⑮）：1=每次都问、5=默认、0=从不等；0 档 UI 必须写明风险 */
+export const CONFIRM_THRESHOLD_CHOICES = [1, 5, 0] as const;
+
+/**
+ * 阈值归一化（落库前与读取后都过一道，口径同 `normalizeAnswerStyle`）：
+ * 非有限数/负数/超 50（阈值高于 `delete_terms` 单次上限，给了也是没给）一律回退默认；
+ * 小数向下取整（0.5 条这种"半个改动"不存在，猜半档不如回默认）。
+ */
+export function normalizeConfirmThreshold(raw: unknown): number {
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 50) return DEFAULT_CONFIRM_THRESHOLD;
+  return Math.floor(n);
+}
+
+/**
+ * 用户对确认卡的裁决。`allow_session` 只对**同一工具 + 同一确认档**生效（§6.3-4），
+ * 且批准态只存内存不落库——应用重启回到最严档（这是 §11 澄清「确认门≠审批引擎」的一部分）。
+ */
+export type ToolConfirmDecision = 'allow_once' | 'allow_session' | 'deny' | 'timeout';
+
+/** 确认请求的线上形状（帧字段逐条对齐契约 §6.4；items ≤8 行×≤40 字由 server 出 PendingWrite 时裁好） */
+export interface ToolConfirmRequest {
+  requestId: string;
+  tool: string;
+  source: 'builtin' | 'mcp';
+  /** 仅 MCP 工具带：所属 server 名（「谁在动手」要看得见，§6.3-4） */
+  server?: string;
+  /** 动作一句话（§5.1 确认卡硬要求①，v1.4 实施细化：只有条数没有清单的卡不许上线） */
+  actionSummary: string;
+  affected: number;
+  items: string[];
+  /** 绝对过期时刻（ms）＝发出 + CONFIRM_TIMEOUT_MS，前端倒计时用；到期裁决由服务端定时器代答 timeout */
+  expiresAt: number;
+}
+
 /** 下发裁剪上限（§4.4）：超出按「内建优先 + 声明顺序」截断并如实显示，ADR-5 不静默 */
 export const MAX_DISPATCHED_TOOLS = 16;
 

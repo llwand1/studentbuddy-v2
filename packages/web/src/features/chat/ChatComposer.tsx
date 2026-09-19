@@ -21,9 +21,11 @@ import { useRef, type ComponentProps, type Dispatch, type RefObject, type SetSta
 import { ComposerMenu } from '../../components/ComposerMenu';
 import { SendIcon, StopIcon } from '../../components/icons';
 import { buildComposerMenuItems } from './chat-menu';
-import type { AskChoiceRecord } from '@sb/shared';
+import type { AskChoiceRecord, ToolConfirmDecision } from '@sb/shared';
 import { AskStyleCard } from './AskStyleCard';
 import { ChoiceCard } from './ChoiceCard';
+import { ConfirmCard } from './ConfirmCard';
+import type { ConfirmItem } from './useConfirmQueue';
 import { DocModeControl } from './DocModeControl';
 import { menuStatus } from './composer-status';
 import { GrillPill } from './GrillPill';
@@ -69,6 +71,10 @@ export function ChatComposer({
   choiceCard,
   onChoiceReply,
   onDismissChoice,
+  confirmCard,
+  confirmNowMs,
+  onConfirmReply,
+  onDismissConfirm,
 }: {
   sessionId: string | null;
   /** 门控：连接未就绪或正在生成（textarea 与部分动作据此禁用） */
@@ -111,6 +117,11 @@ export function ChatComposer({
   choiceCard: AskChoiceRecord | null;
   onChoiceReply: (requestId: string, reply: { optionId?: string; custom?: string }) => void;
   onDismissChoice: () => void;
+  /** 挂起的工具确认（P3 确认门浮层；心跳由 useConfirmQueue 单点推进） */
+  confirmCard: ConfirmItem | null;
+  confirmNowMs: number;
+  onConfirmReply: (requestId: string, decision: ToolConfirmDecision) => void;
+  onDismissConfirm: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const MAX_IMAGES = 4;
@@ -183,6 +194,10 @@ export function ChatComposer({
       {askHint && <div className="ask-style-hint">{askHint}</div>}
       {grillMe && <GrillPill onClose={() => setGrillMe(false)} />}
       {askCard && <AskStyleCard {...askCard} busy={quizzing} />}
+      {/* 确认门卡浮在选择卡之上：它阻塞的是工具执行，比"AI 在等你选方向"更急（P3） */}
+      {confirmCard && (
+        <ConfirmCard request={confirmCard} now={confirmNowMs} onReply={onConfirmReply} onDismiss={onDismissConfirm} />
+      )}
       {/* grill-me 的卡**不在这里**浮——它渲染在消息流里（见 ChatView）。
           同一次提问若两边都渲染，用户会看到两张一模一样的卡 */}
       {choiceCard && !choiceCard.grillPhase && (

@@ -176,3 +176,7 @@
 .quiz-mix-num:focus { outline: none; border-color: var(--sb-primary); }
 .quiz-mix-num:disabled { opacity: 0.5; }
 .quiz-mix-total { font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary); margin-left: auto; }
+
+/* 工具卡（P3 ToolsCard）：0 档风险行与失败计数的告警色，只加两个修饰类 */
+.settings-hint.warn { color: var(--sb-danger); }
+.settings-table .num-bad { color: var(--sb-danger); font-weight: 600; }

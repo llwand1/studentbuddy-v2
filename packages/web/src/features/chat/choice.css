@@ -191,3 +191,56 @@
   padding: var(--sb-sp-1) var(--sb-sp-2);
 }
 .choice-card.cancelled .choice-title { color: var(--sb-ink-secondary); }
+
+/* ── 确认门卡（P3，ConfirmCard.tsx）：复用上面的卡壳/页脚基元，只补三类差异 ── */
+
+.confirm { gap: var(--sb-sp-2); }
+.choice-state.expired { color: var(--sb-danger); }
+
+/* 「谁在动手 + 影响几条」同一行：MCP 工具还要带 server 名（§6.3-4 来源可见） */
+.confirm-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+.confirm-count {
+  margin-left: auto;
+  color: var(--sb-ink-secondary);
+}
+
+/* 具体清单（硬要求③）：8 行封顶、每行 40 字，超出由服务端折成「…等 N 条」 */
+.confirm-items {
+  margin: 0;
+  padding-left: 1.1em;
+  display: grid;
+  gap: 2px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  line-height: 1.5;
+}
+
+.confirm-btns { display: flex; flex-wrap: wrap; gap: var(--sb-sp-2); }
+.confirm-btn {
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+  color: var(--sb-ink);
+  font-size: var(--sb-fs-sm);
+  font-weight: 600;
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.confirm-btn:hover:not(:disabled) { border-color: var(--sb-primary); background: var(--sb-bg); }
+.confirm-btn:active:not(:disabled) { transform: translateY(0.5px); }
+.confirm-btn:focus-visible {
+  outline: 2px solid var(--sb-primary);
+  outline-offset: 2px;
+}
+.confirm-btn:disabled { opacity: 0.55; cursor: default; }
+.confirm-btn.ok { border-color: var(--sb-primary); background: var(--sb-primary); color: #fff; }
+.confirm-btn.ok:hover:not(:disabled) { background: var(--sb-primary); opacity: 0.9; }
+.confirm-btn.bad { color: var(--sb-danger); }
+.confirm-btn.bad:hover:not(:disabled) { border-color: var(--sb-danger); background: var(--sb-bg); }

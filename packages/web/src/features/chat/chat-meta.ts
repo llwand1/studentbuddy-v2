@@ -7,7 +7,11 @@
 const TOOL_LABELS: Record<string, string> = {
   search_web: '联网搜索',
   tidy_terms: '整理词条',
+  // manage_terms 已退役（P3 拍板⑭），标签**留着**：老消息的过程卡还要按它渲染
   manage_terms: '管理词条',
+  lookup_terms: '查词条库',
+  upsert_term: '增改词条',
+  delete_terms: '删除词条',
   update_tasks: '任务清单',
 };
 

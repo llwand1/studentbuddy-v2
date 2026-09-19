@@ -8,6 +8,11 @@
  *   注册表逐工具 `timeoutMs`（如 `tidy_terms` 内部调模型 120s）＞ `KIND_TIMEOUT_MS[kind]`
  *   （read/write 30s、network/external 60s）＞ 全局缺省 30s 取第一个命中的。
  *   未注册名（exec 桩）落全局缺省——分档只对真实注册工具生效。
+ *   P3 加一条**确认门余量**（`planWrite` 且非免确认 ⇒ 档位 +`CONFIRM_TIMEOUT_MS`，人点卡的
+ *   60s 挂起发生在这次调用内部）。档位解析已拆到 `tool-timeout.ts`（本文件触 400 红线，
+ *   仓规拆文件不压注释），此处 re-export 保住既有导入面。
+ * - 统计单点（§4.5，v1.4 拍板⑰）：真实执行完的调用在这里发一条 `tool_called` 领域事件，
+ *   落库归订阅方 `storage/tool-stats.ts`——本文件因此**依然不碰 DB**（测试边界不破，见头注）。
  * - 取消：中止后**不再干等**，立刻按「已停止」结算（见 `abortRaceOf`）；已在跑的调用同样只是「不等它」。
  *   被放弃的那次调用仍在后台跑完——中断路径（v13 起）已把 `signal` 透传进 `ToolContext`，
  *   联网工具内部 fetch 真被掐断，「停止生成」不再干等；非联网工具（DB 类）本身秒回，无需取消。
@@ -23,9 +28,16 @@
  * 测试用真实工具名 + 假 exec 即可驱动这两条策略。
  */
 import type { ToolCall } from '../llm/types.js';
+import type { ToolConfirmDecision } from '@sb/shared';
 import type { ToolContext, ToolResult } from './tools/registry.js';
 import { runTool, toolMeta } from './tools/index.js';
-import { KIND_TIMEOUT_MS, canonicalToolArgs } from '@sb/shared';
+import { publishEvent } from '../events/bus.js';
+import { canonicalToolArgs } from '@sb/shared';
+import { DEFAULT_TOOL_TIMEOUT_MS, ToolTimeoutError, resolveToolTimeoutMs } from './tool-timeout.js';
+
+// 档位解析已拆到 `tool-timeout.ts`（本文件 404/400 触线，仓规拆文件）；re-export 保住
+// 既有导入面——`tool-exec.test.ts` 的分档用例、未来 flow 侧的引用都不用改 import 路径。
+export { DEFAULT_TOOL_TIMEOUT_MS, ToolTimeoutError, resolveToolTimeoutMs } from './tool-timeout.js';
 
 export type ToolExecFn = (name: string, argsJson: string, ctx: ToolContext) => Promise<ToolResult>;
 
@@ -41,6 +53,16 @@ export interface ToolOutcome {
    * （§4.7：耗时缺失退「无时长」而不是「0 秒」，存储侧同口径留 NULL）。
    */
   durationMs?: number;
+  /**
+   * P3（§4.5/§4.2）：write-gate 注回的审计元数据，本文件**只搬运不解读**——
+   * 终态后原样进 `tool_called` 事件（订阅方落 `tool_stats`）。读/网络工具不填＝null。
+   */
+  meta?: { affected?: number | null; confirm?: ToolConfirmDecision | null };
+  /**
+   * 同轮去重复用标记：这条 outcome 没有自己的执行（复用了首个调用的结果），
+   * 统计事件也随之**不发**——一次执行记两笔会把失败率算假。
+   */
+  reused?: boolean;
 }
 
 export interface ToolExecOptions {
@@ -63,7 +85,8 @@ export interface ToolExecOptions {
   sessionId?: string;
   /**
    * 透传进 ToolContext 的归属用户 id（M2c 起；**v31 起必填**）。
-   * ★ 必填的理由：`manage_terms`（词条增删改查）与 `tidy_terms` 都要按人读写；
+   * ★ 必填的理由：`upsert_term`/`delete_terms`（P3 起接替 manage_terms 的词条写门面）
+   *   与 `tidy_terms` 都要按人读写；
    *   漏传的表现是"写进无主行 / 读到别人的词条"，**全程不报错**。
    * ★ 改必填时实测逮到 `chat/flow.ts` 主对话路径根本没传（同 `tools.ts` 那处注释）。
    */
@@ -90,21 +113,11 @@ export interface StepPayload {
 /** 结果摘要截断上限：给用户点开看的，不是回灌模型的（回灌另有 MAX_TOOL_RESULT_CHARS） */
 export const RESULT_SNIPPET_CHARS = 400;
 
-/** 全局缺省超时（注册表查不到元数据时兜底）。分档见 `KIND_TIMEOUT_MS`（@sb/shared） */
-export const DEFAULT_TOOL_TIMEOUT_MS = 30_000;
-
 /** 超时回灌：明确禁止模型重复调用同一工具（小模型最爱原地重试，一重试就再等一个超时）。
  *  注意与调度器自身的静默重试不冲突：重试发生在回灌之前，模型永远看不到中间那次 */
 export const TIMEOUT_HINT = '本工具超时，请勿重复调用同一工具，改为直接作答。';
 /** 中止回灌：同样是「别再调了」，但归因给用户，便于模型给出得体的收尾 */
 export const ABORT_HINT = '用户已停止本次生成，不要再调用工具，改为直接作答。';
-
-export class ToolTimeoutError extends Error {
-  constructor(ms: number) {
-    super(`工具执行超时（${ms}ms）`);
-    this.name = 'ToolTimeoutError';
-  }
-}
 
 /**
  * 把 signal 变成可参与 race 的 promise。
@@ -159,18 +172,6 @@ interface ExecResult {
 }
 
 /**
- * 单工具超时解析（§4.2 分档，v1.3 拍板⑪）：显式 `opts.timeoutMs` ＞ 注册表逐工具 `timeoutMs`
- * ＞ `KIND_TIMEOUT_MS[kind]` ＞ 全局缺省 30s。未注册名（exec 桩）落全局缺省。
- * 单独导出是为了让档位判定可零计时单测——真等 60s/120s 的断言不配进回归。
- */
-export function resolveToolTimeoutMs(name: string, explicit?: number): number {
-  if (explicit !== undefined) return explicit;
-  const meta = toolMeta(name);
-  if (!meta) return DEFAULT_TOOL_TIMEOUT_MS;
-  return meta.timeoutMs ?? KIND_TIMEOUT_MS[meta.kind];
-}
-
-/**
  * 并行执行一轮内的全部工具调用，返回与入参同序的结果。
  * 单个工具失败/超时/被取消都**不抛**——各自的失败以 `content` 回灌模型自纠（契约 §4.2），
  * 只有调度器本身炸了才进 allSettled 的兜底分支（那属于 bug，不静默吞）。
@@ -200,7 +201,7 @@ export async function runToolCalls(calls: ToolCall[], ctx: StepEmitterCtx, opts:
     });
 
     const settled = await Promise.allSettled(tasks);
-    return settled.map((s, i) =>
+    const outcomes = settled.map((s, i) =>
       s.status === 'fulfilled'
         ? s.value.outcome
         : {
@@ -210,9 +211,32 @@ export async function runToolCalls(calls: ToolCall[], ctx: StepEmitterCtx, opts:
             ok: false,
           },
     );
+    // 统计单点（§4.5，v1.4 拍板⑰）：全仓唯一的 `tool_called` 发布处。
+    // `durationMs === undefined` ＝ 进执行前已中止（没跑过，没什么可统计）；
+    // `reused` ＝ 同轮去重复用（真实执行已在首个调用记过一笔）。两者都不发，宁缺不假。
+    for (const o of outcomes) if (o.durationMs !== undefined && !o.reused) publishToolStat(o, opts);
+    return outcomes;
   } finally {
     done.abort(); // 结算 abortRace，不留 pending promise
   }
+}
+
+/** 组一条 `tool_called` 事件。落库在订阅方（storage/tool-stats.ts），这里只管如实报数 */
+function publishToolStat(o: ToolOutcome, opts: ToolExecOptions): void {
+  const meta = toolMeta(o.name);
+  publishEvent({
+    type: 'tool_called',
+    sessionId: opts.sessionId ?? null,
+    ownerId: opts.ownerId,
+    tool: o.name,
+    source: meta?.kind === 'external' ? 'mcp' : 'builtin',
+    ok: o.ok,
+    ms: o.durationMs ?? 0,
+    affected: o.meta?.affected ?? null,
+    resultChars: o.content.length,
+    err: o.ok ? null : o.content.slice(0, 200),
+    confirm: o.meta?.confirm ?? null,
+  });
 }
 
 /** 去重复用：不执行、不发 running，只等首个调用出结果后**重放一张自己的终态卡**（detail 标注复用） */
@@ -234,7 +258,8 @@ async function reuseFirst(ctx: StepEmitterCtx, first: Promise<ExecResult>, call:
       durationMs: r.step.durationMs,
     });
   }
-  return { outcome: { ...r.outcome, id: call.id }, step: { ...r.step, detail } };
+  // reused 标记：卡片照重放（B-010 配对需要每张终态卡），但统计不再记第二笔
+  return { outcome: { ...r.outcome, id: call.id, reused: true }, step: { ...r.step, detail } };
 }
 
 /** 真正的单次执行（含分档超时 / 静默重试）。抽出顶层函数是为了不让 runToolCalls 再长一层闭包 */
@@ -312,7 +337,7 @@ async function execute(
           errorText: terminal.detail,
         });
         return {
-          outcome: { id: call.id, name: call.name, content: r.content, ok: true, durationMs },
+          outcome: { id: call.id, name: call.name, content: r.content, ok: true, durationMs, meta: r.meta },
           step: { status: 'error', detail: terminal.detail, errorText: terminal.detail, durationMs },
         };
       }
@@ -323,7 +348,7 @@ async function execute(
         durationMs,
       });
       return {
-        outcome: { id: call.id, name: call.name, content: r.content, ok: true, durationMs },
+        outcome: { id: call.id, name: call.name, content: r.content, ok: true, durationMs, meta: r.meta },
         step: { status: 'done', detail: terminal?.detail, result: r.content.slice(0, RESULT_SNIPPET_CHARS), durationMs },
       };
     } catch (err) {

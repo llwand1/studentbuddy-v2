@@ -17,6 +17,9 @@ const TOOL_LABELS: Record<string, string> = {
   search_web: '联网搜索',
   tidy_terms: '整理词条库',
   manage_terms: '维护词条库',
+  lookup_terms: '查词条库',
+  upsert_term: '增改词条',
+  delete_terms: '删除词条',
   update_tasks: '规划任务',
 };
 

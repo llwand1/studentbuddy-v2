@@ -33,6 +33,8 @@ import {
   DomainError,
 } from '../learning/domains.js';
 import { getSessionDoc, buildDocMaterial } from '../learning/document.js';
+// P3 撤销快照（契约 TOOL-ECOSYSTEM-SPEC §4.5/§5.1，拍板⑯：UI 手动删也进表，actor='ui'）
+import { selectTermRowsForSnapshot, logTermDeletions, listUndoableBatches, undoDeleteBatch } from '../storage/term-delete-log.js';
 import { DOC_EXTRACT_BUDGET_CHARS } from '@sb/shared';
 
 export const termsRouter = Router();
@@ -242,7 +244,41 @@ termsRouter.put('/:id', (req: Request, res: Response) => {
   res.json(row);
 });
 
+/**
+ * 手动删词条（UI）。★ P3 起删除不再是无痕操作：**先取整行 → 删 → 记快照**（拍板⑯，
+ * 与 AI 的 `delete_terms` 同表同回滚码），词条页的撤销条据此还原。
+ * 顺序不许倒：删完再查就凑不出快照；查不到行（不存在或不是你的）⇒ 不记批次，
+ * 给不存在的东西留快照是造幽灵批次。`removeTerm` 保持幂等删 0 行同形，本处不改域层。
+ */
 termsRouter.delete('/:id', (req: Request, res: Response) => {
-  removeTerm(req.params.id ?? '', ownerIdOf(req));
+  const ownerId = ownerIdOf(req);
+  const id = req.params.id ?? '';
+  const rows = selectTermRowsForSnapshot([id], ownerId);
+  removeTerm(id, ownerId);
+  if (rows.length > 0) logTermDeletions({ rows, ownerId, actor: 'ui', tool: null });
   res.json({ ok: true });
+});
+
+/** 可撤销批次清单（词条页顶部撤销条的数据源；无批次回空数组，UI 什么都不显示） */
+termsRouter.get('/delete-batches', (req: Request, res: Response) => {
+  res.json(listUndoableBatches(ownerIdOf(req)));
+});
+
+/**
+ * 按批撤销（契约 §4.5）：`{ batch }` → 归属校验在域层 `WHERE` 里做，拿不到行按
+ * 「批次不存在」统一 404——**不区分不存在/归属他人**，不给探测面（v1.4 归主洞封堵口径）。
+ * 部分冲突不算失败：200 + `{restored, conflicts}`，前端如实念「还原 N 条，M 条撞名未动」。
+ */
+termsRouter.post('/undo-delete', (req: Request, res: Response) => {
+  const batch = (req.body as { batch?: unknown } | undefined)?.batch;
+  if (typeof batch !== 'string' || batch.trim() === '') {
+    res.status(400).json({ error: 'batch 必填' });
+    return;
+  }
+  const r = undoDeleteBatch(batch, ownerIdOf(req));
+  if (!r) {
+    res.status(404).json({ error: '撤销批次不存在' });
+    return;
+  }
+  res.json(r);
 });

@@ -13,6 +13,7 @@ import { computeReviewState } from '@sb/shared';
 import { CardsIcon, SearchIcon, PlusIcon } from '../../components/icons';
 import { DomainBar, type DomainStat } from './DomainBar';
 import { ReviewPanel } from './ReviewPanel';
+import { UndoDeleteBar } from './UndoDeleteBar';
 import './terms.css';
 
 /**
@@ -128,6 +129,9 @@ export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) 
         <h2>词条库</h2>
         <span className="term-sub">AI 会在对话中自动记住重要词条，之后回答会优先使用这些术语</span>
       </div>
+
+      {/* 删除撤销条（P3 §4.5）：有未撤销批次才出现；本体在 UndoDeleteBar（本文件贴 300 红线） */}
+      <UndoDeleteBar onChanged={reload} flash={flash} />
 
       <div className="term-stats">
         <span className="term-stat">

@@ -16,6 +16,7 @@ import { parseIncomingImages } from '../chat/vision.js';
 import { planRegenerate } from '../chat/regenerate.js';
 import { planResend } from '../chat/resend.js';
 import { subscribe } from '../chat/sse-bus.js';
+import { resolveConfirmation } from '../chat/tools/confirm.js';
 import { ownerIdOf, canAccessSession } from '../auth/ownership.js';
 // ── chat（REST 发送 + SSE 流）──────────────────────────────
 export const chatRouter = Router();
@@ -32,6 +33,28 @@ interface PendingRun {
   ownerId: string | null;
 }
 const aborters = new Map<string, PendingRun>();
+
+/**
+ * 确认门回执（P3，契约 TOOL-ECOSYSTEM-SPEC §4.6/§6.4）。状态码语义由 `chat/tools/confirm.ts`
+ * 给出（400 非法 decision / 404 不存在或已过期 / 409 已有裁决），路由只透传。
+ * ★ 归属判定与 `/api/choices` 同信任模型：requestId 是服务端 uuid v4，猜不中即拿不到别人的裁决；
+ *   要加"按会话反查归属"就得给内存表再开一道查询口，收益为零（同先例不另造第二套）。
+ * ★ 刻意**没有 GET 恢复端点**（契约 §4.5 已登记理由）：SSE 缓冲 60s TTL 与确认超时 60s 等长，
+ *   重开页面时挂点几乎必已超时收口——保守拒绝就是那台「恢复机」，不静默。
+ */
+chatRouter.post('/tool-confirm', (req: Request, res: Response) => {
+  const { requestId, decision } = req.body as { requestId?: unknown; decision?: unknown };
+  if (typeof requestId !== 'string' || !requestId) {
+    res.status(400).json({ error: 'requestId 必填' });
+    return;
+  }
+  const r = resolveConfirmation(requestId, decision);
+  if (!r.ok) {
+    res.status(r.status).json({ error: r.error });
+    return;
+  }
+  res.json({ ok: true });
+});
 
 /** 登记一次生成，并在收尾时摘除（三条发起路径共用，避免三份 finally 各写各的）。 */
 function trackRun(

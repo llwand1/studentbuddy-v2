@@ -9,6 +9,8 @@
  *    但也绝不能透传给视觉模型（它会把任意字符串当图片发过去）。
  *
  * 只桩「本轮生成」：`handleMessage` 换成记录参数的立即 resolve，本文件不验模型调用。
+ * P3 追加：`/api/chat/tool-confirm` 的状态码透传与端到端收口（门语义在 confirm.test.ts，
+ * 这里只锁「路由没把 400/404/409 吞成 200」这一层接线）。
  */
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import fs from 'node:fs';
@@ -131,5 +133,44 @@ describe('/api/chat/send — grill-me 开关（v18）', () => {
     await send({ sessionId: sid, text: 'b', grillMe: 'yes' });
     expect(flowStub.calls[0]?.grillMe).toBe(false);
     expect(flowStub.calls[1]?.grillMe).toBe(false);
+  });
+});
+
+describe('/api/chat/tool-confirm — 确认门回执路由（P3 §6.4 状态码透传）', () => {
+  const answer = (body: Record<string, unknown>) =>
+    request(app).post('/api/chat/tool-confirm').set('Origin', origin).send(body);
+
+  it('requestId 缺失 → 400；decision 非法 → 400（confirm.ts 的口径原样透传成 HTTP 码）', async () => {
+    expect((await answer({ decision: 'allow_once' })).status).toBe(400);
+    expect((await answer({ requestId: 'x', decision: 'meow' })).status).toBe(400);
+  });
+
+  it('不存在的 requestId → 404（猜不中的 uuid v4 就是这道门的归属判定，同 /api/choices 信任模型）', async () => {
+    const r = await answer({ requestId: 'no-such-request', decision: 'allow_once' });
+    expect(r.status).toBe(404);
+  });
+
+  it('真挂起的确认走 HTTP 收口：allow_once → 200 且服务端 waiter 被唤醒（端到端接线锁）', async () => {
+    const { requestConfirmation } = await import('../chat/tools/confirm.js');
+    const decided = requestConfirmation({
+      sessionId: 'http-confirm-sess',
+      tool: 'delete_terms',
+      source: 'builtin',
+      actionSummary: '删 1 条',
+      affected: 1,
+      items: ['甲［cs］'],
+    });
+    // 先登记的 requestId 只能从发布帧拿——路由按 id 裁决，这里从 sse-bus 缓冲取（与前端同源）
+    const { snapshot } = await import('../chat/sse-bus.js');
+    const frame = snapshot('http-confirm-sess').find((e) => e.type === 'tool-confirm-request') as
+      | { requestId: string }
+      | undefined;
+    if (!frame) throw new Error('requestConfirmation 没发布帧');
+    const r = await answer({ requestId: frame.requestId, decision: 'allow_once' });
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ ok: true });
+    expect(await decided).toBe('allow_once');
+    // 迟到的第二次点选：409（单一裁决者，路由不吞这层语义）
+    expect((await answer({ requestId: frame.requestId, decision: 'deny' })).status).toBe(409);
   });
 });

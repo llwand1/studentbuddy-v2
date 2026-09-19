@@ -1,13 +1,14 @@
 /**
  * chat/tools/registry —— 注册表门面回归（S1 拆目录的结构锁 + §4.2 元数据锁 + 预闸接线锁）。
  * 不触 DB / 网络 / LLM：只用会被预闸拦下的调用和纯元数据断言。
+ * P3 拍板⑭：`manage_terms` 退役，词条族三工具（lookup/upsert/delete_terms）在册。
  */
 import { describe, expect, it } from 'vitest';
 import { TOOL_LLM_INNER_TIMEOUT_MS } from '@sb/shared';
 import { runTool, toolDefinitions, toolMeta, toolNames } from './index.js';
 import type { ToolContext } from './registry.js';
 
-const KNOWN = ['search_web', 'tidy_terms', 'manage_terms', 'ask_choice'] as const;
+const KNOWN = ['search_web', 'tidy_terms', 'lookup_terms', 'upsert_term', 'delete_terms', 'ask_choice'] as const;
 
 function silentCtx(): { ctx: ToolContext; steps: Array<{ tool: string; status: string; detail?: string }> } {
   const steps: Array<{ tool: string; status: string; detail?: string }> = [];
@@ -15,7 +16,7 @@ function silentCtx(): { ctx: ToolContext; steps: Array<{ tool: string; status: s
 }
 
 describe('registry — 清单结构（拆分前后不许变的部分）', () => {
-  it('四大内建工具在册且保持声明顺序（下发顺序＝拆分前 tools.ts 顺序）', () => {
+  it('六个内建工具在册且保持声明顺序（下发顺序＝注册顺序，P3 后词条族三位）', () => {
     const names = toolNames();
     expect(names.filter((n) => (KNOWN as readonly string[]).includes(n))).toEqual([...KNOWN]);
   });
@@ -42,10 +43,25 @@ describe('registry — §4.2 元数据（分档/重试/确认门三个消费方�
     expect(m?.idempotent).toBeUndefined();
   });
 
-  it('manage_terms：write 且非幂等（delete 是 P3 确认门第一客户，P2 只标不拦）', () => {
-    const m = toolMeta('manage_terms');
+  it('manage_terms 已退役（拍板⑭：删除门面只许 delete_terms 一个，不留裸写旁路）', () => {
+    expect(toolMeta('manage_terms')).toBeUndefined();
+  });
+
+  it('delete_terms：write + needsConfirm=true + 两阶段（必确认不受阈值影响，run 不再是入口）', () => {
+    const m = toolMeta('delete_terms');
     expect(m?.kind).toBe('write');
-    expect(m?.idempotent).toBeUndefined();
+    expect(m?.needsConfirm).toBe(true);
+    expect(typeof m?.planWrite).toBe('function');
+  });
+
+  it('upsert_term：write 非幂等（缺省走 by_size）且有 planWrite；lookup_terms：read 无 planWrite', () => {
+    const u = toolMeta('upsert_term');
+    expect(u?.kind).toBe('write');
+    expect(u?.idempotent).toBeUndefined();
+    expect(typeof u?.planWrite).toBe('function');
+    expect(u?.needsConfirm).toBeUndefined(); // 缺省由 kind 推（write-gate 唯一判定处），注册方不许重复声明
+    expect(toolMeta('lookup_terms')?.kind).toBe('read');
+    expect(toolMeta('lookup_terms')?.planWrite).toBeUndefined();
   });
 
   it('ask_choice：read（30s 档）——真正的豁免走 flow 传的 noTimeout 名单，不靠 kind', () => {

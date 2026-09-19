@@ -283,11 +283,13 @@ function s2Frames(): {
 }
 
 describe('runToolCalls — S2 分档超时（契约 §4.2 / v1.3 拍板⑪）', () => {
-  it('优先级：显式 timeoutMs ＞ 逐工具（tidy_terms 120s）＞ kind 档（network 60s / write·read 30s）＞ 全局缺省', () => {
+  it('优先级：显式 timeoutMs ＞ 逐工具（tidy_terms 120s）＞ kind 档（network 60s / read 30s）＞ 全局缺省；两阶段写另加确认余量', () => {
     expect(resolveToolTimeoutMs('a', 1234)).toBe(1234);
-    expect(resolveToolTimeoutMs('tidy_terms')).toBe(120_000);
+    // tidy_terms：120s 内部调模型 + 60s 确认余量（P3 起它是两阶段写）
+    expect(resolveToolTimeoutMs('tidy_terms')).toBe(180_000);
     expect(resolveToolTimeoutMs('search_web')).toBe(60_000);
-    expect(resolveToolTimeoutMs('manage_terms')).toBe(30_000);
+    // P3 确认门余量：write 档 30s + CONFIRM_TIMEOUT_MS 60s（卡片挂起发生在调用内部，不加就掐死等待）
+    expect(resolveToolTimeoutMs('upsert_term')).toBe(90_000);
     expect(resolveToolTimeoutMs('ask_choice')).toBe(30_000);
     expect(resolveToolTimeoutMs('not_registered')).toBe(DEFAULT_TOOL_TIMEOUT_MS);
   });
@@ -382,12 +384,12 @@ describe('runToolCalls — S2 network 静默重试（契约 §4.3-5）', () => {
     }
   });
 
-  it('write 类（manage_terms）异常不重试：重放=二次副作用风险', async () => {
+  it('write 类（upsert_term）异常不重试：重放=二次副作用风险', async () => {
     const { ctx } = s2Frames();
     const spy = vi.fn(async (): Promise<ToolResult> => {
       throw new Error('boom');
     });
-    const out = await runToolCalls([call('1', 'manage_terms')], ctx, { ownerId: null, exec: spy });
+    const out = await runToolCalls([call('1', 'upsert_term')], ctx, { ownerId: null, exec: spy });
     expect(spy).toHaveBeenCalledTimes(1);
     expect(out[0]?.ok).toBe(false);
   });

@@ -70,6 +70,10 @@ export function ChatView({
     replyChoice,
     dismissChoice,
     skipChoice,
+    pendingConfirm,
+    confirmNowMs,
+    replyConfirm,
+    dismissConfirm,
   } = useChatStream(sessionId, onRoundDone, onBusyChange, online);
   const [input, setInput] = useState('');
   const [sendError, setSendError] = useState('');
@@ -263,6 +267,10 @@ export function ChatView({
         askHint={ask.hint}
         askCard={ask.card}
         choiceCard={pendingChoice}
+        confirmCard={pendingConfirm}
+        confirmNowMs={confirmNowMs}
+        onConfirmReply={replyConfirm}
+        onDismissConfirm={dismissConfirm}
         onChoiceReply={replyChoice}
         onDismissChoice={dismissChoice}
       />

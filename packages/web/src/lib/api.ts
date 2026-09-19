@@ -24,6 +24,7 @@ import { authApi } from './api-auth.js';
 import { termsDomainApi } from './api-terms-domain.js';
 import { termsReviewApi } from './api-terms-review.js';
 import { studyFlowApi } from './api-study-flow.js';
+import { toolsApi, termsUndoApi } from './api-tools.js';
 
 // 领域的类型**转出**给调用方（形状定义在 `api-terms-domain.ts`，那里承担行数红线的解释）。
 export type { DomainRow, DomainsResponse, RenameDomainResult, RemoveDomainResult } from './api-terms-domain.js';
@@ -322,6 +323,9 @@ export const api = {
     // ── 复习（v23 艾宾浩斯遗忘曲线）──
     // 概览 / 队列 / 打卡，整体在 `api-terms-review.ts`（同上的行数红线），此处只挂引用。
     ...termsReviewApi,
+
+    // ── 删除撤销（契约 §4.5；拍板⑯：AI 删除与 UI 手滑都进快照表）──
+    ...termsUndoApi,
   },
 
   /** 文档模式：会话绑定一篇资料。三个接口都只过元信息，正文只在 set 时上一次行 */
@@ -342,6 +346,12 @@ export const api = {
    * ★ 分组本体在 `api-study-flow.ts`（行数红线 + 断环，见该文件头注释），此处只挂引用。
    */
   studyFlow: studyFlowApi,
+
+  /**
+   * 工具生态（契约 TOOL-ECOSYSTEM-SPEC）：设置页阈值/统计 + 确认卡回执。
+   * 形状与实现整体在 `api-tools.ts`（行数红线），此处只挂引用。
+   */
+  tools: toolsApi,
 };
 
 export interface DocMeta {

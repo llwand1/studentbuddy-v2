@@ -207,4 +207,58 @@ export const MIGRATIONS_V31: Array<{ version: number; statements: string[] }> = 
       `ALTER TABLE knowledge_edge ADD COLUMN owner_id TEXT NOT NULL DEFAULT ''`,
     ],
   },
+  // ── v34（2026-09-19，P3 确认门批：词条删除快照表，契约 TOOL-ECOSYSTEM-SPEC §4.5/§5.1）──
+  // 「AI 能删词条」的授权前提＝**可撤销**（v1.2 拍板⑥）：删前逐条把整行 JSON 存进来，
+  //   撤销＝按 `affected_batch` 整批 UPSERT 回 `term_library` 并删该批日志行（语义 §4.5）。
+  // ★ **明确不做软删列 `deleted_at`**：那要给 listTerms/getRelevantTerms/countUsage/domainStats/
+  //   planTidy/normalizeTidyPlan 全量加过滤（10+ 触点，漏一处即隐蔽 bug）；快照表零改动现有查询。
+  // ★ `owner_id`（v1.4 堵归主洞，M2d 口径 `''`＝无主）：**没有这列，B 就能撤销 A 的删除批次**。
+  //   撤销接口按批校验归属：不符按「批次不存在」回 404（不区分不存在/归属他人，不给探测面）。
+  // ★ `actor`：`'ai_tool'`｜`'ui'`（v1.4 拍板⑯：UI 手动删也进表，同表同回滚码不加分支）。
+  // 幂等：CREATE TABLE/INDEX 均 IF NOT EXISTS，回放链不需要撤销点（区别于 v32/v33 的 ADD COLUMN 型）。
+  {
+    version: 34,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS term_delete_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_id TEXT NOT NULL DEFAULT '',
+        term_id TEXT NOT NULL,
+        snapshot TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        tool TEXT,
+        affected_batch TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_tdl_batch ON term_delete_log(affected_batch, created_at)`,
+    ],
+  },
+  // ── v35（2026-09-19，P3 确认门批：工具调用统计表，契约 §4.5；建表时点由拍板⑰自「S1」提前）──
+  // 每工具 30 天调用数/失败率/p95 耗时＋「本会话 AI 累计改动 N 条」的数据源；
+  // §4.6「已知绕过面」（拆小批量绕阈值，首版不拦）事后就靠 `affected` 列看见。
+  // `affected` 只有写类工具有值，读/网络留 NULL（NULL≠0，与 v32 耗时列同口径）。
+  // `owner_id` 同 v34 归主口径（统计与「累计改动 N 条」不许串主）。
+  // `confirm`：allow_once|allow_session|deny|timeout，NULL=没经过门——§6.5-8「是否经确认」的落点，
+  //   放行与拒绝都留痕（拒绝也是事实，只记放行等于把绕过面的另一半藏起来）。
+  // `session_id` NOT NULL：调度器事件里可为 null（无会话调用），订阅侧落 `''`——`''`＝无主
+  //   哨兵是本仓 M2d 既定口径（owner_id 同），不为此把列改可空再给查询加一层 IS NULL 分支。
+  {
+    version: 35,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS tool_stats (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_id TEXT NOT NULL DEFAULT '',
+        session_id TEXT NOT NULL,
+        tool TEXT NOT NULL,
+        source TEXT NOT NULL,
+        ok INTEGER NOT NULL,
+        affected INTEGER,
+        ms INTEGER NOT NULL,
+        result_chars INTEGER NOT NULL DEFAULT 0,
+        err TEXT,
+        confirm TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_tool_stats_tool ON tool_stats(tool, created_at)`,
+    ],
+  },
 ];

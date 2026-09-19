@@ -22,10 +22,12 @@ import { authRouter } from './routes/auth.js';
 import { studyFlowRouter } from './routes/study-flow.js';
 import { scenarioRouter } from './routes/scenario.js';
 import { coachRouter } from './routes/coach.js';
+import { toolsRouter } from './routes/tools.js';
 import { registerDefaultExecutors } from './learning/flow-executors.js';
 import { startTrendScheduler } from './learning/trend.js';
 import { wireActivityEvents } from './learning/activity.js';
 import { wireObsEvents } from './storage/obs.js';
+import { wireToolStats } from './storage/tool-stats.js';
 import { getDb } from './storage/db.js';
 import { requireAuth, attachUser } from './auth/middleware.js';
 import { purgeExpiredSessions } from './auth/session.js';
@@ -138,6 +140,8 @@ app.use('/api/study-flow', studyFlowRouter);
 app.use('/api/scenario', scenarioRouter);
 // v25 复习督促小窗（B+C+E，契约 docs/COACH-SPEC.md）：独立链路，不挂在 /api/chat 上
 app.use('/api/coach', coachRouter);
+// P3 设置页「工具」卡（契约 TOOL-ECOSYSTEM-SPEC §6.3-4/§4.5）：阈值 + 30 天统计；P4 grants 同挂这里
+app.use('/api/tools', toolsRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
@@ -156,6 +160,8 @@ if (process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('index.js
   initChatInfra();
   wireActivityEvents();
   wireObsEvents();
+  // 工具统计（P3 §4.5）：订阅 tool_called 落 tool_stats，与 obs 同一订阅位（发布方零感知，ADR-3/4）
+  wireToolStats();
   // 学习流：注册六种「学习交互体验」的默认执行器（委派既有单轮编排，见 learning/flow-executors.ts）。
   // ★ 必须在服务开始接请求前注册完——否则第一步推进就会撞「尚未接入执行器」而失败。
   registerDefaultExecutors();

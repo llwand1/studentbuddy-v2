@@ -17,6 +17,7 @@
  * ★ 未登录（本地单人模式）传 `null` —— 语义是「无主」，与 `ownerForWrite` 一致。
  */
 import type { ObsEventBody } from '@sb/shared/obs';
+import type { ToolConfirmDecision } from '@sb/shared';
 
 export type DomainEvent =
   | { type: 'chat_done'; sessionId: string; ownerId: string | null }
@@ -26,7 +27,29 @@ export type DomainEvent =
   /** 深度理解升级（DEEP-UNDERSTANDING-SPEC §9.2）；XP 订阅在任务 10 接入 */
   | { type: 'evolution_levelup'; termId: string; term: string; from: number; to: number }
   /** 可观测（可观测与数据飞轮方案）；订阅方 storage/obs.ts，发布方 search/flow/quiz/点踩 */
-  | ({ type: 'obs' } & ObsEventBody);
+  | ({ type: 'obs' } & ObsEventBody)
+  /**
+   * 工具生态 P3 审计（TOOL-ECOSYSTEM-SPEC §4.5，v1.4 拍板⑰）：调度器（chat/tool-exec.ts）**单点**
+   * 发布，订阅方 storage/tool-stats.ts 落 `tool_stats`。走总线而不是调度器直写库，是抄
+   * `obs` 的既有分工（发布方对观测零感知、ADR-4 订阅者抛错不阻塞主链），也守住 tool-exec 的
+   * 「不触 DB」测试边界——getDb() 惰性开真库，测试里误触就会在开发机上生成真文件。
+   * ★ `affected` 只有过确认门/免确认的**写类**工具有值（§4.6「已知绕过面」的事后审计全靠它），
+   *   读/网络/被拒留 null（null≠0：没改，与改了 0 条是两回事——v32 耗时列同口径）。
+   * ★ `confirm`：null＝没经过门（免确认档）；否则为用户/超时的裁决，「放行与拒绝都要留痕」。
+   */
+  | {
+      type: 'tool_called';
+      sessionId: string | null;
+      ownerId: string | null;
+      tool: string;
+      source: 'builtin' | 'mcp';
+      ok: boolean;
+      ms: number;
+      affected: number | null;
+      resultChars: number;
+      err: string | null;
+      confirm: ToolConfirmDecision | null;
+    };
 
 type Handler = (ev: DomainEvent) => void | Promise<void>;
 const handlers = new Set<Handler>();

@@ -46,6 +46,8 @@
 | `chat-error` | message | 本轮失败（用户中止为「已停止」） |
 | `done` | usage? / thinkingMs? | 本轮收口；usage.source=provider/estimated。**2026-09-19 P1 扩展**：`thinkingMs`＝服务端实测的**本轮思考耗时**（起点＝首个 reasoning 分片发出，终点＝首个正文分片发出，无正文则收口时刻；未出过思考分片则不带该字段）。落库先于本帧发布 ⇒ done 携带的是**已入库的同一事实**（`messages.thinking_ms`），前端收口直接用、不本地掐表（口径依据 `TOOL-ECOSYSTEM-SPEC.md` §4.7，反面教材＝LobeChat 断线重连丢起点） |
 | `round-start` | startedAt | **2026-09-19 登记（P0.5 热修，B-009）**：`flow.ts` 在 `startNewRound` 后发布的首帧，`startedAt`＝服务端 `Date.now()`。前端「思考中」已用时的**唯一基准**——组件挂载时刻 ≠ 轮开始时刻，切会话/重挂靠回放本帧续表、不从头起（服务只绑 127.0.0.1，同机时钟直减成立）。已知边界：缓冲 60s TTL 回收后无帧可回放，计时退回重挂时刻起算（与回放超时同口径）；督促/PK 频道**不发**该帧 |
+| `tool-confirm-request` | requestId / tool / source / server? / actionSummary / affected / items / expiresAt | **2026-09-19 登记（P3 确认门，契约 `TOOL-ECOSYSTEM-SPEC.md` §4.6/§6.4）**：两阶段的写（`planWrite` 出方案、只算不改）触到确认门时在 `sessionId` 频道广播。卡四硬要求（§5.1，v1.4）：①动作一句话（`actionSummary`）②条数（`affected`）③清单（`items` ≤8 行×≤40 字，超出折叠「…等 N 条」）④「拒绝后 AI 不会重复发起」说明（前端固定文案）——**只有条数没有清单的卡不许上线**。`expiresAt` 只供倒计时显示：**超时裁决在服务端定时器**（代答 `timeout`＝保守拒绝，与 ask_choice 的「单一裁决者」同构），前端不本地判 |
+| `tool-confirm-resolved` | requestId / decision | 确认门收口（用户回执或服务端超时代答）。`decision: 'allow_once' \| 'allow_session' \| 'deny' \| 'timeout'`（唯一事实源 `shared/tool-ecosystem.ts`）。**批准≠已改**：`apply()` 只在本帧对应 allow 之后执行且必须同轮完成（§4.6 第 3 步）；deny/timeout ⇒ `apply()` 调用次数恒 0。`allow_session` 只对同工具+同确认档生效、只存内存不落库；前端见帧切终态、卡不许重复出手（防双击竞态） |
 | `ping` | — | 心跳 |
 
 ### 2.1 PK 频道事件（AI 出题双人对战，契约 `docs/PK-SPEC.md` §2.2）
@@ -98,6 +100,7 @@
 | DELETE | `/api/doc?sessionId=` | 清除该会话资料（两列置 NULL，不碰标题与消息）→ `{ ok: true }`；会话不存在 → 404 |
 | GET | `/api/choices?sessionId=` | **2026-09-14 新增（方案选择框）**：挂起中的提问清单，前端加载会话/重连后捞回浮层卡片用（无挂起 → `[]`；缺 `sessionId` → 400）。存在的理由：挂起态在后端是内存 Promise、SSE 缓冲 60s 无订阅即回收，重开页面后回放流可能已空，只有查库才恢复得出来 |
 | POST | `/api/choices/:id/reply` | `{ optionId?, custom? }` 至少给一个。**404** 提问不存在／**409** 已被答复或作废（并发双端点击的第二只手，不覆盖首答）／**400** 参数不合法（选项不属于本条 / `custom` 超 1000 字 / 本条未开放自由输入）。状态码由 `chat/choice.ts` 给出，路由只透传 |
+| POST | `/api/chat/tool-confirm` | **2026-09-19 新增（P3 确认门）**：`{ requestId, decision }`，`decision ∈ allow_once|allow_session|deny`（`timeout` 是服务端专属代答，**客户端不许传**）。**404** 请求不存在（含已被超时收口）／**409** 已有裁决（双击/两端并发，首答者胜——与 choices/reply 同口径）。**不设配套 GET**：确认挂在进行中那一轮，SSE 回放缓冲（60s TTL）与确认超时（60s）同时长，重开页面时挂点几乎必已超时收口＝保守拒绝兜底，无需再开一个恢复查询面 |
 
 ### 3.1 此前漏登的端点（2026-09-02 对账补登，非本批新增）
 
@@ -106,7 +109,7 @@
 | 前缀 | 路由文件 | 端点 |
 |------|----------|------|
 | `/api/quiz` | `routes/quiz.ts` | `POST /generate`（`{topic?,material?,sessionId?}`，`topic` 与 `material` 至少给一个否则 400；**`material` 缺省时回退用该会话已载入的资料**）、`GET /bank`、`GET /bank/:id`、`DELETE /bank/:id`、`POST /stats/record`、`GET /analyze/:id`（**响应形状 `WeakAnalysis` 见 `docs/QUIZ-WEAK-SPEC.md` §2**——本表只做索引，形状以契约为准） |
-| `/api/terms` | `routes/terms.ts` | `GET /`、`GET /domains`、`POST /`、`POST /extract`（`{text?,sessionId?}`，`text` 缺省时同样回退会话资料）、`PUT /:id`、`DELETE /:id` |
+| `/api/terms` | `routes/terms.ts` | `GET /`、`GET /domains`、`POST /`、`POST /extract`（`{text?,sessionId?}`，`text` 缺省时同样回退会话资料）、`PUT /:id`、`DELETE /:id`（P3 起删除前记快照，撤销范围含 UI 手滑）、`GET /delete-batches`、`POST /undo-delete`（**2026-09-19 登记，P3 撤销快照**：清单给词条页撤销条；`{ batch }` 按批整回 `term_delete_log` 快照；批次不存在**或归属他人**均 404 不区分，冲突不覆盖如实报，语义见 TOOL-ECOSYSTEM-SPEC §4.5） |
 | `/api/preview` | `routes/preview.ts` | `POST /`（暂存 html 换 id）、`GET /:id`（带 `CSP: sandbox` 出页，无 `allow-same-origin`） |
 | `/api/activity` | `routes/activity.ts` | `GET /today`、`GET /week`、`GET /summary` |
 
@@ -133,7 +136,7 @@
 - **P0 存储是全内存**（契约 §4）：无落库、无 schema 改动，进程重启即丢局；房间 TTL 惰性回收
   （waiting 30 分钟 / finished 10 分钟 / active 取「对局时钟 + 保留期」）。
 
-**已注册工具（单轨 function-calling，`chat/tools.ts`）**：`search_web`（多路 provider 聚合语义见 `search/index.ts`——Exa/Tavily/智谱按 key 并行，三家全无 key → Bing 免 key 兜底（cn.bing.com，RSS 主 + HTML 兜底））、`tidy_terms` / `manage_terms`（词条库）、`ask_choice`（**方案选择框**，契约 `docs/ASK-CHOICE-SPEC.md`）。★ `ask_choice` 是**长等待工具**：它在 `flow.ts` 的 `runToolCalls` 里登记进 `noTimeout`，豁免 30s 默认工具超时——它等的是「人点一下」，挂 timer 会把等待本身掐死（见 `chat/tool-exec.ts` 的 `noTimeout` 注释）。
+**已注册工具（单轨 function-calling，注册表目录 `chat/tools/`——P2 批 v0.2.68 由单文件 `chat/tools.ts` 拆出）**：`search_web`（多路 provider 聚合语义见 `search/index.ts`——Exa/Tavily/智谱按 key 并行，三家全无 key → Bing 免 key 兜底（cn.bing.com，RSS 主 + HTML 兜底））、`tidy_terms`（AI 整理词条库）、词条一族三工具 `lookup_terms` / `upsert_term` / `delete_terms`（增删改分口：`delete_terms` 是**唯一删除口**且经确认门两阶段写，`upsert_term` 走 plan/apply 免阈直落，语义见 `docs/TOOL-ECOSYSTEM-SPEC.md` §5.1；★ 原第四工具 `manage_terms` 已随 P3 落码退役，拍板⑭）、`ask_choice`（**方案选择框**，契约 `docs/ASK-CHOICE-SPEC.md`）。★ `ask_choice` 是**长等待工具**：它在 `flow.ts` 的 `runToolCalls` 里登记进 `noTimeout`，豁免 30s 默认工具超时——它等的是「人点一下」，挂 timer 会把等待本身掐死（见 `chat/tool-exec.ts` 的 `noTimeout` 注释）。`delete_terms` 挂确认门时同样吃 60s 等待余量，但那在门里（confirm 层），不在 exec 超时档。
 
 **安全语义**：写操作（POST/PUT/DELETE）强制 Origin 校验（无 Origin / 恶意 Origin → 403）；请求体上限 2MB；服务仅绑 127.0.0.1。
 
@@ -143,6 +146,7 @@
 
 | 日期 | 变更 |
 |------|------|
+| 2026-09-19 | **P3 确认门契约登记（先登记再实现，契约 `TOOL-ECOSYSTEM-SPEC.md` v1.4 §4.6/§6.4）**：新增 SSE 事件 `tool-confirm-request` / `tool-confirm-resolved`（归 `sessionId` 频道，与 choice 家族同形：请求→配对收口，超时裁决在服务端）；`step` 帧补可选字段 `source:'builtin'|'mcp'`（P3 恒 builtin，S3 消费，老前端忽略即兼容）；新端点 `POST /api/chat/tool-confirm`（不设 GET，理由见 §3 该行）与 `POST /api/terms/undo-delete`（§3.1 terms 行）。载荷类型唯一事实源 `shared/tool-ecosystem.ts`（`ToolConfirmRequest`/`ToolConfirmDecision`/`DEFAULT_CONFIRM_THRESHOLD=5`/`CONFIRM_TIMEOUT_MS=60_000`）。★ 同批修一处 §0.11 漂移：已注册工具段的 `chat/tools.ts` 路径改指 `chat/tools/` 目录（P2 批已拆，工具清单本身待 P3 落码批更新——`manage_terms` 届时退役）。**订正注（2026-09-19 P3 收口批）**：该待办已兑现——上方 §3 工具清单已按在册实况更新（词条三工具接替、`manage_terms` 退役），本行原文不回改 |
 | 2026-09-19 | **P1 计时呈现批**：`done` 帧扩展 `thinkingMs`（服务端实测本轮思考耗时，落库先于发布 ⇒ 线上值与库内值同源，见 §2 该行）；`step` 帧 2026-09-18 登记的 `toolCallId`/`durationMs`/`errorText` 三字段**由登记转已落码**（tool-exec 调度器统一发射，flow/grill 两消费面自动透传；`preliminary` 仍留 P4）。落库面：`messages` 加 `thinking_ms`（assistant 行）与 `duration_ms`（tool 行）两列（迁移 v32，`ADD COLUMN` 型）——§4.7 判据「刷新/切会话后耗时数字不变」的事实源从流帧换成库行 |
 | 2026-09-19 | **P0.5 热修批（B-009）**：§2 登记 `round-start` 帧（轮起点=服务端时刻，每轮缓冲第一帧、随回放恢复计时基准）。实现同批落地：`flow.ts` 发布 + 前端 `useChatStream`/`Thinking` 改吃该基准（切会话清基准，本地 `Date.now()` 仅兜底）。回归锁：`sse-bus.test.ts` +1（回放首帧必是 round-start）、`flow.test.ts` +2（成功轮/失败轮均发帧）。P1 的落库耗时（TOOL-ECOSYSTEM-SPEC §4.7）踩这份基准做，不重复施工 |
 | 2026-09-18 | **工具生态 v1.3 契约登记（P0-b，未动实现）**：`step` 帧新增 `toolCallId`/`durationMs`/`errorText`/`preliminary`（`shared/sse-events.ts` 同步）；计时口径定档「服务端测差值+落库」；单工具超时改 per-tool 按 kind 分档（read/write 30s / network·external 60s / 内部调 LLM 的工具 120s，原「network 15s」草案作废，`ask_choice` 豁免照旧）；文件工具 `read_file`/`write_file` 申请式沙箱立项（`path_grants` 持久授权）。细则与证据全部在 `docs/TOOL-ECOSYSTEM-SPEC.md` v1.3（§4.2/§4.7/§5.2/§10） |

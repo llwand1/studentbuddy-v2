@@ -71,6 +71,10 @@ function base(over: Partial<ComposerProps> = {}): ComposerProps {
     choiceCard: null,
     onChoiceReply: vi.fn(),
     onDismissChoice: vi.fn(),
+    confirmCard: null,
+    confirmNowMs: 0,
+    onConfirmReply: vi.fn(),
+    onDismissConfirm: vi.fn(),
     ...over,
   };
 }

@@ -261,7 +261,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         sessionId,
         // ask_choice 要等学习者点选、契约不设超时——不豁免就会被 30s 默认超时掐断（见 tool-exec.ts）
         noTimeout: ['ask_choice'],
-        // ★ M2d-2 补传（v31）：此前这里没有 ownerId ⇒ `manage_terms` 的词条增删改查全落**无主行**
+        // ★ M2d-2 补传（v31）：此前这里没有 ownerId ⇒ `manage_terms`（P3 已退役，现词条族在 term-ops.ts）的词条增删改查全落**无主行**
         //   （主人自己登录后看不到），而**全程不报错**。必填化就是为了逼出这类静默错误。
         ownerId: opts.ownerId ?? null,
       });

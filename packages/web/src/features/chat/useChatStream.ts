@@ -12,6 +12,7 @@ import { api } from '../../lib/api';
 import { createTokenDrain, type TokenDrain } from './stream-smooth';
 import { foldToolRounds } from './history-fold';
 import { useChoiceQueue } from './useChoiceQueue';
+import { useConfirmQueue } from './useConfirmQueue';
 import { useSendActions } from './useSendActions';
 import { useRoundBegin } from './useRoundBegin';
 import { foldStepEvent, type ToolStep } from './step-fold';
@@ -118,6 +119,15 @@ export function useChatStream(
     dismissChoice,
     skipChoice,
   } = useChoiceQueue(sessionId, setError);
+  /** 工具确认门（契约 TOOL-ECOSYSTEM-SPEC §6.4）：同法只在入口转发，队列/心跳全在 `useConfirmQueue` */
+  const {
+    pendingConfirm,
+    nowMs: confirmNowMs,
+    applyEvent: applyConfirmEvent,
+    reset: resetConfirms,
+    replyConfirm,
+    dismissConfirm,
+  } = useConfirmQueue(sessionId, setError);
   const [usage, setUsage] = useState<TokenUsage | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const clientRef = useRef<ReturnType<typeof connectSse> | null>(null);
@@ -263,6 +273,8 @@ export function useChatStream(
       // 方案选择框的三种帧（asked/replied/cancelled）由 useChoiceQueue 自行消化；
       // 消化掉就 return，其余事件照旧往下分发
       if (applyChoiceEvent(ev)) return;
+      // 确认门两帧（request/resolved）同法交 useConfirmQueue 消化（P3）
+      if (applyConfirmEvent(ev)) return;
       if (ev.type === 'round-start') {
         // 轮起点以服务端为事实源：切回会话时重挂的 Thinking 靠回放的本帧续表，不从头起（B-009）
         startedAtRef.current = ev.startedAt;
@@ -321,6 +333,7 @@ export function useChatStream(
     pushReasoning,
     commitStreaming,
     applyChoiceEvent,
+    applyConfirmEvent,
   ]);
 
   /**
@@ -333,6 +346,7 @@ export function useChatStream(
     commitTasks,
     commitStreaming,
     resetChoices,
+    resetConfirms,
     startedAtRef,
     // 上一轮的用量/耗时不漂进新一轮（与旧 beginRound 内联版同口径）
     clearRoundMeta: () => { setUsage(null); setElapsedMs(0); },
@@ -371,5 +385,10 @@ export function useChatStream(
     replyChoice,
     dismissChoice,
     skipChoice,
+    // 工具确认门（P3）：卡与回执动作从 useConfirmQueue 直通到 ChatView 挂线
+    pendingConfirm,
+    confirmNowMs,
+    replyConfirm,
+    dismissConfirm,
   };
 }

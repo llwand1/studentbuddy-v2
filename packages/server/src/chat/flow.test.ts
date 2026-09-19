@@ -124,9 +124,15 @@ vi.mock('../learning/document.js', () => ({
   },
 }));
 
-// 词条整理 mock：flow 测的是工具接线（tool_calls → 执行 → 摘要回灌 → step），引擎语义由 tidy.test.ts 锁
+// 词条整理 mock：flow 测的是工具接线（tool_calls → 执行 → 摘要回灌 → step），引擎语义由 tidy.test.ts 锁。
+// P3 两阶段形态：auto 先 `planTidy` 出方案（假 id 无妨——normalize 是直通桩，affected 只看簇形状），
+// 过闸后 `applyTidy` 回摘要。calls 只记 auto/merge/rename 三段，与改造前断言面一致。
 const tidyStub = vi.hoisted(() => ({
   calls: [] as string[],
+  plan: {
+    clusters: [{ keep: 'x1', merge: ['x2'], term: '机器学习', domain: 'ml', reason: '中英互译' }],
+    domainRenames: {},
+  },
   summary: {
     result: 'ok',
     before: 5,
@@ -136,11 +142,18 @@ const tidyStub = vi.hoisted(() => ({
   } as TidySummary,
 }));
 
-vi.mock('../learning/tidy.js', () => ({
-  tidyTerms: async (): Promise<TidySummary> => {
+vi.mock('../learning/tidy-plan.js', () => ({
+  planTidy: async () => {
     tidyStub.calls.push('auto');
-    return tidyStub.summary;
+    return tidyStub.plan;
   },
+  lastPlanErrorOf: () => 'stub 无失败',
+}));
+
+vi.mock('../learning/tidy.js', () => ({
+  applyTidy: () => tidyStub.summary,
+  // 直通桩（真语义由 tidy.test.ts 锁）：flow 只测接线，重校验计数因此恒等于计划值
+  normalizeTidyPlan: (p: unknown) => p,
   mergeTerms: (terms: string[]): TidySummary => {
     tidyStub.calls.push(`merge:${terms.join(',')}`);
     return tidyStub.summary;

@@ -35,6 +35,12 @@ describe('Landing — 未登录门面', () => {
     expect(getByText('艾宾浩斯复习')).toBeTruthy();
     expect(getByText('AI 对战')).toBeTruthy();
     expect(getByText('笔记与总结')).toBeTruthy();
+    // 扩容批：五环闭环 / 工程较真 / 隐私自持三段齐备，默认也全渲染（门面一次讲完）
+    expect(getByText('对话讲解')).toBeTruthy();
+    expect(getByText('薄弱分析')).toBeTruthy();
+    expect(getByText('AI 输出可靠性工程')).toBeTruthy();
+    expect(getByText('不锁定供应商')).toBeTruthy();
+    expect(getByText('免费注册')).toBeTruthy(); // 隐私段的 CTA（标题跨 span 拆分，不整串匹配）
     expect(getByText('邮箱注册账号')).toBeTruthy();
     expect(queryByPlaceholderText('邮箱')).toBeNull(); // 默认收起：介绍在前，表单不抢镜
   });

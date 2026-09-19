@@ -180,3 +180,142 @@
     font-size: 26px;
   }
 }
+
+/* ── 扩容批（2026-09-19）：五环闭环 / 功能九宫格 / 工程较真 / 隐私自持 ── */
+.landing-top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.landing-gh {
+  text-decoration: none;
+}
+.landing-stats {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+  margin-top: 22px;
+  font-size: 12.5px;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+.landing-section {
+  margin-top: 64px;
+}
+.landing-h2 {
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.landing-accent {
+  color: var(--sb-primary, #007aff);
+}
+.landing-section-sub {
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--sb-text-secondary, #6e6e73);
+  margin: 0 0 26px;
+}
+
+/* 五环闭环：横向卡片 + 箭头 */
+.landing-loop {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+.landing-loop-card {
+  flex: 1;
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 12px;
+  padding: 14px 12px;
+}
+.landing-loop-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.landing-loop-icon {
+  display: inline-flex;
+  color: var(--sb-primary, #007aff);
+}
+.landing-loop-step {
+  font-size: 13px;
+  font-weight: 700;
+}
+.landing-loop-arrow {
+  margin-left: auto;
+  color: var(--sb-border, #c7c7cc);
+  font-size: 14px;
+}
+
+/* 工程较真：2×2 */
+.landing-eng {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+.landing-eng-card {
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 12px;
+  padding: 18px 16px;
+}
+
+/* 隐私自持：左清单右 CTA */
+.landing-privacy {
+  display: flex;
+  gap: 40px;
+  align-items: center;
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 14px;
+  padding: 26px 28px;
+}
+.landing-privacy .landing-h2,
+.landing-privacy .landing-section-sub {
+  text-align: left;
+}
+.landing-privacy-list {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 2;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+.landing-privacy-list li::before {
+  content: "·";
+  color: var(--sb-primary, #007aff);
+  font-weight: 700;
+  margin-right: 8px;
+}
+.landing-privacy-cta {
+  flex-shrink: 0;
+  text-align: center;
+}
+.landing-privacy-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+/* 窄屏：闭环纵排、工程单列、隐私堆叠 */
+@media (max-width: 720px) {
+  .landing-loop {
+    flex-direction: column;
+  }
+  .landing-loop-arrow {
+    transform: rotate(90deg);
+    margin: 0;
+  }
+  .landing-eng {
+    grid-template-columns: 1fr;
+  }
+  .landing-privacy {
+    flex-direction: column;
+    gap: 18px;
+  }
+}

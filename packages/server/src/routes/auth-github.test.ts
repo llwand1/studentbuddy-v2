@@ -84,16 +84,16 @@ afterAll(() => {
   closeDb();
 });
 
-describe('routes/auth-github — /providers 可用性探针（§2.8 第 1 条）', () => {
-  it('未配置 → github:false；配置后 → github:true', async () => {
+describe('routes/auth-github — /providers 可用性探针（§2.8 第 1 条 / §2.9 形态）', () => {
+  it('未配置 → github:false；配置后 → github:true；本测试进程未开强制鉴权 ⇒ form:local', async () => {
     delete process.env.SB_GITHUB_CLIENT_ID;
     const off = await request(app).get('/api/auth/providers');
     expect(off.status).toBe(200);
-    expect(off.body).toEqual({ providers: { github: false } });
+    expect(off.body).toEqual({ providers: { github: false }, form: 'local' });
 
     enableGithub();
     const on = await request(app).get('/api/auth/providers');
-    expect(on.body).toEqual({ providers: { github: true } });
+    expect(on.body).toEqual({ providers: { github: true }, form: 'local' });
   });
 });
 

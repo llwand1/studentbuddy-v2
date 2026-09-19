@@ -9,11 +9,16 @@
  * ★ 会话是 **httpOnly cookie**，JS 读不到 ⇒ 前端**不存 token**，也没有"记住登录态"这回事——
  *   登录态的唯一真相源是 `me()`。刷新页面后是否还登录，问服务端，不靠本地缓存猜。
  */
-import type { AuthUser } from '@sb/shared';
+import type { AuthSurface, AuthUser } from '@sb/shared';
 import { request } from './api-request.js';
 
 export const authApi = {
   me: () => request<AuthUser>('/api/auth/me'),
+  /**
+   * 登录面信息（契约 §2.8/§2.9）：GitHub 可用性 + 部署形态（local/cloud）。
+   * ★ `me()` 401 之后问它——本地单人形态据此**免登录直进应用壳**；这是启动分叉的唯一询问点。
+   */
+  surface: () => request<AuthSurface>('/api/auth/providers'),
   /**
    * 注册（契约 §2.7「注册即验证」）：**`code` 必填**。
    * ★ 旧的无码注册签名已删——后端不再接受它，留着这个重载只会把破坏性变更藏起来。

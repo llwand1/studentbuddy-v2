@@ -196,13 +196,32 @@ export const AUTH_GITHUB_STATE_COOKIE = 'sb_gst';
 export const AUTH_GITHUB_STATE_TTL_MS = 10 * 60 * 1000;
 
 /**
- * 登录方式可用性（`GET /api/auth/providers` 响应主体）。
+ * 登录方式可用性（`GET /api/auth/providers` 响应字段之一）。
  * ★ 前端据此决定渲染不渲染 GitHub 按钮——**按钮常在、点了 503** 是坏体验；
  *   服务端没配 GitHub 凭据时前端就不画这个入口（ADR-5：失败态能在第一时间被看见）。
  */
 export interface AuthProviders {
   github: boolean;
 }
+
+/**
+ * 部署形态（2026-09-20 拍板：本地与线上的行为从此是**显式分叉**，不是隐式巧合）。
+ * · `local`  —— `SB_REQUIRE_AUTH` 关：**本地单人形态**，免登录直接可用（后端
+ *   `ownerIdOf → null` = 不过滤/无主行，单人看到的就是全部历史）；后续本地专属功能
+ *   （线上没有的）以这个值为分叉点。
+ * · `cloud` —— `SB_REQUIRE_AUTH` 开：**线上多用户形态**，强制登录 + 落地页。
+ */
+export type DeployForm = 'local' | 'cloud';
+
+/**
+ * 登录面信息（`GET /api/auth/providers` 响应主体，端点职责从「GitHub 可用性探针」
+ * 扩为「前端启动要问的全部 auth 面信息」——一次请求拿全，不为此再加第二个端点）。
+ */
+export interface AuthSurface {
+  providers: AuthProviders;
+  form: DeployForm;
+}
+
 
 // ── 纯校验（前后端共用一份）────────────────────────────────
 

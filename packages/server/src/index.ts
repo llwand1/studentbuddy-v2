@@ -31,6 +31,7 @@ import { wireObsEvents } from './storage/obs.js';
 import { wireToolStats } from './storage/tool-stats.js';
 import { getDb } from './storage/db.js';
 import { requireAuth, attachUser } from './auth/middleware.js';
+import { REQUIRE_AUTH } from './auth/form.js';
 import { purgeExpiredSessions } from './auth/session.js';
 import { purgeExpiredCodes } from './auth/codes.js';
 import type { StatusResponse } from '@sb/shared';
@@ -101,8 +102,6 @@ app.use('/api', attachUser);
  * ★ 豁免是「必须公开」的白名单：登录端点自身不能要求登录；status/health 是探活。
  * ★ 只管 `/api/*`——非 api 路径（静态/未知路由）放行给各自的处理器，不在这里 401。
  */
-const REQUIRE_AUTH = process.env.SB_REQUIRE_AUTH === '1';
-
 function isAuthProtected(path: string): boolean {
   if (!path.startsWith('/api/')) return false;
   return !/^\/api\/(auth(\/|$)|status$|health$)/.test(path);

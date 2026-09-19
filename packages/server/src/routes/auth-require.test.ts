@@ -62,6 +62,12 @@ describe('SB_REQUIRE_AUTH=1（强制鉴权，闸门 5）', () => {
     expect(res.body.code).toBe('CREDENTIALS_INVALID');
   });
 
+  it('本进程 SB_REQUIRE_AUTH=1 ⇒ /providers 的 form 必须是 cloud（形态与闸门同源，契约 AUTH-SPEC §2.9）', async () => {
+    const res = await request(app).get('/api/auth/providers');
+    expect(res.status).toBe(200);
+    expect(res.body.form).toBe('cloud');
+  });
+
   it('登录用户一切照旧：合法会话读业务接口 200', async () => {
     const user = await createUser('require-auth@example.com', 'good-password-1', undefined);
     const { token } = createSession(user.id);

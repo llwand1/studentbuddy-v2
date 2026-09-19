@@ -1,6 +1,6 @@
 # 账号与会话契约（AUTH-SPEC）
 
-> 版本：v0.6.0 | 状态：**M1 后端+前端已落码（2026-09-17~18）· M2a/M2b/M2c/M2d 数据隔离已完成 · M1.5 邮箱验证码登录已交付（2026-09-18）· M1.6 注册即验证已落码（§2.7）· 429 响应体已补 `retryAfterMs`（§2.5/§4.5）· 发信域名已定（§0.3）· **M1.8 GitHub OAuth 登录已落码**（§2.8，2026-09-20，迁移 v36；真机 OAuth 全链待配凭据后验）** | 更新：2026-09-20
+> 版本：v0.7.0 | 状态：**M1 后端+前端已落码（2026-09-17~18）· M2a/M2b/M2c/M2d 数据隔离已完成 · M1.5 邮箱验证码登录已交付（2026-09-18）· M1.6 注册即验证已落码（§2.7）· 429 响应体已补 `retryAfterMs`（§2.5/§4.5）· 发信域名已定（§0.3）· **M1.8 GitHub OAuth 登录已落码**（§2.8，2026-09-20，迁移 v36；真机 OAuth 全链待配凭据后验）· **部署形态契约已立**（§2.9，2026-09-20：local 本地单人免登录 / cloud 线上多用户，后续功能分叉点）** | 更新：2026-09-20
 > 定位：studentbuddy 从**本地单用户**走向 **Web 多用户**的第一块地基——**邮箱**账号体系与会话（**密码 + 验证码双通道**；2026-09-20 起叠加 GitHub OAuth 第三通道，产出同一种会话）。
 > 原则：**先立契约再改码**（AGENTS.md 已知约束）；契约先行、实现随后；前端登录 UI 与后端零耦合（只认 §2 的端点）。
 
@@ -252,6 +252,26 @@
 **部署配置（M3 外部依赖，未配置时功能整体静默下线——前端按 providers 探针不画按钮）**：
 - GitHub 侧注册 **OAuth App**（Settings → Developer settings → OAuth Apps），Homepage `https://11wand.com`，**Authorization callback URL `https://11wand.com/api/auth/github/callback`**。
 - 服务器 env：`SB_GITHUB_CLIENT_ID` / `SB_GITHUB_CLIENT_SECRET`；反代后显式配 `SB_PUBLIC_ORIGIN=https://11wand.com`。本地开发另注册一个 callback 为 `http://localhost:5173/api/auth/github/callback` 的 App（GitHub 不允许 localhost 生产凭据混用）。
+
+### §2.9 部署形态：local（本地单人）/ cloud（线上多用户）（2026-09-20 拍板）
+
+> 定位：**本地与线上的行为差异从「隐式巧合」升为「显式契约」**。老板原话：「本地的和线上的要有区别，本地的不用登录也可以使用，并且之后本地的会出现线上没有的功能」。
+
+**形态判定（唯一事实源 `server/auth/form.ts`）**：`SB_REQUIRE_AUTH` 开 ⇒ `cloud`；关（缺省）⇒ `local`。
+★ 形态是**部署事实**，启动时读定、进程内不变——`index.ts` 的强制鉴权闸门与 `/api/auth/providers` 的 `form` 字段都认这一个值，**禁止任何代码再各自读 env 判形态**（读两次必然漂一次）。
+
+**前端启动分叉（`main.tsx` → `app/entry.ts` 纯函数，配回归锁）**：
+
+| 登录态 | form=local（本地单人） | form=cloud（线上多用户） |
+|---|---|---|
+| 已登录 | 应用壳 | 应用壳 |
+| 未登录 | **免登录直进应用壳** | 落地页（介绍 → 注册/登录） |
+
+★ **本地免登录不是新造的能力**：后端 `auth/ownership.ts` 的归属模型里 `ownerIdOf → null`（不过滤 / 无主行）就是「未登录的单人本地模式」，早已有之且经 M2 系列锁死（`canAccessSession` 对 null 放行、`ownerForWrite(null) → ''`）；本批补的只是**前端不再未登录就怼落地页**。★ 兜底口径：`me()` 401 后问 surface，surface 也问不到（服务没起/网络断）按 `cloud` 处理——**问不到形态时按更严的一侧兜底，不悄悄放开**。
+
+**已知边界（诚实记账）**：本地形态下登录 → 退出 → 再操作，期间产生的数据归属会随登录态切换（无主行 vs 本人行）——单人形态可接受；真要把本地历史「认领」给某个账号，走既有 `_probe/claim-legacy.mjs` 通道。
+
+**后续「本地有、线上没有」的功能以 `deployForm()` 返回值为唯一分叉点**；响应端点复用 `GET /api/auth/providers`（职责 = 「前端启动要问的全部 auth 面信息」，形状 `{ providers, form }`），不为此加第二个端点。
 
 ---
 

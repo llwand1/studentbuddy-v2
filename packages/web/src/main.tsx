@@ -10,10 +10,11 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
+import { entryFor } from './app/entry';
 import { Landing } from './app/Landing';
 import { PkApp } from './features/pk/PkApp';
 import { api } from './lib/api';
-import type { AuthUser } from '@sb/shared';
+import type { AuthUser, DeployForm } from '@sb/shared';
 import './styles/tokens.css';
 
 /** GoatCounter 统计脚本（index.html 注入）的最低类型面；SPA 路由切换时手动补计数 */
@@ -32,6 +33,8 @@ function Root() {
   const [pk, setPk] = useState(() => isPkHash());
   /** undefined = /api/auth/me 查询中；null = 未登录；非空 = 已登录 */
   const [user, setUser] = useState<AuthUser | null | undefined>(undefined);
+  /** 部署形态（契约 AUTH-SPEC §2.9）：local 免登录直进应用壳，cloud 走落地页。缺省按线上口径兜底 */
+  const [form, setForm] = useState<DeployForm>('cloud');
   useEffect(() => {
     const on = () => setPk(isPkHash());
     window.addEventListener('hashchange', on);
@@ -41,7 +44,20 @@ function Root() {
     api.auth
       .me()
       .then((u) => setUser(u))
-      .catch(() => setUser(null)); // 401 = 未登录，是正常状态不是异常
+      .catch(() => {
+        // 401 = 未登录（正常状态）：再问部署形态——本地单人形态**免登录直接进应用壳**
+        //（2026-09-20 拍板，契约 AUTH-SPEC §2.9）；线上形态走落地页。
+        api.auth
+          .surface()
+          .then((s) => {
+            setForm(s.form);
+            setUser(null);
+          })
+          .catch(() => {
+            setForm('cloud'); // 形态也问不到（服务没起/网络断）：按线上口径兜底，不悄悄放开
+            setUser(null);
+          });
+      });
   }, []);
   // SPA 路由计数：hash 变化不会触发整页加载，GoatCounter 的自动计数覆盖不到，手动补一针
   useEffect(() => {
@@ -51,7 +67,8 @@ function Root() {
   }, []);
   if (pk) return <PkApp />;
   if (user === undefined) return null; // 登录态查询中的空窗，避免「落地页闪一下又进应用」
-  return user ? <App /> : <Landing onAuthed={(u) => setUser(u)} />;
+  if (user) return <App />;
+  return entryFor(user, form) === 'app' ? <App /> : <Landing onAuthed={(u) => setUser(u)} />;
 }
 
 createRoot(document.getElementById('root')!).render(

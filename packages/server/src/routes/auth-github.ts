@@ -25,6 +25,7 @@ import {
   verifyState,
 } from '../auth/github.js';
 import { createSession } from '../auth/session.js';
+import { deployForm } from '../auth/form.js';
 import { readCookie, sessionCookieOptions, setSessionCookie } from '../auth/middleware.js';
 
 export const githubAuthRouter = Router();
@@ -75,9 +76,13 @@ function queryStr(v: unknown): string | null {
   return typeof v === 'string' && v ? v : null;
 }
 
-/** 登录方式可用性。按钮画不画由前端决定，服务端只报事实。 */
+/**
+ * 登录面信息（契约 §2.8/§2.9）：GitHub 可用性 + **部署形态**——前端启动分叉的唯一依据
+ * （`local` 本地单人形态免登录直进应用壳；`cloud` 线上形态走落地页）。
+ * ★ 端点职责从「GitHub 探针」扩为「auth 面信息」，路径不变——前端已按它发探针，扩字段零迁移。
+ */
 githubAuthRouter.get('/providers', (_req: Request, res: Response) => {
-  res.json({ providers: { github: githubConfigured() } });
+  res.json({ providers: { github: githubConfigured() }, form: deployForm() });
 });
 
 /** 发 state + 跳 GitHub 授权页。 */

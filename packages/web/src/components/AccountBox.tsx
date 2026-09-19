@@ -4,20 +4,14 @@
  * ★ 本组件是侧栏**唯一**的身份入口（旧 PK 昵称框 `UserAuthBox` 已于 2026-09-18 下线）：
  *   登录之后会话列表按 `sessions.user_id` 过滤（docs/TENANCY-SPEC.md），别人看不见你的会话。
  *
- * ★ 登录态**不自持、不落 localStorage**：会话是 httpOnly cookie，JS 读不到。启动与每次操作后
- *   都问 `/api/auth/me`。在前端存「我已登录」就会出现「界面显示已登录、服务端会话早过期」的假象，
- *   而这类假象正是权限类 bug 最难排查的一种。
+ * ★ 登录态**不自持、不落 localStorage**：会话是 httpOnly cookie，JS 读不到，启动与每次操作后都问
+ *   `/api/auth/me`——在前端存「我已登录」会造出「界面已登录、服务端会话早过期」的假象（最难排查）。
+ * ★ 校验复用 `@sb/shared` 纯函数（`normalizeEmail` / `passwordProblem`），与服务端同一份代码（ADR-5）。
  *
- * ★ 校验复用 `@sb/shared` 的纯函数（`normalizeEmail` / `passwordProblem`），与服务端**同一份代码**：
- *   表单放行的，服务端必然也放行；反过来服务端拒的，这里也先拦下来（ADR-5：失败可读可重试）。
- *
- * ★ 2026-09-18（M1.6）本组件补齐三条通道，**一个表单**承载：
- *   · **注册**（`register` 态）：邮箱 → 发码 → 验证码 + 密码 + 昵称。★ 契约 §2.7 的
- *     「注册即验证」在这里的体现是**没有验证码就提交不了**——前端的必填校验与服务端的
- *     `code` 必填是同一件事的两侧，不是「前端限制」。
- *   · **密码登录**：不依赖邮件（§4.6 缓解第 5 条），邮件通道挂了用户仍能进。
- *   · **验证码登录**：与密码登录产出**同一种会话**，不是第二套账号体系。
- *   ⚠️ 三条通道共用 `email` 输入框是刻意的：用户换通道时**不该重打一遍邮箱**。
+ * ★ 2026-09-18（M1.6）一个表单承载三条通道：**注册**（邮箱 → 发码 → 验证码+密码+昵称；契约 §2.7
+ *   「注册即验证」= 没有验证码提交不了，前端必填与服务端 `code` 必填是同一件事的两侧）、
+ *   **密码登录**（不依赖邮件，邮件通道挂了仍能进，§4.6）、**验证码登录**（与密码登录产出同一种
+ *   会话，不是第二套账号体系）。⚠️ 三通道共用 `email` 输入框：换通道不该重打一遍邮箱。
  *
  * ⚠️ **发码的冷却秒数取自 `AUTH_CODE_RESEND_INTERVAL_MS`（不是写死 60）**：服务端的邮箱桶
  *   间隔就是它，前端写死一个数就会出现「按钮能点了但服务端还回 429」——而用户看不懂
@@ -40,13 +34,23 @@ type Mode = 'login' | 'register';
 const RESEND_SECONDS = Math.ceil(AUTH_CODE_RESEND_INTERVAL_MS / 1000);
 
 /**
- * @param onAuthChange 登录 / 退出后的回调。App 用它重载会话列表——**过滤条件随身份变化**，
- *   不重载的话侧栏会继续显示已经不属于当前用户的会话，看着能用、点进去才 404。
+ * @param onAuthChange 登录 / 退出 / 启动查询的回调（**带最新身份**）：App 重载会话列表、落地页感知已登录换根。
+ * @param standalone **落地页形态**（app/Landing.tsx 用）：隐藏触发器、表单常开——表单逻辑只有这一份。
+ * @param initialMode 初始模式（两条 CTA 分别要「注册」「登录」）：模式是内部状态，调用方用 `key` 重挂切换。
  */
-export function AccountBox({ onAuthChange }: { onAuthChange?: () => void }) {
+export function AccountBox({
+  onAuthChange,
+  standalone = false,
+  initialMode = 'login',
+}: {
+  /** 登录 / 退出 / 启动查询都会回调（带最新身份；落地页靠它感知「已登录」换根进应用） */
+  onAuthChange?: (user: AuthUser | null) => void;
+  standalone?: boolean;
+  initialMode?: Mode;
+}) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<Mode>('login');
+  const [open, setOpen] = useState(standalone);
+  const [mode, setMode] = useState<Mode>(initialMode);
   /** 仅登录模式有意义：密码 / 验证码二选一（注册模式恒为「验证码 + 密码」）。 */
   const [byCode, setByCode] = useState(false);
   const [email, setEmail] = useState('');
@@ -58,9 +62,13 @@ export function AccountBox({ onAuthChange }: { onAuthChange?: () => void }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    // 仅挂载查一次（onAuthChange 不进依赖：App 传内联箭头，进依赖会每渲染重跑 me）
     api.auth
       .me()
-      .then(setUser)
+      .then((u) => {
+        setUser(u);
+        onAuthChange?.(u);
+      })
       .catch(() => setUser(null)); // 401 = 未登录，是正常状态不是异常
   }, []);
 
@@ -139,7 +147,7 @@ export function AccountBox({ onAuthChange }: { onAuthChange?: () => void }) {
       setPassword('');
       setCode('');
       setCooldown(0);
-      onAuthChange?.();
+      onAuthChange?.(next);
     } catch (err) {
       // ApiError 里带的是服务端 `ERROR_TEXT` 的人话（如「这个邮箱已经注册过了，直接登录试试」）
       setError(err instanceof Error ? err.message : '操作失败，请重试');
@@ -160,7 +168,7 @@ export function AccountBox({ onAuthChange }: { onAuthChange?: () => void }) {
     setPassword('');
     setCode('');
     setBusy(false);
-    onAuthChange?.();
+    onAuthChange?.(null);
   }, [onAuthChange]);
 
   const showPassword = mode === 'register' || !byCode;
@@ -169,9 +177,9 @@ export function AccountBox({ onAuthChange }: { onAuthChange?: () => void }) {
 
   return (
     <div className="sb-user-box sb-account-box" title={user ? '点击退出登录' : '点击登录 / 注册'}>
-      {/* 收起态的那一块（头像 + 名称 + 标签）已抽到 `AccountTrigger.tsx`——见该文件头注 */}
-      <AccountTrigger user={user} collapsed={!open} onToggle={toggle} />
-      {open && (
+      {/* 收起态块（头像+名称）在 AccountTrigger.tsx；standalone（落地页）无侧栏身份语义，不渲染 */}
+      {!standalone && <AccountTrigger user={user} collapsed={!open} onToggle={toggle} />}
+      {(standalone || open) && (
         <form
           className="sb-user-form"
           onSubmit={(e) => {

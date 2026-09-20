@@ -9,7 +9,7 @@
  *   默认顺手把词条勾进范围，否则本文件前半部分会集体"看不见自己造的词条"。
  *   范围本身的默认值由 `describe('复习范围')` 单独钉，不靠改这个 helper 表达。
  */
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect, afterAll, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -27,6 +27,20 @@ interface ReviewBody {
   review_stage: number;
   last_reviewed_at: string | null;
   review: { stage: number; daysSince: number; overdueDays: number; status: string; intervalDays: number };
+}
+
+/** 队列条目（v1.2 起每条多一个 `segment`，标明它来自三段里的哪一段，契约 §10.3） */
+interface QueueItemBody extends ReviewBody {
+  segment: 'due' | 'extra' | 'repeat';
+}
+
+/** 队列响应（v1.2 起是**对象**：条目 + 目标 + 进度 + 池子大小，契约 §10.7） */
+interface QueueResult {
+  items: QueueItemBody[];
+  goal: { count: number; domains: string[] };
+  doneCards: number;
+  doneTerms: number;
+  poolSize: number;
 }
 
 /** 设复习范围（领域级 / 词条级同一端点，靠 body 里的键区分） */
@@ -68,16 +82,43 @@ const overview = async () => {
     overdue: number;
     fresh: number;
     todayDone: number;
+    /** v1.2：今日**张数**（含重复打卡）——日目标进度的分子（契约 §10.6） */
+    todayCards: number;
     mastered: number;
     maxOverdueDays: number;
     recent: Array<{ day: string; done: number }>;
   };
 };
 
+/**
+ * 今日队列的**条目**。
+ * ★ v1.2 起响应是对象（多了目标与进度），本 helper 只取 `items`——**老用例不关心目标**，
+ *   让它们继续拿数组，是为了把本批的改动面压在"新增"上，而不是顺手改二十处调用点。
+ */
 const queue = async (limit?: number) => {
   const res = await request(app).get(limit ? `/api/terms/review/queue?limit=${limit}` : '/api/terms/review/queue').expect(200);
-  return res.body as ReviewBody[];
+  return (res.body as QueueResult).items;
 };
+
+/** 队列的**完整响应**（目标 + 进度 + 池子大小）——v1.2 的用例用它 */
+const queueFull = async (limit?: number, domain?: string) => {
+  const p = new URLSearchParams();
+  if (limit !== undefined) p.set('limit', String(limit));
+  if (domain) p.set('domain', domain);
+  const qs = p.toString();
+  const res = await request(app).get(`/api/terms/review/queue${qs ? `?${qs}` : ''}`).expect(200);
+  return res.body as QueueResult;
+};
+
+/** 读目标（未配过回默认 `{count:0,domains:[]}`） */
+const readGoal = async () => {
+  const res = await request(app).get('/api/terms/review/goal').expect(200);
+  return res.body as { count: number; domains: string[] };
+};
+
+/** 写目标（v1.2）。★ body **刻意是可选的/可以是畸形值**：本 helper 也用来验"坏输入被归一" */
+const writeGoal = (body: unknown) =>
+  request(app).put('/api/terms/review/goal').set('Origin', origin).send(body as object);
 
 const mark = (id: string, remembered: boolean) =>
   request(app).post(`/api/terms/${id}/review`).set('Origin', origin).send({ remembered });
@@ -177,7 +218,8 @@ describe('词条复习 — 复习范围（v28 选择式复习）', () => {
   };
   const queueOf = async (domain: string) => {
     const res = await request(app).get(`/api/terms/review/queue?domain=${encodeURIComponent(domain)}`).expect(200);
-    return res.body as ReviewBody[];
+    // v1.2：响应是对象，这里取条目（老用例不关心目标与进度）
+    return (res.body as QueueResult).items;
   };
 
   it('★ 默认全不选：新词条不进概览、不进队列；勾选后才进（且按清零重来算作"从未复习"）', async () => {
@@ -312,5 +354,131 @@ describe('词条复习 — 复习范围（v28 选择式复习）', () => {
 
   it('范围写口吃同一道跨源闸门（无 Origin → 403）', async () => {
     await request(app).put('/api/terms/review/scope').send({ domain: 'math', enabled: true }).expect(403);
+  });
+});
+
+/**
+ * ★ v1.2 自定义复习目标（契约 EBBINGHAUS-SPEC §10）：本组钉四件事——
+ *   ① 三段补位的**顺序与来源**（真账 → 提前背 → 重复巩固，§10.3）；
+ *   ② ★★ **同日只推进一次**（§10.5，本节的 P0：不做这个闸门，用户一天刷 7 遍就能从
+ *      stage 0 直接毕业，60 天的曲线计划 20 分钟刷完——整个复习体系的价值归零）；
+ *   ③ 两个计数各司其职（`todayCards` 含重复 / `todayDone` 去重，§10.6）；
+ *   ④ **`count = 0` 时退回 v1.1 行为**（§10.2 的向后兼容承诺：不设目标 = 什么都没变）。
+ * ★ 目标是 `app_settings` 里**按用户**的全局配置（不分领域）⇒ 每个用例结束都要重置，
+ *   否则"设了目标 3 条"会漏进后面的用例，让它们看到意料之外的队列长度。
+ * ★ 造"未到期"的词条不需要任何操作：新建即 `upcoming`（stage 0 的间隔是 1 天，
+ *   入库当天 `daysSince = 0 < 1`）。
+ */
+describe('词条复习 — 自定义目标（v1.2）', () => {
+  afterEach(async () => {
+    await writeGoal({ count: 0, domains: [] }).expect(200);
+  });
+
+  const lastReviewedAt = (id: string): string | null =>
+    (
+      getDb().prepare('SELECT last_reviewed_at FROM term_library WHERE id = ?').get(id) as {
+        last_reviewed_at: string | null;
+      }
+    ).last_reviewed_at;
+
+  it('默认关闭：未配过时 GET 回 {count:0,domains:[]}，且队列只放真账（＝ v1.1 行为）', async () => {
+    expect(await readGoal()).toEqual({ count: 0, domains: [] });
+
+    const overdue = await addTerm('目标默认-欠账', 'goal-a');
+    age(overdue, 5);
+    const fresh = await addTerm('目标默认-未到期', 'goal-a');
+    const res = await queueFull(undefined, 'goal-a');
+    expect(res.goal.count).toBe(0);
+    // ★ 未设目标 ⇒ **不补位**：未到期的词条不该被塞进来
+    expect(res.items.map((t) => t.id)).toEqual([overdue]);
+    expect(res.items.map((t) => t.id)).not.toContain(fresh);
+  });
+
+  it('设了目标就补位：真账 + 提前背凑够条数，segment 如实标出它来自哪一段', async () => {
+    const overdue = await addTerm('补位-欠账', 'goal-b');
+    age(overdue, 5);
+    await addTerm('补位-未到期甲', 'goal-b');
+    await addTerm('补位-未到期乙', 'goal-b');
+
+    expect((await writeGoal({ count: 3, domains: [] }).expect(200)).body).toEqual({ count: 3, domains: [] });
+    const res = await queueFull(undefined, 'goal-b');
+    expect(res.items).toHaveLength(3);
+    expect(res.items[0]?.segment).toBe('due'); // 真账永远排最前
+    expect(res.items.slice(1).every((t) => t.segment === 'extra')).toBe(true);
+  });
+
+  it('★ 凑不满目标就如实短，且**不重复同一条词条充数**', async () => {
+    await addTerm('稀缺词条', 'goal-c');
+    await writeGoal({ count: 30, domains: [] }).expect(200);
+    const res = await queueFull(undefined, 'goal-c');
+    expect(res.items).toHaveLength(1);
+    expect(res.poolSize).toBe(1); // 池子大小如实回报，前端据此说明"只有 N 条可补"
+  });
+
+  it('★★ 同日只推进一次：第二次打卡不推进 stage、也不刷新基准日', async () => {
+    const id = await addTerm('同日闸门', 'goal-d');
+    age(id, 5);
+
+    const first = await mark(id, true).expect(200);
+    expect((first.body as ReviewBody).review_stage).toBe(1);
+
+    // ★ 把基准日改成一个**可识别的旧值**，这样"重复打卡有没有刷新它"才测得出来：
+    //   若直接比较两次响应的 `last_reviewed_at`，`datetime('now')` 只精确到秒，
+    //   同一秒内的两次打卡值相同 ⇒ 断言恒真、等于没测（本仓在 `thinkingMs` 上踩过同款坑）。
+    age(id, 7);
+    const before = lastReviewedAt(id);
+
+    const second = await mark(id, true).expect(200);
+    expect((second.body as ReviewBody).review_stage).toBe(1); // 不推进
+    expect(lastReviewedAt(id)).toBe(before); // 基准日原封不动
+  });
+
+  it('★ 同日重复但"忘了" → 仍然归零（忘了是硬事实，不因今天已推进过就装作没忘）', async () => {
+    const id = await addTerm('同日忘了', 'goal-e');
+    age(id, 5);
+    await mark(id, true).expect(200);
+    const forgot = await mark(id, false).expect(200);
+    expect((forgot.body as ReviewBody).review_stage).toBe(0);
+    expect((forgot.body as ReviewBody).review.daysSince).toBe(0);
+  });
+
+  it('两个计数各司其职：todayCards 含重复、todayDone 去重', async () => {
+    const id = await addTerm('计数口径', 'goal-f');
+    age(id, 5);
+    const before = await overview();
+    await mark(id, true).expect(200);
+    await mark(id, true).expect(200);
+    await mark(id, true).expect(200);
+    const after = await overview();
+    expect(after.todayCards - before.todayCards).toBe(3); // 刷了 3 张
+    expect(after.todayDone - before.todayDone).toBe(1); // 只碰过 1 个词条
+  });
+
+  it('★ 目标归零 ⇒ 队列退回"只真账"（向后兼容承诺：不设目标 = 什么都没变）', async () => {
+    const overdue = await addTerm('回退-欠账', 'goal-g');
+    age(overdue, 5);
+    await addTerm('回退-未到期', 'goal-g');
+
+    await writeGoal({ count: 5, domains: [] }).expect(200);
+    expect((await queueFull(undefined, 'goal-g')).items).toHaveLength(2); // 补位：真账 + 提前背
+
+    await writeGoal({ count: 0, domains: [] }).expect(200);
+    const back = await queueFull(undefined, 'goal-g');
+    expect(back.goal.count).toBe(0);
+    expect(back.items.map((t) => t.id)).toEqual([overdue]);
+  });
+
+  it('写口归一：坏输入归一后落库，且**回写归一结果**（客户端拿到的是服务端实际存的）', async () => {
+    const r = await writeGoal({ count: '30', domains: ['cs', 'cs', '  ', 3] }).expect(200);
+    // 字符串 '30' 不猜（猜错的方向恰好是"把关闭读成开启"）、去重、丢空串、丢非字符串
+    expect(r.body).toEqual({ count: 0, domains: ['cs'] });
+    expect(await readGoal()).toEqual({ count: 0, domains: ['cs'] });
+
+    const big = await writeGoal({ count: 9999, domains: 'bad' }).expect(200);
+    expect(big.body).toEqual({ count: 200, domains: [] }); // 超上限钳到 200（**不是**队列上限 100）
+  });
+
+  it('目标写口吃同一道跨源闸门（无 Origin → 403）', async () => {
+    await request(app).put('/api/terms/review/goal').send({ count: 5 }).expect(403);
   });
 });

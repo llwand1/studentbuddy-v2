@@ -1,0 +1,3 @@
+# 封闭期（IP 申请制）：全面禁止抓取。转开放当天换放行版（行动清单 T-15，含 Sitemap 行）。
+User-agent: *
+Disallow: /

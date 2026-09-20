@@ -14,9 +14,11 @@
  *     前端再排一次就可能有第二套顺序。
  */
 import { useCallback, useEffect, useState } from 'react';
-import { api, type ReviewOverview, type ReviewTermItem } from '../../lib/api';
+import type { ReviewGoal } from '@sb/shared';
+import { api, type ReviewOverview, type ReviewQueueItem, type ReviewTermItem } from '../../lib/api';
 import { ClockIcon, CheckIcon } from '../../components/icons';
 import { ReviewScopePicker } from './ReviewScopePicker';
+import { ReviewGoalCard } from './ReviewGoalCard';
 
 const QUEUE_LIMIT = 20;
 
@@ -31,7 +33,7 @@ function badgeClass(s: ReviewTermItem['review']): string {
 
 export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; onChanged?: () => void }) {
   const [overview, setOverview] = useState<ReviewOverview | null>(null);
-  const [queue, setQueue] = useState<ReviewTermItem[]>([]);
+  const [queue, setQueue] = useState<ReviewQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   /**
    * 队列默认**收起**（v23.1）：本页的主体是词条库，而队列一展开就是 20 条（实测 2073px），
@@ -44,6 +46,16 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
    * 合成一个开关的话，每次想调范围都得先展开 20 条队列，页面被挤走。
    */
   const [scopeOpen, setScopeOpen] = useState(false);
+  /**
+   * 今日目标面板（v1.2）：与范围、队列**各自独立**的第三个开关——目标是"每天背多少"、
+   * 范围是"该背哪些"、队列是"今天还哪些账"，三者改动频率不同，合成一个每次都要先展开别的。
+   */
+  const [goalOpen, setGoalOpen] = useState(false);
+  /**
+   * 队列响应里的目标与进度（v1.2）：**与队列同源**，不另打一次概览去凑——
+   * 分两次请求就可能出现"队列里还有 5 条、进度却说已达标"（契约 §10.7）。
+   */
+  const [queueMeta, setQueueMeta] = useState<{ goal: ReviewGoal; doneCards: number; poolSize: number } | null>(null);
   const [revealed, setRevealed] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -52,7 +64,8 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
     try {
       const [ov, q] = await Promise.all([api.terms.overview(domain), api.terms.queue(QUEUE_LIMIT, domain)]);
       setOverview(ov);
-      setQueue(q);
+      setQueue(q.items);
+      setQueueMeta({ goal: q.goal, doneCards: q.doneCards, poolSize: q.poolSize });
       setRevealed([]);
     } finally {
       setLoading(false);
@@ -68,9 +81,11 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
     setBusy(id);
     try {
       await api.terms.mark(id, remembered);
-      setQueue((prev) => prev.filter((t) => t.id !== id));
-      const ov = await api.terms.overview(domain);
-      setOverview(ov);
+      // ★ v1.2：打卡后**整批重拉**，不再"本地删一条"就完事。队列现在会**补位**：
+      //   真账刷完后服务端会把"提前背"的词条补进来；本地只删的话，用户会看到空队列却还没达标。
+      //   重拉还顺带把 `doneCards`（进度）与服务端对齐——本地自增一旦分叉，
+      //   就会出现"进度条满了但队列还有货"这种当场露馅的不一致。
+      await reload();
       onChanged?.(); // stage 变了 ⇒ 外层列表的「N 天没复习」也要跟着变
     } finally {
       setBusy(null);
@@ -98,7 +113,14 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
               <>
                 <span className="rv-sum-warn">逾期 {overview.overdue}</span>
                 <span>待复习 {overview.due}</span>
-                <span>今日已复习 {overview.todayDone}</span>
+                {/* v1.2：设了目标就显示**张数**进度（含重复打卡），没设才显示去重的词条数 */}
+                {queueMeta && queueMeta.goal.count > 0 ? (
+                  <span>
+                    今日 {queueMeta.doneCards}/{queueMeta.goal.count} 张
+                  </span>
+                ) : (
+                  <span>今日已复习 {overview.todayDone}</span>
+                )}
               </>
             )}
           </span>
@@ -107,118 +129,140 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
         <button className="rv-toggle" aria-expanded={scopeOpen} onClick={() => setScopeOpen((o) => !o)}>
           {scopeOpen ? '收起范围' : '复习范围'}
         </button>
+        <button className="rv-toggle" aria-expanded={goalOpen} onClick={() => setGoalOpen((o) => !o)}>
+          {goalOpen ? '收起目标' : '今日目标'}
+        </button>
         <button className="rv-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
           {open ? '收起队列' : '展开队列'}
           <i className={open ? 'rv-caret on' : 'rv-caret'} />
         </button>
       </div>
 
-      {scopeOpen && (
-        <ReviewScopePicker
-          onChanged={() => {
-            // 范围一变，概览/队列/词条行的徽标**全都**要跟着变（范围是本页最大的一个开关）
-            void reload().catch(() => undefined);
-            onChanged?.();
-          }}
-        />
-      )}
+      {/* 面板体是**唯一可滚区**（见 terms.css `.rv-body` 那条事故注释）：开关行留在体外，
+          滚到哪儿都还能收起来——否则"展开"就成了单向操作。 */}
+      <div className="rv-body">
+        {scopeOpen && (
+          <ReviewScopePicker
+            onChanged={() => {
+              // 范围一变，概览/队列/词条行的徽标**全都**要跟着变（范围是本页最大的一个开关）
+              void reload().catch(() => undefined);
+              onChanged?.();
+            }}
+          />
+        )}
 
-      {loading && !overview && <div className="rv-loading">正在算欠账…</div>}
+        {goalOpen && queueMeta && (
+          <ReviewGoalCard
+            doneCards={queueMeta.doneCards}
+            poolSize={queueMeta.poolSize}
+            onChanged={() => {
+              // 目标一变，队列的补位条数与进度**全都**要跟着变（同范围卡的理由）
+              void reload().catch(() => undefined);
+              onChanged?.();
+            }}
+          />
+        )}
 
-      {open && overview && (
-        <>
-          <div className="rv-sched">经典节点 {SCHEDULE_TEXT}</div>
-          <div className="rv-stats">
-            <span className="rv-stat">
-              <b>{overview.due}</b> 待复习
-            </span>
-            <span className="rv-stat rv-stat-warn">
-              <b>{overview.overdue}</b> 逾期
-            </span>
-            <span className="rv-stat">
-              <b>{overview.todayDone}</b> 今日已复习
-            </span>
-            <span className="rv-stat">
-              <b>{overview.maxOverdueDays}</b> 天最久欠账
-            </span>
-            <span className="rv-stat">
-              <b>{overview.mastered}</b> 已入长期记忆
-            </span>
-          </div>
+        {loading && !overview && <div className="rv-loading">正在算欠账…</div>}
 
-          <div className="rv-bars" title="近 7 天每日复习量">
-            {overview.recent.map((d) => (
-              <span key={d.day} className="rv-bar-wrap">
-                {/* gates:style-ok 数据驱动高度走 CSS 变量（非硬编码样式） */}
-                <i className="rv-bar" style={{ ['--rv-h' as string]: `${Math.round((d.done / peak) * 100)}%` }} />
-                <em>{d.day.slice(5)}</em>
+        {open && overview && (
+          <>
+            <div className="rv-sched">经典节点 {SCHEDULE_TEXT}</div>
+            <div className="rv-stats">
+              <span className="rv-stat">
+                <b>{overview.due}</b> 待复习
               </span>
-            ))}
-          </div>
-        </>
-      )}
+              <span className="rv-stat rv-stat-warn">
+                <b>{overview.overdue}</b> 逾期
+              </span>
+              <span className="rv-stat">
+                <b>{overview.todayDone}</b> 今日已复习
+              </span>
+              <span className="rv-stat">
+                <b>{overview.maxOverdueDays}</b> 天最久欠账
+              </span>
+              <span className="rv-stat">
+                <b>{overview.mastered}</b> 已入长期记忆
+              </span>
+            </div>
 
-      {open && (
-        <>
-          <div className="rv-queue-head">今日队列（先还旧账）</div>
-
-      {!loading && queue.length === 0 && (
-        <div className="rv-empty">
-          <CheckIcon size={18} />
-          {/* ★ 三句话对应三种完全不同的下一步（v28 加了第一条）：
-              没选范围 → 去选；有欠账但队列空 → 刷新；真的没到期 → 什么都不用做。
-              全说成"今天没有要复习的词条"会让第一种情况永远无解。 */}
-          <span>
-            {overview && overview.total === 0
-              ? '还没选复习范围——点上方「复习范围」勾选要背的领域或词条'
-              : overview && overview.due > 0
-                ? '这一批复习完了，刷新看还有没有'
-                : '今天没有到期要复习的词条'}
-          </span>
-        </div>
-      )}
-
-      <div className="rv-queue">
-        {queue.map((t) => (
-          <div key={t.id} className={`rv-item rv-${t.review.status}`}>
-            <div className="rv-item-main">
-              <div className="rv-item-top">
-                <span className="rv-term">{t.term}</span>
-                <span className="rv-domain">{t.domain}</span>
-                <span className={badgeClass(t.review)}>
-                  {t.review.status === 'overdue'
-                    ? `逾期 ${t.review.overdueDays} 天`
-                    : t.review.status === 'due'
-                      ? '今天到期'
-                      : '待复习'}
+            <div className="rv-bars" title="近 7 天每日复习量">
+              {overview.recent.map((d) => (
+                <span key={d.day} className="rv-bar-wrap">
+                  {/* gates:style-ok 数据驱动高度走 CSS 变量（非硬编码样式） */}
+                  <i className="rv-bar" style={{ ['--rv-h' as string]: `${Math.round((d.done / peak) * 100)}%` }} />
+                  <em>{d.day.slice(5)}</em>
                 </span>
-                <span className="rv-days">{t.review.daysSince} 天没复习</span>
-              </div>
-              {revealed.includes(t.id) ? (
-                <div className="rv-def">{t.definition}</div>
-              ) : (
-                <button className="rv-btn" onClick={() => toggle(t.id)}>
-                  看释义
-                </button>
-              )}
-              <div className="rv-meta">
-                第 {Math.min(t.review.stage + 1, 7)}/7 节点 · 记忆保持 ≈ {Math.round(t.review.retention * 100)}%
-                {t.review.basis === 'created' && ' · 还没复习过（按入库时间算）'}
-              </div>
+              ))}
             </div>
-            <div className="rv-item-actions">
-              <button className="rv-btn ok" disabled={busy === t.id} onClick={() => void mark(t.id, true)}>
-                记住了
-              </button>
-              <button className="rv-btn danger" disabled={busy === t.id} onClick={() => void mark(t.id, false)}>
-                忘了
-              </button>
+          </>
+        )}
+
+        {open && (
+          <>
+            <div className="rv-queue-head">今日队列（先还旧账）</div>
+
+            {!loading && queue.length === 0 && (
+              <div className="rv-empty">
+                <CheckIcon size={18} />
+                {/* ★ 三句话对应三种完全不同的下一步（v28 加了第一条）：
+                    没选范围 → 去选；有欠账但队列空 → 刷新；真的没到期 → 什么都不用做。
+                    全说成"今天没有要复习的词条"会让第一种情况永远无解。 */}
+                <span>
+                  {overview && overview.total === 0
+                    ? '还没选复习范围——点上方「复习范围」勾选要背的领域或词条'
+                    : overview && overview.due > 0
+                      ? '这一批复习完了，刷新看还有没有'
+                      : '今天没有到期要复习的词条'}
+                </span>
+              </div>
+            )}
+
+            <div className="rv-queue">
+              {queue.map((t) => (
+                <div key={t.id} className={`rv-item rv-${t.review.status}`}>
+                  <div className="rv-item-main">
+                    <div className="rv-item-top">
+                      <span className="rv-term">{t.term}</span>
+                      <span className="rv-domain">{t.domain}</span>
+                      <span className={badgeClass(t.review)}>
+                        {t.review.status === 'overdue'
+                          ? `逾期 ${t.review.overdueDays} 天`
+                          : t.review.status === 'due'
+                            ? '今天到期'
+                            : '待复习'}
+                      </span>
+                      <span className="rv-days">{t.review.daysSince} 天没复习</span>
+                    </div>
+                    {revealed.includes(t.id) ? (
+                      <div className="rv-def">{t.definition}</div>
+                    ) : (
+                      <button className="rv-btn" onClick={() => toggle(t.id)}>
+                        看释义
+                      </button>
+                    )}
+                    <div className="rv-meta">
+                      {/* v1.2：说清这条**为什么**出现在队列里——它不是欠账，而是补位来的。
+                          不写的话用户会疑惑"我明明没到期，怎么被催了"。 */}
+                      {t.segment !== 'due' && (t.segment === 'extra' ? '提前背 · ' : '再巩固 · ')}
+                      第 {Math.min(t.review.stage + 1, 7)}/7 节点 · 记忆保持 ≈ {Math.round(t.review.retention * 100)}%
+                      {t.review.basis === 'created' && ' · 还没复习过（按入库时间算）'}
+                    </div>
+                  </div>
+                  <div className="rv-item-actions">
+                    <button className="rv-btn ok" disabled={busy === t.id} onClick={() => void mark(t.id, true)}>
+                      记住了
+                    </button>
+                    <button className="rv-btn danger" disabled={busy === t.id} onClick={() => void mark(t.id, false)}>
+                      忘了
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        ))}
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

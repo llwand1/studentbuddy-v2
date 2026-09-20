@@ -124,7 +124,9 @@ export function CoachDock() {
       try {
         const [n, q] = await Promise.all([coachApi.nudge(), api.terms.queue(QUEUE_LIMIT)]);
         if (n.card) setCards((prev) => mergeCards(prev, [n.card as CoachCard]));
-        setQueue(q);
+        // v1.2：队列响应是**对象**（`{items,goal,doneCards,doneTerms,poolSize}`），这里取 `items`
+        // ——督促小窗只关心"还欠哪些"，用户设的日目标不改变它的语义（服务端用 `listDueQueue`）。
+        setQueue(q.items);
         void refreshState(); // 刚落过提醒卡 ⇒ 冷却生效，红点由服务端判定自动熄掉
       } catch {
         // 拉不到就先用旧数据把抽屉打开，别让人点不开

@@ -41,6 +41,19 @@
  *   import 路径：`termScope` / `setDomainReviewScope` / `setTermReviewScope` 三个符号
  *   现在从 `./term-review-scope.js` 取。本文件保留 `SCOPE_FLAG` / `IN_SCOPE` / `SCOPE_FROM`
  *   三个**唯一口径常量**（`domains.ts` 仍从这里取 `SCOPE_FLAG`）。
+ *
+ * ── v1.2（2026-09-21）：自定义复习目标 ────────────────────────────────────────
+ *
+ * ★ **队列的构建已拆到 `review-queue.ts`**（三段补位，契约 §10.3）：本文件只保留
+ *   「**取数 + 判定**」，队列的**排序与拼接**归那边。故 `rowsAll` / `toReviewTerm` 在本文件
+ *   **导出**——那边必须复用同一份取数口径（范围谓词 + 归属），否则会出现「概览说欠 3 条、
+ *   队列里 0 条」这种自打脸。★ `REVIEW_QUEUE_DEFAULT` / `REVIEW_QUEUE_MAX` 随队列一起搬走，
+ *   本文件不再保留（一个常量两处定义就是漂移的起点）。
+ *
+ * ★★ **`markReviewed` 加了「同日只推进一次」的闸门**（§10.5，本节的 P0）：加日目标之后，
+ *   用户一天内把同一条词条刷 7 遍就能从 stage 0 直接毕业——**曲线变成内置作弊器**。
+ *   故当天首次打卡照常推进，同一天内第二次及以后：`remembered=true` 只记流水不动曲线，
+ *   `remembered=false` **仍然归零**（"忘了"是硬事实，不能因为今天已经推进过就装作没忘）。
  */
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
@@ -53,10 +66,6 @@ import {
   MAX_REVIEW_STAGE,
   type ReviewState,
 } from '@sb/shared';
-
-/** 队列默认条数与上限（与 `pk/history.ts` 同手法：归一在域层，路由不自己钳） */
-export const REVIEW_QUEUE_DEFAULT = 20;
-export const REVIEW_QUEUE_MAX = 100;
 
 /** 近 N 天复习量（概览里的柱状输入） */
 export const REVIEW_RECENT_DAYS = 7;
@@ -113,6 +122,13 @@ export interface ReviewOverview {
   fresh: number;
   /** 今日已完成复习的词条数（按词条去重，一天复习三次只算一个） */
   todayDone: number;
+  /**
+   * 今日已完成复习的**张数**（含重复打卡）——日目标进度的分子（契约 §10.6）。
+   * ★ 与 `todayDone` **并列保留、不合并**：合并会二选一地失真——只留去重则刷了 30 张显示 5
+   *   （进度条永远不满，目标形同虚设）；只留含重复则"今日已复习 N"在刷重复时虚高，
+   *   且与 `recent.done`（本来就是 `COUNT(*)`）口径不一致。
+   */
+  todayCards: number;
   /** 已走完七个节点 */
   mastered: number;
   /** 最久的一笔欠账（天） */
@@ -123,7 +139,12 @@ export interface ReviewOverview {
   recent: Array<{ day: string; done: number; remembered: number }>;
 }
 
-interface TermReviewRow {
+/**
+ * 词条行（复习相关列）。
+ * ★ v1.2 起**导出**：`review-queue.ts` 复用 `rowsAll` / `toReviewTerm` 时必须能命名这个类型
+ *   （它只做队列的排序与拼接，取数口径一律回到本文件）。
+ */
+export interface TermReviewRow {
   id: string;
   term: string;
   definition: string;
@@ -140,8 +161,12 @@ interface TermReviewRow {
 const SELECT_REVIEW_COLS = `t.id, t.term, t.definition, t.domain, t.importance, t.usage_count,
   t.created_at, t.updated_at, t.review_stage, t.last_reviewed_at`;
 
-/** 行 → 契约对象（**唯一**的状态计算落点；其它函数都调它，保证同一次请求内口径一致） */
-function toReviewTerm(row: TermReviewRow, now: Date): ReviewTerm {
+/**
+ * 行 → 契约对象（**唯一**的状态计算落点；其它函数都调它，保证同一次请求内口径一致）。
+ * ★ v1.2 起**导出**（`review-queue.ts` 复用）：队列的每一段都必须是同一个 `review` 状态对象，
+ *   那边若自己拼一份，就会出现"队列说今天到期、列表徽标说还有 3 天"。
+ */
+export function toReviewTerm(row: TermReviewRow, now: Date): ReviewTerm {
   const { review_stage, last_reviewed_at, ...rest } = row;
   return {
     ...rest,
@@ -155,8 +180,11 @@ function toReviewTerm(row: TermReviewRow, now: Date): ReviewTerm {
  * 取**在复习范围内**的**本用户**词条行（可选按领域过滤）。
  * ★ 范围谓词写死在这一个出口：概览与队列都从它取数，故两者不可能对"哪些词条算数"有分歧。
  * ★ 归属也写死在这一个出口：两个读口都从它取数，故不可能一处带了归属另一处漏了。
+ * ★ v1.2 起**导出**：`review-queue.ts` 的三段补位也从这里取数（它只负责排序与拼接）。
+ *   队列若自己写一份 SELECT，范围谓词或归属就可能只改一处——那类 bug 只在"恰好有人
+ *   反选过词条"或"两个人有同名领域"时复现。
  */
-function rowsAll(domain: string | undefined, ownerId: string | null): TermReviewRow[] {
+export function rowsAll(domain: string | undefined, ownerId: string | null): TermReviewRow[] {
   const db = getDb();
   const owner = ownerForWrite(ownerId);
   if (domain && domain !== 'all') {
@@ -167,6 +195,26 @@ function rowsAll(domain: string | undefined, ownerId: string | null): TermReview
   return db
     .prepare(`SELECT ${SELECT_REVIEW_COLS} FROM ${SCOPE_FROM} WHERE ${IN_SCOPE} AND t.owner_id = ?`)
     .all(owner) as TermReviewRow[];
+}
+
+/**
+ * 今日复习计数：**张数**（`COUNT(*)`，含重复打卡）与**词条数**（`COUNT(DISTINCT term_id)`）。
+ *
+ * ★ 两个数出自**同一次查询**，因为它们必须一起说同一件事：`cards` 是日目标进度的分子
+ *   （§10.6），`terms` 是"今天碰过几个词条"。分两次查就可能出现"进度说 30 张、词条数也是 30"
+ *   这种把重复打卡当新词条的读数。
+ * ★ 必须 JOIN 回词条判范围（v28）：否则"移出复习范围"的词条其历史打卡仍被计入。
+ * ★ 归属由这次连接带出来（`term_review_log` 没有 owner 列，见文件头）。
+ */
+export function todayReviewCounts(ownerId: string | null, day: string): { cards: number; terms: number } {
+  const row = getDb()
+    .prepare(
+      `SELECT COUNT(*) AS cards, COUNT(DISTINCT l.term_id) AS terms
+         FROM term_review_log l JOIN term_library t ON t.id = l.term_id ${SCOPE_JOIN}
+        WHERE ${IN_SCOPE} AND t.owner_id = ? AND l.reviewed_day = ?`,
+    )
+    .get(ownerForWrite(ownerId), day) as { cards: number; terms: number } | undefined;
+  return { cards: row?.cards ?? 0, terms: row?.terms ?? 0 };
 }
 
 /** 概览：一次扫全表现算（词条量级 ≤500，见 `listTerms` 的 LIMIT，全表扫描比维护计数表更不容易错）。 */
@@ -198,9 +246,9 @@ export function reviewOverview(domain: string | undefined, ownerId: string | nul
   //   （见文件头「`term_review_log` 不加 owner 列」）。
   const scopeJoin = `FROM term_review_log l JOIN term_library t ON t.id = l.term_id ${SCOPE_JOIN} WHERE ${IN_SCOPE} AND t.owner_id = ?`;
   const owner = ownerForWrite(ownerId);
-  const todayRow = db
-    .prepare(`SELECT COUNT(DISTINCT l.term_id) AS c ${scopeJoin} AND l.reviewed_day = ?`)
-    .get(owner, today) as { c: number };
+  // ★ v1.2：今日计数收进 `todayReviewCounts`（张数 + 词条数**同一次查询**），队列响应也调它
+  //   ——两处各写一份 SQL 就会出现"概览说今天 5 条、队列进度说 8 条"。
+  const todayCounts = todayReviewCounts(ownerId, today);
   const recentRaw = db
     .prepare(
       `SELECT l.reviewed_day AS day, COUNT(*) AS done, SUM(l.remembered) AS remembered
@@ -218,7 +266,8 @@ export function reviewOverview(domain: string | undefined, ownerId: string | nul
     due,
     overdue,
     fresh,
-    todayDone: todayRow?.c ?? 0,
+    todayDone: todayCounts.terms,
+    todayCards: todayCounts.cards,
     mastered,
     maxOverdueDays,
     stages,
@@ -226,23 +275,8 @@ export function reviewOverview(domain: string | undefined, ownerId: string | nul
   };
 }
 
-/**
- * 今日复习队列：`status ∈ {due, overdue}`，按逾期天数降序、同欠账按重要度降序。
- * 毕业档（`mastered`）**不进队列**——它的语义就是不再催，塞回队列等于让毕业失效。
- */
-export function listReviewQueue(
-  limit: number | undefined,
-  domain: string | undefined,
-  ownerId: string | null,
-): ReviewTerm[] {
-  const now = new Date();
-  const n = Math.min(Math.max(Math.trunc(limit ?? NaN) || REVIEW_QUEUE_DEFAULT, 1), REVIEW_QUEUE_MAX);
-  return rowsAll(domain, ownerId)
-    .map((r) => toReviewTerm(r, now))
-    .filter((it) => it.review.status === 'due' || it.review.status === 'overdue')
-    .sort((a, b) => b.review.overdueDays - a.review.overdueDays || b.importance - a.importance)
-    .slice(0, n);
-}
+// ★ v1.2：`listReviewQueue` 已搬到 `review-queue.ts`——队列不再是"只取真账再排序"，
+//   而是三段补位（契约 §10.3）。需要"只真账"的调用方（督促小窗）用那边的 `listDueQueue`。
 
 /** 单条词条的复习状态（词条不存在返回 null）。**不判范围**——范围另走 `termScope`。 */
 export function termReviewState(id: string, ownerId: string | null): ReviewTerm | null {
@@ -262,17 +296,35 @@ export function termReviewState(id: string, ownerId: string | null): ReviewTerm 
  *   这里再判一次只会多一条永不触发的分支。
  * ★ `term_review_log` 没有 owner 列 ⇒ 归属靠**入口校验**（`SELECT` 带 owner，查不到就
  *   返回 null 不写流水）+ **回读也带 owner**。流水行的归属此后由 `term_id` 连接表达。
+ *
+ * ★★ **v1.2 的「同日只推进一次」闸门**（契约 §10.5，本节 P0）：加了日目标之后，
+ *   用户一天内把同一条词条刷 7 遍就能从 stage 0 直接毕业——**曲线变成内置作弊器**。
+ *   故：当天首次打卡照常推进；同一天内第二次及以后，`remembered=true` **只记流水、
+ *   不动 stage、也不刷新 `last_reviewed_at`**（纯巩固）；`remembered=false` **仍然归零**
+ *   ——"忘了"是硬事实，不能因为今天已经推进过就装作没忘。
+ *   ★ 判据是「该词条**今天有没有流水**」（查 `term_review_log`），不是内存标记、
+ *   也不是 `last_reviewed_at` 的日期：后者在"首次打卡 23:59、重复打卡次日 00:01"
+ *   这类边界上会把跨日的两次误判成同日（那会让第二天的那次白刷）。
  */
 export function markReviewed(id: string, remembered: boolean, ownerId: string | null): ReviewTerm | null {
   const db = getDb();
   const owner = ownerForWrite(ownerId);
   const now = new Date();
+  const today = localDayKey(now);
   const row = db
     .prepare(`SELECT ${SELECT_REVIEW_COLS} FROM ${SCOPE_FROM} WHERE t.id = ? AND t.owner_id = ?`)
     .get(id, owner) as TermReviewRow | undefined;
   if (!row) return null;
   const before = row.review_stage ?? 0;
-  const after = nextStage(before, remembered);
+  const reviewedToday =
+    (
+      db.prepare('SELECT COUNT(*) AS c FROM term_review_log WHERE term_id = ? AND reviewed_day = ?').get(id, today) as {
+        c: number;
+      }
+    ).c > 0;
+  // 三条分支合成一行：记住 + 今天首次 ⇒ 推进；记住 + 今天已推进过 ⇒ 原地不动；忘了 ⇒ 归零
+  const advance = remembered && !reviewedToday;
+  const after = remembered ? (advance ? nextStage(before, true) : before) : 0;
   const insertLog = db.prepare(
     `INSERT INTO term_review_log (id, term_id, stage, remembered, reviewed_at, reviewed_day)
      VALUES (?, ?, ?, ?, datetime('now'), ?)`,
@@ -281,8 +333,10 @@ export function markReviewed(id: string, remembered: boolean, ownerId: string | 
     `UPDATE term_library SET review_stage = ?, last_reviewed_at = datetime('now') WHERE id = ? AND owner_id = ?`,
   );
   db.transaction(() => {
-    insertLog.run(randomUUID(), id, before, remembered ? 1 : 0, localDayKey(now));
-    updateTerm.run(after, id, owner);
+    insertLog.run(randomUUID(), id, before, remembered ? 1 : 0, today);
+    // ★ 同日重复且记住 ⇒ **跳过整条 UPDATE**（不只是跳过 stage）：`last_reviewed_at` 一并保持不动，
+    //   否则曲线图的时间轴会多出一个"由重复打卡造成、但对曲线零贡献"的基准点。
+    if (advance || !remembered) updateTerm.run(after, id, owner);
   })();
   // ★ **回读库行再算状态**（不拿内存里的 row 拼）：本仓已在 auth 的 `createdAt` 上为
   //   「两个事实源」付过一次学费，库行是唯一事实源。

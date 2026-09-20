@@ -15,7 +15,11 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
 import { routeRole } from '../llm/router.js';
-import { reviewOverview, listReviewQueue, markReviewed, reviewStreak } from './term-review.js';
+import { reviewOverview, markReviewed, reviewStreak } from './term-review.js';
+// ★ v1.2：队列的构建搬到 `review-queue.ts`（三段补位，契约 EBBINGHAUS-SPEC §10.3）。
+//   督促小窗用 `listDueQueue`（**只真账**）——它回答的是"你还欠多少"，与用户设的
+//   "今天想背多少"是两件事：设了日目标不该让教练去催"提前背"的词条（那等于把提醒变成任务）。
+import { listDueQueue } from './review-queue.js';
 // ★ 复习**范围**的写侧在 term-review-scope.ts（M2d-2 拆出，那里刻意不做 re-export 以免成环）
 import { termScope } from './term-review-scope.js';
 import { MENTION_WINDOW_DAYS } from './mention.js';
@@ -60,7 +64,7 @@ function ownerClause(ownerId: string | null, column = 'owner_id'): { sql: string
  */
 export function coachSnapshot(ownerId: string | null): CoachSnapshot {
   const o = reviewOverview(undefined, ownerId);
-  const top = listReviewQueue(COACH_TOP_TERMS, undefined, ownerId).map((t) => ({
+  const top = listDueQueue(COACH_TOP_TERMS, undefined, ownerId).map((t) => ({
     id: t.id,
     term: t.term,
     domain: t.domain,

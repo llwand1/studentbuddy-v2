@@ -1,7 +1,10 @@
 /* terms.css — 词条库页（忆域 v2，取代 memorize.css） */
 
 /* 页面占满 .sb-main 高度做局部滚动：头部/统计/工具栏/添加框固定，仅词条列表内滚
-   （否则整页随内容撑高，滚动发生在 .sb-main 上，是整屏滚而非列表滚） */
+   （否则整页随内容撑高，滚动发生在 .sb-main 上，是整屏滚而非列表滚）
+   ★ v23.2：`overflow` 从 `hidden` 改成 `auto`——`hidden` 是「静默不可达」的帮凶：
+     内容一旦超出（极矮窗口、面板展开到 45vh 上限），被裁掉的那截**连滚过去的办法都没有**。
+     改成 auto 后正常窗口下不出现条（不改变既有观感），挤爆时至少还滚得到。 */
 .term-page {
   max-width: 760px;
   padding: 20px 24px 20px;
@@ -9,7 +12,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .term-head {
@@ -518,18 +521,38 @@
      只有 .term-list 一个弹性子项（flex:1; min-height:0）」的布局。面板若按内容撑高
      （队列顶满 QUEUE_LIMIT=20 ⇒ 实测 2073px），唯一的弹性子项会被压成 4px 并被裁掉，
      且因父级 overflow:hidden 连滚动条都没有 ⇒ 搜索/添加/编辑/删除全部不可达。
-     故面板必须「高度自收敛」：自己做成 flex 列、队列限高内滚、空间不足时整体可收缩。 */
+     故面板必须「高度自收敛」：自己做成 flex 列、队列限高内滚、空间不足时整体可收缩。
+
+   ★★ v23.2 修上面那条的**反方向**事故：面板自己 `flex-shrink:1` + `overflow:hidden`，
+     而 v28 的 `.rv-scope` 是 `flex-shrink:0` ⇒ 窗口矮时面板被压到只剩头，**多出来的内容
+     既看不见也滚不到**（实测 900×620 展开态面板 43px / 裁掉 356px，40 颗「记住了/忘了」
+     只剩 1 颗可达；1024×700 只剩 2 颗）。`.rv-queue` 自己的 `max-height` 内滚**救不了它**——
+     队列整体在外层被裁掉了，滚了也在裁掉的区域里。
+     ⇒ 收敛点从「队列限高」挪到「**面板体限高且可滚**」：`.rv-body` 是面板内唯一滚动区，
+     `.rv-head`（两枚开关）留在体外 ⇒ 滚到哪儿都收得回来，展开不是单向操作。 */
 .rv-panel {
   display: flex;
   flex-direction: column;
-  flex-shrink: 1;
-  min-height: 0;
+  flex-shrink: 0;
+  /* 整块硬上限：与探针 I2 同一条口径（≤ 视口 45%），由构造保证而不是靠里面每块自己克制 */
+  max-height: 45vh;
   overflow: hidden;
   margin: 10px 0 14px;
   padding: 12px 14px;
   border: 1px solid var(--sb-line);
   border-radius: var(--sb-radius-lg);
   background: var(--sb-surface);
+}
+
+/* 面板体是面板内唯一滚动区：`.rv-head`（两枚开关）留在它外面 ⇒ 滚到哪儿都收得回来 */
+.rv-body {
+  display: flex;
+  flex: 0 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  overflow-y: auto;
+  /* 最后一项的 margin-bottom 在滚动容器里不计入高度，故用 padding 兜住 */
+  padding-bottom: 2px;
 }
 
 .rv-head {
@@ -664,15 +687,12 @@
   color: var(--sb-ink-secondary);
 }
 
-/* 队列必须自己滚：面板已被限高（见 .rv-panel 注释），队列是它内部唯一可伸缩的部分 */
+/* 队列不再自己限高内滚：滚动收在 `.rv-body` 一处（两处嵌套滚动 = 滚轮不知道该给谁）。
+   它按内容自然长高，超出部分由面板体滚，所以每一颗「记住了/忘了」都滚得到。 */
 .rv-queue {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  flex-shrink: 1;
-  min-height: 0;
-  max-height: 240px;
-  overflow-y: auto;
 }
 
 .rv-item {
@@ -830,13 +850,12 @@
   line-height: 1.5;
 }
 
-/* 领域多时自己滚：12 个领域排下来约两行，但窄窗口下仍可能把面板撑高 */
+/* 领域列表不再自己限高：面板体已经可滚，两处嵌套滚动只会让滚轮不知道该给谁。
+   12 个领域自然排下来约 4 行（≈130px），由 `.rv-body` 承担滚动。 */
 .rv-scope-list {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  max-height: 132px;
-  overflow-y: auto;
 }
 
 .rv-scope-row {
@@ -940,3 +959,135 @@
   gap: var(--sb-sp-2);
 }
 .term-undo-more { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); }
+
+/* ── 自定义复习目标（v1.2，契约 EBBINGHAUS-SPEC §10）─────────────────────────
+   与 `.rv-scope` 同一套骨架（设置类卡片）：顶部虚线分隔 + 头部一行 + 可换行控件。
+   ★ 与范围卡一样**不自己限高**：面板体（`.rv-body`）已经可滚，嵌套滚动会让滚轮失焦。 */
+.rv-goal {
+  flex-shrink: 0;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--sb-line);
+}
+
+.rv-goal-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink);
+}
+
+.rv-goal-hint,
+.rv-goal-num {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+/* 达标态用品牌色（本页告警色已留给"逾期"，这里不再抢） */
+.rv-goal-ok {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-primary);
+}
+
+.rv-goal-bar {
+  height: 6px;
+  margin: 8px 0 0;
+  border-radius: 3px;
+  background: var(--sb-line);
+  overflow: hidden;
+}
+
+/* 宽度由内联 CSS 变量给（数据驱动，见 ReviewGoalCard 的 gates:style-ok 注释） */
+.rv-goal-fill {
+  display: block;
+  height: 100%;
+  width: var(--rv-goal-pct, 0%);
+  background: var(--sb-primary);
+}
+
+.rv-goal-tip {
+  margin: 6px 0 8px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  line-height: 1.5;
+}
+
+.rv-goal-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rv-goal-label {
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+
+.rv-goal-input {
+  width: 64px;
+  padding: 4px 8px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-bg);
+  color: var(--sb-ink);
+  font-size: var(--sb-fs-sm);
+}
+
+.rv-goal-input:disabled {
+  opacity: 0.55;
+}
+
+.rv-goal-presets {
+  margin-left: 4px;
+}
+
+.rv-goal-presets,
+.rv-goal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rv-goal-domains {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.rv-goal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-bg);
+  color: var(--sb-ink);
+  font-size: var(--sb-fs-xs);
+  cursor: pointer;
+}
+
+.rv-goal-chip:hover:not(:disabled) {
+  border-color: var(--sb-primary);
+}
+
+.rv-goal-chip:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.rv-goal-chip.on {
+  background: var(--sb-primary-weak);
+  border-color: var(--sb-primary);
+}
+
+.rv-goal-msg {
+  margin-top: 8px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  line-height: 1.5;
+}

@@ -21,7 +21,10 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { listTerms, saveOneTerm, saveTerms, extractTerms, removeTerm, updateTerm } from '../learning/terms.js';
 import { ownerIdOf } from '../auth/ownership.js';
-import { reviewOverview, listReviewQueue, markReviewed } from '../learning/term-review.js';
+import { reviewOverview, markReviewed } from '../learning/term-review.js';
+// ★ v1.2：队列的构建在三段补位模块（契约 EBBINGHAUS-SPEC §10.3），目标读写单独一模块（§10.2）
+import { reviewQueue } from '../learning/review-queue.js';
+import { loadReviewGoal, saveReviewGoal } from '../learning/review-goal.js';
 // ★ 复习**范围**的写侧在 term-review-scope.ts（M2d-2 拆出，那里刻意不做 re-export 以免成环）
 import { termScope, setDomainReviewScope, setTermReviewScope } from '../learning/term-review-scope.js';
 import {
@@ -187,13 +190,6 @@ termsRouter.get('/review/overview', (req: Request, res: Response) => {
   res.json(reviewOverview(domain, ownerIdOf(req)));
 });
 
-/** 今日复习队列（按逾期天数降序 = 先还旧账）。`limit` 的归一在域层，这里不自己钳。 */
-termsRouter.get('/review/queue', (req: Request, res: Response) => {
-  const domain = typeof req.query.domain === 'string' ? req.query.domain : undefined;
-  const raw = Number(req.query.limit);
-  res.json(listReviewQueue(Number.isFinite(raw) ? raw : undefined, domain, ownerIdOf(req)));
-});
-
 /**
  * 设复习范围（v28，契约 `docs/EBBINGHAUS-SPEC.md` §9）：**选择式复习**的唯一写口。
  * `{ domain, enabled }` = 领域开关；`{ termId, enabled }` = 单条词条。二者**必须恰好给一个**。
@@ -232,6 +228,35 @@ termsRouter.put('/review/scope', (req: Request, res: Response) => {
     return;
   }
   res.json(r);
+});
+
+/**
+ * 今日复习队列（v1.2 起为**三段补位**：真账 → 提前背 → 重复巩固，契约 §10.3）。
+ *
+ * ★ 响应形状 v1.2 起是**对象**（`{ items, goal, doneCards, doneTerms, poolSize }`）：
+ *   目标与进度必须与队列**同源**——分两次请求就可能出现"队列里还有 5 条、进度却说已达标"。
+ * ★ `limit` 的归一在域层，这里不自己钳；**设了日目标时 `limit` 不生效**（以 `goal.count` 为准），
+ *   未设目标（`count=0`）时才回落到 `limit`（＝ v1.1 行为）。
+ */
+termsRouter.get('/review/queue', (req: Request, res: Response) => {
+  const domain = typeof req.query.domain === 'string' ? req.query.domain : undefined;
+  const raw = Number(req.query.limit);
+  res.json(reviewQueue(Number.isFinite(raw) ? raw : undefined, domain, ownerIdOf(req)));
+});
+
+/** 读自定义复习目标（v1.2，契约 §10.2）。未配过回默认 `{count:0,domains:[]}`（＝关闭）。 */
+termsRouter.get('/review/goal', (req: Request, res: Response) => {
+  res.json(loadReviewGoal(ownerIdOf(req)));
+});
+
+/**
+ * 设自定义复习目标（v1.2，契约 §10.2）：`{ count, domains }`。
+ * ★ 归一在域层（`shared/review-goal.ts` 是前后端唯一一份），本文件**不校验也不钳位**
+ *   ——路由再钳一次就会出现"前端按 200 算、服务端只存 150"的第二份口径。
+ * ★ 回写**归一后**的值：客户端拿到的是服务端实际存的，不是它自己发上去的。
+ */
+termsRouter.put('/review/goal', (req: Request, res: Response) => {
+  res.json(saveReviewGoal(req.body, ownerIdOf(req)));
 });
 
 termsRouter.put('/:id', (req: Request, res: Response) => {

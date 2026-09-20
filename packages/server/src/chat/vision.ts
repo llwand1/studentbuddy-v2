@@ -22,6 +22,7 @@
 import type { ChatMessage, ContentPart, UploadedImage } from '../llm/types.js';
 import { routeRole } from '../llm/router.js';
 import { MAX_CHAT_IMAGES, MAX_IMAGE_DATAURL_CHARS, maxImageSizeHint } from '@sb/shared';
+import { explainVisionFailure } from './vision-error.js';
 
 /**
  * 看图提示词：关键信息前置（详见文件头注释）。覆盖学习场景最常见的读图需求——
@@ -84,17 +85,23 @@ export async function describeImages(
   const messages: ChatMessage[] = [{ role: 'user', content: parts }];
 
   let desc = '';
-  for await (const chunk of target.adapter.chat({
-    model: target.model,
-    apiKey: target.apiKey,
-    baseUrl: target.baseUrl,
-    messages,
-    signal,
-    streamMode: target.streamMode,
-    // 视觉理解不开思考链：Anthropic 下 thinking 会强制占 max_tokens 预算且对「看图说话」无益
-    thinking: false,
-  })) {
-    if (chunk.content) desc += chunk.content;
+  try {
+    for await (const chunk of target.adapter.chat({
+      model: target.model,
+      apiKey: target.apiKey,
+      baseUrl: target.baseUrl,
+      messages,
+      signal,
+      streamMode: target.streamMode,
+      // 视觉理解不开思考链：Anthropic 下 thinking 会强制占 max_tokens 预算且对「看图说话」无益
+      thinking: false,
+    })) {
+      if (chunk.content) desc += chunk.content;
+    }
+  } catch (err) {
+    // ★ 上游报文（英文 JSON + HTTP 状态码）不能直接给用户看——2026-09-20 那次"提示 400"
+    //   就是这么弹出去的，用户既看不懂也不知道该改哪里。翻成人话，原文仍附在末行备查。
+    throw new Error(explainVisionFailure(err, target.model));
   }
   return desc.trim();
 }

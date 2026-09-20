@@ -31,7 +31,7 @@ import { searchApi } from './api-search.js';
 // 领域的类型**转出**给调用方（形状定义在 `api-terms-domain.ts`，那里承担行数红线的解释）。
 export type { DomainRow, DomainsResponse, RenameDomainResult, RemoveDomainResult } from './api-terms-domain.js';
 // 复习的类型同源转出（v23 艾宾浩斯，形状定义在 `api-terms-review.ts`）。
-export type { ReviewTermItem, ReviewOverview, ReviewDayStat } from './api-terms-review.js';
+export type { ReviewTermItem, ReviewQueueItem, ReviewQueueResult, ReviewOverview, ReviewDayStat } from './api-terms-review.js';
 
 // `ApiError` 已抽到 api-request.ts（行数红线 + 断环，见该文件头注释）。
 // 此处**转出**以保持既有调用方 `import { api, ApiError } from '../../lib/api'` 零改动。

@@ -21,6 +21,20 @@ const fakeAdapter: LLMAdapter = {
   },
 };
 
+/** 一个"吐一帧空内容后按上游口径报错"的适配器：用来喂真机报文，验证错误翻译确实挂在链路上 */
+function throwingAdapter(message: string): LLMAdapter {
+  return {
+    type: 'openai',
+    async *chat() {
+      yield { content: '', done: false };
+      throw new Error(message);
+    },
+    async listModels() {
+      return [];
+    },
+  };
+}
+
 // 把 llm/router 整个替掉：只暴露 routeRole，避免加载 db / crypto 等真实依赖
 vi.mock('../llm/router.js', () => ({
   routeRole: vi.fn((role: string) => {
@@ -80,6 +94,45 @@ describe('describeImages', () => {
     await expect(describeImages([{ dataUrl: 'data:image/png;base64,AAAA' }])).rejects.toThrow(
       /未配置视觉模型/,
     );
+  });
+
+  // ★ 接线锁（2026-09-20）：真机那次「提示 400」的报文是**上游英文 JSON**，用户看不懂也不知道改哪里。
+  //   只测 `vision-error.ts` 纯函数证明不了"它真的被挂上了"，所以这里用假适配器把**原样报文**喂进
+  //   `describeImages`，断言抛出的是中文指引 —— 摘掉 vision.ts 里的 try/catch 这两条立刻红。
+  it('上游把"生成图片的模型"当视觉模型用时：抛中文指引而不是裸 400 报文', async () => {
+    const { routeRole } = await import('../llm/router.js');
+    vi.mocked(routeRole).mockImplementationOnce(
+      () =>
+        ({
+          adapter: throwingAdapter(
+            'OpenAI API error 400: {"error":{"code":"invalid_request","message":"模型 agnes-image-2.5-flash 是 image 模型，请使用 /v1/images/generations (request id: 20260920130530828944270XgqgksQr)","type":"AgnesAI_error"}}',
+          ),
+          model: 'agnes-image-2.5-flash',
+          apiKey: 'k',
+          baseUrl: 'http://x/v1',
+          streamMode: 'once',
+        }) as unknown as ReturnType<typeof routeRole>,
+    );
+    await expect(describeImages([{ dataUrl: 'data:image/png;base64,AAAA' }])).rejects.toThrow(
+      /只会\*\*生成图片\*\*，不会\*\*读图片\*\*.*「视觉（看图）」/s,
+    );
+  });
+
+  it('视觉模型限流时：抛「稍等再试」，不误报成配置错', async () => {
+    const { routeRole } = await import('../llm/router.js');
+    vi.mocked(routeRole).mockImplementationOnce(
+      () =>
+        ({
+          adapter: throwingAdapter('OpenAI API error 429: {"error":{"message":"Rate limit reached"}}'),
+          model: 'agnes-2.5-flash',
+          apiKey: 'k',
+          baseUrl: 'http://x/v1',
+          streamMode: 'once',
+        }) as unknown as ReturnType<typeof routeRole>,
+    );
+    const p = describeImages([{ dataUrl: 'data:image/png;base64,AAAA' }]);
+    await expect(p).rejects.toThrow(/服务商限流/);
+    await expect(p).rejects.not.toThrow(/只会\*\*生成图片/);
   });
 });
 

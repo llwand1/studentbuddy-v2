@@ -1,0 +1,59 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: studentbuddy-server:v0.1
+    restart: unless-stopped
+    environment:
+      # —— 五条安全闸门：与 DEPLOY.md §4 表逐一对齐，一个都不能少 ——
+      SB_HOST: 0.0.0.0            # 容器内必须 0.0.0.0（systemd 形态用默认 127.0.0.1，此处刻意不同）
+      SB_PORT: "18791"
+      SB_REQUIRE_AUTH: "1"
+      SB_COOKIE_SECURE: "1"
+      SB_TRUST_PROXY: "1"
+      SB_ALLOWED_ORIGINS: https://11wand.com   # 不收通配符；换域名显式改
+      SB_UPSTREAM_SITE_MAX_CONCURRENT: "8"      # 占位值，业务值定了改这里
+      SB_UPSTREAM_SITE_QUEUE_MAX: "20"
+    env_file:
+      - /opt/studentbuddy/app/.env    # 复用现网 .env（RESEND_API_KEY / SB_MAIL_FROM 等 secrets）
+    volumes:
+      - sb-data:/data                  # SQLite 持久卷；容器可删，卷不能删
+    deploy:
+      resources:
+        limits:
+          memory: 400M                 # 对齐 systemd 的 MemoryMax=400M 保险丝
+    networks: [sbnet]
+    # ★ 不向宿主机 publish 端口——只有 caddy 经 sbnet 访问
+
+  # 临时静态托底：server 尚不服务 web/dist（待仓内静态托管开关落地后删除本服务）
+  web:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    command: caddy file-server --root /srv --listen :8080 --access-log
+    volumes:
+      - sb-webdist:/srv/web:ro         # 由一次性容器从 server 镜像拷出（见切换手册 §3）
+    networks: [sbnet]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-config:/config
+      - caddy-data:/data               # ★ TLS 证书存这里，删卷=重签发（Let's Encrypt 有频控）
+    networks: [sbnet]                  # 走桥接：反代目标写服务名 server:18791 / web:8080
+    depends_on: [server, web]
+
+volumes:
+  sb-data:
+  sb-webdist:
+  caddy-config:
+  caddy-data:
+
+networks:
+  sbnet:
+    driver: bridge

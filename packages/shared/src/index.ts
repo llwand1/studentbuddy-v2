@@ -21,6 +21,7 @@ export * from './study-flow-params.js';
 export * from './scenario.js';
 export * from './auth.js';
 export * from './ebbinghaus.js';
+export * from './review-goal.js';
 export * from './term-highlight.js';
 export * from './coach.js';
 export * from './tool-ecosystem.js';

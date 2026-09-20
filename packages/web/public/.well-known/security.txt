@@ -1,0 +1,4 @@
+Contact: mailto:security@11wand.com
+Preferred-Languages: zh, en
+Expires: 2027-09-30T00:00:00.000Z
+# 本站为个人项目；欢迎负责任的漏洞披露，修复前请勿公开细节。

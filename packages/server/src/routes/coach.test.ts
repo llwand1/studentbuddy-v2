@@ -190,7 +190,9 @@ describe('督促小窗 — 卡片流水', () => {
   it('★ 复习打卡：落一张动作卡（带新阶段与下次间隔），并让该词条离开队列', async () => {
     const id = await addTerm('记忆化搜索');
     age(id, 5);
-    const q0 = (await request(app).get('/api/terms/review/queue').expect(200)).body as Array<{ id: string }>;
+    // v1.2：队列响应是**对象**（`{items,goal,doneCards,doneTerms,poolSize}`），这里取 `items`
+    const q0 = ((await request(app).get('/api/terms/review/queue').expect(200)).body as { items: Array<{ id: string }> })
+      .items;
     expect(q0.map((t) => t.id)).toContain(id);
 
     const r = await request(app).post('/api/coach/review').set('Origin', origin).send({ termId: id, remembered: true }).expect(200);
@@ -201,7 +203,8 @@ describe('督促小窗 — 卡片流水', () => {
     expect(card.stage).toBe(1); // 记住 → 推进一档
     expect(card.intervalDays).toBe(2);
 
-    const q1 = (await request(app).get('/api/terms/review/queue').expect(200)).body as Array<{ id: string }>;
+    const q1 = ((await request(app).get('/api/terms/review/queue').expect(200)).body as { items: Array<{ id: string }> })
+      .items;
     expect(q1.map((t) => t.id)).not.toContain(id);
   });
 

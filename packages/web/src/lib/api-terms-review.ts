@@ -9,7 +9,7 @@
  *   （否则就会出现「列表说该复习、队列里没有它」）。
  */
 import { request } from './api-request.js';
-import type { ReviewState } from '@sb/shared';
+import type { ReviewGoal, ReviewState } from '@sb/shared';
 
 /** 队列/打卡返回的一条词条（含现算好的复习状态） */
 export interface ReviewTermItem {
@@ -26,6 +26,26 @@ export interface ReviewTermItem {
   review: ReviewState;
 }
 
+/** 队列条目（v1.2 起多一个 `segment`，标明它来自三段里的哪一段，契约 §10.3） */
+export interface ReviewQueueItem extends ReviewTermItem {
+  segment: 'due' | 'extra' | 'repeat';
+}
+
+/**
+ * 队列响应（v1.2 起是**对象**，契约 §10.7）：条目 + 目标 + 进度 + 池子大小。
+ * ★ 目标与进度**必须与队列同源**：分两次请求就可能出现"队列里还有 5 条、进度却说已达标"。
+ * ★ `doneCards` 含重复打卡（张数）、`doneTerms` 去重（词条数）——日目标进度看前者（§10.6）。
+ * ★ `poolSize` 是在范围内**且未毕业**的词条数：库里可补的本来就不够时，前端要能说清
+ *   "只有 N 条可补"，而不是让用户以为队列坏了。
+ */
+export interface ReviewQueueResult {
+  items: ReviewQueueItem[];
+  goal: ReviewGoal;
+  doneCards: number;
+  doneTerms: number;
+  poolSize: number;
+}
+
 /** 单日复习量（供概览里的近 7 天柱状图；缺的天服务端已补 0，前端不必对齐日期） */
 export interface ReviewDayStat {
   day: string;
@@ -40,6 +60,8 @@ export interface ReviewOverview {
   overdue: number;
   fresh: number;
   todayDone: number;
+  /** v1.2：今日**张数**（含重复打卡）——日目标进度的分子（契约 §10.6） */
+  todayCards: number;
   mastered: number;
   maxOverdueDays: number;
   stages: Array<{ stage: number; count: number }>;
@@ -60,14 +82,26 @@ export const termsReviewApi = {
     const q = domain && domain !== 'all' ? `?domain=${encodeURIComponent(domain)}` : '';
     return request<ReviewOverview>(`/api/terms/review/overview${q}`);
   },
-  /** 今日队列（按逾期天数降序 = 先还旧账） */
+  /**
+   * 今日队列（v1.2：**三段补位** 真账 → 提前背 → 重复巩固，契约 §10.3）。
+   * ★ 响应 v1.2 起是**对象**（多了目标与进度）；未设目标时 `limit` 生效，设了则以 `goal.count` 为准。
+   */
   queue: (limit?: number, domain?: string) => {
     const q = new URLSearchParams();
     if (limit && limit > 0) q.set('limit', String(limit));
     if (domain && domain !== 'all') q.set('domain', domain);
     const qs = q.toString();
-    return request<ReviewTermItem[]>(`/api/terms/review/queue${qs ? `?${qs}` : ''}`);
+    return request<ReviewQueueResult>(`/api/terms/review/queue${qs ? `?${qs}` : ''}`);
   },
+  /** 读自定义复习目标（v1.2，契约 §10.2）。未配过回默认 `{count:0,domains:[]}`（＝关闭） */
+  goal: () => request<ReviewGoal>('/api/terms/review/goal'),
+  /**
+   * 设自定义复习目标（v1.2）。`count = 0` 表示**关闭**（队列退回只放到期，＝ v1.1 行为）。
+   * ★ 服务端归一后落库并**回写归一结果**，故以返回值为准更新本地状态——不拿自己发上去的值当结果
+   *   （否则用户输 9999 时界面显示 9999，而库里存的是 200）。
+   */
+  setGoal: (goal: ReviewGoal) =>
+    request<ReviewGoal>('/api/terms/review/goal', { method: 'PUT', body: JSON.stringify(goal) }),
   /** 打卡：`remembered=true` 推进一个节点，`false` 归零重来。未纳入范围的词条会被 409 拒掉 */
   mark: (id: string, remembered: boolean) =>
     request<ReviewTermItem>(`/api/terms/${id}/review`, {

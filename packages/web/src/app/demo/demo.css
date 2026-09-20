@@ -347,6 +347,119 @@
   color: var(--sb-ink-secondary, #6b7385);
 }
 
+/* ── 知识图演示（第二个场景）────────────────────────────────────────────
+ * 图的**配色与线型全部来自 graph.css**（`.gr-node` / `.gr-edge.user|ai` / `.gr-ring`），
+ * 本段只负责两件 graph.css 管不到的事：帧之间的**显现过渡**，与演示窗自己的**底部信息带**。
+ *
+ * ★ 显现一律用 opacity（而不是 display / 条件渲染）：未显现的节点也要留在 DOM 里，
+ *   transition 才有起点；否则节点是"啪"地弹出而非长出来。
+ * ★ 节点与追问按钮的**缩放**动效写在它们各自的**内层 `<g>`** 上（见 GraphDemo.tsx 注释）：
+ *   SVG 里 CSS transform 会盖掉 `transform` 属性，写在外层会让节点全部弹回原点。
+ */
+
+.ld-g {
+  display: flex;
+  flex-direction: column;
+}
+.ld-g-svg {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+/* 边：淡入 */
+.ld-g-e {
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.ld-g-e.on {
+  opacity: 1;
+}
+/* 帧 4「确认转正」：类名从 ai 换成 user 时，颜色/线宽/虚线间距一起平滑过渡——
+ * 观感上就是那条虚线"收拢"成实线，比瞬间变身清楚得多（这是本演示想讲的核心区别） */
+.ld-g .gr-edge-line {
+  transition: stroke 0.45s ease, stroke-width 0.45s ease, stroke-dasharray 0.45s ease;
+}
+
+/* 节点：淡入 + 从中心弹出（内层 g 的局部原点就是卡片中心，故 scale 无需 transform-origin） */
+.ld-g-n {
+  opacity: 0;
+  transform: scale(0.72);
+  transition: opacity 0.4s ease, transform 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+}
+.ld-g-n.on {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* 帧 1 的「向 AI 追问」按钮（贴在中心卡片下方） */
+.ld-g-ask {
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.ld-g-ask.on {
+  opacity: 1;
+  transform: scale(1);
+}
+.ld-g-ask rect {
+  fill: var(--sb-primary, #007aff);
+}
+.ld-g-ask text {
+  font-size: 11px;
+  font-weight: 600;
+  fill: #fff;
+}
+
+/* 底部信息带：抽词清单与图例**同位置换场**（两者互斥：帧 2/3 要清单、帧 4 要图例）。
+ *
+ * ★ 第一版写成「并排 flex + space-between」，真机截图当场否掉：两者宽度相加（≈330+220）
+ *   超过舞台宽 514，靠右的图例被 `overflow:hidden` **裁掉一半**（"AI 抽的·未经确认"整段没了）。
+ * ★ 第二版「同位置 + 同时长淡入淡出」也不行：切换时有 0.3s 两串文字**叠在一起**的窗口，
+ *   截图上是把两句话糊成一行（"回复抽出**确**"就是这么来的，那个"确"来自"已确认"）。
+ * ⇒ 最终：同位置叠放，但**错开时相**——退得快（0.16s）、进得晚且慢（延迟 0.18s 再 0.3s），
+ *   对方退干净才开始进，全程无重叠；再加上一个靠左一个靠右，双保险。 */
+.ld-g-bar {
+  position: relative;
+  height: 26px;
+  flex-shrink: 0;
+}
+.ld-g-terms,
+.ld-g-legend {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.16s ease;
+  pointer-events: none;
+}
+.ld-g-terms.on,
+.ld-g-legend.on {
+  opacity: 1;
+  transition: opacity 0.3s ease 0.18s;
+}
+.ld-g-terms-label {
+  font-size: var(--sb-fs-xs, 11px);
+  color: var(--sb-ink-secondary, #6b7385);
+}
+.ld-g-term {
+  font-size: var(--sb-fs-xs, 11px);
+  line-height: 17px;
+  color: var(--sb-primary, #007aff);
+  border: 1px solid rgba(0, 122, 255, 0.4);
+  border-radius: 999px;
+  padding: 0 8px;
+}
+/* 图例靠右（`margin-left:auto`）：它是"线型说明"，与左边的抽词清单各占一头；
+ * 两项间距比 chips 大些，读起来是"两条独立的说明"而不是一列并列标签 */
+.ld-g-legend {
+  margin-left: auto;
+  gap: var(--sb-sp-4, 16px);
+}
+
 /* ── 窄屏：舞台加高（文本换行多一行） ── */
 @media (max-width: 880px) {
   .ld-stage {
@@ -359,7 +472,13 @@
   .ld-hover,
   .ld-chip,
   .ld-flip,
-  .ld-pip {
+  .ld-pip,
+  .ld-g-e,
+  .ld-g-n,
+  .ld-g-ask,
+  .ld-g-terms,
+  .ld-g-legend,
+  .ld-g .gr-edge-line {
     transition: none;
   }
   .ld-caret {

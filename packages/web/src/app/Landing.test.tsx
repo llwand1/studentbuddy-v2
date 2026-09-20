@@ -17,7 +17,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, fireEvent, cleanup } from '@testing-library/react';
 import { Landing } from './Landing';
-import { TERM_FLOW } from './demo/registry';
+import { LANDING_DEMOS, TERM_FLOW } from './demo/registry';
 import { TermFlowDemo } from './demo/TermFlowDemo';
 
 vi.mock('../lib/api', () => ({
@@ -73,7 +73,12 @@ describe('Landing — 未登录门面', () => {
 
   it('演示窗从第 0 帧起：标题在、首帧说明在、阶段点数与该演示的帧数一致', () => {
     const { getByText, container } = render(<Landing onAuthed={() => undefined} />);
-    expect(getByText(TERM_FLOW.title)).toBeTruthy();
+    // ★ 2026-09-20 知识图演示批起，`TERM_FLOW.title` 在页面上出现**两次**了——
+    //   窗口标题栏（当前演示）+ 切换 Tab（两个演示各一个）。故不能用 getByText（遇多即抛），
+    //   改断 `.ld-bar-title`；顺便把"默认停在第一个演示"也锁住（Tab 一多，默认选中项选错很难发现）。
+    expect(container.querySelector('.ld-bar-title')?.textContent).toBe(TERM_FLOW.title);
+    expect(container.querySelectorAll('.ld-tab').length).toBe(LANDING_DEMOS.length);
+    expect(container.querySelector('.ld-tab.ld-tab-on')?.textContent).toBe(TERM_FLOW.title);
     expect(getByText('对话进行中：词条库里已有的词自动标出来')).toBeTruthy();
     expect(container.querySelectorAll('.ld-pip').length).toBe(TERM_FLOW.stages.length);
     // 第 0 帧：只有 1 个点处于选中态（错位就会让「现在演到哪」失去意义）

@@ -133,7 +133,10 @@ export function rectEdgePoint(
  */
 export function layoutNeighborhood(
   nb: KnowledgeNeighborhood,
-  view = GRAPH_VIEW,
+  // ★ 同样显式声明为「宽高各是一个数」：`GRAPH_VIEW` 是 `as const` 出来的字面量类型
+  //   （`{readonly w:680; readonly h:480}`），不写开就会把调用方锁死在 680×480 上，
+  //   落地页演示窗的 520×268 传不进来。默认值仍是 GRAPH_VIEW，行为不变。
+  view: { w: number; h: number } = GRAPH_VIEW,
   opts: GraphLayoutOptions = {},
 ): GraphLayout {
   const cx = view.w / 2;

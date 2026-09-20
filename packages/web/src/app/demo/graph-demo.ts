@@ -29,11 +29,16 @@ import { layoutNeighborhood } from '../../features/study-flow/graph-visual';
 export const GRAPH_DEMO_VIEW = { w: 520, h: 268 } as const;
 
 /**
- * 紧凑几何：环半径 100/180、卡片 92×26（真图是 122/196 与 108×34）。
- * ★ 这两个数不能随手调小：二跳节点与它的父节点若挨太近，两张卡片会**叠在一起**
- *   （中心距要大于两个半宽之和）。`graph-demo.test.ts` 里有一条「无卡片重叠」的断言兜住。
+ * 紧凑几何：环半径 112/186、卡片 92×30（真图是 122/196 与 108×34）。
+ *
+ * ★ 这两个数是被约束**逼出来**的，不能随手调小：
+ *   ① 二跳节点与父节点挨太近会**叠在一起**（中心距要在一个轴上大于卡片边长）；
+ *   ② 一跳半径必须显著大于卡片宽：`ringR1` 取 100 时，中心卡片与左右两张之间只剩 8px 缝，
+ *      三张卡片看起来**连成一片**（108 → **112** 后缝变 20px）。
+ *      ★ 这条是「几何断言全绿 ≠ 观感合格」的实例——不重叠判据只保证**不相交**，不保证**不挤**；
+ *      8px 缝在单测里是"合法"的，只有真机截图才看得出来（见 `tools/probes/landing-demo-cdp.mjs`）。
  */
-export const GRAPH_DEMO_OPTS = { ringR1: 100, ringStep: 80, box: { w: 92, h: 26 } } as const;
+export const GRAPH_DEMO_OPTS = { ringR1: 112, ringStep: 74, box: { w: 92, h: 30 } } as const;
 
 /**
  * 帧语义（下标与 `registry.ts` 的 `GRAPH_DEMO.stages` 一一对应，改一处必须改两处）。
@@ -181,3 +186,9 @@ export const DEMO_ASK = {
  * `graph-demo.test.ts` 里有一条交叉断言锁住这份一致。
  */
 export const DEMO_REPLY_TERMS = ['学习率', '反向传播', '过拟合'] as const;
+
+/**
+ * 帧 3 的二跳：对「学习率」再追一层，回复里又抽出两个词条。
+ * ★ 同样与 `at === FRAME.tree` 的两个节点逐字对齐（理由同上）。
+ */
+export const DEMO_DEEP = { term: '学习率', terms: ['学习率衰减', 'Adam'] } as const;

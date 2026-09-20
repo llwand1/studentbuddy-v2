@@ -3,7 +3,7 @@
 [![CI](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-158%20files%20%2F%202183%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-158%20files%20%2F%202185%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-139-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-136%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
@@ -317,7 +317,7 @@ AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决�
 - 禁内联 `style={{…}}`（一律走 tokens.css 的 token）；禁 `any`；测试也禁 `!` 非空断言
 - 每个测试文件必须在 `docs/dev/test-plan.md` 成行登记（未登记 = 门禁红）
 
-**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**158 测试文件 / 2183 用例**（2182 passed + 1 skipped；**权威口径见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，此处仅为快照）。
+**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**158 测试文件 / 2185 用例**（2184 passed + 1 skipped；**权威口径见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，此处仅为快照）。
 
 交互层是**两层互补**，别指望任何一层单独覆盖：
 
@@ -398,7 +398,7 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 | 现场搜集真题（逐字锚点锁 + 两段确认） | ✅ 2026-09-18 |
 | 深度理解（判定链完整闭环） | 🔶 闸门件与落库表已就位，主链未接线 |
 | M4 定稿（反馈环收口 + v1 迁移实跑） | 🔶 反馈与迁移工具已落，定稿未做 |
-| M5 工具生态（MCP / 文件工具 / 确认门） | 🔶 S1 内核与 S2 确认门/词条三工具已落码（契约 v1.4.4，2026-09-20）；★ 2026-09-20 新增 `fetch_page` 网络读工具（§5.3，已落码），**同批补两条真机实测驱动的红线**——红线 2「内容闸门」（只回网页正文，PDF/图片等非网页**如实拒绝**，登记 B-011）与红线 8「编码层」（GBK 页按声明/嗅探的编码解码，不再以乱码冒充正文，登记 B-012）；S3 MCP 接入未开工 |
+| M5 工具生态（MCP / 文件工具 / 确认门） | 🔶 S1 内核与 S2 确认门/词条三工具已落码（契约 v1.4.5，2026-09-20）；★ 2026-09-20 新增 `fetch_page` 网络读工具（§5.3，已落码），**同批补三条真机/自审驱动的红线**——红线 2「内容闸门」（只回网页正文，PDF/图片等非网页**如实拒绝**，登记 B-011）、红线 8「编码层」（GBK 页按声明/嗅探的编码解码，不再以乱码冒充正文，登记 B-012）、★ 红线 2 **判据层次订正**（嗅探钉死在**原始字节**、判在解码之前——旧 PNG 魔数分支因字面量多一个空格从未命中，登记 B-013）；S3 MCP 接入未开工 |
 | 全站搜索（FTS5 三族索引：消息 / 词条 / 错题本） | ✅ 已入库 2026-09-20（契约 `docs/FTS-SPEC.md`；迁移 v37；`GET /api/search`）★ 真机端到端待目检 |
 | 词条英文发音（卡片喇叭 · 浏览器本地语音） | ✅ 已入库 2026-09-20（契约 `docs/TERM-HIGHLIGHT-SPEC.md` v1.1；`web/src/lib/speech.ts`）★ 真机听音待目检 |
 

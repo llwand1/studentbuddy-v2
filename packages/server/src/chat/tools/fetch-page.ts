@@ -11,13 +11,10 @@
  * 安全边界：SSRF 守卫（`search/ssrf-guard.ts`）已在 `fetchSafe` 里逐跳复检（拦内网/回环/链路本地）；
  * 外部内容是**数据不是指令**，回灌前加护栏（契约 §6.3-5 同口径）。
  *
- * 内容闸门（2026-09-20 补，真机实测驱动）：只读**网页正文**。两道闸——
- * ① `content-type` 白名单（主）；② 二进制嗅探（兜底，防服务器谎报/不给类型）。
- * 非网页（PDF/图片/压缩包…）**如实拒绝**，绝不把二进制当正文回灌（实测见 `looksBinary` 注释）。
- *
- * 编码层（2026-09-20 补，同批真机实测驱动）：`decodeBody()` 按**声明或嗅探**的编码解码，
- * 不再用 `res.text()`（它恒按 UTF-8 解、忽略 charset ⇒ GBK 页满屏替换符当正文回灌）。
- * 与内容闸门是**两条独立的根因**，别合并：一个管「这不是文本」，一个管「文本用错编码解」。
+ * 三道闸（2026-09-20 补，真机实测驱动）——顺序即防线，别调换：
+ * ① `content-type` 白名单（主）；② 二进制嗅探（兜底，防服务器谎报/不给类型）——★ **判在原始字节上、
+ *   且在解码之前**；③ **编码层** `decodeText()`（按声明或嗅探的编码解码，不再用 `res.text()`）。
+ * ①② 管「这不是文本」（B-011）、③ 管「文本用错编码解」（B-012）——**两条独立根因，别合并**。
  */
 import { fetchSafe } from '../../search/ssrf-guard.js';
 import { combineSignals, htmlToText } from '../../search/index.js';
@@ -45,28 +42,32 @@ const FETCH_UA =
 const TEXTUAL_CT = /^(?:text\/|application\/(?:xhtml\+xml|xml|json|ld\+json|rss\+xml|atom\+xml|x-ndjson))/i;
 
 /**
- * 二进制嗅探（兜底层）：content-type 缺失、或服务器**谎报**时用。
+ * 二进制嗅探（兜底层）：在**原始字节**上判，与编码无关。
  *
- * ★ 为什么非要有这一层（2026-09-20 真机实测，不是设想）：
- *   `res.text()` 把二进制按 UTF-8 解码**不会抛错**，只留下一堆替换符和控制字符；
- *   `htmlToText` 又只剥 HTML 标签 —— 于是 PDF/PNG 会以「以下为网页正文」的名义回灌给模型。
- *   实测：pdf.js 样例 PDF → 回灌 8021 字（含 `%PDF-1.4`、850 个控制字符）；
- *   httpbin PNG → 回灌 4736 字乱码。**乱码当正文比「读不到」糟得多**——模型会把乱码当内容用。
- *
- * 判据 = 解码后魔数 + 控制字符占比。
- * ★ 刻意**不看替换符占比**：GBK 页面按 UTF-8 解码同样满屏替换符，那是「编码问题」不是「二进制」，
- *   不该被本层误杀（该问题另立登记项，见 test-plan §6）。
+ * ★ 为什么必须在字节上判、且必须在解码之前（2026-09-20 本批自审逮到，全部实测）：
+ *   ① **编码层会洗掉字节级特征**：GB18030 下 `89 50` 被吃成一个汉字 ⇒ 字符串层的 PNG 魔数
+ *      整个消失；JPEG 的 `FF D8 FF E0` 同样被吃成两个汉字。
+ *   ② **旧实现的 PNG 魔数分支从未命中过**：正则是 `/^(?:%PDF-|GIF8|\uFFFD PNG|…)/`，
+ *      而真 PNG 按 UTF-8 解出来是 `\uFFFD`+`PNG`（**无空格**）——那个空格让它永不匹配。
+ *      一直靠控制字符占比兜着，故**无观测影响**，但该层是死的（已登记）。
+ *   ③ **存在字符串层完全漏放的形态**（实测 128 字节夹具 = PNG 签名 + 高字节）：
+ *      字符串层 UTF-8 控制占比 0.78%、GB18030 1.47%（均 ≤ 2%）且魔数不命中 ⇒ 漏放；
+ *      字节层魔数命中 ⇒ 拦下。回归用例见 fetch-page.test.ts 的「★★ 魔数必须在字节层判」。
+ *   ⇒ 结论：**判据是关于字节的，就该在字节上判**。字节级恒 ≥ 字符串级
+ *   （解码不会把非控制字节变成控制字符）⇒ 严格更强，且与编码层解耦。
  */
-function looksBinary(raw: string): boolean {
-  const head = raw.slice(0, 1000);
-  if (!head) return false;
-  // 解码后的魔数：PDF/GIF 是 ASCII 能存活；PNG 首字节 0x89 非法 ⇒ \uFFFD；JPEG 前三字节非法 ⇒ 三个 \uFFFD
-  if (/^(?:%PDF-|GIF8|\uFFFD PNG|\uFFFD\uFFFD\uFFFD)/.test(head)) return true;
+function looksBinary(bytes: Uint8Array): boolean {
+  const head = bytes.subarray(0, 1000);
+  if (head.length === 0) return false;
+  const has = (...sig: number[]): boolean => sig.every((b, i) => head[i] === b);
+  if (has(0x25, 0x50, 0x44, 0x46, 0x2d)) return true; // %PDF-
+  if (has(0x89, 0x50, 0x4e, 0x47)) return true; // PNG
+  if (has(0x47, 0x49, 0x46, 0x38)) return true; // GIF8
+  if (has(0xff, 0xd8, 0xff)) return true; // JPEG
+  if (has(0x50, 0x4b, 0x03, 0x04)) return true; // ZIP（docx/xlsx 同族）
+  if (has(0x1f, 0x8b)) return true; // GZIP
   let ctrl = 0;
-  for (const ch of head) {
-    const c = ch.codePointAt(0) ?? 0;
-    if (c < 0x20 && c !== 9 && c !== 10 && c !== 13) ctrl++;
-  }
+  for (const b of head) if (b < 0x20 && b !== 0x09 && b !== 0x0a && b !== 0x0d) ctrl++;
   return ctrl / head.length > 0.02;
 }
 
@@ -87,7 +88,7 @@ function replacementRatio(s: string): number {
 }
 
 /**
- * 按**声明或嗅探**的编码解码响应体。
+ * 按**声明或嗅探**的编码把字节解成文本。
  *
  * ★ 为什么不能直接用 `res.text()`（2026-09-20 真机实测驱动）：
  *   它**恒按 UTF-8 解码、忽略 `content-type` 里的 `charset`** ⇒ GBK 页满屏 U+FFFD
@@ -99,19 +100,18 @@ function replacementRatio(s: string): number {
  * 先按 UTF-8 解，替换符超 1% 再试 GB18030，**取替换符更少的那个**。
  * ★ 不用 `fatal:true` 硬判：UTF-8 页里夹几个坏字节也应当照读，不该整页回退。
  */
-async function decodeBody(res: Response): Promise<string> {
-  const raw = await res.arrayBuffer();
-  const declared = /charset=["']?([\w-]+)/i.exec(res.headers.get('content-type') ?? '')?.[1];
+function decodeText(bytes: Uint8Array, contentType: string): string {
+  const declared = /charset=["']?([\w-]+)/i.exec(contentType)?.[1];
   if (declared && !/^utf-?8$/i.test(declared)) {
     try {
-      return new TextDecoder(declared).decode(raw);
+      return new TextDecoder(declared).decode(bytes);
     } catch {
       /* 未知编码名 → 落到嗅探 */
     }
   }
-  const asUtf8 = new TextDecoder('utf-8').decode(raw);
+  const asUtf8 = new TextDecoder('utf-8').decode(bytes);
   if (replacementRatio(asUtf8) <= 0.01) return asUtf8;
-  const asGbk = new TextDecoder('gb18030').decode(raw);
+  const asGbk = new TextDecoder('gb18030').decode(bytes);
   return replacementRatio(asGbk) < replacementRatio(asUtf8) ? asGbk : asUtf8;
 }
 
@@ -160,7 +160,8 @@ registerTool('fetch_page', {
     }
     ctx.onStep('fetch_page', 'running', url);
 
-    let html: string;
+    let bytes: Uint8Array;
+    let ct = '';
     try {
       const res = await fetchSafe(url, {
         headers: { 'User-Agent': FETCH_UA, 'Accept-Language': 'zh-CN,zh;q=0.9' },
@@ -168,12 +169,12 @@ registerTool('fetch_page', {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       // 闸门①：内容类型。先看服务端声明的类型，非文本型当场拒绝（省掉把整个 PDF 读进内存）。
-      const ct = (res.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
+      ct = (res.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
       if (ct && !TEXTUAL_CT.test(ct)) {
         ctx.onStep('fetch_page', 'error', `非网页：${ct}`);
         return { content: notWebPageText(`内容类型 ${ct}`) };
       }
-      html = await decodeBody(res);
+      bytes = new Uint8Array(await res.arrayBuffer());
     } catch (err) {
       const reason = publicReason(err);
       ctx.onStep('fetch_page', 'error', reason);
@@ -186,13 +187,15 @@ registerTool('fetch_page', {
       };
     }
 
-    // 闸门②：内容类型缺失/谎报时的兜底。★ 必须在 htmlToText 之前——剥完标签的乱码更难识别。
-    if (looksBinary(html)) {
+    // 闸门②：内容类型缺失/谎报时的兜底。★ 必须在**解码之前**、且判在**原始字节**上——
+    // 解码会洗掉字节级特征（见 looksBinary 注释）。
+    if (looksBinary(bytes)) {
       ctx.onStep('fetch_page', 'error', '非网页：疑似二进制');
       return { content: notWebPageText('疑似二进制文件') };
     }
 
-    const text = htmlToText(html);
+    // 闸门③：编码层。字节 → 文本（按声明或嗅探的编码）。
+    const text = htmlToText(decodeText(bytes, ct));
     if (!text) {
       ctx.onStep('fetch_page', 'error', '页面无正文');
       return { content: '这个网址打开了，但没提取到正文（可能是纯脚本渲染页或空白页）。可以换一个来源。' };

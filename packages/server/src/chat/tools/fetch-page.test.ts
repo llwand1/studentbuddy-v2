@@ -156,6 +156,52 @@ describe('fetch_page — 内容闸门（只读网页正文；非网页必须如�
     expect(r.content).not.toContain('%PDF-');
   });
 
+  it('★ 谎报类型 + 真二进制字节（GB18030 下会把魔数洗掉的那类）→ 仍必须拦下', async () => {
+    // 70 字节真 PNG（1×1 透明图）。锁的是「**真二进制字节** + 谎报 `text/html` 必须被拒，
+    // 且解码洗出来的形态不许泄露」。★ 如实说明：这条**不区分是哪条判据生效**——
+    // 实测真 PNG 头部控制字符占比 11.7%、真 PDF 9.2%，**控制字符规则独立就能拦**；
+    // 字节级魔数在这条里属**纵深防御**。保端到端；「层次」由下一条（低控制占比夹具）单独锁。
+    const PNG = new Uint8Array(
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+        'base64',
+      ),
+    );
+    mockFetch(() => ({ contentType: 'text/html', bytes: PNG }));
+    const { ctx, steps } = silentCtx();
+    const r = await runTool('fetch_page', JSON.stringify({ url: 'https://ex.com/lie.png' }), ctx);
+
+    expect(r.content).toContain('不是网页正文');
+    expect(r.content).not.toContain('\uFFFD PNG'); // 原样回灌
+    expect(r.content).not.toContain('塒NG'); // ★ GB18030 洗出来的形态也不许出现
+    expect(steps.at(-1)).toMatchObject({ status: 'error' });
+  });
+
+  it('★★ 魔数必须在字节层判（低控制占比夹具）——唯一能区分「判字节」与「判解码后字符串」的用例', async () => {
+    // 夹具 = PNG 8 字节签名 + 120 字节高字节（**合成**，代表压缩数据段；非真实文件结构）。
+    // 为什么非造这条：真 PNG 头部控制字符占比 11.7% ⇒ 控制字符规则独立就能拦，**区分不出层次**。
+    // 实测两层判定（2026-09-20，128 字节夹具）：
+    //   · 字符串层 UTF-8    ：控制占比 **0.78%**、魔数不命中 ⇒ 判「非二进制」**漏放**
+    //   · 字符串层 GB18030  ：控制占比 **1.47%**、魔数不命中 ⇒ 判「非二进制」**漏放**
+    //   · 字节层            ：PNG 魔数命中 ⇒ **拦下**
+    // 魔数为何在字符串层必然失效：UTF-8 下解成 `\uFFFD`+`PNG`（**无空格**，而旧正则写成
+    // `\uFFFD PNG` 带一个空格 ⇒ 该分支从未命中过，是真实潜伏缺陷）；
+    // GB18030 下 `89 50` 被吃成一个汉字 ⇒ 魔数整个消失。
+    // ⇒ 若有人把嗅探挪回解码之后，**本条必红**（其余用例都不会）。
+    const SIG_AND_HIGH = new Uint8Array(
+      Buffer.from(
+        'iVBORw0KGgqAgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vc=',
+        'base64',
+      ),
+    );
+    mockFetch(() => ({ contentType: 'text/html', bytes: SIG_AND_HIGH }));
+    const { ctx, steps } = silentCtx();
+    const r = await runTool('fetch_page', JSON.stringify({ url: 'https://ex.com/low-ctrl.png' }), ctx);
+
+    expect(r.content).toContain('不是网页正文');
+    expect(steps.at(-1)).toMatchObject({ status: 'error' });
+  });
+
   it('★ 不给 content-type 且内容控制字符密集 → 兜底嗅探拦下', async () => {
     mockFetch(() => ({ text: `\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007${'x'.repeat(20)}` }));
     const { ctx } = silentCtx();

@@ -31,15 +31,23 @@ function safeHref(raw: string): string | null {
 }
 
 /**
- * 图片源白名单：比链接更严——**只放行 http/https**。
- * 理由：`data:image/svg+xml` 是可以藏脚本的活动内容，`javascript:` 同族；而图源本就没有
- * mailto / 站内锚点这两种合法形态，故不必为它们开口子。
+ * 图片源白名单：只放行两类 —— **绝对 http(s) URL** 与 **站内图片缓存地址**。
+ * 挡掉的理由：`data:image/svg+xml` 是可以藏脚本的活动内容，`javascript:` 同族；
  * 顺带挡掉流式占位 `sb:incomplete-image`（remend 给半截图片产出的假协议）——挡下后回落成
  * alt 文字，屏幕上不会出现那个内部占位串，也不会出现一张破图。
+ *
+ * ★ 站内缓存地址（2026-09-20 `fetch_image` 批新增）＝相对路径 `/api/images/<32hex>.<ext>`。
+ *   它**必须**是相对路径：拼成 `http://localhost:18791/…` 开发期能显示、一上线上域名就全成裂图；
+ *   相对路径则天然跟随「用户当前访问的那个源」（开发期经 `vite.config.ts` 的 `/api` 代理转到
+ *   18791，生产期同源直连，两处都不用改）。
+ *   放宽的**只有这一个前缀、且形状卡死**：不是"放行任意相对路径"，否则模型就能在正文里嵌
+ *   任意站内资源（含受保护接口的响应）。
  */
 function safeImgSrc(raw: string): string | null {
   const src = raw.trim();
-  return /^https?:\/\//i.test(src) ? src : null;
+  if (/^https?:\/\//i.test(src)) return src;
+  if (/^\/api\/images\/[a-f0-9]{32}\.(?:png|jpg|gif|webp|bmp|avif)$/.test(src)) return src;
+  return null;
 }
 
 // ── 行内标记：递归下降 ──

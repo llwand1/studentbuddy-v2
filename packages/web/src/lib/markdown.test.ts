@@ -259,8 +259,31 @@ describe('markdown 行内图片（2026-09-20 补的输出侧缺口）', () => {
     }
   });
 
-  it('图源白名单比链接更严：站内相对路径也不放行（只认 http/https）', () => {
+  it('图源白名单：只认 http/https 与站内图片缓存地址，其余相对路径一律不放行', () => {
     expect(parseInline('![x](/local.png)')).toEqual([{ t: 'text', v: 'x' }]);
+  });
+
+  it('★ 站内图片缓存地址被放行（`fetch_image` 落盘后的回灌形态，2026-09-20 搬图批）', () => {
+    const src = `/api/images/${'a'.repeat(32)}.png`;
+    expect(parseInline(`![示意图](${src})`)).toEqual([{ t: 'image', alt: '示意图', src }]);
+  });
+
+  it('★★ 放宽的只有那一个前缀、且形状卡死 —— 不是「放行任意相对路径」', () => {
+    // 这条守的是**安全边界**不是便利性：一旦图省事写成 `/^\//`，模型就能在正文里嵌
+    // **任意站内资源**（含受保护接口的响应），而现象只是「图能正常显示了」，没有任何报错。
+    for (const bad of [
+      '/api/other/x.png', // 前缀不对
+      '/api/images/x.png', // 非 32 位 hex
+      `/api/images/${'a'.repeat(31)}.png`, // 长度差一位
+      `/api/images/${'A'.repeat(32)}.png`, // 大写不认：合法写法只有一种，不留第二套
+      `/api/images/${'a'.repeat(32)}.svg`, // 白名单外扩展名（SVG 是同源脚本面）
+      `/api/images/${'a'.repeat(32)}.png/../../db`, // 尾随穿越
+      `/api/images/${'a'.repeat(32)}.png?x=1`, // 带查询串：形状卡死，不做宽容
+    ]) {
+      const out = parseInline(`![说明](${bad})`);
+      expect(out.some((n) => n.t === 'image'), `应被拒：${bad}`).toBe(false);
+      expect(out[0]).toEqual({ t: 'text', v: '说明' }); // 回落成 alt 文字，不留破图
+    }
   });
 
   it('流式半截图片经 remedy 收口后，屏幕上既无破图也无内部占位串', () => {

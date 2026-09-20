@@ -92,6 +92,37 @@ describe('search 聚合', () => {
     expect(r.providers).toEqual(['exa']);
   });
 
+  it('Exa 请求带 contents.highlights；snippet 取相关片段而非整页正文', async () => {
+    process.env.EXA_API_KEY = 'env-exa';
+    let body: Record<string, unknown> = {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL, init?: RequestInit) => {
+        calls.push(String(input));
+        body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => null },
+          json: async () => ({
+            results: [
+              { title: 'H', url: 'https://exa.example/h', highlights: ['相关片段一', '相关片段二'], text: '整页正文开头' },
+              { title: 'T', url: 'https://exa.example/t', text: '只有正文' },
+              { title: 'E', url: 'https://exa.example/e', highlights: [], text: '空高亮' },
+            ],
+          }),
+          text: async () => '',
+        } as unknown as Response;
+      }),
+    );
+    const r = await searchWeb('exa-highlights', null);
+
+    expect(body.contents).toEqual({ highlights: true }); // 请求真带上了（改坏即红）
+    expect(r.results[0]?.snippet).toBe('相关片段一 相关片段二'); // 优先 highlights
+    expect(r.results[1]?.snippet).toBe('只有正文'); // 字段缺失 → 回退 text
+    expect(r.results[2]?.snippet).toBe('空高亮'); // ★ 空数组也算「没有」→ 回退 text（真值判断会在这条红）
+  });
+
   it('一家失败只跳过，成功结果照常返回；跨家 URL 去重', async () => {
     process.env.EXA_API_KEY = 'env-exa';
     process.env.TAVILY_API_KEY = 'env-tavily';

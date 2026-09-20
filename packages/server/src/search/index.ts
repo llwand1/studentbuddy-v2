@@ -87,15 +87,25 @@ async function exaSearch(query: string, apiKey: string, signal?: AbortSignal): P
   const res = await fetchSafe('https://api.exa.ai/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-    body: JSON.stringify({ query, numResults: 6, type: 'auto' }),
+    // ★ contents.highlights（2026-09-20）：Exa 官方对「搜索结果喂给 AI 上下文」的推荐口径是
+    //   在 /search 上带 `contents:{highlights:true}` —— 返回的是**按查询相关度选出的片段**，
+    //   而不是整页正文。原先取 `text` 再硬截 500 字，截到的是**页面开头**（与查询词无关）；
+    //   highlights 截的是**跟问题最相关的段落**，这正是契约 B-006 关心的回灌质量。
+    //   计费口径：搜索结果**前 10 条**带 contents 不额外计费（本处 numResults=6 在额度内）⇒ 零新增成本。
+    body: JSON.stringify({ query, numResults: 6, type: 'auto', contents: { highlights: true } }),
     signal: combineSignals(signal, 12_000),
   });
   if (!res.ok) throw new Error(`Exa ${res.status}`);
-  const data = (await res.json()) as { results?: Array<{ title?: string; url?: string; text?: string }> };
+  const data = (await res.json()) as {
+    results?: Array<{ title?: string; url?: string; text?: string; highlights?: string[] }>;
+  };
   return (data.results ?? []).slice(0, 6).map((r) => ({
     title: r.title ?? '',
     url: r.url ?? '',
-    snippet: (r.text ?? '').slice(0, 500),
+    // highlights 优先、text 兜底。★ 判空用 `length` 不用真值：`[]` 是**真值**，
+    // 写成 `r.highlights ? … : …` 会让「返回了空高亮数组」静默产出空 snippet
+    // ——有结果条目、没有内容，而且不报错。两条路都没有就空串，不编造。
+    snippet: (r.highlights?.length ? r.highlights.join(' ') : (r.text ?? '')).slice(0, 500),
     source: 'exa',
   }));
 }

@@ -19,6 +19,8 @@ vi.mock('../../lib/api', async () => {
     ApiError: actual.ApiError,
     api: {
       pk: { submitQuiz: vi.fn(), submitAnswer: vi.fn(), useHelp: vi.fn(), requestRetry: vi.fn() },
+      // §15 B3：PkMatch 挂载会拉词条库快照（失败=空=选择器不可用）；本文件不测词条，给空列表
+      terms: { list: vi.fn().mockResolvedValue([]) },
     },
   };
 });
@@ -165,7 +167,7 @@ describe('PkMatch 对局视图', () => {
     fireEvent.change(main.querySelector('.sb-pk-input')!, { target: { value: '  出一道浮力题  ' } });
     expect(submit.hasAttribute('disabled')).toBe(false);
     fireEvent.click(submit);
-    await waitFor(() => expect(pk.submitQuiz).toHaveBeenCalledWith('r-1', '出一道浮力题', 'single')); // trim 在服务调用点；§15 B2 题型随请求带走
+    await waitFor(() => expect(pk.submitQuiz).toHaveBeenCalledWith('r-1', '出一道浮力题', 'single', [])); // termIds 空 = 请求体不带词条字段 // trim 在服务调用点；§15 B2 题型随请求带走
     expect((main.querySelector('.sb-pk-input') as HTMLInputElement).value).toBe('');
   });
 

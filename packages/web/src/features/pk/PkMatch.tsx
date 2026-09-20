@@ -14,18 +14,10 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isAiUserId, type PkJudgeAdvice, type PkQuizKind, type PkRoomState } from '@sb/shared';
-import { api, ApiError } from '../../lib/api';
+import { api, ApiError, type TermItem } from '../../lib/api';
 import {
-  cdRemainingMs,
-  formatClock,
-  myHelpLeft,
-  myPendingQuestion,
-  myWrongQuestions,
-  optionLetter,
-  pendingToOpponent,
-  quizPendingLabel,
-  quizPendingSec,
-  remainingMs,
+  cdRemainingMs, formatClock, myHelpLeft, myPendingQuestion, myWrongQuestions,
+  optionLetter, pendingToOpponent, quizPendingLabel, quizPendingSec, remainingMs,
   retryRemainingMs,
 } from './pk-view';
 import { PkAnswerBlock } from './PkAnswerBlock';
@@ -81,6 +73,9 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
   const [prompt, setPrompt] = useState('');
   /** §15 B2：出题人当场选的题型（单选/判断），随出题请求带走 */
   const [qKind, setQKind] = useState<PkQuizKind>('single');
+  /** §15 B3：词条硬绑定——已选 id（≤5）与我的词条库快照（挂载拉一次，失败=空=选择器退化不可用） */
+  const [termIds, setTermIds] = useState<string[]>([]);
+  const [myTerms, setMyTerms] = useState<TermItem[]>([]);
   const [quizBusy, setQuizBusy] = useState(false);
   const [quizErr, setQuizErr] = useState('');
   /** UX 批：替代原「一行 flash 文字」——带图标与动画的判分/提示 */
@@ -99,6 +94,18 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
     if (flashTimer.current) clearTimeout(flashTimer.current);
     setVerdict(v);
     flashTimer.current = setTimeout(() => setVerdict(null), VERDICT_MS);
+  }, []);
+
+  // §15 B3：词条库快照拉一次（未登录 401 → 空 = 选择器不可用；不轮询——词条库在一局内变动可忽略）
+  useEffect(() => {
+    let alive = true;
+    api.terms
+      .list()
+      .then((items) => alive && setMyTerms(items))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, []);
   useEffect(
     () => () => {
@@ -125,7 +132,7 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
     setQuizErr('');
     setJudge(null);
     try {
-      await api.pk.submitQuiz(state.roomId, prompt.trim(), qKind);
+      await api.pk.submitQuiz(state.roomId, prompt.trim(), qKind, termIds);
       setPrompt('');
     } catch (e) {
       setQuizErr(e instanceof ApiError ? e.message : '出题失败，请重试');
@@ -135,7 +142,7 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
     } finally {
       setQuizBusy(false);
     }
-  }, [prompt, qKind, quizBusy, state.roomId]);
+  }, [prompt, qKind, termIds, quizBusy, state.roomId]);
 
   const answer = useCallback(
     async (choice: number) => {
@@ -189,6 +196,9 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
       busy={quizBusy}
       error={quizErr}
       qKind={qKind}
+      terms={myTerms}
+      termIds={termIds}
+      onTermIds={setTermIds}
       onPrompt={setPrompt}
       onKind={setQKind}
       onSubmit={() => void submitQuiz()}

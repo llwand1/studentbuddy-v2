@@ -9,15 +9,11 @@
  * 人机对称不是口号，是代码路径相同（AI 代理见 ai-bot.ts）。
  */
 import {
-  ANSWER_TIME_MS,
-  AI_RETRY_DELAY_MS,
-  IDLE_PENALTY_MS,
-  PK_PROMPT_MAX,
-  QUIZ_CD_MS,
-  QUIZ_FAIL_STRIKE,
+  ANSWER_TIME_MS, AI_RETRY_DELAY_MS, IDLE_PENALTY_MS, PK_PROMPT_MAX, QUIZ_CD_MS, QUIZ_FAIL_STRIKE,
   pkChannel, pkQuizMixFor,
   type PkQuizKind, type PkRoomError, type PkRoomState,
-} from '@sb/shared';import type { PkQuestion, QuizPayload, QuizQuestion } from '@sb/shared';
+} from '@sb/shared';
+import type { PkQuestion, QuizPayload, QuizQuestion } from '@sb/shared';
 import { publish } from '../chat/sse-bus.js';
 import { generateQuiz } from '../learning/quiz.js';
 import {
@@ -32,6 +28,7 @@ import {
 import { runAiAnswer, runAiQuiz } from './ai-bot.js';
 import { buildTopicAdvice, judgeTopicFit } from './judge.js';
 import { settleRoom } from './settle.js';
+import { pkTermConstraint, resolvePkTerms } from './quiz-terms.js';
 
 /**
  * 域错误。`message` 仍是错误码本身（路由层据此查状态码，与既有写法兼容），
@@ -113,11 +110,11 @@ export function pushGeneratedQuestion(
 }
 
 /**
- * 出题：校验（active / 在房 / CD）→ 先落 CD 并广播（双方立刻看到倒计时）
+ * 出题：校验（active / 在房 / 词条 / CD）→ 先落 CD 并广播（双方立刻看到倒计时）
  * → 调出题管道 → 成功建题 +1 并广播；失败回滚 CD（= 契约「失败可免费重试，不计 CD」）。
- * ★ M2c：`ownerId` = **提交者的账号**（谁付模型钱），与 `userId`（对局身份，PK 允许游客/AI）是两回事；
+ * ★ M2c：`ownerId` = **提交者的账号**（谁付模型钱），与 `userId`（对局身份，PK 允许游客/AI）是两回事，
  *   尾参可选同既有惯例，生产路径 `routes/pk.ts` 一律显式传 `ownerIdOf(req)`。
- * ★ §15 B2 `qKind`：出题人选的题型（「出题时现选」），省略＝单选（旧调用点零改动；裁判类似题同款）。
+ * ★ §15 B2 `qKind`＝出题人现选题型（省略＝单选）；§15 B3 `termIds`＝词条硬绑定（见 quiz-terms.ts）。
  */
 export async function submitQuiz(
   roomId: string,
@@ -126,6 +123,7 @@ export async function submitQuiz(
   now = Date.now(),
   ownerId: string | null = null,
   qKind: PkQuizKind = 'single',
+  termIds: readonly unknown[] = [],
 ): Promise<PkRoomState> {
   const room = requireRoomInternal(roomId);
   if (room.status !== 'active') fail('ROOM_NOT_ACTIVE');
@@ -137,7 +135,9 @@ export async function submitQuiz(
   if (!room.currentTopic) fail('TOPIC_NOT_SET');
   const prompt = rawPrompt.trim().slice(0, PK_PROMPT_MAX);
   const topic = room.currentTopic;
-
+  // §15 B3：词条校验必须在 CD 落之前——选错词条是输入错误，不该吃 60 秒冷却
+  const { terms, error: termErr } = resolvePkTerms(termIds, ownerId);
+  if (termErr) fail(termErr);
   const prevCd = room.nextQuizAt[userId];
   if ((prevCd ?? 0) > now) fail('QUIZ_ON_COOLDOWN');
   room.nextQuizAt[userId] = now + QUIZ_CD_MS;
@@ -155,12 +155,13 @@ export async function submitQuiz(
   };
 
   // 主题约束直接塞进出题提示词：先让模型「尽量出对」，再由裁判兜底判贴合度（两层，不单靠一层）
+  const { constraint: termConstraint, material: termMaterial } = pkTermConstraint(terms);
   let payload: QuizPayload | null = null;
   try {
     // 末参 online=true（2026-09-13 老板拍板）：PK 出题也走联网检索；配比按 qKind 现算（§15 B2，仍自 PK_QUIZ_MIX 派生）
     payload = await generateQuiz(
-      `${prompt}\n（硬约束：题目必须严格围绕主题「${topic}」，不得跑题）`,
-      undefined,
+      `${prompt}\n（硬约束：题目必须严格围绕主题「${topic}」${termConstraint}，不得跑题）`,
+      termMaterial,
       pkQuizMixFor(qKind),
       undefined,
       undefined,

@@ -44,6 +44,8 @@ const ERROR_STATUS: Record<PkRoomError, number> = {
   RETRY_NOT_YOURS: 403,
   JUDGE_UNAVAILABLE: 502,
   MATCH_NOT_FOUND: 404,
+  TERM_NOT_FOUND: 404,
+  TERM_LIMIT_EXCEEDED: 400,
 };
 
 /** 域错误码 → 人话文案（ADR-5：失败必须可读、可重试，不裸抛码） */
@@ -72,6 +74,8 @@ const ERROR_TEXT: Record<PkRoomError, string> = {
   RETRY_NOT_YOURS: '那道错题不是你答的',
   JUDGE_UNAVAILABLE: '裁判 AI 这会儿不可用（去设置页给「裁判」角色绑个模型）',
   MATCH_NOT_FOUND: '这条对战记录不存在',
+  TERM_NOT_FOUND: '选中的词条不存在或不属于你',
+  TERM_LIMIT_EXCEEDED: '一次最多选 5 条词条',
 };
 
 /** 域层错误 → HTTP 响应；非域错误一律 500（不把内部异常当业务错误外泄） */
@@ -201,8 +205,10 @@ pkRouter.post('/rooms/:id/quiz', (req: Request, res: Response) => {
       // ★ M2c：末参是**账号归属**（谁付模型钱），与 `identity.userId`（对局身份，允许游客/AI）
       //   是两回事——见 pk/match.ts 的 submitQuiz 注释。未登录 ⇒ null = 平台通道。
       // qKind（§15 B2）：出题人当场选单选/判断；不传或非法值按单选（缺省兜底，不 400——
-      // 旧前端没这字段也照常出题）。
+      // 旧前端没这字段也照常出题）。termIds（§15 B3）：词条硬绑定，原样透传，校验在域层
+      // （超限 400 / 取不全 404，且在 CD 落之前——输入错误不吃冷却）。
       const qKind = req.body?.qKind === 'judge' ? 'judge' : 'single';
+      const termIds: unknown[] = Array.isArray(req.body?.termIds) ? req.body.termIds : [];
       const state = await submitQuiz(
         String(req.params.id ?? ''),
         identity.userId,
@@ -210,6 +216,7 @@ pkRouter.post('/rooms/:id/quiz', (req: Request, res: Response) => {
         undefined,
         ownerIdOf(req),
         qKind,
+        termIds,
       );
       res.json({ state });
     } catch (e) {

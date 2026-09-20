@@ -8,6 +8,7 @@
  */
 import type { PkQuizKind } from '@sb/shared';
 import { formatClock } from './pk-view';
+import { PkTermPicker, type PkTermOption } from './PkTermPicker';
 
 /** 现选题型（与 shared `PkQuizKind` 同形；本地常量避免为两个字符串引类型入展示层之外再绕一手） */
 const KINDS: { value: PkQuizKind; label: string }[] = [
@@ -26,12 +27,16 @@ interface Props {
   error: string;
   /** 当前选中的题型（状态在 `PkMatch`，提交时随请求带走） */
   qKind: PkQuizKind;
+  /** §15 B3 词条硬绑定：我的词条库快照 + 已选 id（状态在 `PkMatch`） */
+  terms: PkTermOption[];
+  termIds: string[];
+  onTermIds: (ids: string[]) => void;
   onPrompt: (v: string) => void;
   onKind: (k: PkQuizKind) => void;
   onSubmit: () => void;
 }
 
-export function PkQuizBlock({ topic, prompt, cd, busy, error, qKind, onPrompt, onKind, onSubmit }: Props) {
+export function PkQuizBlock({ topic, prompt, cd, busy, error, qKind, terms, termIds, onTermIds, onPrompt, onKind, onSubmit }: Props) {
   return (
     <section className="sb-pk-card sb-pk-block">
       <div className="sb-pk-q-head">
@@ -53,6 +58,7 @@ export function PkQuizBlock({ topic, prompt, cd, busy, error, qKind, onPrompt, o
             {k.label}
           </button>
         ))}
+        <PkTermPicker terms={terms} selected={termIds} onChange={onTermIds} />
       </div>
       <form
         className="sb-pk-form"

@@ -292,6 +292,22 @@ export function listTerms(
 }
 
 /**
+ * 按 id 批量取词条（PK 出题硬绑定用，PK-SPEC §15 B3）。
+ * ★ owner 隔离进 `WHERE`（同 removeTerm 取向）：别人的/不存在的 id 直接不返回——
+ *   调用方按「返回数 ≠ 请求数 ⇒ TERM_NOT_FOUND」判，不向无权限者泄露「这个 id 存在」。
+ */
+export function listTermsByIds(ids: readonly string[], ownerId: string | null): TermApiRow[] {
+  const uniq = [...new Set(ids)];
+  if (!uniq.length) return [];
+  const rows = getDb()
+    .prepare(
+      `SELECT * FROM term_library WHERE owner_id = ? AND id IN (${uniq.map(() => '?').join(',')})`,
+    )
+    .all(ownerForWrite(ownerId), ...uniq) as TermRow[];
+  return rows.map((r) => ({ ...r, aliases: parseAliases(r.aliases) }));
+}
+
+/**
  * 按词条名查行（对话工具用：模型手里只有词条名没有 id）。
  * 大小写不敏感；term 精确命中优先，其次别名命中（AI 整理判定的同一概念）。
  * 多条同名时取最近更新的那条。找不到返回 null。
@@ -314,8 +330,7 @@ export function findTermByName(name: string, ownerId: string | null): TermRow | 
  * ★ 归属判据进 `WHERE`（不是先查后判）：`DELETE … WHERE id = ? AND owner_id = ?` 天然幂等，
  *   别人删不到我的、我也删不到别人的，且**不泄露 id 是否存在**（删 0 行与删不存在的 id 同形）。
  */
-export function removeTerm(id: string, ownerId: string | null): void {
-  getDb()
+export function removeTerm(id: string, ownerId: string | null): void {  getDb()
     .prepare('DELETE FROM term_library WHERE id = ? AND owner_id = ?')
     .run(id, ownerForWrite(ownerId));
   // ★ 删索引行是**必须**的，不是优化：索引是派生表，源行删了它不会自己消失，

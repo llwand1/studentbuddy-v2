@@ -91,6 +91,11 @@ export function pkQuizMixFor(kind: PkQuizKind = 'single'): QuizMix {
   return { ...PK_QUIZ_MIX, single: kind === 'single' ? 1 : 0, judge: kind === 'judge' ? 1 : 0 };
 }
 
+// ── 词条出题（§15 B3，老板拍板「可选 + 选了即硬绑定」）────────────────────
+
+/** 单次出题最多带几条词条（与 `MAX_QUIZ_REAL_PER_TYPE` 同族上限）。★ 不占 `PK_PROMPT_MAX` 额度——那是玩家自己写的提示词上限，词条走独立入参独立拼接 */
+export const PK_TERM_MAX = 5;
+
 // ── 主题轮转 / 道具 / 二次机会（P0-7，2026-09-13 老板点单）────────────
 
 /** 主题字数上限：太长则判不出贴合度，也显示不下（服务端截断前硬校验） */
@@ -383,5 +388,10 @@ export type PkRoomError =
    * ★ 两种情况**故意合成一个码**：分开（403「不是你的」/404「不存在」）等于把
    *   「这个 id 存在」告诉了一个没权限的人——别人的对局是否存在，不关你的事。
    */
-  | 'MATCH_NOT_FOUND';
+  | 'MATCH_NOT_FOUND'
+  // ── §15 B3：词条出题（「不存在」与「不是你的」同 MATCH_NOT_FOUND 取向：合成一个码）──
+  /** 词条 id 不存在或不属于你 → 404（别人的词条是否存在，不关你的事） */
+  | 'TERM_NOT_FOUND'
+  /** 一次带超过 `PK_TERM_MAX` 条词条 → 400 */
+  | 'TERM_LIMIT_EXCEEDED';
 

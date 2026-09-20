@@ -1110,3 +1110,135 @@
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ── §15 B3：词条出题选择器（PkTermPicker / PkTermPickerOverlay）──────── */
+
+.sb-pk-term-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-1);
+  margin-left: auto; /* 题型行右侧；chips 多时换行 */
+  flex-wrap: wrap;
+}
+
+.sb-pk-term-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sb-sp-1);
+}
+
+.sb-pk-term-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px var(--sb-sp-2);
+  font-size: var(--sb-fs-sm);
+  border: 1px solid var(--sb-line);
+  border-radius: 999px;
+  background: var(--sb-bg);
+  cursor: pointer;
+}
+
+.sb-pk-term-chip span {
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-sm);
+}
+
+.sb-pk-term-chip:hover span {
+  color: var(--sb-danger);
+}
+
+/* 弹层：点遮罩关闭 */
+.sb-pk-term-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sb-sp-3);
+}
+
+.sb-pk-term-panel {
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-lg, 12px);
+  width: min(520px, 100%);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sb-sp-3);
+  gap: var(--sb-sp-2);
+}
+
+.sb-pk-term-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+}
+
+.sb-pk-term-head .sb-pk-input {
+  flex: 1;
+}
+
+.sb-pk-term-count {
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+  white-space: nowrap;
+}
+
+.sb-pk-term-count.full {
+  color: var(--sb-danger);
+}
+
+.sb-pk-term-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sb-pk-term-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sb-sp-2);
+  width: 100%;
+  text-align: left;
+  padding: var(--sb-sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--sb-radius-md, 8px);
+  background: transparent;
+  cursor: pointer;
+}
+
+.sb-pk-term-row:hover {
+  background: var(--sb-bg);
+}
+
+.sb-pk-term-row.on {
+  border-color: var(--sb-primary);
+  background: var(--sb-bg);
+}
+
+.sb-pk-term-name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sb-pk-term-def {
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-pk-term-empty {
+  padding: var(--sb-sp-3);
+  color: var(--sb-ink-tertiary);
+  text-align: center;
+}

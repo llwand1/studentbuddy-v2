@@ -98,10 +98,15 @@ export const api = {
       request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/state`),
     /** 出题（AI 生成耗时数秒为正常）；429 = CD 内，502 = AI 失败（CD 已回滚，免费重试）。
      * qKind（§15 B2）：出题人当场选单选/判断，省略＝单选（服务端同样兜底）。 */
-    submitQuiz: (roomId: string, prompt: string, qKind: 'single' | 'judge' = 'single') =>
+    /**
+     * 出题（AI 生成耗时数秒为正常）；429 = CD 内，502 = AI 失败（CD 已回滚，免费重试）。
+     * §15 B3 `termIds`：词条硬绑定（≤5，服务端校验）；**空数组时不带该字段**——请求体与
+     * B3 之前逐字一致（契约 T6「不选走原路径」的锁）。
+     */
+    submitQuiz: (roomId: string, prompt: string, qKind: 'single' | 'judge' = 'single', termIds: string[] = []) =>
       request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/quiz`, {
         method: 'POST',
-        body: JSON.stringify({ prompt, qKind }),
+        body: JSON.stringify({ prompt, qKind, ...(termIds.length ? { termIds } : {}) }),
       }),
     /** 答题：立即判分 { correct, delta, score }；409 = 已答/已超时 */
     submitAnswer: (roomId: string, questionId: string, choice: number) =>

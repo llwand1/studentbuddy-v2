@@ -2,16 +2,17 @@
  * QuizBankPage — 题库页：一键出题 + 题库列表 + 练习 + 薄弱点。
  */
 import { useCallback, useEffect, useState } from 'react';
-import type { QuizPayload, QuizMixReport, QuizImageReport, QuizRef, AnswerStyle, WeakAnalysis, ScenarioPayload, ScenarioMixResult } from '@sb/shared';
+import type { QuizPayload, QuizMixReport, QuizImageReport, QuizRef, AnswerStyle, WeakAnalysis, ScenarioPayload, ScenarioMixResult, QuizBlendReport } from '@sb/shared';
 import { api } from '../../lib/api';
 import { QuizCard } from './QuizCard';
 import { ScenarioPanel } from './ScenarioPanel';
-import { isScenarioItem, isScenarioPayload } from './scenario-view';
+import { isScenarioPayload } from './scenario-view';
+import { bankBadge, mixTipText } from './bank-view';
 import { AskStyleCard, useAskStyle } from '../chat/AskStyleCard';
 import { OnlineToggle } from '../../components/OnlineToggle';
 import { RefList } from './RefList';
 import { CollectPanel } from './CollectPanel';
-import { mixSummary, shortfallText, imageNote, searchNote, refsList, scenarioMixNote } from './mix-report';
+import { shortfallText, imageNote, searchNote, refsList, scenarioMixNote, blendNote } from './mix-report';
 import { weakView } from './weak-report';
 import './quiz.css';
 
@@ -51,9 +52,8 @@ export function QuizBankPage({ onOpenNotes }: { onOpenNotes?: (quizId?: string) 
 
   // 出题配比是全局设置（设置页改的），本页只展示摘要；切回本页会重新挂载，故不必轮询
   useEffect(() => {
-    api.settings
-      .quizMix()
-      .then((r) => setMixTip(mixSummary(r.mix)))
+    Promise.all([api.settings.quizMix(), api.settings.quizSourceMix()])
+      .then(([a, b]) => setMixTip(mixTipText(a.mix, b.mix)))
       .catch(() => setMixTip(''));
   }, []);
 
@@ -70,17 +70,21 @@ export function QuizBankPage({ onOpenNotes }: { onOpenNotes?: (quizId?: string) 
         mix?: QuizMixReport;
         images?: QuizImageReport;
         scenarios?: ScenarioMixResult[];
+        /** 合流报告（契约 QUIZ-BLEND-SPEC §3.4）：真题侧要/摘/缺 + 逐页抓取记录；没配真题时 real 全 0 */
+        blend?: QuizBlendReport;
       }>('/api/quiz/generate', {
         method: 'POST',
         body: JSON.stringify({ topic: topic.trim(), style, search: online }),
       });
-      // 缺题、缺图、联网、情景套数四件事同一套「缺了就说什么」口径，都挂在 note 上（不新开文案通道）；
+      // 缺题、缺图、联网、情景套数、真题报缺五件事同一套「缺了就说什么」口径，都挂在 note 上（不新开文案通道）；
       // 有来源清单时改由清单承担告知（可展开、可点），note 只留「没取到参考」那两种——避免说两遍
       const found = refsList(r.images?.search);
       setRefs(found);
       setNote(
         [
           r.mix ? shortfallText(r.mix) : null,
+          // blendNote 只在配了真题时说话；questions 传全 = 「来自 N 个网页」按题面逐题去重（准确口径）
+          blendNote(r.blend, r.quiz?.questions),
           imageNote(r.images),
           found.length === 0 ? searchNote(r.images?.search) : null,
           scenarioMixNote(r.scenarios),
@@ -132,6 +136,32 @@ export function QuizBankPage({ onOpenNotes }: { onOpenNotes?: (quizId?: string) 
   };
 
   /**
+   * 剔除单题（契约 docs/QUIZ-BLEND-SPEC.md §8 对冲④）：D1「真题自动进组」拆掉了人工确认闸门，
+   * 错题要能事后剔除——这是「事后可恢复」，不是事前拦截。剔除后本地同步摘掉该题（不整页刷新）；
+   * 剔到剩 0 道时服务端已整组自删，回列表并如实说一句。
+   */
+  const removeQuestion = async (index: number) => {
+    if (!practicing) return;
+    try {
+      const r = await api.request<{ ok: boolean; remaining: number }>(
+        `/api/quiz/bank/${practicing.quizId}/questions/${index}`,
+        { method: 'DELETE' },
+      );
+      if (r.remaining === 0) {
+        setPracticing(null);
+        setNote('该题组的题已剔空，整组连同练习记录一起移除了');
+        await reload();
+        return;
+      }
+      setPracticing((p) =>
+        p ? { ...p, quiz: { ...p.quiz, questions: p.quiz.questions.filter((_, i) => i !== index) } } : p,
+      );
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  /**
    * 薄弱点分析：服务端走 analyzer 角色**实时生成**（契约 docs/QUIZ-WEAK-SPEC.md）。
    * ★ 三态齐备（ADR-5）：进行中按钮转「分析中…」并禁用；失败有独立错误位，不静默。
    * ★ 用函数式 setState 而非 `{...practicing}`——闭包里的 practicing 可能是旧值。
@@ -171,9 +201,15 @@ export function QuizBankPage({ onOpenNotes }: { onOpenNotes?: (quizId?: string) 
         <button className="quiz-gen-btn" onClick={() => setPracticing(null)}>
           ← 返回题库
         </button>
-        <QuizCard title={practicing.quiz.title ?? '练习'} questions={practicing.quiz.questions} onAnswer={answer} />
-        {/* 出题后立即进练习视图，故 note/来源清单必须在这里也渲染——只在列表视图渲染＝用户永远看不到（真机实测） */}
+        <QuizCard
+          title={practicing.quiz.title ?? '练习'}
+          questions={practicing.quiz.questions}
+          onAnswer={answer}
+          onRemove={(i) => void removeQuestion(i)}
+        />
+        {/* 出题后立即进练习视图，故 note/来源清单/错误必须在这里也渲染——只在列表视图渲染＝用户永远看不到（真机实测） */}
         {note && <div className="quiz-note">{note}</div>}
+        {err && <div className="quiz-explain quiz-explain-mt">操作失败：{err}</div>}
         <RefList refs={refs} />
         <div className="quiz-practice-actions">
           <button className="quiz-gen-btn" disabled={analyzing} onClick={() => void analyze()}>
@@ -240,7 +276,7 @@ export function QuizBankPage({ onOpenNotes }: { onOpenNotes?: (quizId?: string) 
       {bank.map((b) => (
         <div key={b.id} className="quiz-bank-item" onClick={() => void openPractice(b.id)} role="button" tabIndex={0}>
           <span className="t">
-            {isScenarioItem(b) && <span className="quiz-note">情景</span>} {b.title}
+            {bankBadge(b.source) && <span className="quiz-note">{bankBadge(b.source)}</span>} {b.title}
           </span>
           <span className="m">{b.count} 题 · {b.source} · {b.created_at?.slice(0, 10)}</span>
           <button

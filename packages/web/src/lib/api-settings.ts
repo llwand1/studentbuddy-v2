@@ -8,7 +8,7 @@
  *   `ApiError`/`request` 抽成底层文件时为「按域拆 api」预留的路）。
  * ★ **消费面零改动**：`api.ts` 里仍是 `settings: settingsApi`，调用方照旧写 `api.settings.speech()`。
  */
-import type { AnswerStyle, QuizMix, SpeechSettings } from '@sb/shared';
+import type { AnswerStyle, QuizMix, QuizSourceMix, SpeechSettings } from '@sb/shared';
 import { request } from './api-request.js';
 
 export const settingsApi = {
@@ -27,6 +27,13 @@ export const settingsApi = {
   quizMix: () => request<{ mix: QuizMix }>('/api/settings/quiz-mix'),
   saveQuizMix: (mix: QuizMix) =>
     request<{ mix: QuizMix }>('/api/settings/quiz-mix', { method: 'PUT', body: JSON.stringify({ mix }) }),
+  /**
+   * 出题**来源**配比（每题型的真题道数；契约 docs/QUIZ-BLEND-SPEC.md §3.1）。
+   * 服务端会按当前 AI 配比做**联合钳位**再落库，回读的是实际生效值——前端拿它回填就是所见即所得。
+   */
+  quizSourceMix: () => request<{ mix: QuizSourceMix }>('/api/settings/quiz-source-mix'),
+  saveQuizSourceMix: (mix: QuizSourceMix) =>
+    request<{ mix: QuizSourceMix }>('/api/settings/quiz-source-mix', { method: 'PUT', body: JSON.stringify({ mix }) }),
   /** 出题配图开关：设置页读写（契约 docs/QUIZ-IMAGE-SPEC.md） */
   quizImage: () => request<{ on: boolean }>('/api/settings/quiz-image'),
   saveQuizImage: (on: boolean) =>

@@ -11,6 +11,17 @@
 
 .quiz-q { margin-bottom: var(--sb-sp-4); }
 .quiz-q-title { margin-bottom: var(--sb-sp-2); line-height: 1.7; }
+/* 逐题剔除（QUIZ-BLEND-SPEC §8 对冲④）：低调灰字，hover 才显眼——是「后悔药」不是主操作 */
+.quiz-q-remove {
+  float: right;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: 0 var(--sb-sp-2);
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+  background: var(--sb-bg);
+}
+.quiz-q-remove:hover { border-color: var(--sb-primary); color: var(--sb-primary); }
 .quiz-q-type {
   display: inline-block;
   font-size: var(--sb-fs-xs);

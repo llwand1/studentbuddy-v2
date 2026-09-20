@@ -4,15 +4,16 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import {
-  generateQuiz,
   saveQuiz,
   listQuiz,
   getQuiz,
   deleteQuiz,
   recordAnswer,
   loadQuizMix,
-  applyQuizMix,
 } from '../learning/quiz.js';
+import { loadQuizSourceMix } from '../learning/quiz-source-mix.js';
+import { generateBlendedQuiz } from '../learning/quiz-blend.js';
+import { removeQuizQuestion } from '../learning/quiz-edit.js';
 import { analyzeWeakPoints } from '../learning/quiz-weak.js';
 import { collectQuiz, normalizeCollectedQuiz } from '../learning/collect.js';
 import { announceScenarioToSession, generateScenario } from '../learning/scenario.js';
@@ -20,8 +21,10 @@ import { emptyScenarioGenReport } from '../learning/scenario-protocol.js';
 import { deleteScenarioDemoByQuiz } from '../learning/scenario.js';
 import {
   normalizeQuizMix,
+  normalizeQuizSourceMix,
   normalizeAnswerStyle,
   mixTotal,
+  sourceMixTotal,
   emptyQuizImageReport,
   countQuizImages,
   emptyCollectReport,
@@ -44,7 +47,7 @@ export const quizRouter = Router();
  * 出不够不静默补题、图没出也不静默：响应带 mix / images 两份报告，UI 如实告知（ADR-5）。
  */
 quizRouter.post('/generate', async (req: Request, res: Response) => {
-  const { topic, material, sessionId, mix, style, search, save = true } = req.body as {
+  const { topic, material, sessionId, mix, style, search, save = true, sourceMix } = req.body as {
     topic?: string;
     material?: string;
     sessionId?: string;
@@ -53,6 +56,11 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
     /** 本次是否联网检索（省略＝不联网；两条 UI 入口与 PK 显式传，契约 docs/QUIZ-SEARCH-SPEC.md §2.2） */
     search?: boolean;
     save?: boolean;
+    /**
+     * 本次的**真题**配比（省略＝用设置页存的那份；契约 docs/QUIZ-BLEND-SPEC.md §3.1）。
+     * 纯加法：省略即旧行为（不出真题）。
+     */
+    sourceMix?: unknown;
   };
   // 文档模式回退（契约 5.0 §5.1-5 + §5.1.1）：未显式给材料时用本会话载入的资料出题，
   // 故必须在校验前算——否则「只传 sessionId、对话还是空的」会被误判为无材料。
@@ -66,7 +74,15 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
     return;
   }
   try {
-    const requested = mix === undefined ? loadQuizMix(ownerIdOf(req)) : normalizeQuizMix(mix);
+    // 真题配比（契约 docs/QUIZ-BLEND-SPEC.md §3.1）：省略＝读设置页存的那份。
+    // ★ 两遍归一（顺序不能省）：AI 配比的「纯真题组例外」（显式全 0 + 真题配了题 ⇒ 不回退默认）
+    //   要拿真题总额当输入；真题的**联合钳位**又要拿 AI 配比当输入——先用零 AI 配比出真题
+    //   **形状**（只当例外判据，0 就是 0、正数经单档钳位还是正数），再定 AI 配比，最后对真题做正式钳位。
+    const savedReal = sourceMix === undefined ? loadQuizSourceMix(ownerIdOf(req)) : undefined;
+    const realShape =
+      savedReal ?? normalizeQuizSourceMix(sourceMix, { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 });
+    const requested = mix === undefined ? loadQuizMix(ownerIdOf(req)) : normalizeQuizMix(mix, realShape);
+    const requestedReal = savedReal ?? normalizeQuizSourceMix(sourceMix, requested);
     // 情景档（SCENARIO-SPEC §6.1）：五档一张配比卡，但传统四类走一道引擎、情景题走独立引擎
     const scenarioCount = requested.scenario;
     const tradTotal = mixTotal(requested) - scenarioCount;
@@ -89,8 +105,9 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
       return results;
     };
 
-    // 纯情景配比：传统四档全 0 时不跑传统引擎——喂全 0 配比只会得到空题组 → 假 502
-    if (tradTotal === 0) {
+    // 纯情景配比：传统四档全 0 **且没配真题**时不跑传统引擎——喂全 0 配比只会得到空题组 → 假 502
+    // （配了真题就必须走下面的合流，否则用户按题型配的真题会被整段跳过）
+    if (tradTotal === 0 && sourceMixTotal(requestedReal) === 0) {
       const scenarios = await genScenarios(scenarioCount);
       const zeros = { single: 0, multiple: 0, fill: 0, essay: 0 };
       res.json({
@@ -105,31 +122,50 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
 
     // 未显式给风格时传 undefined，由 generateQuiz 自己读库内偏好（只读一处，不在此提前定级）
     const styleArg = style === undefined ? undefined : normalizeAnswerStyle(style);
-    const raw = await generateQuiz(topic ?? '综合', effectiveMaterial, requested, images, styleArg, search === true, ownerIdOf(req));
+    // 来源**合流**（契约 docs/QUIZ-BLEND-SPEC.md §3.3）：AI 侧仍是既有的 generateQuiz，真题侧走
+    // collectQuiz（检索→抓页→逐字摘录→verbatim 锁），两层各自尽力后在 blend 层拼成一个题组。
+    // 真题侧任何失败都**不阻断**出题（ADR-4），缺口如实写进报告（拍板 D3：报缺不补）。
+    const blended = await generateBlendedQuiz(
+      topic ?? '综合',
+      effectiveMaterial,
+      requested,
+      requestedReal,
+      images,
+      styleArg,
+      search === true,
+      ownerIdOf(req),
+    );
     // 502 按**真因**分开说：v1.0 把「模型不可用 / JSON 解不出 / 配比裁空」混成一句，照着重试永远调不对（契约 §2.4）
-    if (!raw) {
+    if (!blended.quiz) {
       // 2026-09-13 再拆一层：「出题模型压根没配」与「配了但输出没解析出来」是两条完全不同的行动指引。
-      // 判定用引擎回填的 failure 真因，不在路由反推（反推在角色绑定存在但 provider 被停用等边缘态会判错）。
+      // 2026-09-20 合流后第三层的判定**不能再用 images.failure 猜**：老桩/异常路径下引擎返回 null
+      // 却没回填 failure，会把「解析不出」误报成「配比裁空」（全量回归抓过）。改用 blend 报告精确区分——
+      // 引擎返回 null 时 report.ai 还是空报告（matched=true）；返回了但被裁空时 report.ai.matched=false。
       const notConfigured = images.failure === 'no-model';
+      const aiRan = mixTotal(requested) > 0;
+      const trimmedEmpty = aiRan && !notConfigured && images.failure !== 'parse' && !blended.report.ai.matched;
+      // 纯真题组（AI 侧一档没配）一道都没摘到：题目全无，但真因是「网上没摘到」——
+      // 说「模型解析不出」是指鹿为马（模型根本没被调用）
+      const pureRealEmpty = !aiRan && sourceMixTotal(requestedReal) > 0;
       res.status(502).json({
         error: notConfigured
           ? `出题失败：${roleReady('quiz-generator', ownerIdOf(req)).reason || '出题模型没配好'}——请到「设置」→「角色模型绑定」为「出题」绑定模型后再试`
-          : '出题失败：模型输出没能解析成题目（可重试；若反复失败，到设置页给「出题」换一个更强的模型）',
+          : trimmedEmpty
+            ? `出题失败：模型出的题经配比裁剪后一题不剩（要求共 ${mixTotal(requested)} 道，可重试或到设置页改配比）`
+            : pureRealEmpty
+              ? '出题失败：真题一道都没摘到（网上没有可逐字摘录的可用题），本次也未要求 AI 出题——可到设置页把题型配回 AI 侧'
+              : '出题失败：模型输出没能解析成题目（可重试；若反复失败，到设置页给「出题」换一个更强的模型）',
       });
       return;
     }
-    const applied = applyQuizMix(raw, requested);
-    if (!applied.quiz) {
-      res.status(502).json({
-        error: `出题失败：模型出的题经配比裁剪后一题不剩（要求共 ${mixTotal(requested)} 道，可重试或到设置页改配比）`,
-      });
-      return;
-    }
-    const quiz = applied.quiz;
+    const quiz = blended.quiz;
     // 交付图数在裁剪**后**数：模型画了 3 张、被配比裁剩 1 张带图的题，就只报 1
     images.delivered = countQuizImages(quiz);
     let quizId: string | undefined;
-    if (save) quizId = saveQuiz(quiz, 'ai', ownerIdOf(req));
+    // 落库来源按**实际内容**判（拍板 D5）：真摘到了真题才写 'blend'；配了但一道没摘到，
+    // 这组题实质上仍是纯 AI 题，写成 'blend' 会让题库徽标说谎。
+    const hasReal = sourceMixTotal(blended.report.real.actual) > 0;
+    if (save) quizId = saveQuiz(quiz, hasReal ? 'blend' : 'ai', ownerIdOf(req));
     if (quizId) publishEvent({ type: 'quiz_generated', quizId, ownerId: ownerIdOf(req) });
     if (sessionId) {
       // 内容块流（演进③）：quiz 经 SSE block 事件下发聊天视图
@@ -146,7 +182,9 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
     }
     // 情景档在传统题之后逐套出（顺序即 MIX_KINDS 档位序）；每套成败如实进响应
     const scenarios = scenarioCount > 0 ? await genScenarios(scenarioCount) : undefined;
-    res.json({ quizId, quiz, mix: applied.report, images, ...(scenarios ? { scenarios } : {}) });
+    // `mix` 仍是 AI 侧报告（前端既有 shortfallText 读的就是它，**向后兼容零改动**）；
+    // `blend` 是本次新增的合流报告（真题侧要/摘/缺 + 逐页抓取记录），前端读它渲染报缺文案。
+    res.json({ quizId, quiz, mix: blended.report.ai, images, blend: blended.report, ...(scenarios ? { scenarios } : {}) });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
@@ -217,6 +255,17 @@ quizRouter.delete('/bank/:id', (req: Request, res: Response) => {
   // 情景题连带删 demo 行（quiz_bank 无外键，1:1 关系靠这里维持；普通题删零行幂等）
   deleteScenarioDemoByQuiz(req.params.id ?? '');
   res.json({ ok: true });
+});
+
+// 剔除单题（契约 docs/QUIZ-BLEND-SPEC.md §8 对冲④）：D1「真题自动进组」拆掉了人工确认闸门，
+// verbatim 锚点锁成为唯一防线——漏进来的错题要能事后剔除，而不是只能删整组（AI 题陪葬）。
+quizRouter.delete('/bank/:id/questions/:index', (req: Request, res: Response) => {
+  const r = removeQuizQuestion(req.params.id ?? '', Number(req.params.index), ownerIdOf(req));
+  if (!r.removed) {
+    res.status(404).json({ error: '题组不存在、题目下标越界或该组不支持逐题剔除（如情景题套组）' });
+    return;
+  }
+  res.json({ ok: true, remaining: r.remaining });
 });
 
 quizRouter.post('/stats/record', (req: Request, res: Response) => {

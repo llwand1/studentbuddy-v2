@@ -5,8 +5,8 @@
  * ★ 用 `mk()` 造 fixture 而非手写全字段：契约加字段（如 `refs`）时本文件不必逐条补。
  */
 import { describe, it, expect } from 'vitest';
-import type { QuizSearchReport } from '@sb/shared';
-import { searchNote, refsList, scenarioMixNote } from './mix-report';
+import type { QuizBlendReport, QuizQuestion, QuizSearchReport } from '@sb/shared';
+import { searchNote, refsList, scenarioMixNote, blendNote } from './mix-report';
 
 /** 只写关心的字段，其余走零值 */
 const mk = (p: Partial<QuizSearchReport>): QuizSearchReport => ({
@@ -94,3 +94,133 @@ describe('scenarioMixNote — 情景套数如实播报（SCENARIO-SPEC §6.1）'
     expect(scenarioMixNote([{ ok: false, failure: 'parse' }])).toContain('重试');
   });
 });
+
+describe('blendNote — 真题合流文案（QUIZ-BLEND-SPEC §3.4，2026-09-20 老板点单）', () => {
+  /** 题型序与中文名在本文件**硬写**：文案测试要锁死用户看到的那几个字，不跟实现共用一个字典 */
+  const KINDS = [
+    ['single', '单选题'],
+    ['multiple', '多选题'],
+    ['fill', '填空题'],
+    ['essay', '解答题'],
+    ['scenario', '情景题'],
+  ] as const;
+
+  const ZERO_SRC = { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 };
+  const ZERO_AI = { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 };
+
+  /** 造一份合流报告；`missing` 由 requested/actual 如实推得（服务端就是这么填的） */
+  const blend = (p: {
+    requested?: Partial<Record<(typeof KINDS)[number][0], number>>;
+    actual?: Partial<Record<(typeof KINDS)[number][0], number>>;
+    pages?: { url: string; fetched: boolean }[];
+    noCollect?: boolean;
+  }): QuizBlendReport => {
+    const requested = { ...ZERO_SRC, ...p.requested };
+    const actual = { ...ZERO_SRC, ...p.actual };
+    const missing = KINDS.filter(([t]) => actual[t] < requested[t]).map(([t, label]) => ({
+      type: t,
+      want: requested[t],
+      got: actual[t],
+      label,
+    }));
+    return {
+      ai: { requested: { ...ZERO_AI }, actual: { ...ZERO_AI }, matched: true },
+      real: { requested, actual, missing },
+      ...(p.noCollect
+        ? {}
+        : {
+            collect: {
+              queries: ['mock'],
+              providers: ['exa'],
+              failed: [],
+              pages: (p.pages ?? []).map((x) => ({ url: x.url, title: x.url, fetched: x.fetched })),
+              total: 0,
+              accepted: 0,
+              rejected: 0,
+            },
+          }),
+    };
+  };
+
+  it('没配真题（无报告 / 全 0）→ null，不是损失就不播报', () => {
+    expect(blendNote(undefined)).toBeNull();
+    expect(blendNote(null)).toBeNull();
+    expect(blendNote(blend({}))).toBeNull();
+    expect(blendNote(blend({ requested: { scenario: 0 } }))).toBeNull();
+  });
+
+  it('全摘够 → 逐档 want/want，并报总数与页数（页数取抓取成功的页）', () => {
+    const note = blendNote(
+      blend({
+        requested: { single: 2, fill: 1 },
+        actual: { single: 2, fill: 1 },
+        pages: [
+          { url: 'https://a.example/1', fetched: true },
+          { url: 'https://b.example/2', fetched: true },
+          { url: 'https://c.example/3', fetched: false },
+        ],
+      }),
+    );
+    expect(note).toBe('真题：单选题 2/2、填空题 1/1（共 3 道，来自 2 个网页）。');
+  });
+
+  it('页数优先按真题逐题 source.url 去重（准确口径，抓了没用上的页不算）', () => {
+    const q = (url: string): QuizQuestion => ({
+      type: 'single',
+      question: 'x',
+      source: { kind: 'collect', title: 't', url },
+    });
+    const questions = [q('https://a.example/1'), q('https://a.example/1'), q('https://b.example/2')];
+    const note = blendNote(
+      blend({
+        requested: { single: 3 },
+        actual: { single: 3 },
+        pages: [
+          { url: 'https://a.example/1', fetched: true },
+          { url: 'https://b.example/2', fetched: true },
+          { url: 'https://c.example/3', fetched: true },
+        ],
+      }),
+      questions,
+    );
+    // 抓了 3 页，但题只出自 2 页 → 必须报 2（报 3 就是假账）
+    expect(note).toBe('真题：单选题 3/3（共 3 道，来自 2 个网页）。');
+  });
+
+  it('AI/联网题的 url 不计入真题页数（来源分开算，不混账）', () => {
+    const note = blendNote(
+      blend({ requested: { single: 1 }, actual: { single: 1 } }),
+      [{ type: 'single', question: 'x', source: { kind: 'ai', title: 'ai', url: 'https://z.example/9' } }],
+    );
+    // 一道 collect 题都没有 → 退回抓取成功页数（非 AI 题 url）
+    expect(note).toBe('真题：单选题 1/1（共 1 道）。');
+  });
+
+  it('部分摘不到 → 缺的档标「少 N 道」，并明说未用 AI 顶替（D3 报缺不补）', () => {
+    const note = blendNote(
+      blend({ requested: { single: 2, fill: 1 }, actual: { single: 1 }, pages: [{ url: 'u', fetched: true }] }),
+    );
+    expect(note).toBe('真题：单选题 1/2（少 1 道）、填空题 0/1（少 1 道）——网上没摘到，未用 AI 顶替。');
+  });
+
+  it('一条都没摘到 → 交代结果、指向逐页报告、并说清题目从哪来', () => {
+    const note = blendNote(blend({ requested: { single: 2, fill: 1 } }));
+    expect(note).toBe('真题：本次一道都没摘到（原因见下方逐页报告），题目全部由 AI 出。');
+  });
+
+  it('没配的档不出现（requested=0 的题型不列）', () => {
+    const note = blendNote(blend({ requested: { single: 1, essay: 2 }, actual: { single: 1, essay: 2 } }));
+    expect(note).toContain('单选题 1/1');
+    expect(note).toContain('解答题 2/2');
+    expect(note).not.toContain('多选题');
+    expect(note).not.toContain('情景题');
+  });
+
+  it('老服务端不返回 collect / 搜集整体抛错 → 照样给文案，不崩（真题是增益不是依赖）', () => {
+    const note = blendNote(blend({ requested: { single: 2 }, actual: { single: 2 }, noCollect: true }));
+    expect(note).toBe('真题：单选题 2/2（共 2 道）。');
+    const empty = blendNote(blend({ requested: { single: 2 }, actual: { single: 0 }, noCollect: true }));
+    expect(empty).toBe('真题：本次一道都没摘到（原因见下方逐页报告），题目全部由 AI 出。');
+  });
+});
+

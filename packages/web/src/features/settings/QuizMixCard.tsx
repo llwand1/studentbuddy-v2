@@ -1,23 +1,37 @@
 /**
- * QuizMixCard — 出题题型配比设置：预设快选 + 逐题型题数微调（每档 0 起，0 = 不出）。
- * 数量既能 +/− 步进，也能**直接输入数字**（直输与步进共用同一套钳位：shared `setQuizMix`/`stepQuizMix`）。
- * **每个账号一份**落服务端 app_settings（v30 起；改前是全局一份，A 改一次全站都变）：
- * 同一账号的对话页「出题」与题库页「一键出题」共用这一份配比，账号之间互不影响。
- * 上限由 shared 契约给（单题型 10 / 总 20），本卡只做钳位与如实展示，不自己定规则。
+ * QuizMixCard — 出题题型配比（**双列**：每题型各配 AI 出题几道 / 网络真题几道）。
+ * 契约 `docs/QUIZ-BLEND-SPEC.md` §2（2026-09-20 老板拍板 D2「按题型分别配」——不是一维总比例）。
+ *
+ * 职责边界：本卡**只做编排**——步进器交互拆在 `QuizMixRow.tsx`（`MixStepper`），
+ * 钳位规则全在 shared（`stepQuizMix`/`setQuizMix` 与真题侧 `stepQuizSourceMix`/`setQuizSourceMix`），
+ * 本卡不自己定规则。联合口径：AI 题 + 真题 ≤ `MAX_QUIZ_TOTAL`（20，拍板 D4 合并上限）。
+ *
+ * 保存顺序铁律：**先存 AI 侧、再存真题侧**——服务端两侧 PUT 各自对**库里的**另一侧做联合钳位
+ * （`routes/settings.ts`），先 AI 后真题才能让真题侧按新 AI 配比收口；倒过来会按旧 AI 配比钳。
+ *
+ * 每账号一份落 app_settings（`quiz_mix` / `quiz_source_mix` 两键）：对话页「出题」、
+ * 题库页「一键出题」共用，账号之间互不影响。
  */
 import { useEffect, useState } from 'react';
-import type { QuizMix, QuizMixKind } from '@sb/shared';
+import type { QuizMix, QuizMixKind, QuizSourceMix } from '@sb/shared';
 import {
   MIX_KINDS,
   MIX_KIND_LABELS,
   DEFAULT_QUIZ_MIX,
+  DEFAULT_QUIZ_SOURCE_MIX,
   MAX_QUIZ_TOTAL,
   mixKindCap,
-  mixTotal,
+  sourceKindCap,
+  sourceMixTotal,
+  blendTotal,
+  normalizeQuizSourceMix,
   stepQuizMix,
   setQuizMix,
+  stepQuizSourceMix,
+  setQuizSourceMix,
 } from '@sb/shared';
 import { api } from '../../lib/api';
+import { MixStepper } from './QuizMixRow';
 import './settings.css';
 
 const PRESETS: Array<{ name: string; mix: QuizMix }> = [
@@ -29,47 +43,55 @@ const PRESETS: Array<{ name: string; mix: QuizMix }> = [
 ];
 
 const sameMix = (a: QuizMix, b: QuizMix): boolean => MIX_KINDS.every((t) => a[t] === b[t]);
+const sameSource = (a: QuizSourceMix, b: QuizSourceMix): boolean => MIX_KINDS.every((t) => a[t] === b[t]);
 
 export function QuizMixCard({ flash }: { flash: (ok: boolean, text: string) => void }) {
   const [mix, setMix] = useState<QuizMix>({ ...DEFAULT_QUIZ_MIX });
   const [saved, setSaved] = useState<QuizMix>({ ...DEFAULT_QUIZ_MIX });
+  const [sourceMix, setSourceMix] = useState<QuizSourceMix>({ ...DEFAULT_QUIZ_SOURCE_MIX });
+  const [savedSource, setSavedSource] = useState<QuizSourceMix>({ ...DEFAULT_QUIZ_SOURCE_MIX });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api.settings
-      .quizMix()
-      .then((r) => {
-        setMix(r.mix);
-        setSaved(r.mix);
+    Promise.all([api.settings.quizMix(), api.settings.quizSourceMix()])
+      .then(([a, b]) => {
+        setMix(a.mix);
+        setSaved(a.mix);
+        setSourceMix(b.mix);
+        setSavedSource(b.mix);
       })
       .catch((e) => flash(false, e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
   }, []);
 
-  const total = mixTotal(mix);
-  const dirty = !sameMix(mix, saved);
+  const realTotal = sourceMixTotal(sourceMix);
+  const blend = blendTotal(mix, sourceMix);
+  const dirty = !sameMix(mix, saved) || !sameSource(sourceMix, savedSource);
   const activePreset = PRESETS.find((p) => sameMix(p.mix, mix))?.name ?? '';
-  const totalFull = total >= MAX_QUIZ_TOTAL;
+  const totalFull = blend >= MAX_QUIZ_TOTAL;
 
-  /** 加减档位：钳位规则在 shared（stepQuizMix），本组件只管调，不自己定规则 */
-  const bump = (t: QuizMixKind, delta: number) => {
-    setMix((m) => stepQuizMix(m, t, delta));
-  };
-
-  /** 数字直输：同一套钳位规则（setQuizMix），输入 12 / 负数 / 顶破总上限都按编辑态规则收口 */
-  const bumpTo = (t: QuizMixKind, value: number) => {
-    setMix((m) => setQuizMix(m, t, value));
-  };
+  /** AI 列加减：钳位规则在 shared（stepQuizMix），本组件只管调 */
+  const bumpAi = (t: QuizMixKind, delta: number) => setMix((m) => stepQuizMix(m, t, delta));
+  /** AI 列数字直输：同一套钳位规则（setQuizMix） */
+  const setAi = (t: QuizMixKind, value: number) => setMix((m) => setQuizMix(m, t, value));
+  /** 真题列加减：联合钳位（stepQuizSourceMix）——真题能配几道取决于 AI 侧占掉多少额度 */
+  const bumpReal = (t: QuizMixKind, delta: number) => setSourceMix((r) => stepQuizSourceMix(r, mix, t, delta));
+  /** 真题列数字直输：同一套联合钳位（setQuizSourceMix） */
+  const setReal = (t: QuizMixKind, value: number) => setSourceMix((r) => setQuizSourceMix(r, mix, t, value));
 
   const save = async () => {
-    if (total === 0 || busy) return;
+    if (blend === 0 || busy) return;
     setBusy(true);
     try {
-      const r = await api.settings.saveQuizMix(mix);
-      setMix(r.mix);
-      setSaved(r.mix);
-      flash(true, `已保存：每次出题共 ${mixTotal(r.mix)} 题`);
+      // 顺序铁律（见文件头）：先 AI 后真题——真题侧按新 AI 配比联合钳位收口
+      const r1 = await api.settings.saveQuizMix(mix);
+      const r2 = await api.settings.saveQuizSourceMix(sourceMix);
+      setMix(r1.mix);
+      setSaved(r1.mix);
+      setSourceMix(r2.mix);
+      setSavedSource(r2.mix);
+      flash(true, `已保存：每次出题共 ${blendTotal(r1.mix, r2.mix)} 题（其中真题 ${sourceMixTotal(r2.mix)} 题）`);
     } catch (e) {
       flash(false, e instanceof Error ? e.message : String(e));
     } finally {
@@ -81,7 +103,8 @@ export function QuizMixCard({ flash }: { flash: (ok: boolean, text: string) => v
     <section className="settings-sec">
       <h3>出题题型配比</h3>
       <p className="settings-hint">
-        决定每次出题各题型各来几道（0 = 不出该题）；对话页「出题」与题库页「一键出题」都按这份配比。模型偶尔出不够，会在出题处如实提示缺哪类。情景题按「套」计——一套是一个可玩的交互 demo，生成比普通题慢，上限也更低。
+        决定每次出题各题型各来几道（0 = 不出）。真题从互联网现场搜集、逐字摘录并带出处链接；网上摘不到的题型会如实报缺，不用
+        AI 顶替。情景题按「套」计——一套是一个可玩的交互 demo，网页上没有可摘录的同类物，故无真题列。
       </p>
 
       <div className="quiz-mix-presets">
@@ -90,7 +113,11 @@ export function QuizMixCard({ flash }: { flash: (ok: boolean, text: string) => v
             key={p.name}
             className={activePreset === p.name ? 'quiz-mix-chip active' : 'quiz-mix-chip'}
             disabled={loading || busy}
-            onClick={() => setMix({ ...p.mix })}
+            onClick={() => {
+              setMix({ ...p.mix });
+              // 预设只动 AI 列；真题列就地按新 AI 配比联合钳位（与保存时服务端口径一致，所见即所得）
+              setSourceMix((r) => normalizeQuizSourceMix(r, p.mix));
+            }}
           >
             {p.name}
           </button>
@@ -98,130 +125,62 @@ export function QuizMixCard({ flash }: { flash: (ok: boolean, text: string) => v
       </div>
 
       <div className="quiz-mix-rows">
+        <div className="quiz-mix-row quiz-mix-head" aria-hidden="true">
+          <span />
+          <span>AI 出题</span>
+          <span>网络真题</span>
+        </div>
         {MIX_KINDS.map((t) => (
-          <QuizMixRow
-            key={t}
-            label={MIX_KIND_LABELS[t]}
-            value={mix[t]}
-            total={total}
-            cap={mixKindCap(t)}
-            disabled={loading || busy}
-            onStep={(delta) => bump(t, delta)}
-            onSet={(v) => bumpTo(t, v)}
-          />
+          <div className="quiz-mix-row" key={t}>
+            <span className="quiz-mix-label">{MIX_KIND_LABELS[t]}</span>
+            <MixStepper
+              value={mix[t]}
+              cap={mixKindCap(t)}
+              totalFull={totalFull}
+              disabled={loading || busy}
+              onStep={(delta) => bumpAi(t, delta)}
+              onSet={(v) => setAi(t, v)}
+            />
+            {t === 'scenario' ? (
+              // 情景题无真题列（契约 §2 约定 1）：列出来只会永远 0，不如明说
+              <span className="quiz-mix-na">—（网上摘不到可玩 demo）</span>
+            ) : (
+              <MixStepper
+                value={sourceMix[t]}
+                cap={sourceKindCap(t)}
+                totalFull={totalFull}
+                disabled={loading || busy}
+                onStep={(delta) => bumpReal(t, delta)}
+                onSet={(v) => setReal(t, v)}
+              />
+            )}
+          </div>
         ))}
       </div>
+      <p className="settings-hint">
+        上限：AI 单题型 10（情景题 3 套）、真题单题型 5；AI 题 + 真题合并计 {MAX_QUIZ_TOTAL} 道。
+      </p>
 
       <div className="settings-actions">
-        <button className="settings-add" disabled={loading || busy || total === 0 || !dirty} onClick={() => void save()}>
+        <button className="settings-add" disabled={loading || busy || blend === 0 || !dirty} onClick={() => void save()}>
           {busy ? '保存中…' : '保存配比'}
         </button>
         <button
           className="settings-test"
           disabled={loading || busy}
-          onClick={() => setMix({ ...DEFAULT_QUIZ_MIX })}
+          onClick={() => {
+            setMix({ ...DEFAULT_QUIZ_MIX });
+            setSourceMix({ ...DEFAULT_QUIZ_SOURCE_MIX });
+          }}
         >
           恢复默认
         </button>
         <span className="quiz-mix-total">
-          {total === 0
+          {blend === 0
             ? '共 0 题（至少留 1 题）'
-            : `共 ${total} 题 · 总上限 ${MAX_QUIZ_TOTAL}${totalFull ? '，已满（先减后加）' : ''}`}
+            : `共 ${blend} / ${MAX_QUIZ_TOTAL} 题（其中真题 ${realTotal} 题）${totalFull ? '，已满（先减后加）' : ''}`}
         </span>
       </div>
     </section>
-  );
-}
-
-/**
- * 单题型一行：− / 数字直输 / +。数字框用本地 draft（字符串），失焦或回车才提交，
- * 避免每次按键都重算导致光标跳动；提交走 shared `setQuizMix` 钳位，钳位后的最终值由
- * 父组件 value 回灌（useEffect 同步 draft），输入超限数字会自动"回落"到合法值。
- */
-function QuizMixRow({
-  label,
-  value,
-  total,
-  cap,
-  disabled,
-  onStep,
-  onSet,
-}: {
-  label: string;
-  value: number;
-  total: number;
-  /** 单档上限按档取（题型 10 / 情景题 3，shared mixKindCap） */
-  cap: number;
-  disabled: boolean;
-  onStep: (delta: number) => void;
-  onSet: (value: number) => void;
-}) {
-  const [draft, setDraft] = useState(String(value));
-
-  // 父级 mix 变化（点预设 / 点 +− / 保存回读 / 输入被钳位）时，把输入框同步回真实值
-  useEffect(() => {
-    setDraft(String(value));
-  }, [value]);
-
-  const perTypeFull = value >= cap;
-  const totalFull = total >= MAX_QUIZ_TOTAL;
-
-  /** 失焦/回车提交：无效输入还原为当前值；有效输入本地先规范化，再交给钳位规则 */
-  const commit = () => {
-    const trimmed = draft.trim();
-    if (trimmed === '') {
-      setDraft(String(value));
-      return;
-    }
-    const n = Number(trimmed);
-    if (!Number.isFinite(n)) {
-      setDraft(String(value));
-      return;
-    }
-    setDraft(String(Math.trunc(n)));
-    onSet(n);
-  };
-
-  return (
-    <div className="quiz-mix-row">
-      <span>{label}</span>
-      <button className="quiz-mix-step" disabled={disabled || value <= 0} onClick={() => onStep(-1)} title="减少">
-        −
-      </button>
-      <input
-        className="quiz-mix-num"
-        type="number"
-        min={0}
-        max={cap}
-        step={1}
-        value={draft}
-        disabled={disabled}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            commit();
-            e.currentTarget.blur();
-          }
-        }}
-      />
-      <button
-        className="quiz-mix-step"
-        disabled={disabled || perTypeFull || totalFull}
-        onClick={() => onStep(1)}
-        title={
-          perTypeFull
-            ? `该题型上限 ${cap} 道`
-            : totalFull
-              ? `总题数已达上限 ${MAX_QUIZ_TOTAL} 道，先减掉别的题型再加`
-              : '增加'
-        }
-      >
-        +
-      </button>
-      <span className="settings-state">0 = 不出</span>
-      <span className="settings-state">{perTypeFull ? '已达该题型上限' : `该题型上限 ${cap}`}</span>
-    </div>
   );
 }

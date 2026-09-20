@@ -10,6 +10,7 @@
  */
 
 import type { Verdict } from './domain.js';
+import type { QuizSourceMix } from './quiz-source.js';
 
 export type BlockKind =
   | 'quiz' // [QUIZ] 协议题组（payload: QuizData）
@@ -129,7 +130,15 @@ export interface ScenarioMixResult {
  * **全 0 回退默认**（一套 0 题的题组没有意义，宁可按默认出也不静默空手而归）。
  * 前端输入与服务端入参都过这一道，保证两端看到同一份配比。
  */
-export function normalizeQuizMix(input: unknown): QuizMix {
+/**
+ * 配比归一化：非数字/负数→0，小数取整，单题型钳到 10，总超 20 从后往前削。
+ * **全 0 回退默认**（一套 0 题的题组没有意义，宁可按默认出也不静默空手而归）——
+ * ★ 但**纯真题组例外**：`realMix` 有题时，AI 侧全 0 是合法配置（用户就要这一套全真题），
+ *   此时不回退默认（契约 `docs/QUIZ-BLEND-SPEC.md` §3.3 的「AI 侧 0 则跳过 AI 出题」正是靠这条成立）。
+ *   `realMix` 是可选尾参：省略即旧行为，既有调用点与测试零改动。
+ * 前端输入与服务端入参都过这一道，保证两端看到同一份配比。
+ */
+export function normalizeQuizMix(input: unknown, realMix?: QuizSourceMix): QuizMix {
   const src = (input ?? {}) as Partial<Record<QuizMixKind, unknown>>;
   const out: QuizMix = { ...DEFAULT_QUIZ_MIX };
   for (const t of MIX_KINDS) {
@@ -144,7 +153,10 @@ export function normalizeQuizMix(input: unknown): QuizMix {
     out[t] -= cut;
     over -= cut;
   }
-  return mixTotal(out) === 0 ? { ...DEFAULT_QUIZ_MIX } : out;
+  // 真题侧的求和就地算，**不 import `sourceMixTotal`**——那会让 content-blocks ↔ quiz-source 变成
+  // 运行时循环依赖（两边都值引用对方），本仓明令避让。
+  const realTotal = realMix ? MIX_KINDS.reduce((sum, t) => sum + realMix[t], 0) : 0;
+  return mixTotal(out) === 0 && realTotal === 0 ? { ...DEFAULT_QUIZ_MIX } : out;
 }
 
 /**
@@ -154,10 +166,13 @@ export function normalizeQuizMix(input: unknown): QuizMix {
  * 前端用本函数先钳住，就不会出现「配到 30 题、保存后被服务端悄悄削掉」这种无法预期的闪变；
  * 服务端 normalize 因此只作兜底而非主路径。返回新对象，不改入参。
  */
-export function stepQuizMix(mix: QuizMix, type: QuizMixKind, delta: number): QuizMix {
+export function stepQuizMix(mix: QuizMix, type: QuizMixKind, delta: number, realMix?: QuizSourceMix): QuizMix {
   if (delta === 0) return { ...mix };
   if (delta < 0) return { ...mix, [type]: Math.max(0, mix[type] + delta) };
-  const step = Math.min(delta, mixKindCap(type) - mix[type], MAX_QUIZ_TOTAL - mixTotal(mix));
+  // `realMix` 是可选尾参（契约 QUIZ-BLEND-SPEC §3.2 的**联合钳位**）：真题已占的额度必须从 AI 侧扣掉，
+  // 否则两侧各自钳到 20、合起来就超。省略＝旧行为，老调用点零改动。
+  const used = mixTotal(mix) + (realMix ? mixTotal(realMix) : 0);
+  const step = Math.min(delta, mixKindCap(type) - mix[type], MAX_QUIZ_TOTAL - used);
   return { ...mix, [type]: mix[type] + Math.max(0, step) };
 }
 
@@ -167,9 +182,10 @@ export function stepQuizMix(mix: QuizMix, type: QuizMixKind, delta: number): Qui
  * 只给到「其他档占用后剩余额度」（恒 ≥ 0），不牵连别的档位。
  * 非数字/NaN → 0；小数取整。返回新对象，不改入参。
  */
-export function setQuizMix(mix: QuizMix, type: QuizMixKind, value: number): QuizMix {
+export function setQuizMix(mix: QuizMix, type: QuizMixKind, value: number, realMix?: QuizSourceMix): QuizMix {
   const others = mixTotal(mix) - mix[type];
-  const cap = Math.min(mixKindCap(type), MAX_QUIZ_TOTAL - others);
+  // 同 stepQuizMix：真题占掉的额度要从 AI 侧的可配空间里扣（联合钳位，契约 §3.2）
+  const cap = Math.min(mixKindCap(type), MAX_QUIZ_TOTAL - others - (realMix ? mixTotal(realMix) : 0));
   const v = Number.isFinite(value) ? Math.trunc(value) : 0;
   return { ...mix, [type]: Math.min(Math.max(0, v), Math.max(0, cap)) };
 }

@@ -142,14 +142,19 @@
 .quiz-mix-chip:disabled { opacity: 0.5; cursor: not-allowed; }
 .quiz-mix-chip.active { background: var(--sb-primary); border-color: var(--sb-primary); color: #fff; }
 
-.quiz-mix-rows { display: grid; gap: var(--sb-sp-2); margin-bottom: var(--sb-sp-3); }
+.quiz-mix-rows { display: grid; gap: var(--sb-sp-2); margin-bottom: var(--sb-sp-2); }
+/* 双列行（契约 QUIZ-BLEND-SPEC §2）：题型名 | AI 出题步进器 | 网络真题步进器 */
 .quiz-mix-row {
   display: grid;
-  grid-template-columns: 84px auto auto auto 72px 1fr;
+  grid-template-columns: 84px 1fr 1fr;
   gap: var(--sb-sp-2);
   align-items: center;
   font-size: var(--sb-fs-sm);
 }
+.quiz-mix-head { color: var(--sb-ink-secondary); }
+.quiz-mix-label { color: var(--sb-ink); }
+.quiz-mix-cell { display: inline-flex; align-items: center; gap: var(--sb-sp-1); }
+.quiz-mix-na { color: var(--sb-ink-secondary); opacity: 0.75; }
 .quiz-mix-step {
   width: 28px;
   height: 26px;

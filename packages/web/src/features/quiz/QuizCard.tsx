@@ -12,18 +12,24 @@ export function QuizCard({
   questions,
 
   onAnswer,
+  onRemove,
 }: {
   title: string;
   questions: QuizQuestion[];
   quizId?: string;
   /** answer：作答快照（选择=下标数组、填空=文本），随 stats/record 落进刷题笔记（QUIZ-NOTES-SPEC）；essay 无快照 */
   onAnswer?: (index: number, correct: boolean, answer?: number[] | string) => void;
+  /**
+   * 逐题剔除（契约 docs/QUIZ-BLEND-SPEC.md §8 对冲④）：D1「真题自动进组」没有人工确认闸门，
+   * 错题要能事后剔除。**可选**——题库页传入；聊天流等调用点不传则整列按钮不渲染（纯加法）。
+   */
+  onRemove?: (index: number) => void;
 }) {
   return (
     <div className="quiz-card">
       <div className="quiz-head">{title}</div>
       {questions.map((q, i) => (
-        <QuestionItem key={i} index={i} q={q} onAnswer={onAnswer} />
+        <QuestionItem key={i} index={i} q={q} onAnswer={onAnswer} onRemove={onRemove} />
       ))}
     </div>
   );
@@ -33,10 +39,12 @@ function QuestionItem({
   index,
   q,
   onAnswer,
+  onRemove,
 }: {
   index: number;
   q: QuizQuestion;
   onAnswer?: (i: number, c: boolean, answer?: number[] | string) => void;
+  onRemove?: (index: number) => void;
 }) {
   const [picked, setPicked] = useState<number[]>([]);
   const [fillText, setFillText] = useState('');
@@ -71,6 +79,15 @@ function QuestionItem({
       <div className="quiz-q-title">
         <span className="quiz-q-type">{typeLabel}</span>
         {q.question}
+        {onRemove && (
+          <button
+            className="quiz-q-remove"
+            onClick={() => onRemove(index)}
+            title="从题组里剔除这道题（组内其余题的序号与统计会自动对齐）"
+          >
+            剔除
+          </button>
+        )}
       </div>
 
       {/* 配图：svg 由模型产出，属不可信内容——只经 SvgPreviewCard 渲染（内含 prepareSvg 净化），

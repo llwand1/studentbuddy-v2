@@ -14,7 +14,13 @@ import { render, fireEvent, cleanup } from '@testing-library/react';
 import { ChatView } from './ChatView';
 
 vi.mock('../../lib/api', () => ({
-  api: { settings: { quizMix: vi.fn().mockResolvedValue({ mix: {} }) } },
+  api: {
+    settings: {
+      quizMix: vi.fn().mockResolvedValue({ mix: {} }),
+      // mixTip 摘要如今两份一起拉（真题配比并入同一行，QUIZ-BLEND-SPEC §3.5）
+      quizSourceMix: vi.fn().mockResolvedValue({ mix: {} }),
+    },
+  },
 }));
 
 const emptyStream = {

@@ -7,9 +7,9 @@
  * 纯状态编排：不发 toast、不碰路由；失败真因经 onError 交回 ChatView 统一显示。
  */
 import { useCallback, useState } from 'react';
-import type { AnswerStyle, QuizImageReport, QuizRef, ScenarioMixResult } from '@sb/shared';
+import type { AnswerStyle, QuizBlendReport, QuizImageReport, QuizPayload, QuizRef, ScenarioMixResult } from '@sb/shared';
 import { api } from '../../lib/api';
-import { imageNote, refsList, searchNote, scenarioMixNote } from '../quiz/mix-report';
+import { blendNote, imageNote, refsList, searchNote, scenarioMixNote } from '../quiz/mix-report';
 
 interface Opts {
   sessionId: string | null;
@@ -40,7 +40,14 @@ export function useQuizActions({ sessionId, input, online, getMaterial, clearInp
       onError('');
       setQuizNote('');
       try {
-        const r = await api.request<{ error?: string; images?: QuizImageReport; scenarios?: ScenarioMixResult[] }>(
+        const r = await api.request<{
+          error?: string;
+          quiz?: QuizPayload;
+          images?: QuizImageReport;
+          scenarios?: ScenarioMixResult[];
+          /** 合流报告（契约 QUIZ-BLEND-SPEC §3.4）：真题侧要/摘/缺；没配真题时 real 全 0，blendNote 返 null */
+          blend?: QuizBlendReport;
+        }>(
           '/api/quiz/generate',
           {
             method: 'POST',
@@ -54,12 +61,13 @@ export function useQuizActions({ sessionId, input, online, getMaterial, clearInp
           },
         );
         if (r.error) onError(r.error);
-        // 题卡走 SSE 块进消息流；本行只补「图/联网/情景套数为什么不是足额」——有来源清单时改由清单承担告知（不说两遍）
+        // 题卡走 SSE 块进消息流；本行只补「图/联网/情景套数/真题报缺为什么不是足额」——有来源清单时改由清单承担告知（不说两遍）
         else {
           const found = refsList(r.images?.search);
           setQuizRefs(found);
           setQuizNote(
             [
+              blendNote(r.blend, r.quiz?.questions),
               imageNote(r.images),
               found.length === 0 ? searchNote(r.images?.search) : null,
               scenarioMixNote(r.scenarios),

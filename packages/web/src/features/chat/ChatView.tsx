@@ -18,7 +18,7 @@ import { TaskPanel } from './TaskPanel';
 import { MessageRow } from './MessageRow';
 import { formatRoundMeta } from './chat-meta';
 import { buildExportMarkdown, downloadText, exportFilename } from './chat-export';
-import { mixSummary } from '../quiz/mix-report';
+import { mixTipText } from '../quiz/bank-view';
 import { useQuizActions } from './use-quiz-actions';
 import { RefList } from '../quiz/RefList';
 
@@ -112,9 +112,8 @@ export function ChatView({
 
   /** 出题配比是全局设置（设置页改的），本视图只展示摘要；拉取失败静默——服务端仍按库内配比出题 */
   useEffect(() => {
-    api.settings
-      .quizMix()
-      .then((r) => setMixTip(mixSummary(r.mix)))
+    Promise.all([api.settings.quizMix(), api.settings.quizSourceMix()])
+      .then(([a, b]) => setMixTip(mixTipText(a.mix, b.mix)))
       .catch(() => {});
   }, []);
 

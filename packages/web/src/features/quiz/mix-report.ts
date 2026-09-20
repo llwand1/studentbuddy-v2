@@ -2,8 +2,17 @@
  * mix-report — 出题配比的展示文案（纯函数：组件只管挂上去，规则留在这里才可测）。
  * 契约 QuizMixReport 由服务端给出，本文件只做「说人话」，不重新判定缺什么。
  */
-import type { QuizMix, QuizMixReport, QuizImageReport, QuizSearchReport, QuizRef, ScenarioMixResult } from '@sb/shared';
-import { QUIZ_TYPES, QUIZ_TYPE_LABELS, mixTotal } from '@sb/shared';
+import type {
+  QuizMix,
+  QuizMixReport,
+  QuizImageReport,
+  QuizQuestion,
+  QuizSearchReport,
+  QuizBlendReport,
+  QuizRef,
+  ScenarioMixResult,
+} from '@sb/shared';
+import { MIX_KINDS, MIX_KIND_LABELS, QUIZ_TYPES, QUIZ_TYPE_LABELS, mixTotal, sourceMixTotal } from '@sb/shared';
 
 /** 「单选题 2 · 填空题 1 · 解答题 1」；数量为 0 的档位不展示 */
 export function mixSummary(mix: QuizMix): string {
@@ -79,3 +88,49 @@ export function scenarioMixNote(results?: ScenarioMixResult[] | null): string | 
     ? `情景题：${total} 套都没出成——${reason}。`
     : `情景题：成功 ${ok}/${total} 套，失败 ${total - ok} 套（${reason}）。`;
 }
+
+/**
+ * 真题实际出自几个网页：优先按**题面的 `source.url` 去重**（准确到题）；拿不到题面时退回
+ * `collect.pages` 里抓取成功的页数——那只是**读过**的页数，是上限而非实际出处，仅作兜底。
+ * ★ 为什么要分开算：抓了 3 页但只有 1 页摘出题时，报「来自 3 个网页」就是**假账**（ADR-5 不静默）。
+ */
+function sourcePages(report: QuizBlendReport, questions?: QuizQuestion[] | null): number {
+  const urls = new Set<string>();
+  for (const q of questions ?? []) {
+    if (q.source?.kind === 'collect' && q.source.url) urls.add(q.source.url);
+  }
+  if (urls.size > 0) return urls.size;
+  return report.collect?.pages.filter((p) => p.fetched).length ?? 0;
+}
+
+/**
+ * 真题合流文案（契约 docs/QUIZ-BLEND-SPEC.md §3.4）：配了真题就得说清「要几道 / 摘到几道 / 缺的为什么没来」。
+ * 与 `shortfallText` 同族——判定全在服务端 `report`，本函数只负责说人话，绝不重新判定缺口。
+ *
+ * ★ 「**未用 AI 顶替**」必须写出来（老板拍板 D3「报缺不补」）：否则用户看到"配了 3 道真题只来 1 道"，
+ *   只会当成 bug——而事实是我们**故意**不补（补了「真题」这词就失去意义，且题面上根本分辨不出来）。
+ * ★ `questions` 是可选第二参，只为算准「来自 N 个网页」；主路径（题库页/对话页）手上都有题，应传全。
+ *   省略时退回抓取成功页数（上限口径），**不因此返 null**——不静默优先于不精确。
+ */
+export function blendNote(report?: QuizBlendReport | null, questions?: QuizQuestion[] | null): string | null {
+  if (!report) return null;
+  const requested = sourceMixTotal(report.real.requested);
+  if (requested === 0) return null; // 本次没配真题 → 不是损失，不播报（与 imageNote/searchNote 同口径）
+
+  const actual = sourceMixTotal(report.real.actual);
+  // 一条都没摘到：直接交代结果与「谁出的题」，逐页真因由 collect 报告承担（不复述，避免两处说法）
+  if (actual === 0) return '真题：本次一道都没摘到（原因见下方逐页报告），题目全部由 AI 出。';
+
+  const parts = MIX_KINDS.filter((t) => report.real.requested[t] > 0).map((t) => {
+    const want = report.real.requested[t];
+    const got = report.real.actual[t];
+    const label = MIX_KIND_LABELS[t];
+    return got < want ? `${label} ${got}/${want}（少 ${want - got} 道）` : `${label} ${got}/${want}`;
+  });
+
+  if (actual < requested) return `真题：${parts.join('、')}——网上没摘到，未用 AI 顶替。`;
+
+  const pages = sourcePages(report, questions);
+  return `真题：${parts.join('、')}（共 ${actual} 道${pages > 0 ? `，来自 ${pages} 个网页` : ''}）。`;
+}
+

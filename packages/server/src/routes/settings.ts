@@ -16,6 +16,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { searchWeb, listKeyStatus, saveProviderKey, KEYED_PROVIDERS } from '../search/index.js';
 import { loadQuizMix, saveQuizMix, loadQuizImage, saveQuizImage } from '../learning/quiz.js';
+import { loadQuizSourceMix, saveQuizSourceMix } from '../learning/quiz-source-mix.js';
 import {
   loadAnswerStyle,
   saveAnswerStyle,
@@ -58,7 +59,25 @@ settingsRouter.get('/quiz-mix', (req, res) => {
 
 settingsRouter.put('/quiz-mix', (req: Request, res: Response) => {
   // 入参一律过归一化（负数/小数/超上限/全 0 都有既定归宿），落库即干净值
-  const mix = saveQuizMix(normalizeQuizMix((req.body as { mix?: unknown }).mix), ownerIdOf(req));
+  const owner = ownerIdOf(req);
+  const mix = saveQuizMix(normalizeQuizMix((req.body as { mix?: unknown }).mix), owner);
+  // ★ 联合总量兜底（契约 docs/QUIZ-BLEND-SPEC.md §3.2）：AI 侧自身上限是 20，但真题也占同一份额度，
+  //   两层加起来可能超。超了就**削真题侧**（AI 优先保额：AI 出题必定成功、真题尽力而为）。
+  //   编辑态已由 shared 的 step/set 钳住，正常走不到这里；这条兜的是「绕过前端直接 PUT」与历史数据。
+  const realRaw = loadQuizSourceMix(owner);
+  saveQuizSourceMix(realRaw, mix, owner);
+  res.json({ ok: true, mix });
+});
+
+// ── settings：出题**来源**配比（真题道数；契约 docs/QUIZ-BLEND-SPEC.md §3.1）──
+settingsRouter.get('/quiz-source-mix', (req, res) => {
+  res.json({ mix: loadQuizSourceMix(ownerIdOf(req)) });
+});
+
+settingsRouter.put('/quiz-source-mix', (req: Request, res: Response) => {
+  // 联合钳位要拿**当前 AI 配比**当输入（真题能配几道，取决于 AI 侧占掉多少额度），故多读一次库
+  const owner = ownerIdOf(req);
+  const mix = saveQuizSourceMix((req.body as { mix?: unknown }).mix, loadQuizMix(owner), owner);
   res.json({ ok: true, mix });
 });
 

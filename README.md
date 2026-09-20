@@ -3,9 +3,9 @@
 [![CI](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-151%20files%20%2F%202084%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-140-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-134%20types-8a63f6)
+![tests](https://img.shields.io/badge/tests-157%20files%20%2F%202166%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-139-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-136%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -89,7 +89,7 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 | **AI 输出可靠性工程** | 模型不听话不塌系统：出题五级解析阶梯（补括号 → 剥图重试 → 截断逐题回退）、丢图保题、非法转义修复、SSE 屏上文本与库内文本逐字一致；**上游挂起不再让会话永久卡住**——流式空闲超时 120s / 一次性总时长 180s，超时抛可读错误；**并发闸门两层：每用户 2 路 + 全站封顶 N（占位 8）**（两路对话可并行，主链优先、后台让路，超额明确拒绝而非无限排队） | 每个对策都对应一次真实故障的根因登记与回归锁（[`docs/dev/bug-ledger.md`](docs/dev/bug-ledger.md) + CHANGELOG 09-04、09-17 两批） |
 | **模型产出敢真跑** | ```html 围栏产出的网页在 `CSP: sandbox` + iframe 双层沙箱里运行，页面源为 `null`；SVG 净化剥 `<image>` 外链（防外链信标泄露 IP） | 真机实测沙箱页调写接口 / 读数据全被拒；净化有 `web/lib/svg-utils.test.ts` 锁 |
 | **前端零第三方库** | 无 UI 库 · 无 Markdown 库 · 无图表库：Markdown 解析、代码高亮、数据图自绘 SVG、SVG 净化自愈全部自写——供应链攻击面与包体积同时趋零、行为完全可控 | `packages/web/package.json` 运行时依赖只有 `react` / `react-dom` / `@sb/shared` |
-| **测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；交互层是**两层互补**——**8 个 `.test.tsx`**（jsdom 按文件 pragma 启用，锁交互逻辑）＋ **10 个真机探针脚本**（`tools/probes/*.mjs`，其中 8 个走 CDP 真点真渲染，锁 CSS 与真实浏览器行为） | 基线 **151 文件 / 2084 例（2083 passed + 1 skipped）**，Node 22 全量 vitest 实测；**逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**（本格数字仅为快照，勿据此判现状） |
+| **测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；交互层是**两层互补**——**10 个 `.test.tsx`**（jsdom 按文件 pragma 启用，锁交互逻辑）＋ **11 个真机探针脚本**（`tools/probes/*.mjs`，其中 8 个走 CDP 真点真渲染，锁 CSS 与真实浏览器行为） | 基线 **157 文件 / 2166 例（2165 passed + 1 skipped）**，Node 22 全量 vitest 实测；**逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**（本格数字仅为快照，勿据此判现状） |
 | **契约先行的可维护性** | `@sb/shared` 是 SSE 事件 / 内容块 / REST / 领域模型的单一事实源，前后端不允许各写一套；先登记再实现 | shared 契约文件头注释即纪律；四条固定扩展模式见 [§开发指南](#开发指南) |
 | **不锁定供应商** | OpenAI 兼容 + Anthropic 双适配；搜索三家按 key 并行聚合 + 免 key 兜底——换模型、换服务商只动设置页 | 适配器有出站请求体断言测试，且当场逮出过真缺陷 B-001（多条 system 在 Anthropic 型上静默丢失） |
 | **多用户归属做得彻底** | 归属不是加个 `WHERE`：`providers.owner_id IS NULL` ＝平台通道（人人可用）、业务表 `owner_id = ''` ＝无主（谁都看不见），两种「没有主人」可见性刻意相反；读写按形状分别走 `ownerFilter` / `ownerForWrite` | 每批都配跨用户隔离锁 + 「故意改坏必红」的非空转取证（[`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) §8 + test-plan §7） |
@@ -206,13 +206,13 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 │     └ sse-bus         事件序号回放 · 按 owner 分频道       │
 │   security.ts     Origin 校验 / 密钥加密 / SSRF 护栏      │
 └──────────────────────────┬─────────────────────────────┘
-                           │ better-sqlite3（WAL，逐版本迁移 v1..v36）
+                           │ better-sqlite3（WAL，逐版本迁移 v1..v37）
                            ▼
         数据目录 / studentbuddy.db（SB_DATA_DIR 可覆盖）
 
 packages/shared — 契约单一事实源：SSE 事件 / 内容块 / REST / 领域模型
 tools/gates     — 工程门禁：行数上限 / 禁内联样式 / 禁 any / 测试登记
-tools/probes    — 真机探针 10 个（CDP 真点 8 + 算法/隔离量测 2）
+tools/probes    — 真机探针 11 个（CDP 真点 8 + 算法/隔离量测 3）
 ```
 
 **三包职责**：`@sb/shared` 只放契约与纯函数（前后端共用一份，不允许各写一套）；`@sb/server` 承载全部业务域；`@sb/web` 是 React 18 前端，**零第三方运行时依赖**。
@@ -290,7 +290,7 @@ packages/
 │  ├─ llm/                  openai / anthropic 双适配 + router(归属) + upstream-gate(两层)
 │  ├─ sse-bus.ts            帧序号 · 回放去重 · 按 owner 分频道
 │  ├─ routes/               REST 分域路由（15 个域文件）
-│  ├─ storage/              better-sqlite3 封装 / 逐版本迁移（v1..v36，按区间分文件）
+│  ├─ storage/              better-sqlite3 封装 / 逐版本迁移（v1..v37，按区间分文件）
 │  └─ security.ts           Origin 校验（不放行 'null'）
 ├─ web/src/
 │  ├─ app/App.tsx           应用壳：侧栏八视图导航 + 可折叠历史 + 用户框
@@ -301,9 +301,9 @@ packages/
 │  └─ styles/tokens.css     设计 token 唯一事实源
 tools/
 ├─ gates/check.mjs         行数 / 内联样式 / any / 测试登记 四项门禁
-├─ probes/                 真机探针 10 个（CDP 真点 8 + 算法/隔离量测 2）
+├─ probes/                 真机探针 11 个（CDP 真点 8 + 算法/隔离量测 3）
 └─ migrate-from-v1/        v1→v2 数据迁移
-docs/                      契约与研发台账（24 份契约/SPEC + dev/ 四份 + metrics）
+docs/                      契约与研发台账（25 份契约/SPEC + dev/ 四份 + metrics）
 DEPLOY.md                  部署手册：服务器 / systemd / 五条部署 env / TLS / 备份 / 回滚
 CHANGELOG.md               项目改动登记册（代码/文档/测试同批登记）
 AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决策记录
@@ -317,7 +317,7 @@ AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决�
 - 禁内联 `style={{…}}`（一律走 tokens.css 的 token）；禁 `any`；测试也禁 `!` 非空断言
 - 每个测试文件必须在 `docs/dev/test-plan.md` 成行登记（未登记 = 门禁红）
 
-**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**151 测试文件 / 2084 用例**（2083 passed + 1 skipped；**权威口径见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，此处仅为快照）。
+**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**157 测试文件 / 2166 用例**（2165 passed + 1 skipped；**权威口径见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，此处仅为快照）。
 
 交互层是**两层互补**，别指望任何一层单独覆盖：
 
@@ -399,7 +399,8 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 | 深度理解（判定链完整闭环） | 🔶 闸门件与落库表已就位，主链未接线 |
 | M4 定稿（反馈环收口 + v1 迁移实跑） | 🔶 反馈与迁移工具已落，定稿未做 |
 | M5 工具生态（MCP / 文件工具 / 确认门） | 🔶 S1 内核与 S2 确认门/词条三工具已落码（契约 v1.4.1，2026-09-19）；S3 MCP 接入未开工 |
-| 全站搜索（FTS5 三族索引：消息 / 词条 / 错题本） | 🚧 代码已落、待入库（契约 `docs/FTS-SPEC.md`；迁移 v37） |
+| 全站搜索（FTS5 三族索引：消息 / 词条 / 错题本） | ✅ 已入库 2026-09-20（契约 `docs/FTS-SPEC.md`；迁移 v37；`GET /api/search`）★ 真机端到端待目检 |
+| 词条英文发音（卡片喇叭 · 浏览器本地语音） | ✅ 已入库 2026-09-20（契约 `docs/TERM-HIGHLIGHT-SPEC.md` v1.1；`web/src/lib/speech.ts`）★ 真机听音待目检 |
 
 ## 已知限制
 
@@ -409,7 +410,7 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 - **行内公式不渲染**：`$…$` 按原文显示（未引 katex，保持 `@sb/web` 零第三方依赖）；`mermaid` / `echarts` 围栏降级代码块（刻意不引库，数据图由自绘 ```chart 覆盖）
 - **预览页只活内存**：服务重启即失效，无分享链接（内置面板无地址栏、宽度不可拖拽，是定档边界不是缺陷）
 - **文档模式：词法检索，不是语义检索**：≤ 60k 字整篇直塞；> 60k 才切块 + BM25 取段落。**没有 embedding 向量／跨会话资料库／持久化索引／pdf-docx 解析／可点击溯源**。已知天花板：用户**不用资料里的原词**改写提问时，70 万字规模下召回收敛在 **8/13 ≈ 62%**（词法路线的性质，只能靠向量路线突破）；且**不靠分数阈值判「资料没写」**——两种阈值方案都被实测否掉（真命中区间与干扰项区间重叠），识别不到的权力交给模型如实说（契约 `DOC-RAG-SPEC.md` §3.3）
-- **渲染层覆盖仍不完整**：8 个 `.test.tsx` 覆盖了最高频的几页（对话主视图 / 词条库 / 落地页 / PK / 输入区 / 确认卡等），**其余页面仍无 jsdom 测试**；且 jsdom 里没有真 CSS、也没有 `DOMParser` / `getBBox` / `elementFromPoint` 这类真实浏览器 API ⇒ 布局与观感类症状仍只能靠真机探针 + 人工目检，覆盖率数字对交互层不适用
+- **渲染层覆盖仍不完整**：10 个 `.test.tsx` 覆盖了最高频的几页（对话主视图 / 词条库 / 落地页 / PK / 输入区 / 确认卡等），**其余页面仍无 jsdom 测试**；且 jsdom 里没有真 CSS、也没有 `DOMParser` / `getBBox` / `elementFromPoint` 这类真实浏览器 API ⇒ 布局与观感类症状仍只能靠真机探针 + 人工目检，覆盖率数字对交互层不适用
 - **全站并发值 N 仍是占位值 8**：待业务值确定后调整，沿用上线会收到「当前免费通道繁忙」
 
 ★ 覆盖率与历史基线的逐文件对账见 [`docs/metrics.md`](docs/metrics.md)（**2026-09-06 全量采集，未随近期批次刷新**，引用时注意口径日期）。

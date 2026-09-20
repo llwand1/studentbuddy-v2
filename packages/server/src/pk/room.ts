@@ -277,7 +277,7 @@ export function createRoom(identity: PkIdentity, mode: PkMode = 'pvp', aiTopic?:
     if (aiTopic?.trim()) room.aiTopic = aiTopic.trim().slice(0, 50);
     // AI 座位也是一个「玩家」：主题用建房填的方向（空串则由开局的主题缺省逻辑兜底）
     room.players.push(
-      toPlayer({ userId: `${AI_USER_PREFIX}${room.roomId}`, openid: '', nickname: 'AI 对手' }, room.aiTopic?.slice(0, TOPIC_MAX) ?? ''),
+      toPlayer({ userId: `${AI_USER_PREFIX}${room.roomId}`, nickname: 'AI 对手' }, room.aiTopic?.slice(0, TOPIC_MAX) ?? ''),
     );
   }
   rooms.set(room.roomId, room);

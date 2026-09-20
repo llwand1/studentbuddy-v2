@@ -14,8 +14,12 @@ import { entryFor } from './app/entry';
 import { Landing } from './app/Landing';
 import { PkApp } from './features/pk/PkApp';
 import { api } from './lib/api';
+import { sanitizeReturnTo } from './features/pk/pk-view';
 import type { AuthUser, DeployForm } from '@sb/shared';
 import './styles/tokens.css';
+
+/** §14.3 returnTo 的 sessionStorage 键（与 PkApp 的 goLogin 约定同一处） */
+const RETURN_TO_KEY = 'sb_return_to';
 
 /** GoatCounter 统计脚本（index.html 注入）的最低类型面；SPA 路由切换时手动补计数 */
 declare global {
@@ -24,9 +28,14 @@ declare global {
   }
 }
 
+/**
+ * §14.2：`#/pk`、`#/pk/…`、**`#/pk?code=…`（邀请链接）** 都进 PK 页。
+ * ★ `?code=` 属于 hash 片段，`h.startsWith('#/pk/')` 罩不住它——漏掉这条，
+ *   邀请链接会落进主壳路由（等于链接作废），契约 §14.2 明钉的坑。
+ */
 function isPkHash(): boolean {
   const h = window.location.hash;
-  return h === '#/pk' || h.startsWith('#/pk/');
+  return h === '#/pk' || h.startsWith('#/pk/') || h.startsWith('#/pk?');
 }
 
 function Root() {
@@ -65,6 +74,19 @@ function Root() {
     window.addEventListener('hashchange', count);
     return () => window.removeEventListener('hashchange', count);
   }, []);
+  /**
+   * §14.3 登录后跳回：PK 大厅「去登录」前会把原 hash（含邀请码）存进 sessionStorage；
+   * 登录成功（user 从 null 变非空，覆盖落地页与 AccountBox 两条登录路径）即按 returnTo
+   * 跳回原链接——邀请链路不在「未登录点链接」这一步断掉。
+   * ★ 只接受 `#/` 开头的站内 hash（`sanitizeReturnTo`，防开放重定向），其余丢弃。
+   */
+  useEffect(() => {
+    if (!user) return;
+    const raw = sessionStorage.getItem(RETURN_TO_KEY);
+    sessionStorage.removeItem(RETURN_TO_KEY);
+    const ret = sanitizeReturnTo(raw);
+    if (ret && window.location.hash !== ret) window.location.hash = ret;
+  }, [user]);
   if (pk) return <PkApp />;
   if (user === undefined) return null; // 登录态查询中的空窗，避免「落地页闪一下又进应用」
   if (user) return <App />;

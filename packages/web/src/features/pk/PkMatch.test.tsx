@@ -147,7 +147,7 @@ describe('PkMatch 对局视图', () => {
     pk.submitAnswer.mockResolvedValue({ correct: true, delta: 2 });
     const { container } = setup(room({ questions: [question()] }));
     fireEvent.click(container.querySelectorAll('.sb-pk-option')[1] as Element);
-    expect(pk.submitAnswer).toHaveBeenCalledWith('r-1', ME, 'q1', 1);
+    expect(pk.submitAnswer).toHaveBeenCalledWith('r-1', 'q1', 1);
     await waitFor(() => {
       const flash = container.querySelector('.sb-pk-verdict-flash');
       expect(flash?.textContent).toContain('答对 +2');
@@ -165,7 +165,7 @@ describe('PkMatch 对局视图', () => {
     fireEvent.change(main.querySelector('.sb-pk-input')!, { target: { value: '  出一道浮力题  ' } });
     expect(submit.hasAttribute('disabled')).toBe(false);
     fireEvent.click(submit);
-    await waitFor(() => expect(pk.submitQuiz).toHaveBeenCalledWith('r-1', ME, '出一道浮力题')); // trim 在服务调用点
+    await waitFor(() => expect(pk.submitQuiz).toHaveBeenCalledWith('r-1', '出一道浮力题')); // trim 在服务调用点
     expect((main.querySelector('.sb-pk-input') as HTMLInputElement).value).toBe('');
   });
 
@@ -205,7 +205,7 @@ describe('PkMatch 对局视图', () => {
     const retry = body.querySelector('.sb-pk-btn.ghost') as HTMLButtonElement;
     expect(retry.disabled).toBe(false);
     fireEvent.click(retry);
-    await waitFor(() => expect(pk.requestRetry).toHaveBeenCalledWith('r-1', ME, 'q9'));
+    await waitFor(() => expect(pk.requestRetry).toHaveBeenCalledWith('r-1', 'q9'));
     await waitFor(() => expect(container.textContent).toContain('二次机会：现场解析'));
   });
 

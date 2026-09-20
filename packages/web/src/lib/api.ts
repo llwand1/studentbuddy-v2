@@ -63,85 +63,81 @@ export const api = {
    */
   auth: authApi,
 
-  /** PK 登录与房间（契约 docs/PK-SPEC.md §2.1）：P0 模拟登录，P1 换真微信授权时签名不变 */
+  /**
+   * PK 房间与对局（契约 docs/PK-SPEC.md §2 / §14.1）。
+   * ★ B1（§14.1，2026-09-20）起身份并入统一账号：**所有请求不带 userId**——
+   *   「我是谁」由 httpOnly cookie 会话在服务端裁定（`req.authUser`），客户端自报无效。
+   *   未登录请求 → 401 `UNAUTHENTICATED`（去登录，见 PkLobby 的引导）。
+   */
   pk: {
-    login: (nickname: string, userId?: string) =>
-      request<PkIdentity>('/api/pk/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ nickname, ...(userId ? { userId } : {}) }),
-      }),
-    /** 启动时校验本地登录态；404（账号不存在）由调用方按需清除 */
-    me: (userId: string) => request<PkIdentity>(`/api/pk/auth/me?userId=${encodeURIComponent(userId)}`),
+    /** 当前 PK 身份（前端启动时问一次）；401 = 未登录（cloud 形态） */
+    me: () => request<PkIdentity>('/api/pk/auth/me'),
     /**
      * 建房：已在某 waiting 房则服务端幂等返回原房；mode='pve' 为 AI 对战（第二座位自动归 AI）。
      * P0-7：`topic` = 建房人选定的**对战主题**（入房的人走 `setTopic` 端点补选自己的）。
      */
-    createRoom: (userId: string, mode: 'pvp' | 'pve' = 'pvp', aiTopic?: string, topic?: string) =>
+    createRoom: (mode: 'pvp' | 'pve' = 'pvp', aiTopic?: string, topic?: string) =>
       request<{ roomId: string; roomCode: string; state: PkRoomState }>('/api/pk/rooms', {
         method: 'POST',
-        body: JSON.stringify({ userId, mode, ...(aiTopic ? { aiTopic } : {}), ...(topic ? { topic } : {}) }),
+        body: JSON.stringify({ mode, ...(aiTopic ? { aiTopic } : {}), ...(topic ? { topic } : {}) }),
       }),
-    /** 按房号入房：404 房不存在 / 409 房满或已开局 */
-    joinRoom: (roomCode: string, userId: string) =>
+    /** 按房号入房：404 房不存在（含邀请已过期）/ 409 房满或已开局 */
+    joinRoom: (roomCode: string) =>
       request<{ roomId: string; state: PkRoomState }>('/api/pk/rooms/join', {
         method: 'POST',
-        body: JSON.stringify({ roomCode, userId }),
+        body: JSON.stringify({ roomCode }),
       }),
     /** 开局（仅房主、双方已进房） */
-    startRoom: (roomId: string, userId: string) =>
+    startRoom: (roomId: string) =>
       request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/start`, {
         method: 'POST',
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({}),
       }),
     /** 全量快照（轮询兜底 / 断线重连对齐用）；404 = 房不存在或已被 TTL 回收 */
     roomState: (roomId: string) =>
       request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/state`),
     /** 出题（AI 生成耗时数秒为正常）；429 = CD 内，502 = AI 失败（CD 已回滚，免费重试） */
-    submitQuiz: (roomId: string, userId: string, prompt: string) =>
+    submitQuiz: (roomId: string, prompt: string) =>
       request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/quiz`, {
         method: 'POST',
-        body: JSON.stringify({ userId, prompt }),
+        body: JSON.stringify({ prompt }),
       }),
     /** 答题：立即判分 { correct, delta, score }；409 = 已答/已超时 */
-    submitAnswer: (roomId: string, userId: string, questionId: string, choice: number) =>
+    submitAnswer: (roomId: string, questionId: string, choice: number) =>
       request<{ correct: boolean; delta: number; score: number }>(
         `/api/pk/rooms/${encodeURIComponent(roomId)}/answer`,
-        { method: 'POST', body: JSON.stringify({ userId, questionId, choice }) },
+        { method: 'POST', body: JSON.stringify({ questionId, choice }) },
       ),
     /** 选定本人对战主题（仅开局前可改）：400 主题为空 / 409 已开局 */
-    setTopic: (roomId: string, userId: string, topic: string) =>
+    setTopic: (roomId: string, topic: string) =>
       request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/topic`, {
         method: 'POST',
-        body: JSON.stringify({ userId, topic }),
+        body: JSON.stringify({ topic }),
       }),
     /** 求助道具（每局 1 个）：裁判当场联网搜索，给建议 + 知识输出（**不给答案**）；409 = 已用完 */
-    useHelp: (roomId: string, userId: string, questionId: string) =>
+    useHelp: (roomId: string, questionId: string) =>
       request<{ advice: PkJudgeAdvice; state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/help`, {
         method: 'POST',
-        body: JSON.stringify({ userId, questionId }),
+        body: JSON.stringify({ questionId }),
       }),
     /** 错题二次机会（3 分钟 CD）：给现场解析 + 同主题类似题；429 = CD 中，502 = 裁判不可用 */
-    requestRetry: (roomId: string, userId: string, questionId: string) =>
+    requestRetry: (roomId: string, questionId: string) =>
       request<{ explanation: string; question: PkQuestion | null; state: PkRoomState }>(
         `/api/pk/rooms/${encodeURIComponent(roomId)}/retry`,
-        { method: 'POST', body: JSON.stringify({ userId, questionId }) },
+        { method: 'POST', body: JSON.stringify({ questionId }) },
       ),
     /** P0-8 认输：对手直接胜、比分定格；403 = 你不在房里，409 = 对局已不在进行中 */
-    forfeit: (roomId: string, userId: string) =>
+    forfeit: (roomId: string) =>
       request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/forfeit`, {
         method: 'POST',
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({}),
       }),
-    /** P0-8 我的对战历史（最近的在前）；limit 由服务端归一（缺省 20 / 上限 100） */
-    matches: (userId: string, limit?: number) =>
-      request<{ matches: PkMatchRecord[] }>(
-        `/api/pk/matches?userId=${encodeURIComponent(userId)}${limit ? `&limit=${limit}` : ''}`,
-      ),
+    /** P0-8 我的对战历史（最近的在前）；limit 由服务端归一（缺省 20 / 上限 100）；归属只认会话 */
+    matches: (limit?: number) =>
+      request<{ matches: PkMatchRecord[] }>(`/api/pk/matches${limit ? `?limit=${limit}` : ''}`),
     /** P0-8 历史详情（含末快照，供题目回看）；不存在或不是你的 → 404 */
-    matchDetail: (id: string, userId: string) =>
-      request<{ match: PkMatchDetail }>(
-        `/api/pk/matches/${encodeURIComponent(id)}?userId=${encodeURIComponent(userId)}`,
-      ),
+    matchDetail: (id: string) =>
+      request<{ match: PkMatchDetail }>(`/api/pk/matches/${encodeURIComponent(id)}`),
   },
 
   sessions: {

@@ -12,12 +12,14 @@
  *
  * mock：generateQuiz 固定单选（正确答案下标 0）；judge 四个能力全 mock——
  * 测的是**判罚与状态流转**，不是模型输出质量。
+ *
+ * ★ B1（§14.1，2026-09-20）改写：HTTP 层身份换成统一账号 cookie 会话。
  */
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { QUIZ_FAIL_STRIKE, type PkJudgeAdvice, type QuizQuestion } from '@sb/shared';
+import { AUTH_COOKIE_NAME, QUIZ_FAIL_STRIKE, type PkJudgeAdvice, type QuizQuestion } from '@sb/shared';
 
 vi.mock('../learning/quiz.js', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -33,6 +35,7 @@ vi.mock('../pk/judge.js', () => ({
 }));
 
 process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-pk-power-test-'));
+process.env.SB_REQUIRE_AUTH = '1';
 const { app } = await import('../index.js');
 const { closeDb } = await import('../storage/db.js');
 const { resetRooms, requireRoomInternal } = await import('../pk/room.js');
@@ -42,7 +45,10 @@ const { judgeTopicFit, buildTopicAdvice, helpWithQuestion, explainAndRetry } = a
 const request = (await import('supertest')).default;
 
 const origin = 'http://localhost:5173';
-const post = (url: string) => request(app).post(url).set('Origin', origin);
+const post = (url: string, cookie?: string) => {
+  const r = request(app).post(url).set('Origin', origin);
+  return cookie ? r.set('Cookie', cookie) : r;
+};
 
 /** 固定单选：正确答案下标 0（青海） */
 const SINGLE: QuizQuestion = {
@@ -58,20 +64,25 @@ const ADVICE: PkJudgeAdvice = {
   refs: [{ n: 1, title: '参考资料', url: 'https://example.com/a', provider: 'exa' }],
 };
 
-async function login(nickname: string): Promise<{ userId: string }> {
-  const r = await post('/api/pk/auth/login').send({ nickname });
-  return r.body as { userId: string };
+/** 建统一账号 + 取会话 cookie（同 pk-room.test.ts 手法） */
+let userSeq = 0;
+async function login(nickname: string): Promise<{ userId: string; cookie: string }> {
+  const { createUser } = await import('../auth/users.js');
+  const { createSession } = await import('../auth/session.js');
+  const user = await createUser(`pk-power-${++userSeq}@test.local`, 'good-password-1', nickname);
+  const { token } = createSession(user.id);
+  return { userId: user.id, cookie: `${AUTH_COOKIE_NAME}=${token}` };
 }
 
 /** 建一间双方都已选定主题并已开局的房（甲主题「历史」、乙主题「地理」） */
-async function makeActiveRoom(): Promise<{ alice: { userId: string }; bob: { userId: string }; roomId: string }> {
+async function makeActiveRoom(): Promise<{ alice: { userId: string; cookie: string }; bob: { userId: string; cookie: string }; roomId: string }> {
   const alice = await login('甲');
   const bob = await login('乙');
-  const created = await post('/api/pk/rooms').send({ userId: alice.userId, topic: '历史' });
+  const created = await post('/api/pk/rooms', alice.cookie).send({ topic: '历史' });
   const { roomId, roomCode } = created.body as { roomId: string; roomCode: string };
-  await post('/api/pk/rooms/join').send({ roomCode, userId: bob.userId });
-  await post(`/api/pk/rooms/${roomId}/topic`).send({ userId: bob.userId, topic: '地理' });
-  const started = await post(`/api/pk/rooms/${roomId}/start`).send({ userId: alice.userId });
+  await post('/api/pk/rooms/join', bob.cookie).send({ roomCode });
+  await post(`/api/pk/rooms/${roomId}/topic`, bob.cookie).send({ topic: '地理' });
+  const started = await post(`/api/pk/rooms/${roomId}/start`, alice.cookie).send({});
   expect(started.status).toBe(200);
   return { alice, bob, roomId };
 }
@@ -110,7 +121,7 @@ describe('① 主题轮转（谁出题都要贴合当前主题）', () => {
 
   it('成功出一道题后，主题切给对方（轮着来）', async () => {
     const { alice, roomId } = await makeActiveRoom();
-    const r = await post(`/api/pk/rooms/${roomId}/quiz`).send({ userId: alice.userId, prompt: '出一道朝代题' });
+    const r = await post(`/api/pk/rooms/${roomId}/quiz`, alice.cookie).send({ prompt: '出一道朝代题' });
     expect(r.status).toBe(200);
     const room = requireRoomInternal(roomId);
     expect(room.currentTopic).toBe('地理');
@@ -126,7 +137,7 @@ describe('② 出题跑题的判罚', () => {
     const { alice, roomId } = await makeActiveRoom();
     vi.mocked(judgeTopicFit).mockResolvedValue({ fit: false, reason: '这题属于地理不是历史' });
 
-    const r = await post(`/api/pk/rooms/${roomId}/quiz`).send({ userId: alice.userId, prompt: '出一道气候题' });
+    const r = await post(`/api/pk/rooms/${roomId}/quiz`, alice.cookie).send({ prompt: '出一道气候题' });
     expect(r.status).toBe(422);
     const body = r.body as { code: string; extra?: { reason?: string } };
     expect(body.code).toBe('TOPIC_MISMATCH');
@@ -139,7 +150,7 @@ describe('② 出题跑题的判罚', () => {
 
     // CD 已回滚 ⇒ 立刻重试不该撞 429（跑题不是「用掉了出题额度」）
     vi.mocked(judgeTopicFit).mockResolvedValue({ fit: true, reason: '' });
-    const again = await post(`/api/pk/rooms/${roomId}/quiz`).send({ userId: alice.userId, prompt: '出一道朝代题' });
+    const again = await post(`/api/pk/rooms/${roomId}/quiz`, alice.cookie).send({ prompt: '出一道朝代题' });
     expect(again.status).toBe(200);
     expect(streakOf(roomId, alice.userId)).toBe(0); // 成功后计数清零
   });
@@ -150,7 +161,7 @@ describe('② 出题跑题的判罚', () => {
 
     let last: { status: number; body: { extra?: { advice?: PkJudgeAdvice; penalty?: number } } } | undefined;
     for (let i = 1; i <= QUIZ_FAIL_STRIKE; i += 1) {
-      last = await post(`/api/pk/rooms/${roomId}/quiz`).send({ userId: alice.userId, prompt: `第 ${i} 次` });
+      last = await post(`/api/pk/rooms/${roomId}/quiz`, alice.cookie).send({ prompt: `第 ${i} 次` });
       expect(last.status).toBe(422);
       // 前两次还没到阈值，不该带建议（每次跑题都调模型，既烧额度又把建议说廉价）
       if (i < QUIZ_FAIL_STRIKE) expect(last.body.extra?.advice).toBeUndefined();
@@ -164,7 +175,7 @@ describe('② 出题跑题的判罚', () => {
   it('裁判不可用（judge 返 null）→ 出题照过，不拖垮主路径（ADR-4）', async () => {
     const { alice, roomId } = await makeActiveRoom();
     vi.mocked(judgeTopicFit).mockResolvedValue(null);
-    const r = await post(`/api/pk/rooms/${roomId}/quiz`).send({ userId: alice.userId, prompt: '出一道题' });
+    const r = await post(`/api/pk/rooms/${roomId}/quiz`, alice.cookie).send({ prompt: '出一道题' });
     expect(r.status).toBe(200);
     expect(requireRoomInternal(roomId).questions).toHaveLength(1);
   });
@@ -174,11 +185,11 @@ describe('③ 开局前的主题闸门', () => {
   it('有人没选主题就开局 → 409 TOPIC_NOT_SET', async () => {
     const alice = await login('甲');
     const bob = await login('乙');
-    const created = await post('/api/pk/rooms').send({ userId: alice.userId, topic: '历史' });
+    const created = await post('/api/pk/rooms', alice.cookie).send({ topic: '历史' });
     const { roomId, roomCode } = created.body as { roomId: string; roomCode: string };
-    await post('/api/pk/rooms/join').send({ roomCode, userId: bob.userId });
+    await post('/api/pk/rooms/join', bob.cookie).send({ roomCode });
 
-    const r = await post(`/api/pk/rooms/${roomId}/start`).send({ userId: alice.userId });
+    const r = await post(`/api/pk/rooms/${roomId}/start`, alice.cookie).send({});
     expect(r.status).toBe(409);
     expect((r.body as { code: string }).code).toBe('TOPIC_NOT_SET');
   });
@@ -187,26 +198,26 @@ describe('③ 开局前的主题闸门', () => {
 describe('④ 求助道具（每局 1 个）', () => {
   it('用后 helpLeft 归零，再用 → 409 HELP_EXHAUSTED', async () => {
     const { alice, roomId } = await makeActiveRoom();
-    await post(`/api/pk/rooms/${roomId}/quiz`).send({ userId: alice.userId, prompt: '出一道朝代题' });
+    await post(`/api/pk/rooms/${roomId}/quiz`, alice.cookie).send({ prompt: '出一道朝代题' });
     const qid = firstQuestionId(roomId);
     vi.mocked(helpWithQuestion).mockResolvedValue(ADVICE);
 
-    const first = await post(`/api/pk/rooms/${roomId}/help`).send({ userId: alice.userId, questionId: qid });
+    const first = await post(`/api/pk/rooms/${roomId}/help`, alice.cookie).send({ questionId: qid });
     expect(first.status).toBe(200);
     expect((first.body as { advice: PkJudgeAdvice }).advice).toEqual(ADVICE);
     expect(requireRoomInternal(roomId).players.find((p) => p.userId === alice.userId)?.helpLeft).toBe(0);
 
-    const second = await post(`/api/pk/rooms/${roomId}/help`).send({ userId: alice.userId, questionId: qid });
+    const second = await post(`/api/pk/rooms/${roomId}/help`, alice.cookie).send({ questionId: qid });
     expect(second.status).toBe(409);
     expect((second.body as { code: string }).code).toBe('HELP_EXHAUSTED');
   });
 
   it('裁判不可用 → 502 JUDGE_UNAVAILABLE，且道具**不被扣**', async () => {
     const { alice, roomId } = await makeActiveRoom();
-    await post(`/api/pk/rooms/${roomId}/quiz`).send({ userId: alice.userId, prompt: '出一道朝代题' });
+    await post(`/api/pk/rooms/${roomId}/quiz`, alice.cookie).send({ prompt: '出一道朝代题' });
     vi.mocked(helpWithQuestion).mockResolvedValue(null);
 
-    const r = await post(`/api/pk/rooms/${roomId}/help`).send({ userId: alice.userId, questionId: firstQuestionId(roomId) });
+    const r = await post(`/api/pk/rooms/${roomId}/help`, alice.cookie).send({ questionId: firstQuestionId(roomId) });
     expect(r.status).toBe(502);
     expect((r.body as { code: string }).code).toBe('JUDGE_UNAVAILABLE');
     // ★ 关键：没拿到东西就得没花代价，否则玩家平白损失唯一的道具
@@ -216,10 +227,10 @@ describe('④ 求助道具（每局 1 个）', () => {
 
 describe('⑤ 错题二次机会', () => {
   /** 让 alice 手上有一道自己答错的题（bob 出题 → alice 选错） */
-  async function withWrongAnswer(roomId: string, bob: { userId: string }, alice: { userId: string }): Promise<string> {
-    await post(`/api/pk/rooms/${roomId}/quiz`).send({ userId: bob.userId, prompt: '出一道题' });
+  async function withWrongAnswer(roomId: string, bob: { cookie: string }, alice: { cookie: string }): Promise<string> {
+    await post(`/api/pk/rooms/${roomId}/quiz`, bob.cookie).send({ prompt: '出一道题' });
     const qid = firstQuestionId(roomId);
-    await post(`/api/pk/rooms/${roomId}/answer`).send({ userId: alice.userId, questionId: qid, choice: 1 }); // 正确答案是 0
+    await post(`/api/pk/rooms/${roomId}/answer`, alice.cookie).send({ questionId: qid, choice: 1 }); // 正确答案是 0
     return qid;
   }
 
@@ -228,7 +239,7 @@ describe('⑤ 错题二次机会', () => {
     const qid = await withWrongAnswer(roomId, bob, alice);
     vi.mocked(explainAndRetry).mockResolvedValue({ explanation: '长江发源于青海', generated: SINGLE });
 
-    const r = await post(`/api/pk/rooms/${roomId}/retry`).send({ userId: alice.userId, questionId: qid });
+    const r = await post(`/api/pk/rooms/${roomId}/retry`, alice.cookie).send({ questionId: qid });
     expect(r.status).toBe(200);
     const body = r.body as {
       explanation: string;
@@ -239,7 +250,7 @@ describe('⑤ 错题二次机会', () => {
     expect(body.question?.toUserId).toBe(alice.userId);
     expect(body.question?.retryOf).toBe(qid);
 
-    const again = await post(`/api/pk/rooms/${roomId}/retry`).send({ userId: alice.userId, questionId: qid });
+    const again = await post(`/api/pk/rooms/${roomId}/retry`, alice.cookie).send({ questionId: qid });
     expect(again.status).toBe(429);
     expect((again.body as { code: string }).code).toBe('RETRY_ON_COOLDOWN');
   });
@@ -248,11 +259,11 @@ describe('⑤ 错题二次机会', () => {
     const { alice, bob, roomId } = await makeActiveRoom();
     const qid = await withWrongAnswer(roomId, bob, alice);
     vi.mocked(explainAndRetry).mockResolvedValue({ explanation: '解析', generated: SINGLE });
-    const retried = await post(`/api/pk/rooms/${roomId}/retry`).send({ userId: alice.userId, questionId: qid });
+    const retried = await post(`/api/pk/rooms/${roomId}/retry`, alice.cookie).send({ questionId: qid });
     const newQid = (retried.body as { question: { id: string } }).question.id;
 
     const before = scoreOf(roomId, alice.userId);
-    const r = await post(`/api/pk/rooms/${roomId}/answer`).send({ userId: alice.userId, questionId: newQid, choice: 0 });
+    const r = await post(`/api/pk/rooms/${roomId}/answer`, alice.cookie).send({ questionId: newQid, choice: 0 });
     expect(r.status).toBe(200);
     expect((r.body as { correct: boolean; delta: number }).correct).toBe(true);
     expect((r.body as { delta: number }).delta).toBe(2);
@@ -262,11 +273,11 @@ describe('⑤ 错题二次机会', () => {
 
   it('答对的题不给二次机会 → 404 RETRY_NO_TARGET', async () => {
     const { alice, bob, roomId } = await makeActiveRoom();
-    await post(`/api/pk/rooms/${roomId}/quiz`).send({ userId: bob.userId, prompt: '出一道题' });
+    await post(`/api/pk/rooms/${roomId}/quiz`, bob.cookie).send({ prompt: '出一道题' });
     const qid = firstQuestionId(roomId);
-    await post(`/api/pk/rooms/${roomId}/answer`).send({ userId: alice.userId, questionId: qid, choice: 0 }); // 答对
+    await post(`/api/pk/rooms/${roomId}/answer`, alice.cookie).send({ questionId: qid, choice: 0 }); // 答对
 
-    const r = await post(`/api/pk/rooms/${roomId}/retry`).send({ userId: alice.userId, questionId: qid });
+    const r = await post(`/api/pk/rooms/${roomId}/retry`, alice.cookie).send({ questionId: qid });
     expect(r.status).toBe(404);
     expect((r.body as { code: string }).code).toBe('RETRY_NO_TARGET');
   });

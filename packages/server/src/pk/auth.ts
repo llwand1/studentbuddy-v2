@@ -1,61 +1,46 @@
 /**
- * pk/auth — PK 登录域逻辑（契约 docs/PK-SPEC.md §2.1，P0-1）。
+ * pk/auth — PK 身份适配（契约 docs/PK-SPEC.md §14.1，B1 2026-09-20）。
  *
- * 账号模型：一次登录 = 一条 pk_users 记录。客户端把 userId 存本地（localStorage），
- * 再次登录携带 userId 即找回原账号（改名允许）；不携带或账号不存在则新建。
- * openid 为 P0 模拟值 `mock_<userId>`——P1 换微信公众号网页授权时，只替换本文件的
- * openid 生成处与路由入参解析，响应结构（PkIdentity）与前端零改动。
+ * ★ 本文件**已不再管账号**。改造前它是 PK 自建的一套账号体系（`pk_users` 表 + 昵称登录 +
+ *   `openid = mock_<id>`），身份由**客户端自证**（前端存 localStorage 的 userId、逐端点回传）。
+ *   单机 demo 无害，一上公网就是「改一个参数就能冒充别人」（§14.1 原话）。
+ *   B1 起 PK 身份并入统一账号（`AUTH-SPEC`）——「我是谁」由服务端 httpOnly cookie 会话说了算，
+ *   `req.authUser` 由 `attachUser` 在 `/api` 上无条件挂载（`index.ts:101`）。
+ * ★ 所以这里只剩**两个纯函数**：`AuthUser → PkIdentity` 的折算、以及 local 形态的兜底身份。
+ *   任何「校验昵称 / 建号 / 查库」的逻辑都属于 `auth/`，不该在这里长回来。
+ *
+ * ★ `pk_users` 表**保留不删**（§14.1）：存量 `pk_matches.user_id` 指向它，删表会让历史战绩
+ *   变成悬空引用。本文件已不再读写它。
+ * ⚠️ 历史战绩的归属断层（诚实记账，同 §14.1）：`pk_matches` 里的老行其 `user_id` 是
+ *   `pk_users.id`，而新身份是 `users.id` ⇒ **同一自然人在库里是两个 id**，
+ *   老战绩在新账号下查不到（等于归档）。本批**不做自动认领**（隐式认领在并发下归属不确定、
+ *   且无法撤销）；要保留走显式认领脚本（照 `_probe/claim-legacy.mjs` 的手法）。
  */
-import { randomUUID } from 'node:crypto';
-import { getDb } from '../storage/db.js';
-import type { PkIdentity } from '@sb/shared';
+import type { Request } from 'express';
+import { PK_LOCAL_IDENTITY, type AuthUser, type PkIdentity } from '@sb/shared';
+import { deployForm } from '../auth/form.js';
+import type { AuthedRequest } from '../auth/middleware.js';
 
-/** 昵称规则：trim 后 1~20 字（前端同规则校验，服务端是唯一权威） */
-export const NICKNAME_MAX = 20;
-
-export function normalizeNickname(raw: unknown): string | null {
-  if (typeof raw !== 'string') return null;
-  const nickname = raw.trim();
-  if (!nickname || nickname.length > NICKNAME_MAX) return null;
-  return nickname;
-}
-
-interface PkUserRow {
-  id: string;
-  openid: string;
-  nickname: string;
-}
-
-function toIdentity(row: PkUserRow): PkIdentity {
-  return { userId: row.id, openid: row.openid, nickname: row.nickname };
-}
-
-/** 按 userId 找账号（前端启动时校验本地登录态用）；不存在/缺参 → null */
-export function getIdentity(userId: unknown): PkIdentity | null {
-  if (typeof userId !== 'string' || !userId) return null;
-  const row = getDb().prepare(`SELECT id, openid, nickname FROM pk_users WHERE id = ?`).get(userId) as
-    | PkUserRow
-    | undefined;
-  return row ? toIdentity(row) : null;
+/** `AuthUser`（统一账号）→ `PkIdentity`（PK 侧身份）。字段少且语义直白，不再套一层抽象。 */
+export function toPkIdentity(user: AuthUser): PkIdentity {
+  return { userId: user.id, nickname: user.nickname };
 }
 
 /**
- * 登录（模拟）：userId 命中已有账号 → 更新昵称与 last_seen（允许改名）；
- * 否则新建账号。返回登录后的完整身份。
+ * 取本次请求的 PK 身份：**会话优先，local 形态兜底**。
+ *
+ * 判定顺序（不可换）：
+ * ① 有有效会话 → 用它（线上唯一的正常路径）；
+ * ② 无会话且形态为 `local` → `PK_LOCAL_IDENTITY`（本地免登录，与 `ownerIdOf → null` 同一取向）；
+ * ③ 其余 → `null`，由调用方转 401。
+ *
+ * ★ 为什么不直接用 `requireAuth`：那个中间件要求「恒定有会话」，会把本地免登录形态一起挡掉
+ *   （`AUTH-SPEC §2.9` 明写本地未登录该能进应用壳）。cloud 形态下 `requireAuth` 其实已在路由
+ *   之前拦过一道（`/api/pk` 不在豁免清单里），这里的 ③ 是**第二道**——两道都留着是刻意的：
+ *   路由单测常绕过全局中间件直接打路由，只靠第一道＝测不出来。
  */
-export function loginOrRegister(rawNickname: string, rawUserId?: unknown): PkIdentity {
-  const nickname = normalizeNickname(rawNickname);
-  if (!nickname) throw new Error('NICKNAME_INVALID');
-  const db = getDb();
-  const existing = getIdentity(rawUserId);
-  if (existing) {
-    db.prepare(`UPDATE pk_users SET nickname = ?, last_seen_at = datetime('now') WHERE id = ?`).run(
-      nickname,
-      existing.userId,
-    );
-    return { ...existing, nickname };
-  }
-  const userId = `u-${randomUUID()}`;
-  db.prepare(`INSERT INTO pk_users (id, openid, nickname) VALUES (?, ?, ?)`).run(userId, `mock_${userId}`, nickname);
-  return { userId, openid: `mock_${userId}`, nickname };
+export function pkIdentityOf(req: Request): PkIdentity | null {
+  const user = (req as AuthedRequest).authUser;
+  if (user) return toPkIdentity(user);
+  return deployForm() === 'local' ? PK_LOCAL_IDENTITY : null;
 }

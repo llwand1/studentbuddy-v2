@@ -18,6 +18,35 @@ export function normalizeRoomCode(raw: string): string {
   return raw.replace(/\D/g, '').slice(0, PK_ROOM_CODE_LEN);
 }
 
+/**
+ * §14.2 邀请码解析：从 location.hash 里取 `#/pk?code=123456` 的 code。
+ * ★ query 在 **hash 片段内**，`location.search`（`#` 之前的部分）取不到——契约明钉的坑。
+ * 归一复用 normalizeRoomCode：非数字 / 超长一律截好，缺省空串 = 链接没带码。
+ */
+export function pkInviteCodeFromHash(hash: string): string {
+  const query = hash.split('?')[1] ?? '';
+  return normalizeRoomCode(new URLSearchParams(query).get('code') ?? '');
+}
+
+/**
+ * §14.2 拼邀请链接：本站同路径 + hash 带码（A 建房后复制/分享给 B）。
+ * ★ `loc` 参数供测试注入（本仓 .ts 测试无 DOM，`window` 不存在）；运行时走默认值。
+ */
+export function buildPkInviteLink(
+  code: string,
+  loc: { origin: string; pathname: string } = window.location,
+): string {
+  return `${loc.origin}${loc.pathname}#/pk?code=${encodeURIComponent(code)}`;
+}
+
+/**
+ * §14.3 returnTo 白名单：**只允许 `#/` 开头的站内 hash**，其余（绝对 URL / 裸路径）一律丢弃。
+ * 这是开放重定向的闸门——钓鱼链接不能借本站登录页跳去外站。
+ */
+export function sanitizeReturnTo(raw: string | null | undefined): string | null {
+  return raw && raw.startsWith('#/') ? raw : null;
+}
+
 /** 对局时钟剩余毫秒：已到点钳 0（客户端时间只作展示，真判罚在服务端） */
 export function remainingMs(endsAt: number, now: number): number {
   return Math.max(0, endsAt - now);

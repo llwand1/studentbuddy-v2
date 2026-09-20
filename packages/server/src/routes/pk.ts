@@ -6,8 +6,8 @@
  */
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { pkChannel, type PkIdentity, type PkMode, type PkRoomError, type PkRoomState } from '@sb/shared';
-import { getIdentity, loginOrRegister } from '../pk/auth.js';
+import { pkChannel, type PkMode, type PkRoomError, type PkRoomState } from '@sb/shared';
+import { pkIdentityOf } from '../pk/auth.js';
 import { createRoom, getRoomState, joinRoom, setTopic, startRoom } from '../pk/room.js';
 import { ensureTicker, submitAnswer, submitQuiz } from '../pk/match.js';
 import { requestRetry, useHelp } from '../pk/power.js';
@@ -96,16 +96,16 @@ function domainError(code: PkRoomError): Error {
 }
 
 /**
- * 身份闸门：userId 必须命中**服务端已存在的账号**。
- * ★ 昵称一律从库里取、不信客户端自报——房内显示名若能用请求体伪造，就等于给冒名留了口子。
+ * 未登录响应（B1 §14.1）。
+ *
+ * ★ 改造前这里是 `requireIdentity(rawUserId)`：**从请求体里取 userId 再查库**——
+ *   等于让客户端自己声明「我是谁」，改个参数就能冒充别人。现在身份只来自 cookie 会话
+ *   （`pkIdentityOf`），**路径上不再有任何 `{ userId }` 入参**。
+ * ★ `code` 与 `requireAuth` 中间件保持同一个值：前端处理 401 只需认这一个（不必分辨
+ *   是全局闸门拦的还是路由自己拦的——对用户而言是同一件事：去登录）。
  */
-function requireIdentity(rawUserId: unknown, res: Response): PkIdentity | null {
-  const identity = getIdentity(rawUserId);
-  if (!identity) {
-    res.status(401).json({ error: '请先登录（userId 无效或账号已不存在）' });
-    return null;
-  }
-  return identity;
+function unauthorized(res: Response): void {
+  res.status(401).json({ error: '请先登录（PK 需要账号身份）', code: 'UNAUTHENTICATED' });
 }
 
 /** 状态变更后主动广播到房间频道（契约 §2.2：服务端推，客户端不靠轮询发现状态变化） */
@@ -113,33 +113,27 @@ function broadcast(state: PkRoomState): void {
   publish(pkChannel(state.roomId), { type: 'pk-state', roomId: state.roomId, state });
 }
 
-// ── 登录（P0 模拟实现，契约 §2.1）────────────────────────────
+// ── 身份（B1 §14.1：并入统一账号，PK 侧不再有登录端点）────────────
 
 /**
- * 登录：{ nickname, userId? } → PkIdentity。
- * 携带已存在的 userId = 找回账号（可顺带改名）；否则新建。
- * P1 替换为微信公众号网页授权（oauth2 code → openid）时：入参换成 code、
- * openid 换真值，**响应结构不变**——前端零改动（契约先行的意义所在）。
+ * ★ `POST /auth/login` **已删除**（§14.4「`pk/auth.ts` 整体废弃」）。
+ *   登录/注册一律走统一账号端点（`/api/auth/*`：密码 / 邮箱验证码 / GitHub 三通道），
+ *   产出同一种 cookie 会话（`AUTH-SPEC §2.8` 末句：三条通道**产出同一种会话**）。
+ *   PK 侧不需要、也不该有第二套登录。老前端若仍打这个端点会拿到 **404**——
+ *   清晰可查，不是静默降级。
  */
-pkRouter.post('/auth/login', (req: Request, res: Response) => {
-  const { nickname, userId } = req.body as { nickname?: unknown; userId?: unknown };
-  if (userId !== undefined && (typeof userId !== 'string' || !userId)) {
-    res.status(400).json({ error: 'userId 必须是非空字符串' });
-    return;
-  }
-  try {
-    res.json(loginOrRegister(nickname as string, userId));
-  } catch {
-    // 域层只抛 NICKNAME_INVALID 一种错（唯一已知失败因），薄路由按语义转 400
-    res.status(400).json({ error: 'nickname 必填（1~20 字）' });
-  }
-});
 
-/** 本地登录态校验：userId 命中 → PkIdentity；不存在 → 404（前端据此清 localStorage）。 */
+/**
+ * 当前 PK 身份（前端启动时问一次）：有会话 → `PkIdentity`；未登录 → 401。
+ *
+ * ★ 与改造前的三处不同：① **不再收 `?userId=`**（那是自证，§14.1 要拆掉的东西）；
+ *   ② 未登录从 404 改 **401**——语义本就该是「没登录」，404 是当年为「清 localStorage」
+ *   硬凑的判据，而 localStorage 那套身份已经不存在了；③ local 形态下回兜底身份。
+ */
 pkRouter.get('/auth/me', (req: Request, res: Response) => {
-  const identity = getIdentity(req.query.userId);
+  const identity = pkIdentityOf(req);
   if (!identity) {
-    res.status(404).json({ error: '账号不存在' });
+    unauthorized(res);
     return;
   }
   res.json(identity);
@@ -149,8 +143,8 @@ pkRouter.get('/auth/me', (req: Request, res: Response) => {
 
 /** 建房：{ userId, mode?, aiTopic? } → { roomId, roomCode, state }。已在某 waiting 房则**返回原房**（幂等）。 */
 pkRouter.post('/rooms', (req: Request, res: Response) => {
-  const identity = requireIdentity(req.body?.userId, res);
-  if (!identity) return;
+  const identity = pkIdentityOf(req);
+  if (!identity) return unauthorized(res);
   const mode: PkMode = req.body?.mode === 'pve' ? 'pve' : 'pvp';
   const aiTopic = typeof req.body?.aiTopic === 'string' ? req.body.aiTopic : undefined;
   const topic = typeof req.body?.topic === 'string' ? req.body.topic : undefined;
@@ -165,9 +159,9 @@ pkRouter.post('/rooms', (req: Request, res: Response) => {
 
 /** 按房号入房：{ roomCode, userId } → { roomId, state }。房不存在 404／满员 409。 */
 pkRouter.post('/rooms/join', (req: Request, res: Response) => {
-  const { roomCode, userId } = req.body as { roomCode?: unknown; userId?: unknown };
-  const identity = requireIdentity(userId, res);
-  if (!identity) return;
+  const { roomCode } = req.body as { roomCode?: unknown };
+  const identity = pkIdentityOf(req);
+  if (!identity) return unauthorized(res);
   if (typeof roomCode !== 'string' || !roomCode.trim()) {
     res.status(400).json({ error: 'roomCode 必填' });
     return;
@@ -183,8 +177,8 @@ pkRouter.post('/rooms/join', (req: Request, res: Response) => {
 
 /** 开局（仅房主、双方已进房）：{ userId } → { state }；置 active 并给出 endsAt。PVE 房 AI 座位已占，房主可直接开。 */
 pkRouter.post('/rooms/:id/start', (req: Request, res: Response) => {
-  const identity = requireIdentity(req.body?.userId, res);
-  if (!identity) return;
+  const identity = pkIdentityOf(req);
+  if (!identity) return unauthorized(res);
   try {
     const state = startRoom(req.params.id, identity);
     broadcast(state);
@@ -200,8 +194,8 @@ pkRouter.post('/rooms/:id/start', (req: Request, res: Response) => {
  * CD 内 429 不扣分；AI 失败 502 已回滚 CD（免费重试）。
  */
 pkRouter.post('/rooms/:id/quiz', (req: Request, res: Response) => {
-  const identity = requireIdentity(req.body?.userId, res);
-  if (!identity) return;
+  const identity = pkIdentityOf(req);
+  if (!identity) return unauthorized(res);
   void (async () => {
     try {
       // ★ M2c：末参是**账号归属**（谁付模型钱），与 `identity.userId`（对局身份，允许游客/AI）
@@ -222,8 +216,8 @@ pkRouter.post('/rooms/:id/quiz', (req: Request, res: Response) => {
 
 /** 答题：{ userId, questionId, choice } → { correct, delta, score }（契约 §2.1）。 */
 pkRouter.post('/rooms/:id/answer', (req: Request, res: Response) => {
-  const identity = requireIdentity(req.body?.userId, res);
-  if (!identity) return;
+  const identity = pkIdentityOf(req);
+  if (!identity) return unauthorized(res);
   try {
     const choice = typeof req.body?.choice === 'number' ? req.body.choice : Number(req.body?.choice);
     const r = submitAnswer(String(req.params.id ?? ''), identity.userId, req.body?.questionId, choice);
@@ -238,8 +232,8 @@ pkRouter.post('/rooms/:id/answer', (req: Request, res: Response) => {
  * `{ userId, topic }` → `{ state }`。主题不参与胜负，只决定「轮到这一轮该出什么题」。
  */
 pkRouter.post('/rooms/:id/topic', (req: Request, res: Response) => {
-  const identity = requireIdentity(req.body?.userId, res);
-  if (!identity) return;
+  const identity = pkIdentityOf(req);
+  if (!identity) return unauthorized(res);
   try {
     const state = setTopic(String(req.params.id ?? ''), identity, req.body?.topic);
     broadcast(state);
@@ -254,8 +248,8 @@ pkRouter.post('/rooms/:id/topic', (req: Request, res: Response) => {
  * 裁判**当场联网搜索**后给建议与知识输出；**不给答案**（那条硬规矩写在 judge 的提示词里）。
  */
 pkRouter.post('/rooms/:id/help', (req: Request, res: Response) => {
-  const identity = requireIdentity(req.body?.userId, res);
-  if (!identity) return;
+  const identity = pkIdentityOf(req);
+  if (!identity) return unauthorized(res);
   void (async () => {
     try {
       const r = await useHelp(
@@ -278,8 +272,8 @@ pkRouter.post('/rooms/:id/help', (req: Request, res: Response) => {
  * 类似题答对 +2（走既有 `/answer`，原错题的 −1 不撤销）。出题失败时 `question` 为 null 但解析照给。
  */
 pkRouter.post('/rooms/:id/retry', (req: Request, res: Response) => {
-  const identity = requireIdentity(req.body?.userId, res);
-  if (!identity) return;
+  const identity = pkIdentityOf(req);
+  if (!identity) return unauthorized(res);
   void (async () => {
     try {
       const r = await requestRetry(
@@ -303,8 +297,8 @@ pkRouter.post('/rooms/:id/retry', (req: Request, res: Response) => {
  *   以为功能不存在（本仓已吃过这个亏）。
  */
 pkRouter.post('/rooms/:id/forfeit', (req: Request, res: Response) => {
-  const identity = requireIdentity(req.body?.userId, res);
-  if (!identity) return;
+  const identity = pkIdentityOf(req);
+  if (!identity) return unauthorized(res);
   try {
     const state = forfeitRoom(String(req.params.id ?? ''), identity);
     broadcast(state);
@@ -331,8 +325,8 @@ pkRouter.get('/rooms/:id/state', (req: Request, res: Response) => {
  * limit 由 `clampHistoryLimit` 归一（缺省 20 / 上限 100）——客户端传超大值不该把库拉空。
  */
 pkRouter.get('/matches', (req: Request, res: Response) => {
-  const identity = requireIdentity(req.query.userId, res);
-  if (!identity) return;
+  const identity = pkIdentityOf(req);
+  if (!identity) return unauthorized(res);
   res.json({ matches: listMatches(identity.userId, req.query.limit) });
 });
 
@@ -343,8 +337,8 @@ pkRouter.get('/matches', (req: Request, res: Response) => {
  *   坏数据装成正常的一局，比报错更难查。
  */
 pkRouter.get('/matches/:id', (req: Request, res: Response) => {
-  const identity = requireIdentity(req.query.userId, res);
-  if (!identity) return;
+  const identity = pkIdentityOf(req);
+  if (!identity) return unauthorized(res);
   try {
     const match = getMatchDetail(req.params.id, identity.userId);
     if (!match) {

@@ -12,14 +12,34 @@ import type { QuizMix } from './content-blocks.js';
 
 // ── 登录（P0-1）────────────────────────────────────────────
 
-/** 登录身份（POST /api/pk/auth/login 响应 / GET /api/pk/auth/me 响应主体） */
+/**
+ * 当前会话的 PK 身份（`GET /api/pk/auth/me` 响应主体）。
+ *
+ * ★ **B1（2026-09-20）起不再由客户端自报**：身份来自服务端 httpOnly cookie 会话
+ *   （`AUTH-SPEC` 的统一账号体系），域名侧只读不写。此前 P0 的形态是「前端存 localStorage
+ *   里的 userId、每个端点显式传 `{ userId }`」——单机 demo 无害，**一上公网就是「改一个参数
+ *   就能冒充别人」**（`PK-SPEC §14.1` 的原话）。
+ * ★ 原 `openid` 字段已删除：微信网页授权需企业主体，对个人**永久不可得**（`AUTH-SPEC §0.1`
+ *   2026-09-18 拍板不做），这个字段从此没有任何取值来源。前端从未使用过它（已核）。
+ */
 export interface PkIdentity {
+  /** 统一账号 `users.id`（`u-<uuid>`） */
   userId: string;
-  /** P0 = `mock_<userId>`；P1 替换为微信公众号网页授权真实 openid */
-  openid: string;
-  /** 昵称（1~20 字，trim 后非空），登录时可改名 */
+  /** 昵称（1~20 字，trim 后非空），在账号设置里改，PK 内不再有登录/改名表单 */
   nickname: string;
 }
+
+/**
+ * `local` 部署形态（本地单人，`AUTH-SPEC §2.9`）的兜底 PK 身份。
+ *
+ * ★ 为什么需要它：本地形态「免登录可用」是**后端既有语义**（`ownerIdOf → null`＝不过滤/无主行），
+ *   PK 不该比别的功能更严——否则本地想跑一局双人验证，得先折腾一遍邮箱注册收验证码。
+ * ★ 线上（`cloud`）形态**绝不使用**：那时 `SB_REQUIRE_AUTH=1`，未登录请求在路由层就被
+ *   `requireAuth` 401 挡下，根本走不到这个兜底。兜底只在「形态是 local」时可达。
+ * ★ 固定 userId（而非随机）是刻意的：本地刷新页面后仍是同一个「本地玩家」，不至于每刷新一次
+ *   就变成另一个人（房间里的席位会认不出他）。
+ */
+export const PK_LOCAL_IDENTITY: PkIdentity = { userId: 'local-user', nickname: '本地玩家' };
 
 // ── 房间常量（P0-1）────────────────────────────────────────
 

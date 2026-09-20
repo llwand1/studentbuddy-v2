@@ -123,7 +123,7 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
     setQuizErr('');
     setJudge(null);
     try {
-      await api.pk.submitQuiz(state.roomId, userId, prompt.trim());
+      await api.pk.submitQuiz(state.roomId, prompt.trim());
       setPrompt('');
     } catch (e) {
       setQuizErr(e instanceof ApiError ? e.message : '出题失败，请重试');
@@ -133,14 +133,14 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
     } finally {
       setQuizBusy(false);
     }
-  }, [prompt, quizBusy, state.roomId, userId]);
+  }, [prompt, quizBusy, state.roomId]);
 
   const answer = useCallback(
     async (choice: number) => {
       if (answerBusy || !mine) return;
       setAnswerBusy(true);
       try {
-        const r = await api.pk.submitAnswer(state.roomId, userId, mine.id, choice);
+        const r = await api.pk.submitAnswer(state.roomId, mine.id, choice);
         flash({ kind: r.correct ? 'correct' : 'wrong', text: r.correct ? `答对 +${r.delta}` : `答错 ${r.delta}` });
       } catch (e) {
         flash({ kind: 'info', text: e instanceof ApiError ? e.message : '提交失败' });
@@ -148,7 +148,7 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
         setAnswerBusy(false);
       }
     },
-    [answerBusy, flash, mine, state.roomId, userId],
+    [answerBusy, flash, mine, state.roomId],
   );
 
   /** 求助道具：就某道题请裁判指点（当场联网搜索）。用完按钮自动消失——helpLeft 来自服务端快照 */
@@ -156,26 +156,26 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
     if (!mine) return;
     setJudge(null);
     try {
-      const r = await api.pk.useHelp(state.roomId, userId, mine.id);
+      const r = await api.pk.useHelp(state.roomId, mine.id);
       setJudge({ title: '裁判指点（给思路，不给答案）', advice: r.advice });
     } catch (e) {
       flash({ kind: 'info', text: e instanceof ApiError ? e.message : '求助失败' });
     }
-  }, [flash, mine, state.roomId, userId]);
+  }, [flash, mine, state.roomId]);
 
   /** 二次机会：选一道答错的题，换现场解析 + 同主题类似题 */
   const retry = useCallback(
     async (questionId: string) => {
       setJudge(null);
       try {
-        const r = await api.pk.requestRetry(state.roomId, userId, questionId);
+        const r = await api.pk.requestRetry(state.roomId, questionId);
         setJudge({ title: '二次机会：现场解析', explanation: r.explanation });
         flash({ kind: 'info', text: r.question ? '已出类似题，答对 +2' : '这次没出出题，解析照给' });
       } catch (e) {
         flash({ kind: 'info', text: e instanceof ApiError ? e.message : '二次机会失败' });
       }
     },
-    [flash, state.roomId, userId],
+    [flash, state.roomId],
   );
 
   /** 出题区（主区或折叠区共用同一份实例参数，避免两处逻辑分叉） */

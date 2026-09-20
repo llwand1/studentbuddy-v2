@@ -1,10 +1,12 @@
 /**
- * PkLobby — PK 大厅（契约 docs/PK-SPEC.md §5：昵称→登录→建房/输码入房）。
+ * PkLobby — PK 大厅（契约 docs/PK-SPEC.md §5 / §14.1）。
  *
- * 两态：未登录只给昵称表单；已登录给「建房」与「输码入房」。
- * 判定逻辑在 pk-view.ts（本文件只挂 UI）；错误统一走 PkApp 的 error 位（ADR-5 三态）。
+ * ★ B1（§14.1）改版：**不再有 PK 自己的登录表单**——昵称模拟登录已随 `pk_users` 一起废弃，
+ *   身份由统一账号会话裁定。未登录只给「去登录」引导（跳主壳登录，登录后按 returnTo 跳回）；
+ *   已登录给「建房」与「输码入房」。判定逻辑在 pk-view.ts（本文件只挂 UI）；
+ *   错误统一走 PkApp 的 error 位（ADR-5 三态）。
  */
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import type { PkIdentity } from '@sb/shared';
 import { normalizeRoomCode } from './pk-view';
 
@@ -12,7 +14,8 @@ interface Props {
   identity: PkIdentity | null;
   error: string;
   busy: boolean;
-  onLogin: (nickname: string) => void;
+  /** §14.1：去主壳登录（PkApp 会把当前 hash 存进 returnTo，登录后跳回） */
+  onGoLogin: () => void;
   /** P0-7：`topic` = 建房人自己的对战主题；入房的人进房后在等待房补选 */
   onCreate: (mode: 'pvp' | 'pve', aiTopic?: string, topic?: string) => void;
   onJoin: (roomCode: string) => void;
@@ -20,8 +23,7 @@ interface Props {
   onHistory: () => void;
 }
 
-export function PkLobby({ identity, error, busy, onLogin, onCreate, onJoin, onHistory }: Props) {
-  const [nickname, setNickname] = useState(identity?.nickname ?? '');
+export function PkLobby({ identity, error, busy, onGoLogin, onCreate, onJoin, onHistory }: Props) {
   const [code, setCode] = useState('');
   const [localErr, setLocalErr] = useState('');
   /** 建房模式：pvp 双人 / pve 人机（AI 对手） */
@@ -31,17 +33,7 @@ export function PkLobby({ identity, error, busy, onLogin, onCreate, onJoin, onHi
   /** P0-7：我的对战主题（建房时一起提交；开局前还能在等待房改） */
   const [topic, setTopic] = useState('');
 
-  const submitLogin = useCallback(() => {
-    const name = nickname.trim();
-    if (!name || name.length > 20) {
-      setLocalErr('昵称 1~20 字');
-      return;
-    }
-    setLocalErr('');
-    onLogin(name);
-  }, [nickname, onLogin]);
-
-  const submitJoin = useCallback(() => {
+  const submitJoin = () => {
     const normalized = normalizeRoomCode(code);
     if (normalized.length !== 6) {
       setLocalErr('房号是 6 位数字');
@@ -49,33 +41,19 @@ export function PkLobby({ identity, error, busy, onLogin, onCreate, onJoin, onHi
     }
     setLocalErr('');
     onJoin(normalized);
-  }, [code, onJoin]);
+  };
 
   if (!identity) {
     return (
       <section className="sb-pk-card">
-        <h2 className="sb-pk-h2">先取个名字</h2>
-        <p className="sb-pk-hint">昵称会显示在对战双方比分条上（1~20 字）</p>
-        <form
-          className="sb-pk-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submitLogin();
-          }}
-        >
-          <input
-            className="sb-pk-input"
-            placeholder="输入昵称（1~20 字）"
-            value={nickname}
-            maxLength={20}
-            autoFocus
-            onChange={(e) => setNickname(e.target.value)}
-          />
-          {(localErr || error) && <div className="sb-pk-error">{localErr || error}</div>}
-          <button type="submit" className="sb-pk-btn primary" disabled={busy || !nickname.trim()}>
-            登录
-          </button>
-        </form>
+        <h2 className="sb-pk-h2">先登录再开战</h2>
+        <p className="sb-pk-hint">
+          对战身份已并入学习助手账号（邮箱登录），昵称取自账号资料——先去主壳登录，成功后自动回到本页
+        </p>
+        {error && <div className="sb-pk-error">{error}</div>}
+        <button type="button" className="sb-pk-btn primary" onClick={onGoLogin}>
+          去登录
+        </button>
       </section>
     );
   }
@@ -102,7 +80,9 @@ export function PkLobby({ identity, error, busy, onLogin, onCreate, onJoin, onHi
             <small>与 AI 互出题互答题</small>
           </button>
         </div>
-        {mode === 'pvp' && <p className="sb-pk-hint">建好后把 6 位房号念给对手，等 TA 输码进房</p>}
+        {mode === 'pvp' && (
+          <p className="sb-pk-hint">建好后把 6 位房号或邀请链接发给对手，TA 进房即可坐下</p>
+        )}
         {mode === 'pve' && (
           <p className="sb-pk-hint">
             AI 与你同规则：互出题（+1）、答题（±2/−1）、45 秒时限、8 分钟结算。AI 用「设置 → 模型」里你配的服务商答题。
@@ -166,10 +146,7 @@ export function PkLobby({ identity, error, busy, onLogin, onCreate, onJoin, onHi
         </button>
       </section>
       {(localErr || error) && <div className="sb-pk-error">{localErr || error}</div>}
-      <div className="sb-pk-me">
-        当前身份：{identity.nickname}
-        <span className="sb-pk-me-id">{identity.userId.slice(0, 8)}</span>
-      </div>
+      <div className="sb-pk-me">当前身份：{identity.nickname}</div>
     </>
   );
 }

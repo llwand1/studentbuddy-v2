@@ -9,6 +9,8 @@
  * ④ 没配模型 → AI 不乱猜，题目超时由 ticker 同规则 −1——AI 没有特权。
  *
  * mock：generateQuiz 固定单选（答案下标 1）；routeRole 返回假目标（chat 流吐固定选项字母）。
+ *
+ * ★ B1（§14.1，2026-09-20）改写：HTTP 层身份换成统一账号 cookie 会话；域函数与 AI 链路不变。
  */
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import fs from 'node:fs';
@@ -19,6 +21,7 @@ import {
   AI_RETRY_DELAY_MS,
   AI_USER_PREFIX,
   ANSWER_TIME_MS,
+  AUTH_COOKIE_NAME,
   PK_MATCH_MS,
   pkChannel,
   type PkRoomState,
@@ -35,6 +38,7 @@ vi.mock('../llm/router.js', async (importOriginal) => ({
 }));
 
 process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-pk-pve-test-'));
+process.env.SB_REQUIRE_AUTH = '1';
 const { app } = await import('../index.js');
 const { closeDb } = await import('../storage/db.js');
 const { resetRooms, requireRoomInternal } = await import('../pk/room.js');
@@ -46,7 +50,10 @@ const { snapshot } = await import('../chat/sse-bus.js');
 const request = (await import('supertest')).default;
 
 const origin = 'http://localhost:5173';
-const post = (url: string) => request(app).post(url).set('Origin', origin);
+const post = (url: string, cookie?: string) => {
+  const r = request(app).post(url).set('Origin', origin);
+  return cookie ? r.set('Cookie', cookie) : r;
+};
 
 /** 固定单选：正确答案下标 1（太平洋）——AI 答「B」即答对、答「A」即答错 */
 const SINGLE: QuizQuestion = {
@@ -79,26 +86,30 @@ function fakeChatTarget(reply: string): ReturnType<typeof routeRole> {
   } as unknown as ReturnType<typeof routeRole>;
 }
 
-async function login(nickname: string): Promise<{ userId: string; nickname: string }> {
-  const res = await post('/api/pk/auth/login').send({ nickname });
-  expect(res.status).toBe(200);
-  return res.body as { userId: string; nickname: string };
+/** 建统一账号 + 取会话 cookie（同 pk-room.test.ts 手法） */
+let userSeq = 0;
+async function login(nickname: string): Promise<{ userId: string; nickname: string; cookie: string }> {
+  const { createUser } = await import('../auth/users.js');
+  const { createSession } = await import('../auth/session.js');
+  const user = await createUser(`pk-pve-${++userSeq}@test.local`, 'good-password-1', nickname);
+  const { token } = createSession(user.id);
+  return { userId: user.id, nickname: user.nickname, cookie: `${AUTH_COOKIE_NAME}=${token}` };
 }
 
 /** 建 PVE 房（可选主题方向）并直接开局（AI 座位已占，无需等人） */
 async function makePveRoom(aiTopic?: string) {
   const alice = await login('甲');
   // P0-7：人的主题建房时定；AI 座位开局时自动兜底（PK_DEFAULT_AI_TOPIC），不需要人替它填
-  const body: Record<string, unknown> = { userId: alice.userId, mode: 'pve', topic: '历史' };
+  const body: Record<string, unknown> = { mode: 'pve', topic: '历史' };
   if (aiTopic) body.aiTopic = aiTopic;
-  const created = await post('/api/pk/rooms').send(body);
+  const created = await post('/api/pk/rooms', alice.cookie).send(body);
   expect(created.status).toBe(201);
   const { roomId, roomCode, state } = created.body as {
     roomId: string;
     roomCode: string;
     state: PkRoomState;
   };
-  const started = await post(`/api/pk/rooms/${roomId}/start`).send({ userId: alice.userId });
+  const started = await post(`/api/pk/rooms/${roomId}/start`, alice.cookie).send({});
   expect(started.status).toBe(200);
   const startedAt = (started.body as { state: PkRoomState }).state.endsAt - PK_MATCH_MS;
   return { alice, roomId, roomCode, state, startedAt, aiId: AI_USER_PREFIX + roomId };
@@ -120,12 +131,12 @@ describe('PVE 建房与占座', () => {
     expect(state.players[1]?.userId).toBe(AI_USER_PREFIX + roomId);
     expect(state.players[1]?.nickname).toBe('AI 对手');
     const bob = await login('乙');
-    expect((await post('/api/pk/rooms/join').send({ roomCode, userId: bob.userId })).status).toBe(409);
+    expect((await post('/api/pk/rooms/join', bob.cookie).send({ roomCode })).status).toBe(409);
   });
 
   it('默认 mode=pvp：不建 AI 座位（回归防护）', async () => {
     const alice = await login('甲');
-    const created = await post('/api/pk/rooms').send({ userId: alice.userId });
+    const created = await post('/api/pk/rooms', alice.cookie).send({});
     const state = (created.body as { state: PkRoomState }).state;
     expect(state.mode).toBe('pvp');
     expect(state.players).toHaveLength(1);

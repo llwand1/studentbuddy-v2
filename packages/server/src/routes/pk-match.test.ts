@@ -8,6 +8,10 @@
  *
  * LLM 出题统一 mock `generateQuiz`（固定单选、正确答案下标 1）——只测计分与判罚，
  * 不测生成质量；answer 用数组形状 [1]（generateQuiz 真实产物的形状）。
+ *
+ * ★ B1（§14.1，2026-09-20）改写：身份从「客户端自报 userId」换成统一账号 cookie 会话。
+ *   域函数（submitQuiz/submitAnswer）签名不变——userId 形参吃的是房内玩家（=users.id）；
+ *   变的是 HTTP 层：所有请求带会话 cookie，body 里不再有 userId。
  */
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import fs from 'node:fs';
@@ -15,6 +19,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   ANSWER_TIME_MS,
+  AUTH_COOKIE_NAME,
   IDLE_PENALTY_MS,
   PK_MATCH_MS,
   QUIZ_CD_MS,
@@ -30,6 +35,7 @@ vi.mock('../learning/quiz.js', async (importOriginal) => ({
 }));
 
 process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-pk-match-test-'));
+process.env.SB_REQUIRE_AUTH = '1';
 const { app } = await import('../index.js');
 const { closeDb } = await import('../storage/db.js');
 const { resetRooms, requireRoomInternal, snapshotRoom } = await import('../pk/room.js');
@@ -40,7 +46,10 @@ const request = (await import('supertest')).default;
 
 // 写操作过跨源闸门：模拟合法前端源（同 pk-room.test.ts）
 const origin = 'http://localhost:5173';
-const post = (url: string) => request(app).post(url).set('Origin', origin);
+const post = (url: string, cookie?: string) => {
+  const r = request(app).post(url).set('Origin', origin);
+  return cookie ? r.set('Cookie', cookie) : r;
+};
 
 /** 固定单选：正确答案下标 1（太平洋） */
 const SINGLE: QuizQuestion = {
@@ -64,10 +73,14 @@ function player(roomId: string, userId: string) {
   return p;
 }
 
-async function login(nickname: string): Promise<{ userId: string; nickname: string }> {
-  const res = await post('/api/pk/auth/login').send({ nickname });
-  expect(res.status).toBe(200);
-  return res.body as { userId: string; nickname: string };
+/** 建统一账号 + 取会话 cookie（同 pk-room.test.ts 手法） */
+let userSeq = 0;
+async function login(nickname: string): Promise<{ userId: string; nickname: string; cookie: string }> {
+  const { createUser } = await import('../auth/users.js');
+  const { createSession } = await import('../auth/session.js');
+  const user = await createUser(`pk-match-${++userSeq}@test.local`, 'good-password-1', nickname);
+  const { token } = createSession(user.id);
+  return { userId: user.id, nickname: user.nickname, cookie: `${AUTH_COOKIE_NAME}=${token}` };
 }
 
 /** 甲乙满员 + 房主开局，返回双方身份与开局时刻（endsAt − 8min） */
@@ -75,12 +88,12 @@ async function makeActiveRoom() {
   const alice = await login('甲');
   const bob = await login('乙');
   // P0-7：建房时带甲方主题；乙方入房后补选自己的（开局前双方都必须有主题，否则 409 TOPIC_NOT_SET）
-  const created = await post('/api/pk/rooms').send({ userId: alice.userId, topic: '历史' });
+  const created = await post('/api/pk/rooms', alice.cookie).send({ topic: '历史' });
   expect(created.status).toBe(201);
   const { roomId, roomCode } = created.body as { roomId: string; roomCode: string };
-  expect((await post('/api/pk/rooms/join').send({ roomCode, userId: bob.userId })).status).toBe(200);
-  expect((await post(`/api/pk/rooms/${roomId}/topic`).send({ userId: bob.userId, topic: '地理' })).status).toBe(200);
-  const started = await post(`/api/pk/rooms/${roomId}/start`).send({ userId: alice.userId });
+  expect((await post('/api/pk/rooms/join', bob.cookie).send({ roomCode })).status).toBe(200);
+  expect((await post(`/api/pk/rooms/${roomId}/topic`, bob.cookie).send({ topic: '地理' })).status).toBe(200);
+  const started = await post(`/api/pk/rooms/${roomId}/start`, alice.cookie).send({});
   expect(started.status).toBe(200);
   const state = (started.body as { state: PkRoomState }).state;
   return { alice, bob, roomId, startedAt: state.endsAt - PK_MATCH_MS };
@@ -255,10 +268,10 @@ describe('答题守卫（域层校验）', () => {
 describe('HTTP 路由 · 域错误码 → 状态映射', () => {
   it('POST /quiz：200 出题成功；CD 内 → 429 QUIZ_ON_COOLDOWN', async () => {
     const { alice, roomId } = await makeActiveRoom();
-    const ok = await post(`/api/pk/rooms/${roomId}/quiz`).send({ userId: alice.userId, prompt: '秦朝建立时间' });
+    const ok = await post(`/api/pk/rooms/${roomId}/quiz`, alice.cookie).send({ prompt: '秦朝建立时间' });
     expect(ok.status).toBe(200);
     expect((ok.body as { state: PkRoomState }).state.questions).toHaveLength(1);
-    const cd = await post(`/api/pk/rooms/${roomId}/quiz`).send({ userId: alice.userId, prompt: '再来一题' });
+    const cd = await post(`/api/pk/rooms/${roomId}/quiz`, alice.cookie).send({ prompt: '再来一题' });
     expect(cd.status).toBe(429);
     expect((cd.body as { code: string }).code).toBe('QUIZ_ON_COOLDOWN');
   });
@@ -266,23 +279,23 @@ describe('HTTP 路由 · 域错误码 → 状态映射', () => {
   it('POST /quiz：400 空提示词 / 409 非对局房 / 403 局外人 / 404 房不存在', async () => {
     const { alice, roomId } = await makeActiveRoom();
     const quizUrl = `/api/pk/rooms/${roomId}/quiz`;
-    expect((await post(quizUrl).send({ userId: alice.userId, prompt: '   ' })).status).toBe(400);
+    expect((await post(quizUrl, alice.cookie).send({ prompt: '   ' })).status).toBe(400);
     const loner = await login('局外人');
-    const wr = await post('/api/pk/rooms').send({ userId: loner.userId });
+    const wr = await post('/api/pk/rooms', loner.cookie).send({});
     const waitRoomId = (wr.body as { roomId: string }).roomId;
-    expect((await post(`/api/pk/rooms/${waitRoomId}/quiz`).send({ userId: loner.userId, prompt: 'x' })).status).toBe(409);
-    expect((await post(quizUrl).send({ userId: loner.userId, prompt: 'x' })).status).toBe(403);
-    expect((await post('/api/pk/rooms/r-ghost/quiz').send({ userId: alice.userId, prompt: 'x' })).status).toBe(404);
+    expect((await post(`/api/pk/rooms/${waitRoomId}/quiz`, loner.cookie).send({ prompt: 'x' })).status).toBe(409);
+    expect((await post(quizUrl, loner.cookie).send({ prompt: 'x' })).status).toBe(403);
+    expect((await post('/api/pk/rooms/r-ghost/quiz', alice.cookie).send({ prompt: 'x' })).status).toBe(404);
   });
 
   it('POST /quiz：生成失败 → 502 且 CD 回滚（免费重试立即成功）', async () => {
     const { alice, roomId } = await makeActiveRoom();
     const quizUrl = `/api/pk/rooms/${roomId}/quiz`;
     vi.mocked(generateQuiz).mockResolvedValueOnce(null); // 无模型/解析失败 → null
-    const failed = await post(quizUrl).send({ userId: alice.userId, prompt: '会失败的题' });
+    const failed = await post(quizUrl, alice.cookie).send({ prompt: '会失败的题' });
     expect(failed.status).toBe(502);
     expect((failed.body as { code: string }).code).toBe('AI_GENERATION_FAILED');
-    const retry = await post(quizUrl).send({ userId: alice.userId, prompt: '重试' });
+    const retry = await post(quizUrl, alice.cookie).send({ prompt: '重试' });
     expect(retry.status).toBe(200); // 不用等 60s：CD 已回滚
     expect((retry.body as { state: PkRoomState }).state.questions).toHaveLength(1);
   });
@@ -291,13 +304,13 @@ describe('HTTP 路由 · 域错误码 → 状态映射', () => {
     const { alice, bob, roomId } = await makeActiveRoom();
     await submitQuiz(roomId, alice.userId, '海洋题', Date.now());
     const answerUrl = `/api/pk/rooms/${roomId}/answer`;
-    expect((await post(answerUrl).send({ userId: alice.userId, questionId: qId(roomId, 0), choice: 1 })).status).toBe(403);
-    expect((await post(answerUrl).send({ userId: bob.userId, questionId: 'pq-ghost', choice: 1 })).status).toBe(404);
-    expect((await post(answerUrl).send({ userId: bob.userId, questionId: qId(roomId, 0), choice: 99 })).status).toBe(400);
-    const ok = await post(answerUrl).send({ userId: bob.userId, questionId: qId(roomId, 0), choice: 1 });
+    expect((await post(answerUrl, alice.cookie).send({ questionId: qId(roomId, 0), choice: 1 })).status).toBe(403);
+    expect((await post(answerUrl, bob.cookie).send({ questionId: 'pq-ghost', choice: 1 })).status).toBe(404);
+    expect((await post(answerUrl, bob.cookie).send({ questionId: qId(roomId, 0), choice: 99 })).status).toBe(400);
+    const ok = await post(answerUrl, bob.cookie).send({ questionId: qId(roomId, 0), choice: 1 });
     expect(ok.status).toBe(200);
     expect(ok.body).toEqual({ correct: true, delta: 2, score: 2 });
-    expect((await post(answerUrl).send({ userId: bob.userId, questionId: qId(roomId, 0), choice: 2 })).status).toBe(409);
+    expect((await post(answerUrl, bob.cookie).send({ questionId: qId(roomId, 0), choice: 2 })).status).toBe(409);
   });
 });
 

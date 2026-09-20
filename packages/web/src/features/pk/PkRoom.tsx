@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { isAiUserId } from '@sb/shared';
 import type { PkRoomState } from '@sb/shared';
 import type { SseReadyState } from '../../lib/sse-client';
+import { buildPkInviteLink } from './pk-view';
 import { PkMatch } from './PkMatch';
 import { PkResult } from './PkResult';
 
@@ -39,6 +40,20 @@ export function PkRoom({ state, userId, link, busy, onStart, onSetTopic, onForfe
   const me = state.players.find((p) => p.userId === userId);
   const needTopic = state.status === 'waiting' && !isAiUserId(userId) && !me?.topic.trim();
   const [topicDraft, setTopicDraft] = useState('');
+  /**
+   * §14.2 邀请链接（PVP 等待期）：一键复制「本站 + #/pk?code=房号」，发给对手即点即入。
+   * 复制结果必须反馈（ADR-5 禁静默）；剪贴板不可用（非 https / 旧 WebView）也如实告知。
+   */
+  const [copyState, setCopyState] = useState<'idle' | 'ok' | 'fail'>('idle');
+  const copyInvite = async () => {
+    try {
+      await navigator.clipboard.writeText(buildPkInviteLink(state.roomCode));
+      setCopyState('ok');
+    } catch {
+      setCopyState('fail');
+    }
+    setTimeout(() => setCopyState('idle'), 2500);
+  };
 
   return (
     <>
@@ -58,8 +73,17 @@ export function PkRoom({ state, userId, link, busy, onStart, onSetTopic, onForfe
         </div>
         {state.status === 'waiting' && (
           <p className="sb-pk-hint">
-            {state.mode === 'pve' ? 'AI 对手已入座，随时可以开局' : '把房号念给对手，TA 在大厅「输码入房」即可坐下'}
+            {state.mode === 'pve'
+              ? 'AI 对手已入座，随时可以开局'
+              : '把房号念给对手，或复制邀请链接发给 TA，点开即可进房'}
           </p>
+        )}
+        {state.status === 'waiting' && state.mode === 'pvp' && !full && (
+          <>
+            <button type="button" className="sb-pk-btn" onClick={() => void copyInvite()}>
+              {copyState === 'ok' ? '✓ 链接已复制，发给对手吧' : copyState === 'fail' ? '复制失败，请手动记下房号' : '复制邀请链接'}
+            </button>
+          </>
         )}
       </section>
 

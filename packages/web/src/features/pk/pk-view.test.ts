@@ -30,6 +30,9 @@ import {
   quizPendingLabel,
   quizPendingSec,
   verdictKind,
+  buildPkInviteLink,
+  pkInviteCodeFromHash,
+  sanitizeReturnTo,
 } from './pk-view';
 
 function state(players: Array<{ userId: string; nickname: string }>): PkRoomState {
@@ -401,5 +404,47 @@ describe('UX 批 · 出题过渡 / 判分种类（纯函数）', () => {
     expect(verdictKind(q({ chosen: 1, answerRevealed: 2 }))).toBe('wrong');
     expect(verdictKind(q({ status: 'timeout' }))).toBe('timeout');
     expect(verdictKind(q({ status: 'pending' }))).toBe('pending');
+  });
+});
+
+// ── §14.2/§14.3 邀请链接与 returnTo（B1，2026-09-20）────────────────
+
+describe('pkInviteCodeFromHash（§14.2：query 在 hash 片段内，location.search 取不到）', () => {
+  it('标准邀请链接：#/pk?code=123456 → 123456', () => {
+    expect(pkInviteCodeFromHash('#/pk?code=123456')).toBe('123456');
+  });
+
+  it('带额外参数也认：#/pk?code=123456&from=wechat → 123456', () => {
+    expect(pkInviteCodeFromHash('#/pk?code=123456&from=wechat')).toBe('123456');
+  });
+
+  it('非数字 / 超长 / 缺码 → 归一为空或截断（normalizeRoomCode 同口径）', () => {
+    expect(pkInviteCodeFromHash('#/pk?code=abc')).toBe('');
+    expect(pkInviteCodeFromHash('#/pk?code=1234567')).toBe('123456'); // 截到 6 位
+    expect(pkInviteCodeFromHash('#/pk')).toBe('');
+    expect(pkInviteCodeFromHash('#/pk?other=x')).toBe('');
+  });
+});
+
+describe('buildPkInviteLink（§14.2：链接必须带 #，格式 <origin><path>#/pk?code=）', () => {
+  it('拼出的链接能被 pkInviteCodeFromHash 还原出房号（拼与解析互为逆操作）', () => {
+    const link = buildPkInviteLink('654321', { origin: 'https://11wand.com', pathname: '/' });
+    expect(link).toContain('#/pk?code=654321');
+    expect(link).not.toContain('undefined');
+    const hash = `#${link.split('#')[1]}`;
+    expect(pkInviteCodeFromHash(hash)).toBe('654321');
+  });
+});
+
+describe('sanitizeReturnTo（§14.3：只允许 #/ 开头的站内 hash，防开放重定向）', () => {
+  it('站内 hash 放行；绝对 URL / 裸路径 / 空值一律丢弃', () => {
+    expect(sanitizeReturnTo('#/pk?code=123456')).toBe('#/pk?code=123456');
+    expect(sanitizeReturnTo('#/pk')).toBe('#/pk');
+    expect(sanitizeReturnTo('https://evil.com#/pk')).toBeNull(); // 钓鱼链接
+    expect(sanitizeReturnTo('/pk')).toBeNull();
+    expect(sanitizeReturnTo('pk')).toBeNull();
+    expect(sanitizeReturnTo('')).toBeNull();
+    expect(sanitizeReturnTo(null)).toBeNull();
+    expect(sanitizeReturnTo(undefined)).toBeNull();
   });
 });

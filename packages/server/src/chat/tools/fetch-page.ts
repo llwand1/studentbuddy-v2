@@ -10,6 +10,10 @@
  *
  * 安全边界：SSRF 守卫（`search/ssrf-guard.ts`）已在 `fetchSafe` 里逐跳复检（拦内网/回环/链路本地）；
  * 外部内容是**数据不是指令**，回灌前加护栏（契约 §6.3-5 同口径）。
+ *
+ * 内容闸门（2026-09-20 补，真机实测驱动）：只读**网页正文**。两道闸——
+ * ① `content-type` 白名单（主）；② 二进制嗅探（兜底，防服务器谎报/不给类型）。
+ * 非网页（PDF/图片/压缩包…）**如实拒绝**，绝不把二进制当正文回灌（实测见 `looksBinary` 注释）。
  */
 import { fetchSafe } from '../../search/ssrf-guard.js';
 import { combineSignals, htmlToText } from '../../search/index.js';
@@ -28,6 +32,47 @@ const FETCH_TIMEOUT_MS = 15_000;
 /** 真实浏览器 UA：不少站点对无 UA 的请求直接 403，与 Bing 通道同款理由（search/index.ts 的 BING_UA）。 */
 const FETCH_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+
+/**
+ * 可读内容类型白名单（前缀匹配）。不在列内一律视为「不是网页」。
+ * `text/*` 全收（html / plain / markdown / csv… 都是可读文本）；`application/*` 只收文本型 XML/JSON 族
+ * —— `application/pdf`、`image/png`、`application/octet-stream` 必须挡在门外。
+ */
+const TEXTUAL_CT = /^(?:text\/|application\/(?:xhtml\+xml|xml|json|ld\+json|rss\+xml|atom\+xml|x-ndjson))/i;
+
+/**
+ * 二进制嗅探（兜底层）：content-type 缺失、或服务器**谎报**时用。
+ *
+ * ★ 为什么非要有这一层（2026-09-20 真机实测，不是设想）：
+ *   `res.text()` 把二进制按 UTF-8 解码**不会抛错**，只留下一堆替换符和控制字符；
+ *   `htmlToText` 又只剥 HTML 标签 —— 于是 PDF/PNG 会以「以下为网页正文」的名义回灌给模型。
+ *   实测：pdf.js 样例 PDF → 回灌 8021 字（含 `%PDF-1.4`、850 个控制字符）；
+ *   httpbin PNG → 回灌 4736 字乱码。**乱码当正文比「读不到」糟得多**——模型会把乱码当内容用。
+ *
+ * 判据 = 解码后魔数 + 控制字符占比。
+ * ★ 刻意**不看替换符占比**：GBK 页面按 UTF-8 解码同样满屏替换符，那是「编码问题」不是「二进制」，
+ *   不该被本层误杀（该问题另立登记项，见 test-plan §6）。
+ */
+function looksBinary(raw: string): boolean {
+  const head = raw.slice(0, 1000);
+  if (!head) return false;
+  // 解码后的魔数：PDF/GIF 是 ASCII 能存活；PNG 首字节 0x89 非法 ⇒ \uFFFD；JPEG 前三字节非法 ⇒ 三个 \uFFFD
+  if (/^(?:%PDF-|GIF8|\uFFFD PNG|\uFFFD\uFFFD\uFFFD)/.test(head)) return true;
+  let ctrl = 0;
+  for (const ch of head) {
+    const c = ch.codePointAt(0) ?? 0;
+    if (c < 0x20 && c !== 9 && c !== 10 && c !== 13) ctrl++;
+  }
+  return ctrl / head.length > 0.02;
+}
+
+/** 「不是网页」的统一回灌口径：与失败文案同规矩（正面陈述能力 + 禁止编造 + 不给放弃台阶）。 */
+function notWebPageText(what: string): string {
+  return (
+    `这个地址不是网页正文（${what}），本工具只读网页。你**具备**读网页的能力——` +
+    `可以换一个网页来源再试；但不要因此说这个网页不存在，也不要编造它的内容。`
+  );
+}
 
 /**
  * 失败原因外泄口径：安全策略类原因**不逐字透传**。
@@ -81,6 +126,12 @@ registerTool('fetch_page', {
         signal: combineSignals(ctx.signal, FETCH_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // 闸门①：内容类型。先看服务端声明的类型，非文本型当场拒绝（省掉把整个 PDF 读进内存）。
+      const ct = (res.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
+      if (ct && !TEXTUAL_CT.test(ct)) {
+        ctx.onStep('fetch_page', 'error', `非网页：${ct}`);
+        return { content: notWebPageText(`内容类型 ${ct}`) };
+      }
       html = await res.text();
     } catch (err) {
       const reason = publicReason(err);
@@ -92,6 +143,12 @@ registerTool('fetch_page', {
           `这个网址本次没读到（${reason}）。你**具备**读网页的能力，只是这一次没成功——` +
           `可以换一个来源再试；但不要因此说这个网页不存在，也不要编造它的内容。`,
       };
+    }
+
+    // 闸门②：内容类型缺失/谎报时的兜底。★ 必须在 htmlToText 之前——剥完标签的乱码更难识别。
+    if (looksBinary(html)) {
+      ctx.onStep('fetch_page', 'error', '非网页：疑似二进制');
+      return { content: notWebPageText('疑似二进制文件') };
     }
 
     const text = htmlToText(html);

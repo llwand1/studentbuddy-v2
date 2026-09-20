@@ -3,7 +3,7 @@
 [![CI](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-157%20files%20%2F%202166%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-158%20files%20%2F%202180%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-139-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-136%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
@@ -283,7 +283,7 @@ packages/
 │  ├─ auth/                 password / session / users / codes / code-limit / middleware / ownership
 │  ├─ chat/flow.ts          对话编排：多段 system 注入 + 上下文预算收口
 │  ├─ chat/compact.ts       会话压缩 + 跨会话画像
-│  ├─ chat/tools/           工具注册表（search_web / tidy_terms / manage_terms …）
+│  ├─ chat/tools/           工具注册表（search_web / fetch_page / tidy_terms / 词条三工具 …）
 │  ├─ learning/             quiz(+json-repair) / terms / domains / review / tidy / document(+BM25) / verdict / knowledge-graph
 │  ├─ coach/ · flow/ · pk/   督促卡片 / 学习流与知识图 / 对战赛局
 │  ├─ search/               多路聚合 + 免 key 兜底 + 24h 缓存 + SSRF 护栏
@@ -317,7 +317,7 @@ AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决�
 - 禁内联 `style={{…}}`（一律走 tokens.css 的 token）；禁 `any`；测试也禁 `!` 非空断言
 - 每个测试文件必须在 `docs/dev/test-plan.md` 成行登记（未登记 = 门禁红）
 
-**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**157 测试文件 / 2166 用例**（2165 passed + 1 skipped；**权威口径见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，此处仅为快照）。
+**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**158 测试文件 / 2180 用例**（2179 passed + 1 skipped；**权威口径见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，此处仅为快照）。
 
 交互层是**两层互补**，别指望任何一层单独覆盖：
 
@@ -398,7 +398,7 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 | 现场搜集真题（逐字锚点锁 + 两段确认） | ✅ 2026-09-18 |
 | 深度理解（判定链完整闭环） | 🔶 闸门件与落库表已就位，主链未接线 |
 | M4 定稿（反馈环收口 + v1 迁移实跑） | 🔶 反馈与迁移工具已落，定稿未做 |
-| M5 工具生态（MCP / 文件工具 / 确认门） | 🔶 S1 内核与 S2 确认门/词条三工具已落码（契约 v1.4.2，2026-09-20）；★ 2026-09-20 新增 `fetch_page` 网络读工具（§5.3，已落码）；S3 MCP 接入未开工 |
+| M5 工具生态（MCP / 文件工具 / 确认门） | 🔶 S1 内核与 S2 确认门/词条三工具已落码（契约 v1.4.3，2026-09-20）；★ 2026-09-20 新增 `fetch_page` 网络读工具（§5.3，已落码），**同批补「内容闸门」红线 2**——只回网页正文，PDF/图片等非网页**如实拒绝**（真机实测原先会把二进制当正文回灌，登记 `bug-ledger` B-011）；S3 MCP 接入未开工 |
 | 全站搜索（FTS5 三族索引：消息 / 词条 / 错题本） | ✅ 已入库 2026-09-20（契约 `docs/FTS-SPEC.md`；迁移 v37；`GET /api/search`）★ 真机端到端待目检 |
 | 词条英文发音（卡片喇叭 · 浏览器本地语音） | ✅ 已入库 2026-09-20（契约 `docs/TERM-HIGHLIGHT-SPEC.md` v1.1；`web/src/lib/speech.ts`）★ 真机听音待目检 |
 

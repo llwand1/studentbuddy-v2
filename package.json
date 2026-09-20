@@ -18,7 +18,8 @@
     "lint": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/server && tsc --noEmit -p packages/web && eslint packages --max-warnings 0",
     "test": "vitest run",
     "gates": "node tools/gates/check.mjs",
-    "check": "npm run lint && npm run test && npm run gates"
+    "check": "npm run lint && npm run test && npm run gates",
+    "metrics": "node tools/metrics.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.19.0",

@@ -71,7 +71,10 @@ WantedBy=multi-user.target
 ★ **三条容易踩的**：
 
 1. **跑源码、不跑 dist**：`ExecStart` 是 `tsx src/index.ts` ⇒ 发版必须把 `packages/server/src` 传上去；服务器上**没有** `packages/server/dist`，只传编译产物是白传。
-2. **`MemoryMax=400M`** 是 1 GB 机器上的硬上限：超了会被 OOM kill，再由 `Restart=always` 拉起 —— 对外症状是「偶发 502，几秒后自愈」。真吃满内存，先怀疑全站并发闸门值给大了。
+2. **`MemoryMax=400M` 是 1 GB 机器上的硬上限**（超了会 cgroup OOM kill，再由 `Restart=always` 拉起）。
+   ★ **而「偶发 502 ＝ 内存吃满」这句归因此前是推断，2026-09-20 实测被证伪**：开机 **127 天**、内核 oom-kill 计数 **0 次**、`MemoryCurrent` 实测 **138MB**（离 400MB 上限很远）。
+   中断**确实发生过**——`/opt/studentbuddy/watchdog.log`：`00:06:12 DOWN`、`00:06:16 DOWN`、`00:06:33 RECOVERED`（连续 2 个采样周期、约 21 秒）。★ 当日 `journalctl -u studentbuddy` 给出了定因：`00:06:11 systemd Stopping studentbuddy.service` → `00:06:12 Deactivated successfully` → `00:06:12 Started` → `00:06:17 listening` —— **这是人为/发版重启，与内存无关**（当天该 unit 共 12 次启停类事件，均为成对的 `Stopping → Started`）。
+   ⇒ **不要据此去调小全站并发闸门**。剩下的真缺口是 §7 那条「健康时不落笔」：没有分母就永远算不出可用性，也就永远无法区分「重启的正常停机」与「事故」。逐条判据与复现命令见 [`docs/metrics.md`](docs/metrics.md) §线上运行态快照。
 3. **改 `.env` 后必须 `systemctl restart`**，不是 `reload`（`EnvironmentFile` 只在进程启动时读一次）。
 
 常用操作：
@@ -198,13 +201,17 @@ curl -sf https://11wand.com/api/health
 
 | 手段 | 位置 | 说明 |
 |---|---|---|
-| **健康自检** | `/usr/local/bin/sb-watchdog`（每 5 分钟） | `curl /api/health`；异常往 `/opt/studentbuddy/watchdog.log` 写 `DOWN`，恢复写 `RECOVERED`。**只留痕不告警**——对外告警由外部监控（UptimeRobot）承担，理由：机器自己挂了就发不出告警 |
+| **健康自检** | `/usr/local/bin/sb-watchdog`（每 5 分钟） | `curl /api/health`；异常往 `/opt/studentbuddy/watchdog.log` 写 `DOWN`，恢复写 `RECOVERED`。**只在出事时落笔 ⇒ 健康的那 5 分钟不留痕，日志里没有分母，算不出可用性百分比，只能给出 DOWN 次数**（改造方向见下）。**只留痕不告警**——对外告警由外部监控（UptimeRobot）承担，理由：机器自己挂了就发不出告警 |
 | **访问统计** | GoatCounter（systemd，`127.0.0.1:8090`，`-base-path /stats`） | 无 cookie、不落 IP，前端埋 `/stats/count.js` |
 | **访问报告** | `/usr/local/bin/sb-goaccess-report`（每日 04:10） | 解析 Caddy JSON 日志（含轮转档）→ goaccess → `/opt/studentbuddy/reports/index.html`（**`--anonymize-ip`**），经 `/reports/` 带 basicauth 访问 |
 | **应用日志** | `journalctl -u studentbuddy` | pino 输出 |
 | **反代日志** | `/var/log/caddy/access.log`（10 MB × 5 滚动） | |
 
 看门狗日志出现 `DOWN` 不代表事故——发版重启也会留一条（正常模式是 `DOWN` 紧接 `RECOVERED`，间隔几十秒）。**持续多行 `DOWN` 才是事故**。
+
+★ **判 `DOWN` 之前先查 `journalctl -u studentbuddy`**：2026-09-20 那条 21 秒的 `DOWN` 就是这样定因的——同一分钟有 `Stopping studentbuddy.service`，说明是人为/发版重启而非故障。**光看 watchdog.log 分不出这两者，而它正是「内存吃满导致 502」这个错误归因存活至今的原因。**
+
+★ **量化侧第一件要改造的就是这条**：让 watchdog **每次采样都落一行**（时刻 + 状态 + 该次 `curl` 耗时 + `MemoryCurrent`），有了全样本分母才能出可用性与延迟分布，也才能在下次 `DOWN` 出现时立刻排除或坐实内存假设。改造前先不改判。
 
 ---
 

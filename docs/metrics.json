@@ -1,0 +1,181 @@
+{
+  "generatedAt": "2026-09-20T09:48:51.015Z",
+  "code": {
+    "rows": [
+      {
+        "pkg": "shared",
+        "srcFiles": 25,
+        "testFiles": 15,
+        "srcLines": 3852,
+        "testLines": 1828
+      },
+      {
+        "pkg": "server",
+        "srcFiles": 141,
+        "testFiles": 102,
+        "srcLines": 23424,
+        "testLines": 21529
+      },
+      {
+        "pkg": "web",
+        "srcFiles": 159,
+        "testFiles": 52,
+        "srcLines": 19774,
+        "testLines": 6829
+      }
+    ],
+    "srcFiles": 325,
+    "testFiles": 169,
+    "srcLines": 47050,
+    "testLines": 30186,
+    "tsxTestFiles": 13
+  },
+  "routes": {
+    "total": 140,
+    "byMethod": {
+      "get": 60,
+      "post": 52,
+      "delete": 14,
+      "put": 13,
+      "patch": 1
+    },
+    "apiMounts": 24
+  },
+  "contracts": {
+    "iface": 92,
+    "type": 49,
+    "total": 141
+  },
+  "migrations": {
+    "count": 38,
+    "max": 38,
+    "gaps": 0
+  },
+  "deps": {
+    "per": {
+      "root": {
+        "runtime": 0,
+        "dev": 16
+      },
+      "shared": {
+        "runtime": 0,
+        "dev": 0
+      },
+      "server": {
+        "runtime": 5,
+        "dev": 2
+      },
+      "web": {
+        "runtime": 3,
+        "dev": 4
+      }
+    },
+    "externalRuntime": [
+      "better-sqlite3",
+      "cors",
+      "express",
+      "pino",
+      "react",
+      "react-dom"
+    ]
+  },
+  "docs": {
+    "specs": 24,
+    "all": 30,
+    "dev": 4,
+    "probes": 12
+  },
+  "repo": {
+    "head": "5a15610",
+    "headDate": "2026-09-20",
+    "commitsLast14d": 111,
+    "branch": "main",
+    "dirtyFiles": 79
+  },
+  "tests": {
+    "available": true,
+    "ranNow": false,
+    "wallSec": 0,
+    "staleDays": 0,
+    "files": 169,
+    "cases": 2339,
+    "passed": 2338,
+    "skipped": 1,
+    "failed": 0,
+    "success": true
+  },
+  "coverage": {
+    "available": true,
+    "staleDays": 0,
+    "perPkg": {
+      "shared": {
+        "lines": 99.3,
+        "branches": 91.2,
+        "stmts": 99.3,
+        "funcs": 100
+      },
+      "server": {
+        "lines": 88.9,
+        "branches": 83,
+        "stmts": 88.9,
+        "funcs": 93.1
+      },
+      "web": {
+        "lines": 43.9,
+        "branches": 83.7,
+        "stmts": 43.9,
+        "funcs": 60.2
+      }
+    },
+    "allPackages": {
+      "lines": 67.7,
+      "branches": 83.8,
+      "stmts": 67.7,
+      "funcs": 78.7
+    },
+    "repoTotal": {
+      "lines": 53.9,
+      "branches": 83.4,
+      "stmts": 53.9,
+      "funcs": 76.7
+    }
+  },
+  "readmeDrift": [
+    {
+      "label": "badge 测试文件",
+      "claimed": "169",
+      "measured": "169",
+      "ok": true
+    },
+    {
+      "label": "badge 测试用例",
+      "claimed": "2339",
+      "measured": "2339",
+      "ok": true
+    },
+    {
+      "label": "badge REST 路由",
+      "claimed": "140",
+      "measured": "140",
+      "ok": true
+    },
+    {
+      "label": "badge 契约类型",
+      "claimed": "141",
+      "measured": "141",
+      "ok": true
+    },
+    {
+      "label": "badge 外部运行时依赖",
+      "claimed": "6",
+      "measured": "6",
+      "ok": true
+    },
+    {
+      "label": "正文基线句",
+      "claimed": "169 文件 / 2339 例",
+      "measured": "169 文件 / 2339 例",
+      "ok": true
+    }
+  ]
+}

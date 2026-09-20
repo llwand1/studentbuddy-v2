@@ -1,0 +1,370 @@
+#!/usr/bin/env node
+/**
+ * tools/metrics.mjs — 工程量化的唯一产出器。
+ *
+ * 为什么要有它：`docs/metrics.md` 原先是手抄快照（2026-09-06 一次采集后未刷新），
+ * README 里同一件事在不同小节被抄成两组数字。手抄的数字必然腐烂，所以：
+ *   数字由本脚本产出 → 写进 docs/metrics.json + docs/metrics.md 的标记区 →
+ *   README 只允许引用「本脚本刚测出的值」，漂移由 `--check` 拦。
+ *
+ * 用法：
+ *   node tools/metrics.mjs                静态计数，打印 + 写 docs/metrics.json
+ *   node tools/metrics.mjs --tests        额外跑一遍 vitest（json reporter）取真实用例数
+ *   node tools/metrics.mjs --write-docs   把数字回填进 docs/metrics.md 的标记区
+ *   node tools/metrics.mjs --check        有漂移则退出码 1（供 CI/门禁调用）
+ */
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const ROOT = path.resolve(import.meta.dirname, '..');
+const argv = new Set(process.argv.slice(2));
+const PKGS = ['shared', 'server', 'web'];
+const CODE_EXT = new Set(['.ts', '.tsx']);
+const TEST_RE = /\.test\.tsx?$/;
+
+function git(args) {
+  try {
+    return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim();
+  } catch {
+    return '';
+  }
+}
+
+function walk(dir, out = []) {
+  if (!fs.existsSync(dir)) return out;
+  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (['node_modules', 'dist', '.git', 'test-results', 'coverage'].includes(ent.name)) continue;
+    const p = path.join(dir, ent.name);
+    if (ent.isDirectory()) walk(p, out);
+    else out.push(p);
+  }
+  return out;
+}
+
+const rel = (p) => path.relative(ROOT, p).replaceAll('\\', '/');
+const linesOf = (p) => fs.readFileSync(p, 'utf8').split('\n').length;
+const grepCount = (files, re) => {
+  let n = 0;
+  for (const f of files) for (const line of fs.readFileSync(f, 'utf8').split('\n')) if (re.test(line)) n++;
+  return n;
+};
+
+/** 源码/测试体量：按包分列，测试行与源码行分开（口径：*.test.ts(x) 算测试，其余算源码）。 */
+function codeSize() {
+  const rows = [];
+  let srcLines = 0;
+  let testLines = 0;
+  let srcFiles = 0;
+  let testFiles = 0;
+  for (const pkg of PKGS) {
+    const files = walk(path.join(ROOT, 'packages', pkg, 'src')).filter((f) => CODE_EXT.has(path.extname(f)));
+    const tests = files.filter((f) => TEST_RE.test(f));
+    const src = files.filter((f) => !TEST_RE.test(f));
+    const s = src.reduce((a, f) => a + linesOf(f), 0);
+    const t = tests.reduce((a, f) => a + linesOf(f), 0);
+    rows.push({ pkg, srcFiles: src.length, testFiles: tests.length, srcLines: s, testLines: t });
+    srcLines += s;
+    testLines += t;
+    srcFiles += src.length;
+    testFiles += tests.length;
+  }
+  const tsxTests = walk(path.join(ROOT, 'packages')).filter((f) => f.endsWith('.test.tsx'));
+  return { rows, srcFiles, testFiles, srcLines, testLines, tsxTestFiles: tsxTests.length };
+}
+
+/** REST 路由：口径 = `<x>Router.(get|post|put|delete|patch)(` 的注册次数（不含 app.use 中间件挂载）。 */
+function restRoutes() {
+  const files = walk(path.join(ROOT, 'packages', 'server', 'src')).filter((f) => f.endsWith('.ts') && !TEST_RE.test(f));
+  const byMethod = {};
+  let total = 0;
+  for (const f of files) {
+    for (const line of fs.readFileSync(f, 'utf8').split('\n')) {
+      const m = /[A-Za-z]+Router\.(get|post|put|delete|patch)\(/.exec(line);
+      if (!m) continue;
+      byMethod[m[1]] = (byMethod[m[1]] ?? 0) + 1;
+      total++;
+    }
+  }
+  const mounts = grepCount(
+    files.filter((f) => rel(f).endsWith('server/src/index.ts')),
+    /^app\.use\('\/api/
+  );
+  return { total, byMethod, apiMounts: mounts + grepCount(files, /^app\.(get|post)\('/) };
+}
+
+/** shared 契约：export interface / export type 各计一次（口径与旧 metrics.md 的「契约类型」一致但改为机器数）。 */
+function contracts() {
+  const files = walk(path.join(ROOT, 'packages', 'shared', 'src')).filter((f) => CODE_EXT.has(path.extname(f)) && !TEST_RE.test(f));
+  return {
+    iface: grepCount(files, /^export interface /),
+    type: grepCount(files, /^export type /),
+    get total() {
+      return this.iface + this.type;
+    },
+  };
+}
+
+/** 依赖：包内 dependencies 去掉 workspace 内部引用 = 外部运行时依赖。 */
+function deps() {
+  const per = {};
+  const external = new Set();
+  for (const pkg of ['root', ...PKGS]) {
+    const p = path.join(ROOT, pkg === 'root' ? 'package.json' : path.join('packages', pkg, 'package.json'));
+    if (!fs.existsSync(p)) continue;
+    const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+    const d = Object.keys(j.dependencies ?? {});
+    per[pkg] = { runtime: d.length, dev: Object.keys(j.devDependencies ?? {}).length };
+    for (const name of d) if (!name.startsWith('@sb/')) external.add(name);
+  }
+  return { per, externalRuntime: [...external].sort() };
+}
+
+/** 迁移水位：所有 migrations-list*.ts 里的 version 数字（代码侧应有值，与线上库实测值分开记）。 */
+function migrations() {
+  const versions = new Set();
+  for (const f of walk(path.join(ROOT, 'packages', 'server', 'src', 'storage'))) {
+    if (!/migrations[^/]*\.ts$/.test(f) || TEST_RE.test(f)) continue;
+    for (const m of fs.readFileSync(f, 'utf8').matchAll(/\bversion:\s*(\d+)/g)) versions.add(Number(m[1]));
+  }
+  const v = [...versions].sort((a, b) => a - b);
+  return { count: v.length, max: v.at(-1) ?? 0, gaps: v.filter((n, i) => i && n !== v[i - 1] + 1).length };
+}
+
+function docs() {
+  const top = walk(path.join(ROOT, 'docs')).filter((f) => f.endsWith('.md'));
+  return {
+    specs: top.filter((f) => path.basename(f).includes('SPEC')).length,
+    all: top.length,
+    dev: top.filter((f) => rel(f).startsWith('docs/dev/')).length,
+    probes: walk(path.join(ROOT, 'tools', 'probes')).filter((f) => f.endsWith('.mjs')).length,
+  };
+}
+
+function repo() {
+  const days = 14;
+  return {
+    head: git(['rev-parse', '--short', 'HEAD']),
+    headDate: git(['log', '-1', '--format=%cd', '--date=short']),
+    commitsLast14d: Number(git(['rev-list', '--count', `--since=${days} days ago`, 'HEAD']) || 0),
+    branch: git(['rev-parse', '--abbrev-ref', 'HEAD']),
+    dirtyFiles: git(['status', '--porcelain']).split('\n').filter(Boolean).length,
+  };
+}
+
+/** vitest 真实结果：--tests 现跑；否则读上一次的 json 产物（读不到就标 null，绝不编数）。 */
+function testRun() {
+  const out = path.join(ROOT, 'test-results', 'metrics-vitest.json');
+  let wallSec = 0;
+  if (argv.has('--tests')) {
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    const cli = path.join(ROOT, 'node_modules', 'vitest', 'vitest.mjs');
+    const extra = argv.has('--coverage')
+      ? ['--coverage', '--coverage.provider=v8', '--coverage.reporter=json-summary', '--coverage.reportDir=coverage']
+      : [];
+    const t0 = Date.now();
+    try {
+      execFileSync(process.execPath, [cli, 'run', '--reporter=json', `--outputFile=${out}`, ...extra], {
+        cwd: ROOT,
+        stdio: ['ignore', 'ignore', 'inherit'],
+      });
+    } catch (e) {
+      // vitest 有用例红时退出码非 0——报告文件仍已落盘，照常读，红数由下面如实呈现
+      console.error(`⚠️ vitest 退出码非 0（${e.status ?? e.message}），按已写出的报告继续计数`);
+    }
+    wallSec = +((Date.now() - t0) / 1000).toFixed(1);
+  }
+  if (!fs.existsSync(out)) return { available: false };
+  const j = JSON.parse(fs.readFileSync(out, 'utf8'));
+  const files = j.testResults ?? [];
+  return {
+    available: true,
+    ranNow: wallSec > 0,
+    wallSec,
+    staleDays: Math.floor((Date.now() - fs.statSync(out).mtimeMs) / 86400000),
+    files: files.length,
+    cases: j.numTotalTests ?? 0,
+    passed: j.numPassedTests ?? 0,
+    skipped: (j.numPendingTests ?? 0) + (j.numTodoTests ?? 0),
+    failed: j.numFailedTests ?? 0,
+    success: j.success === true,
+  };
+}
+
+/** 覆盖率：读 vitest 的 json-summary，按包做加权（covered/total），不平均百分比。 */
+function coverage() {
+  const p = path.join(ROOT, 'coverage', 'coverage-summary.json');
+  if (!fs.existsSync(p)) return { available: false };
+  const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+  const mk = () => ({ lines: [0, 0], branches: [0, 0], stmts: [0, 0], funcs: [0, 0] });
+  const buckets = { pkg: mk(), total: mk() };
+  for (const r of PKGS) buckets[r] = mk();
+  const add = (b, key, v) => {
+    if (!v) return;
+    b[key][0] += v.covered ?? 0;
+    b[key][1] += v.total ?? 0;
+  };
+  const harvest = (b, v) => {
+    add(b, 'lines', v.lines);
+    add(b, 'branches', v.branches);
+    add(b, 'stmts', v.statements);
+    add(b, 'funcs', v.functions);
+  };
+  for (const [file, v] of Object.entries(j)) {
+    if (file === 'total') {
+      harvest(buckets.total, v);
+      continue;
+    }
+    const m2 = /packages\/(shared|server|web)\//.exec(rel(file));
+    if (!m2) continue;
+    harvest(buckets[m2[1]], v);
+    harvest(buckets.pkg, v);
+  }
+  const pct = ([c, t]) => (t ? +((c / t) * 100).toFixed(1) : null);
+  const fmt = (b) => ({ lines: pct(b.lines), branches: pct(b.branches), stmts: pct(b.stmts), funcs: pct(b.funcs) });
+  return {
+    available: true,
+    staleDays: Math.floor((Date.now() - fs.statSync(p).mtimeMs) / 86400000),
+    perPkg: Object.fromEntries(PKGS.map((r) => [r, fmt(buckets[r])])),
+    allPackages: fmt(buckets.pkg),
+    repoTotal: fmt(buckets.total),
+  };
+}
+
+/** README 里手抄的数字 vs 实测：只抽徽章与两处基线句，逐条比。漂移即报。 */
+function readmeDrift(m) {
+  const p = path.join(ROOT, 'README.md');
+  if (!fs.existsSync(p)) return [];
+  const text = fs.readFileSync(p, 'utf8');
+  const claims = [];
+  const badgeTests = /badge\/tests-([0-9]+)%20files%20%2F%20([0-9]+)%20cases/.exec(text);
+  if (badgeTests && m.tests.available) {
+    claims.push({
+      label: 'badge 测试文件',
+      claimed: badgeTests[1],
+      measured: String(m.tests.files),
+      ok: badgeTests[1] === String(m.tests.files),
+    });
+    claims.push({
+      label: 'badge 测试用例',
+      claimed: badgeTests[2],
+      measured: String(m.tests.cases),
+      ok: badgeTests[2] === String(m.tests.cases),
+    });
+  }
+  const badgeRoutes = /badge\/REST%20routes-([0-9]+)/.exec(text);
+  if (badgeRoutes) claims.push({ label: 'badge REST 路由', claimed: badgeRoutes[1], measured: String(m.routes.total), ok: badgeRoutes[1] === String(m.routes.total) });
+  const badgeContracts = /badge\/shared%20contracts-([0-9]+)/.exec(text);
+  if (badgeContracts) claims.push({ label: 'badge 契约类型', claimed: badgeContracts[1], measured: String(m.contracts.total), ok: badgeContracts[1] === String(m.contracts.total) });
+  const badgeDeps = /badge\/external%20runtime%20deps-([0-9]+)/.exec(text);
+  if (badgeDeps) claims.push({ label: 'badge 外部运行时依赖', claimed: badgeDeps[1], measured: String(m.deps.externalRuntime.length), ok: badgeDeps[1] === String(m.deps.externalRuntime.length) });
+  const badgeNode = /badge\/node-[^-]+-([0-9.]+)/.exec(text);
+  if (badgeNode) claims.push({ label: 'badge Node 下限', claimed: badgeNode[1], measured: JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).engines?.node ?? '?', ok: true });
+  const prose = [...text.matchAll(/(\d+) 文件 \/ (\d+) 例/g)];
+  for (const g of prose) {
+    if (!m.tests.available) break;
+    claims.push({
+      label: '正文基线句',
+      claimed: `${g[1]} 文件 / ${g[2]} 例`,
+      measured: `${m.tests.files} 文件 / ${m.tests.cases} 例`,
+      ok: g[1] === String(m.tests.files) && g[2] === String(m.tests.cases),
+    });
+  }
+  return claims.filter((c) => c.claimed !== null);
+}
+
+function table(m) {
+  const L = [];
+  const pad = (s, n) => String(s).padEnd(n);
+  L.push('## 工程规模（源码 / 测试行数，按包）');
+  L.push('');
+  L.push(`| 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |`);
+  L.push('|---|---|---|---|---|---|');
+  for (const r of m.code.rows) {
+    L.push(`| ${r.pkg} | ${r.srcFiles} | ${r.srcLines.toLocaleString()} | ${r.testFiles} | ${r.testLines.toLocaleString()} | ${r.srcLines ? ((r.testLines / r.srcLines) * 100).toFixed(0) : 0}% |`);
+  }
+  L.push(`| **合计** | **${m.code.srcFiles}** | **${m.code.srcLines.toLocaleString()}** | **${m.code.testFiles}** | **${m.code.testLines.toLocaleString()}** | **${((m.code.testLines / m.code.srcLines) * 100).toFixed(0)}%** |`);
+  L.push('');
+  L.push('## 接口与契约');
+  L.push('');
+  L.push(`- REST 路由注册：**${m.routes.total}**（${Object.entries(m.routes.byMethod).map(([k, v]) => `${k} ${v}`).join(' / ')}）· 另 /api 挂载点 ${m.routes.apiMounts} 个`);
+  L.push(`- shared 契约类型：**${m.contracts.total}**（export interface ${m.contracts.iface} + export type ${m.contracts.type}）`);
+  L.push(`- 外部运行时依赖：**${m.deps.externalRuntime.length}** 个 —— ${m.deps.externalRuntime.join(', ')}`);
+  L.push(`- 迁移水位：代码侧 **v${m.migrations.max}**（${m.migrations.count} 个 version 条目，非连续号 ${m.migrations.gaps} 处）`);
+  L.push('');
+  L.push('## 测试基线（vitest 实跑）');
+  L.push('');
+  if (m.tests.available) {
+    const verdict = m.tests.failed === 0 && m.tests.success ? '全绿' : `**${m.tests.failed} 红**`;
+    L.push(`- **${m.tests.files} 文件 / ${m.tests.cases} 例**（${m.tests.passed} passed + ${m.tests.skipped} skipped + ${m.tests.failed} failed）⇒ ${verdict}`);
+    if (m.tests.ranNow) L.push(`- 本次本机实跑（Node ${process.version}）全量耗时 ${m.tests.wallSec}s`);
+    else L.push(`- ⚠️ 本次未重跑 vitest，读的是 ${m.tests.staleDays === 0 ? '今日' : m.tests.staleDays + ' 天前'}的 test-results 产物——要新鲜数字加 \`--tests\``);
+  } else {
+    L.push('- ⬜ 无 vitest 产物（跑 `node tools/metrics.mjs --tests` 生成，**不编数**）');
+  }
+  L.push(`- jsdom 交互测试文件（\`.test.tsx\`）${m.code.tsxTestFiles} 个`);
+  L.push('');
+  L.push('## 覆盖率（v8，按包加权 covered/total，非百分比平均）');
+  L.push('');
+  if (m.coverage.available) {
+    L.push('| 范围 | Lines | Branches | Stmts | Funcs |');
+    L.push('|---|---|---|---|---|');
+    const row = (name, o) => `| ${name} | ${o.lines ?? '—'}% | ${o.branches ?? '—'}% | ${o.stmts ?? '—'}% | ${o.funcs ?? '—'}% |`;
+    for (const r of PKGS) L.push(row(r, m.coverage.perPkg[r]));
+    L.push(row(`**三包合计**`, m.coverage.allPackages));
+    L.push(`- ⚠️ 口径：分母只含 vitest 实际 import 到的源文件（未跑到 0% 的模块不进 json-summary 的按包聚合），故本表**只能用于同版本自身纵向对比**，不能与外部项目横比。`);
+    if (m.coverage.staleDays > 0) L.push(`- ⚠️ 覆盖率产物是 ${m.coverage.staleDays} 天前的（本次未跑 \`--coverage\`）`);
+  } else {
+    L.push('- ⬜ 无覆盖率产物（跑 `node tools/metrics.mjs --tests --coverage` 生成，**不编数**）');
+  }
+  L.push('');
+  L.push('## 文档与仓库');
+  L.push(`- docs/：SPEC 契约 ${m.docs.specs} 份 · md 共 ${m.docs.all} 份（dev/ ${m.docs.dev}）· 真机探针 ${m.docs.probes} 个`);
+  L.push(`- git：${m.repo.branch} @ \`${m.repo.head}\`（${m.repo.headDate}）· 近 14 天 ${m.repo.commitsLast14d} commits · 工作区未提交 ${m.repo.dirtyFiles} 文件`);
+  return L.join('\n');
+}
+
+function writeDocs(m, body) {
+  const p = path.join(ROOT, 'docs', 'metrics.md');
+  const B = '<!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->';
+  const E = '<!-- metrics:end -->';
+  let text = fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : `${B}\n${E}\n`;
+  const block = `${B}\n\n> 采集：${new Date().toLocaleString('sv-SE')}（本机时区）｜ 基准 \`${m.repo.head}\` ｜ 复现：\`node tools/metrics.mjs --tests --coverage\`\n\n${body}\n\n${E}`;
+  if (text.includes(B) && text.includes(E)) {
+    text = text.slice(0, text.indexOf(B)) + block + text.slice(text.indexOf(E) + E.length);
+  } else {
+    text = `${text.trimEnd()}\n\n${block}\n`;
+  }
+  fs.writeFileSync(p, text);
+  return p;
+}
+
+const m = {
+  generatedAt: new Date().toISOString(),
+  code: codeSize(),
+  routes: restRoutes(),
+  contracts: contracts(),
+  migrations: migrations(),
+  deps: deps(),
+  docs: docs(),
+  repo: repo(),
+};
+m.tests = testRun();
+m.coverage = coverage();
+m.readmeDrift = readmeDrift(m);
+
+const body = table(m);
+fs.writeFileSync(path.join(ROOT, 'docs', 'metrics.json'), JSON.stringify(m, null, 2) + '\n');
+if (argv.has('--write-docs')) writeDocs(m, body);
+
+console.log(body);
+const drift = m.readmeDrift.filter((c) => !c.ok);
+if (m.readmeDrift.length) {
+  console.log('\n## README 手抄数字对账');
+  for (const c of m.readmeDrift) {
+    console.log(`| ${c.ok ? '✅' : '❌'} | ${c.label} | README: ${c.claimed} | 实测: ${c.measured} |`);
+  }
+}
+if (drift.length) console.log(`\n✗ README 有 ${drift.length} 处数字与实测不符`);
+else console.log('\n✓ README 可核对数字与实测一致');
+if (argv.has('--check') && drift.length) process.exitCode = 1;

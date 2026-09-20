@@ -14,6 +14,10 @@
  * 内容闸门（2026-09-20 补，真机实测驱动）：只读**网页正文**。两道闸——
  * ① `content-type` 白名单（主）；② 二进制嗅探（兜底，防服务器谎报/不给类型）。
  * 非网页（PDF/图片/压缩包…）**如实拒绝**，绝不把二进制当正文回灌（实测见 `looksBinary` 注释）。
+ *
+ * 编码层（2026-09-20 补，同批真机实测驱动）：`decodeBody()` 按**声明或嗅探**的编码解码，
+ * 不再用 `res.text()`（它恒按 UTF-8 解、忽略 charset ⇒ GBK 页满屏替换符当正文回灌）。
+ * 与内容闸门是**两条独立的根因**，别合并：一个管「这不是文本」，一个管「文本用错编码解」。
  */
 import { fetchSafe } from '../../search/ssrf-guard.js';
 import { combineSignals, htmlToText } from '../../search/index.js';
@@ -74,6 +78,43 @@ function notWebPageText(what: string): string {
   );
 }
 
+/** 替换符占比：用来判断「按这个编码解是不是解错了」。 */
+function replacementRatio(s: string): number {
+  if (!s) return 0;
+  let n = 0;
+  for (const ch of s) if (ch === '\uFFFD') n++;
+  return n / s.length;
+}
+
+/**
+ * 按**声明或嗅探**的编码解码响应体。
+ *
+ * ★ 为什么不能直接用 `res.text()`（2026-09-20 真机实测驱动）：
+ *   它**恒按 UTF-8 解码、忽略 `content-type` 里的 `charset`** ⇒ GBK 页满屏 U+FFFD
+ *   仍被当「正文」回灌。实测三例：湘潭市政府 **61.8%** 替换符、岳阳市政府 **65.5%**、
+ *   ★ **当当网 `content-type` 明写 `charset=GBK` 也照样 60.7%**——服务端已经告诉我们了，
+ *   我们没听。这与 B-011（二进制当正文）是**同一症状、不同根因**，故另起一层修。
+ *
+ * 顺序：① **服务端声明的 charset 优先**（它自己说的最可信）→ ② 未声明或声明 utf-8 时，
+ * 先按 UTF-8 解，替换符超 1% 再试 GB18030，**取替换符更少的那个**。
+ * ★ 不用 `fatal:true` 硬判：UTF-8 页里夹几个坏字节也应当照读，不该整页回退。
+ */
+async function decodeBody(res: Response): Promise<string> {
+  const raw = await res.arrayBuffer();
+  const declared = /charset=["']?([\w-]+)/i.exec(res.headers.get('content-type') ?? '')?.[1];
+  if (declared && !/^utf-?8$/i.test(declared)) {
+    try {
+      return new TextDecoder(declared).decode(raw);
+    } catch {
+      /* 未知编码名 → 落到嗅探 */
+    }
+  }
+  const asUtf8 = new TextDecoder('utf-8').decode(raw);
+  if (replacementRatio(asUtf8) <= 0.01) return asUtf8;
+  const asGbk = new TextDecoder('gb18030').decode(raw);
+  return replacementRatio(asGbk) < replacementRatio(asUtf8) ? asGbk : asUtf8;
+}
+
 /**
  * 失败原因外泄口径：安全策略类原因**不逐字透传**。
  * 把「解析到内网/回环地址」原样回灌，等于把本机的网络拓扑当成模型的探测面
@@ -132,7 +173,7 @@ registerTool('fetch_page', {
         ctx.onStep('fetch_page', 'error', `非网页：${ct}`);
         return { content: notWebPageText(`内容类型 ${ct}`) };
       }
-      html = await res.text();
+      html = await decodeBody(res);
     } catch (err) {
       const reason = publicReason(err);
       ctx.onStep('fetch_page', 'error', reason);

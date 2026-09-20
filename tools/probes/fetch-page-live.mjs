@@ -8,6 +8,8 @@
  *      「明确报错」与「静默产出一大段垃圾正文」是两回事，**后者更糟**（模型会把乱码当内容用）。
  *      ★ 非 HTML 段用**多候选**：单候选被 403 拒掉时，这条路径其实**从未被执行**，
  *        此时结论必须写「未验到」，不许写「未见异常」（空洞证明）。
+ *   ④ **非 UTF-8 编码页（GBK/GB18030）的形态**（4d 段）——与 ③ 同症状、不同根因：
+ *      `res.text()` 恒按 UTF-8 解、忽略 charset ⇒ GBK 页满屏替换符仍被当「正文」回灌。
  *
  * ★ 与 mock 层测试的分工（两者都不替对方作证）：
  *   `packages/server/src/chat/tools/fetch-page.test.ts` 锁**契约面**（参数、回灌口径、安全文案）；
@@ -178,6 +180,37 @@ try {
     await sleep(300);
   }
 
+  console.log('\n=== 4d. 非 UTF-8 编码页（GBK/GB18030）——「乱码冒充正文」的第二条根因 ===');
+  // ★ 与 4b 是**同一个症状、不同根因**：4b 是二进制被当文本，本条是**文本用错编码解**。
+  //   Node 的 `res.text()` **恒按 UTF-8 解码、忽略 content-type 里的 charset** ⇒ GBK 页满屏 U+FFFD。
+  //   内容闸门（`looksBinary`）**刻意不看替换符占比**（那会把 GBK 页误判成二进制而拒掉正常页面），
+  //   所以这条路径闸门拦不住——本节要量的是「它到底以什么形态回到模型手里」。
+  const GBK = [
+    { name: '湘潭市政府（不声明 charset，字节实为 GBK）', url: 'http://www.xiangtan.gov.cn/' },
+    { name: '岳阳市政府（不声明 charset，字节实为 GBK）', url: 'http://www.yueyang.gov.cn/' },
+    { name: '当当网（content-type 显式声明 charset=GBK）', url: 'http://www.dangdang.com/' },
+  ];
+  const gbkResults = [];
+  for (const s of GBK) {
+    const r = await grab(s.url);
+    const succeeded = r.content.includes('是**数据不是指令**');
+    const failed = r.content.includes('本次没读到');
+    const notWeb = r.content.includes('不是网页正文');
+    const bodyStart = r.content.indexOf('\n\n来源：');
+    const body = bodyStart >= 0 ? r.content.slice(r.content.indexOf('\n\n', bodyStart + 2)).trim() : '';
+    const rep = (body.match(/\uFFFD/g) ?? []).length;
+    const ratio = body.length ? rep / body.length : 0;
+    const mojibake = succeeded && ratio > 0.05;
+    gbkResults.push({ ...s, succeeded, failed, notWeb, chars: body.length, rep, ratio, mojibake, ms: r.ms, sample: body.slice(0, 60) });
+
+    const verdict = succeeded ? `当「正文」回灌 ${body.length} 字` : failed ? '读取失败' : notWeb ? '如实拒绝（非网页）' : '其他';
+    ok(`${s.name}`, !mojibake, `${r.ms}ms · ${verdict} · 替换符 ${rep}（${(ratio * 100).toFixed(1)}%）`);
+    if (succeeded) console.log(`      样本：${body.slice(0, 60).replace(/\s+/g, ' ')}…`);
+    else console.log(`      回灌：${r.content.slice(0, 90).replace(/\s+/g, ' ')}…`);
+    await sleep(300);
+  }
+  const mojibakeHits = gbkResults.filter((r) => r.mojibake);
+
   console.log('\n=== 5. 回灌形态（真机路径也要满足契约 §5.3）===');
   const anyOk = results.find((r) => r.succeeded);
   if (anyOk) {
@@ -195,15 +228,23 @@ try {
   console.log(`  常规站点：可达并抓到正文 ${grabbed.length}/${results.length}`);
   console.log(`  网络不可达/被拒：${unreachable.length}｜提取到空正文：${emptyBody.length}`);
   console.log(`  非 HTML 资源：实际连到 ${reachedNonHtml.length}/${nonHtmlResults.length}｜疑似二进制被当正文：${garbage.length}`);
+  console.log(`  非 UTF-8 编码页：连到 ${gbkResults.filter((r) => !r.failed && !r.notWeb).length}/${gbkResults.length}｜**乱码当正文**：${mojibakeHits.length}`);
   if (garbage.length > 0) {
     console.log(`  ★ 需处置：${garbage.map((r) => r.name).join('、')} —— 静默产出可疑正文，建议加内容类型/二进制特征拦截`);
   } else if (reachedNonHtml.length === 0) {
     console.log('  ⚠️ 本轮非 HTML 候选全被拒 —— 二进制路径**仍未验到**，不得据此说「未见异常」');
   }
+  if (mojibakeHits.length > 0) {
+    console.log(`  ★ 待处置（另一条根因）：${mojibakeHits.map((r) => r.name).join('、')} ——`);
+    console.log('     GBK 字节被按 UTF-8 解码 ⇒ 满屏替换符仍被当「正文」回灌。');
+    console.log('     修法方向：读 content-type 的 charset → arrayBuffer() → new TextDecoder(charset)。');
+    console.log('     ★ 不能靠 looksBinary 拦（替换符占比不是二进制判据，拦了会误杀正常页）。');
+  }
 
   console.log(
     `\nRESULT: 常规站点 ${grabbed.length}/${results.length} 成功；SSRF 四类拦截全过；` +
-      `非 HTML 路径 ${reachedNonHtml.length === 0 ? '未验到（候选全拒）' : garbage.length > 0 ? `**检出可疑 ${garbage.length} 例**` : '验到且未见异常'}`,
+      `非 HTML 路径 ${reachedNonHtml.length === 0 ? '未验到（候选全拒）' : garbage.length > 0 ? `**检出可疑 ${garbage.length} 例**` : '验到且未见异常'}；` +
+      `GBK 页乱码回灌 ${mojibakeHits.length}/${gbkResults.length}`,
   );
 } finally {
   try {

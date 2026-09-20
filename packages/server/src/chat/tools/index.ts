@@ -12,6 +12,7 @@
 import { CHOICE_TOOL, runChoiceTool } from '../choice-tool.js';
 import { registerTool } from './registry.js';
 import './web-search.js';
+import './fetch-page.js';
 import './term-tidy.js';
 // P3 拍板⑭：term-manage（manage_terms 四合一裸写口）退役，词条写门面收进 term-ops 三工具
 import './term-ops.js';

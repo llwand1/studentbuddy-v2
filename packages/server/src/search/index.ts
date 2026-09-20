@@ -163,8 +163,11 @@ function errText(err: unknown): string {
  * 外部取消信号与单请求超时合并：用户「停止生成」要能真正掐断搜索的 HTTP 请求，
  * 而不只是让结果被上层丢弃（v13 体验升级：signal 透传进工具内部）。
  * AbortSignal.any 不可用时退化为仅超时（老 Node 仍然能跑，只是少了取消）。
+ *
+ * ★ 导出（2026-09-20）给 `chat/tools/fetch-page.ts` 复用：抓单页同样要能被「停止生成」掐断，
+ *   而这段降级逻辑只该有一份（仓内「唯一事实源」纪律，同 `htmlToText` 的立项理由）。
  */
-function combineSignals(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
+export function combineSignals(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
   const timeout = AbortSignal.timeout(timeoutMs);
   if (!signal) return timeout;
   if (typeof AbortSignal.any !== 'function') return timeout;

@@ -8,7 +8,15 @@ import { TOOL_LLM_INNER_TIMEOUT_MS } from '@sb/shared';
 import { runTool, toolDefinitions, toolMeta, toolNames } from './index.js';
 import type { ToolContext } from './registry.js';
 
-const KNOWN = ['search_web', 'tidy_terms', 'lookup_terms', 'upsert_term', 'delete_terms', 'ask_choice'] as const;
+const KNOWN = [
+  'search_web',
+  'fetch_page',
+  'tidy_terms',
+  'lookup_terms',
+  'upsert_term',
+  'delete_terms',
+  'ask_choice',
+] as const;
 
 function silentCtx(): { ctx: ToolContext; steps: Array<{ tool: string; status: string; detail?: string }> } {
   const steps: Array<{ tool: string; status: string; detail?: string }> = [];
@@ -16,7 +24,7 @@ function silentCtx(): { ctx: ToolContext; steps: Array<{ tool: string; status: s
 }
 
 describe('registry — 清单结构（拆分前后不许变的部分）', () => {
-  it('六个内建工具在册且保持声明顺序（下发顺序＝注册顺序，P3 后词条族三位）', () => {
+  it('七个内建工具在册且保持声明顺序（下发顺序＝注册顺序，P3 后词条族三位；2026-09-20 增 fetch_page）', () => {
     const names = toolNames();
     expect(names.filter((n) => (KNOWN as readonly string[]).includes(n))).toEqual([...KNOWN]);
   });

@@ -6,6 +6,7 @@
 /** 工具中文名。新工具在 `server/chat/tools.ts` 注册后在此补一行。 */
 const TOOL_LABELS: Record<string, string> = {
   search_web: '联网搜索',
+  fetch_page: '读取网页',
   tidy_terms: '整理词条',
   // manage_terms 已退役（P3 拍板⑭），标签**留着**：老消息的过程卡还要按它渲染
   manage_terms: '管理词条',

@@ -6,6 +6,7 @@
  *   · 复现 = 只剩虚点线（同一段里第二次出现不再抢注意力）
  *   · 悬停 = 速览卡；点击 = 完整卡（固定）
  *   · 卡内 🔊 = 英文词发音（v1.1，契约 §3.1）
+ *   · 卡内「向 AI 追问」= 另开一个对话深挖该词条（v1.0，契约 `docs/KNOWLEDGE-FOLLOWUP-SPEC.md` §6）
  * 颜色与间距一律取 `tokens.css` 的变量；少量半透明叠加色沿用仓内既有写法（如 `.sb-line`）。
  */
 
@@ -200,6 +201,46 @@
 .term-card-btn.primary:hover:not(:disabled) {
   opacity: 0.88;
   color: #fff;
+}
+
+/* ── 「向 AI 追问」输入行（契约 docs/KNOWLEDGE-FOLLOWUP-SPEC.md §6） ──
+   竖排（输入框独占一行、按钮右对齐）而不是横排：卡片只有 268px，横排时输入框只剩
+   一百来个像素，打一个问题要左右滚——那等于把"敢不敢问"变成了"值不值得打字"。 */
+.term-card-fu {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.term-card-fu-in {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+  color: var(--sb-ink);
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: var(--sb-fs-xs);
+}
+
+.term-card-fu-in::placeholder {
+  color: var(--sb-ink-tertiary);
+}
+
+.term-card-fu-in:focus {
+  outline: none;
+  border-color: var(--sb-primary);
+}
+
+.term-card-fu-in:disabled {
+  opacity: 0.6;
+}
+
+/* 按钮靠右：视觉上从「输入」流向「发出」（与输入框左对齐的文案方向一致） */
+.term-card-fu .term-card-btn {
+  align-self: flex-end;
 }
 
 .term-card-msg {

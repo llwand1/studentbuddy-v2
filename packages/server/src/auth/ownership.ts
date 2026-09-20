@@ -76,6 +76,24 @@ export function canAccessSession(sessionId: string, ownerId: string | null): boo
 }
 
 /**
+ * 会话是否**真的存在且未删**（**不做归属判定**，与 `canAccessSession` 是两个问题）。
+ *
+ * ★ 为什么必须与归属断言分开：`canAccessSession` 在**未登录单人模式**（`ownerId === null`）下
+ *   **不查库就放行**（那是刻意的旧行为兼容）。只读端点因此不需要本函数——查不到就是空列表、
+ *   空消息，无害。但**写"引用父行"的端点不行**：`POST /api/sessions/:id/fork` 会落一行
+ *   带 `forked_from_id` 的会话，源 id 乱写的话，库里就留一条指向虚空的 fork 记录
+ *   （而且它带着「追问：X」的标题挂在侧栏，用户删都删不明白）。
+ *   这类端点必须在归属断言之外**再补一道存在性断言**。
+ */
+export function sessionExists(sessionId: string): boolean {
+  if (!sessionId) return false;
+  const row = getDb()
+    .prepare('SELECT 1 AS ok FROM sessions WHERE id = ? AND deleted_at IS NULL')
+    .get(sessionId);
+  return row !== undefined;
+}
+
+/**
  * 读某个会话的归属用户 id（M2c，契约 TENANCY-SPEC §8.1.4）。
  *
  * ★ 为什么要有它：学习流 `advanceRun` 既会被 HTTP 路由推进，也会在恢复/重试路径上被推进，
@@ -99,12 +117,32 @@ export function ownerOfSession(sessionId: string | null): string | null {
  *   两处各写各的 INSERT，迟早有一处忘了写 `user_id`——而漏写的后果是
  *   **那条会话变成孤儿，主人自己也永远看不到它**（比泄露更隐蔽、更难排查）。
  *   统一到一处，`user_id` 由签名强制传入（不给"忘传"留口子，只给"传 null"的显式豁免）。
+ *
+ * ★ v38 起补 `fork?: { fromSessionId, term }`（契约 docs/KNOWLEDGE-FOLLOWUP-SPEC.md §5.2）：
+ *   「向 AI 追问」要建的是一条**带出处的**会话。两个新字段也走这里、不另开 INSERT 口——
+ *   理由与上面 `user_id` 完全相同：多一个建会话的写口，就多一个漏写归属的机会。
+ *   `term` 在库里是**抗删快照**（存名不存 id，见迁移 v38 注释）。
+ *
+ * ★ 列名/值对是**逐项拼**的（不是两个写死的分支）：再加第三个可选字段时不用再开一条 INSERT。
+ *   拼进 SQL 的**只有本函数写死的列名**，值一律走占位符——没有注入面。
  */
-export function insertSession(id: string, ownerId: string | null, title?: string): void {
-  const db = getDb();
-  if (title === undefined) {
-    db.prepare('INSERT INTO sessions (id, user_id) VALUES (?, ?)').run(id, ownerId);
-    return;
+export function insertSession(
+  id: string,
+  ownerId: string | null,
+  title?: string,
+  fork?: { fromSessionId: string; term: string },
+): void {
+  const cols = ['id', 'user_id'];
+  const vals: Array<string | null> = [id, ownerId];
+  if (title !== undefined) {
+    cols.push('title');
+    vals.push(title);
   }
-  db.prepare('INSERT INTO sessions (id, user_id, title) VALUES (?, ?, ?)').run(id, ownerId, title);
+  if (fork) {
+    cols.push('forked_from_id', 'forked_term');
+    vals.push(fork.fromSessionId, fork.term);
+  }
+  getDb()
+    .prepare(`INSERT INTO sessions (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`)
+    .run(...vals);
 }

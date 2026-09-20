@@ -24,3 +24,6 @@ export * from './term-highlight.js';
 export * from './coach.js';
 export * from './tool-ecosystem.js';
 export * from './fts.js';
+export * from './chat-limits.js';
+export * from './speech.js';
+export * from './follow-up.js';

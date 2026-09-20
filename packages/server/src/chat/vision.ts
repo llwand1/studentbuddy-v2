@@ -13,18 +13,15 @@
  *
  * 提示词套路（踩过 FrameWise 的坑后固化）：把**最关键的图示细节/文字/数值放最前**——
  * 视觉模型撞 max_tokens 时截断是「从后往前吃」，放最后 = 每回先丢最有价值的信息。
+ *
+ * ★ 三笔限额（张数 / 单张字符数 / body 上限）**已收敛到 `@sb/shared` 的 chat-limits**
+ *   （2026-09-20）。此前三处各写一遍、靠注释互相指认，实测已经不平：单张 700 万字符 × 4 张
+ *   ≈ 28MB > 24mb body ⇒ 4 张各自合法的图一起发会撞 413，症状是「点发送没反应」。
+ *   改限额请去 chat-limits.ts，别在本文件重新写死数字。
  */
 import type { ChatMessage, ContentPart, UploadedImage } from '../llm/types.js';
 import { routeRole } from '../llm/router.js';
-
-/** 一次提问最多带几张图（多了上下文爆、视觉调用也贵） */
-const MAX_IMAGES = 4;
-/**
- * 单张 dataURL 字符上限：700 万字符 ≈ 5MB 原图（base64 膨胀 4/3）。
- * ⚠️ 与 `index.ts` 里 `/api/chat/send` 的 24mb body 上限是同一套账（5MB × 4 张 + 余量）——
- * 改这里必须同步改那里，否则会出现「单张没超却被 express 413 挡下」的错位。
- */
-const MAX_DATAURL_CHARS = 7_000_000;
+import { MAX_CHAT_IMAGES, MAX_IMAGE_DATAURL_CHARS, maxImageSizeHint } from '@sb/shared';
 
 /**
  * 看图提示词：关键信息前置（详见文件头注释）。覆盖学习场景最常见的读图需求——
@@ -38,7 +35,7 @@ const VISION_PROMPT =
  * 校验并归一化前端送来的图片（HTTP 边界的脏数据在这里清掉，不让脏值往里走）。
  *
  * 规则（个人本地工具，够用即可，不搞重量级校验）：
- * - 最多 4 张；单张 dataURL ≤ 1400 万字符（≈ 10MB 原图）
+ * - 最多 `MAX_CHAT_IMAGES` 张；单张 dataURL ≤ `MAX_IMAGE_DATAURL_CHARS` 字符
  * - 只认 `data:image/` 前缀，其余一律丢弃——不把任意字符串透传给视觉模型
  *
  * @returns `{ ok: true, images }` 或 `{ ok: false, error }`（error 可直接回 400 给用户）
@@ -50,11 +47,11 @@ export function parseIncomingImages(raw: unknown): { ok: true; images: UploadedI
   for (const item of raw) {
     const i = item as { dataUrl?: unknown; name?: unknown } | null;
     if (!i || typeof i.dataUrl !== 'string' || !i.dataUrl.startsWith('data:image/')) continue;
-    if (i.dataUrl.length > MAX_DATAURL_CHARS) return { ok: false, error: '单张图片过大（上限约 5MB）' };
+    if (i.dataUrl.length > MAX_IMAGE_DATAURL_CHARS) return { ok: false, error: `单张图片过大（上限${maxImageSizeHint()}）` };
     images.push(typeof i.name === 'string' ? { dataUrl: i.dataUrl, name: i.name } : { dataUrl: i.dataUrl });
   }
   // 先过滤再限流：脏值不该占额度（否则夹带垃圾就能把合法图片挤掉，报错还很莫名）
-  if (images.length > MAX_IMAGES) return { ok: false, error: `一次最多上传 ${MAX_IMAGES} 张图片` };
+  if (images.length > MAX_CHAT_IMAGES) return { ok: false, error: `一次最多上传 ${MAX_CHAT_IMAGES} 张图片` };
   return { ok: true, images };
 }
 

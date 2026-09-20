@@ -6,8 +6,6 @@ import type {
   Session,
   Provider,
   ModelRole,
-  QuizMix,
-  AnswerStyle,
   QuizNote,
   QuizNoteSummary,
   PkIdentity,
@@ -17,9 +15,11 @@ import type {
   PkMatchRecord,
   PkMatchDetail,
   AskChoiceRecord,
+  FollowUpResult,
 } from '@sb/shared';
 
 import { ApiError, request } from './api-request.js';
+import { settingsApi } from './api-settings.js';
 import { authApi } from './api-auth.js';
 import { termsDomainApi } from './api-terms-domain.js';
 import { termsReviewApi } from './api-terms-review.js';
@@ -35,6 +35,18 @@ export type { ReviewTermItem, ReviewOverview, ReviewDayStat } from './api-terms-
 // `ApiError` 已抽到 api-request.ts（行数红线 + 断环，见该文件头注释）。
 // 此处**转出**以保持既有调用方 `import { api, ApiError } from '../../lib/api'` 零改动。
 export { ApiError };
+
+/**
+ * 「向 AI 追问」这个**动作**的签名（契约 `docs/KNOWLEDGE-FOLLOWUP-SPEC.md` §6）。
+ * 由 `App` 提供唯一实现（`api.sessions.fork` + 切到新会话 + 刷列表），任何页面注入给控件即可。
+ *
+ * ★ `fromSessionId` 省缺 ＝ **当前正在看的那条会话**——词条卡走的就是这条路（它在对话页里，
+ *   "当前会话"是个明确的东西）。学习流页是另一个视图，用户此刻并没有"正在看的对话"，
+ *   故它必须显式给：那一次运行的 `flow_run.session_id`（见 `study-flow/ProducedNodes.tsx` 文件头 ②）。
+ * ★ 类型放这里而不是各组件内联：三个文件（App / FlowPage / ProducedNodes）都要用它，
+ *   内联三次就是三份口径，将来加参数会漏改。
+ */
+export type FollowUpAction = (term: string, question?: string, fromSessionId?: string) => Promise<void>;
 
 export const api = {
   /** 通用请求（页面内直接用） */
@@ -161,6 +173,18 @@ export const api = {
           created_at: string;
         }>
       >(`/api/sessions/${id}/messages`),
+    /**
+     * 「向 AI 追问」（契约 `docs/KNOWLEDGE-FOLLOWUP-SPEC.md` §5）：从本会话**分叉**出一个
+     * 专门深挖 `term` 的新会话，并在服务端立刻起流（回答走既有的会话 SSE）。
+     * 调用方拿返回的 `sessionId` 切过去即可，不需要自己再发一条消息。
+     * ★ `question` 可省：服务端补 `defaultFollowUpQuestion(term)` 的通用问法。
+     * ★ 空 `question` 传 `undefined` 而不是空串——服务端把空串也当缺省，但少一个字段少一次歧义。
+     */
+    fork: (id: string, term: string, question?: string) =>
+      request<FollowUpResult>(`/api/sessions/${id}/fork`, {
+        method: 'POST',
+        body: JSON.stringify(question ? { term, question } : { term }),
+      }),
   },
 
   chat: {
@@ -250,37 +274,7 @@ export const api = {
       }),
   },
 
-  settings: {
-    searchKeys: () => request<{ configured: Record<'exa' | 'tavily' | 'zhipu', boolean> }>('/api/settings/search-keys'),
-    saveSearchKeys: (patch: Partial<Record<'exa' | 'tavily' | 'zhipu', string>>) =>
-      request<{ ok: boolean; configured: Record<'exa' | 'tavily' | 'zhipu', boolean> }>('/api/settings/search-keys', {
-        method: 'PUT',
-        body: JSON.stringify(patch),
-      }),
-    testSearch: (query?: string) =>
-      request<{ ok: boolean; count: number; providers: string[]; failed: string[] }>('/api/settings/search/test', {
-        method: 'POST',
-        body: JSON.stringify({ query }),
-      }),
-    /** 出题题型配比：设置页读写，服务端归一回读；对话页/题库页只读这份全局配比 */
-    quizMix: () => request<{ mix: QuizMix }>('/api/settings/quiz-mix'),
-    saveQuizMix: (mix: QuizMix) =>
-      request<{ mix: QuizMix }>('/api/settings/quiz-mix', { method: 'PUT', body: JSON.stringify({ mix }) }),
-    /** 出题配图开关：设置页读写（契约 docs/QUIZ-IMAGE-SPEC.md） */
-    quizImage: () => request<{ on: boolean }>('/api/settings/quiz-image'),
-    saveQuizImage: (on: boolean) =>
-      request<{ ok: boolean; on: boolean }>('/api/settings/quiz-image', { method: 'PUT', body: JSON.stringify({ on }) }),
-    /** 回答方式偏好（契约 docs/ANSWER-STYLE-SPEC.md）：configured 是「出题前要不要问」的开关量 */
-    answerStyle: () => request<{ style: AnswerStyle; configured: boolean }>('/api/settings/answer-style'),
-    saveAnswerStyle: (style: AnswerStyle) =>
-      request<{ style: AnswerStyle; configured: boolean }>('/api/settings/answer-style', {
-        method: 'PUT',
-        body: JSON.stringify({ style }),
-      }),
-    /** 恢复默认＝删键，回到「没配过」态（不是把四维写成默认值，那样 configured 仍为 true） */
-    resetAnswerStyle: () =>
-      request<{ style: AnswerStyle; configured: boolean }>('/api/settings/answer-style', { method: 'DELETE' }),
-  },
+  settings: settingsApi,
 
   /** 刷题笔记（契约 docs/QUIZ-NOTES-SPEC.md）：草稿由 stats/record 自动落，这里只读/写心得/删 */
   notes: {

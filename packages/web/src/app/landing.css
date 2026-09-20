@@ -49,26 +49,37 @@
   margin: 0 auto;
   padding: 56px 0 32px;
 }
+/* 2026-09-20 hero 重构：居中单栏 → 左文案 + 右实时演示双栏。
+   演示窗是首屏的主角，故左栏文案宽度收窄到 480 以内（长行会把人推离右侧演示）。 */
 .landing-hero {
-  text-align: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.02fr);
+  gap: 44px;
+  align-items: center;
+  text-align: left;
+  padding: 6px 0 2px;
+}
+.landing-hero-copy,
+.landing-hero-demo {
+  min-width: 0;
 }
 .landing-title {
-  font-size: 34px;
+  font-size: 36px;
   font-weight: 700;
-  margin: 0 0 14px;
-  letter-spacing: 0.5px;
+  line-height: 1.28;
+  margin: 0 0 16px;
+  letter-spacing: 0.4px;
 }
 .landing-sub {
-  max-width: 560px;
-  margin: 0 auto 28px;
-  font-size: 15px;
-  line-height: 1.7;
+  max-width: 480px;
+  margin: 0 0 26px;
+  font-size: 14.5px;
+  line-height: 1.75;
   color: var(--sb-text-secondary, #6e6e73);
 }
 .landing-cta-row {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 12px;
 }
 .landing-cta {
@@ -92,7 +103,7 @@
 /* 注册/登录卡（复用 AccountBox 的 sb-user-form 样式，这里只管容器） */
 .landing-auth-card {
   max-width: 340px;
-  margin: 22px auto 0;
+  margin: 28px auto 0;
   background: var(--sb-surface, #fff);
   border: 1px solid var(--sb-border, #e5e5ea);
   border-radius: 14px;
@@ -238,10 +249,9 @@
 }
 .landing-stats {
   display: flex;
-  justify-content: center;
   flex-wrap: wrap;
   gap: 10px 26px;
-  margin-top: 22px;
+  margin-top: 24px;
   font-size: 12.5px;
   color: var(--sb-text-secondary, #6e6e73);
 }
@@ -409,4 +419,81 @@
 }
 .landing-github-note:hover b {
   color: var(--sb-primary, #007aff);
+}
+
+/* ── 词条旅程（2026-09-20 hero 重构批）：核心机制段，排在五环之前 ── */
+.landing-journey {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.landing-jstep {
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 12px;
+  padding: 15px 14px;
+}
+.landing-jstep-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.landing-jstep-icon {
+  display: inline-flex;
+  color: var(--sb-primary, #007aff);
+}
+.landing-jstep-no {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--sb-text-secondary, #6e6e73);
+  letter-spacing: 0.5px;
+}
+/* 落地状态标签：与 README「未落地项在标题即标状态」同一纪律，宁可显得像未完成，也不冒充已完成 */
+.landing-jtag {
+  margin-left: auto;
+  padding: 2px 7px;
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--sb-primary, #007aff);
+  background: var(--sb-primary-weak, rgba(0, 122, 255, 0.08));
+  border-radius: 999px;
+}
+.landing-jtag-part {
+  color: var(--sb-text-secondary, #6e6e73);
+  background: rgba(30, 40, 60, 0.06);
+}
+.landing-jstep-lead {
+  font-size: 12.5px;
+  color: var(--sb-primary, #007aff);
+  margin: 0 0 6px;
+}
+.landing-jstep .landing-feature-title {
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+.landing-jstep .landing-feature-desc {
+  line-height: 1.65;
+}
+
+@media (max-width: 980px) {
+  .landing-journey {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .landing-journey {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 窄屏：hero 双栏堆叠（文案在上、演示窗在下），文案放宽到整宽 */
+@media (max-width: 880px) {
+  .landing-hero {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+  .landing-sub {
+    max-width: none;
+  }
 }

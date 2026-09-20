@@ -11,12 +11,16 @@
  *     用户复核"到底按我编排的跑了没有"的唯一依据。
  *
  * ★ 本组件不改定义：只驱动运行。改定义/编排在 `FlowPage` + `StepPanel`。
+ * ★ 末段「本次产出的词条」已抽到 `ProducedNodes.tsx`：那块是**展示 + 一个跨页动作**
+ *   （「向 AI 追问」，契约 `docs/KNOWLEDGE-FOLLOWUP-SPEC.md` §6），与"驱动运行"是两件事，
+ *   且本组件已在行数红线附近（拆分而非压注释，同仓内既有手法）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FlowRun, FlowRunStep, KnowledgeNode } from '@sb/shared';
-import { api, ApiError } from '../../lib/api';
+import { api, ApiError, type FollowUpAction } from '../../lib/api';
 import { NO_RESPONSE } from '../../lib/api-request';
 import { findFlowStepMeta } from '@sb/shared';
+import { ProducedNodes } from './ProducedNodes';
 import {
   advanceButtonText,
   advanceGate,
@@ -37,6 +41,7 @@ export function RunPanel({
   blockedStepId,
   onGoGraph,
   onJumpToStep,
+  onFollowUp,
 }: {
   defId: string | null;
   /**
@@ -53,6 +58,11 @@ export function RunPanel({
   blockedStepId?: string;
   onGoGraph?: () => void;
   onJumpToStep?: (stepId: string) => void;
+  /**
+   * 「向 AI 追问」（契约 `docs/KNOWLEDGE-FOLLOWUP-SPEC.md` §6）：透传给产出词条的控件。
+   * ★ 未注入 ⇒ 产出列表**只读**（同词条卡：不给点了才报错的假控件）。
+   */
+  onFollowUp?: FollowUpAction;
 }) {
   const [runs, setRuns] = useState<FlowRun[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -239,23 +249,14 @@ export function RunPanel({
             {(detail.steps ?? []).length === 0 && <p className="fl-panel-hint">还没有跑过任何一步。</p>}
           </div>
 
-          {detail.producedNodes.length > 0 && (
-            <div className="fl-produced">
-              <span className="fl-panel-hint">这次运行产出了 {detail.producedNodes.length} 个知识节点：</span>
-              <div className="fl-produced-list">
-                {detail.producedNodes.slice(0, 12).map((n) => (
-                  <span key={n.id} className={`fl-produced-item ${n.kind}`}>
-                    {n.refText}
-                  </span>
-                ))}
-              </div>
-              {onGoGraph && (
-                <button className="fl-btn" onClick={onGoGraph}>
-                  去知识图看它们的关系
-                </button>
-              )}
-            </div>
-          )}
+          {/* 产出词条 + 「向 AI 追问」入口整块交给 `ProducedNodes`：
+              本组件已在行数红线附近，且那块是"展示 + 一个跨页动作"，与"驱动运行"是两件事 */}
+          <ProducedNodes
+            nodes={detail.producedNodes}
+            sessionId={detail.sessionId}
+            {...(onFollowUp ? { onFollowUp } : {})}
+            {...(onGoGraph ? { onGoGraph } : {})}
+          />
         </>
       )}
     </div>

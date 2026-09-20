@@ -31,6 +31,14 @@ export interface TermIndex {
   refresh: () => void;
   /** 跨页跳词条库（卡片动作；由 App 的 `openTerms` 注入，未注入时按钮不出现） */
   openTerms?: (keyword: string) => void;
+  /**
+   * 「向 AI 追问」（契约 `docs/KNOWLEDGE-FOLLOWUP-SPEC.md` §6）：从**当前会话**分叉出一个
+   * 专门深挖 `term` 的新会话，并切过去。未注入时卡片**不渲染**这组控件（同 `openTerms` 的手法：
+   * 点了才报错的假按钮不如不画）。
+   * ★ 这里**不吞异常**——失败必须让用户看见（"点了没反应"是这类跨页动作最糟的形态）；
+   *   由卡片接住并落在自己的提示行上（复用既有三态文案位）。
+   */
+  followUp?: (term: string, question?: string) => Promise<void>;
 }
 
 /** 无 Provider 时的空索引：不高亮、不报错 */
@@ -48,16 +56,18 @@ export function useTermIndex(): TermIndex {
 }
 
 /**
- * ★ `onOpenTerms` 走 Provider 的 prop 而**不是**穿透 `Markdown`/`MessageRow` 的 props 链：
- *   前者只加一处接线，后者要改四个组件的签名（且 `Markdown` 已被笔记页复用，
- *   不该为了对话页的导航能力污染它的公共 props）。
+ * ★ 卡片的跨页动作（`onOpenTerms` / `onFollowUp`）走 Provider 的 prop 而**不是**穿透
+ *   `Markdown`/`MessageRow` 的 props 链：前者只加一处接线，后者要改四个组件的签名
+ *   （且 `Markdown` 已被笔记页复用，不该为了对话页的导航能力污染它的公共 props）。
  */
 export function TermIndexProvider({
   children,
   onOpenTerms,
+  onFollowUp,
 }: {
   children: ReactNode;
   onOpenTerms?: (keyword: string) => void;
+  onFollowUp?: (term: string, question?: string) => Promise<void>;
 }) {
   const [terms, setTerms] = useState<TermItem[]>([]);
   const [ready, setReady] = useState(false);
@@ -88,8 +98,9 @@ export function TermIndexProvider({
       find: (text) => matcher.find(text),
       refresh: () => void load(),
       ...(onOpenTerms ? { openTerms: onOpenTerms } : {}),
+      ...(onFollowUp ? { followUp: onFollowUp } : {}),
     };
-  }, [terms, ready, load, onOpenTerms]);
+  }, [terms, ready, load, onOpenTerms, onFollowUp]);
 
   return <TermIndexCtx.Provider value={value}>{children}</TermIndexCtx.Provider>;
 }

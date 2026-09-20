@@ -36,6 +36,7 @@ import { requireAuth, attachUser } from './auth/middleware.js';
 import { REQUIRE_AUTH } from './auth/form.js';
 import { purgeExpiredSessions } from './auth/session.js';
 import { purgeExpiredCodes } from './auth/codes.js';
+import { CHAT_BODY_LIMIT } from '@sb/shared';
 import type { StatusResponse } from '@sb/shared';
 import { VERSION } from './version.js';
 
@@ -76,10 +77,13 @@ app.use(
 // 防大 payload DoS（继承 v1）——但**只有发图那条路**需要放大：
 // `/api/chat/send` 走 base64 内联（零依赖、零静态服务），一张截图 base64 就 2~5MB，
 // 沿用 2mb 会让「点了发送没反应」——实测请求根本到不了路由就被 413 打回（v17 踩到）。
-// 故按路径分流：其余端点仍是 2mb 原封不动，只把承载图片的这一条抬到 24mb
-// （= 单张上限 5MB × 最多 4 张 + 余量，与 chat/vision.ts 的 MAX_DATAURL_CHARS 同一套账）。
+// 故按路径分流：其余端点仍是 2mb 原封不动，只把承载图片的这一条抬到 `CHAT_BODY_LIMIT`。
+// ★ 该限额与「单张大小 / 张数」是一套账，三个数字同住 `@sb/shared` 的 chat-limits
+//   （2026-09-20 收敛）：此前三处各写一遍、靠注释互指，实测已经不平——单张 700 万字符 × 4 张
+//   ≈ 28MB > 24mb body ⇒ 4 张各自合法的图一起发会撞 413。改限额去 chat-limits.ts，
+//   改完跑 `chat-limits.test.ts` 的「满额请求必须装得进 body」那条，它会告诉你账平不平。
 const jsonSmall = express.json({ limit: '2mb' });
-const jsonForImages = express.json({ limit: '24mb' });
+const jsonForImages = express.json({ limit: CHAT_BODY_LIMIT });
 app.use((req, res, next) => {
   const parser = req.path === '/api/chat/send' ? jsonForImages : jsonSmall;
   parser(req, res, next);

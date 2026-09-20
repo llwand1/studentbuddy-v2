@@ -17,6 +17,10 @@
  *   而发音在本功能里是辅助手段而非内容本身，音质不构成选型理由）。
  */
 
+import { api } from './api.js';
+import { DEFAULT_SPEECH_SETTINGS, normalizeSpeechSettings } from '@sb/shared';
+import type { SpeechSettings } from '@sb/shared';
+
 /**
  * 英语词判定：**至少一个拉丁字母**，且只由拉丁字母 / 数字 / 撇号 / 连字符 / 点 / 空格构成。
  *
@@ -54,25 +58,95 @@ export function canSpeak(): boolean {
 }
 
 /**
+ * 本机可用的**英文**音色（设置卡下拉的候选来源）。
+ *
+ * ★ 为什么只筛 `lang` 前缀：本按钮只在 `isEnglishWord` 为真时出现，语种没有第二种可能；
+ *   把中文/日文音色也列出来，用户选中后用英文语音读中文词是不可能的（那个按钮压根不出现），
+ *   等于给了一堆选了没用的选项。
+ * ★ **服务端不知道这份列表**：它是「这台机器装了什么语音包」的函数，故设置里存的是
+ *   音色**名字**、合法性由客户端判（见 `shared/src/speech.ts` 头注）。
+ */
+export function englishVoices(): SpeechSynthesisVoice[] {
+  if (!canSpeak()) return [];
+  return window.speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith('en'));
+}
+
+/**
+ * 按名字取音色；找不到（本机没装 / 系统更新后名字变了 / 名字为空）返回 `null`。
+ * ★ 返回 `null` 时调用方**不设 `u.voice`**，浏览器会按 `lang='en-US'` 自己挑一把
+ *   ——即「回落系统默认」，而不是让朗读失败。设置里那个名字属于**另一台机器**时，
+ *   正确的行为是照常读出来，不是弹一句「音色不存在」。
+ */
+export function pickVoice(name: string): SpeechSynthesisVoice | null {
+  if (!name) return null;
+  return englishVoices().find((v) => v.name === name) ?? null;
+}
+
+/**
+ * 朗读设置的内存缓存。
+ * ★ **为什么要缓存**：朗读是高频低延迟动作（连点几个词条），每次现拉一遍设置会给
+ *   「点一下就出声」平白加一次网络往返；而设置极少改（只在设置页改）。
+ * ★ **为什么不为它造 React context**：唯一消费方是 `speakEnglish` 内部，造 provider 就得在
+ *   `App.tsx` 接线——为一个小组件去动集成点不划算。模块级缓存的代价是「多个标签页时，
+ *   另一个标签改了设置、这个标签要等下次刷新才更新」，对本功能完全可以接受。
+ */
+let cached: SpeechSettings | null = null;
+
+/** 设置页保存成功 / 恢复默认后调它，让下一次朗读立刻生效（不必等缓存失效） */
+export function setSpeechSettingsCache(s: SpeechSettings | null): void {
+  cached = s;
+}
+
+/**
+ * 取朗读设置：有缓存用缓存，没有就拉一次。
+ * ★ **拉不到不阻塞朗读**（回落默认）：离线、未登录、服务端抽风都不该让喇叭哑掉——
+ *   朗读是纯客户端能力，设置只决定「用哪把嗓子」，不构成前提条件。
+ */
+async function resolveSpeechSettings(): Promise<SpeechSettings> {
+  if (cached) return cached;
+  try {
+    const r = await api.settings.speech();
+    cached = normalizeSpeechSettings(r.settings);
+  } catch {
+    cached = { ...DEFAULT_SPEECH_SETTINGS };
+  }
+  return cached;
+}
+
+/**
  * 朗读一段英文。成功（读完）resolve；失败 reject 并带**用户可读**的 message
  * （调用方直接把它填进卡片的提示行——`AGENTS.md` 红线 5：三态里的失败必须说出来）。
  *
+ * ★ **音色与语速取自设置**（设置页可改，契约 `shared/src/speech.ts`）：本函数从模块缓存
+ *   取一次，缓存空了才拉接口；拉不到就用默认值照读——**设置拉不到不该让喇叭哑掉**。
+ *
  * ★ **每次朗读前先 `cancel()`**：不取消会叠音——连点两次就是两句一起读。
+ *   ★ 那一句 `cancel()` **排在 `await` 取设置之前**：cancel 是「立刻闭嘴」的语义，
+ *   排在后面会让上一句多活一个往返，听起来正是连点时的前半声叠音。
  * ★ **`canceled` / `interrupted` 不算失败**：它们正是上面那句 `cancel()` 的产物
  *   （含用户快速切词时的自我打断）。当失败处理会让 UI 闪一条假报错，
  *   而真正的失败（系统没装英文语音）会被这条假报错淹没。
  */
-export function speakEnglish(text: string): Promise<void> {
-  if (!canSpeak()) return Promise.reject(new Error('当前浏览器不支持语音朗读'));
+export async function speakEnglish(text: string): Promise<void> {
+  if (!canSpeak()) throw new Error('当前浏览器不支持语音朗读');
 
   const synth = window.speechSynthesis;
   synth.cancel();
+
+  const settings = await resolveSpeechSettings();
 
   return new Promise<void>((resolve, reject) => {
     const u = new SpeechSynthesisUtterance(text);
     // 固定 en-US：本按钮只在 `isEnglishWord` 为真时出现，语种没有第二种可能，
     // 不做「按词条猜语种」——那需要词条带语种字段，而 TermItem 没有（契约 §3.1）
     u.lang = 'en-US';
+    // rate 已由 shared 归一化钳在 0.5–2.0，不会落进引擎的严重失真区
+    u.rate = settings.rate;
+    // ★ 音色**找不到时什么都不设**（不是设成空串/undefined）：不设时浏览器按 `lang`
+    //   自行挑一把（＝回落系统默认），把「换了台机器、那台没装这个语音包」这件正常事
+    //   照常读出来，而不是变成一次失败。
+    const v = pickVoice(settings.voiceName);
+    if (v) u.voice = v;
     u.onend = () => resolve();
     u.onerror = (e) => {
       if (e.error === 'canceled' || e.error === 'interrupted') {

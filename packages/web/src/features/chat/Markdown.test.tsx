@@ -133,4 +133,29 @@ describe('Markdown 组件渲染', () => {
     expect(el.textContent).toContain('para 第一行');
     expect(q(el, 'h4.md-h2')?.textContent).toContain('第二标题');
   });
+
+  it('正文图片按 img 渲染，且带 lazy 与 no-referrer', () => {
+    const { container } = render(<Markdown text={'看图 ![流程图](https://a.example/x.png) 就懂'} />);
+    const img = q(container, 'img.md-img') as HTMLImageElement | null;
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute('src')).toBe('https://a.example/x.png');
+    expect(img?.getAttribute('alt')).toBe('流程图');
+    expect(img?.getAttribute('loading')).toBe('lazy');
+    // 图片地址是模型给的，不该顺手把用户侧来源带给第三方
+    expect(img?.getAttribute('referrerpolicy')).toBe('no-referrer');
+  });
+
+  it('危险协议的图片既不出 img，也不把原始记号糊在屏幕上', () => {
+    const { container } = render(<Markdown text={'![说明](javascript:alert(1))'} />);
+    expect(q(container, 'img')).toBeNull();
+    expect(container.textContent).toContain('说明');
+    expect(container.textContent).not.toContain('javascript');
+  });
+
+  it('流式半截图片不留内部占位串，也不出破图（闭合前显示 alt 文字）', () => {
+    const { container } = render(<Markdown text={'看图 ![流程图](https://a.example/x'} streaming />);
+    expect(q(container, 'img')).toBeNull();
+    expect(container.textContent).not.toContain('sb:incomplete-image');
+    expect(container.textContent).toContain('流程图');
+  });
 });

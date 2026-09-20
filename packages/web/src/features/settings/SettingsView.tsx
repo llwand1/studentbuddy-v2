@@ -13,21 +13,10 @@ import { QuizMixCard } from './QuizMixCard';
 import { QuizImageCard } from './QuizImageCard';
 import { AnswerStyleCard } from './AnswerStyleCard';
 import { ToolsCard } from './ToolsCard';
+import { SpeechCard } from './SpeechCard';
+import { RoleRow } from './RoleRow';
+import type { ProviderRow } from './RoleRow';
 
-type ProviderRow = {
-  id: string;
-  name: string;
-  baseUrl: string;
-  enabled: boolean;
-  streamMode?: 'stream' | 'once';
-  /**
-   * 归属（M2c，契约 `docs/TENANCY-SPEC.md` §8.1）：`null` = **平台通道**（老板出的钱），
-   * 非 null = 我自带的 key。★ 平台的 provider **必须可见**（否则没法把角色绑到免费额度上），
-   * 但**不可改**——改了会影响全站所有用户的默认模型，服务端会回 403。
-   * 故这里据此把「回答形态」下拉与「删除」按钮禁掉：让用户看见限制，而不是点下去撞一个错误。
-   */
-  ownerId?: string | null;
-};
 type RoleBindingRow = { role: string; provider_id: string; model: string };
 
 export function SettingsView() {
@@ -237,63 +226,8 @@ export function SettingsView() {
       <QuizMixCard flash={flash} />
       <QuizImageCard flash={flash} />
       <SearchKeysCard flash={flash} />
+      <SpeechCard flash={flash} />
       <ToolsCard flash={flash} />
     </div>
-  );
-}
-
-function RoleRow({
-  label,
-  providers,
-  modelsMap,
-  initialProvider,
-  initialModel,
-  onBind,
-}: {
-  label: string;
-  providers: ProviderRow[];
-  modelsMap: Record<string, string[]>;
-  initialProvider: string;
-  initialModel: string;
-  onBind: (providerId: string, model: string) => void;
-}) {
-  const [pid, setPid] = useState(initialProvider || providers[0]?.id || '');
-  const [model, setModel] = useState(initialModel);
-  const models = modelsMap[pid] ?? [];
-  return (
-    <tr>
-      <td>{label}</td>
-      <td>
-        <select value={pid} onChange={(e) => setPid(e.target.value)}>
-          {providers.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </td>
-      <td>
-        <input
-          placeholder="模型名（可手填或从列表选）"
-          value={model}
-          list={`models-${pid}`}
-          onChange={(e) => setModel(e.target.value)}
-        />
-        <datalist id={`models-${pid}`}>
-          {models.map((m) => (
-            <option key={m} value={m} />
-          ))}
-        </datalist>
-      </td>
-      <td>
-        <button
-          className="settings-add"
-          onClick={() => onBind(pid, model)}
-          disabled={!pid}
-        >
-          保存
-        </button>
-      </td>
-    </tr>
   );
 }

@@ -227,3 +227,51 @@ describe('remedy（流式未闭合记号修复）', () => {
     expect(JSON.stringify(bs)).not.toContain('**');
   });
 });
+
+describe('markdown 行内图片（2026-09-20 补的输出侧缺口）', () => {
+  it('![alt](url) 解析成 image 节点，而不是「感叹号 + 链接」', () => {
+    const out = parseInline('看图 ![流程图](https://a.example/x.png) 就懂');
+    expect(out.map((n) => n.t)).toEqual(['text', 'image', 'text']);
+    const img = out[1];
+    if (img?.t !== 'image') throw new Error('期望第二个节点是 image');
+    expect(img.src).toBe('https://a.example/x.png');
+    expect(img.alt).toBe('流程图');
+  });
+
+  it('锁住「必须有图片规则」这件事本身：语法不再退化成 感叹号+链接', () => {
+    // 不加图片规则时的真实退化路径：扫到 '!' 不匹配任何规则 → 先吐一个 '!' 字符，
+    // 下一轮把 [alt](url) 当链接吃掉 ⇒ 屏幕上出现「! 链接」。此断言钉住该形状不再出现。
+    const out = parseInline('![图](https://a.example/x.png)');
+    expect(out.some((n) => n.t === 'a')).toBe(false);
+    expect(out[0]?.t).toBe('image');
+  });
+
+  it('危险协议一律不产 img：javascript: / data: / 内部占位 sb: 全部回落成 alt 文字', () => {
+    for (const bad of ['javascript:alert(1)', 'data:image/svg+xml;base64,AAA', 'sb:incomplete-image']) {
+      const out = parseInline(`![说明](${bad})`);
+      expect(out.some((n) => n.t === 'image')).toBe(false);
+      expect(out.some((n) => n.t === 'a')).toBe(false);
+      // 首节点恒为 alt 文字（图源被拒时 alt 就是它的文字替身）。
+      // 注意 `javascript:alert(1)` 的 URL 自带括号，而 URL 段用的是与链接规则同一套
+      // `[^)\s]+`（括号需转义），故它只会吃到第一个 `)`、剩下的 `)` 按普通字符走——
+      // 这与链接的既有口径一致，不是本批新引入的取舍，故这里只钉「不产 image/a + alt 在」。
+      expect(out[0]).toEqual({ t: 'text', v: '说明' });
+    }
+  });
+
+  it('图源白名单比链接更严：站内相对路径也不放行（只认 http/https）', () => {
+    expect(parseInline('![x](/local.png)')).toEqual([{ t: 'text', v: 'x' }]);
+  });
+
+  it('流式半截图片经 remedy 收口后，屏幕上既无破图也无内部占位串', () => {
+    const bs = parseBlocks(remedy('看图 ![流程图](https://a.example/x'));
+    const flat = JSON.stringify(bs);
+    expect(flat).not.toContain('sb:incomplete-image');
+    expect(flat).not.toContain('"image"'); // URL 还没补全，此刻不该当成图
+    expect(flat).toContain('流程图'); // alt 文字保留，闭合前后位置稳定不跳版
+  });
+
+  it('空 alt 的完整图片仍解析成 image（alt 可空，src 合法即可）', () => {
+    expect(parseInline('![](https://a.example/x.png)')[0]?.t).toBe('image');
+  });
+});

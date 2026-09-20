@@ -25,3 +25,8 @@ _probe/
 #   「真机冒烟入口」引用，不入库就是一条**悬空指针**（clone 下来的人找不到它）。
 #   做法是 `git add -f` 强制加一次：**已跟踪的文件不再受本规则过滤**，此后 `git add -A`
 #   照常带上它的修改。故本规则**一个字都不用改**，数据目录（`data*/`）与其他脚本仍全忽略。
+
+# 2026-09-20 补：覆盖率产物。`tools/metrics.mjs --coverage` 会跑 vitest 的 json-summary
+# reporter 落地 `coverage/coverage-summary.json`（116 KB），是**每次量测重新生成的快照**——
+# 入库会让每次跑量化都留下一个 modified 文件，且里面刻着采集时刻的旧数字，比不入库更误导。
+coverage/

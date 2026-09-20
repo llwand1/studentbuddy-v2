@@ -15,10 +15,10 @@ import { runToolCalls, type StepPayload } from './tool-exec.js';
 import { createExecTool } from './tool-dispatch.js';
 import { persistRounds, loadHistory, insertUserMessage, insertAssistantMessage } from './persist.js';
 import { cancelChoicesBySession } from './choice.js';
-import { compactIfNeeded } from './compact.js';
 import { assembleContextMessages, collectContextSegments } from './context-segments.js';
 import { TASKS_TOOL, type TaskItem } from './task-list.js';
-import { saveTerms, extractTerms, countUsage } from '../learning/terms.js';
+import { countUsage } from '../learning/terms.js';
+import { afterTurn } from './post-turn.js';
 import type { ChatMessage, ToolCall } from '../llm/types.js';
 import { contentToText } from '../llm/types.js';
 import { describeImages } from './vision.js';
@@ -322,19 +322,11 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     // ★ M2d：事件带归属——订阅者 `learning/activity.ts` 要按人记 XP / 每日计数 / 连签，
     //   而总线改前只有「发生了什么」。类型上 `ownerId` 必填 ⇒ 漏传是编译错误（见 `events/bus.ts`）。
     publishEvent({ type: 'chat_done', sessionId, ownerId: opts.ownerId ?? null });
-    // 忆域 v2：回复完成后自动抽取重要词条入库（失败静默不阻塞对话）+ 命中词条计数
-    // ★ M2c 补传 `opts.ownerId`（契约 §8.1.4 表）：起点是用户请求、ownerId 现成，**此前漏传是 bug**
-    //   ——抽取是一次 LLM 调用，不带归属就只能落进平台通道（用户自带 key 时烧的却是平台的额度）。
-    void extractTerms(`${opts.text}\n\n${acc}`.slice(0, 30000), opts.ownerId ?? null)
-      .then((items) => {
-        if (items.length > 0) saveTerms(items, sessionId, opts.ownerId ?? null);
-      })
-      .catch(() => undefined)
-      // 长期记忆压缩排在词条抽取**之后**串行（两者都要打一次 LLM，并发会同时占两个配额槽），
-      // 且不 await——摘要下一轮才生效，本轮用户已拿到回答（MEMORY-SPEC §4.1）。
-      .finally(() => {
-        void compactIfNeeded(sessionId, opts.ownerId ?? null);
-      });
+    // 忆域 v2 收尾：抽词 → 落词条库 → **追问连边** → 长期记忆压缩。
+    // 2026-09-20 整段搬到 `chat/post-turn.ts`（本文件 394 行 + 这一步会顶到 server ≤400 红线；
+    // 按仓规拆文件不压注释）。那些注释（M2c 必须带 ownerId、压缩为何串行在抽词之后不 await）
+    // 已随代码一起搬过去，此处不抄第二遍——两份说明迟早会分叉。
+    afterTurn({ sessionId, text: opts.text, answer: acc, ownerId: opts.ownerId ?? null });
     // 归属随聊天链路下来（同 compactIfNeeded）：词条库本身尚无归属列，但流水按人记，
     // 将来词条库归主时可直接支撑"按人统计"（契约 MEMORY-TREND-SPEC §6）
     countUsage(acc, opts.ownerId ?? null);

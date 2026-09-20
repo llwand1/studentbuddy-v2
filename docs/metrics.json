@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-20T09:48:51.015Z",
+  "generatedAt": "2026-09-20T09:59:06.835Z",
   "code": {
     "rows": [
       {
@@ -86,16 +86,16 @@
     "probes": 12
   },
   "repo": {
-    "head": "5a15610",
+    "head": "77e37fb",
     "headDate": "2026-09-20",
-    "commitsLast14d": 111,
+    "commitsLast14d": 112,
     "branch": "main",
-    "dirtyFiles": 79
+    "dirtyFiles": 74
   },
   "tests": {
     "available": true,
-    "ranNow": false,
-    "wallSec": 0,
+    "ranNow": true,
+    "wallSec": 27.7,
     "staleDays": 0,
     "files": 169,
     "cases": 2339,

@@ -322,4 +322,21 @@ export const MIGRATIONS_V31: Array<{ version: number; statements: string[] }> = 
       )`,
     ],
   },
+  // ── v38：「向 AI 追问」的根词条（契约 docs/KNOWLEDGE-FOLLOWUP-SPEC.md §2）──
+  // 与 `forked_from_id`（v1 就建好了的列，一直没人写）配成一对：
+  // `forked_from_id` 说"从哪个会话分叉出来"，本列说"**为了深挖哪个词条**才分的叉"。
+  //
+  // ★ 存**词条名**而不是 `term_library.id`，是抗删快照口径（本仓第五次复用同一手法，
+  //   见 evolution_event.term_text / knowledge_node.ref_text）：
+  //   · 词条会被 TERM-TIDY 整理合并掉、会被用户删掉——存 id 就留下指向虚空的外键；
+  //   · 会话标题 `追问：X` 要能**不回查词条库**就画出来（词条已删的孤儿 fork 也得可读）。
+  //   ⇒ 代价：建边时按名现查（findTermByName），查不到就不建边、如实返回 0
+  //     （一个已删的词条不该在图上留一个幽灵星心，契约 §8 未验账已记账）。
+  //
+  // ⚠️ 回放迁移链的测试必须把**加列**也 DROP 掉（`ALTER TABLE ADD COLUMN` 不幂等，
+  //   本仓实测踩过 `duplicate column name: summary` / `: images`）。
+  {
+    version: 38,
+    statements: [`ALTER TABLE sessions ADD COLUMN forked_term TEXT`],
+  },
 ];

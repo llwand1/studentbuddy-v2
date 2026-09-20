@@ -17,11 +17,13 @@
  * 会话，导出也没有内容）。**生成中不禁用整个菜单**——出题、存入记忆、文档会各自禁用，但导出与
  * 联网开关仍可用（ADR-5：能做的别藏着）。
  */
-import { useRef, type ComponentProps, type Dispatch, type RefObject, type SetStateAction } from 'react';
+import { useRef, useState, type ComponentProps, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import { ComposerMenu } from '../../components/ComposerMenu';
 import { SendIcon, StopIcon } from '../../components/icons';
 import { buildComposerMenuItems } from './chat-menu';
+import { MAX_CHAT_IMAGES } from '@sb/shared';
 import type { AskChoiceRecord, ToolConfirmDecision } from '@sb/shared';
+import { judgeLoadedImage, intakeRejectHint, remainingSlots } from '../../lib/image-intake';
 import { AskStyleCard } from './AskStyleCard';
 import { ChoiceCard } from './ChoiceCard';
 import { ConfirmCard } from './ConfirmCard';
@@ -124,18 +126,23 @@ export function ChatComposer({
   onDismissConfirm: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const MAX_IMAGES = 4;
   /**
    * 已发起读取、还没落进 attachments 的张数。★ 上限必须把它算进来：`attachments` 是**本次渲染的
-   * 快照**，连续两次粘贴/选图在同一 tick 内都读到旧值，只按它算余量的话 4 张的上限会被突破
-   * （服务端 `chat/vision.ts` 与 24mb body 限额是同一套账，超了的症状是「点发送没反应」）。
+   * 快照**，连续两次粘贴/选图在同一 tick 内都读到旧值，只按它算余量的话张数上限会被突破
+   * （服务端 `chat/vision.ts` 与 body 限额是同一套账，越线的症状是「点发送没反应」）。
    */
   const inflight = useRef(0);
+  /** 被拒图片的说明（过大/张数满）。**不静默丢弃**——用户以为选上了却不见图，比明确报错更糟 */
+  const [intakeHint, setIntakeHint] = useState('');
 
-  /** 把选中的/粘贴的图片文件转 base64 dataURL 追加进附件（上限 4 张，非图片忽略） */
+  /** 把选中的/粘贴的图片文件转 base64 dataURL 追加进附件（限额与判定见 lib/image-intake） */
   const addImages = (files: File[]) => {
-    const room = MAX_IMAGES - attachments.length - inflight.current;
-    if (room <= 0) return;
+    const room = remainingSlots(attachments.length, inflight.current);
+    if (room <= 0) {
+      setIntakeHint(intakeRejectHint('full', files.length));
+      return;
+    }
+    let skipped = 0; // 本次操作内被拒的张数（同一 addImages 内的多个 reader 共享，收成一句提示）
     for (const file of files.filter((f) => f.type.startsWith('image/')).slice(0, room)) {
       inflight.current += 1;
       const reader = new FileReader();
@@ -145,8 +152,19 @@ export function ChatComposer({
       reader.onload = () => {
         release();
         const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-        // 函数式更新里再兜一次硬上限：名额计数若与真实状态对不上，宁可丢弃也不越线
-        if (dataUrl) setAttachments((a) => (a.length >= MAX_IMAGES ? a : [...a, { dataUrl, name: file.name }]));
+        if (!dataUrl) return;
+        // 过大/已满 → 不收，并如实说明原因（这是本批新增的即时反馈：此前单张超限要等到
+        // 发送时撞 413 才知道，而 413 发生在路由之前，症状是「点发送没反应」）
+        const verdict = judgeLoadedImage(dataUrl, attachments.length);
+        if (verdict !== 'accept') {
+          skipped += 1;
+          setIntakeHint(intakeRejectHint(verdict, skipped));
+          return;
+        }
+        setIntakeHint('');
+        // 函数式更新里再兜一次硬上限：名额计数若与真实状态对不上，宁可丢弃也不越线。
+        // 这一层是同一 tick 连粘的竞态兜底，刻意静默——竞态不是用户操作错，报出来只会让人莫名。
+        setAttachments((a) => (a.length >= MAX_CHAT_IMAGES ? a : [...a, { dataUrl, name: file.name }]));
       };
       reader.onerror = release; // 读失败也要还名额，否则余量永久缩水
       reader.readAsDataURL(file);
@@ -205,6 +223,7 @@ export function ChatComposer({
       )}
       <DocModeControl doc={doc} open={docOpen} onClose={() => setDocOpen(false)} />
       <AttachmentTray images={attachments} onRemove={(i) => setAttachments(attachments.filter((_, j) => j !== i))} />
+      {intakeHint && <div className="chat-att-hint">{intakeHint}</div>}
       <div className="chat-composer">
         <ComposerMenu
           items={items}

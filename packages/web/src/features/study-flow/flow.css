@@ -366,7 +366,7 @@
 .fl-step-time { color: var(--sb-ink-tertiary); margin-left: auto; }
 .fl-step-error { color: var(--sb-danger); }
 
-/* 本此运行产出的知识节点 */
+/* 本次运行产出的知识节点 */
 .fl-produced { display: flex; flex-direction: column; gap: var(--sb-sp-2); border-top: 1px solid var(--sb-line); padding-top: var(--sb-sp-3); }
 .fl-produced-list { display: flex; flex-wrap: wrap; gap: var(--sb-sp-1); }
 .fl-produced-item {
@@ -378,6 +378,34 @@
 }
 .fl-produced-item.term { border-color: rgba(0, 122, 255, 0.4); color: var(--sb-primary); }
 .fl-produced-item.note { border-color: rgba(34, 197, 94, 0.45); color: var(--sb-success); }
+
+/* 产出词条的「向 AI 追问」入口（契约 docs/KNOWLEDGE-FOLLOWUP-SPEC.md §6）。
+   输入框的取值与词条卡（features/chat/term-highlight.css 的 .term-card-fu-in）刻意同口径
+   ——同一个控件出现在两处，样式不同会让人以为是两个不同的东西。改一处要两处一起改。 */
+button.fl-produced-item {
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+button.fl-produced-item:hover { border-color: var(--sb-primary); color: var(--sb-primary); }
+.fl-produced-item.on { border-color: var(--sb-primary); background: rgba(0, 122, 255, 0.08); color: var(--sb-primary); }
+.fl-fu { display: flex; gap: var(--sb-sp-1); align-items: center; }
+.fl-fu-in {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+  color: var(--sb-ink);
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: var(--sb-fs-xs);
+}
+.fl-fu-in::placeholder { color: var(--sb-ink-tertiary); }
+.fl-fu-in:focus { outline: none; border-color: var(--sb-primary); }
+.fl-fu-in:disabled { opacity: 0.6; }
+.fl-fu .fl-btn { flex: none; }
 
 /* 空态与轻提示 */
 .fl-empty {

@@ -1,7 +1,14 @@
 /**
- * app/Landing — 未登录的**产品落地页**（2026-09-19 上线批；同日扩容批：老板反馈「有点太素了，
- * 多加一点元素和介绍，README 里有很多可以写的」⇒ 内容全部取自 README 的「这是什么/核心优势/
- * 功能总览/安全与隐私」四节，落地为四段：五环闭环 → 功能九宫格 → 工程上较真 → 隐私与数据）。
+ * app/Landing — 未登录的**产品落地页**（2026-09-19 上线批；同日扩容批；2026-09-20 hero 重构批）。
+ *
+ * ★ 本批（2026-09-20 hero 重构）解决老板提的三件事：
+ *   ① 「hero 太简陋、没体现项目特色」⇒ hero 从**居中单栏文字**改成**左文案 + 右侧实时演示**双栏，
+ *      首屏就能看到产品在动，而不是读一段自我介绍。
+ *   ② 「核心功能没说白——词条才是核心」⇒ 新增「一个词条走完一整套学习流程」段（`TermJourney`），
+ *      并把原先排在第 2 位的「五环闭环」**降到词条之后**：五环是**结果**，词条才是**机制**
+ *      （这五环全都是围绕词条转的），先讲机制再讲全景才不会把重点讲反。
+ *   ③ 「要过程式演示动画」⇒ 新 `demo/` 目录（注册表 + 播放器 + 演示视图），全部前端写死，
+ *      动画一律 CSS（AGENTS.md「刻意不引库」）。
  *
  * ★ 定位：门面，不是功能页——它回答「这是什么、对我有什么用、怎么开始」，然后才放人进去。
  *   已登录用户（main.tsx 经 /api/auth/me 判定）直接进应用壳，**永远看不到本页**。
@@ -9,6 +16,8 @@
  * ★ 注册/登录表单**复用侧栏的 `AccountBox`（standalone 模式）**，不在本页复制一份表单逻辑：
  *   两处各写一遍必然漂成两种行为（同 RefList / ReviewPanel 的先例）。两条 CTA 通过 `key` 重挂
  *   切换初始模式——AccountBox 的模式是内部状态，重挂是最直白的传达。
+ *   ★ 本批把登录卡从 hero **内部**移到 hero **下方**：hero 变双栏后，卡挤在左栏会把
+ *   演示窗顶出首屏，且窄屏堆叠时卡的插入位置会变得不可预期。
  *
  * ★ 视觉纪律（AGENTS.md）：禁 emoji，图标全部用 `components/icons.tsx` 的自绘 line-icon；
  *   配色只取 tokens.css 的既有 token（#007aff 主色 / #fafafa 底），不另起色板。
@@ -18,13 +27,14 @@ import type { AuthProviders, AuthUser } from '@sb/shared';
 import { AccountBox } from '../components/AccountBox';
 import { GithubLoginButton } from '../components/GithubLoginButton';
 import { Mascot } from '../features/chat/Mascot';
+import { LandingDemo } from './demo/LandingDemo';
+import { TermJourney } from './TermJourney';
 import {
   ChatIcon,
   QuizIcon,
   StatsIcon,
   CardsIcon,
   CheckIcon,
-  ClockIcon,
   FlowIcon,
   GraphIcon,
   VsIcon,
@@ -50,7 +60,9 @@ const FEATURES: Array<{ icon: typeof QuizIcon; title: string; desc: string }> = 
   { icon: FlowIcon, title: '学习流编排', desc: '把「讲解 → 出题 → 判分 → 复盘」拖成一条自己的学习流水线，预制模板开箱即用' },
   { icon: GraphIcon, title: '知识图谱', desc: '学过的概念自动连成图，点任一节点看它的邻里关系，薄弱环节一眼可见' },
   { icon: QuizIcon, title: '智能出题', desc: '题型配比可配、AI 特化 SVG 配图、五级解析阶梯——模型犯错不塌整组' },
-  { icon: ClockIcon, title: '艾宾浩斯复习', desc: '1/2/4/7/15/30/60 天七个复查节点，到期自动排队，忘了归零重来' },
+  // 本批替换「艾宾浩斯复习」：复习已在 TermJourney 第 4 步讲得更透，此处让位给
+  // 最独特、原先**在落地页完全没有出现**的那条交互（正文词条高亮 + 悬浮卡）
+  { icon: CardsIcon, title: '词条高亮', desc: '回复里命中词条库的词自动标出：首现实线、复现虚点线，悬停即看释义与复习状态' },
   { icon: SearchIcon, title: '联网检索', desc: '三家搜索按 key 并行聚合 + 免 key 兜底，出网带 SSRF 护栏' },
   { icon: DocIcon, title: '文档模式', desc: '绑定长资料走 BM25 检索注入，带段号可溯源，70 万字资料也能对答' },
   { icon: VsIcon, title: 'AI 对战', desc: '和 AI 出题官双人对战答题，移动优先的独立页面' },
@@ -61,7 +73,7 @@ const FEATURES: Array<{ icon: typeof QuizIcon; title: string; desc: string }> = 
 /** 工程上较真（README「核心优势」精选四条，给懂行的人看的底牌） */
 const ENGINEERING: Array<{ title: string; desc: string }> = [
   { title: 'AI 输出可靠性工程', desc: '解析五级阶梯、丢图保题、流式空闲超时、两层并发闸门——每条对策都对应一次真实故障的根因登记' },
-  { title: '前端零第三方库', desc: '无 UI 库、无 Markdown 库、无图表库：解析、高亮、图表全部自绘——供应链攻击面与包体积同时趋零' },
+  { title: '前端零第三方库', desc: '无 UI 库、无 Markdown 库、无图表库：解析、高亮、图表、本页的演示动画全部自绘——供应链攻击面与包体积同时趋零' },
   { title: '模型产出敢真跑', desc: '模型生成的网页在 CSP sandbox + iframe 双层沙箱里运行，页面源为 null，读不到应用数据' },
   { title: '不锁定供应商', desc: 'OpenAI 兼容 + Anthropic 双适配，搜索三家聚合——换模型、换服务商只动设置页' },
 ];
@@ -106,36 +118,44 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
 
       <main className="landing-body">
         <section className="landing-hero">
-          <h1 className="landing-title">你的专属学习助手</h1>
-          <p className="landing-sub">
-            把「学习」做成一条可自动运转的闭环，而不是一个套了学习提示词的聊天框。
-            对话讲解、出题判分、遗忘曲线复习、学习流编排——自己的模型 Key，数据只在自己手里。
-          </p>
-          <div className="landing-cta-row">
-            <button type="button" className="landing-cta" onClick={() => setCard(card === 'register' ? 'closed' : 'register')}>
-              开始使用
-            </button>
-            <span className="landing-cta-note">邮箱注册，一分钟开始</span>
-          </div>
-          <div className="landing-stats" aria-label="项目数据">
-            <span>2000+ 自动化测试</span>
-            <span>6 个运行时依赖</span>
-            <span>127 个 REST 接口</span>
-            <span>0 个第三方 UI 库</span>
-          </div>
-          {card !== 'closed' && (
-            <div className="landing-auth-card">
-              <AccountBox key={card} standalone initialMode={card} onAuthChange={(u) => u && onAuthed(u)} />
-              {githubEnabled && (
-                <div className="landing-auth-github">
-                  <span className="landing-auth-github-or">或</span>
-                  <GithubLoginButton className="landing-github-btn" label="使用 GitHub 登录" />
-                  <span className="landing-github-hint">GitHub 已验证邮箱与本站账号相同时，直接登入原账号</span>
-                </div>
-              )}
+          <div className="landing-hero-copy">
+            <h1 className="landing-title">
+              学过的词，会<span className="landing-accent">自己留下来</span>
+            </h1>
+            <p className="landing-sub">
+              对话里自动抽词入库，下次对话优先被想起，到期自动排队复习——同一套词条贯穿讲解、出题、复习与总结。
+              自己的模型 Key，数据只在自己手里。
+            </p>
+            <div className="landing-cta-row">
+              <button type="button" className="landing-cta" onClick={() => setCard(card === 'register' ? 'closed' : 'register')}>
+                开始使用
+              </button>
+              <span className="landing-cta-note">邮箱注册，一分钟开始</span>
             </div>
-          )}
+            <div className="landing-stats" aria-label="项目数据">
+              <span>2000+ 自动化测试</span>
+              <span>6 个运行时依赖</span>
+              <span>127 个 REST 接口</span>
+              <span>0 个第三方 UI 库</span>
+            </div>
+          </div>
+          <div className="landing-hero-demo">
+            <LandingDemo />
+          </div>
         </section>
+
+        {card !== 'closed' && (
+          <div className="landing-auth-card">
+            <AccountBox key={card} standalone initialMode={card} onAuthChange={(u) => u && onAuthed(u)} />
+            {githubEnabled && (
+              <div className="landing-auth-github">
+                <span className="landing-auth-github-or">或</span>
+                <GithubLoginButton className="landing-github-btn" label="使用 GitHub 登录" />
+                <span className="landing-github-hint">GitHub 已验证邮箱与本站账号相同时，直接登入原账号</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* GitHub 横幅（老板 2026-09-19：项目地址放显眼位置 + 本地安装包版引导） */}
         <section className="landing-github" aria-label="开源仓库与本地版">
@@ -160,9 +180,12 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
           </a>
         </section>
 
+        {/* 词条旅程：核心机制，排在五环之前（先讲机制、再讲全景） */}
+        <TermJourney />
+
         <section className="landing-section" aria-label="五环闭环">
           <h2 className="landing-h2">
-            一条自动运转的<span className="landing-accent">学习闭环</span>
+            而它们串起来，是一条自动运转的<span className="landing-accent">学习闭环</span>
           </h2>
           <p className="landing-section-sub">学 → 练 → 析 → 忆 → 反馈，五环相扣：学过的自动出题练、错的自动进复习、复习的自动记趋势</p>
           <div className="landing-loop">

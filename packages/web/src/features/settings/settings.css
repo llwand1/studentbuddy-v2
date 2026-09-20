@@ -180,3 +180,32 @@
 /* 工具卡（P3 ToolsCard）：0 档风险行与失败计数的告警色，只加两个修饰类 */
 .settings-hint.warn { color: var(--sb-danger); }
 .settings-table .num-bad { color: var(--sb-danger); font-weight: 600; }
+
+/* 词条朗读设置（SpeechCard）——音色下拉 + 语速滑条。
+   ★ 本项目此前没有任何滑条（全仓无 input[type=range]），这是第一处：用原生 range
+     + `accent-color` 着色，不引控件库；除 accent-color 外全部走既有 token 变量。 */
+.speech-rows { display: grid; gap: var(--sb-sp-2); margin-bottom: var(--sb-sp-3); }
+.speech-row { display: flex; align-items: center; gap: var(--sb-sp-2); }
+.speech-label { flex: 0 0 48px; font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary); }
+.speech-select {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+  font: inherit;
+  font-size: var(--sb-fs-sm);
+  background: var(--sb-bg);
+  color: var(--sb-ink);
+}
+.speech-select:focus { outline: none; border-color: var(--sb-primary); }
+.speech-select:disabled { opacity: 0.5; cursor: not-allowed; }
+.speech-range { flex: 1; min-width: 0; accent-color: var(--sb-primary); }
+.speech-range:disabled { opacity: 0.5; cursor: not-allowed; }
+.speech-rate {
+  flex: 0 0 44px;
+  text-align: right;
+  font-family: Consolas, monospace;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+}

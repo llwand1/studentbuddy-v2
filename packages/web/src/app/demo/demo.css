@@ -1,0 +1,368 @@
+/* demo — 落地页过程式演示（浅色 minimal；只用 tokens.css 既有 token，不另起色板）
+ *
+ * ★ 动画纪律：一律 CSS transition / keyframes —— AGENTS.md「刻意不引库」。
+ * ★ 所有动效都在 `prefers-reduced-motion` 下关掉（播放器同时会停到静态末帧，
+ *   但样式侧也要兜住：系统偏好可能在页面打开后被改变，媒体查询是唯一实时的判据）。
+ */
+
+.ld-window {
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-line, rgba(30, 40, 60, 0.1));
+  border-radius: var(--sb-radius-lg, 16px);
+  overflow: hidden;
+  box-shadow: var(--sb-shadow-2, 0 6px 20px rgba(30, 40, 80, 0.1));
+}
+
+/* ── 窗口 chrome ── */
+.ld-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--sb-line, rgba(30, 40, 60, 0.1));
+}
+.ld-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sb-line, rgba(30, 40, 60, 0.14));
+}
+.ld-bar-title {
+  margin-left: 8px;
+  font-size: var(--sb-fs-sm, 12.5px);
+  color: var(--sb-ink-secondary, #6b7385);
+}
+.ld-replay {
+  margin-left: auto;
+  padding: 2px 6px;
+  font-size: var(--sb-fs-sm, 12.5px);
+  color: var(--sb-primary, #007aff);
+  border-radius: var(--sb-radius-sm, 8px);
+}
+.ld-replay:hover {
+  background: var(--sb-primary-weak, rgba(0, 122, 255, 0.08));
+}
+
+/* ── 多演示切换位（只有一个演示时刻意不渲染） ── */
+.ld-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 14px 0;
+}
+.ld-tab {
+  padding: 4px 10px;
+  font-size: var(--sb-fs-sm, 12.5px);
+  color: var(--sb-ink-secondary, #6b7385);
+  border: 1px solid var(--sb-line, rgba(30, 40, 60, 0.1));
+  border-radius: 999px;
+}
+.ld-tab-on {
+  color: var(--sb-primary, #007aff);
+  border-color: var(--sb-primary, #007aff);
+}
+
+/* ── 舞台：两层绝对叠放，靠 opacity 换场 ── */
+.ld-stage {
+  position: relative;
+  height: 302px;
+  overflow: hidden;
+}
+.ld-layer {
+  position: absolute;
+  inset: 0;
+  padding: 16px 18px;
+  opacity: 1;
+  transition: opacity 0.38s ease;
+}
+.ld-layer.ld-hide,
+.ld-review {
+  opacity: 0;
+  pointer-events: none;
+}
+.ld-review.ld-on {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── 对话层 ── */
+.ld-row {
+  display: flex;
+  justify-content: flex-end;
+}
+.ld-ask {
+  background: var(--sb-primary, #007aff);
+  color: #fff;
+  font-size: var(--sb-fs-md, 13px);
+  line-height: 1.5;
+  padding: 7px 12px;
+  border-radius: 12px 12px 3px 12px;
+}
+.ld-reply {
+  position: relative;
+  margin-top: 14px;
+}
+.ld-who {
+  font-size: var(--sb-fs-xs, 11px);
+  color: var(--sb-ink-tertiary, #9aa1b0);
+  margin-bottom: 5px;
+}
+.ld-text {
+  font-size: var(--sb-fs-md, 13px);
+  line-height: 1.85;
+  color: var(--sb-ink, #1e2433);
+  margin: 0;
+}
+
+/* 词条高亮：首现实线、复现虚点线（与真机口径一致——同一段里同一个词连标三次不会变成一排框） */
+.ld-mark {
+  border-bottom: 1.5px solid rgba(0, 122, 255, 0.5);
+  background: var(--sb-primary-weak, rgba(0, 122, 255, 0.08));
+  border-radius: 2px;
+  padding: 0 1px;
+}
+.ld-mark-again {
+  border-bottom-style: dotted;
+  border-bottom-color: rgba(0, 122, 255, 0.45);
+  background: none;
+}
+
+.ld-caret {
+  display: inline-block;
+  width: 2px;
+  height: 13px;
+  background: var(--sb-primary, #007aff);
+  vertical-align: -2px;
+  margin-left: 1px;
+  animation: ld-blink 1s steps(1, end) infinite;
+}
+@keyframes ld-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ── 悬浮速览卡（挂在回复正下方，随回复实际高度走，不受换行影响） ── */
+.ld-hover {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 100%;
+  margin-top: 10px;
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-line, rgba(30, 40, 60, 0.12));
+  border-left: 3px solid var(--sb-primary, #007aff);
+  border-radius: var(--sb-radius-md, 12px);
+  padding: 10px 12px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.ld-hover.ld-on {
+  opacity: 1;
+  transform: translateY(0);
+}
+.ld-hover-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+.ld-hover-term {
+  font-size: var(--sb-fs-md, 13px);
+  font-weight: 600;
+  color: var(--sb-ink, #1e2433);
+}
+.ld-hover-domain {
+  font-size: var(--sb-fs-xs, 11px);
+  color: var(--sb-ink-secondary, #6b7385);
+}
+.ld-hover-used {
+  margin-left: auto;
+  font-size: var(--sb-fs-xs, 11px);
+  color: var(--sb-ink-tertiary, #9aa1b0);
+}
+.ld-hover-def {
+  font-size: var(--sb-fs-sm, 12.5px);
+  line-height: 1.6;
+  color: var(--sb-ink-secondary, #6b7385);
+  margin: 5px 0 0;
+}
+.ld-hover-acts {
+  display: flex;
+  gap: 14px;
+  margin-top: 8px;
+  font-size: var(--sb-fs-xs, 11px);
+  color: var(--sb-primary, #007aff);
+}
+
+/* ── 入库提示（钉在舞台底部） ── */
+.ld-chip {
+  position: absolute;
+  left: 18px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-line, rgba(30, 40, 60, 0.12));
+  border-radius: 999px;
+  padding: 5px 13px 5px 10px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.ld-chip.ld-on {
+  opacity: 1;
+  transform: translateY(0);
+}
+.ld-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sb-success, #22c55e);
+}
+.ld-chip-text {
+  font-size: var(--sb-fs-sm, 12.5px);
+  color: var(--sb-ink, #1e2433);
+}
+.ld-chip-num {
+  font-size: var(--sb-fs-sm, 12.5px);
+  color: var(--sb-primary, #007aff);
+}
+
+/* ── 复习层：翻牌 ── */
+.ld-rv-label {
+  font-size: var(--sb-fs-xs, 11px);
+  color: var(--sb-ink-tertiary, #9aa1b0);
+  margin-bottom: 12px;
+}
+.ld-flipwrap {
+  perspective: 900px;
+  display: flex;
+  justify-content: center;
+}
+.ld-flip {
+  position: relative;
+  width: 300px;
+  max-width: 100%;
+  height: 168px;
+  transform-style: preserve-3d;
+  transition: transform 0.6s ease;
+}
+.ld-flip.ld-flipped {
+  transform: rotateY(180deg);
+}
+.ld-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-line, rgba(30, 40, 60, 0.12));
+  border-radius: var(--sb-radius-lg, 16px);
+  padding: 16px 18px;
+}
+.ld-front {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.ld-due {
+  font-size: var(--sb-fs-xs, 11px);
+  color: var(--sb-danger, #ef4444);
+}
+.ld-front-term {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--sb-ink, #1e2433);
+}
+.ld-front-hint {
+  font-size: var(--sb-fs-xs, 11px);
+  color: var(--sb-ink-tertiary, #9aa1b0);
+}
+.ld-back {
+  transform: rotateY(180deg);
+  border-top: 3px solid var(--sb-primary, #007aff);
+}
+.ld-back-def {
+  font-size: var(--sb-fs-sm, 12.5px);
+  line-height: 1.65;
+  color: var(--sb-ink, #1e2433);
+  margin: 0;
+}
+.ld-bars {
+  display: flex;
+  gap: 4px;
+  margin-top: 13px;
+}
+.ld-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sb-line, rgba(30, 40, 60, 0.14));
+}
+.ld-bar-on {
+  background: var(--sb-primary, #007aff);
+}
+.ld-days {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--sb-ink-tertiary, #9aa1b0);
+}
+.ld-back-note {
+  margin-top: 9px;
+  font-size: var(--sb-fs-xs, 11px);
+  color: var(--sb-ink-secondary, #6b7385);
+}
+
+/* ── 底部阶段条 ── */
+.ld-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border-top: 1px solid var(--sb-line, rgba(30, 40, 60, 0.1));
+  background: var(--sb-sidebar, #f5f5f7);
+}
+.ld-progress {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.ld-pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sb-line, rgba(30, 40, 60, 0.16));
+  transition: background 0.3s ease;
+}
+.ld-pip-on {
+  background: var(--sb-primary, #007aff);
+}
+.ld-caption {
+  font-size: var(--sb-fs-xs, 11px);
+  line-height: 1.4;
+  color: var(--sb-ink-secondary, #6b7385);
+}
+
+/* ── 窄屏：舞台加高（文本换行多一行） ── */
+@media (max-width: 880px) {
+  .ld-stage {
+    height: 330px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ld-layer,
+  .ld-hover,
+  .ld-chip,
+  .ld-flip,
+  .ld-pip {
+    transition: none;
+  }
+  .ld-caret {
+    animation: none;
+  }
+}

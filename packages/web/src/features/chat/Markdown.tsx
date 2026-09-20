@@ -39,6 +39,15 @@ function InlineNodes({ nodes }: { nodes: Inline[] }) {
                 <InlineNodes nodes={n.children} />
               </a>
             );
+          case 'image':
+            /**
+             * 图源已由解析层白名单（只放行 http/https）过滤过，这里只负责呈现。
+             * `lazy` 防长回答多图同时拉取；`no-referrer` 是不把本应用地址顺带给第三方站点
+             * ——图片地址是模型给的，不该顺带漏出用户侧的来源信息。
+             */
+            return (
+              <img key={i} className="md-img" src={n.src} alt={n.alt} loading="lazy" referrerPolicy="no-referrer" />
+            );
           case 'br':
             return <br key={i} />;
           default:

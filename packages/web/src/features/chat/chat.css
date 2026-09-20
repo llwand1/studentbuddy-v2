@@ -568,6 +568,15 @@
   cursor: zoom-in;
 }
 
+/* 被拒图片的说明（单张过大 / 超出张数）：**不静默丢弃**，但也不该抢主体视觉，
+   故用正文小一号的字、配色走 danger。 */
+.chat-att-hint {
+  padding: 0 var(--sb-sp-3);
+  margin-bottom: var(--sb-sp-2);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-danger, #e5484d);
+}
+
 /* ---- v18 grill-me 追问模式（2026-09-16） ---- */
 /* 状态 pill：模式收在「+」菜单里，开着必须在框外说一句（同「联网开着必说」的口径） */
 .chat-grill-pill {

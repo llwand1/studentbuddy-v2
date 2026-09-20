@@ -10,6 +10,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { useState } from 'react';
 import { render, fireEvent, screen, cleanup, type RenderResult } from '@testing-library/react';
+import { MAX_IMAGE_DATAURL_CHARS } from '@sb/shared';
 import { ChatComposer } from './ChatComposer';
 import type { DocMode } from './useDocMode';
 
@@ -220,5 +221,30 @@ describe('ChatComposer 输入区', () => {
     });
     // 收的是先到的 4 张，越线那张连读取都不该发起
     expect(names()).toEqual(['a0.png', 'a1.png', 'a2.png', 'b0.png']);
+  });
+
+  /**
+   * 本批新增的即时反馈：此前单张过大要等「点发送」撞 express 413 才知道，而 413 发生在
+   * 路由之前、业务层看不见，症状是「点发送没反应」——最难定位的那一类。
+   * 现在读取完当场判、当场说，且**不静默**（用户以为选上了却不见图，比报错更糟）。
+   */
+  it('单张过大的图当场被拒：不进托盘，并给出可见说明', async () => {
+    function Harness() {
+      const [imgs, setImgs] = useState<Array<{ dataUrl: string; name?: string }>>([]);
+      return <ChatComposer {...base({ attachments: imgs, setAttachments: setImgs })} />;
+    }
+    const { container } = render(<Harness />);
+    // 原字节取「上限 × 3/4」再 +3 字节：base64 后（膨胀 4/3）恰好越过单张上限
+    const bytes = Math.ceil((MAX_IMAGE_DATAURL_CHARS * 3) / 4) + 3;
+    const big = new File([new Uint8Array(bytes)], 'big.png', { type: 'image/png' });
+    const ev = new Event('paste', { bubbles: true, cancelable: true }) as Event & {
+      clipboardData: { items: Array<{ type: string; getAsFile: () => File }> };
+    };
+    ev.clipboardData = { items: [{ type: big.type, getAsFile: () => big }] };
+    fireEvent(container.querySelector('textarea') as Element, ev);
+    await vi.waitFor(() => {
+      expect(container.querySelector('.chat-att-hint')?.textContent).toContain('过大');
+    });
+    expect(container.querySelectorAll('.chat-att').length).toBe(0); // 没进托盘
   });
 });

@@ -6,6 +6,7 @@
  * 的错误（而不是笼统的「模型不可用」），这正是 ADR-5「报错说真话」的落地。
  */
 import { describe, it, expect, vi } from 'vitest';
+import { MAX_CHAT_IMAGES, MAX_IMAGE_DATAURL_CHARS } from '@sb/shared';
 import type { LLMAdapter } from '../llm/types.js';
 import { describeImages, parseIncomingImages } from './vision.js';
 
@@ -106,15 +107,19 @@ describe('parseIncomingImages（HTTP 边界校验）', () => {
     expect(r).toEqual({ ok: true, images: [{ dataUrl: png }] });
   });
 
-  it('超 4 张拒绝', () => {
-    const many = Array.from({ length: 5 }, () => ({ dataUrl: png }));
+  it(`超 ${MAX_CHAT_IMAGES} 张拒绝`, () => {
+    const many = Array.from({ length: MAX_CHAT_IMAGES + 1 }, () => ({ dataUrl: png }));
     const r = parseIncomingImages(many);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toMatch(/最多上传 4 张/);
+    if (!r.ok) expect(r.error).toMatch(new RegExp(`最多上传 ${MAX_CHAT_IMAGES} 张`));
   });
 
   it('单张超限拒绝（拦在路由层，别让它打爆视觉模型）', () => {
-    const r = parseIncomingImages([{ dataUrl: `data:image/png;base64,${'A'.repeat(7_000_001)}` }]);
+    // ★ 边界从 `@sb/shared` 的常量取，不写死数字：写死的话调了限额这条锁就悄悄失去意义
+    //   （旧版写的是 7_000_001，与当时的 MAX_DATAURL_CHARS 巧合同步；上限改成 500 万后
+    //   它仍然「碰巧」会过——但那已经不是它声称在测的那个边界了）
+    const over = 'A'.repeat(MAX_IMAGE_DATAURL_CHARS + 1);
+    const r = parseIncomingImages([{ dataUrl: `data:image/png;base64,${over}` }]);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/过大/);
   });

@@ -58,7 +58,7 @@ function placeCard(card: HTMLElement, anchor: HTMLElement): void {
 }
 
 export function TermText({ text }: { text: string }) {
-  const { ready, find, lookup, refresh, openTerms } = useTermIndex();
+  const { ready, find, lookup, refresh, openTerms, followUp } = useTermIndex();
   /** 命中在索引就绪前恒为空 ⇒ 首屏不闪、不误标 */
   const hits = useMemo(() => (ready ? find(text) : []), [ready, find, text]);
 
@@ -204,6 +204,7 @@ export function TermText({ text }: { text: string }) {
                 onClose={closeNow}
                 onChanged={refresh}
                 {...(openTerms ? { onOpenTerms: openTerms } : {})}
+                {...(followUp ? { onFollowUp: followUp } : {})}
               />
             </div>,
             document.body,

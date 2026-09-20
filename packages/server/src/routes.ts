@@ -12,17 +12,11 @@ import { getProviders, seedIfEmpty, MODEL_ROLES } from './llm/router.js';
 import { OpenAICompatibleAdapter } from './llm/openai.js';
 import { AnthropicAdapter } from './llm/anthropic.js';
 import { encryptSecret, decryptSecret, isEncrypted } from './storage/crypto.js';
-import { searchWeb, listKeyStatus, saveProviderKey, KEYED_PROVIDERS } from './search/index.js';
-import { loadQuizMix, saveQuizMix, loadQuizImage, saveQuizImage } from './learning/quiz.js';
-import {
-  loadAnswerStyle,
-  saveAnswerStyle,
-  resetAnswerStyle,
-  isAnswerStyleConfigured,
-} from './storage/answer-style.js';
-import { DEFAULT_ANSWER_STYLE, normalizeQuizMix } from '@sb/shared';
-import { ownerIdOf, ownerFilter, canAccessSession, insertSession } from './auth/ownership.js';
+import { ownerIdOf, ownerFilter, canAccessSession, sessionExists, insertSession } from './auth/ownership.js';
 import { dropSessionMessages } from './search/fts-index.js';
+import { normalizeFollowUpRequest } from '@sb/shared';
+import { createFollowUpSession } from './chat/follow-up.js';
+import { startFollowUpRun } from './routes/chat.js';
 
 // ── sessions ──────────────────────────────────────────────
 export const sessionsRouter = Router();
@@ -114,6 +108,51 @@ sessionsRouter.get('/:id/live', (req: Request, res: Response) => {
     return;
   }
   res.json({ events: snapshot(id) });
+});
+
+/**
+ * 「向 AI 追问」：从本会话**分叉**出一个专门深挖某个词条的新会话
+ * （契约 `docs/KNOWLEDGE-FOLLOWUP-SPEC.md` §5）。
+ *
+ * ★ 归属断言**必须在归一之前**：不归属一律 404（与 sessions 域其余端点同口径）。
+ *   反过来的话，一句超长的 `term` 会先吃到 400 —— 而那等于告诉未授权者
+ *   「这个 id 是存在的，只是你参数写错了」（TENANCY-SPEC §5 要避免的泄露）。
+ *
+ * ★ 201 而不是 200：这条端点**确实创建了一个资源**（新会话），与 `POST /api/sessions` 同形。
+ *   顺带起的这次生成是副作用，不改变"创建了什么"的语义。
+ *
+ * ★ 响应**不带 prompt**（首问正文）：它会作为该会话的第一条 user 消息被正常落库，
+ *   前端切过去看历史就有了。在响应里再塞一份，等于给同一段文本造两个真相源。
+ */
+sessionsRouter.post('/:id/fork', (req: Request, res: Response) => {
+  const parentId = req.params.id ?? '';
+  const ownerId = ownerIdOf(req);
+  if (!canAccessSession(parentId, ownerId)) {
+    res.status(404).json({ error: '会话不存在' });
+    return;
+  }
+  // ★ 比同域其余端点**多一道存在性断言**：本端点要**落一行引用父会话的记录**（`forked_from_id`），
+  //   而 `canAccessSession` 在未登录单人模式下不查库就放行 —— 不补这一道，
+  //   `POST /api/sessions/<乱写的 id>/fork` 会返回 201 并留下一条指向虚空的 fork 记录
+  //   （带着「追问：X」的标题挂在侧栏，用户删都删不明白）。只读端点不需要它（查不到就是空）。
+  if (!sessionExists(parentId)) {
+    res.status(404).json({ error: '会话不存在' });
+    return;
+  }
+  const norm = normalizeFollowUpRequest(req.body);
+  if (!norm.ok) {
+    res.status(400).json({ error: norm.error });
+    return;
+  }
+  const { result, prompt } = createFollowUpSession({
+    parentSessionId: parentId,
+    term: norm.value.term,
+    question: norm.value.question,
+    ownerId,
+  });
+  // 起流后再回响应：`startFollowUpRun` 是同步登记（不 await 生成），故响应不会被生成拖住
+  startFollowUpRun({ sessionId: result.sessionId, prompt, ownerId });
+  res.status(201).json(result);
 });
 
 // ── providers / 角色绑定（M2c：归属，契约 docs/TENANCY-SPEC.md §8.1）────────
@@ -303,82 +342,10 @@ providersRouter.get('/:id/key-status', (req: Request, res: Response) => {  const
   res.json({ encrypted: isEncrypted(row.api_key), roundtrip });
 });
 
-// ── settings（搜索 key：密文落库，响应只回状态）──────────────
-export const settingsRouter = Router();
-
-settingsRouter.get('/search-keys', (req, res) => {
-  res.json({ configured: listKeyStatus(ownerIdOf(req)) });
-});
-
-settingsRouter.put('/search-keys', (req: Request, res: Response) => {
-  const body = req.body as Record<string, unknown>;
-  const patch: Array<{ key: (typeof KEYED_PROVIDERS)[number]; value: string }> = [];
-  for (const key of KEYED_PROVIDERS) {
-    const value = body[key];
-    if (typeof value !== 'string') continue;
-    const trimmed = value.trim();
-    if (trimmed.length > 300) {
-      res.status(400).json({ error: `${key} key 过长（上限 300 字符）` });
-      return;
-    }
-    patch.push({ key, value: trimmed });
-  }
-  // 先全量校验再落库：避免一个字段超限导致半写状态
-  for (const item of patch) saveProviderKey(item.key, item.value, ownerIdOf(req));
-  res.json({ ok: true, configured: listKeyStatus(ownerIdOf(req)) });
-});
-
-// ── settings：出题题型配比（v30 起**每用户一份**，对话页「出题」与题库页「一键出题」共用）──
-settingsRouter.get('/quiz-mix', (req, res) => {
-  res.json({ mix: loadQuizMix(ownerIdOf(req)) });
-});
-
-settingsRouter.put('/quiz-mix', (req: Request, res: Response) => {
-  // 入参一律过归一化（负数/小数/超上限/全 0 都有既定归宿），落库即干净值
-  const mix = saveQuizMix(normalizeQuizMix((req.body as { mix?: unknown }).mix), ownerIdOf(req));
-  res.json({ ok: true, mix });
-});
-
-// ── settings：出题配图开关（契约 docs/QUIZ-IMAGE-SPEC.md §2.2）──
-settingsRouter.get('/quiz-image', (req, res) => {
-  res.json({ on: loadQuizImage(ownerIdOf(req)) });
-});
-
-settingsRouter.put('/quiz-image', (req: Request, res: Response) => {
-  // 只认真值，其余一律按关处理（saveQuizImage 内归一化）
-  const on = saveQuizImage((req.body as { on?: unknown }).on === true, ownerIdOf(req));
-  res.json({ ok: true, on });
-});
-
-// ── settings：回答方式偏好（契约 docs/ANSWER-STYLE-SPEC.md §2）──
-settingsRouter.get('/answer-style', (req, res) => {
-  // configured 是 L1 的开关量：没配过 与 配成默认值 在 style 上看不出区别
-  res.json({ style: loadAnswerStyle(ownerIdOf(req)), configured: isAnswerStyleConfigured(ownerIdOf(req)) });
-});
-
-settingsRouter.put('/answer-style', (req: Request, res: Response) => {
-  // 入参逐字段过归一化（非法/缺失各自回落默认，不 400），回读的是实际落库值
-  const style = saveAnswerStyle((req.body as { style?: unknown }).style, ownerIdOf(req));
-  res.json({ style, configured: true });
-});
-
-settingsRouter.delete('/answer-style', (req, res) => {
-  // 删键＝回到「没配过」：下次点出题会重新弹一次选项卡
-  resetAnswerStyle(ownerIdOf(req));
-  res.json({ style: { ...DEFAULT_ANSWER_STYLE }, configured: false });
-});
-
-/** 搜索连通性自检：真发一次（国产网络可用性必须实测，不接受纸面判断；绕缓存才叫自检）。 */
-settingsRouter.post('/search/test', async (req: Request, res: Response) => {
-  const query = String((req.body as { query?: unknown }).query ?? '学习 方法').slice(0, 80);
-  try {
-    // ★ 自检必须用**请求者自己的** key：用别人的 key 自检，通过与否都不代表他的配置可用
-    const { results, providers, failed } = await searchWeb(query, ownerIdOf(req), { skipCache: true });
-    res.json({ ok: results.length > 0, count: results.length, providers, failed });
-  } catch (err) {
-    res.json({ ok: false, count: 0, providers: [], failed: [err instanceof Error ? err.message : String(err)] });
-  }
-});
+// ── settings 路由已整段拆到 ./routes/settings.ts ──
+// 本批（词条朗读）加三端点后 `routes.ts` 触 `server/.ts ≤400` 红线，按仓规**拆文件不压注释**。
+// 这里 re-export，保住 `index.ts` 的 `app.use('/api/settings', settingsRouter)` 零改动。
+export { settingsRouter } from './routes/settings.js';
 
 export function initChatInfra(): void {
   seedIfEmpty();

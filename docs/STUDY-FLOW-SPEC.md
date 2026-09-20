@@ -345,6 +345,24 @@ knowledge_edge (id PK, from_node_id, to_node_id, kind, origin, weight, evidence,
   `note` / `turn` 的定位**缺可靠锚点**（`quiz_notes` 无 session 列）⇒ **不猜**，列入 §7。
 - `upstream`（前面各步的产出）由 `collectUpstream` 收集，是**步骤间传数据的唯一通道**。
 
+### §6.7 产物词条的「向 AI 追问」入口（v0.2.85，2026-09-20）
+
+运行轨迹末尾那排产出词条**不只是展示**：点一个就能就地向 AI 追问，走的是与词条卡
+**完全同一个** `POST /api/sessions/:id/fork`（契约 `docs/KNOWLEDGE-FOLLOWUP-SPEC.md` §6）
+⇒ **服务端零改动、零迁移、零新依赖**。前端落点：`features/study-flow/ProducedNodes.tsx`
+（`RunPanel` 的产出块整体抽出，原只是一排死 chip）。
+
+- ★★ **父会话是「那一次运行的会话」**（`flow_run.session_id`，§2.1），**不是**「当前打开的会话」。
+  学习流页与对话页是两个视图，用户此刻并没有「正在看的对话」；传错就等于**从别的会话分叉**，
+  而现象只是「图上少了几条边」、极难察觉。实现上走 `FollowUpAction` 的第三参 `fromSessionId`
+  （定义在 `packages/web/src/lib/api.ts` 单点）。
+- **只对 `term` 节点给入口**：`term_library` 有 `source_session_id`，服务端据此才连得上星心；
+  `note` / `concept` 没有对应词条行 ⇒ 追问会开出一个**连不上任何边**的会话（静默空转），
+  ADR-5 不许静默 ⇒ 那种节点连按钮都不给。当前 `emitTermNodes`（§6.6）只产 `term`，
+  这条判据是**为将来**立的。
+- **`sessionId` 为 null 时不给控件**：`createRun` 会自动建会话（§2.1），故正常路径下不会为空；
+  仍留判据与"不吹可以追问"的文案口径（ADR-5）。
+
 ---
 
 ## §7 待接执行器清单（`flow-registry.ts` 如实报错的依据）

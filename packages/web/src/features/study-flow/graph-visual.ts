@@ -64,6 +64,26 @@ export interface GraphLayout {
   rings: number[];
 }
 
+/**
+ * 布局的**尺寸可调项**（都有默认值 ⇒ 不传就是知识图页的原尺寸）。
+ *
+ * ★ 为什么需要它：落地页 hero 的演示窗只有 ~550×270 的可用区，而知识图页是 680×420。
+ *   若把 680×480 的坐标硬塞进演示窗再等比缩小，节点卡片会缩到 60px 宽、字号掉到 7px——
+ *   演示的意义（让人看清"词条之间连起来了"）当场没了。
+ *
+ * ★ 只调**尺寸**、不动**规则**：分层、扇区角序、边缩进、孤立节点兜底全部照旧。
+ *   若为演示另写一份布局，两份必然漂开（同 RefList / ReviewPanel 的先例），
+ *   而"演示里的图长什么样"恰恰是用户对知识图的第一印象——漂了比没有更糟。
+ */
+export interface GraphLayoutOptions {
+  /** 一跳环半径（默认 `RING_R1`＝122） */
+  ringR1?: number;
+  /** 每多一跳的半径增量（默认 `RING_STEP`＝74） */
+  ringStep?: number;
+  /** 节点卡片尺寸（默认 `NODE_BOX`）——边端点按它缩进，小了必须同步传 */
+  box?: { w: number; h: number };
+}
+
 /** 标签截断：超长词条名会把画布撑烂，截断比换行好（换行会让节点高度不定） */
 export function clipLabel(text: string, max = 9): string {
   const s = text.trim();
@@ -82,7 +102,10 @@ export function rectEdgePoint(
   cy: number,
   towardX: number,
   towardY: number,
-  box = NODE_BOX,
+  // ★ 显式声明为「宽高各是一个数」而不是 `typeof NODE_BOX`：后者是 `as const` 出来的
+  //   字面量类型（`{readonly w:108; readonly h:34}`），会把调用方锁死在 108×34 上，
+  //   落地页演示窗的小卡片（92×26）传不进来。默认值仍是 NODE_BOX，行为不变。
+  box: { w: number; h: number } = NODE_BOX,
 ): { x: number; y: number } {
   const dx = towardX - cx;
   const dy = towardY - cy;
@@ -108,9 +131,17 @@ export function rectEdgePoint(
  * ★ 同层角序用**节点 id 排序**而非入参顺序：同一份数据必须摆出同一张图，
  *   否则用户每点一次刷新，图就转一个角度（"图在动" 会让人怀疑数据变了）。
  */
-export function layoutNeighborhood(nb: KnowledgeNeighborhood, view = GRAPH_VIEW): GraphLayout {
+export function layoutNeighborhood(
+  nb: KnowledgeNeighborhood,
+  view = GRAPH_VIEW,
+  opts: GraphLayoutOptions = {},
+): GraphLayout {
   const cx = view.w / 2;
   const cy = view.h / 2;
+  // 尺寸可调项（不传即原尺寸；见 GraphLayoutOptions 的说明）
+  const r1 = opts.ringR1 ?? RING_R1;
+  const step = opts.ringStep ?? RING_STEP;
+  const box = opts.box ?? NODE_BOX;
 
   // ── ① BFS 分层（无向；只走邻域返回的那批边） ──
   //
@@ -154,7 +185,7 @@ export function layoutNeighborhood(nb: KnowledgeNeighborhood, view = GRAPH_VIEW)
   const angle = new Map<string, number>([[nb.center.id, -Math.PI / 2]]);
   const place = new Map<string, PlacedNode>();
 
-  const ringOf = (d: number) => (d === 0 ? 0 : RING_R1 + (d - 1) * RING_STEP);
+  const ringOf = (d: number) => (d === 0 ? 0 : r1 + (d - 1) * step);
   const at = (id: string, d: number, ang: number): PlacedNode => {
     const r = ringOf(d);
     return {
@@ -214,8 +245,8 @@ export function layoutNeighborhood(nb: KnowledgeNeighborhood, view = GRAPH_VIEW)
     const a = place.get(e.fromNodeId);
     const b = place.get(e.toNodeId);
     if (!a || !b) continue; // 兜底：理论上 ① 已滤过，这里防住后续改动引入的失配
-    const p1 = rectEdgePoint(a.x, a.y, b.x, b.y);
-    const p2 = rectEdgePoint(b.x, b.y, a.x, a.y);
+    const p1 = rectEdgePoint(a.x, a.y, b.x, b.y, box);
+    const p2 = rectEdgePoint(b.x, b.y, a.x, a.y, box);
     edges.push({
       edge: e,
       x1: p1.x,

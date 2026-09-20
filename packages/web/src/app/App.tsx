@@ -18,13 +18,13 @@ import {
   StatsIcon,
   SettingsIcon,
   PlusIcon,
-  PinIcon,
   ChevronDownIcon,
   ClockIcon,
   FlowIcon,
   GraphIcon,
 } from '../components/icons';
 import { api } from '../lib/api';
+import { SessionList } from './SessionList';
 import { ChatView } from '../features/chat/ChatView';
 import { TermIndexProvider } from '../features/chat/term-index';
 import { GlobalSearch } from '../features/search/GlobalSearch';
@@ -126,6 +126,33 @@ export function App() {
     await reloadSessions();
   }, [reloadSessions]);
 
+  /**
+   * 「向 AI 追问」（契约 `docs/KNOWLEDGE-FOLLOWUP-SPEC.md` §6）——**全仓唯一实现**：
+   * 词条卡与学习流页的产出词条都调这一条（`FollowUpAction`，见 `lib/api.ts`）。
+   *
+   * 服务端负责建 fork 会话 + 带原对话摘要 + 立刻起流；**App 只做两件事**：切过去、刷列表
+   * （新会话得立刻出现在侧栏，否则用户会以为没建成）。
+   *
+   * ★ 必须声明在 `reloadSessions` **之后**（依赖它；`const` 不会提升）。
+   * ★ `fromSessionId` 省缺 ＝ **当前正看着的那条会话**（`currentId`）：`TermIndexProvider`
+   *   只在 `view === 'chat'` 时挂载，而那时 `currentId` 就是用户正看着的那条 ⇒ 没有"传空 id"
+   *   的窗口。学习流页是**另一个视图**（它没有"当前会话"），故显式传 `flow_run.session_id`
+   *   （理由见 `study-flow/ProducedNodes.tsx` 文件头 ①）；兜底报错仍留着——将来若把 Provider
+   *   提到壳外，静默分叉到 `null` 会很难查。
+   * ★ **不吞错**：交给控件显示（"点了没反应"是这类跨页动作最糟的形态）。
+   */
+  const followUp = useCallback(
+    async (term: string, question?: string, fromSessionId?: string) => {
+      const from = fromSessionId ?? currentId;
+      if (!from) throw new Error('还没有打开任何对话，无法从这里追问');
+      const r = await api.sessions.fork(from, term, question);
+      setView('chat');
+      setCurrentId(r.sessionId);
+      await reloadSessions(); // 内部已 try/catch，不会 reject
+    },
+    [currentId, reloadSessions],
+  );
+
   const openSession = (id: string) => {
     setView('chat');
     setCurrentId(id);
@@ -210,47 +237,16 @@ export function App() {
         {/* 全站搜索第二路（契约 docs/FTS-SPEC.md §3.4）：上面那路纯前端 title 过滤**保留不动**，两路并存。
             折叠历史区时传空串 ⇒ 面板整块不渲染（它自己判 `active`，不额外占 App 的行数预算）。 */}
         <GlobalSearch query={historyOpen ? query : ''} onOpenSession={openSession} onOpenTerm={openTerms} onOpenNotes={openNotes} />
-        <div className={historyOpen ? 'sb-session-list' : 'sb-session-list collapsed'}>
-          {visible.map((s) => (
-            <div
-              key={s.id}
-              className={currentId === s.id && view === 'chat' ? 'sb-session active' : 'sb-session'}
-              onClick={() => openSession(s.id)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && openSession(s.id)}
-            >
-              <span className="sb-session-title">{s.title || '新对话'}</span>
-              {busy.has(s.id) && (
-                <span className="sb-session-busy" role="status">
-                  <span className="sb-session-busy-dot" />
-                  回复中
-                </span>
-              )}
-              <button
-                className={s.pinned ? 'sb-session-pin pinned' : 'sb-session-pin'}
-                title={s.pinned ? '取消置顶' : '置顶'}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void togglePin(s);
-                }}
-              >
-                <PinIcon size={13} />
-              </button>
-              <button
-                className="sb-session-del"
-                title="删除"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void removeSession(s.id);
-                }}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          {visible.length === 0 && query && <div className="sb-session-empty">没有匹配的会话</div>}
-        </div>
+        <SessionList
+          sessions={visible}
+          activeId={view === 'chat' ? currentId : null}
+          collapsed={!historyOpen}
+          busy={busy}
+          emptyHint={query ? '没有匹配的会话' : null}
+          onOpen={openSession}
+          onTogglePin={(s) => void togglePin(s)}
+          onRemove={(id) => void removeSession(id)}
+        />
 
         {/*
           底部用户区：只有账号这一个身份入口（邮箱+密码，见 components/AccountBox）。
@@ -263,9 +259,10 @@ export function App() {
       <main className="sb-main">
         {view === 'chat' && (
           /* 词条索引 Provider（契约 TERM-HIGHLIGHT-SPEC §5）：正文里的词条高亮与悬浮卡
-             都从这里取索引，`openTerms` 是卡片「打开词条库」的跨页出口。
+             都从这里取索引。两个跨页动作也从这里注入——`openTerms`＝卡片「打开词条库」，
+             `followUp`＝卡片「向 AI 追问」（契约 KNOWLEDGE-FOLLOWUP-SPEC §6）。
              挂在这里而不是 ChatView 内部，是为了让 ChatView 零 props 改动。 */
-          <TermIndexProvider onOpenTerms={openTerms}>
+          <TermIndexProvider onOpenTerms={openTerms} onFollowUp={followUp}>
             <ChatView
               sessionId={currentId}
               sessionTitle={sessions.find((s) => s.id === currentId)?.title}
@@ -275,7 +272,9 @@ export function App() {
             />
           </TermIndexProvider>
         )}
-        {view === 'flow' && <FlowPage onGoGraph={() => setView('graph')} />}
+        {/* 学习流页也挂「向 AI 追问」（契约 KNOWLEDGE-FOLLOWUP-SPEC §6）：入口在
+            `RunPanel` → `ProducedNodes`（本次运行产出的词条），父会话由它带 `flow_run.session_id`。 */}
+        {view === 'flow' && <FlowPage onGoGraph={() => setView('graph')} onFollowUp={followUp} />}
         {view === 'graph' && <KnowledgeGraphPage onOpenTerms={openTerms} />}
         {view === 'quiz' && <QuizBankPage onOpenNotes={openNotes} />}
         {view === 'notes' && (

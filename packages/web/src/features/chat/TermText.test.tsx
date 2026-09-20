@@ -267,6 +267,9 @@ describe('英文发音（契约 §3.1 v1.1）', () => {
     fireEvent.mouseOver(must(hls(container)[0]));
     await waitFor(() => expect(card()).not.toBeNull());
     fireEvent.click(screen.getByLabelText('朗读发音'));
+    // ★ `speakEnglish` 自本批起是 async（要先 `await` 一次「取朗读设置」）⇒ 断言 utterance
+    //   之前必须等它真的被构造出来，否则 `spoken` 还是 null（症状是「找不到朗读请求」）
+    await waitFor(() => expect(spoken).not.toBeNull());
     must(spoken, '朗读请求').onerror?.({ error: 'synthesis-failed' });
     await waitFor(() => expect(must(card()).textContent).toContain('朗读失败'));
   });

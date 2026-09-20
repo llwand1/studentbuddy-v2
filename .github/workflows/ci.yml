@@ -25,3 +25,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      # README/docs 里的定量数字必须与代码实测一致（漂移即红）——数字不许手抄，见 docs/metrics.md
+      - run: node tools/metrics.mjs --tests --check

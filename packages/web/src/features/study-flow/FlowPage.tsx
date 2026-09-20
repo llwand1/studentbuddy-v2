@@ -13,10 +13,12 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FlowDef, FlowStepKind, FlowPort } from '@sb/shared';
-import { api, ApiError } from '../../lib/api';
+import { api, ApiError, type FollowUpAction } from '../../lib/api';
 import type { FlowStepMetaWired } from '../../lib/api-study-flow';
 import { DefList } from './DefList';
 import { FlowCanvas } from './FlowCanvas';
+import { FlowEmpty } from './FlowEmpty';
+import { FlowTopbar } from './FlowTopbar';
 import { StepPanel } from './StepPanel';
 import { RunPanel } from './RunPanel';
 import { cloneDef as cloneFlow, createNewDef, newStepId, removeDef, saveDef } from './flow-actions';
@@ -25,7 +27,12 @@ import { runBlockReason } from './run-status';
 import { nextFreeCenter, type Point } from './flow-layout';
 import './flow.css';
 
-export function FlowPage({ onGoGraph }: { onGoGraph?: () => void }) {
+/**
+ * `onFollowUp`（契约 `docs/KNOWLEDGE-FOLLOWUP-SPEC.md` §6）：本页**只透传**给
+ * `RunPanel` → `ProducedNodes`，实现留在 `App`（它持有 `view`/`currentId`/会话列表）；
+ * ★ 学习流页没有"当前打开的对话"，父会话由 `ProducedNodes` 用 `flow_run.session_id` 带上。
+ */
+export function FlowPage({ onGoGraph, onFollowUp }: { onGoGraph?: () => void; onFollowUp?: FollowUpAction }) {
   const [metas, setMetas] = useState<FlowStepMetaWired[]>([]);
   const [defs, setDefs] = useState<FlowDef[]>([]);
   const [defId, setDefId] = useState<string | null>(null);
@@ -233,33 +240,18 @@ export function FlowPage({ onGoGraph }: { onGoGraph?: () => void }) {
 
       <div className="fl-main">
         {!draft ? (
-          <div className="fl-empty">
-            <p>选一条学习流开始编排</p>
-            <p className="fl-empty-sub">
-              学习流 = 固定下来的一套学习顺序。每一步是一个学习交互体验（讲解/出题/判分/复盘/沉淀/总结），
-              连线决定下一步跑哪个。
-            </p>
-          </div>
+          <FlowEmpty />
         ) : (
           <>
-            <div className="fl-topbar">
-              <input
-                className="fl-name"
-                value={draft.name}
-                placeholder="给这条流起个名字"
-                onChange={(e) => edit((d) => ({ ...d, name: e.target.value }))}
-              />
-              <span className="fl-ver">v{draft.version}</span>
-              {dirty && <span className="fl-dirty">有未保存的改动</span>}
-              <button className="fl-btn primary" disabled={!dirty || busy} onClick={() => void save()}>
-                保存
-              </button>
-            </div>
-            <input
-              className="fl-desc"
-              value={draft.description}
-              placeholder="一句话说明这条流是干什么的（可留空）"
-              onChange={(e) => edit((d) => ({ ...d, description: e.target.value }))}
+            <FlowTopbar
+              name={draft.name}
+              description={draft.description}
+              version={draft.version}
+              dirty={dirty}
+              busy={busy}
+              onName={(v) => edit((d) => ({ ...d, name: v }))}
+              onDescription={(v) => edit((d) => ({ ...d, description: v }))}
+              onSave={() => void save()}
             />
 
             <div className="fl-editor">
@@ -287,6 +279,7 @@ export function FlowPage({ onGoGraph }: { onGoGraph?: () => void }) {
               defId={draft.id}
               {...(runBlock ?? {})}
               {...(onGoGraph ? { onGoGraph } : {})}
+              {...(onFollowUp ? { onFollowUp } : {})}
               onJumpToStep={(id) => setSelStep(id)}
             />
           </>

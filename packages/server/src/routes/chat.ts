@@ -71,6 +71,38 @@ function trackRun(
     });
 }
 
+/**
+ * 起一次追问生成（契约 `docs/KNOWLEDGE-FOLLOWUP-SPEC.md` §5.2）。
+ *
+ * ★ 这是**第四条**发起路径，但它**必须**复用上面的 `trackRun`，不能在 sessions 域里
+ *   自己 `new AbortController()`：那样会绕过进程内的中止器登记表，后果有两个、且都不报错——
+ *   ① 追问的回答**停不掉**（`POST /chat/abort` 查不到它）；
+ *   ② 侧栏的「回复中」徽标不亮（`GET /chat/active` 读的就是这张表）。
+ *   两条都是"用户以为自己没开始、其实后台在跑"的隐性症状，比崩溃难查得多。
+ *
+ * ★ 落在这里（chat 域）而不是 sessions 域的调用点：**"起一次生成"是 chat 域的职责**，
+ *   sessions 域只该知道"我要开一个 fork 会话"。前者改（比如将来加重试/并发闸），
+ *   后者一行都不用动。也免得 sessions 域去 import `chat/flow` 的 `handleMessage`。
+ *
+ * ★ 刻意**不传 `skipUserPersist`**：首问正文由正常链路落库，于是它**就是**该会话的第一条
+ *   user 消息（用户看得见、可编辑重发、回放一致）。服务端偷偷塞消息会造出影子状态。
+ */
+export function startFollowUpRun(input: {
+  sessionId: string;
+  prompt: string;
+  ownerId: string | null;
+}): void {
+  const controller = new AbortController();
+  trackRun(input.sessionId, input.ownerId, controller, () =>
+    handleMessage({
+      sessionId: input.sessionId,
+      text: input.prompt,
+      signal: controller.signal,
+      ownerId: input.ownerId,
+    }),
+  );
+}
+
 chatRouter.post('/send', (req: Request, res: Response) => {
   const { sessionId, text, images, grillMe, online } = req.body as {
     sessionId?: string;

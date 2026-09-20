@@ -6,15 +6,13 @@
 // 在 `***`、词内记号、列表标记上的误判。仍零外部依赖（remend 是本仓内的纯函数模块）。
 
 import { remend } from './remend';
+import { countOf, parseInline } from './markdown-inline';
+import type { Inline } from './markdown-inline';
 
-export type Inline =
-  | { t: 'text'; v: string }
-  | { t: 'strong'; children: Inline[] }
-  | { t: 'em'; children: Inline[] }
-  | { t: 'del'; children: Inline[] }
-  | { t: 'code'; v: string }
-  | { t: 'a'; children: Inline[]; href: string }
-  | { t: 'br' };
+/** 行内解析（Inline 类型与 parseInline）已搬至 `./markdown-inline`（2026-09-20 行数红线）。
+ *  这里**转出**而非让调用方改路径——既有 import（Markdown.tsx / 各测试）零改动。 */
+export { parseInline };
+export type { Inline };
 
 /** 列表项：checked 非空 = GFM 任务列表项；children = 缩进更深的子列表 */
 export interface ListItem {
@@ -46,101 +44,9 @@ const FENCE = /^ {0,3}```([+\-\w]*)\s*$/;
 /** 捕获组兜空：tsconfig 开了 noUncheckedIndexedAccess，正则结果一律显式取值。 */
 const g = (m: RegExpExecArray, k: number): string => m[k] ?? '';
 
-/** 子串出现次数：split 长度减一，省掉 match 的正则编译与中间数组。 */
-const countOf = (s: string, sub: string): number => s.split(sub).length - 1;
-
-/** 链接白名单：只放行 http/https/mailto 与站内锚点，javascript:/data: 直接降级为纯文本。 */
-function safeHref(raw: string): string | null {
-  const href = raw.trim();
-  if (/^(https?:|mailto:)/i.test(href) || /^(#|\/)/.test(href)) return href;
-  return null;
-}
-
-// ── 行内标记：递归下降 ──
-// 旧实现是「一组平坦正则顺序吞」，**a *b* c** 会因 * 定界符打架解析错乱；
-// 现改为先匹配最外层定界符、内部递归 parseInline，嵌套标记天然正确。code 内容是唯一不递归的例外。
-const INLINE_RULES: Array<{ re: RegExp; make: (m: RegExpExecArray) => Inline }> = [
-  { re: /^`([^`\n]+)`/, make: (m) => ({ t: 'code', v: g(m, 1) }) },
-  { re: /^\*\*(.+?)\*\*/, make: (m) => ({ t: 'strong', children: parseInline(g(m, 1)) }) },
-  { re: /^\*(.+?)\*/, make: (m) => ({ t: 'em', children: parseInline(g(m, 1)) }) },
-  { re: /^~~(.+?)~~/, make: (m) => ({ t: 'del', children: parseInline(g(m, 1)) }) },
-  { re: /^_([^_\n]+)_/, make: (m) => ({ t: 'em', children: parseInline(g(m, 1)) }) },
-  {
-    re: /^\[([^\]\n]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/,
-    make: (m) => {
-      const href = safeHref(g(m, 2));
-      // 危险协议不产出 <a>，也不吞字：整段原文回落成纯文本
-      if (!href) return { t: 'text', v: m[0] ?? '' };
-      return { t: 'a', children: parseInline(g(m, 1)), href };
-    },
-  },
-];
-
-/** 裸 URL（无 [文本](…) 包裹）：匹配后剥掉尾部粘住的标点，标点留给下一轮当普通字符。 */
-const AUTOLINK = /^https?:\/\/[^\s<>"]+/;
-
-function trimUrlTail(u: string): string {
-  let s = u;
-  while (s.length > 0) {
-    const ch = s[s.length - 1] ?? '';
-    // 右括号只有在数量不平衡（这个 ) 不是 URL 的一部分）时才剥，保住 Wikipedia 式链接
-    if (ch === ')') {
-      if (countOf(s, ')') > countOf(s, '(')) {
-        s = s.slice(0, -1);
-        continue;
-      }
-      break;
-    }
-    // URL 本体只可能是 ASCII：中文/全角字符紧贴 URL 时必须剥掉，否则半句中文被吞进 href；
-    // 尾部英文标点同理（URL 后粘逗号句号几乎总是标点）
-    if (ch.charCodeAt(0) > 127 || '.,;:!?]}。，；：！？、」』）】'.includes(ch)) {
-      s = s.slice(0, -1);
-      continue;
-    }
-    break;
-  }
-  return s;
-}
-
-/** 行内标记入口：`code` / **strong** / *em* / ~~del~~ / [文本](链接) / 裸 URL；未识别的记号原样保留。 */
-export function parseInline(text: string): Inline[] {
-  const out: Inline[] = [];
-  let buf = '';
-  let i = 0;
-  const flush = (): void => {
-    if (buf) out.push({ t: 'text', v: buf });
-    buf = '';
-  };
-  while (i < text.length) {
-    const rest = text.slice(i);
-    let matched = false;
-    for (const rule of INLINE_RULES) {
-      const m = rule.re.exec(rest);
-      if (m) {
-        flush();
-        out.push(rule.make(m));
-        i += m[0].length;
-        matched = true;
-        break;
-      }
-    }
-    if (matched) continue;
-    const al = AUTOLINK.exec(rest);
-    if (al) {
-      const url = trimUrlTail(g(al, 0));
-      if (url) {
-        flush();
-        out.push({ t: 'a', children: [{ t: 'text', v: url }], href: url });
-        i += url.length; // 只消费 URL 本体，剥下来的尾部标点回到下一轮按普通字符走
-        continue;
-      }
-    }
-    buf += text[i] ?? '';
-    i += 1;
-  }
-  flush();
-  return out;
-}
+// 行内解析（safeHref / safeImgSrc / INLINE_RULES / parseInline）已搬至 `./markdown-inline`
+// （2026-09-20 行数红线，见该文件头注）——`countOf` 也随它走，本文件改为 import。
+// 本文件只留块级切分与流式修补。
 
 // ── 块级 ──
 

@@ -6,6 +6,7 @@
  * 同一秒内的提问与回答分不出先后，按它删会误删提问或漏删回答。`rowid` 是插入序，单调且唯一。
  */
 import { getDb } from '../storage/db.js';
+import { dropMessagesAfter } from './persist.js';
 
 export interface RegenPlan {
   ok: boolean;
@@ -24,6 +25,8 @@ export function planRegenerate(sessionId: string): RegenPlan {
     .prepare(`SELECT rowid AS rid, content FROM messages WHERE session_id = ? AND role = 'user' ORDER BY rowid DESC LIMIT 1`)
     .get(sessionId) as { rid: number; content: string } | undefined;
   if (!row) return { ok: false, error: '这个会话还没有可以重新生成的提问' };
-  db.prepare('DELETE FROM messages WHERE session_id = ? AND rowid > ?').run(sessionId, row.rid);
+  // 删旧产物（回答 + 工具轮 + 半截）**并连带清搜索索引**——见 persist.ts 的同名函数头注：
+  // 索引是派生表，不会随源行级联消失，漏清就会留下永久搜不到的孤儿。
+  dropMessagesAfter(sessionId, row.rid);
   return { ok: true, text: row.content };
 }

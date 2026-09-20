@@ -24,6 +24,8 @@ import { studyFlowRouter } from './routes/study-flow.js';
 import { scenarioRouter } from './routes/scenario.js';
 import { coachRouter } from './routes/coach.js';
 import { toolsRouter } from './routes/tools.js';
+import { searchRouter } from './routes/search.js';
+import { ensureSearchIndex } from './search/fts-index.js';
 import { registerDefaultExecutors } from './learning/flow-executors.js';
 import { startTrendScheduler } from './learning/trend.js';
 import { wireActivityEvents } from './learning/activity.js';
@@ -144,6 +146,9 @@ app.use('/api/scenario', scenarioRouter);
 app.use('/api/coach', coachRouter);
 // P3 设置页「工具」卡（契约 TOOL-ECOSYSTEM-SPEC §6.3-4/§4.5）：阈值 + 30 天统计；P4 grants 同挂这里
 app.use('/api/tools', toolsRouter);
+// 全站全文搜索（契约 docs/FTS-SPEC.md §3.4）：本地库 fts5 检索。
+// ★ 与 `/api/settings/search-keys` 无关——那两条管联网搜索，这条查本地数据。
+app.use('/api/search', searchRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
@@ -177,6 +182,14 @@ if (process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('index.js
   // 账号（M1.5）：同理清理**过期且未消费**的验证码行。
   // ★ 只删"过期且未消费"的——**已消费的行留着**（审计），它们不是垃圾（见 auth/codes.ts）。
   purgeExpiredCodes();
+  // 全站搜索（契约 docs/FTS-SPEC.md §3.3）：v37 只建了**空的** `search_index` 表，
+  // 老库的历史数据要靠这一步进索引。策略是「索引为空就灌一遍、非空则跳过」——
+  // 每次启动都全量重建纯属浪费，而"空则灌"正好覆盖唯一必须灌的那次（升级后首次启动）。
+  // ★ 必须在 `startServer()` 之前跑完：索引没灌完时 `/api/search` 会静默返回空，
+  //   用户看到的是"搜索功能坏了"，而不是"索引还没建好"（本函数是同步的，天然先于接请求）。
+  const indexed = ensureSearchIndex();
+  // eslint-disable-next-line no-console -- 进程启动日志，与下面的启动横幅同类
+  if (indexed > 0) console.log(`[sb-server] 已为 ${indexed} 条记录建立搜索索引`);
   startServer();
   // 记忆联动 P4（契约 docs/MEMORY-TREND-SPEC.md §4.2）：督促趋势定时器。
   // ★ 放在启动链**最后**：它起服即先跑一次（否则首张图要等 6 小时），但全程 fire-and-forget，

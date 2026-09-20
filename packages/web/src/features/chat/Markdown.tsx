@@ -16,7 +16,9 @@ import { highlightCode, highlightStable, extFor } from '../../lib/highlight';
 import { SvgPreviewCard } from './SvgPreviewCard';
 import { ChartCard } from './ChartCard';
 import { HtmlCard } from './HtmlCard';
+import { TermText } from './TermText';
 import './markdown.css';
+import './term-highlight.css';
 
 function InlineNodes({ nodes }: { nodes: Inline[] }) {
   return (
@@ -40,7 +42,13 @@ function InlineNodes({ nodes }: { nodes: Inline[] }) {
           case 'br':
             return <br key={i} />;
           default:
-            return <span key={i}>{n.v}</span>;
+            /**
+             * 纯文本节点走 `TermText`：命中词条库的词会带上高亮与悬浮卡
+             * （契约 `docs/TERM-HIGHLIGHT-SPEC.md`）。无 Provider（笔记页等）或
+             * 无命中时它**原样返回文本**，不产生额外节点、不改既有 DOM 结构。
+             * ★ 行内 `code` 与围栏代码块在各自分支里，不经这里——代码不高亮。
+             */
+            return <TermText key={i} text={n.v} />;
         }
       })}
     </>

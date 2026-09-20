@@ -16,6 +16,8 @@ import {
   DOC_CHUNK_OVERLAP,
   DOC_INJECT_BUDGET_CHARS,
   DOC_TOP_K,
+  // ★ 本文件内部仍以 `tokenizeDoc` 之名调用它（见下方 re-export 注释），故此处取别名。
+  tokenizeForFts as tokenizeDoc,
 } from '@sb/shared';
 import type { RetrievedChunk } from '@sb/shared';
 
@@ -46,29 +48,19 @@ export interface Retriever {
   retrieve: (text: string, query: string, opts?: RetrieveOpts) => RetrievedChunk[];
 }
 
-/** CJK 基本区 + 扩展 A + 兼容表意区；单字级匹配，交给 bigram 组合成词 */
-const CJK_RUN = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]+/g;
-/** 英文词与数字（含小数、带点的版本号）——与 terms.ts 的 tokens() 同源思路 */
-const LATIN_NUM = /[a-z][a-z0-9.+-]*|\d+(?:\.\d+)?/g;
-
 /**
- * 中英混排分词：英文/数字按词切，中文按连续串切 **bigram**（长度为 1 的串保留单字）。
- * 中文不做真正的分词是刻意的：引分词器就是引依赖，且 bigram 对「一个字之差就换词」的
- * 学习类文本召回更稳（代价是词元数膨胀，由倒排索引 + 查询侧去重消化）。
+ * 中英混排分词（**2026-09-20 已上提为 shared 契约件**，见下）。
+ *
+ * ★ 实现**逐字平移**到 `@sb/shared` 的 `tokenizeForFts`（契约 `docs/FTS-SPEC.md` §3.1），
+ *   本文件改为 re-export，**调用行为一字未变**（`doc-retrieve.test.ts` 的断言原样通过）。
+ * ★ 为什么必须上提而不是在 FTS 那边再抄一份：全站搜索（`search/fts-index.ts`）的**索引侧**
+ *   与**查询侧**要用同一个切法，而文档 BM25 这边已经有一份实现——两份并存的后果是
+ *   「索引按 A 切、查询按 B 切 ⇒ 明明库里有就是搜不到」，且不报错。
+ *   把规则升为契约件后，两侧引用的是**同一个函数**，从模型上消灭分叉。
+ * ★ 用 re-export 而不是让调用方改 import：`doc-retrieve.test.ts` 与 `doc-rag` 相关
+ *   调用点都指着本文件，改路径等于白白打穿一批 import（同 `terms.ts` 的 re-export 手法）。
  */
-export function tokenizeDoc(s: string): string[] {
-  const low = s.toLowerCase();
-  const toks: string[] = low.match(LATIN_NUM) ?? [];
-  const cn: string[] = [];
-  for (const run of low.match(CJK_RUN) ?? []) {
-    if (run.length === 1) {
-      cn.push(run);
-      continue;
-    }
-    for (let i = 0; i + 2 <= run.length; i++) cn.push(run.slice(i, i + 2));
-  }
-  return cn.length ? toks.concat(cn) : toks;
-}
+export { tokenizeDoc };
 
 /**
  * 切块：按空行聚段到 `chunkChars`，相邻块带 `overlap` 字重叠防跨块断义。

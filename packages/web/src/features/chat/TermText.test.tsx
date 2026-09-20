@@ -6,6 +6,8 @@
  * 钉的是「屏幕上的东西真的出来了」这一层：命中切成高亮 span、首现/复现分档、
  * 悬停出速览卡、点击出完整卡、动作真的打到接口上、**无 Provider 时不报错也不高亮**。
  * 匹配规则本身（边界/大小写/重叠）在 `shared/term-highlight.test.ts`，这里不重复。
+ * v1.1 追加**英文发音**：喇叭出不出现（中英分档、别名命中、环境不支持）与点了读的是什么
+ * ——判定规则本身在 `lib/speech.test.ts`，这里只钉「接线接对了没」。
  */
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react';
@@ -22,6 +24,26 @@ function must<T>(v: T | null | undefined, what = '节点'): T {
   if (v === null || v === undefined) throw new Error(`找不到${what}`);
   return v;
 }
+
+/**
+ * `SpeechSynthesisUtterance` 的最小替身——jsdom **不实现**语音 API，
+ * 不打桩则 `canSpeak()` 恒假、喇叭永不出现（判定规则的边界在 `lib/speech.test.ts` 另测）。
+ */
+class FakeUtterance {
+  text: string;
+  lang = '';
+  onend: (() => void) | null = null;
+  onerror: ((e: { error: string }) => void) | null = null;
+  constructor(text: string) {
+    this.text = text;
+  }
+}
+
+let spoken: FakeUtterance | null = null;
+const cancelMock = vi.fn();
+const speakMock = vi.fn((u: FakeUtterance) => {
+  spoken = u;
+});
 
 const TERM: TermItem = {
   id: 'term-1',
@@ -64,9 +86,16 @@ const card = () => document.querySelector('.term-card');
 beforeEach(() => {
   vi.clearAllMocks();
   scopeMock().mockResolvedValue({ enabled: true, resetCount: 1 });
+  // jsdom 没有语音 API：不打桩则 canSpeak() 恒假、喇叭永不出现
+  spoken = null;
+  vi.stubGlobal('speechSynthesis', { cancel: cancelMock, speak: speakMock });
+  vi.stubGlobal('SpeechSynthesisUtterance', FakeUtterance);
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe('高亮切分', () => {
   it('命中词条（含别名）切成高亮 span，文本内容一字不差', async () => {
@@ -197,6 +226,58 @@ describe('卡片两态', () => {
     await waitFor(() => expect(card()).not.toBeNull());
     fireEvent.click(screen.getByLabelText('关闭词条卡'));
     await waitFor(() => expect(card()).toBeNull());
+  });
+});
+
+describe('英文发音（契约 §3.1 v1.1）', () => {
+  it('中文词条的卡里没有喇叭——不发音', async () => {
+    const { container } = setup('闭包');
+    await waitFor(() => expect(hls(container)).toHaveLength(1));
+    fireEvent.click(must(hls(container)[0]));
+    await waitFor(() => expect(card()).not.toBeNull());
+    expect(screen.queryByLabelText('朗读发音')).toBeNull();
+  });
+
+  it('★ 别名命中：正文显示 closure、主词条是「闭包」，喇叭在，且读的是 closure 不是「闭包」', async () => {
+    const { container } = setup('closure 是别名');
+    await waitFor(() => expect(hls(container)).toHaveLength(1));
+    // data-term 仍是主词条名（查卡片用），data-say 才是命中原文（发音用）——两者不可合并
+    expect(must(hls(container)[0]).dataset.term).toBe('闭包');
+    expect(must(hls(container)[0]).dataset.say).toBe('closure');
+    fireEvent.click(must(hls(container)[0]));
+    await waitFor(() => expect(card()).not.toBeNull());
+    fireEvent.click(screen.getByLabelText('朗读发音'));
+    await waitFor(() => expect(speakMock).toHaveBeenCalled());
+    expect(must(spoken, '朗读请求').text).toBe('closure');
+    expect(must(spoken, '朗读请求').lang).toBe('en-US');
+  });
+
+  it('悬停速览卡（mini）也有喇叭——最顺手的那一态不该少', async () => {
+    const { container } = setup('closure 是别名');
+    await waitFor(() => expect(hls(container)).toHaveLength(1));
+    fireEvent.mouseOver(must(hls(container)[0]));
+    await waitFor(() => expect(card()).not.toBeNull());
+    expect(must(card()).className).toContain('mini');
+    expect(screen.getByLabelText('朗读发音')).toBeDefined();
+  });
+
+  it('★ 朗读失败时给提示，且 mini 卡上也看得见（提示行已移到两态之外）', async () => {
+    const { container } = setup('closure 是别名');
+    await waitFor(() => expect(hls(container)).toHaveLength(1));
+    fireEvent.mouseOver(must(hls(container)[0]));
+    await waitFor(() => expect(card()).not.toBeNull());
+    fireEvent.click(screen.getByLabelText('朗读发音'));
+    must(spoken, '朗读请求').onerror?.({ error: 'synthesis-failed' });
+    await waitFor(() => expect(must(card()).textContent).toContain('朗读失败'));
+  });
+
+  it('★ 环境不支持语音时不渲染喇叭（不做假按钮）', async () => {
+    vi.unstubAllGlobals();
+    const { container } = setup('closure 是别名');
+    await waitFor(() => expect(hls(container)).toHaveLength(1));
+    fireEvent.click(must(hls(container)[0]));
+    await waitFor(() => expect(card()).not.toBeNull());
+    expect(screen.queryByLabelText('朗读发音')).toBeNull();
   });
 });
 

@@ -22,6 +22,7 @@ import {
 } from './storage/answer-style.js';
 import { DEFAULT_ANSWER_STYLE, normalizeQuizMix } from '@sb/shared';
 import { ownerIdOf, ownerFilter, canAccessSession, insertSession } from './auth/ownership.js';
+import { dropSessionMessages } from './search/fts-index.js';
 
 // ── sessions ──────────────────────────────────────────────
 export const sessionsRouter = Router();
@@ -60,6 +61,10 @@ sessionsRouter.delete('/:id', (req: Request, res: Response) => {
   cancelChoicesBySession(id, '会话已删除');
   cancelConfirmationsBySession(id);
   getDb().prepare(`UPDATE sessions SET deleted_at = datetime('now') WHERE id = ?`).run(id);
+  // ★ 搜索索引级联（契约 docs/FTS-SPEC.md §4 的 ★ 条目）：sessions 是**软删**
+  //   （只置 `deleted_at`，messages 行原样留在库里），所以索引行不会随会话消失。
+  //   不级联的后果是「删掉的会话，其消息仍能被搜出来」——那是隐私问题，不是体验问题。
+  dropSessionMessages(id);
   res.json({ ok: true });
 });
 

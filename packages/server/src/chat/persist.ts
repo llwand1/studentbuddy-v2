@@ -8,6 +8,8 @@
  */
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
+import { estimateTokens } from './context.js';
+import { dropRow, indexRow } from '../search/fts-index.js';
 import type { ChatMessage, ToolCall } from '../llm/types.js';
 import type { TaskItem } from './task-list.js';
 
@@ -51,7 +53,86 @@ export function persistRounds(
     );
   });
   apply();
+  // 搜索索引（契约 docs/FTS-SPEC.md §3.3）：**在源表事务提交后**同步最终回答行。
+  // 只索引这一条：上面的空占位（content=''）与 tool 行（role='tool'）都被
+  // `search/fts-index.ts#readSource` 的索引范围排除在外，调了也是空转。
+  indexRow('message', assistantId);
   return assistantId;
+}
+
+/**
+ * 用户消息落库（含搜索索引同步）。
+ *
+ * ★ 为什么要有这个封装（2026-09-20 FTS 批新增）：`flow.ts` 落在 **399/400 行**的
+ *   server 行数红线上，而索引同步要在 INSERT 之后拿到 id——直接在调用点写就得再占 3 行。
+ *   把「INSERT + 索引」封成一步，调用点从 3 行降到 1 行（净省行数），
+ *   而且**结构上消除了"加了 INSERT 忘了接索引"这类漏写点**（FTS-SPEC §3.3 的头号风险）。
+ */
+export function insertUserMessage(sessionId: string, content: string, images: unknown[]): string {
+  const id = randomUUID();
+  getDb()
+    .prepare(`INSERT INTO messages (id, session_id, role, content, tokens, images) VALUES (?, ?, 'user', ?, ?, ?)`)
+    .run(id, sessionId, content, estimateTokens(content), JSON.stringify(images));
+  indexRow('message', id);
+  return id;
+}
+
+/**
+ * 回答消息落库（含搜索索引同步）。中断/失败的半截回答也走这里（`flow.ts` 的中断收口），
+ * 因为「已上屏的字」正是用户回头最想搜到的东西。
+ *
+ * `thinkingMs` 缺省即 NULL——「没测到」与「0ms」在库里必须可分辨（v32 的口径，本封装沿用）。
+ */
+export function insertAssistantMessage(opts: {
+  sessionId: string;
+  content: string;
+  tokens: number;
+  reasoning?: string | null;
+  tasks?: TaskItem[];
+  thinkingMs?: number | null;
+}): string {
+  const id = randomUUID();
+  const tasks = opts.tasks ?? [];
+  getDb()
+    .prepare(
+      `INSERT INTO messages (id, session_id, role, content, tokens, reasoning, tasks, thinking_ms) VALUES (?, ?, 'assistant', ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      id,
+      opts.sessionId,
+      opts.content,
+      opts.tokens,
+      opts.reasoning ?? null,
+      tasks.length > 0 ? JSON.stringify(tasks) : null,
+      opts.thinkingMs ?? null,
+    );
+  indexRow('message', id);
+  return id;
+}
+
+/**
+ * 删掉某条消息之后的全部行（重新生成 / 编辑重发的公共动作），**连带清索引**。
+ *
+ * ★ 为什么先查 id 再删：`DELETE` 之后那些行就没了，索引行却还留着（索引是派生表，
+ *   不会随源行级联消失）——不先捞出来，索引里就会留下永久搜不到的孤儿，
+ *   直到下一次全量重建。返回删除行数供调用方对账。
+ */
+export function dropMessagesAfter(sessionId: string, rowid: number): number {
+  const db = getDb();
+  const doomed = db
+    .prepare('SELECT id FROM messages WHERE session_id = ? AND rowid > ?')
+    .all(sessionId, rowid) as Array<{ id: string }>;
+  const res = db.prepare('DELETE FROM messages WHERE session_id = ? AND rowid > ?').run(sessionId, rowid);
+  for (const d of doomed) dropRow('message', d.id);
+  return res.changes;
+}
+
+/** 改写某条消息正文（编辑重发），连带刷新索引——正文变了，索引里的 tokens 必须跟着变。 */
+export function updateMessageContent(rowid: number, content: string, tokens: number): void {
+  const db = getDb();
+  const row = db.prepare('SELECT id FROM messages WHERE rowid = ?').get(rowid) as { id: string } | undefined;
+  db.prepare('UPDATE messages SET content = ?, tokens = ? WHERE rowid = ?').run(content, tokens, rowid);
+  if (row) indexRow('message', row.id);
 }
 
 /**

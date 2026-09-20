@@ -17,6 +17,7 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from './db.js';
 import { ownerForWrite } from '../auth/ownership.js';
+import { indexRow } from '../search/fts-index.js';
 import type { TermRow } from '../learning/terms.js';
 
 /** `actor` 两态（v1.4 拍板⑯）：AI 工具删的、UI 手动删的——同表同回滚码，不加第二套逻辑 */
@@ -152,6 +153,10 @@ export function undoDeleteBatch(batch: string, ownerId: string | null): UndoResu
         review_enabled: snap.review_enabled ?? null,
       });
       dropLog.run(r.id);
+      // 搜索索引（契约 docs/FTS-SPEC.md §3.3）：撤销删除＝把整行 UPSERT 回库，
+      // 它是**新增了一条可搜的记录**——不同步的话，刚撤回来的词条搜不到，
+      // 用户会以为撤销没生效（而库里明明有了）。
+      indexRow('term', snap.id);
       restored++;
     }
   });

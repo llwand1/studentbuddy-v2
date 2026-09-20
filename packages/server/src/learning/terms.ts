@@ -40,6 +40,11 @@ import { normalizeTerms, type TermItem } from './term-extract.js';
 //   本文件只负责把它挂进列表查询。依赖方向安全：`term-review.ts` 不反向依赖本文件，
 //   故不成环（对比 `terms → domains → tidy → terms` 那条必须避开的环，见 domains.ts 头注释）。
 import { SCOPE_FLAG, SCOPE_JOIN } from './term-review.js';
+// 搜索索引（契约 docs/FTS-SPEC.md §3.3）：本文件的**四个写点**（saveTerms / saveOneTerm /
+// removeTerm / updateTerm）都要同步它——漏一个，那批词条就永久搜不到（且不报错）。
+// ★ 为什么只传 id：索引哪些字段的口径集中在 `search/fts-index.ts#readSource` 一处，
+//   写点只报"哪一行变了"；让每个写点自己拼 tokens 等于把口径抄四遍。
+import { dropRow, indexRow } from '../search/fts-index.js';
 
 export interface TermRow {
   /** 归属用户（v31）：`''` = 无主行（本地单人模式的历史数据，登录用户看不见） */
@@ -194,10 +199,12 @@ export function saveTerms(
       if (hit) {
         // 并入已有行：与 ON CONFLICT 同语义（importance 不低于现值才覆盖释义）
         mergeInto.run(imp, t.definition, imp, sourceSessionId ?? null, hit, owner);
+        indexRow('term', hit);
       } else {
         const id = randomUUID();
         insert.run(owner, id, t.term, t.definition, domain, sourceSessionId ?? null, imp);
         index.add(t.term, domain, id);
+        indexRow('term', id);
       }
     }
   });
@@ -237,6 +244,9 @@ export function saveOneTerm(
     .prepare('SELECT * FROM term_library WHERE id = ? AND owner_id = ?')
     .get(rowId, owner) as TermRow | undefined;
   if (!raw) throw new Error('词条保存失败'); // 理论不可达：同连接内刚写入
+  // 用回读到的 `raw.id` 而不是上面的 `rowId`：`rowId` 的类型含 null（它初值是 `find` 的
+  // 结果），而回读成功即证明该行确实存在 ⇒ 取真实主键，不靠类型断言。
+  indexRow('term', raw.id);
   return { ...raw, aliases: parseAliases(raw.aliases) };
 }
 
@@ -308,6 +318,9 @@ export function removeTerm(id: string, ownerId: string | null): void {
   getDb()
     .prepare('DELETE FROM term_library WHERE id = ? AND owner_id = ?')
     .run(id, ownerForWrite(ownerId));
+  // ★ 删索引行是**必须**的，不是优化：索引是派生表，源行删了它不会自己消失，
+  //   不删就会留下一条「搜得到、点进去 404」的幽灵结果，直到下次全量重建。
+  dropRow('term', id);
 }
 
 /** 编辑词条（列表页编辑：释义/领域/重要度）。 */
@@ -335,6 +348,9 @@ export function updateTerm(
   const raw = db
     .prepare('SELECT * FROM term_library WHERE id = ? AND owner_id = ?')
     .get(id, owner) as TermRow | undefined;
+  // 编辑改的是 definition / domain / importance——**definition 在索引文本里**
+  // （term + definition + aliases），故必须刷索引；domain 不在（它只是过滤维度）。
+  if (raw) indexRow('term', id);
   return raw ? { ...raw, aliases: parseAliases(raw.aliases) } : null;
 }
 

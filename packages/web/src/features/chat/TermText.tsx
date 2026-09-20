@@ -9,6 +9,9 @@
  * ★ **首现强调的口径 = 「本片段内首现」**（片段 = 一个段落 / 列表项 / 引用行 / 单元格）。
  *   「整条回复内首现」需要知道块在全文中的字符偏移，而 `parseBlocks` 只给块、不给偏移；
  *   块内首现已能消除长回复的主要视觉噪声（契约 §3 已记账，不为此改块协议）。
+ * ★ **每个高亮 span 挂两个 data**：`data-term`（主词条名，用于查卡片）与
+ *   `data-say`（命中原文，用于发音的判定与朗读，契约 §3.1 v1.1）。两者**不能合并**——
+ *   别名命中时正文显示 `closure`、`data-term` 却是 `闭包`，发音必须读前者。
  * ★ **代码不在此列**：行内 `code` 与围栏代码块走各自的渲染分支，不经本组件
  *   （代码里出现 `let` 是语法，标成词条是污染）。
  */
@@ -19,6 +22,12 @@ import { TermCard } from './TermCard';
 
 interface Active {
   term: string;
+  /**
+   * 正文里**显示的那段文本**（命中原文）——发音的判定与朗读共用它（契约 §3.1，v1.1）。
+   * ★ 不能拿 `term`（主词条名）代替：别名命中时正文显示 `closure`、`term` 却是 `闭包`，
+   *   用后者会漏掉喇叭按钮、或把中文交给英文语音读。
+   */
+  say: string;
   variant: 'mini' | 'full';
   /** 定位锚点（命中的那个 span） */
   anchor: HTMLElement;
@@ -120,9 +129,10 @@ export function TermText({ text }: { text: string }) {
     if (active?.variant === 'full') return; // 完整卡固定中，悬停不抢
     const el = hitEl(e.target);
     const term = el?.dataset.term;
-    if (!el || !term) return;
+    const say = el?.dataset.say;
+    if (!el || !term || say === undefined) return;
     clearTimer();
-    setActive({ term, variant: 'mini', anchor: el });
+    setActive({ term, say, variant: 'mini', anchor: el });
   };
 
   const onOut = (e: MouseEvent<HTMLSpanElement>): void => {
@@ -134,9 +144,10 @@ export function TermText({ text }: { text: string }) {
   const onClick = (e: MouseEvent<HTMLSpanElement>): void => {
     const el = hitEl(e.target);
     const term = el?.dataset.term;
-    if (!el || !term) return;
+    const say = el?.dataset.say;
+    if (!el || !term || say === undefined) return;
     clearTimer();
-    setActive({ term, variant: 'full', anchor: el });
+    setActive({ term, say, variant: 'full', anchor: el });
   };
 
   /** 无命中：直接返回纯文本（不包 span、不加节点——正文绝大多数片段走这条路） */
@@ -149,9 +160,16 @@ export function TermText({ text }: { text: string }) {
     if (h.start > pos) parts.push(text.slice(pos, h.start));
     const first = !seen.has(h.term);
     seen.add(h.term);
+    // 命中原文：既是要显示的字，也是发音按钮的判定与朗读输入（`data-say`，契约 §3.1）
+    const shown = text.slice(h.start, h.end);
     parts.push(
-      <span key={`${h.start}-${h.term}`} className={first ? 'term-hl first' : 'term-hl again'} data-term={h.term}>
-        {text.slice(h.start, h.end)}
+      <span
+        key={`${h.start}-${h.term}`}
+        className={first ? 'term-hl first' : 'term-hl again'}
+        data-term={h.term}
+        data-say={shown}
+      >
+        {shown}
       </span>,
     );
     pos = h.end;
@@ -176,7 +194,12 @@ export function TermText({ text }: { text: string }) {
               }}
             >
               <TermCard
+                /* ★ key 绑当前词条：悬停从词 A 移到词 B 时**重挂载**卡片。
+                   不重挂载会有两个错：① A 的操作提示（「已移出复习范围」）会挂在 B 的卡上；
+                   ② 发音的进行中状态跨词残留，B 的喇叭一上来就是禁用的。 */
+                key={active.term}
                 item={item}
+                say={active.say}
                 variant={active.variant}
                 onClose={closeNow}
                 onChanged={refresh}

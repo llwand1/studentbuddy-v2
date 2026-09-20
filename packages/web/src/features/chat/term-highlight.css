@@ -5,6 +5,7 @@
  *   · 首现 = 实线下划线 + 极淡主色底（「这个词你学过」）
  *   · 复现 = 只剩虚点线（同一段里第二次出现不再抢注意力）
  *   · 悬停 = 速览卡；点击 = 完整卡（固定）
+ *   · 卡内 🔊 = 英文词发音（v1.1，契约 §3.1）
  * 颜色与间距一律取 `tokens.css` 的变量；少量半透明叠加色沿用仓内既有写法（如 `.sb-line`）。
  */
 
@@ -69,6 +70,30 @@
 .term-card-name {
   font-size: var(--sb-fs-md);
   font-weight: 600;
+}
+
+/* 发音按钮（契约 §3.1，v1.1）：紧跟词名、无边框只留图标。
+   它是「这个词的属性」，不是主操作——给它加边框/底色会跟「纳入复习」抢焦点，
+   而后者才是卡片里唯一会改数据的动作。 */
+.term-card-say {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  padding: 0 1px;
+  font-size: var(--sb-fs-xs);
+  line-height: 1;
+  cursor: pointer;
+  color: var(--sb-ink-tertiary);
+  transition: color 0.12s ease;
+}
+
+.term-card-say:hover:not(:disabled) {
+  color: var(--sb-primary);
+}
+
+.term-card-say:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .term-card-domain {

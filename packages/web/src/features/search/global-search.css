@@ -1,0 +1,81 @@
+/**
+ * features/search/global-search.css — 侧栏全站搜索结果面板的样式。
+ * 只用 `tokens.css` 的 token（仓规禁内联 style，也禁写死色值——暗色/亮色靠 token 切换）。
+ */
+
+/* 结果面板：紧贴搜索框下方，与「历史对话」列表同宽 */
+.sb-gs {
+  margin: 0 var(--sb-sp-2) var(--sb-sp-2);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+  /* 面板本身限高并滚动：结果最多 20 条 × 三区，不限高会把会话列表整个挤出视口 */
+  max-height: 42vh;
+  overflow-y: auto;
+}
+
+.sb-gs-hint {
+  padding: var(--sb-sp-2);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.sb-gs-group + .sb-gs-group {
+  border-top: 1px solid var(--sb-line);
+}
+
+.sb-gs-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-1);
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+}
+
+.sb-gs-count {
+  color: var(--sb-ink-tertiary);
+}
+
+/* 结果项：整条可点（button 重置成列表行的样子） */
+.sb-gs-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+  cursor: pointer;
+  color: var(--sb-ink);
+  font: inherit;
+}
+
+.sb-gs-item:hover {
+  background: var(--sb-primary-weak);
+}
+
+/* 标题与摘要各占一行，摘要允许折行但最多两行（超出省略，保持列表密度） */
+.sb-gs-title {
+  display: block;
+  font-size: var(--sb-fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-gs-snippet {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  line-height: var(--sb-lh);
+}
+
+/* 命中高亮：用品牌色的弱化底，不改变文字色（保持可读性） */
+.sb-gs-snippet mark {
+  background: var(--sb-primary-weak);
+  color: var(--sb-ink);
+  border-radius: 2px;
+}

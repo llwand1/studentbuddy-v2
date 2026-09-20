@@ -23,3 +23,4 @@ export * from './ebbinghaus.js';
 export * from './term-highlight.js';
 export * from './coach.js';
 export * from './tool-ecosystem.js';
+export * from './fts.js';

@@ -12,6 +12,8 @@ import type { QuizNote, QuizNoteSummary, QuizQuestion } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
 import { getQuiz } from './quiz.js';
+// 搜索索引（契约 docs/FTS-SPEC.md §3.3）：错题本三个写点（upsert / updateBody / delete）都要同步。
+import { dropRow, indexRow } from '../search/fts-index.js';
 
 /** 作答快照的落库形态：single/multiple 存下标数组、fill 存文本、essay 未作答为 null */
 export type MyAnswer = number[] | string | null;
@@ -34,25 +36,32 @@ export function upsertNoteFromAnswer(
   const quiz = getQuiz(quizId, ownerId);
   const q: QuizQuestion | undefined = quiz?.questions[questionIndex];
   if (!quiz || !q) return;
-  getDb()
-    .prepare(
-      `INSERT INTO quiz_notes (id, quiz_id, question_index, quiz_title, question_data, my_answer, correct, owner_id)
+  const db = getDb();
+  db.prepare(
+    `INSERT INTO quiz_notes (id, quiz_id, question_index, quiz_title, question_data, my_answer, correct, owner_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(quiz_id, question_index) DO UPDATE SET
          my_answer = COALESCE(excluded.my_answer, quiz_notes.my_answer),
          correct = excluded.correct,
          updated_at = datetime('now')`,
-    )
-    .run(
-      randomUUID(),
-      quizId,
-      questionIndex,
-      quiz.title ?? '练习题',
-      JSON.stringify(q),
-      myAnswer === undefined || myAnswer === null ? null : JSON.stringify(myAnswer),
-      correct ? 1 : 0,
-      ownerForWrite(ownerId),
-    );
+  ).run(
+    randomUUID(),
+    quizId,
+    questionIndex,
+    quiz.title ?? '练习题',
+    JSON.stringify(q),
+    myAnswer === undefined || myAnswer === null ? null : JSON.stringify(myAnswer),
+    correct ? 1 : 0,
+    ownerForWrite(ownerId),
+  );
+  // ★ 索引同步必须**回读实际 id**：`ON CONFLICT` 分支不会更新 `id` 列，
+  //   所以上面新生成的 uuid 在"重复作答"路径上**根本没被采用**（库里那条是首次作答时生成的）。
+  //   直接拿 `randomUUID()` 去建索引，会把索引挂到一个不存在的 id 上——
+  //   表现是"这道题的笔记永远搜不到"，且不报错（FTS-SPEC §3.3 点名的那类漏点）。
+  const saved = db
+    .prepare('SELECT id FROM quiz_notes WHERE quiz_id = ? AND question_index = ?')
+    .get(quizId, questionIndex) as { id: string } | undefined;
+  if (saved) indexRow('note', saved.id);
 }
 
 /** 列表：updated_at 倒序（最近动过的在前）；quizId 过滤本套题、wrong=1 只看错题。 */
@@ -149,12 +158,17 @@ export function updateNoteBody(id: string, body: string, ownerId: string | null)
   const res = getDb()
     .prepare(`UPDATE quiz_notes SET body = ?, updated_at = datetime('now') WHERE id = ? AND owner_id = ?`)
     .run(body.slice(0, MAX_NOTE_BODY), id, ownerForWrite(ownerId));
+  // 只在**真改到了**才刷索引：`changes === 0` 说明这条不存在或不属于你，
+  // 此时刷索引等于给一条无权访问的笔记建索引（虽然 readSource 也会因查不到而跳过，但白跑一趟）。
+  if (res.changes > 0) indexRow('note', id);
   return res.changes > 0;
 }
 
 /** 删除单篇笔记（用户显式操作，快照随之丢弃）。 */
 export function deleteNote(id: string, ownerId: string | null): void {
   getDb().prepare('DELETE FROM quiz_notes WHERE id = ? AND owner_id = ?').run(id, ownerForWrite(ownerId));
+  // 同 removeTerm：源行删了索引不会自己消失，不清就留下「搜得到、点进去没有」的幽灵结果。
+  dropRow('note', id);
 }
 
 function parseQuestion(raw: string): QuizQuestion | null {

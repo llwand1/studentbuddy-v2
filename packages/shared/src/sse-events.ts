@@ -3,6 +3,8 @@
  *
  * 「先登记再实现」：任何新增事件类型必须先在此登记并同步 docs/SSE-CONTRACT.md，
  * 才允许在 server 广播 / web 消费。按 sessionId 隔离广播 + seq 单调去重。
+ * ★ 事实边界：每个事件「携带哪些事实 / 前端禁止推断什么」的唯一事实源 = docs/SSE-CONTRACT.md §2.3
+ *   （B-007/009/010「前端猜服务端事实」同族教训固化）；新增事件先过 §2.3.2 过闸七问再实现。
  */
 import type { TaskItem } from './task-list.js';
 import type { PkQuestion, PkRoomState } from './pk.js';

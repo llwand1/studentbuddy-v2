@@ -34,6 +34,9 @@ import type { TidyPlan, TidySummary } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
 import { parseAliases, type TermRow } from './terms.js';
+// 搜索索引（契约 docs/FTS-SPEC.md §3.3）：整理会**删行 + 改行**，两者都要同步索引——
+// 漏了「删」会留下搜得到却打不开的幽灵，漏了「改」会让刚并入的别名搜不到。
+import { dropRow, indexRow } from '../search/fts-index.js';
 // ★ `normalizeTidyPlan` 既 import（本文件要用）又 re-export（`tidy.test.ts` 从 './tidy.js' 取）——
 //   re-export 不进本地作用域，故两行都要。
 import { planTidy, normalizeTidyPlan, lastPlanErrorOf } from './tidy-plan.js';
@@ -69,7 +72,12 @@ function mergeRows(keep: TermRow, others: TermRow[], canonicalTerm: string, doma
   const aliases = [...aliasMap.values()];
   // 先删被并行再更新 keep：否则 UPDATE 的 (term, domain) 会撞上还活着的被并行，UNIQUE 炸事务
   const del = db.prepare('DELETE FROM term_library WHERE id = ? AND owner_id = ?');
-  for (const o of others) del.run(o.id, owner);
+  for (const o of others) {
+    del.run(o.id, owner);
+    // 搜索索引（契约 docs/FTS-SPEC.md §3.3）：被并入的行从库里消失，索引行也必须消失，
+    // 否则搜到的是「已经不存在的那条词条」。
+    dropRow('term', o.id);
+  }
   db.prepare(
     `UPDATE term_library SET term = ?, definition = ?, domain = ?, importance = ?, usage_count = ?,
        last_used_at = ?, created_at = ?, source_session_id = ?, aliases = ?, updated_at = datetime('now')
@@ -87,6 +95,10 @@ function mergeRows(keep: TermRow, others: TermRow[], canonicalTerm: string, doma
     keep.id,
     owner,
   );
+  // ★ 合并把 others 的别名并进了 keep ⇒ keep 的**索引文本变了**
+  //   （索引文本 = term + definition + aliases，别名的增减直接改变可召回面）。
+  //   不刷这一下，用户按刚并进来的别名搜会搜不到——正是本功能想解决的问题。
+  indexRow('term', keep.id);
   return aliases;
 }
 

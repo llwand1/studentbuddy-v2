@@ -4,7 +4,6 @@
  * 边流边累积末尾一次落库 / 用量兜底估算落库（v1 全部踩坑语义继承）。
  * 单轨原则（ADR/G3）：仅原生 function-calling，工具注册表见 chat/tools/（S1 拆目录）。
  */
-import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
 import { routeRole } from '../llm/router.js';
 import { getMaxOutputTokens } from '../llm/model-limits.js';
@@ -14,7 +13,7 @@ import { estimateTokens, truncateHistoryToBudget, getContextLimit } from './cont
 import { toolDefinitions, toolDefinitionTokens } from './tools/index.js';
 import { runToolCalls, type StepPayload } from './tool-exec.js';
 import { createExecTool } from './tool-dispatch.js';
-import { persistRounds, loadHistory } from './persist.js';
+import { persistRounds, loadHistory, insertUserMessage, insertAssistantMessage } from './persist.js';
 import { cancelChoicesBySession } from './choice.js';
 import { compactIfNeeded } from './compact.js';
 import { assembleContextMessages, collectContextSegments } from './context-segments.js';
@@ -78,8 +77,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   // 用户消息落库（新会话以首句生成标题）。images 列仅作 UI 缩略图回显，主模型看到的是上面的 userText。
   // skipUserPersist：重新生成走这条路——提问本来就在库里（regenerate.ts 只删它之后的产物），再插一条就成了重复提问
   if (!opts.skipUserPersist) {
-    db.prepare(`INSERT INTO messages (id, session_id, role, content, tokens, images) VALUES (?, ?, 'user', ?, ?, ?)`)
-      .run(randomUUID(), sessionId, userText, estimateTokens(userText), JSON.stringify(opts.images ?? []));
+    insertUserMessage(sessionId, userText, opts.images ?? []);
   }
   const sessionTitle = (
     db.prepare('SELECT title FROM sessions WHERE id = ?').get(sessionId) as { title: string } | undefined
@@ -376,17 +374,14 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       // 中断也把已攒下的思考与任务清单带上：工具轮不落（防孤儿 tool 消息），
       // 但过程文本本身无害且有用——「它刚才想到哪一步」正是中断后最想看的
       if (reasoningStartMs && !thinkingMs) thinkingMs = Date.now() - reasoningStartMs; // 中断时刻即思考终点
-      db.prepare(
-        `INSERT INTO messages (id, session_id, role, content, tokens, reasoning, tasks, thinking_ms) VALUES (?, ?, 'assistant', ?, ?, ?, ?, ?)`,
-      ).run(
-        randomUUID(),
+      insertAssistantMessage({
         sessionId,
-        acc,
-        estimateTokens(acc),
-        reasoningAcc || null,
-        latestTasks.length > 0 ? JSON.stringify(latestTasks) : null,
-        thinkingMs || null,
-      );
+        content: acc,
+        tokens: estimateTokens(acc),
+        reasoning: reasoningAcc || null,
+        tasks: latestTasks,
+        thinkingMs,
+      });
     }
     publish(sessionId, { type: 'chat-error', sessionId, message: aborted ? '已停止' : `生成失败：${msg}` });
     // 失败也要收口：缓冲里留下终止帧，切回会话时不会重放这半截死流

@@ -25,6 +25,7 @@ import { termsDomainApi } from './api-terms-domain.js';
 import { termsReviewApi } from './api-terms-review.js';
 import { studyFlowApi } from './api-study-flow.js';
 import { toolsApi, termsUndoApi } from './api-tools.js';
+import { searchApi } from './api-search.js';
 
 // 领域的类型**转出**给调用方（形状定义在 `api-terms-domain.ts`，那里承担行数红线的解释）。
 export type { DomainRow, DomainsResponse, RenameDomainResult, RemoveDomainResult } from './api-terms-domain.js';
@@ -40,6 +41,9 @@ export const api = {
   request,
 
   status: () => request<StatusResponse>('/api/status'),
+
+  /** 全站搜索（契约 docs/FTS-SPEC.md §3.4）：本地库 fts5 检索，与联网搜索的 key 配置无关 */
+  search: searchApi,
 
   /**
    * 账号（契约 docs/AUTH-SPEC.md §2）。

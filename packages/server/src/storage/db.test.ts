@@ -1432,3 +1432,68 @@ describe('storage/db — v33 其余表归主迁移（M2d-3：quiz_*/flow_*/knowl
     up.close();
   });
 });
+
+/**
+ * v37（全站全文搜索，契约 `docs/FTS-SPEC.md` §3.2）：一张 fts5 虚表 `search_index`。
+ *
+ * ★ **纯建表型迁移（无加列）⇒ 回放本身安全**，故没有 `revertV37` 进"每个退版本用例都要调"
+ *   那份清单（同 v25/v26/v27 的处置，见 `migrations-list-v22.ts` 文件头）。
+ *   但本用例仍**显式 DROP 主表**再重放：留着它就等于"老库凭空带着搜索索引"，
+ *   那样测不出「v37 真的把表建出来了」这件事本身。
+ * ★ **fts5 虚表会连带建五张影子表**（`search_index_data` / `_idx` / `_content` /
+ *   `_docsize` / `_config`）：`DROP TABLE search_index` 由 fts5 的 xDestroy 一并清掉，
+ *   故只需 DROP 主表。★ 若日后有人把它改成 `external content` / `contentless` 表，
+ *   影子表集合会变，本用例的清单要跟着改。
+ * ★ 第二条用例锁的是「不是只建了个空壳」：fts5 的 MATCH 与 bm25() 都要真能跑。
+ *   只断言"表存在"会漏掉一类事故——DDL 语法过但列定义写错（例如 tokens 标了 UNINDEXED），
+ *   那时表在、查不了，而单看 `sqlite_master` 完全正常。
+ */
+describe('storage/db — v37 全站搜索索引（fts5 虚表）', () => {
+  const tablesOf = (db: ReturnType<typeof openIsolated>): string[] =>
+    (db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as Array<{ name: string }>).map(
+      (r) => r.name,
+    );
+
+  it('新库有 search_index 虚表，且五张影子表齐全（fts5 的建表契约）', () => {
+    const db = openIsolated(tmp());
+    const t = tablesOf(db);
+    expect(t).toContain('search_index');
+    for (const shadow of [
+      'search_index_data',
+      'search_index_idx',
+      'search_index_content',
+      'search_index_docsize',
+      'search_index_config',
+    ]) {
+      expect(t, shadow).toContain(shadow);
+    }
+    db.close();
+  });
+
+  it('★ MATCH 与 bm25() 真能跑（不是建了个查不了的空壳）', () => {
+    const db = openIsolated(tmp());
+    db.prepare(
+      `INSERT INTO search_index (tokens, kind, ref_id, owner, title, snippet, updated_at)
+       VALUES (?, 'term', 'r1', '', '标题', '摘要', '')`,
+    ).run('牛顿 顿第 第二 二定 定律');
+    const hit = db
+      .prepare(`SELECT ref_id, bm25(search_index) AS score FROM search_index WHERE search_index MATCH ?`)
+      .get('"牛顿"') as { ref_id: string; score: number } | undefined;
+    expect(hit?.ref_id).toBe('r1');
+    expect(typeof hit?.score).toBe('number');
+    db.close();
+  });
+
+  it('退到 v36 重放：表按新形状建回，不撞 duplicate', () => {
+    const dir = tmp();
+    const old = openIsolated(dir);
+    old.exec('DROP TABLE IF EXISTS search_index');
+    old.prepare('DELETE FROM schema_version WHERE version > 36').run();
+    expect(tablesOf(old)).not.toContain('search_index');
+    old.close();
+
+    const up = openIsolated(dir);
+    expect(tablesOf(up)).toContain('search_index');
+    up.close();
+  });
+});

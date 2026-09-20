@@ -26,6 +26,8 @@ import {
 } from '../components/icons';
 import { api } from '../lib/api';
 import { ChatView } from '../features/chat/ChatView';
+import { TermIndexProvider } from '../features/chat/term-index';
+import { GlobalSearch } from '../features/search/GlobalSearch';
 import { useActiveSessions } from '../features/chat/useActiveSessions';
 import { Mascot } from '../features/chat/Mascot';
 import { SettingsView } from '../features/settings/SettingsView';
@@ -205,6 +207,9 @@ export function App() {
             onChange={(e) => setQuery(e.target.value)}
           />
         )}
+        {/* 全站搜索第二路（契约 docs/FTS-SPEC.md §3.4）：上面那路纯前端 title 过滤**保留不动**，两路并存。
+            折叠历史区时传空串 ⇒ 面板整块不渲染（它自己判 `active`，不额外占 App 的行数预算）。 */}
+        <GlobalSearch query={historyOpen ? query : ''} onOpenSession={openSession} onOpenTerm={openTerms} onOpenNotes={openNotes} />
         <div className={historyOpen ? 'sb-session-list' : 'sb-session-list collapsed'}>
           {visible.map((s) => (
             <div
@@ -257,13 +262,18 @@ export function App() {
       </aside>
       <main className="sb-main">
         {view === 'chat' && (
-          <ChatView
-            sessionId={currentId}
-            sessionTitle={sessions.find((s) => s.id === currentId)?.title}
-            onNewSession={() => void newSession()}
-            onRoundDone={() => void reloadSessions()}
-            onBusyChange={handleBusyChange}
-          />
+          /* 词条索引 Provider（契约 TERM-HIGHLIGHT-SPEC §5）：正文里的词条高亮与悬浮卡
+             都从这里取索引，`openTerms` 是卡片「打开词条库」的跨页出口。
+             挂在这里而不是 ChatView 内部，是为了让 ChatView 零 props 改动。 */
+          <TermIndexProvider onOpenTerms={openTerms}>
+            <ChatView
+              sessionId={currentId}
+              sessionTitle={sessions.find((s) => s.id === currentId)?.title}
+              onNewSession={() => void newSession()}
+              onRoundDone={() => void reloadSessions()}
+              onBusyChange={handleBusyChange}
+            />
+          </TermIndexProvider>
         )}
         {view === 'flow' && <FlowPage onGoGraph={() => setView('graph')} />}
         {view === 'graph' && <KnowledgeGraphPage onOpenTerms={openTerms} />}

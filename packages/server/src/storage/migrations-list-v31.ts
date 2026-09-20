@@ -276,4 +276,50 @@ export const MIGRATIONS_V31: Array<{ version: number; statements: string[] }> = 
       `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id) WHERE github_id IS NOT NULL`,
     ],
   },
+  // ── v37（2026-09-20，全站全文搜索 FTS，契约 `docs/FTS-SPEC.md` §3.2）────────────
+  //
+  // 背景：应用内六类用户数据（messages / 词条 / 错题本 / 题库 / 会话标题 / 会话资料）
+  // 此前**全都没有文本搜索**——全仓唯一一条 SQL LIKE 还是词条表的前缀匹配（`terms.ts`
+  // 的 `t.term LIKE 'kw%'`，中文按字面前缀 ⇒ 输"牛顿"搜不到"第二定律"）。
+  //
+  // ★★ **本表是派生索引，不是事实源**（FTS-SPEC §2 硬约束 2）：
+  //   · 真相永远在源表（`messages`/`term_library`/`quiz_notes`）；
+  //   · 本表可**随时全量重建**（`search/fts-index.ts` 的 `rebuildSearchIndex`）；
+  //   · **任何查询路径不得从本表读业务字段**——索引坏了只降级为「搜不到」，绝不「搜错」。
+  //
+  // ★ **为什么用独立内容表**（不玩 `external content` / `contentless`）：
+  //   查询单表出结果、owner 过滤直接在索引列上做、`DROP` 重建干净。空间代价 = 原文冗余
+  //   一份（本地库量级 ~10⁴ 行，可接受）。
+  //
+  // ★ **为什么不用 `snippet()` 函数**：它的输出落在**分词后的 tokens** 上（中文 bigram
+  //   拼接），给不了可读原文。摘要由写侧从原文切「命中处附近」一段，高亮交前端 `indexOf`。
+  //
+  // ★ **排序用 fts5 内置 `bm25(search_index)`**，不自己实现打分（同 `doc-retrieve` 的立场）。
+  //
+  // ★★ **⚠️ 本 DDL 与 FTS-SPEC §3.2 有一处刻意的偏离（已在契约升版时登记）**：
+  //   契约的 SQL 只给 `ref_id`/`title`/`snippet`/`updated_at` 标了 `UNINDEXED`，
+  //   **`kind` 与 `owner` 漏标**。但同一段注释明写「`tokens` 是**唯一**可检索列」——
+  //   不标 `UNINDEXED` 意味着 `kind`/`owner` 会进全文索引，于是用户搜 "message" 会
+  //   命中**所有** kind='message' 的行、搜某个用户 id 会命中该用户全部索引行，
+  //   是语义污染（且不报错）。此处按注释意图补标 `UNINDEXED`：两列仍可 `SELECT` 读出、
+  //   仍可作 `WHERE` 等值条件（`UNINDEXED` = 不建全文索引的普通列），只是不进 MATCH。
+  //
+  // ★ **fts5 影子表**：`CREATE VIRTUAL TABLE` 会连带建 `search_index_data` /
+  //   `_idx` / `_content` / `_docsize` / `_config` 五张影子表。`DROP TABLE search_index`
+  //   会由 fts5 的 xDestroy 一并清掉；但**回放迁移链的测试必须显式 DROP**（`db.test.ts`），
+  //   否则重放到 v37 会撞 `table search_index already exists`（本仓 `duplicate` 类坑的第九次）。
+  {
+    version: 37,
+    statements: [
+      `CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+        tokens,
+        kind UNINDEXED,
+        ref_id UNINDEXED,
+        owner UNINDEXED,
+        title UNINDEXED,
+        snippet UNINDEXED,
+        updated_at UNINDEXED
+      )`,
+    ],
+  },
 ];

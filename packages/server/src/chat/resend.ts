@@ -9,6 +9,7 @@
  */
 import { getDb } from '../storage/db.js';
 import { estimateTokens } from './context.js';
+import { dropMessagesAfter, updateMessageContent } from './persist.js';
 
 export interface ResendPlan {
   ok: boolean;
@@ -25,7 +26,8 @@ export function planResend(sessionId: string, text: string): ResendPlan {
     .prepare(`SELECT rowid AS rid FROM messages WHERE session_id = ? AND role = 'user' ORDER BY rowid DESC LIMIT 1`)
     .get(sessionId) as { rid: number } | undefined;
   if (!row) return { ok: false, error: '这个会话还没有可以编辑的提问' };
-  db.prepare('DELETE FROM messages WHERE session_id = ? AND rowid > ?').run(sessionId, row.rid);
-  db.prepare('UPDATE messages SET content = ?, tokens = ? WHERE rowid = ?').run(trimmed, estimateTokens(trimmed), row.rid);
+  // 同 regenerate：删旧产物与改写提问都要连带刷索引（正文变了，索引里的 tokens 必须跟着变）
+  dropMessagesAfter(sessionId, row.rid);
+  updateMessageContent(row.rid, trimmed, estimateTokens(trimmed));
   return { ok: true, text: trimmed };
 }

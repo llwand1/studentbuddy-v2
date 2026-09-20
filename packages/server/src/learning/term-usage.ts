@@ -9,20 +9,18 @@
  *   与前两次拆分（`term-extract.ts` / `term-recall.ts`）同一判据。
  * ★ 用 re-export 而不是让调用方改 import：`chat/flow.ts` 与各测试的
  *   `vi.mock('../learning/terms.js')` 都指着 `terms.ts`——改路径会同时打穿多处 mock。
+ *
+ * ★ 2026-09-19（契约 `docs/TERM-HIGHLIGHT-SPEC.md` §4）：**匹配规则上提到 `@sb/shared`
+ *   的 `textHitsKey`**——正文渲染层现在要按同一套规则把命中的词条在屏幕上标出来
+ *   （AI 回复词条高亮 + 悬浮卡），规则留两份必然出现「统计说命中 3 个、屏幕只标出 2 个」
+ *   （`doc-rag.ts` 常量双写、`ebbinghaus.ts` 判定双写同款病）。原私有函数 `replyHitsKey`
+ *   已删除，判定逻辑逐字搬到 shared；**行为等价**由本文件既有用例与 `terms.test.ts` 锁住。
  */
+import { textHitsKey } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
 import { recordMentions } from './mention.js';
 import { parseAliases, type TermRow } from './terms.js';
-
-/** 回复文本是否用到某词条（term + 别名，大小写不敏感；英文词按边界匹配防子串误报）。 */
-function replyHitsKey(replyLower: string, key: string): boolean {
-  const k = key.trim().toLowerCase();
-  if (!k) return false;
-  if (!/[a-z]/.test(k)) return replyLower.includes(k); // 中文等无词边界概念：子串即可
-  const esc = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(?<![a-z0-9])${esc}(?![a-z0-9])`).test(replyLower);
-}
 
 /**
  * 回复完成后扫描命中词条（term + 别名）：`usage_count + 1`、`last_used_at` 更新，
@@ -47,11 +45,10 @@ export function countUsage(
 ): number {
   if (!replyText?.trim()) return 0;
   const owner = ownerForWrite(ownerId);
-  const replyLower = replyText.toLowerCase();
   const rows = getDb()
     .prepare('SELECT id, term, aliases, domain FROM term_library WHERE owner_id = ?')
     .all(owner) as Array<Pick<TermRow, 'id' | 'term' | 'aliases' | 'domain'>>;
-  const hits = rows.filter((r) => [r.term, ...parseAliases(r.aliases)].some((k) => replyHitsKey(replyLower, k)));
+  const hits = rows.filter((r) => [r.term, ...parseAliases(r.aliases)].some((k) => textHitsKey(replyText, k)));
   if (hits.length === 0) return 0;
   const db = getDb();
   const upd = db.prepare(

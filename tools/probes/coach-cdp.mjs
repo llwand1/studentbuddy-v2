@@ -1,8 +1,8 @@
 /**
  * coach-cdp — 复习督促小窗（B+C+E）真机渲染验证探针（零依赖：Node 22 内置 fetch + WebSocket 直驱 CDP）。
  *
- * 为什么需要它：本仓 web 侧**没有渲染测试基建**（只有纯函数 vitest，无 jsdom／testing-library，
- * 见 test-plan §1）。`coach-cards.test.ts` 的 16 例能证明「给定卡片数组该产出什么文案与排序」，
+ * 为什么需要它：纯函数测不到 DOM，而 `.test.tsx`（jsdom，2026-09-20 起）也测不到真 CSS 与真实浏览器行为。
+ * `coach-cards.test.ts` 的 16 例能证明「给定卡片数组该产出什么文案与排序」，
  * 但**证明不了那些卡真的被挂到了屏幕上、翻牌真的能翻**——`.tsx` 里少写一个
  * `{revealed && <div className="coach-qdef">}`、少判一次 `open &&`，单测全绿、屏上却什么都没有。
  * 本探针用无头 Chrome 真点真看，是当前唯一能自动核验渲染层的手段（清偿 v0.2.48 的「.tsx 无自动化测」欠账）。

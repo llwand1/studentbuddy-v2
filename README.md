@@ -3,17 +3,19 @@
 [![CI](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-148%20files%20%2F%202069%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-127-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-124%20types-8a63f6)
+![tests](https://img.shields.io/badge/tests-151%20files%20%2F%202084%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-140-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-134%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
+
+### 🚀 在线体验 · **[11wand.com](https://11wand.com)** —— 免安装，邮箱注册即用
 
 > **studentbuddy —— 你的专属学习助手。** 本地优先的 AI 学习产品：**学 → 练 → 析 → 忆 → 反馈** 五环闭环，同一套代码既可**单机本地运行**，也可作为**多用户 Web 服务**部署。
 >
 > v2 是全新重写仓（v1 [`llwand1/studentbuddy`](https://github.com/llwand1/studentbuddy) 已冻结），按「需求为纲、简洁优先」六条 ADR 从零建成。
 >
-> ✅ **已上线**（`2.0.0-alpha.0`）：多用户 Web 形态运行于 **`https://11wand.com`**（2026-09-19 起）——上线阶梯 12 批全部交付、部署闸门全部清空；部署与运维清单见根目录《部署手册》，[§当前状态](#当前状态) 与 [§已知限制](#已知限制) 照常如实维护。
+> ✅ **已上线**（`2.0.0-alpha.0`）：多用户 Web 形态运行于 **<https://11wand.com>**（2026-09-19 起）——上线阶梯 12 批全部交付、部署闸门全部清空；部署与运维清单见根目录 [《部署手册》](DEPLOY.md)，[§当前状态](#当前状态) 与 [§已知限制](#已知限制) 照常如实维护。
 >
 > 📌 本文所有定量数字为**快照**，取数口径与日期逐条标注；**权威口径**在 `docs/dev/test-plan.md` §3（测试基线）与 `docs/dev/launch-plan.md` §2（上线阶梯），冲突时以那两份为准。
 
@@ -53,11 +55,13 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 | 形态 | 说明 | 状态 |
 |------|------|------|
 | **本地单机** | `api(Express :18791，默认仅绑 127.0.0.1) + web(Vite :5173)`，数据存 SQLite 单文件（WAL） | ✅ 已交付，日常开发形态 |
-| **多用户 Web 服务** | 邮箱注册/登录 + 按用户的数据归属 + 用量闸门，Docker + 反向代理部署 | 🔶 **代码线已完成**（上线阶梯 12 批全部交付、§3.1 五条代码闸门已落码），**剩 M3 部署资源未就绪 ⇒ 尚不可上线** |
+| **多用户 Web 服务** | 邮箱注册/登录（密码 + 邮件验证码 + GitHub OAuth）+ 按用户的数据归属 + 用量闸门，Caddy 反代 + systemd 守护 | ✅ **已上线**：<https://11wand.com>（2026-09-19 起） |
+
+两种形态**共用同一份代码**，差异只在环境变量——且这条差异本身是**显式契约**：`server/auth/form.ts` 是形态的唯一事实源（`SB_REQUIRE_AUTH` 开 = cloud 线上多用户 / 关 = local 本地单人），前端据此分叉（local **免登录直进应用壳**，cloud 走落地页）。**将来「本地有、线上没有」的功能一律从这里判断，禁止再各自读 env。**
 
 ## 当前状态
 
-> 本节是 [`docs/dev/launch-plan.md`](docs/dev/launch-plan.md) §2 的摘要，取数于提交 `a33d669`（2026-09-19）。**逐批证据、判据与「不改会怎样」的清单只在那份台账里。**
+> 本节是 [`docs/dev/launch-plan.md`](docs/dev/launch-plan.md) §2 的摘要，取数于提交 `5383a83`（2026-09-20）。**逐批证据、判据与「不改会怎样」的清单只在那份台账里。**
 
 | 上线批次 | 内容 | 状态 |
 |---|---|---|
@@ -71,7 +75,7 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 | M2d-2 | 词条库与领域归主（`term_library` / `term_domain` 重建 + `term_mention_log` 口径对齐，v31） | ✅ 已交付 |
 | M2d-3 | 其余表加归属列：`quiz_*` / `flow_*` / `knowledge_*`（迁移 v33，八处加列） | ✅ 已交付（★ 同批收口 `knowledge_node`/`knowledge_edge` 的旧洞） |
 | **M2 收口** | §3.1 五条代码闸门（`SB_TRUST_PROXY` / `SB_ALLOWED_ORIGINS` / `SB_HOST` / `SB_COOKIE_SECURE` / `SB_REQUIRE_AUTH`）落码 + 生产 env 组合强开过测 | ✅ 已交付 ⇒ **代码面完成** |
-| **M3 部署上线** | Caddy + systemd + 五条部署 env + 域名 TLS + 发信 DNS | ✅ **已上线 2026-09-19**：`https://11wand.com`（RackNerd 1GB VPS · Caddy 反代 + 自动 TLS · systemd 守护 · GoatCounter 隐私友好统计 · 每日备份异地化 + 看门狗）。部署与运维清单见根目录《部署手册》 |
+| **M3 部署上线** | Caddy + systemd + 五条部署 env + 域名 TLS + 发信 DNS | ✅ **已上线 2026-09-19**：`https://11wand.com`（RackNerd 1GB VPS · Caddy 反代 + 自动 TLS · systemd 守护 · GoatCounter 隐私友好统计 · 每日备份异地化 + 看门狗）。部署与运维清单见根目录 [《部署手册》](DEPLOY.md) |
 
 ★ 注意**两套编号不是一回事**：`M1/M1.5/M2a~d/M3` 是**上线阶梯**（本节），`M0~M6` 是**产品功能里程碑**（见 [§里程碑](#里程碑)）。功能里程碑不决定能不能上线。
 
@@ -85,7 +89,7 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 | **AI 输出可靠性工程** | 模型不听话不塌系统：出题五级解析阶梯（补括号 → 剥图重试 → 截断逐题回退）、丢图保题、非法转义修复、SSE 屏上文本与库内文本逐字一致；**上游挂起不再让会话永久卡住**——流式空闲超时 120s / 一次性总时长 180s，超时抛可读错误；**并发闸门两层：每用户 2 路 + 全站封顶 N（占位 8）**（两路对话可并行，主链优先、后台让路，超额明确拒绝而非无限排队） | 每个对策都对应一次真实故障的根因登记与回归锁（[`docs/dev/bug-ledger.md`](docs/dev/bug-ledger.md) + CHANGELOG 09-04、09-17 两批） |
 | **模型产出敢真跑** | ```html 围栏产出的网页在 `CSP: sandbox` + iframe 双层沙箱里运行，页面源为 `null`；SVG 净化剥 `<image>` 外链（防外链信标泄露 IP） | 真机实测沙箱页调写接口 / 读数据全被拒；净化有 `web/lib/svg-utils.test.ts` 锁 |
 | **前端零第三方库** | 无 UI 库 · 无 Markdown 库 · 无图表库：Markdown 解析、代码高亮、数据图自绘 SVG、SVG 净化自愈全部自写——供应链攻击面与包体积同时趋零、行为完全可控 | `packages/web/package.json` 运行时依赖只有 `react` / `react-dom` / `@sb/shared` |
-| **测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；交互层另有 **10 个真机探针脚本**（`tools/probes/*.mjs`，其中 8 个走 CDP 真点真渲染），补 `.tsx` 无 jsdom 的空白 | 基线 **148 文件 / 2069 例（2068 passed + 1 skipped）**，Node 22 全量 vitest 实测；**逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**（本格数字仅为快照，勿据此判现状） |
+| **测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；交互层是**两层互补**——**8 个 `.test.tsx`**（jsdom 按文件 pragma 启用，锁交互逻辑）＋ **10 个真机探针脚本**（`tools/probes/*.mjs`，其中 8 个走 CDP 真点真渲染，锁 CSS 与真实浏览器行为） | 基线 **151 文件 / 2084 例（2083 passed + 1 skipped）**，Node 22 全量 vitest 实测；**逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**（本格数字仅为快照，勿据此判现状） |
 | **契约先行的可维护性** | `@sb/shared` 是 SSE 事件 / 内容块 / REST / 领域模型的单一事实源，前后端不允许各写一套；先登记再实现 | shared 契约文件头注释即纪律；四条固定扩展模式见 [§开发指南](#开发指南) |
 | **不锁定供应商** | OpenAI 兼容 + Anthropic 双适配；搜索三家按 key 并行聚合 + 免 key 兜底——换模型、换服务商只动设置页 | 适配器有出站请求体断言测试，且当场逮出过真缺陷 B-001（多条 system 在 Anthropic 型上静默丢失） |
 | **多用户归属做得彻底** | 归属不是加个 `WHERE`：`providers.owner_id IS NULL` ＝平台通道（人人可用）、业务表 `owner_id = ''` ＝无主（谁都看不见），两种「没有主人」可见性刻意相反；读写按形状分别走 `ownerFilter` / `ownerForWrite` | 每批都配跨用户隔离锁 + 「故意改坏必红」的非空转取证（[`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) §8 + test-plan §7） |
@@ -157,7 +161,7 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 - `#/pk` 上的独立页，与主应用五环并列；断点适配有 9 档视口真机探针锁（契约 [`PK-SPEC.md`](docs/PK-SPEC.md)）
 
 ### 账号与多用户
-- **注册 / 登录**：邮箱 + 密码（`scrypt` 派生，参数随哈希落库 ⇒ 调参不必洗库）、邮箱验证码登录（`auth_codes` + Resend 发信）、注册即验证
+- **注册 / 登录**：邮箱 + 密码（`scrypt` 派生，参数随哈希落库 ⇒ 调参不必洗库）、邮箱验证码登录（`auth_codes` + Resend 发信）、注册即验证、**GitHub OAuth**（授权 → 拉**已验证邮箱** → **按邮箱自动归并**到既有账号，没命中才建号；入口画不画由 `/api/auth/providers` 探针决定 ⇒ 未配 client id 时自动隐藏，不会出现点了没反应的假按钮）
 - **会话安全**：库里只存 `SHA-256(token)`（拖库拿不到可用会话）、`HttpOnly` cookie、登出幂等
 - **限流三桶作用域两两不同**：间隔按 `用途:邮箱`、每小时封数按邮箱跨用途共用、IP 封数按 `用途:IP`
 - **数据归属**：见 [§当前状态](#当前状态) M2 线；跨用户访问一律 404 不回 403（403 等于承认「这个 id 存在」）
@@ -202,13 +206,13 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 │     └ sse-bus         事件序号回放 · 按 owner 分频道       │
 │   security.ts     Origin 校验 / 密钥加密 / SSRF 护栏      │
 └──────────────────────────┬─────────────────────────────┘
-                           │ better-sqlite3（WAL，逐版本迁移 v1..v31）
+                           │ better-sqlite3（WAL，逐版本迁移 v1..v36）
                            ▼
         数据目录 / studentbuddy.db（SB_DATA_DIR 可覆盖）
 
 packages/shared — 契约单一事实源：SSE 事件 / 内容块 / REST / 领域模型
 tools/gates     — 工程门禁：行数上限 / 禁内联样式 / 禁 any / 测试登记
-tools/probes    — 真机探针 11 个（CDP 真点 6 + 算法量测 5）
+tools/probes    — 真机探针 10 个（CDP 真点 8 + 算法/隔离量测 2）
 ```
 
 **三包职责**：`@sb/shared` 只放契约与纯函数（前后端共用一份，不允许各写一套）；`@sb/server` 承载全部业务域；`@sb/web` 是 React 18 前端，**零第三方运行时依赖**。
@@ -227,12 +231,13 @@ tools/probes    — 真机探针 11 个（CDP 真点 6 + 算法量测 5）
 - **密钥不出接口**：搜索 key AES-GCM 密文入库，响应只回布尔
 - **SSRF 护栏**：搜索 / 抓取出网走护栏 + 白名单；抓页单页不遍历
 - **外部结果永不直接写库**：现场搜集走 preview/commit 两段确认，服务端重算逐字锚点、不信模型上报
+- **OAuth 登录**：state cookie 防 CSRF；只认 GitHub 返回的**已验证邮箱**（未验证邮箱不参与归并）；邮箱撞既有账号时**显式失败不顶替**；新号写随机不可知口令哈希 ⇒ 不能靠「没设过密码」反推登录方式
 - **归属过滤按读形状分两把**：读「一批行」用 `ownerFilter`，读「一个值/聚合」用 `ownerForWrite`——豁免过滤时前者返回多余行、后者会返回**任意一行**（静默串台）
 - **请求体 2MB 上限**；SQLite 落库，无上传目录、无路径穿越面
 
 ## 部署形态
 
-本地形态开箱即用（见 [§快速开始](#快速开始)）。**多用户 Web 形态代码线已完成，但部署资源未就绪**——`docs/dev/launch-plan.md` §3 列明四类闸门，其中**代码类五条已于 2026-09-19（M2 收口）全部落码**，部署时需按下表把对应 env 配到位：
+本地形态开箱即用（见 [§快速开始](#快速开始)）；多用户 Web 形态已在 **<https://11wand.com>** 运行（2026-09-19 起：Caddy 反代 + 自动 TLS + systemd 守护）。`docs/dev/launch-plan.md` §3 保留四类闸门的逐条判据，其中**代码类五条已于 2026-09-19（M2 收口）全部落码**；下表是这五条 env 的现状与「不配的症状」：
 
 | # | 闸门 | 状态 | 不配的症状 |
 |---|---|---|---|
@@ -245,6 +250,8 @@ tools/probes    — 真机探针 11 个（CDP 真点 6 + 算法量测 5）
 配置侧另有四条必验项（发信双变量、数据目录指持久卷、端口对齐、全站并发值 N），误配症状逐条写在台账 §3.2。**外部依赖类**（域名/DNS/服务器/邮件送达）与**人工验收类**只能由项目所有者推进。
 
 ## 快速开始
+
+**不想装环境？** 直接打开 **<https://11wand.com>**（邮箱注册即用；多用户 Web 形态，数据存服务器）。**想完全本地、数据只留在自己机器上？** 按下文跑本地单机形态——两种形态**共用同一份代码**，差异只在环境变量。
 
 > ⚠️ **Node 版本必须「装依赖」与「运行时」一致**（`engines: >=22.11.0`，仓库带 `.nvmrc`）：`better-sqlite3` 是原生模块，产物按**安装那一刻**的 Node ABI 编译；用 Node 20 装完再拿 Node 22 跑（或反之），涉库代码会全线 `ERR_DLOPEN_FAILED`，表现为所有 HTTP 接口 500、测试大面积红，**极易误判成新代码写错**。**换 Node 大版本必须重装依赖**（删 `node_modules` 后 `npm install`），只换运行时无效。
 
@@ -283,7 +290,7 @@ packages/
 │  ├─ llm/                  openai / anthropic 双适配 + router(归属) + upstream-gate(两层)
 │  ├─ sse-bus.ts            帧序号 · 回放去重 · 按 owner 分频道
 │  ├─ routes/               REST 分域路由（15 个域文件）
-│  ├─ storage/              better-sqlite3 封装 / 逐版本迁移（v1..v31，按区间分文件）
+│  ├─ storage/              better-sqlite3 封装 / 逐版本迁移（v1..v36，按区间分文件）
 │  └─ security.ts           Origin 校验（不放行 'null'）
 ├─ web/src/
 │  ├─ app/App.tsx           应用壳：侧栏八视图导航 + 可折叠历史 + 用户框
@@ -294,9 +301,10 @@ packages/
 │  └─ styles/tokens.css     设计 token 唯一事实源
 tools/
 ├─ gates/check.mjs         行数 / 内联样式 / any / 测试登记 四项门禁
-├─ probes/                 真机探针 11 个（CDP 真点 6 + 算法量测 5）
+├─ probes/                 真机探针 10 个（CDP 真点 8 + 算法/隔离量测 2）
 └─ migrate-from-v1/        v1→v2 数据迁移
-docs/                      契约与研发台账（22 份 SPEC + dev/ 四份 + metrics）
+docs/                      契约与研发台账（24 份契约/SPEC + dev/ 四份 + metrics）
+DEPLOY.md                  部署手册：服务器 / systemd / 五条部署 env / TLS / 备份 / 回滚
 CHANGELOG.md               项目改动登记册（代码/文档/测试同批登记）
 AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决策记录
 ```
@@ -309,9 +317,16 @@ AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决�
 - 禁内联 `style={{…}}`（一律走 tokens.css 的 token）；禁 `any`；测试也禁 `!` 非空断言
 - 每个测试文件必须在 `docs/dev/test-plan.md` 成行登记（未登记 = 门禁红）
 
-**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**148 测试文件 / 2069 用例**（2068 passed + 1 skipped；**权威口径见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，此处仅为快照）。
+**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**151 测试文件 / 2084 用例**（2083 passed + 1 skipped；**权威口径见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，此处仅为快照）。
 
-`.tsx` 渲染层与事件接线无 jsdom 兜底，改交互时跑真机探针：
+交互层是**两层互补**，别指望任何一层单独覆盖：
+
+| 层 | 覆盖什么 | 覆盖不到什么 |
+|---|---|---|
+| **`.test.tsx`（jsdom，8 个）** | 交互**逻辑**：点了之后状态对不对、调没调接口、条件渲染出现没有 | 真 CSS 布局、真实浏览器 API（`DOMParser` / `getBBox` / `elementFromPoint`）——jsdom 里这些要么没有、要么是桩 |
+| **`tools/probes/*.mjs`（真机，10 个）** | 真浏览器里的**观感与布局**：CSS 断点、SVG 几何、点击链路、在途三态 | 组件内部逻辑分支的穷举（探针不驱动 React 状态） |
+
+`.tsx` 的 jsdom **按文件 pragma 启用**（全局 environment 仍是 `node`），改交互时两层都要跑：
 
 | 探针 | 验什么 | 前置 |
 |---|---|---|
@@ -321,6 +336,10 @@ AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决�
 | `flow-canvas-zoom-cdp.mjs` | 编排画布缩放/平移（31 断言，含「滚轮锚点不漂」） | 需 `npm run dev` |
 | `pk-breakpoint-cdp.mjs` | 对战页 9 档视口断点 | 仅需 vite |
 | `doc-rag-bm25.mjs` | 切块/BM25 召回量测——**改 `shared/doc-rag.ts` 任何常量前必须重跑**，契约 §8 的每个数字出自它 | 零依赖 |
+| `chat-composer-cdp.mjs` | 输入区「+」折叠菜单五项目 + 状态摘要「联网已开」挂没挂在触发器上 + 侧栏入口 | 需后端 18791 + vite 在 **5174**（端口写死） |
+| `quiz-e2e-cdp.mjs` | 出题页「来源」行只在**答后揭晓**才渲染、`RefList` 默认折叠、`searchNote` 与来源清单的二选一 | 需后端 + vite 5174；★ **会真出题落库** ⇒ 必须对隔离实例跑 |
+| `weak-analysis-cdp.mjs` | 薄弱点分析三态（含「后」态按钮复位）+ 多主题卡片全渲染 + 降级提示不冒充 AI | 需 `npm run dev`；**只读**但真花模型额度，不进 CI |
+| `db-isolation-check.mjs` | 全量测试**前/后**各跑一次、逐字段比对一致 ⇒ 证明「测试不写真实数据目录」 | 零前置；以 `readonly` 打开库，全程无写 |
 
 **提交纪律**：
 
@@ -343,6 +362,7 @@ AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决�
 | AI 服务商 | 设置页（`providers` 表，按 `owner_id` 归属） | OpenAI 兼容协议；Anthropic 型走独立适配器（system 全量合并） |
 | 搜索 key | 设置页（AES-GCM 密文入库）或环境变量 | 环境变量：`EXA_API_KEY` / `TAVILY_API_KEY` / `ZHIPU_API_KEY`；三者全缺走免 key 通道兜底，质量以配 key 为稳 |
 | 发信 | `RESEND_API_KEY` **与** `SB_MAIL_FROM` | ★ **两个都配齐才真发信**；只配一个会静默走控制台兜底，症状是「点了发送、界面说成功、邮箱永远没有」 |
+| GitHub 登录 | `SB_GITHUB_CLIENT_ID` **与** `SB_GITHUB_CLIENT_SECRET` | ★ 两个都配齐入口才画（`/api/auth/providers` 探针）；OAuth App 的 callback 必须与部署域名一致（`https://<域名>/api/auth/github/callback`） |
 | 鉴权 | `SB_REQUIRE_AUTH`（默认关）、`SB_COOKIE_SECURE` | 强制鉴权必须与 M2 收口同批开；HTTPS 部署必须开 Secure |
 | 上游并发 | `SB_UPSTREAM_SITE_MAX_CONCURRENT`（全站封顶，**缺省 8 为占位值**）、`SB_UPSTREAM_SITE_QUEUE_MAX`（缺省 20） | 只约束平台免费通道；队列满**明确拒绝**而非无限排队 |
 | 端口 | `SB_PORT`（默认 18791）、`SB_PROXY_TARGET` | 端口被 v1 占用时切 18792，**不杀 v1 进程** |
@@ -379,16 +399,17 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 | 深度理解（判定链完整闭环） | 🔶 闸门件与落库表已就位，主链未接线 |
 | M4 定稿（反馈环收口 + v1 迁移实跑） | 🔶 反馈与迁移工具已落，定稿未做 |
 | M5 工具生态（MCP / 文件工具 / 确认门） | 🔶 S1 内核与 S2 确认门/词条三工具已落码（契约 v1.4.1，2026-09-19）；S3 MCP 接入未开工 |
+| 全站搜索（FTS5 三族索引：消息 / 词条 / 错题本） | 🚧 代码已落、待入库（契约 `docs/FTS-SPEC.md`；迁移 v37） |
 
 ## 已知限制
 
-- **★ 尚不可公网部署**：部署闸门四类中**代码类已清空**（M2 收口，2026-09-19），剩**配置类 / 外部依赖类（域名未购）/ 人工验收类**三类未清（见 [§部署形态](#部署形态)）。仓内暂无 Dockerfile / Caddyfile。★ 边界：`evolution_*` 与 `scenario_demo` 未加归属列（契约未点名，触达均经已归主父表的闸门）
+- **部署形态是「ssh 直传 + systemd」，不是容器**：仓内**没有 Dockerfile / Caddyfile**（服务器侧配置见 [《部署手册》](DEPLOY.md)）；`tools/deploy.sh` 是一键发布脚本（`check` → `build` → 上传 → 重启 → 健康检查，任一步失败即停）。★ 边界：`evolution_*` 与 `scenario_demo` 未加归属列（契约未点名，触达均经已归主父表的闸门）
 - **`security.ts` 的 Origin 白名单**：`SB_ALLOWED_ORIGINS`（逗号分隔）已在 M2 收口落码，部署域名配进白名单即可；**localhost 兜底正则刻意保留**（本机开发不因忘配 env 而挂）。配错 env 的症状是「合法域名也 403」——宁可显式失败不放宽（不收通配符）
 - **上游并发闸门是进程内 `Map`**：多实例部署下容量 × 实例数，全站封顶只在单进程内成立
 - **行内公式不渲染**：`$…$` 按原文显示（未引 katex，保持 `@sb/web` 零第三方依赖）；`mermaid` / `echarts` 围栏降级代码块（刻意不引库，数据图由自绘 ```chart 覆盖）
 - **预览页只活内存**：服务重启即失效，无分享链接（内置面板无地址栏、宽度不可拖拽，是定档边界不是缺陷）
 - **文档模式：词法检索，不是语义检索**：≤ 60k 字整篇直塞；> 60k 才切块 + BM25 取段落。**没有 embedding 向量／跨会话资料库／持久化索引／pdf-docx 解析／可点击溯源**。已知天花板：用户**不用资料里的原词**改写提问时，70 万字规模下召回收敛在 **8/13 ≈ 62%**（词法路线的性质，只能靠向量路线突破）；且**不靠分数阈值判「资料没写」**——两种阈值方案都被实测否掉（真命中区间与干扰项区间重叠），识别不到的权力交给模型如实说（契约 `DOC-RAG-SPEC.md` §3.3）
-- **`.tsx` 渲染层无 jsdom**：观感与手感类症状只能靠真机探针 + 人工目检，覆盖率数字对交互层不适用
+- **渲染层覆盖仍不完整**：8 个 `.test.tsx` 覆盖了最高频的几页（对话主视图 / 词条库 / 落地页 / PK / 输入区 / 确认卡等），**其余页面仍无 jsdom 测试**；且 jsdom 里没有真 CSS、也没有 `DOMParser` / `getBBox` / `elementFromPoint` 这类真实浏览器 API ⇒ 布局与观感类症状仍只能靠真机探针 + 人工目检，覆盖率数字对交互层不适用
 - **全站并发值 N 仍是占位值 8**：待业务值确定后调整，沿用上线会收到「当前免费通道繁忙」
 
 ★ 覆盖率与历史基线的逐文件对账见 [`docs/metrics.md`](docs/metrics.md)（**2026-09-06 全量采集，未随近期批次刷新**，引用时注意口径日期）。
@@ -426,5 +447,6 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 | [`dev/launch-plan.md`](docs/dev/launch-plan.md) | **上线台账**：阶梯进展 + 部署闸门清单＝「什么时候能上线」的答案 |
 | [`dev/bug-ledger.md`](docs/dev/bug-ledger.md) | 反复 bug 台账（收敛计数驱动换根因假设） |
 | [`dev/manual-test.md`](docs/dev/manual-test.md) | 真人验收记录 |
+| [`DEPLOY.md`](DEPLOY.md) | **部署手册**：服务器 / systemd / 五条部署 env / TLS / 备份 / 回滚 |
 
 ★ 更高层的元规则与个人开发规范不随本仓分发；仓内以 `AGENTS.md`（施工手册）与本目录为权威面，二者与代码冲突时**以代码 + 测试为准**。

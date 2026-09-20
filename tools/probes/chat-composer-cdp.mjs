@@ -2,9 +2,10 @@
  * chat-composer-cdp — 对话页输入区改版（「+」折叠菜单 + 来源清单移进消息流 + 侧栏「对战」入口）
  * 的真机渲染核验探针。零依赖：Node 22 内置 fetch + WebSocket 直驱 CDP。
  *
- * 为什么需要它：本仓 web 侧**没有渲染测试基建**（只有纯函数 vitest，无 jsdom／testing-library，
- * 见 test-plan §1）。「+」菜单能不能点开、点开后五项在不在、状态摘要「联网已开」有没有挂在触发器上、
- * 按钮是不是真的从输入框那行消失了——这些纯函数一个都测不到。同 `quiz-e2e-cdp.mjs` 的理由。
+ * 为什么需要它：纯函数测不到 DOM，而 `.test.tsx`（jsdom，2026-09-20 起）也测不到**真 CSS 与真实浏览器行为**
+ * ——jsdom 里没有样式计算、没有 `elementFromPoint`。「+」菜单能不能点开、点开后五项在不在、
+ * 状态摘要「联网已开」有没有挂在触发器上、按钮是不是真的从输入框那行消失了，只有真渲染才有答案。
+ * 同 `quiz-e2e-cdp.mjs` 的理由。
  *
  * 用法（**必须先把服务起起来**）：
  *   node tools/probes/chat-composer-cdp.mjs [场景名]

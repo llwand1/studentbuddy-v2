@@ -1,8 +1,8 @@
 /**
  * weak-analysis-cdp — 「薄弱点分析」真机渲染验证探针（零依赖：Node 22 内置 fetch + WebSocket 直驱 CDP）。
  *
- * 为什么需要它：本仓 web 侧**没有渲染测试基建**（只有纯函数 vitest，无 jsdom／testing-library，
- * 见 test-plan §1）。`weak-report.test.ts` 能证明「给定 WeakAnalysis 该产出什么文案」，
+ * 为什么需要它：纯函数测不到 DOM，而 `.test.tsx`（jsdom，2026-09-20 起）也测不到真 CSS 与真实浏览器行为。
+ * `weak-report.test.ts` 能证明「给定 WeakAnalysis 该产出什么文案」，
  * 但**证明不了那些文案真的被挂到了屏幕上**——`.tsx` 里少写一个 `{view.points.map(...)}`、
  * 少判一次 `view.headNote`，11 个单测全绿、屏幕上却什么都没有。
  * 本探针用无头 Chrome 真点真看，是当前唯一能自动核验渲染层的手段。

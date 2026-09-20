@@ -17,7 +17,7 @@ import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
 
 /** 读侧做形状归一时的「AI 侧全 0」占位：只钳单档，不做总量削（理由见下） */
-const ZERO_AI_MIX: QuizMix = { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 };
+const ZERO_AI_MIX: QuizMix = { single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 };
 
 /**
  * 读设置；未配过/配置损坏都回退 `DEFAULT_QUIZ_SOURCE_MIX`（**全 0＝不出真题**，数据容错 ADR-6）。

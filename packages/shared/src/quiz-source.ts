@@ -60,7 +60,14 @@ export const SETTING_KEY_QUIZ_SOURCE_MIX = 'quiz_source_mix';
 export type QuizSourceMix = Record<QuizMixKind, number>;
 
 /** 默认全 0＝不出真题：老用户升级后行为零变化（纯加法原则） */
-export const DEFAULT_QUIZ_SOURCE_MIX: QuizSourceMix = { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 };
+export const DEFAULT_QUIZ_SOURCE_MIX: QuizSourceMix = {
+  single: 0,
+  multiple: 0,
+  fill: 0,
+  essay: 0,
+  judge: 0,
+  scenario: 0,
+};
 
 /**
  * 单题型真题上限 **5**（AI 侧是 10）：网上同题型的可用题本就有限，
@@ -68,9 +75,14 @@ export const DEFAULT_QUIZ_SOURCE_MIX: QuizSourceMix = { single: 0, multiple: 0, 
  */
 export const MAX_QUIZ_REAL_PER_TYPE = 5;
 
-/** 真题侧单档上限按档取：情景题 0（网上摘不到），其余 5。与 `mixKindCap` 同族 */
+/**
+ * 真题侧单档上限按档取：情景题/判断题 0，其余 5。与 `mixKindCap` 同族。
+ * ★ judge 恒 0（PK-SPEC §15 B2）：判断题网上规范格式稀少（多为交互式小部件，摘不出
+ *   verbatim 锚点），且 AI 零成本就能出——摘录无增益，反给搜集管道添一类校验分支。
+ *   判断题只走 AI 侧（设置页 AI 配比 / 对战出题现选）。
+ */
 export function sourceKindCap(kind: QuizMixKind): number {
-  return kind === 'scenario' ? 0 : MAX_QUIZ_REAL_PER_TYPE;
+  return kind === 'scenario' || kind === 'judge' ? 0 : MAX_QUIZ_REAL_PER_TYPE;
 }
 
 /** 真题侧总题数（与 `mixTotal` 同实现；结构形状相同但语义不同，故各留一个入口不互相顶替） */

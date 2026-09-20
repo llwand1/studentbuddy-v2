@@ -35,11 +35,11 @@ import { MixStepper } from './QuizMixRow';
 import './settings.css';
 
 const PRESETS: Array<{ name: string; mix: QuizMix }> = [
-  { name: '标准 4 题', mix: { single: 2, multiple: 0, fill: 1, essay: 1, scenario: 0 } },
-  { name: '全选择 5 题', mix: { single: 5, multiple: 0, fill: 0, essay: 0, scenario: 0 } },
-  { name: '选择+多选 5 题', mix: { single: 3, multiple: 2, fill: 0, essay: 0, scenario: 0 } },
-  { name: '笔试 10 题', mix: { single: 4, multiple: 2, fill: 2, essay: 2, scenario: 0 } },
-  { name: '情景演练 2 套', mix: { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 2 } },
+  { name: '标准 4 题', mix: { single: 2, multiple: 0, fill: 1, essay: 1, judge: 0, scenario: 0 } },
+  { name: '全选择 5 题', mix: { single: 5, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 } },
+  { name: '选择+多选 5 题', mix: { single: 3, multiple: 2, fill: 0, essay: 0, judge: 0, scenario: 0 } },
+  { name: '笔试 10 题', mix: { single: 4, multiple: 2, fill: 2, essay: 2, judge: 0, scenario: 0 } },
+  { name: '情景演练 2 套', mix: { single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 2 } },
 ];
 
 const sameMix = (a: QuizMix, b: QuizMix): boolean => MIX_KINDS.every((t) => a[t] === b[t]);

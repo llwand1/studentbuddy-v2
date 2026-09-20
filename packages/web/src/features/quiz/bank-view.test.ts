@@ -21,8 +21,8 @@ describe('bankBadge — 题库徽标四分', () => {
 });
 
 describe('mixTipText — 配比摘要一行（QUIZ-BLEND-SPEC §3.5/§8.3）', () => {
-  const ai: QuizMix = { single: 2, multiple: 0, fill: 1, essay: 1, scenario: 0 };
-  const realZero: QuizSourceMix = { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 };
+  const ai: QuizMix = { single: 2, multiple: 0, fill: 1, essay: 1, judge: 0, scenario: 0 };
+  const realZero: QuizSourceMix = { single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 };
 
   it('真题 0 → 与旧摘要逐字一致（老用户看到的字不变）', () => {
     expect(mixTipText(ai, realZero)).toBe('单选题 2 · 填空题 1 · 解答题 1');

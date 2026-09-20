@@ -105,8 +105,8 @@ describe('blendNote — 真题合流文案（QUIZ-BLEND-SPEC §3.4，2026-09-20 
     ['scenario', '情景题'],
   ] as const;
 
-  const ZERO_SRC = { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 };
-  const ZERO_AI = { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 };
+  const ZERO_SRC = { single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 };
+  const ZERO_AI = { single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 };
 
   /** 造一份合流报告；`missing` 由 requested/actual 如实推得（服务端就是这么填的） */
   const blend = (p: {

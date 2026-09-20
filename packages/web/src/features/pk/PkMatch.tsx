@@ -13,7 +13,7 @@
  * 判分不在这里算：点选项 → POST answer → 服务端判分 → SSE pk-state 回灌快照（单一事实源）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isAiUserId, type PkJudgeAdvice, type PkRoomState } from '@sb/shared';
+import { isAiUserId, type PkJudgeAdvice, type PkQuizKind, type PkRoomState } from '@sb/shared';
 import { api, ApiError } from '../../lib/api';
 import {
   cdRemainingMs,
@@ -79,6 +79,8 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
   }, []);
 
   const [prompt, setPrompt] = useState('');
+  /** §15 B2：出题人当场选的题型（单选/判断），随出题请求带走 */
+  const [qKind, setQKind] = useState<PkQuizKind>('single');
   const [quizBusy, setQuizBusy] = useState(false);
   const [quizErr, setQuizErr] = useState('');
   /** UX 批：替代原「一行 flash 文字」——带图标与动画的判分/提示 */
@@ -123,7 +125,7 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
     setQuizErr('');
     setJudge(null);
     try {
-      await api.pk.submitQuiz(state.roomId, prompt.trim());
+      await api.pk.submitQuiz(state.roomId, prompt.trim(), qKind);
       setPrompt('');
     } catch (e) {
       setQuizErr(e instanceof ApiError ? e.message : '出题失败，请重试');
@@ -133,7 +135,7 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
     } finally {
       setQuizBusy(false);
     }
-  }, [prompt, quizBusy, state.roomId]);
+  }, [prompt, qKind, quizBusy, state.roomId]);
 
   const answer = useCallback(
     async (choice: number) => {
@@ -186,7 +188,9 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
       cd={cd}
       busy={quizBusy}
       error={quizErr}
+      qKind={qKind}
       onPrompt={setPrompt}
+      onKind={setQKind}
       onSubmit={() => void submitQuiz()}
     />
   );

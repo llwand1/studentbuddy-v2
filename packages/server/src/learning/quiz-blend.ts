@@ -53,7 +53,7 @@ export interface BlendResult {
 }
 
 function zeroMix(): QuizMix {
-  return { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 };
+  return { single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 };
 }
 
 function zeroSourceMix(): QuizSourceMix {

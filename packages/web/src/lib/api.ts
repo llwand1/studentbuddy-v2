@@ -96,11 +96,12 @@ export const api = {
     /** 全量快照（轮询兜底 / 断线重连对齐用）；404 = 房不存在或已被 TTL 回收 */
     roomState: (roomId: string) =>
       request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/state`),
-    /** 出题（AI 生成耗时数秒为正常）；429 = CD 内，502 = AI 失败（CD 已回滚，免费重试） */
-    submitQuiz: (roomId: string, prompt: string) =>
+    /** 出题（AI 生成耗时数秒为正常）；429 = CD 内，502 = AI 失败（CD 已回滚，免费重试）。
+     * qKind（§15 B2）：出题人当场选单选/判断，省略＝单选（服务端同样兜底）。 */
+    submitQuiz: (roomId: string, prompt: string, qKind: 'single' | 'judge' = 'single') =>
       request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/quiz`, {
         method: 'POST',
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, qKind }),
       }),
     /** 答题：立即判分 { correct, delta, score }；409 = 已答/已超时 */
     submitAnswer: (roomId: string, questionId: string, choice: number) =>

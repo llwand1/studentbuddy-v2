@@ -314,6 +314,56 @@ describe('HTTP 路由 · 域错误码 → 状态映射', () => {
   });
 });
 
+// ── §15 B2（2026-09-20 老板拍板「出题时现选」）：判断题进对战 ──────────────
+
+describe('§15 B2 出题时现选题型（单选/判断）', () => {
+  /** 固定判断题：options 恒两项、answer 是正确项下标（判分链路与单选同形，零特判） */
+  const JUDGE: QuizQuestion = {
+    type: 'judge',
+    question: '声音在真空中不能传播。',
+    options: ['正确', '错误'],
+    answer: [0],
+    explanation: '真空不能传声。',
+  };
+
+  it('qKind=judge：配比按 pkQuizMixFor("judge") 现算，判分链路照常（answer 下标直接判）', async () => {
+    const t0 = Date.now();
+    const { alice, bob, roomId } = await makeActiveRoom();
+    vi.mocked(generateQuiz).mockResolvedValue({ questions: [JUDGE] });
+    const state = await submitQuiz(roomId, alice.userId, '出一道关于声音传播的判断题', t0, null, 'judge');
+    // 配比是「恰好一道判断题」：judge 额度 1、单选归 0（其余档本来就 0）
+    expect(vi.mocked(generateQuiz).mock.lastCall?.[2]).toEqual({
+      single: 0,
+      multiple: 0,
+      fill: 0,
+      essay: 0,
+      judge: 1,
+      scenario: 0,
+    });
+    const q = state.questions[0];
+    if (!q) throw new Error('判断题未入快照');
+    expect(q.stem).toBe(JUDGE.question);
+    expect(q.options).toEqual(['正确', '错误']);
+    expect(player(roomId, alice.userId).score).toBe(1); // 成功出题照常 +1
+    // 答题方按下标判分——判断题与单选走同一条 submitAnswer 路径
+    const r = submitAnswer(roomId, bob.userId, q.id, 0);
+    expect(r).toEqual({ correct: true, delta: 2, score: 2 });
+  });
+
+  it('不传 qKind ＝ 单选（旧调用点与裁判类似题零改动）', async () => {
+    const { alice, roomId } = await makeActiveRoom();
+    await submitQuiz(roomId, alice.userId, '海洋题', Date.now());
+    expect(vi.mocked(generateQuiz).mock.lastCall?.[2]).toEqual({
+      single: 1,
+      multiple: 0,
+      fill: 0,
+      essay: 0,
+      judge: 0,
+      scenario: 0,
+    });
+  });
+});
+
 afterAll(() => {
   closeDb();
 });

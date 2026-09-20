@@ -50,7 +50,7 @@ function QuestionItem({
   const [fillText, setFillText] = useState('');
   const [revealed, setRevealed] = useState(false);
 
-  const typeLabel = { single: '单选', multiple: '多选', fill: '填空', essay: '解答' }[q.type];
+  const typeLabel = { single: '单选', multiple: '多选', fill: '填空', essay: '解答', judge: '判断' }[q.type];
   const answerArr = Array.isArray(q.answer) ? q.answer : [];
 
   const toggle = (i: number) => {

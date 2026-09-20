@@ -455,6 +455,20 @@
   font-size: var(--sb-fs-sm);
 }
 
+/* §15 B2：出题区题型切换（单选/判断）——选中态用主色底反白，与 primary 同族 */
+.sb-pk-btn.tiny.on {
+  background: var(--sb-primary);
+  border-color: var(--sb-primary);
+  color: #fff;
+}
+
+.sb-pk-kind-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-1);
+  margin-bottom: var(--sb-sp-1);
+}
+
 .sb-pk-btn.ghost {
   background: transparent;
   border: 1px solid var(--sb-line);

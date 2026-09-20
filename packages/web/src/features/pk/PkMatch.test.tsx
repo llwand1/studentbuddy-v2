@@ -165,7 +165,7 @@ describe('PkMatch 对局视图', () => {
     fireEvent.change(main.querySelector('.sb-pk-input')!, { target: { value: '  出一道浮力题  ' } });
     expect(submit.hasAttribute('disabled')).toBe(false);
     fireEvent.click(submit);
-    await waitFor(() => expect(pk.submitQuiz).toHaveBeenCalledWith('r-1', '出一道浮力题')); // trim 在服务调用点
+    await waitFor(() => expect(pk.submitQuiz).toHaveBeenCalledWith('r-1', '出一道浮力题', 'single')); // trim 在服务调用点；§15 B2 题型随请求带走
     expect((main.querySelector('.sb-pk-input') as HTMLInputElement).value).toBe('');
   });
 

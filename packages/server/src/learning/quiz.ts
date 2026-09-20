@@ -43,8 +43,8 @@ export { loadQuizImage, saveQuizImage, buildImageInstruction } from './quiz-imag
  */
 export const QUIZ_PROTOCOL = `你是一个出题引擎。根据给定材料出一组练习题，严格按以下 JSON 格式输出，输出外围包一对 [QUIZ]...[/QUIZ] 标记。
 每个题目对象的字段固定为：type、question、options（只有选择题才给）、answer、explanation、svg、refs。svg 是字符串，值为该题示意图的完整 SVG 源码；该题不需要示意图时给空字符串 ""，但不要省略这个字段。refs 是数组，填本题参考到的资料编号（只有下文给了「互联网参考资料」时才有编号可填），没参考就填 []。
-[QUIZ]{"title":"标题","questions":[{"type":"single","question":"单选题干","options":["A","B","C","D"],"answer":[0],"explanation":"解析","svg":"<svg viewBox='0 0 120 90'><rect x='25' y='15' width='60' height='60' fill='none' stroke='#555'/><text x='18' y='12'>A</text></svg>","refs":[1]},{"type":"multiple","question":"多选题干","options":["A","B","C"],"answer":[0,2],"explanation":"解析","svg":"","refs":[]},{"type":"fill","question":"填空题干，空位用____","answer":["答案1"],"explanation":"解析","svg":"","refs":[]},{"type":"essay","question":"解答题干","answer":"参考要点","solution":"完整解答","svg":"","refs":[]}]}[/QUIZ]
-规则：single 的 answer 是正确选项下标数组（一个元素）；multiple 可多元素；fill 的 answer 按空位顺序；essay 不判分只给参考。题目必须源于给定材料，不得编造。题目类型与数量严格按下文「本次出题数量要求」执行。svg 怎么写照下文「配图要求」，但上面格式示例里那个方框只是演示字段怎么写——照抄进题目等于没配图。refs 只填编号数字，**绝不要填网址或标题**（网址由系统按编号补全，你写的网址一律作废）。除该 JSON 外不要输出任何其他文字。`;
+[QUIZ]{"title":"标题","questions":[{"type":"single","question":"单选题干","options":["A","B","C","D"],"answer":[0],"explanation":"解析","svg":"<svg viewBox='0 0 120 90'><rect x='25' y='15' width='60' height='60' fill='none' stroke='#555'/><text x='18' y='12'>A</text></svg>","refs":[1]},{"type":"multiple","question":"多选题干","options":["A","B","C"],"answer":[0,2],"explanation":"解析","svg":"","refs":[]},{"type":"judge","question":"判断题干（一个可判断真伪的陈述句）","options":["正确","错误"],"answer":[0],"explanation":"解析","svg":"","refs":[]},{"type":"fill","question":"填空题干，空位用____","answer":["答案1"],"explanation":"解析","svg":"","refs":[]},{"type":"essay","question":"解答题干","answer":"参考要点","solution":"完整解答","svg":"","refs":[]}]}[/QUIZ]
+规则：single 的 answer 是正确选项下标数组（一个元素）；multiple 可多元素；judge 的 options 恒为 ["正确","错误"] 两项、answer 是正确项下标数组（一个元素）；fill 的 answer 按空位顺序；essay 不判分只给参考。题目必须源于给定材料，不得编造。题目类型与数量严格按下文「本次出题数量要求」执行。svg 怎么写照下文「配图要求」，但上面格式示例里那个方框只是演示字段怎么写——照抄进题目等于没配图。refs 只填编号数字，**绝不要填网址或标题**（网址由系统按编号补全，你写的网址一律作废）。除该 JSON 外不要输出任何其他文字。`;
 
 /**
  * 定位 svg 字段的整个值（含值内未转义的裸引号）——漏转义时值里会有 `"`，
@@ -155,7 +155,7 @@ export interface NormalizeQuizOptions {
 }
 
 /**
- * 校验规范化：丢弃无题干/无选项的 single/multiple；fill answer 转数组。
+ * 校验规范化：丢弃无题干/无选项的 single/multiple/judge；fill answer 转数组。
  * 配图单独过 `normalizeQuizSvg`：**图不合法只丢图，题照留**（契约 §2.3 丢图保题）。
  * `allowSvg: false` 同样丢图，但**不计进 droppedSvg**——开关关着不出图是预期，不是损失。
  */
@@ -164,7 +164,11 @@ export function normalizeQuiz(data: QuizPayload, opts?: NormalizeQuizOptions): Q
   const questions: QuizQuestion[] = [];
   for (const q of data.questions ?? []) {
     if (!q.question?.trim()) continue;
-    if ((q.type === 'single' || q.type === 'multiple') && (!Array.isArray(q.options) || q.options.length < 2)) continue;
+    if (
+      (q.type === 'single' || q.type === 'multiple' || q.type === 'judge') &&
+      (!Array.isArray(q.options) || q.options.length < 2)
+    )
+      continue;
     const svg = allowSvg ? normalizeQuizSvg(q.svg) : undefined;
     if (svg) {
       questions.push({ ...q, svg });
@@ -223,14 +227,14 @@ export function buildMixInstruction(mix: QuizMix): string {
 
 /**
  * 按配比裁剪模型输出：多出的题丢掉（顺序保持），少出的如实记进 report。
- * 模型自造题型（不在四类之内）一律丢弃——配比是精确契约，宁缺勿乱。
+ * 模型自造题型（不在 `QUIZ_TYPES` 清单之内）一律丢弃——配比是精确契约，宁缺勿乱。
  * 裁完 0 题返回 null（调用方走 502 降级，不返回空题组）。
  */
 export function applyQuizMix(
   quiz: QuizPayload,
   mix: QuizMix,
 ): { quiz: QuizPayload | null; report: QuizMixReport } {
-  const actual: QuizMix = { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 };
+  const actual: QuizMix = { single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 };
   const kept: QuizQuestion[] = [];
   for (const q of quiz.questions) {
     const t = q.type as QuizType;

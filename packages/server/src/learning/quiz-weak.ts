@@ -49,6 +49,7 @@ const TYPE_LABEL: Record<QuizQuestion['type'], string> = {
   multiple: '多选',
   fill: '填空',
   essay: '简答',
+  judge: '判断',
 };
 
 /**

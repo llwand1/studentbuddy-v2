@@ -48,6 +48,10 @@ describe('档位上限与求和', () => {
     expect(sourceKindCap(SCEN)).toBe(0);
   });
 
+  it('判断题真题上限恒 0（B2，PK-SPEC §15）——网上规范格式稀少且 AI 零成本可出，判断题只走 AI 侧', () => {
+    expect(sourceKindCap('judge')).toBe(0);
+  });
+
   it('sourceMixTotal 逐档求和；blendTotal = AI 侧 + 真题侧', () => {
     const r = real({ single: 2, fill: 1 });
     expect(sourceMixTotal(r)).toBe(3);
@@ -81,7 +85,7 @@ describe('normalizeQuizSourceMix（落库兜底 + 联合钳位）', () => {
 
   it(`★ 总量超 ${MAX_QUIZ_TOTAL} 时**削真题侧**，AI 侧一格不动（AI 优先保额）`, () => {
     // AI 侧 18 题 + 真题 5 题 = 23 → 真题被削到 2
-    const heavyAi: QuizMix = { single: 10, multiple: 8, fill: 0, essay: 0, scenario: 0 };
+    const heavyAi: QuizMix = { single: 10, multiple: 8, fill: 0, essay: 0, judge: 0, scenario: 0 };
     expect(mixTotal(heavyAi)).toBe(18);
     const out = normalizeQuizSourceMix({ single: 5 }, heavyAi);
     expect(sourceMixTotal(out)).toBe(2);
@@ -90,14 +94,14 @@ describe('normalizeQuizSourceMix（落库兜底 + 联合钳位）', () => {
   });
 
   it('AI 侧已占满 20 时，真题全部被削成 0（宁可真题 0，也不动 AI 配比）', () => {
-    const full: QuizMix = { single: 10, multiple: 10, fill: 0, essay: 0, scenario: 0 };
+    const full: QuizMix = { single: 10, multiple: 10, fill: 0, essay: 0, judge: 0, scenario: 0 };
     expect(mixTotal(full)).toBe(MAX_QUIZ_TOTAL);
     expect(sourceMixTotal(normalizeQuizSourceMix({ single: 3, fill: 2 }, full))).toBe(0);
   });
 
   it('削真题时从**后往前**（倒档位序：先砍情景/解答，再砍单选）', () => {
     // 需求：single 2 + essay 2 = 4 档真题；只剩 2 的额度 → essay 先被砍光，single 保住
-    const room2: QuizMix = { single: 9, multiple: 9, fill: 0, essay: 0, scenario: 0 };
+    const room2: QuizMix = { single: 9, multiple: 9, fill: 0, essay: 0, judge: 0, scenario: 0 };
     expect(MAX_QUIZ_TOTAL - mixTotal(room2)).toBe(2);
     const out = normalizeQuizSourceMix({ single: 2, essay: 2 }, room2);
     expect(out.single).toBe(2);
@@ -105,7 +109,7 @@ describe('normalizeQuizSourceMix（落库兜底 + 联合钳位）', () => {
   });
 
   it('不越界时原样保留（没超就不该动手）', () => {
-    const r = { single: 2, multiple: 0, fill: 1, essay: 0, scenario: 0 };
+    const r = { single: 2, multiple: 0, fill: 1, essay: 0, judge: 0, scenario: 0 };
     expect(normalizeQuizSourceMix(r, ai())).toEqual(r);
   });
 });
@@ -126,14 +130,14 @@ describe('stepQuizSourceMix（设置页 +/− 编辑态）', () => {
   });
 
   it('AI 侧 + 真题侧顶到 20 后，真题加不进去（联合钳位）', () => {
-    const heavyAi: QuizMix = { single: 10, multiple: 8, fill: 0, essay: 0, scenario: 0 }; // 18
+    const heavyAi: QuizMix = { single: 10, multiple: 8, fill: 0, essay: 0, judge: 0, scenario: 0 }; // 18
     const r = real({ single: 2 }); // 合计 20
     expect(blendTotal(heavyAi, r)).toBe(MAX_QUIZ_TOTAL);
     expect(stepQuizSourceMix(r, heavyAi, 'fill', 1)).toEqual(r);
   });
 
   it('一步跨多档只加到能加的位置（差 1 档却 +5 → 只 +1）', () => {
-    const heavyAi: QuizMix = { single: 10, multiple: 8, fill: 0, essay: 0, scenario: 0 };
+    const heavyAi: QuizMix = { single: 10, multiple: 8, fill: 0, essay: 0, judge: 0, scenario: 0 };
     expect(stepQuizSourceMix(real({ single: 1 }), heavyAi, 'single', 5).single).toBe(2);
   });
 
@@ -154,7 +158,7 @@ describe('setQuizSourceMix（设置页数字直输）', () => {
   });
 
   it('顶破总上限时只给到剩余额度，**不牵连别的真题档**', () => {
-    const heavyAi: QuizMix = { single: 10, multiple: 8, fill: 0, essay: 0, scenario: 0 }; // 18
+    const heavyAi: QuizMix = { single: 10, multiple: 8, fill: 0, essay: 0, judge: 0, scenario: 0 }; // 18
     // 剩余 2；已配 fill 1 → 再给 single 填 9 只能拿到 1（且 fill 保持 1）
     const out = setQuizSourceMix(real({ fill: 1 }), heavyAi, 'single', 9);
     expect(out.single).toBe(1);
@@ -163,14 +167,14 @@ describe('setQuizSourceMix（设置页数字直输）', () => {
   });
 
   it('AI 侧占满时直输任何值都得 0', () => {
-    const full: QuizMix = { single: 10, multiple: 10, fill: 0, essay: 0, scenario: 0 };
+    const full: QuizMix = { single: 10, multiple: 10, fill: 0, essay: 0, judge: 0, scenario: 0 };
     expect(setQuizSourceMix(real(), full, 'single', 3).single).toBe(0);
   });
 });
 
 describe('★ 方向锁：真题占额会挤压 AI 侧（联合钳位的另一半）', () => {
   it('AI 侧加档要扣掉真题已占的额度', () => {
-    const nearFull: QuizMix = { single: 10, multiple: 8, fill: 0, essay: 0, scenario: 0 }; // 18
+    const nearFull: QuizMix = { single: 10, multiple: 8, fill: 0, essay: 0, judge: 0, scenario: 0 }; // 18
     const r = real({ single: 2 }); // 合计 20
     expect(stepQuizMix(nearFull, 'fill', 1, r)).toEqual(nearFull); // 加不进
     expect(setQuizMix(nearFull, 'fill', 1, r).fill).toBe(0);
@@ -184,7 +188,7 @@ describe('★ 方向锁：真题占额会挤压 AI 侧（联合钳位的另一�
 
 describe('★ 向后兼容锁：省略 realMix 时行为与引入本特性之前逐字一致', () => {
   it('stepQuizMix 三参调用不受影响', () => {
-    expect(stepQuizMix(ai(), 'single', 1)).toEqual({ single: 3, multiple: 0, fill: 1, essay: 1, scenario: 0 });
+    expect(stepQuizMix(ai(), 'single', 1)).toEqual({ single: 3, multiple: 0, fill: 1, essay: 1, judge: 0, scenario: 0 });
   });
 
   it('setQuizMix 三参调用不受影响', () => {
@@ -192,18 +196,18 @@ describe('★ 向后兼容锁：省略 realMix 时行为与引入本特性之前
   });
 
   it('normalizeQuizMix 单参调用：全 0 仍回退默认（老语义没被"纯真题组例外"改掉）', () => {
-    expect(normalizeQuizMix({ single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 })).toEqual(DEFAULT_QUIZ_MIX);
+    expect(normalizeQuizMix({ single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 })).toEqual(DEFAULT_QUIZ_MIX);
   });
 });
 
 describe('★ 纯真题组合法（normalizeQuizMix 的 realMix 例外）', () => {
   it('AI 侧全 0 且真题侧有题 → 保留 AI 全 0，**不回退默认**（用户就要这一套全真题）', () => {
-    const out = normalizeQuizMix({ single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 }, real({ single: 3 }));
+    const out = normalizeQuizMix({ single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 }, real({ single: 3 }));
     expect(mixTotal(out)).toBe(0);
   });
 
   it('AI 侧全 0 且真题侧也全 0 → 照旧回退默认（一套 0 题的题组没有意义）', () => {
-    const out = normalizeQuizMix({ single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 }, real());
+    const out = normalizeQuizMix({ single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 }, real());
     expect(out).toEqual(DEFAULT_QUIZ_MIX);
   });
 });

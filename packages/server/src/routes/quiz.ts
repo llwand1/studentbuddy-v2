@@ -80,7 +80,7 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
     //   **形状**（只当例外判据，0 就是 0、正数经单档钳位还是正数），再定 AI 配比，最后对真题做正式钳位。
     const savedReal = sourceMix === undefined ? loadQuizSourceMix(ownerIdOf(req)) : undefined;
     const realShape =
-      savedReal ?? normalizeQuizSourceMix(sourceMix, { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 });
+      savedReal ?? normalizeQuizSourceMix(sourceMix, { single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 });
     const requested = mix === undefined ? loadQuizMix(ownerIdOf(req)) : normalizeQuizMix(mix, realShape);
     const requestedReal = savedReal ?? normalizeQuizSourceMix(sourceMix, requested);
     // 情景档（SCENARIO-SPEC §6.1）：五档一张配比卡，但传统四类走一道引擎、情景题走独立引擎
@@ -109,7 +109,7 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
     // （配了真题就必须走下面的合流，否则用户按题型配的真题会被整段跳过）
     if (tradTotal === 0 && sourceMixTotal(requestedReal) === 0) {
       const scenarios = await genScenarios(scenarioCount);
-      const zeros = { single: 0, multiple: 0, fill: 0, essay: 0 };
+      const zeros = { single: 0, multiple: 0, fill: 0, essay: 0, judge: 0 };
       res.json({
         scenarios,
         images: emptyQuizImageReport(),

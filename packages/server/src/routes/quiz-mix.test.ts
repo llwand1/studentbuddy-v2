@@ -72,7 +72,7 @@ describe('/api/settings/quiz-mix（出题配比设置）', () => {
 
   it('PUT 先归一化再落库：负数归 0、小数取整、超上限钳住', async () => {
     const put = await putMix({ single: -2, multiple: 2.9, fill: 3, essay: 99 }).expect(200);
-    expect(put.body.mix).toEqual({  single: 0, multiple: 2, fill: 3, essay: 10, scenario: 0 });
+    expect(put.body.mix).toEqual({  single: 0, multiple: 2, fill: 3, essay: 10, judge: 0, scenario: 0 });
 
     const got = await request(app).get('/api/settings/quiz-mix').expect(200);
     expect(got.body.mix).toEqual(put.body.mix);
@@ -99,17 +99,17 @@ describe('/api/quiz/generate 按配比出题', () => {
     await putMix({ single: 1, multiple: 0, fill: 0, essay: 0 });
     quizStub.result = payload('single', 'single', 'single');
     await generate({ topic: 't' }).expect(200);
-    expect(quizStub.calls[0]?.mix).toEqual({  single: 1, multiple: 0, fill: 0, essay: 0, scenario: 0 });
+    expect(quizStub.calls[0]?.mix).toEqual({  single: 1, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 });
   });
 
   it('本次传 mix → 覆盖全局设置（不写脏库里的配比）', async () => {
     await putMix({ single: 1, multiple: 0, fill: 0, essay: 0 });
     quizStub.result = payload('fill', 'fill');
     await generate({ topic: 't', mix: { fill: 2 } }).expect(200);
-    expect(quizStub.calls[0]?.mix).toEqual({  single: 0, multiple: 0, fill: 2, essay: 0, scenario: 0 });
+    expect(quizStub.calls[0]?.mix).toEqual({  single: 0, multiple: 0, fill: 2, essay: 0, judge: 0, scenario: 0 });
 
     const got = await request(app).get('/api/settings/quiz-mix').expect(200);
-    expect(got.body.mix).toEqual({  single: 1, multiple: 0, fill: 0, essay: 0, scenario: 0 });
+    expect(got.body.mix).toEqual({  single: 1, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 });
   });
 
   it('模型多出 → 裁到配比，响应带实际配比报告', async () => {
@@ -117,7 +117,7 @@ describe('/api/quiz/generate 按配比出题', () => {
     const res = await generate({ topic: 't', mix: { single: 2, multiple: 0, fill: 1, essay: 1 } }).expect(200);
     expect(res.body.quiz.questions).toHaveLength(4);
     expect(res.body.mix.matched).toBe(true);
-    expect(res.body.mix.actual).toEqual({  single: 2, multiple: 0, fill: 1, essay: 1, scenario: 0 });
+    expect(res.body.mix.actual).toEqual({  single: 2, multiple: 0, fill: 1, essay: 1, judge: 0, scenario: 0 });
   });
 
   it('模型少出 → matched false 且不补题，UI 据此如实告知（不静默）', async () => {
@@ -141,7 +141,7 @@ describe('/api/quiz/generate 按配比出题', () => {
 describe('/api/quiz/generate 情景档（SCENARIO-SPEC §6.1）', () => {
   it('纯情景配比（传统四档全 0）：传统引擎不跑，逐套生成并如实回账', async () => {
     scenarioStub.on = true;
-    const res = await generate({ topic: 't', mix: { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 2 } }).expect(200);
+    const res = await generate({ topic: 't', mix: { single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 2 } }).expect(200);
     expect(quizStub.calls).toHaveLength(0);
     expect(res.body.quiz).toBeUndefined();
     expect(res.body.scenarios).toHaveLength(2);
@@ -153,7 +153,7 @@ describe('/api/quiz/generate 情景档（SCENARIO-SPEC §6.1）', () => {
   it('混合配比：传统题先出，情景套随后逐套出，互不吞并', async () => {
     scenarioStub.on = true;
     quizStub.result = payload('single');
-    const res = await generate({ topic: 't', mix: { single: 1, multiple: 0, fill: 0, essay: 0, scenario: 1 } }).expect(200);
+    const res = await generate({ topic: 't', mix: { single: 1, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 1 } }).expect(200);
     expect(quizStub.calls).toHaveLength(1);
     expect(res.body.quiz.questions).toHaveLength(1);
     expect(res.body.scenarios).toHaveLength(1);
@@ -163,14 +163,14 @@ describe('/api/quiz/generate 情景档（SCENARIO-SPEC §6.1）', () => {
   it('情景套失败不连坐：传统题照常返回，失败如实进 scenarios（不整体 502）', async () => {
     // 桩保持 off ≡ 真实现 no-model 的失败形态（返 null）
     quizStub.result = payload('fill');
-    const res = await generate({ topic: 't', mix: { single: 0, multiple: 0, fill: 1, essay: 0, scenario: 2 } }).expect(200);
+    const res = await generate({ topic: 't', mix: { single: 0, multiple: 0, fill: 1, essay: 0, judge: 0, scenario: 2 } }).expect(200);
     expect(res.body.quiz.questions).toHaveLength(1);
     expect(res.body.scenarios).toHaveLength(2);
     expect(res.body.scenarios.every((x: { ok: boolean }) => x.ok === false)).toBe(true);
   });
 
   it('纯情景配比可保存：五档全 0 才回默认（配 2 套情景不会被吞）', async () => {
-    const res = await putMix({ single: 0, multiple: 0, fill: 0, essay: 0, scenario: 2 }).expect(200);
-    expect(res.body.mix).toEqual({ single: 0, multiple: 0, fill: 0, essay: 0, scenario: 2 });
+    const res = await putMix({ single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 2 }).expect(200);
+    expect(res.body.mix).toEqual({ single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 2 });
   });
 });

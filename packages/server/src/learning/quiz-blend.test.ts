@@ -133,13 +133,13 @@ describe('generateBlendedQuiz（两条管道的拼装与降级）', () => {
   it('★ 真题不参与 AI 侧的 applyQuizMix 裁剪（配额是 1，就留 1 道，不会因 aiMix 被削）', async () => {
     stub.candidates = [cand('single', '真题1'), cand('fill', '真题2')];
     // aiMix 只允许 1 道 essay，AI 侧只有 1 道 essay 会被留；真题侧各 1 道必须原样进组
-    const r = await run({ single: 0, multiple: 0, fill: 0, essay: 1, scenario: 0 }, real({ single: 1, fill: 1 }));
+    const r = await run({ single: 0, multiple: 0, fill: 0, essay: 1, judge: 0, scenario: 0 }, real({ single: 1, fill: 1 }));
     expect(r.quiz?.questions.map((q) => q.question)).toEqual(['AI-e0', '真题1', '真题2']);
   });
 
   it('AI 侧配额为 0 → 整段跳过，一次出题模型都不调（纯真题组）', async () => {
     stub.candidates = [cand('single', '真题1')];
-    const r = await run({ single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 }, real({ single: 1 }));
+    const r = await run({ single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 }, real({ single: 1 }));
     expect(stub.genCalls).toHaveLength(0);
     expect(r.quiz?.questions.map((q) => q.question)).toEqual(['真题1']);
     expect(r.quiz?.title).toContain('现场搜集');

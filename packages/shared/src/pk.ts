@@ -70,12 +70,26 @@ export const AI_RETRY_DELAY_MS = 10_000;
 export const PK_PROMPT_MAX = 300;
 
 /**
- * PK 出题固定「一道单选」——系统约束层直接用配比表达，不另写提示词分支。
- * ★ P0-7 下沉到 shared 的原因：裁判 AI（pk/judge.ts）出「二次机会的类似题」也要用同一配比，
- *   而 judge 被 match 依赖，若配比留在 match 里就会形成 judge ↔ match 循环依赖。
+ * PK 出题固定「一道题」（题型由出题人当场选，见 `pkQuizMixFor`）——系统约束层直接用配比表达，
+ * 不另写提示词分支。★ P0-7 下沉到 shared 的原因：裁判 AI（pk/judge.ts）出「二次机会的类似题」
+ * 也要用同一配比，而 judge 被 match 依赖，若配比留在 match 里就会形成 judge ↔ match 循环依赖。
  *   配比只有一个事实源，人出题与裁判出题才不会有一天跑偏成两种题量。
  */
-export const PK_QUIZ_MIX: QuizMix = { single: 1, multiple: 0, fill: 0, essay: 0, scenario: 0 };
+export const PK_QUIZ_MIX: QuizMix = { single: 1, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 };
+
+/**
+ * 玩家在对战出题时可选的题型（PK-SPEC §15 B2，老板拍板「出题时现选」：与设置页配比解耦，
+ * 每次自己挑单选或判断；其余档位（多选/填空/解答/情景）不进对战——8 分钟一局玩不起长答题）。
+ */
+export type PkQuizKind = 'single' | 'judge';
+
+/**
+ * 按出题人选的题型生成「恰好一道该题型」的配比：仍从 `PK_QUIZ_MIX` 派生（单一事实源），
+ * 只是把 1 道的额度从单选挪到所选档。裁判出类似题不传 kind → 单选（二次机会沿旧制）。
+ */
+export function pkQuizMixFor(kind: PkQuizKind = 'single'): QuizMix {
+  return { ...PK_QUIZ_MIX, single: kind === 'single' ? 1 : 0, judge: kind === 'judge' ? 1 : 0 };
+}
 
 // ── 主题轮转 / 道具 / 二次机会（P0-7，2026-09-13 老板点单）────────────
 

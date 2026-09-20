@@ -61,7 +61,7 @@ afterEach(() => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-const MIX: QuizMix = { single: 2, multiple: 0, fill: 1, essay: 1, scenario: 0 };
+const MIX: QuizMix = { single: 2, multiple: 0, fill: 1, essay: 1, judge: 0, scenario: 0 };
 
 /** 造题：选择题给足选项（否则 normalize 会丢），填空给数组答案 */
 const q = (type: QuizQuestion['type'], i: number): QuizQuestion =>
@@ -107,7 +107,7 @@ describe('learning/quiz — [QUIZ] 协议解析（AI 输出容错）', () => {
 describe('learning/quiz — 题型配比归一化（契约由 shared 收口）', () => {
   it('负数/小数/非数字 → 钳到 0 或取整，单题型不超上限', () => {
     const out = normalizeQuizMix({ single: -3, multiple: 2.9, fill: 'x', essay: 99 });
-    expect(out).toEqual({  single: 0, multiple: 2, fill: 0, essay: MAX_QUIZ_PER_TYPE, scenario: 0 });
+    expect(out).toEqual({  single: 0, multiple: 2, fill: 0, essay: MAX_QUIZ_PER_TYPE, judge: 0, scenario: 0 });
   });
 
   it('总题数超上限时从后往前削，先保单选与多选', () => {
@@ -157,16 +157,46 @@ describe('learning/quiz — 配比指令与裁剪（模型不数数时的兜底�
     expect(report.requested.essay).toBe(1);
   });
 
-  it('模型自造题型不在四档内 → 丢弃（宁缺勿乱）', () => {
-    const { quiz, report } = applyQuizMix(payload('judge' as QuizQuestion['type'], 'single'), MIX);
+  it('模型自造题型不在清单内 → 丢弃（宁缺勿乱；B2 后 judge 是真题型，故改用 poem 当假题型）', () => {
+    const { quiz, report } = applyQuizMix(payload('poem' as QuizQuestion['type'], 'single'), MIX);
     expect(quiz?.questions.map((x) => x.type)).toEqual(['single']);
     expect(report.matched).toBe(false);
   });
 
   it('裁完 0 题返回 null（调用方走 502，不发空题组）', () => {
-    const { quiz, report } = applyQuizMix(payload('judge' as QuizQuestion['type']), MIX);
+    const { quiz, report } = applyQuizMix(payload('poem' as QuizQuestion['type']), MIX);
     expect(quiz).toBeNull();
-    expect(report.actual).toEqual({  single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 });
+    expect(report.actual).toEqual({  single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 });
+  });
+});
+
+describe('learning/quiz — 判断题题型（B2，PK-SPEC §15：judge 是 single 的特例，判分零特判）', () => {
+  const JUDGE = { type: 'judge' as const, question: '地球绕太阳转。', options: ['正确', '错误'], answer: [0], explanation: '常识。' };
+
+  it('buildMixInstruction：判断题配额写进指令（要几道、0 档点名不出）', () => {
+    const text = buildMixInstruction({ single: 0, multiple: 0, fill: 0, essay: 0, judge: 2, scenario: 0 });
+    expect(text).toContain('总共恰好 2 道题');
+    expect(text).toContain('判断题 2 道');
+    expect(text).toContain('不要出单选题');
+  });
+
+  it('applyQuizMix：judge 按档位计数与裁剪，多出丢弃', () => {
+    const { quiz, report } = applyQuizMix(
+      { title: 'T', questions: [JUDGE, { ...JUDGE, question: '第二道' }, { type: 'single', question: 'S', options: ['a', 'b'], answer: [0] }] },
+      { single: 0, multiple: 0, fill: 0, essay: 0, judge: 2, scenario: 0 },
+    );
+    expect(quiz?.questions).toHaveLength(2);
+    expect(report.actual.judge).toBe(2);
+    expect(report.matched).toBe(true);
+  });
+
+  it('normalizeQuiz：judge 缺 options / 少于 2 项 → 丢弃（与 single/multiple 同口径）', () => {
+    const bad1 = { title: 'T', questions: [{ type: 'judge' as const, question: '没选项', answer: [0] }] };
+    const bad2 = { title: 'T', questions: [{ type: 'judge' as const, question: '只有一项', options: ['正确'], answer: [0] }] };
+    expect(normalizeQuiz(bad1)).toBeNull(); // 全被丢弃 → null（调用方走 502，不发空题组）
+    expect(normalizeQuiz(bad2)).toBeNull();
+    const ok = { title: 'T', questions: [JUDGE] };
+    expect(normalizeQuiz(ok)?.questions).toHaveLength(1);
   });
 });
 
@@ -269,16 +299,16 @@ describe('learning/quiz — 配图指令（v1.1：正面强制 + 留合法出口
 });
 
 describe('learning/quiz — 协议示例自证（配图 0 产率的根因闸门，契约 §2.7）', () => {
-  it('★ 格式示例里四个题对象全部带 svg 字段', () => {
+  it('★ 格式示例里五个题对象全部带 svg 字段（B2 加判断题后为 5）', () => {
     const sample = QUIZ_PROTOCOL.match(/\[QUIZ\](\{[\s\S]*\})\[\/QUIZ\]/)?.[1] ?? '';
     expect(sample).not.toBe('');
-    expect((sample.match(/"svg"\s*:/g) ?? []).length).toBe(4);
+    expect((sample.match(/"svg"\s*:/g) ?? []).length).toBe(5);
   });
 
-  it('★ 示例自己就得能解析：4 道题、其中 1 张合法图（示例是模型唯一的依据）', () => {
+  it('★ 示例自己就得能解析：5 道题、其中 1 张合法图（示例是模型唯一的依据）', () => {
     const sample = QUIZ_PROTOCOL.match(/\[QUIZ\](\{[\s\S]*\})\[\/QUIZ\]/)?.[1] ?? '';
     const out = parseQuizBlock(`[QUIZ]${sample}[/QUIZ]`);
-    expect(out?.questions).toHaveLength(4);
+    expect(out?.questions).toHaveLength(5);
     expect(countQuizImages(out)).toBe(1);
   });
 

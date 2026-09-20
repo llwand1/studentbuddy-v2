@@ -28,10 +28,16 @@ export interface ContentBlock<K extends BlockKind = BlockKind> {
 }
 
 export interface QuizQuestion {
-  type: 'single' | 'multiple' | 'fill' | 'essay';
+  /**
+   * 题型（PK-SPEC §15 B2，2026-09-20 老板点单加判断题）：`judge` 是 `single` 的特例——
+   * options 恒两项（`['正确','错误']`）、answer 是正确项下标 → **一切按选项判分的链路
+   * （对战判分/题库/对话答题）零特判**。题型清单见 `QUIZ_TYPES`，追加在末位（顺序即出题排列序，
+   * 中插会改「从后往前削」的既有语义，刻意不动）。
+   */
+  type: 'single' | 'multiple' | 'fill' | 'essay' | 'judge';
   question: string;
   options?: string[];
-  /** single/multiple: 正确选项下标（multiple 多选）；fill: 按空位顺序的答案数组；essay: 参考要点 */
+  /** single/multiple/judge: 正确选项下标（multiple 多选）；fill: 按空位顺序的答案数组；essay: 参考要点 */
   answer?: number[] | string[] | string;
   explanation?: string;
   solution?: string;
@@ -63,13 +69,15 @@ export interface GenericPayload {
 export type QuizType = QuizQuestion['type'];
 
 /** 题型顺序即出题排列顺序（提示词与裁剪都按它，改序即改行为） */
-export const QUIZ_TYPES: readonly QuizType[] = ['single', 'multiple', 'fill', 'essay'];
+/** 题型顺序即出题排列顺序（提示词与裁剪都按它，改序即改行为）；judge 追加在末位（B2，见 QuizQuestion.type 注） */
+export const QUIZ_TYPES: readonly QuizType[] = ['single', 'multiple', 'fill', 'essay', 'judge'];
 
 export const QUIZ_TYPE_LABELS: Record<QuizType, string> = {
   single: '单选题',
   multiple: '多选题',
   fill: '填空题',
   essay: '解答题',
+  judge: '判断题',
 };
 
 /** 四种题型各自的题数（0 = 本次不出该题型） */
@@ -96,8 +104,8 @@ export function mixKindCap(kind: QuizMixKind): number {
 /** 落 app_settings 的键名（server 读写，前端不直接碰库） */
 export const SETTING_KEY_QUIZ_MIX = 'quiz_mix';
 
-/** 默认配比：2 单选 + 1 填空 + 1 解答，情景题默认关（0；老用户升级后行为零变化） */
-export const DEFAULT_QUIZ_MIX: QuizMix = { single: 2, multiple: 0, fill: 1, essay: 1, scenario: 0 };
+/** 默认配比：2 单选 + 1 填空 + 1 解答，判断题/情景题默认关（0；老用户升级后行为零变化） */
+export const DEFAULT_QUIZ_MIX: QuizMix = { single: 2, multiple: 0, fill: 1, essay: 1, judge: 0, scenario: 0 };
 
 /** 单题型上限 10：再多是强模型也难一次出齐，且输出会长到撞上下文 */
 export const MAX_QUIZ_PER_TYPE = 10;

@@ -4,8 +4,16 @@
  * ★ 按钮三种态的文案分工：「AI 出题中…」= 我在等生成（这次请求已发出）；
  *   「冷却中」= 60s CD 没过（不该让人点了才知道不能点）；
  *   两者都不成立才显示「出题」。三个态互斥，**不出现「冷却中」还能点的情况**。
+ * §15 B2（2026-09-20 老板拍板「出题时现选」）：题型单选/判断当场挑，与设置页配比解耦。
  */
+import type { PkQuizKind } from '@sb/shared';
 import { formatClock } from './pk-view';
+
+/** 现选题型（与 shared `PkQuizKind` 同形；本地常量避免为两个字符串引类型入展示层之外再绕一手） */
+const KINDS: { value: PkQuizKind; label: string }[] = [
+  { value: 'single', label: '单选' },
+  { value: 'judge', label: '判断' },
+];
 
 interface Props {
   /** 本轮主题（出题必须贴合它） */
@@ -16,11 +24,14 @@ interface Props {
   /** 生成在途 */
   busy: boolean;
   error: string;
+  /** 当前选中的题型（状态在 `PkMatch`，提交时随请求带走） */
+  qKind: PkQuizKind;
   onPrompt: (v: string) => void;
+  onKind: (k: PkQuizKind) => void;
   onSubmit: () => void;
 }
 
-export function PkQuizBlock({ topic, prompt, cd, busy, error, onPrompt, onSubmit }: Props) {
+export function PkQuizBlock({ topic, prompt, cd, busy, error, qKind, onPrompt, onKind, onSubmit }: Props) {
   return (
     <section className="sb-pk-card sb-pk-block">
       <div className="sb-pk-q-head">
@@ -30,6 +41,19 @@ export function PkQuizBlock({ topic, prompt, cd, busy, error, onPrompt, onSubmit
       <p className="sb-pk-hint">
         题目必须贴合本轮主题「{topic || '（待定）'}」，跑题会被裁判判失败；成功 +1（60s 冷却）
       </p>
+      <div className="sb-pk-kind-row" role="radiogroup" aria-label="题型">
+        {KINDS.map((k) => (
+          <button
+            key={k.value}
+            type="button"
+            className={`sb-pk-btn tiny${qKind === k.value ? ' on' : ''}`}
+            aria-pressed={qKind === k.value}
+            onClick={() => onKind(k.value)}
+          >
+            {k.label}
+          </button>
+        ))}
+      </div>
       <form
         className="sb-pk-form"
         onSubmit={(e) => {
@@ -39,7 +63,7 @@ export function PkQuizBlock({ topic, prompt, cd, busy, error, onPrompt, onSubmit
       >
         <input
           className="sb-pk-input"
-          placeholder="如：出一道关于浮力的题（≤300 字）"
+          placeholder={qKind === 'judge' ? '如：出一道判断浮力方向的题（≤300 字）' : '如：出一道关于浮力的题（≤300 字）'}
           maxLength={300}
           value={prompt}
           onChange={(e) => onPrompt(e.target.value)}

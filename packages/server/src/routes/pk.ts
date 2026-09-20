@@ -200,12 +200,16 @@ pkRouter.post('/rooms/:id/quiz', (req: Request, res: Response) => {
     try {
       // ★ M2c：末参是**账号归属**（谁付模型钱），与 `identity.userId`（对局身份，允许游客/AI）
       //   是两回事——见 pk/match.ts 的 submitQuiz 注释。未登录 ⇒ null = 平台通道。
+      // qKind（§15 B2）：出题人当场选单选/判断；不传或非法值按单选（缺省兜底，不 400——
+      // 旧前端没这字段也照常出题）。
+      const qKind = req.body?.qKind === 'judge' ? 'judge' : 'single';
       const state = await submitQuiz(
         String(req.params.id ?? ''),
         identity.userId,
         req.body?.prompt,
         undefined,
         ownerIdOf(req),
+        qKind,
       );
       res.json({ state });
     } catch (e) {

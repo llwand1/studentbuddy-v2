@@ -13,14 +13,11 @@ import {
   AI_RETRY_DELAY_MS,
   IDLE_PENALTY_MS,
   PK_PROMPT_MAX,
-  PK_QUIZ_MIX,
   QUIZ_CD_MS,
   QUIZ_FAIL_STRIKE,
-  pkChannel,
-  type PkRoomError,
-  type PkRoomState,
-} from '@sb/shared';
-import type { PkQuestion, QuizPayload, QuizQuestion } from '@sb/shared';
+  pkChannel, pkQuizMixFor,
+  type PkQuizKind, type PkRoomError, type PkRoomState,
+} from '@sb/shared';import type { PkQuestion, QuizPayload, QuizQuestion } from '@sb/shared';
 import { publish } from '../chat/sse-bus.js';
 import { generateQuiz } from '../learning/quiz.js';
 import {
@@ -120,6 +117,7 @@ export function pushGeneratedQuestion(
  * → 调出题管道 → 成功建题 +1 并广播；失败回滚 CD（= 契约「失败可免费重试，不计 CD」）。
  * ★ M2c：`ownerId` = **提交者的账号**（谁付模型钱），与 `userId`（对局身份，PK 允许游客/AI）是两回事；
  *   尾参可选同既有惯例，生产路径 `routes/pk.ts` 一律显式传 `ownerIdOf(req)`。
+ * ★ §15 B2 `qKind`：出题人选的题型（「出题时现选」），省略＝单选（旧调用点零改动；裁判类似题同款）。
  */
 export async function submitQuiz(
   roomId: string,
@@ -127,6 +125,7 @@ export async function submitQuiz(
   rawPrompt: unknown,
   now = Date.now(),
   ownerId: string | null = null,
+  qKind: PkQuizKind = 'single',
 ): Promise<PkRoomState> {
   const room = requireRoomInternal(roomId);
   if (room.status !== 'active') fail('ROOM_NOT_ACTIVE');
@@ -158,11 +157,11 @@ export async function submitQuiz(
   // 主题约束直接塞进出题提示词：先让模型「尽量出对」，再由裁判兜底判贴合度（两层，不单靠一层）
   let payload: QuizPayload | null = null;
   try {
-    // 末参 online=true（2026-09-13 老板拍板）：PK 出题也走联网检索，出的题能是最新事实。
+    // 末参 online=true（2026-09-13 老板拍板）：PK 出题也走联网检索；配比按 qKind 现算（§15 B2，仍自 PK_QUIZ_MIX 派生）
     payload = await generateQuiz(
       `${prompt}\n（硬约束：题目必须严格围绕主题「${topic}」，不得跑题）`,
       undefined,
-      PK_QUIZ_MIX,
+      pkQuizMixFor(qKind),
       undefined,
       undefined,
       true,
@@ -171,7 +170,7 @@ export async function submitQuiz(
   } catch {
     payload = null;
   }
-  const generated = payload?.questions.find((x) => x.type === 'single');
+  const generated = payload?.questions.find((x) => x.type === qKind);
 
   // ① 裁判判贴合度。★ 裁判不可用（null）时**按过处理**——ADR-4：旁挂能力挂了不能拖垮出题，
   //    否则「裁判模型没配」会让整局谁都出不了题，那比偶尔跑题严重得多。

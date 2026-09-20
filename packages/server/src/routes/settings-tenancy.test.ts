@@ -78,7 +78,7 @@ afterAll(() => closeDb());
 
 describe('routes/settings-tenancy — app_settings 归主（v30）', () => {
   it('★ 出题配比：A 改了，B 读到的**仍是默认值**（改前是全局写口，A 一改全站都变）', async () => {
-    const put = await req.put('/api/settings/quiz-mix', cookieA, { mix: { single: 7, multiple: 0, fill: 0, essay: 0, scenario: 0 } });
+    const put = await req.put('/api/settings/quiz-mix', cookieA, { mix: { single: 7, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 } });
     expect(put.status).toBe(200);
     expect(put.body.mix.single).toBe(7);
 

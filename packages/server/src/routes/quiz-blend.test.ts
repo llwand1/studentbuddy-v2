@@ -83,7 +83,7 @@ beforeEach(async () => {
   stub.candidates = [];
   stub.collectCalls = [];
   // 每个用例都从干净配比起步（服务端按 owner 存，未登录＝无主行）
-  await putAiMix({ single: 2, multiple: 0, fill: 1, essay: 1, scenario: 0 });
+  await putAiMix({ single: 2, multiple: 0, fill: 1, essay: 1, judge: 0, scenario: 0 });
   await putSourceMix({});
 });
 
@@ -157,24 +157,24 @@ describe('sourceMix 透传与合流落库（契约 §3.3／§7 T3）', () => {
 describe('设置端点 /api/settings/quiz-source-mix（联合钳位）', () => {
   it('默认全 0（没配过＝不出真题，不是"缺配置"）', async () => {
     const r = await request(app).get('/api/settings/quiz-source-mix').set('Origin', origin).expect(200);
-    expect(r.body.mix).toEqual({ single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 });
+    expect(r.body.mix).toEqual({ single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 });
   });
 
   it('PUT 归一化后回读：超单档上限钳到 5、情景档恒 0', async () => {
-    const r = await putSourceMix({ single: 99, scenario: 4 }).expect(200);
+    const r = await putSourceMix({ single: 99, judge: 0, scenario: 4 }).expect(200);
     expect(r.body.mix.single).toBe(5);
     expect(r.body.mix.scenario).toBe(0);
   });
 
   it('★ AI 侧占满 20 时真题被削成 0（AI 优先保额）', async () => {
-    await putAiMix({ single: 10, multiple: 10, fill: 0, essay: 0, scenario: 0 });
+    await putAiMix({ single: 10, multiple: 10, fill: 0, essay: 0, judge: 0, scenario: 0 });
     const r = await putSourceMix({ single: 3 }).expect(200);
     expect(r.body.mix.single).toBe(0);
   });
 
   it('★ PUT /quiz-mix 加大 AI 侧会挤掉真题（联合总量兜底，绕过前端也守得住）', async () => {
     await putSourceMix({ single: 3 }); // AI 侧 4 + 真题 3 = 7
-    await putAiMix({ single: 10, multiple: 9, fill: 1, essay: 0, scenario: 0 }); // AI 侧 20
+    await putAiMix({ single: 10, multiple: 9, fill: 1, essay: 0, judge: 0, scenario: 0 }); // AI 侧 20
     const r = await request(app).get('/api/settings/quiz-source-mix').set('Origin', origin).expect(200);
     expect(r.body.mix.single).toBe(0);
   });
@@ -187,7 +187,7 @@ describe('纯真题组一道都没摘到 → 502 文案不指鹿为马（2026-09
     const r = await generate({
       topic: 't',
       // 纯真题组要过 normalizeQuizMix 的「全 0 回退默认」例外，必须连 sourceMix 一起给
-      mix: { single: 0, multiple: 0, fill: 0, essay: 0, scenario: 0 },
+      mix: { single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 },
       sourceMix: { single: 2 },
     }).expect(502);
     expect(String(r.body.error)).toContain('真题一道都没摘到');

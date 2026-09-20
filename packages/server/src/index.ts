@@ -19,6 +19,7 @@ import { obsRouter } from './routes/obs.js';
 import { previewRouter } from './routes/preview.js';
 import { imagesRouter } from './routes/images.js';
 import { pkRouter } from './routes/pk.js';
+import { pkScenarioRouter } from './routes/pk-scenario.js';
 import { authRouter } from './routes/auth.js';
 import { githubAuthRouter } from './routes/auth-github.js';
 import { studyFlowRouter } from './routes/study-flow.js';
@@ -145,6 +146,8 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/preview', previewRouter);
 app.use('/api/images', imagesRouter);
 app.use('/api/pk', pkRouter);
+// §15.4 B4 情景题两端口（回传判分 / demo 页）：独立路由文件，错误映射仍引 routes/pk.ts 同一份
+app.use('/api/pk', pkScenarioRouter);
 app.use('/api/choices', choiceRouter);
 app.use('/api/study-flow', studyFlowRouter);
 app.use('/api/scenario', scenarioRouter);

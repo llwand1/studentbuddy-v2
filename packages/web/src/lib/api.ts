@@ -14,6 +14,7 @@ import type {
   PkQuestion,
   PkMatchRecord,
   PkMatchDetail,
+  PkQuizKind,
   AskChoiceRecord,
   FollowUpResult,
 } from '@sb/shared';
@@ -97,17 +98,21 @@ export const api = {
     roomState: (roomId: string) =>
       request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/state`),
     /** 出题（AI 生成耗时数秒为正常）；429 = CD 内，502 = AI 失败（CD 已回滚，免费重试）。
-     * qKind（§15 B2）：出题人当场选单选/判断，省略＝单选（服务端同样兜底）。 */
-    /**
-     * 出题（AI 生成耗时数秒为正常）；429 = CD 内，502 = AI 失败（CD 已回滚，免费重试）。
-     * §15 B3 `termIds`：词条硬绑定（≤5，服务端校验）；**空数组时不带该字段**——请求体与
-     * B3 之前逐字一致（契约 T6「不选走原路径」的锁）。
-     */
-    submitQuiz: (roomId: string, prompt: string, qKind: 'single' | 'judge' = 'single', termIds: string[] = []) =>
+     * qKind（§15 B2/B4）：单选/判断/情景现选，省略＝单选（服务端兜底）。§15 B3 `termIds`：
+     * 词条硬绑定（≤5，服务端校验）；**空数组时不带该字段**——请求体与 B3 之前逐字一致（T6 锁）。 */
+    submitQuiz: (roomId: string, prompt: string, qKind: PkQuizKind = 'single', termIds: string[] = []) =>
       request<{ state: PkRoomState }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/quiz`, {
         method: 'POST',
         body: JSON.stringify({ prompt, qKind, ...(termIds.length ? { termIds } : {}) }),
       }),
+    /** §15.4 B4：回传情景题一个评分点的「发生了什么」→ 服务端按 criteria 判 → { correct }；observed 原样透传，重报以最后一次为准 */
+    reportScenario: (roomId: string, questionId: string, taskId: string, observed: unknown) =>
+      request<{ correct: boolean }>(`/api/pk/rooms/${encodeURIComponent(roomId)}/scenario-report`, {
+        method: 'POST', body: JSON.stringify({ questionId, taskId, observed }),
+      }),
+    /** §15.4 B4：情景题 demo 页地址（宿主 iframe 挂它；仅对局双方可取） */
+    scenarioDemoUrl: (roomId: string, demoId: string) =>
+      `/api/pk/rooms/${encodeURIComponent(roomId)}/scenario/${encodeURIComponent(demoId)}`,
     /** 答题：立即判分 { correct, delta, score }；409 = 已答/已超时 */
     submitAnswer: (roomId: string, questionId: string, choice: number) =>
       request<{ correct: boolean; delta: number; score: number }>(

@@ -32,11 +32,25 @@ import {
   type PkRoomError,
   type PkRoomState,
   type PkRoomStatus,
+  type ScenarioTask,
 } from '@sb/shared';
+import { snapshotRoom } from './snapshot.js';
 
-/** 房内题目：快照形状 + 服务端私有的正确答案。`answer` **永不**进任何对外载荷（契约 §1） */
+export { snapshotRoom };
+
+/** 房内题目：快照形状 + 服务端私有的正确答案。
+ *  ★ `answer` **永不**进任何对外载荷（契约 §1）；客观题恒有值（构造点保证），情景题缺省
+ *    ——情景题的「答案」在 `scenarioInternal.tasks[].criteria` 里，同样只活在服务端。 */
 export interface PkRoomQuestion extends PkQuestion {
-  answer: number;
+  /** 客观题（kind 缺省/'quiz'）：正确选项下标。情景题无此字段 */
+  answer?: number;
+  /**
+   * §15.4 情景题专用（kind='scenario' 时必有）：评分点全量（**含 criteria**）+ demo 源码，
+   * 全在房间内存——对战情景题不落 quiz_bank（对局回收即消失，不给题库塞垃圾）。
+   * ★ 与 `answer` 同一条纪律：本字段是服务端私有，任何载荷里只出现它的删减版
+   *   （`scenario.tasks` 无 criteria、`taskResults` 只回填已判定键）——映射收口在 snapshot.ts。
+   */
+  scenarioInternal?: { demoId: string; tasks: ScenarioTask[]; html: string };
 }
 
 export interface Room {
@@ -157,47 +171,9 @@ export function clearQuizPending(room: Room): void {
   delete room.quizPending;
 }
 
-export function snapshotRoom(room: Room): PkRoomState {
-  const state: PkRoomState = {
-    roomId: room.roomId,
-    roomCode: room.code,
-    status: room.status,
-    mode: room.mode,
-    players: room.players.map((p) => ({ ...p })),
-    nextQuizAt: { ...room.nextQuizAt },
-    endsAt: room.endsAt,
-    questions: room.questions.map((q) => {
-      const base: PkQuestion = {
-        id: q.id,
-        roomId: q.roomId,
-        fromUserId: q.fromUserId,
-        toUserId: q.toUserId,
-        prompt: q.prompt,
-        stem: q.stem,
-        options: [...q.options],
-        createdAt: q.createdAt,
-        deadlineAt: q.deadlineAt,
-        status: q.status,
-      };
-      if (q.chosen !== undefined) base.chosen = q.chosen;
-      if (q.status !== 'pending') base.answerRevealed = q.answer;
-      if (q.topic) base.topic = q.topic;
-      if (q.retryOf) base.retryOf = q.retryOf;
-      if (q.isRetry) base.isRetry = true;
-      return base;
-    }),
-    currentTopic: room.currentTopic,
-    topicOwnerId: room.topicOwnerId,
-    topicTurn: room.topicTurn,
-    retryNextAt: { ...room.retryNextAt },
-  };
-  if (room.aiTopic) state.aiTopic = room.aiTopic;
-  if (room.winner) state.winner = room.winner;
-  if (room.endReason) state.endReason = room.endReason;
-  // UX 批：出题中（公开事实，双方都该看到「谁在出题」）
-  if (room.quizPending) state.quizPending = room.quizPending;
-  return state;
-}
+// ★ 对外快照映射（snapshotRoom）已上移到 `pk/snapshot.ts`（§15 B4：与 match.ts 的
+//   snapshotQuestion 合流成一份，情景题的「criteria 不外泄」分支只写一处）；
+//   顶部 `export { snapshotRoom }` 保持既有 import 路径（settle/power/match/测试）不变。
 
 /** 该用户当前所在的 waiting 房（契约 §2.1：每人同时只能有 1 个 waiting 房） */
 function findWaitingRoomOf(userId: string): Room | undefined {

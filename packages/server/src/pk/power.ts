@@ -22,7 +22,8 @@ import {
 } from '@sb/shared';
 import { publish } from '../chat/sse-bus.js';
 import { explainAndRetry, helpWithQuestion } from './judge.js';
-import { answerIndex, snapshotQuestion } from './match.js';
+import { answerIndex } from './match.js';
+import { snapshotQuestion } from './snapshot.js';
 import { requireRoomInternal, snapshotRoom, type PkRoomQuestion, type Room } from './room.js';
 
 /** 与 match.ts 同形状的域错误：message 是错误码（路由层据此查状态码），extra 是随错误回传的附加数据 */
@@ -104,6 +105,10 @@ export async function requestRetry(
   const q = room.questions.find((x) => x.id === rawQuestionId);
   if (!q) fail('QUESTION_NOT_FOUND');
   if (q.toUserId !== userId) fail('RETRY_NOT_YOURS');
+  // §15.4：二次机会**不参与**情景题（候选过滤）——类似题要「现场秒出一道」，情景题是一次
+  // 整页 demo 生成（贵一个量级），拿它当补救手段会把 RETRY_CD_MS 的 3 分钟变成 3 分钟的模型满负荷。
+  // `q.answer === undefined` 同挡：客观题必有 answer，缺了就是数据异常，不给补救通道。
+  if (q.kind === 'scenario' || q.answer === undefined) fail('RETRY_NO_TARGET');
   // 只有「已经答错」的题配补救：pending 还没有结果，答对的不需要补
   if (q.status === 'pending') fail('RETRY_NO_TARGET');
   if (q.chosen !== undefined && q.chosen === q.answer) fail('RETRY_NO_TARGET');

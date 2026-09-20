@@ -1242,3 +1242,72 @@
   color: var(--sb-ink-tertiary);
   text-align: center;
 }
+
+/* ── §15.4 B4：对战情景题宿主（PkScenarioHost / 回看清单共用任务行样式）── */
+
+.sb-pk-scenario {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+}
+
+.sb-pk-scenario-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sb-sp-2);
+  flex-wrap: wrap;
+}
+
+/* demo 高度给足一屏内的可玩区域；sandbox 与服务端 CSP 双保险在组件/路由两处，样式不背安全账 */
+.sb-pk-scenario-frame {
+  width: 100%;
+  height: min(60vh, 420px);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: #fff;
+}
+
+.sb-pk-scenario-tasks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+}
+
+.sb-pk-scenario-task {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sb-sp-2);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+}
+
+.sb-pk-scenario-task .t {
+  flex: 1;
+  min-width: 0;
+}
+
+.sb-pk-scenario-task .m {
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-sm);
+}
+
+.sb-pk-scenario-state {
+  flex: none;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+
+.sb-pk-scenario-task.ok .sb-pk-scenario-state {
+  color: var(--sb-success);
+  font-weight: 600;
+}
+
+.sb-pk-scenario-task.no .sb-pk-scenario-state {
+  color: var(--sb-danger, #c62828);
+  font-weight: 600;
+}

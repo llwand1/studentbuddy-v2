@@ -165,22 +165,30 @@ export interface ScenarioGenerated {
 }
 
 /**
- * AI 生成一套情景题（契约 §6：SCENARIO_PROTOCOL 双标记 → 解析救援阶梯 → saveScenario 入库）。
- * 与 generateQuiz 同一条引擎装配线：quiz-generator 角色模型、同温度（题目要稳）、同输出上限
- * （demo 体量大，通用表更会撞）。失败真因写 report（no-model / parse），路由只映射状态码不反推。
+ * 装配出题提示词（契约 §6 的固定形状：协议在前，材料/主题二选一在后）。
+ * ★ 独立成函数：PK 对战（pk/scenario.ts）复用同一引擎但要拼自己的约束入参——
+ *   装配与调用分开，学习侧的字节形状才不会被对战侧的改动牵连。
  */
-export async function generateScenario(
-  topic: string,
-  material: string | undefined,
+export function assembleScenarioPrompt(topic: string, material?: string): string {
+  return `${SCENARIO_PROTOCOL}\n\n${material ? `材料：\n${material.slice(0, MAX_DOC_CHARS)}` : `主题：${topic}`}`;
+}
+
+/**
+ * 跑一遍情景题生成引擎（模型流式 → 双标记解析救援阶梯），返回**未落库**的草稿。
+ * ★ PK 对战走本函数（§15.4：对战情景题不落 quiz_bank——criteria 与 demo 全在房间内存，
+ *   对局回收即消失，不给题库塞垃圾）；学习侧的 `generateScenario` ＝ 本函数 + saveScenario。
+ * 失败真因写 report（no-model / parse），调用方只管映射状态码。
+ */
+export async function streamScenarioDraft(
+  prompt: string,
   report: ScenarioGenReport,
-  ownerId: string | null, // M2c 归属（契约 TENANCY-SPEC §8.1.4）；M2d-3 起必填——saveScenario 要落 owner_id
-): Promise<ScenarioGenerated | null> {
+  ownerId: string | null,
+): Promise<{ payload: ScenarioPayload; html: string } | null> {
   const target = routeRole('quiz-generator', undefined, ownerId);
   if (!target || !target.model) {
     report.failure = 'no-model';
     return null;
   }
-  const prompt = `${SCENARIO_PROTOCOL}\n\n${material ? `材料：\n${material.slice(0, MAX_DOC_CHARS)}` : `主题：${topic}`}`;
   let acc = '';
   for await (const chunk of target.adapter.chat({
     model: target.model,
@@ -202,6 +210,23 @@ export async function generateScenario(
     report.failure = 'parse';
     return null;
   }
+  return parsed;
+}
+
+/**
+ * AI 生成一套情景题（契约 §6：SCENARIO_PROTOCOL 双标记 → 解析救援阶梯 → saveScenario 入库）。
+ * 与 generateQuiz 同一条引擎装配线：quiz-generator 角色模型、同温度（题目要稳）、同输出上限
+ * （demo 体量大，通用表更会撞）。失败真因写 report（no-model / parse），路由只映射状态码不反推。
+ */
+export async function generateScenario(
+  topic: string,
+  material: string | undefined,
+  report: ScenarioGenReport,
+  ownerId: string | null, // M2c 归属（契约 TENANCY-SPEC §8.1.4）；M2d-3 起必填——saveScenario 要落 owner_id
+): Promise<ScenarioGenerated | null> {
+  const prompt = assembleScenarioPrompt(topic, material);
+  const parsed = await streamScenarioDraft(prompt, report, ownerId);
+  if (!parsed) return null;
   const saved = saveScenario(parsed.payload, parsed.html, ownerId);
   // parseScenarioBlock 已过同一 normalize 闸门，这里失败只剩竞态/IO，如实归入 parse 报给路由
   if (!saved) {

@@ -14,6 +14,7 @@ import { PkTermPicker, type PkTermOption } from './PkTermPicker';
 const KINDS: { value: PkQuizKind; label: string }[] = [
   { value: 'single', label: '单选' },
   { value: 'judge', label: '判断' },
+  { value: 'scenario', label: '情景' },
 ];
 
 interface Props {
@@ -69,7 +70,13 @@ export function PkQuizBlock({ topic, prompt, cd, busy, error, qKind, terms, term
       >
         <input
           className="sb-pk-input"
-          placeholder={qKind === 'judge' ? '如：出一道判断浮力方向的题（≤300 字）' : '如：出一道关于浮力的题（≤300 字）'}
+          placeholder={
+            qKind === 'judge'
+              ? '如：出一道判断浮力方向的题（≤300 字）'
+              : qKind === 'scenario'
+                ? '如：出一道关于浮力的可操作情景 demo（≤300 字）'
+                : '如：出一道关于浮力的题（≤300 字）'
+          }
           maxLength={300}
           value={prompt}
           onChange={(e) => onPrompt(e.target.value)}

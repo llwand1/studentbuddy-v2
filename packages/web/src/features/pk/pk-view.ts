@@ -122,12 +122,28 @@ export function retryRemainingMs(state: PkRoomState, userId: string, now: number
  * 可用于二次机会的错题：**我答的**且**没答对**的题。
  * 判据＝题已判定（非 pending）＋ 收题人是我 ＋ 所选 ≠ 正确答案；
  * 超时未答时 `chosen` 是 undefined，同样算「没答对」。
+ * ★ §15.4：情景题**不参与**二次机会（候选过滤）——契约定死，服务端同样拒绝。
  */
 export function myWrongQuestions(state: PkRoomState, userId: string): PkQuestion[] {
   return state.questions.filter((q) => {
+    if (q.kind === 'scenario') return false;
     if (q.toUserId !== userId || q.status === 'pending') return false;
     return q.chosen === undefined || q.chosen !== q.answerRevealed;
   });
+}
+
+/**
+ * §15.4（B4）：情景题的判词（对局「已判定」列表与回看共用）。非情景题返回 null——
+ * 调用方继续走客观题文案；情景题没有 chosen/answerRevealed，老写法会把「没答」显示成「答对」。
+ */
+export function scenarioOutcome(q: PkQuestion): { text: string; ok: boolean } | null {
+  if (q.kind !== 'scenario') return null;
+  if (q.status === 'pending') return { text: '进行中', ok: false };
+  const total = q.scenario?.tasks.length ?? 0;
+  const hit = Object.values(q.taskResults ?? {}).filter(Boolean).length;
+  // answered 只在「全中提前结算」时出现（服务端语义）；到点整页结算一律是 timeout
+  if (q.status === 'answered') return { text: `全中 +2（${hit}/${total}）`, ok: true };
+  return { text: `有错 −1（命中 ${hit}/${total}）`, ok: false };
 }
 
 // ── P0-8：投降 / 对战历史（契约 §12）─────────────────────────
@@ -140,6 +156,9 @@ export function myWrongQuestions(state: PkRoomState, userId: string): PkQuestion
  *   `PkRoom` 的 finished 回看与历史详情共用本函数，两边不会再各判一套）。
  */
 export function reviewVerdict(q: PkQuestion): { text: string; ok: boolean } {
+  // §15.4：情景题判词单独一支（无 chosen/answerRevealed，老判据不适用）
+  const scenario = scenarioOutcome(q);
+  if (scenario) return scenario;
   if (q.status === 'pending') return { text: '未作答', ok: false };
   if (q.status === 'timeout') return { text: '超时 −1', ok: false };
   const ok = q.chosen !== undefined && q.chosen === q.answerRevealed;

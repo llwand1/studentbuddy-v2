@@ -6,7 +6,7 @@
  */
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { pkChannel, type PkMode, type PkRoomError, type PkRoomState } from '@sb/shared';
+import { pkChannel, type PkMode, type PkQuizKind, type PkRoomError, type PkRoomState } from '@sb/shared';
 import { pkIdentityOf } from '../pk/auth.js';
 import { createRoom, getRoomState, joinRoom, setTopic, startRoom } from '../pk/room.js';
 import { ensureTicker, submitAnswer, submitQuiz } from '../pk/match.js';
@@ -46,10 +46,11 @@ const ERROR_STATUS: Record<PkRoomError, number> = {
   MATCH_NOT_FOUND: 404,
   TERM_NOT_FOUND: 404,
   TERM_LIMIT_EXCEEDED: 400,
+  SCENARIO_TASK_INVALID: 400,
 };
 
 /** 域错误码 → 人话文案（ADR-5：失败必须可读、可重试，不裸抛码） */
-const ERROR_TEXT: Record<PkRoomError, string> = {
+export const ERROR_TEXT: Record<PkRoomError, string> = {
   ROOM_NOT_FOUND: '房间不存在或已失效，请确认房号',
   ROOM_FULL: '房间已满（双人对战只坐两人）',
   ROOM_NOT_WAITING: '这局已经开始或结束了，不能加入',
@@ -76,10 +77,11 @@ const ERROR_TEXT: Record<PkRoomError, string> = {
   MATCH_NOT_FOUND: '这条对战记录不存在',
   TERM_NOT_FOUND: '选中的词条不存在或不属于你',
   TERM_LIMIT_EXCEEDED: '一次最多选 5 条词条',
+  SCENARIO_TASK_INVALID: '评分点不存在（不在该题的白名单内）',
 };
 
 /** 域层错误 → HTTP 响应；非域错误一律 500（不把内部异常当业务错误外泄） */
-function fail(res: Response, e: unknown): void {
+export function fail(res: Response, e: unknown): void {
   const code = e instanceof Error ? (e.message as PkRoomError) : undefined;
   if (code === undefined || !(code in ERROR_STATUS)) {
     res.status(500).json({ error: '服务器内部错误' });
@@ -111,6 +113,7 @@ function domainError(code: PkRoomError): Error {
 function unauthorized(res: Response): void {
   res.status(401).json({ error: '请先登录（PK 需要账号身份）', code: 'UNAUTHENTICATED' });
 }
+export { unauthorized };
 
 /** 状态变更后主动广播到房间频道（契约 §2.2：服务端推，客户端不靠轮询发现状态变化） */
 function broadcast(state: PkRoomState): void {
@@ -204,10 +207,11 @@ pkRouter.post('/rooms/:id/quiz', (req: Request, res: Response) => {
     try {
       // ★ M2c：末参是**账号归属**（谁付模型钱），与 `identity.userId`（对局身份，允许游客/AI）
       //   是两回事——见 pk/match.ts 的 submitQuiz 注释。未登录 ⇒ null = 平台通道。
-      // qKind（§15 B2）：出题人当场选单选/判断；不传或非法值按单选（缺省兜底，不 400——
+      // qKind（§15 B2/B4）：出题人当场选单选/判断/情景；不传或非法值按单选（缺省兜底，不 400——
       // 旧前端没这字段也照常出题）。termIds（§15 B3）：词条硬绑定，原样透传，校验在域层
       // （超限 400 / 取不全 404，且在 CD 落之前——输入错误不吃冷却）。
-      const qKind = req.body?.qKind === 'judge' ? 'judge' : 'single';
+      const rawKind = req.body?.qKind;
+      const qKind: PkQuizKind = rawKind === 'judge' || rawKind === 'scenario' ? rawKind : 'single';
       const termIds: unknown[] = Array.isArray(req.body?.termIds) ? req.body.termIds : [];
       const state = await submitQuiz(
         String(req.params.id ?? ''),

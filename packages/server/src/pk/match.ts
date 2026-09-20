@@ -13,7 +13,7 @@ import {
   pkChannel, pkQuizMixFor,
   type PkQuizKind, type PkRoomError, type PkRoomState,
 } from '@sb/shared';
-import type { PkQuestion, QuizPayload, QuizQuestion } from '@sb/shared';
+import type { QuizQuestion } from '@sb/shared';
 import { publish } from '../chat/sse-bus.js';
 import { generateQuiz } from '../learning/quiz.js';
 import {
@@ -25,6 +25,8 @@ import {
   type PkRoomQuestion,
   type Room,
 } from './room.js';
+import { snapshotQuestion } from './snapshot.js';
+import { generatePkScenario, pushGeneratedScenario, scenarioFitText, settleScenarioDue, type PkScenarioDraft } from './scenario.js';
 import { runAiAnswer, runAiQuiz } from './ai-bot.js';
 import { buildTopicAdvice, judgeTopicFit } from './judge.js';
 import { settleRoom } from './settle.js';
@@ -156,26 +158,35 @@ export async function submitQuiz(
 
   // 主题约束直接塞进出题提示词：先让模型「尽量出对」，再由裁判兜底判贴合度（两层，不单靠一层）
   const { constraint: termConstraint, material: termMaterial } = pkTermConstraint(terms);
-  let payload: QuizPayload | null = null;
+  let generated: QuizQuestion | undefined;
+  let draft: PkScenarioDraft | null = null;
   try {
-    // 末参 online=true（2026-09-13 老板拍板）：PK 出题也走联网检索；配比按 qKind 现算（§15 B2，仍自 PK_QUIZ_MIX 派生）
-    payload = await generateQuiz(
-      `${prompt}\n（硬约束：题目必须严格围绕主题「${topic}」${termConstraint}，不得跑题）`,
-      termMaterial,
-      pkQuizMixFor(qKind),
-      undefined,
-      undefined,
-      true,
-      ownerId,
-    );
+    if (qKind === 'scenario') {
+      // §15.4 B4：情景题走独立引擎（SCENARIO_PROTOCOL 整页 demo），不经 generateQuiz 配比管道；
+      // 生成物不落库——criteria 与 demo 源码由 pushGeneratedScenario 收进房间内存
+      draft = await generatePkScenario(topic, prompt, termConstraint, termMaterial, ownerId);
+    } else {
+      // 末参 online=true（2026-09-13 老板拍板）：PK 出题也走联网检索；配比按 qKind 现算（§15 B2，仍自 PK_QUIZ_MIX 派生）
+      const payload = await generateQuiz(
+        `${prompt}\n（硬约束：题目必须严格围绕主题「${topic}」${termConstraint}，不得跑题）`,
+        termMaterial,
+        pkQuizMixFor(qKind),
+        undefined,
+        undefined,
+        true,
+        ownerId,
+      );
+      generated = payload?.questions.find((x) => x.type === qKind);
+    }
   } catch {
-    payload = null;
+    // 生成异常与「没出成」同口径：走下方 AI_GENERATION_FAILED（CD 回滚，免费重试）
   }
-  const generated = payload?.questions.find((x) => x.type === qKind);
 
-  // ① 裁判判贴合度。★ 裁判不可用（null）时**按过处理**——ADR-4：旁挂能力挂了不能拖垮出题，
+  // ① 裁判判贴合度（情景题同样要贴当前轮次主题——§15.4 机制表「跑题裁判：沿用」）。
+  // ★ 裁判不可用（null）时**按过处理**——ADR-4：旁挂能力挂了不能拖垮出题，
   //    否则「裁判模型没配」会让整局谁都出不了题，那比偶尔跑题严重得多。
-  const fit = generated ? await judgeTopicFit(topic, prompt, String(generated.question)) : null;
+  const fitSource = draft ? scenarioFitText(draft) : generated ? String(generated.question) : null;
+  const fit = fitSource ? await judgeTopicFit(topic, prompt, fitSource) : null;
   if (fit && !fit.fit) {
     author.failStreak += 1;
     const streak = author.failStreak;
@@ -198,10 +209,13 @@ export async function submitQuiz(
     });
   }
 
-  // ★ 必须在 pushGeneratedQuestion **之前**清：它内部成功后会立刻 publishState，
-  //   清晚了对手收到的就是「题目已到 + 我还在出题」这种自相矛盾的状态。
+  // ★ 必须在 pushGeneratedQuestion / pushGeneratedScenario **之前**清：两者成功后会立刻
+  //   publishState，清晚了对手收到的就是「题目已到 + 我还在出题」这种自相矛盾的状态。
   clearQuizPending(room);
-  const ok = pushGeneratedQuestion(room, userId, opponent.userId, prompt, generated, now, topic);
+  // 情景题恒成功（生成失败在上方已按 AI_GENERATION_FAILED 处理）；客观题生成物不合法 → false
+  const ok = draft
+    ? pushGeneratedScenario(room, userId, opponent.userId, prompt, draft, now, topic)
+    : pushGeneratedQuestion(room, userId, opponent.userId, prompt, generated, now, topic);
   if (!ok) {
     rollbackCd();
     publishState(room);
@@ -219,31 +233,7 @@ export async function submitQuiz(
   return snapshotRoom(room);
 }
 
-/** 内部题 → 对外载荷（answer 只在判定后以 answerRevealed 出现）。导出给 power.ts 复用 */
-export function snapshotQuestion(q: PkRoomQuestion): PkQuestion {
-  const base: PkQuestion = {
-    id: q.id,
-    roomId: q.roomId,
-    fromUserId: q.fromUserId,
-    toUserId: q.toUserId,
-    prompt: q.prompt,
-    stem: q.stem,
-    options: [...q.options],
-    createdAt: q.createdAt,
-    deadlineAt: q.deadlineAt,
-    status: q.status,
-  };
-  if (q.topic) base.topic = q.topic;
-  if (q.retryOf) base.retryOf = q.retryOf;
-  if (q.isRetry) base.isRetry = true;
-  if (q.chosen !== undefined) {
-    base.chosen = q.chosen;
-    base.answerRevealed = q.answer;
-    return base;
-  }
-  if (q.status !== 'pending') base.answerRevealed = q.answer;
-  return base;
-}
+/** 导出给 power.ts 复用的快照映射已上移 `pk/snapshot.ts`（§15 B4 与 room.ts 内联份合流）；match 内部经 import 继续使用。 */
 
 /**
  * 主题轮转：成功出一道题后，当前主题切给**另一个玩家**。
@@ -314,7 +304,8 @@ export function submitAnswer(
 
 /**
  * 1s ticker 的时间驱动逻辑（唯一入口，测试直接调）：
- * ① 对局时钟归零 → 结算；② 答题超时 → −1 并揭示答案；③ 怠慢窗口 → −1；
+ * ① 对局时钟归零 → 结算；② 答题超时 → −1 并揭示答案（情景题为整页结算，见 pk/scenario.ts）；
+ * ③ 怠慢窗口 → −1；
  * ④ PVE：AI CD 到点且不在途 → AI 出题（失败 10s 后重试，不扣分）。
  */
 export function tickMatches(now = Date.now()): void {
@@ -327,6 +318,12 @@ export function tickMatches(now = Date.now()): void {
     let dirty = false;
     for (const q of room.questions) {
       if (q.status !== 'pending' || now < q.deadlineAt) continue;
+      // §15.4 B4：情景题到点**整页结算**（未上报的评分点算错 ⇒ 有错 ⇒ −1）——实现收口在 pk/scenario.ts
+      if (q.kind === 'scenario') {
+        settleScenarioDue(room, q, now);
+        dirty = true;
+        continue;
+      }
       q.status = 'timeout';
       q.answerRevealed = q.answer;
       const answerer = memberOf(room, q.toUserId);

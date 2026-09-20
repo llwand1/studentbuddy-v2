@@ -16,9 +16,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { isAiUserId, type PkJudgeAdvice, type PkQuizKind, type PkRoomState } from '@sb/shared';
 import { api, ApiError, type TermItem } from '../../lib/api';
 import {
-  cdRemainingMs, formatClock, myHelpLeft, myPendingQuestion, myWrongQuestions,
-  optionLetter, pendingToOpponent, quizPendingLabel, quizPendingSec, remainingMs,
-  retryRemainingMs,
+  cdRemainingMs, formatClock, myHelpLeft, myPendingQuestion, myWrongQuestions, optionLetter,
+  pendingToOpponent, quizPendingLabel, quizPendingSec, remainingMs, retryRemainingMs, scenarioOutcome,
 } from './pk-view';
 import { PkAnswerBlock } from './PkAnswerBlock';
 import { PkArena } from './PkArena';
@@ -264,29 +263,30 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
             <section className="sb-pk-card">
               <h2 className="sb-pk-h2">已判定</h2>
               {done.length === 0 && <p className="sb-pk-hint">还没有题目被判定</p>}
-              {done.map((q) => (
-                <div key={q.id} className="sb-pk-done">
-                  <span className="sb-pk-stem">
-                    {q.isRetry && <span className="sb-pk-retry-tag">补救</span>}
-                    {q.stem}
-                  </span>
-                  <span className={q.chosen === q.answerRevealed ? 'sb-pk-verdict ok' : 'sb-pk-verdict'}>
-                    {q.status === 'timeout' ? '超时 −1' : q.chosen === q.answerRevealed ? '答对 +2' : '答错 −1'}
-                    {' · '}
-                    正确答案 {optionLetter(q.answerRevealed ?? -1)}
-                  </span>
-                  {wrongIds.has(q.id) && (
-                    <button
-                      type="button"
-                      className="sb-pk-btn ghost"
-                      disabled={retryCd > 0}
-                      onClick={() => void retry(q.id)}
-                    >
-                      {retryCd > 0 ? `二次机会 ${formatClock(retryCd)}` : '二次机会（+2）'}
-                    </button>
-                  )}
-                </div>
-              ))}
+              {done.map((q) => {
+                // §15.4：情景题判词走 scenarioOutcome（无 chosen/answerRevealed，老判据不适用）
+                const so = scenarioOutcome(q);
+                const verdict = so
+                  ? so.text
+                  : `${q.status === 'timeout' ? '超时 −1' : q.chosen === q.answerRevealed ? '答对 +2' : '答错 −1'} · 正确答案 ${optionLetter(q.answerRevealed ?? -1)}`;
+                return (
+                  <div key={q.id} className="sb-pk-done">
+                    <span className="sb-pk-stem">
+                      {q.isRetry && <span className="sb-pk-retry-tag">补救</span>}
+                      {q.kind === 'scenario' && <span className="sb-pk-retry-tag">情景</span>}
+                      {q.stem}
+                    </span>
+                    <span className={so?.ok || (!so && q.chosen === q.answerRevealed) ? 'sb-pk-verdict ok' : 'sb-pk-verdict'}>
+                      {verdict}
+                    </span>
+                    {wrongIds.has(q.id) && (
+                      <button type="button" className="sb-pk-btn ghost" disabled={retryCd > 0} onClick={() => void retry(q.id)}>
+                        {retryCd > 0 ? `二次机会 ${formatClock(retryCd)}` : '二次机会（+2）'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </section>
 
             <PkForfeit busy={busy} onForfeit={onForfeit} />

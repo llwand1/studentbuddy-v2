@@ -27,6 +27,7 @@ import {
   myHelpLeft,
   retryRemainingMs,
   myWrongQuestions,
+  scenarioOutcome,
   quizPendingLabel,
   quizPendingSec,
   verdictKind,
@@ -446,5 +447,75 @@ describe('sanitizeReturnTo（§14.3：只允许 #/ 开头的站内 hash，防开
     expect(sanitizeReturnTo('')).toBeNull();
     expect(sanitizeReturnTo(null)).toBeNull();
     expect(sanitizeReturnTo(undefined)).toBeNull();
+  });
+});
+
+describe('§15.4 B4 · 情景题纯函数', () => {
+  /** 造一道情景题：默认「发给 a、全中提前结算」，用例按需覆盖 */
+  function sq(over: Partial<PkQuestion>): PkQuestion {
+    return {
+      id: 's1',
+      roomId: 'r-1',
+      fromUserId: 'b',
+      toUserId: 'a',
+      prompt: '',
+      stem: '浮力小实验',
+      options: [],
+      createdAt: 0,
+      deadlineAt: 0,
+      status: 'answered',
+      kind: 'scenario',
+      scenario: {
+        demoId: 'sd-1',
+        title: '浮力小实验',
+        tasks: [{ id: 't1', prompt: '任务一' }, { id: 't2', prompt: '任务二' }],
+      },
+      taskResults: { t1: true, t2: true },
+      ...over,
+    };
+  }
+
+  it('scenarioOutcome：全中（answered）→ 全中 +2（2/2）', () => {
+    expect(scenarioOutcome(sq({}))).toEqual({ text: '全中 +2（2/2）', ok: true });
+  });
+
+  it('scenarioOutcome：到点结算（timeout）按命中数说话，一律不算对', () => {
+    expect(scenarioOutcome(sq({ status: 'timeout', taskResults: { t1: true, t2: false } }))).toEqual({
+      text: '有错 −1（命中 1/2）',
+      ok: false,
+    });
+    expect(scenarioOutcome(sq({ status: 'timeout', taskResults: undefined }))).toEqual({
+      text: '有错 −1（命中 0/2）',
+      ok: false,
+    });
+  });
+
+  it('scenarioOutcome：进行中不算对；非情景题返回 null（调用方走客观题文案）', () => {
+    expect(scenarioOutcome(sq({ status: 'pending', taskResults: undefined }))).toEqual({ text: '进行中', ok: false });
+    expect(
+      scenarioOutcome({ id: 'x', roomId: 'r', fromUserId: 'b', toUserId: 'a', prompt: '', stem: '', options: [], createdAt: 0, deadlineAt: 0, status: 'answered' }),
+    ).toBeNull();
+  });
+
+  it('reviewVerdict：情景题走 scenarioOutcome 支路（不落入「双双 undefined＝答对」的老坑）', () => {
+    expect(reviewVerdict(sq({}))).toEqual({ text: '全中 +2（2/2）', ok: true });
+  });
+
+  it('myWrongQuestions：情景题不是二次机会候选（即使到点判罚成「错题」）', () => {
+    const base = state([
+      { userId: 'a', nickname: '甲' },
+      { userId: 'b', nickname: '乙' },
+    ]);
+    const s = {
+      ...base,
+      questions: [
+        sq({ id: 's-timeout', status: 'timeout', taskResults: { t1: true, t2: false } }),
+        {
+          id: 'wrong', roomId: 'r-1', fromUserId: 'b', toUserId: 'a', prompt: '', stem: '',
+          options: ['x', 'y'], createdAt: 0, deadlineAt: 0, status: 'answered' as const, chosen: 1, answerRevealed: 0,
+        },
+      ],
+    };
+    expect(myWrongQuestions(s, 'a').map((x) => x.id)).toEqual(['wrong']);
   });
 });

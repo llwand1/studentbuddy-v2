@@ -78,16 +78,21 @@ export const PK_PROMPT_MAX = 300;
 export const PK_QUIZ_MIX: QuizMix = { single: 1, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 };
 
 /**
- * 玩家在对战出题时可选的题型（PK-SPEC §15 B2，老板拍板「出题时现选」：与设置页配比解耦，
- * 每次自己挑单选或判断；其余档位（多选/填空/解答/情景）不进对战——8 分钟一局玩不起长答题）。
+ * 玩家在对战出题时可选的题型（PK-SPEC §15 B2/B4，老板拍板「出题时现选」：与设置页配比解耦，
+ * 每次自己挑单选、判断或情景；其余档位（多选/填空/解答）不进对战——8 分钟一局玩不起长答题）。
+ * ★ `'scenario'` 不是 `QuizType`：它走 `PkQuestionKind` 维度与独立的情景题引擎（§15.4），
+ *   不经 `generateQuiz` 配比管道——所以 `pkQuizMixFor` 只收客观题型（`PkObjectiveKind`）。
  */
-export type PkQuizKind = 'single' | 'judge';
+export type PkQuizKind = 'single' | 'judge' | 'scenario';
+
+/** 客观题型：能进 `generateQuiz` 配比管道的对战题型（情景题单列走 kind，见 `PkQuizKind` 注释） */
+export type PkObjectiveKind = Exclude<PkQuizKind, 'scenario'>;
 
 /**
  * 按出题人选的题型生成「恰好一道该题型」的配比：仍从 `PK_QUIZ_MIX` 派生（单一事实源），
  * 只是把 1 道的额度从单选挪到所选档。裁判出类似题不传 kind → 单选（二次机会沿旧制）。
  */
-export function pkQuizMixFor(kind: PkQuizKind = 'single'): QuizMix {
+export function pkQuizMixFor(kind: PkObjectiveKind = 'single'): QuizMix {
   return { ...PK_QUIZ_MIX, single: kind === 'single' ? 1 : 0, judge: kind === 'judge' ? 1 : 0 };
 }
 
@@ -171,6 +176,11 @@ export interface PkPlayer {
 }
 
 /**
+ * 对战题目种类（§15.4，B4）：`quiz`＝客观题（现有链路）；`scenario`＝情景题（iframe demo 整套算一题）。
+ */
+export type PkQuestionKind = 'quiz' | 'scenario';
+
+/**
  * 题目（**答题方视角：不含 answer 字段**）。
  * 正确答案只活在服务端内部结构与判分逻辑里，**永不下发**（含 SSE）——契约 §1 硬约束，
  * 所以此处刻意没有 answer：类型层面就不给「不小心下发」留口子。
@@ -202,6 +212,27 @@ export interface PkQuestion {
   retryOf?: string;
   /** P0-7：是否为二次机会的类似题（前端据此标注「补救题」，答对 +2） */
   isRetry?: boolean;
+  /**
+   * §15.4（B4）：题目种类。缺省 `'quiz'`——历史题与老快照无此键 ⇒ 前端按客观题渲染
+   * （不做数据迁移；kind='scenario' 时 `stem` 存 demo 标题、`options` 恒空数组）。
+   */
+  kind?: PkQuestionKind;
+  /**
+   * §15.4：kind='scenario' 时才有——demo 地址 + 评分点清单。
+   * ★ **criteria 绝不出现在任何载荷**（§1「正确答案不下发」在情景题上的同一句话）：
+   *   下发形状里结构性地没有 criteria 这个键——它一旦随快照出去，postMessage 回传与
+   *   「谁真的操作对了」就全可伪造。评分点只带 id/prompt/hint。
+   */
+  scenario?: {
+    demoId: string;
+    title: string;
+    tasks: { id: string; prompt: string; hint?: string }[];
+  };
+  /**
+   * §15.4：各评分点是否命中——**判定后回填**（与 answerRevealed 同一条「判定后才下发」纪律）。
+   * 未上报的评分点不会有键；「全中 +2 / 有错 −1」由服务端在结算时刻统一判定。
+   */
+  taskResults?: Record<string, boolean>;
 }
 
 /**
@@ -393,5 +424,8 @@ export type PkRoomError =
   /** 词条 id 不存在或不属于你 → 404（别人的词条是否存在，不关你的事） */
   | 'TERM_NOT_FOUND'
   /** 一次带超过 `PK_TERM_MAX` 条词条 → 400 */
-  | 'TERM_LIMIT_EXCEEDED';
+  | 'TERM_LIMIT_EXCEEDED'
+  // ── §15 B4：情景题进对战 ──
+  /** 回传的评分点 id 不在该题白名单内（不在 tasks 里＝不存在，不泄露别的） → 400 */
+  | 'SCENARIO_TASK_INVALID';
 

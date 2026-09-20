@@ -36,23 +36,38 @@ export function PkReviewList({ questions, userId }: Props) {
               <span className={v.ok ? 'sb-pk-verdict ok' : 'sb-pk-verdict'}>{v.text}</span>
             </div>
             <p className="sb-pk-stem">{q.stem}</p>
-            <div className="sb-pk-review-opts">
-              {q.options.map((opt, i) => (
-                <div
-                  key={i}
-                  className={
-                    i === q.answerRevealed
-                      ? 'sb-pk-review-opt correct'
-                      : i === q.chosen
-                        ? 'sb-pk-review-opt wrong'
-                        : 'sb-pk-review-opt'
-                  }
-                >
-                  {optionLetter(i)}. {opt}
-                  {i === q.chosen && ' ← 已选'}
-                </div>
-              ))}
-            </div>
+            {q.kind === 'scenario' ? (
+              // §15.4 B4：情景题回看＝评分点命中清单（没有选项与下标可标）
+              <ul className="sb-pk-scenario-tasks">
+                {(q.scenario?.tasks ?? []).map((t) => {
+                  const hit = q.taskResults?.[t.id];
+                  return (
+                    <li key={t.id} className={`sb-pk-scenario-task${hit === undefined ? '' : hit ? ' ok' : ' no'}`}>
+                      <span className="sb-pk-scenario-state">{hit === undefined ? '未上报' : hit ? '判对' : '判错'}</span>
+                      <span className="t">{t.prompt}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className="sb-pk-review-opts">
+                {q.options.map((opt, i) => (
+                  <div
+                    key={i}
+                    className={
+                      i === q.answerRevealed
+                        ? 'sb-pk-review-opt correct'
+                        : i === q.chosen
+                          ? 'sb-pk-review-opt wrong'
+                          : 'sb-pk-review-opt'
+                    }
+                  >
+                    {optionLetter(i)}. {opt}
+                    {i === q.chosen && ' ← 已选'}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}

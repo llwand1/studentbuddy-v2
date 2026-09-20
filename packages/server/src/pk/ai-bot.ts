@@ -95,6 +95,9 @@ export async function runAiQuiz(roomId: string, ownerId: string | null): Promise
 
 /** AI 答题（人出题成功后调用；独立 LLM 调用，只喂题干+选项） */
 export async function runAiAnswer(roomId: string, q: PkRoomQuestion): Promise<void> {
+  // §15.4：情景题需要真的在 demo 里动手操作——AI 没有手，不模拟、不乱猜，
+  // 交给 ticker 按超时判罚（与人不答同口径，AI 无特权）；也不白烧一次模型调用。
+  if (q.kind === 'scenario') return;
   const target = routeRole('solver');
   // 没配任何模型：AI 不作答，ticker 按超时判罚（与人同规则，不静默造分）
   if (!target) return;

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T09:38:59.233Z",
+  "generatedAt": "2026-09-21T10:34:58.860Z",
   "code": {
     "rows": [
       {
@@ -86,9 +86,9 @@
     "probes": 15
   },
   "repo": {
-    "head": "aa2d37f",
+    "head": "e59e126",
     "headDate": "2026-09-21",
-    "commitsLast14d": 134,
+    "commitsLast14d": 136,
     "branch": "main",
     "dirtyFiles": 18
   },
@@ -169,6 +169,18 @@
       "label": "badge 外部运行时依赖",
       "claimed": "6",
       "measured": "6",
+      "ok": true
+    },
+    {
+      "label": "badge Node 下限",
+      "claimed": "22.11",
+      "measured": ">=22.11.0",
+      "ok": true
+    },
+    {
+      "label": "badge 版本",
+      "claimed": "2.0.0-alpha.0",
+      "measured": "2.0.0-alpha.0",
       "ok": true
     },
     {

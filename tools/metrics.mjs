@@ -258,8 +258,25 @@ function readmeDrift(m) {
   if (badgeContracts) claims.push({ label: 'badge 契约类型', claimed: badgeContracts[1], measured: String(m.contracts.total), ok: badgeContracts[1] === String(m.contracts.total) });
   const badgeDeps = /badge\/external%20runtime%20deps-([0-9]+)/.exec(text);
   if (badgeDeps) claims.push({ label: 'badge 外部运行时依赖', claimed: badgeDeps[1], measured: String(m.deps.externalRuntime.length), ok: badgeDeps[1] === String(m.deps.externalRuntime.length) });
-  const badgeNode = /badge\/node-[^-]+-([0-9.]+)/.exec(text);
-  if (badgeNode) claims.push({ label: 'badge Node 下限', claimed: badgeNode[1], measured: JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).engines?.node ?? '?', ok: true });
+  // ★ 2026-09-21 修：原实现 `/badge\/node-[^-]+-([0-9.]+)/` **匹配不上本仓徽章的真实格式**
+  //   （README 写的是 `badge/node-%E2%89%A522.11-blue`，`%E2%89%A5` ＝ URL 编码的 `≥`）
+  //   ⇒ 该条**从未入列**；而且它的 `ok: true` 是**硬编码** ⇒ 即便入列也永远不可能红。
+  //   ★ 实测取证：把 README 的 `≥22.11` 改成 `≥18`（严重违反 `engines`）⇒ `--check` 仍 **EXIT=0**、
+  //   输出里没有这一行；对照把 `REST routes-149` 改成 `148` ⇒ **EXIT=1** 且该行 ❌。
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const majMin = (v) => (v ? String(v).match(/\d+(?:\.\d+)*/)?.[0]?.split('.').slice(0, 2).join('.') ?? null : null);
+  const badgeNode = /badge\/node-([^)]+?)-([a-zA-Z0-9_]+)\)/.exec(text);
+  if (badgeNode) {
+    const claimed = majMin(decodeURIComponent(badgeNode[1]));   // "≥22.11" → "22.11"
+    const engines = pkg.engines?.node ?? '';
+    claims.push({ label: 'badge Node 下限', claimed, measured: engines, ok: !!claimed && claimed === majMin(engines) });
+  }
+  // 版本徽章：`version-2.0.0--alpha.0`（shields 用 `--` 转义 `-`）vs `package.json` 的 version
+  const badgeVer = /badge\/version-([^)]+?)-([a-zA-Z0-9_]+)\)/.exec(text);
+  if (badgeVer) {
+    const claimed = badgeVer[1].replace(/--/g, '-');
+    claims.push({ label: 'badge 版本', claimed, measured: pkg.version, ok: claimed === pkg.version });
+  }
   const prose = [...text.matchAll(/(\d+) 文件 \/ (\d+) 例/g)];
   for (const g of prose) {
     if (!m.tests.available) break;
@@ -269,6 +286,15 @@ function readmeDrift(m) {
       measured: `${m.tests.files} 文件 / ${m.tests.cases} 例`,
       ok: g[1] === String(m.tests.files) && g[2] === String(m.tests.cases),
     });
+  }
+  // ★ 2026-09-21 加：**防「静默消失」** —— 上面每条都是「找得到才入列」，于是徽章被改名/删掉时
+  //   检查会**无声地不存在**（本仓刚发生过：Node 那条就是这么没的，谁都没发现）。
+  //   故对「实测值必然可得」的几条做**存在性断言**：该在的没在 ⇒ 报 ❌，而不是当作通过。
+  const REQUIRED = ['badge REST 路由', 'badge 契约类型', 'badge 外部运行时依赖', 'badge Node 下限', 'badge 版本'];
+  if (m.tests.available) REQUIRED.push('badge 测试文件', 'badge 测试用例');
+  const seen = new Set(claims.map((c) => c.label));
+  for (const label of REQUIRED) {
+    if (!seen.has(label)) claims.push({ label, claimed: '(README 里找不到该徽章)', measured: '—', ok: false });
   }
   return claims.filter((c) => c.claimed !== null);
 }

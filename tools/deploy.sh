@@ -13,9 +13,16 @@
 #     ② `.env` 必须在切换前 `cp` 到 app-new —— 打包刻意排除它，漏了就是**全站 AI 静默不可用**；
 #     ③ 预演 —— 新代码先跑库副本，出问题不碰生产库。
 #
+# ★★ 2026-09-21 补闸（工作树体检）
+#   tar 按**目录**打包 ⇒ 打的是「工作树」，不是「HEAD」。本仓常有**并行会话**同时在写，
+#   于是在途改动会被**一起推上生产**，且 `npm run check` 还会连带跑他们的半成品测试。
+#   ⇒ 步骤 ⓪ 拦下「packages/** 有未提交改动」；确需强发用 ALLOW_DIRTY=1。
+#
 # 用法：
 #   bash tools/deploy.sh                  # 正常发布（含预演）
+#   DRY_RUN=1 bash tools/deploy.sh        # 只做 体检+校验+构建+打包，不上传不切换（验闸用）
 #   SKIP_PRETEST=1 bash tools/deploy.sh   # 跳过预演（仅当你已单独验过）
+#   ALLOW_DIRTY=1 bash tools/deploy.sh    # 明知工作树有 packages/** 改动仍发（危险）
 #   SERVER=root@1.2.3.4 KEY=~/.ssh/k bash tools/deploy.sh
 set -euo pipefail
 
@@ -33,6 +40,31 @@ TAR=/tmp/sb-app-$TS.tar.gz
 
 ssh_() { ssh -i "$KEY" -o ConnectTimeout=15 "$SERVER" "$@"; }
 
+echo "=== ⓪ 工作树体检（打包的是工作树，不是 HEAD）==="
+DIRTY=$(git status --porcelain | cut -c4- || true)
+if [ -z "$DIRTY" ]; then
+  echo "✓ 工作树干净 ⇒ 打包内容 = HEAD"
+else
+  echo "工作树有 $(echo "$DIRTY" | wc -l) 项改动："
+  echo "$DIRTY" | sed 's/^/    · /'
+  RISKY=$(echo "$DIRTY" | grep -E '^packages/' || true)
+  if [ -z "$RISKY" ]; then
+    echo "⚠️  都不在 packages/**（非运行时代码）⇒ 继续"
+  elif [ "${ALLOW_DIRTY:-0}" = "1" ]; then
+    echo "⚠️  ALLOW_DIRTY=1 ⇒ 忽略下列**运行时代码**改动，继续（它们会被一起推上生产）："
+    echo "$RISKY" | sed 's/^/    ⚠️  /'
+  else
+    echo
+    echo "✗ 工作树里有**运行时代码**未提交改动 —— tar 按目录打包，它们会被一起推上生产："
+    echo "$RISKY" | sed 's/^/    ✗ /'
+    echo
+    echo "  两条出路："
+    echo "    ① 先提交/收尾这些改动（推荐）—— 尤其当它们**不是你改的**（本仓常有并行会话）"
+    echo "    ② 确认无碍再发：ALLOW_DIRTY=1 bash tools/deploy.sh"
+    exit 2
+  fi
+fi
+
 echo "=== ① 本地校验 + 构建 ==="
 npm run check
 npm run build
@@ -46,6 +78,13 @@ tar czf "$TAR" \
   --exclude='./docs/images' .
 echo "包：$TAR（$(du -h "$TAR" | cut -f1)，$(tar tzf "$TAR" | wc -l) 条目）"
 [ "$(tar tzf "$TAR" | grep -c node_modules || true)" = "0" ] || { echo "✗ 包里混进 node_modules"; exit 1; }
+
+if [ "${DRY_RUN:-0}" = "1" ]; then
+  echo
+  echo "✓ DRY_RUN=1 ⇒ 到此为止：已体检 + 已校验 + 已构建 + 已打包，**未上传、未切换、未碰服务器**"
+  echo "  包留档供检查：$TAR"
+  exit 0
+fi
 
 echo "=== ③ 建回滚点（库快照 + 旧代码整目录包）==="
 ssh_ "set -e

@@ -111,18 +111,22 @@ export function TermFlowDemo({ stage }: { stage: number }) {
             {shown[1]}
             {typing && <span className="ld-caret" />}
           </p>
-        </div>
-
-        <div className={stage >= 1 ? 'ld-hover ld-on' : 'ld-hover'}>
-          <div className="ld-hover-head">
-            <span className="ld-hover-term">梯度下降</span>
-            <span className="ld-hover-domain">机器学习</span>
-            <span className="ld-hover-used">已用 7 次</span>
-          </div>
-          <p className="ld-hover-def">沿负梯度方向迭代更新参数，使目标函数逐步下降的优化方法。</p>
-          <div className="ld-hover-acts">
-            <span>纳入复习</span>
-            <span>打开词条库</span>
+          {/* ★ 速览卡必须挂在 `.ld-reply` **里面**：它靠 `top:100%` 贴在正文下方，而
+              `.ld-reply` 才是那个 `position:relative` 的包含块。放在外层时百分比是对着
+              整层（302px）算的，卡片会掉到演示窗外面被 `overflow:hidden` 裁掉——
+              2026-09-21 落地对战批实测量到它 y=537、舞台底边 527，也就是「悬停出速览卡」
+              那一帧从来没把卡画出来过（说明写在 demo.css 的 `.ld-hover` 上）。 */}
+          <div className={stage >= 1 ? 'ld-hover ld-on' : 'ld-hover'}>
+            <div className="ld-hover-head">
+              <span className="ld-hover-term">梯度下降</span>
+              <span className="ld-hover-domain">机器学习</span>
+              <span className="ld-hover-used">已用 7 次</span>
+            </div>
+            <p className="ld-hover-def">沿负梯度方向迭代更新参数，使目标函数逐步下降的优化方法。</p>
+            <div className="ld-hover-acts">
+              <span>纳入复习</span>
+              <span>打开词条库</span>
+            </div>
           </div>
         </div>
 

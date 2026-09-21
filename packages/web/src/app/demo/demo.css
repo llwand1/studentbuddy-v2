@@ -141,11 +141,16 @@
   }
 }
 
-/* ── 悬浮速览卡（挂在回复正下方，随回复实际高度走，不受换行影响） ── */
+/* ── 悬浮速览卡（挂在回复正下方，随回复实际高度走，不受换行影响） ──
+ * ★ 2026-09-21 落地对战批修掉一条真 bug：这条注释描述的**一直是意图**，但卡片原先在
+ *   DOM 里是 `.ld-layer` 的直接子元素，于是 `top:100%` 对着整层（302px）算，卡片落到
+ *   舞台外被 `overflow:hidden` 裁掉 ⇒ 「悬停出速览卡」那一帧其实从没画出卡来。
+ *   现在它挪进 `.ld-reply`（见 TermFlowDemo.tsx 的注释），左右也就不必再各让 18px
+ *   ——那 18px 是当初对齐 `.ld-layer` 的内边距用的，跟着包含块一起换掉了。 */
 .ld-hover {
   position: absolute;
-  left: 18px;
-  right: 18px;
+  left: 0;
+  right: 0;
   top: 100%;
   margin-top: 10px;
   background: var(--sb-surface, #fff);
@@ -460,6 +465,424 @@
   gap: var(--sb-sp-4, 16px);
 }
 
+/* ── 对战演示（第三个场景）──────────────────────────────────────────────
+ * ★★ 这一段的动效词汇**只有**产品 `features/pk/pk.css` 里存在的那几条，值逐字抄
+ *   （sb-pop :1024 / sb-breathe :1058 / sb-sheen :1068 / sb-rise :1077 / sb-num :1088）。
+ *   产品第 6 条 `sb-shake`（答错用）**故意不带进来**——演示演的是答对，留一条用不上的
+ *   keyframes 就是死 CSS。名字统一加 `ld-sb-` 前缀，为的是 grep 产品名能对上号。
+ * ★ 为什么不 `@import` pk.css：那会把 1100 行 feature 样式灌进落地页首屏包，还可能
+ *   在门面页里改到同名控件。**代价写清楚**：产品若改了这几条时长，演示不会自动跟——
+ *   所以挂点行号注在这里，改 pk.css 动效时按行号回来看这段（回归锁锁的是「有哪几帧、
+ *   帧里有什么」，锁不了时长）。
+ * ★ 例外只有一处 `ld-fade`（纯 opacity）：React 条件渲染出来的帧没有 transition 起点，
+ *   演示窗需要一个换场。产品的 HUD 出现是**无动画**的，所以这里只淡入、不做位移缩放。
+ * ★ 字号整体比产品小一档：演示窗宽只有产品对战区的约 1/3，照抄会挤掉题干。
+ *   除时长/缓动/延迟这三个「货对板」的维度外，不追求像素一致。
+ */
+.ld-pk {
+  position: absolute;
+  inset: 0;
+  padding: 12px 14px;
+}
+/* 三栏（左对手｜中动作｜右我，PkArena.tsx:53-61）压成横条 */
+.ld-pk-hud {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: var(--sb-sp-2, 8px);
+  align-items: stretch;
+}
+.ld-pk-in {
+  animation: ld-fade 0.24s ease-out both;
+}
+.ld-pk-pl {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 9px;
+  border: 1px solid var(--sb-line, rgba(30, 40, 60, 0.1));
+  background: var(--sb-surface, #fff);
+  border-radius: var(--sb-radius-sm, 8px);
+}
+/* 我这一栏描蓝：产品 `.sb-pk-side.me` 就是这个口径（pk.css:205-208） */
+.ld-pk-me {
+  border-color: var(--sb-primary, #007aff);
+  background: var(--sb-primary-weak, rgba(0, 122, 255, 0.08));
+}
+.ld-pk-nm {
+  font-size: var(--sb-fs-sm, 12.5px);
+  font-weight: 600;
+  color: var(--sb-ink, #1e2433);
+}
+.ld-pk-ai {
+  margin-left: 5px;
+  padding: 0 3px;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--sb-primary, #007aff);
+  border: 1px solid currentColor;
+  border-radius: 4px;
+}
+.ld-pk-sc {
+  font-size: var(--sb-fs-xl, 20px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+.ld-pk-sub {
+  font-size: var(--sb-fs-xs, 11px);
+  color: var(--sb-ink-tertiary, #9aa1b0);
+}
+.ld-pk-topic {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 104px;
+  padding: 4px 10px;
+  background: var(--sb-primary-weak, rgba(0, 122, 255, 0.08));
+  border-radius: var(--sb-radius-sm, 8px);
+}
+.ld-pk-tl {
+  font-size: 10px;
+  color: var(--sb-ink-secondary, #6b7385);
+}
+.ld-pk-tn {
+  font-size: var(--sb-fs-sm, 12.5px);
+  font-weight: 600;
+  color: var(--sb-ink, #1e2433);
+}
+.ld-pk-to {
+  font-size: var(--sb-fs-xs, 11px);
+  color: var(--sb-primary, #007aff);
+}
+.ld-pk-body {
+  position: relative;
+  margin-top: var(--sb-sp-3, 12px);
+}
+/* 我刚发出的出题请求：产品里它是底部折叠区的一行「已发出」（PkMatch.tsx:84），
+   气泡形态是演示窗的压缩表达——它讲的是"这一题是我 demanding 来的"这个真实因果 */
+.ld-pk-bubble {
+  display: flex;
+  justify-content: flex-end;
+}
+.ld-pk-bubble span {
+  background: var(--sb-ink-secondary, #6b7385);
+  color: #fff;
+  font-size: var(--sb-fs-sm, 12.5px);
+  padding: 5px 10px;
+  border-radius: 10px 10px 2px 10px;
+  animation: ld-fade 0.24s ease-out both;
+}
+/* ── s2 出题中：逐条对 PkQuizPending.tsx:21-36 + pk.css:695-735 ──
+   产品注释写死「只做呼吸 + 骨架屏，不做假进度条」⇒ 这里也就这两样 */
+.ld-pk-pending {
+  margin-top: 11px;
+  padding: 10px 12px;
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-line, rgba(30, 40, 60, 0.1));
+  border-radius: var(--sb-radius-md, 12px);
+}
+.ld-pk-p-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ld-pk-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+.ld-pk-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--sb-primary, #007aff);
+  animation: ld-sb-breathe 1.2s ease-in-out infinite;
+}
+.ld-pk-dots i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.ld-pk-dots i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+.ld-pk-p-text {
+  font-size: var(--sb-fs-sm, 12.5px);
+  font-weight: 600;
+}
+.ld-pk-p-sec {
+  margin-left: auto;
+  font-size: var(--sb-fs-xs, 11px);
+  color: var(--sb-ink-tertiary, #9aa1b0);
+  font-variant-numeric: tabular-nums;
+}
+.ld-pk-sk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2, 8px);
+  padding: var(--sb-sp-2, 8px) 0;
+}
+.ld-pk-sk-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--sb-sidebar, #f5f5f7) 0%, #eceef2 40%, var(--sb-sidebar, #f5f5f7) 80%);
+  background-size: 220% 100%;
+  animation: ld-sb-sheen 1.4s linear infinite;
+}
+.ld-pk-sk-line.w70 {
+  width: 70%;
+}
+.ld-pk-sk-line.w92 {
+  width: 92%;
+}
+.ld-pk-sk-line.w55 {
+  width: 55%;
+}
+.ld-pk-hint {
+  margin: 0;
+  font-size: var(--sb-fs-xs, 11px);
+  color: var(--sb-ink-tertiary, #9aa1b0);
+}
+/* ── s3 轮到你答：PkAnswerBlock.tsx:28-56 ──
+   时限在产品里**一直是红的**（pk.css:303-307），≤10s 只是加粗（:931）——
+   上一版候选稿把它画成「黑字变红」是错的，这一版按产品原样 */
+.ld-pk-q {
+  margin-top: 11px;
+  padding: 11px 13px;
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-line, rgba(30, 40, 60, 0.1));
+  border-radius: var(--sb-radius-md, 12px);
+}
+.ld-pk-q-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sb-sp-2, 8px);
+}
+.ld-pk-q-h {
+  font-size: var(--sb-fs-sm, 12.5px);
+  font-weight: 700;
+}
+.ld-pk-deadline {
+  font-size: var(--sb-fs-sm, 12.5px);
+  color: var(--sb-danger, #ef4444);
+  font-variant-numeric: tabular-nums;
+}
+.ld-pk-deadline.urgent {
+  font-weight: 700;
+}
+.ld-pk-stem {
+  margin: 6px 0 0;
+  font-size: var(--sb-fs-sm, 12.5px);
+  line-height: 1.6;
+}
+/* 2×2 选项：产品是竖排四个（pk.css:925 起给的是 44px 最小触控高），
+   演示窗宽度放不下竖排 + 题干；选中期用产品的 `.picked` 配色，无入场动画 */
+.ld-pk-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sb-sp-2, 8px);
+  margin-top: 10px;
+}
+.ld-pk-o {
+  padding: 7px 10px;
+  border: 1px solid var(--sb-line, rgba(30, 40, 60, 0.1));
+  border-radius: var(--sb-radius-sm, 8px);
+  background: var(--sb-surface, #fff);
+  font-size: var(--sb-fs-sm, 12.5px);
+  text-align: left;
+}
+.ld-pk-lt {
+  margin-right: 6px;
+  font-weight: 700;
+  color: var(--sb-primary, #007aff);
+}
+.ld-pk-o.picked {
+  border-color: var(--sb-primary, #007aff);
+  background: var(--sb-primary-weak, rgba(0, 122, 255, 0.08));
+}
+/* ── s4 判定：PkVerdict.tsx:26-34 的一条横幅（答对 sb-pop .32s，pk.css:782）──
+   产品只闪我自己这条，对手的成败只体现为比分变化 ⇒ 「我+2/对手−1」两行对照表不存在 */
+.ld-pk-verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2, 8px);
+  margin-top: 11px;
+  padding: var(--sb-sp-3, 12px);
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-line, rgba(30, 40, 60, 0.1));
+  border-radius: var(--sb-radius-md, 12px);
+  font-size: var(--sb-fs-md, 14px);
+}
+.ld-pk-verdict.correct {
+  color: var(--sb-success, #22c55e);
+  border-color: rgba(34, 197, 94, 0.3);
+  animation: ld-sb-pop 0.32s ease-out;
+}
+.ld-pk-verdict svg {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ld-pk-v-ring {
+  stroke: currentColor;
+  opacity: 0.25;
+}
+.ld-pk-v-mark {
+  stroke: currentColor;
+}
+.ld-pk-v-text {
+  color: var(--sb-ink, #1e2433);
+  font-weight: 600;
+}
+.ld-pk-v-gone {
+  margin-left: auto;
+  font-size: var(--sb-fs-xs, 11px);
+  color: var(--sb-ink-tertiary, #9aa1b0);
+}
+/* ── s5 结算：PkResult.tsx:35-62 + pk.css:803-889，五条时长/缓动全是产品原值 ──
+ * ★ 居中**不能**用 `transform: translate(-50%, -50%)`：ld-sb-rise 的 keyframes 里带 transform，
+ *   动画一跑就把居中位移抹掉（实测面板会跑到右边去）。改成 left/right + margin auto。
+ */
+.ld-pk-result {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 2px;
+  margin: 0 auto;
+  width: 78%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sb-sp-2, 8px);
+  padding: 14px 16px;
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-line, rgba(30, 40, 60, 0.1));
+  border-radius: var(--sb-radius-lg, 16px);
+  box-shadow: var(--sb-shadow-2, 0 6px 20px rgba(30, 40, 80, 0.1));
+  text-align: center;
+  animation: ld-sb-rise 0.34s ease-out;
+}
+.ld-pk-r-badge {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--sb-fs-lg, 16px);
+  font-weight: 700;
+  color: var(--sb-success, #22c55e);
+  animation: ld-sb-pop 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.4);
+}
+.ld-pk-r-badge svg {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ld-pk-r-t {
+  font-size: var(--sb-fs-md, 14px);
+  font-weight: 600;
+  color: var(--sb-ink, #1e2433);
+  animation: ld-sb-rise 0.3s ease-out 0.1s both;
+}
+.ld-pk-r-reason {
+  font-size: var(--sb-fs-xs, 11px);
+  color: var(--sb-ink-secondary, #6b7385);
+  animation: ld-sb-rise 0.3s ease-out 0.16s both;
+}
+.ld-pk-r-score {
+  display: flex;
+  gap: var(--sb-sp-5, 24px);
+  margin-top: 2px;
+  animation: ld-sb-rise 0.3s ease-out 0.22s both;
+}
+.ld-pk-r-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.ld-pk-r-side.won .ld-pk-num {
+  color: var(--sb-success, #22c55e);
+}
+.ld-pk-num {
+  font-size: 26px; /* 产品 34px（pk.css:866）→ 演示窗按宽度缩到 26，比例关系不变 */
+  font-weight: 700;
+  color: var(--sb-ink, #1e2433);
+  font-variant-numeric: tabular-nums;
+  animation: ld-sb-num 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.5) 0.3s both;
+}
+
+/* keyframes：五条逐字抄自 pk.css:1024-1101（见本段头注），只换名字前缀 */
+@keyframes ld-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ld-sb-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes ld-sb-breathe {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes ld-sb-sheen {
+  0% {
+    background-position: -120% 0;
+  }
+  100% {
+    background-position: 220% 0;
+  }
+}
+@keyframes ld-sb-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes ld-sb-num {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 /* ── 窄屏：舞台加高（文本换行多一行） ── */
 @media (max-width: 880px) {
   .ld-stage {
@@ -482,6 +905,22 @@
     transition: none;
   }
   .ld-caret {
+    animation: none;
+  }
+  /* 对战段：无限循环的两个先停（呼吸点、骨架扫光），再把一次性登场全关掉。
+   * 关掉后元素落在**自身自然态**（`both` 的填充态随之失效），不会停在 opacity 0——
+   * 这一点是必须的：播放器在 reduce 下冻在末帧，末帧的元素若还带着入场前的透明就看不见了。 */
+  .ld-pk-dots i,
+  .ld-pk-sk-line,
+  .ld-pk-in,
+  .ld-pk-bubble span,
+  .ld-pk-verdict,
+  .ld-pk-result,
+  .ld-pk-r-badge,
+  .ld-pk-r-t,
+  .ld-pk-r-reason,
+  .ld-pk-r-score,
+  .ld-pk-num {
     animation: none;
   }
 }

@@ -42,12 +42,20 @@ describe('Landing — 未登录门面', () => {
     //   （实测踩过：报 unable to find an element with the text）。
     expect(container.querySelector('.landing-title')?.textContent).toBe('学过的词，会自己留下来');
     expect(getByText('开始使用')).toBeTruthy();
-    // 词条旅程五步（本批新增段：核心机制，排在五环之前）
-    expect(getByText('抽词')).toBeTruthy();
-    expect(getByText('高亮')).toBeTruthy();
-    expect(getByText('注入')).toBeTruthy();
-    expect(getByText('复习')).toBeTruthy();
-    expect(getByText('沉淀')).toBeTruthy();
+    // 词条旅程五步（2026-09-21 B 回路批改锁）：五步现在**各出现两次**——环上药丸 + 右侧清单，
+    // `getByText` 遇到多个即抛。改成锁结构，而且这比原来**更强**：
+    // 原来只保证「这几个字在页面某处」，现在保证「环与清单各成一套、且顺序一致」。
+    const JOURNEY = ['抽词', '高亮', '注入', '复习', '沉淀'];
+    expect([...container.querySelectorAll('.landing-orbit-node')].map((n) => n.textContent)).toEqual(JOURNEY);
+    expect(
+      [...container.querySelectorAll('.landing-jsteps .landing-feature-title')].map((n) => n.textContent)
+    ).toEqual(JOURNEY);
+    // 环与清单必须**同步**（本批的设计就是一个时钟派生两侧；两条独立时钟一定会漂）
+    expect(container.querySelectorAll('.landing-orbit-node.hot').length).toBe(1);
+    expect(container.querySelectorAll('.landing-jstep.hot').length).toBe(1);
+    // 诚实标注那一行不许删：它写明转速是压缩过的，删掉就等于让演示冒充真实节奏
+    expect(container.querySelector('.landing-jnote')?.textContent).toContain('2.6 秒转一圈');
+    expect(container.querySelector('.landing-orbit-core')?.textContent).toContain('已用次数');
     // 五环闭环（本批降到词条之后，但内容一条不能少）
     expect(getByText('对话讲解')).toBeTruthy();
     expect(getByText('薄弱分析')).toBeTruthy();
@@ -111,5 +119,15 @@ describe('词条演示 — 高亮口径', () => {
     expect(container.querySelectorAll('.ld-mark').length).toBe(3);
     // 其中只有第二个「学习率」是复现 —— 复现数错位会让「首现」失去强调作用
     expect(container.querySelectorAll('.ld-mark-again').length).toBe(1);
+  });
+
+  it('速览卡在 `.ld-reply` 里面（2026-09-21 修的那条真 bug 的结构锁）', () => {
+    const { container } = render(<TermFlowDemo stage={1} />);
+    // 卡靠 `top:100%` 贴在正文下方，包含块必须是 `.ld-reply`。它一旦挪回 `.ld-layer`
+    // 直接子级，百分比就改成对着 302px 的整层算，卡会掉到舞台外被 overflow:hidden 裁掉
+    // ——实测量到过 y=537 / 舞台底 527，也就是那一帧从没画出卡来。
+    // ★ jsdom 量不到布局，所以锁的是**那条父子关系本身**（它就是 bug 的唯一成因）。
+    expect(container.querySelector('.ld-reply .ld-hover')).toBeTruthy();
+    expect(container.querySelector('.ld-layer > .ld-hover')).toBeNull();
   });
 });

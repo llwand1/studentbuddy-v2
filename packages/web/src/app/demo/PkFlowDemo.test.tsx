@@ -69,6 +69,7 @@ describe('PkFlowDemo — 帧 × 内容矩阵', () => {
   it('答题帧：四个选项、恰好一个选中期，时限初值 45s（产品的单选题形态）', () => {
     const { container } = render(<PkFlowDemo stage={2} />);
     expect(container.querySelectorAll('.ld-pk-o').length).toBe(4);
+    // ★ 「选中态」在产品里没有对应物（产品点击即交卷）——这是**已被锁定的有意虚构**，老板 2026-09-21 判「先别管」，改它要连这条断言一起重开拍板，别当清理顺手做
     expect(container.querySelectorAll('.ld-pk-o.picked').length).toBe(1);
     expect(container.querySelector('.ld-pk-deadline')?.textContent).toBe('45s');
     expect(container.querySelector('.ld-pk-deadline.urgent')).toBeNull(); // 45s 时不该就提示紧张

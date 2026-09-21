@@ -26,6 +26,7 @@
  *   #   （SB_DATA_DIR 缺省取 `_probe/data-platform-env`）
  *
  *   # ② 带真 key 打一发真实上游（只读 /models，**不消耗 token**）
+ *     ★ v39.1 起 KEY／BASE_URL 支持逗号分隔多路（按位配对）——--live 会**逐路**各打一发。
  *   SB_PLATFORM_API_KEY=sk-xxx SB_PLATFORM_BASE_URL=https://xxx/v1 SB_PLATFORM_MODEL=xxx \
  *     npx tsx tools/probes/platform-env-check.mjs --live
  *
@@ -69,6 +70,16 @@ function envLine(name, fallback) {
   return `  ${name.padEnd(24)} = ${v ? mask(v) : `(未配 ⇒ 回落${fallback})`}`;
 }
 
+// v39.1：KEY/BASE_URL 支持逗号分隔多路，展示时逐路脱敏
+function splitEnvList(name) {
+  return (process.env[name] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+}
+function envListLine(name, fallback) {
+  const list = splitEnvList(name);
+  if (list.length === 0) return `  ${name.padEnd(24)} = (未配 ⇒ 回落${fallback})`;
+  return `  ${name.padEnd(24)} = [ ${list.map((v, i) => `#${i}:${mask(v)}`).join("  ")} ]`;
+}
+
 const dir = (process.env.SB_DATA_DIR ?? '').trim() || DEFAULT_DIR;
 initCrypto();
 const db = openIsolated(dir);
@@ -76,8 +87,8 @@ seedIfEmpty();
 
 console.log(`[platform-env-check] 库副本目录 = ${dir}`);
 console.log('\n=== 环境（脱敏）===');
-console.log(envLine('SB_PLATFORM_API_KEY', '数据库 api_key'));
-console.log(envLine('SB_PLATFORM_BASE_URL', '数据库 base_url'));
+console.log(envListLine('SB_PLATFORM_API_KEY', '数据库 api_key'));
+console.log(envListLine('SB_PLATFORM_BASE_URL', '数据库 base_url'));
 console.log(envLine('SB_PLATFORM_MODEL', '角色绑定 model'));
 
 console.log('\n=== 平台 provider 行（owner_id IS NULL）===');
@@ -116,17 +127,34 @@ if (readyCount < MODEL_ROLES.length) {
 
 if (LIVE) {
   console.log('\n=== --live：真实上游（只打 /models，不消耗 token）===');
-  const target = routeRole('coach', undefined, null);
-  if (!target) {
-    console.log('  跳过：没有解析出任何目标');
-  } else if (!target.apiKey) {
-    console.log('  跳过：解析出的 apiKey 为空（env 与数据库都没有 key）');
-  } else {
-    const url = `${target.baseUrl.replace(/\/+$/, '')}/models`;
+  // v39.1：KEY/BASE_URL 支持逗号分隔多路 ⇒ 按位配对**逐路**验证（随机分配的每一口都得通）
+  const keys = splitEnvList('SB_PLATFORM_API_KEY');
+  const bases = splitEnvList('SB_PLATFORM_BASE_URL');
+  const envModel = (process.env.SB_PLATFORM_MODEL ?? '').trim();
+  const routes =
+    keys.length > 0 && bases.length > 0
+      ? Array.from({ length: Math.min(keys.length, bases.length) }, (_, i) => ({
+          apiKey: keys[i],
+          baseUrl: bases[i],
+        }))
+      : [];
+  if (routes.length === 0) {
+    const t = routeRole('coach', undefined, null); // 老口径：env 未按多路配 ⇒ 只验解析出的那一条
+    if (t) routes.push({ apiKey: t.apiKey, baseUrl: t.baseUrl });
+  }
+  if (routes.length === 0) console.log('  跳过：env 与数据库都没有解析出可用目标');
+  const anyTarget = routes.length > 0 ? routeRole('coach', undefined, null) : null; // 只为拿 adapter
+  for (const [idx, r] of routes.entries()) {
+    console.log(`\n  -- 第 ${idx + 1} 路 --`);
+    if (!r.apiKey) {
+      console.log('  跳过：该路 apiKey 为空（env 与数据库都没有 key）');
+      continue;
+    }
+    const url = `${r.baseUrl.replace(/\/+$/, '')}/models`;
     console.log(`  GET ${url}`);
     const t0 = Date.now();
     try {
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${target.apiKey}` } });
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${r.apiKey}` } });
       const body = await res.text();
       console.log(`  裸 fetch：status=${res.status} 耗时=${Date.now() - t0}ms`);
       console.log(`  响应前 240 字：${body.slice(0, 240)}`);
@@ -140,14 +168,15 @@ if (LIVE) {
       console.log('  ⇒ 服务器连不上这个 base_url（线上出口在美国；若用国内中转需确认对海外 IP 开放）');
     }
     // ★ 再走一遍**产品代码**：上面裸 fetch 给的是 HTTP 状态，这里给的是「产品实际会拿到什么」
-    const models = await target.adapter.listModels({ baseUrl: target.baseUrl, apiKey: target.apiKey });
+    if (!anyTarget) continue;
+    const models = await anyTarget.adapter.listModels({ baseUrl: r.baseUrl, apiKey: r.apiKey });
     console.log(
       `  产品 listModels() 返回 ${models.length} 个模型${models.length ? '：' + models.slice(0, 6).join(', ') : '（空 ⇒ 按上面的 status 定位）'}`,
     );
+    const wantModel = envModel || anyTarget.model;
     if (models.length > 0) {
-      console.log(`  目标模型「${target.model}」在清单里：${models.includes(target.model) ? '是 ✅' : '否 ⚠️（模型名可能写错）'}`);
+      console.log(`  目标模型「${wantModel}」在清单里：${models.includes(wantModel) ? '是 ✅' : '否 ⚠️（模型名可能写错）'}`);
     }
   }
 }
-
 process.exit(0);

@@ -123,7 +123,7 @@ describe('POST /api/scenario/report（回传 + 服务端判分）', () => {
     expect(detail.body.stats).toHaveLength(0);
   });
 
-  it('删套题连带删 demo：bank DELETE 后 report → 404、demo 页 → 404', async () => {
+  it('删套题连带删 demo：bank DELETE 后 report → 404、demo 页 → 404、库里的 demo 行真的没了', async () => {
     const seeded = await seed({ title: '级联删', html: demoHtml, tasks }).expect(200);
     const { quizId, demoId } = seeded.body;
     await request(app).delete(`/api/quiz/bank/${quizId}`).set('Origin', origin).expect(200);
@@ -133,6 +133,11 @@ describe('POST /api/scenario/report（回传 + 服务端判分）', () => {
       .send({ demoId, taskId: 't-choice', observed: [0] })
       .expect(404);
     await request(app).get(`/api/scenario/demo/${demoId}`).expect(404);
+    // ★ 上面两条 404 证不了级联——bank 行一删，归属 JOIN 就让 demo 页与 report 都 404（哪怕 demo 行还在）。
+    //   级联真删只能看库：不然「删套题留下死 demo 行」会一路静默，孤儿行只增不减。
+    const { getDb } = await import('../storage/db.js');
+    const left = getDb().prepare('SELECT COUNT(*) AS n FROM scenario_demo WHERE id = ?').get(demoId) as { n: number };
+    expect(left.n).toBe(0);
   });
 });
 

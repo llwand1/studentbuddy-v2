@@ -170,6 +170,8 @@ journalctl -u studentbuddy -n 100 -f   # 跟日志
 3. `git commit` 后 push 到私有仓 `llwand1/studentbuddy-backup`（**异地**：机器整个挂掉也能取回）
 4. 本地删掉 7 天前的档（滚动窗口）
 
+★ **备份仓里只有 `sb-*.db`，不含主密钥 `.mk`** —— 这不是疏漏，是**有意的**（见下方「异机恢复」）。
+
 ### 恢复步骤
 
 ```bash
@@ -194,6 +196,39 @@ curl -sf https://11wand.com/api/health
 ```
 
 ★★ **第 3 步的 `rm -f *.db-wal *.db-shm` 不是可选项**：WAL 里存着主库之后的所有写入，只换主库、留着旧 WAL，SQLite 会把**旧 WAL 重放到新库上** —— 回滚等于没做，而且数据处于半新半旧的混合态，比不回滚更难查。
+
+### 异机恢复：`.mk` 不在备份里 —— 恢复后必须重填 key
+
+`/opt/studentbuddy/data/.mk` 是主密钥（`storage/crypto.ts`）：`providers.api_key` 与搜索 key 都以
+`enc:v1:` 密文落库，唯一能解开它们的只有这一把。它**不随备份走**（理由见末段）。
+
+后果不是报错，是**静默失效**：`.mk` 缺失时服务**新生成一把**并照常启动 —— health 绿、页面全正常，
+只有密文解出来是空串（日志 `[crypto] decryptSecret failed`，且只在真正用到时才落笔）。
+2026-09-21 的 `_probe/restore-drill.mjs` 把这两个世界都实测过：
+
+| 臂 | 结果 |
+|---|---|
+| 异处恢复 + 带 `.mk` | 10/10 全绿（47 表行数逐表一致、会话/消息可读、`key-status` roundtrip=true、`.mk` 指纹逐字节同） |
+| 同一份快照、**不带 `.mk`** | `key-status` roundtrip=false —— 密文全部解成空串，而服务照常起、health 照绿 |
+
+∴ **换机 / 整机重建后，按此重填**：
+
+1. 设置页把各 BYOK provider 的 apiKey 重填一遍（平台通道的 key 不在此列，它在 env）
+2. 设置页把搜索 key 重填一遍
+3. 自检：`GET /api/providers/:id/key-status` 应回 `{encrypted:true, roundtrip:true}`；
+   `journalctl -u studentbuddy | grep decryptSecret` 无输出（有输出＝还在用解不开的旧密文）
+
+★ **今天线上是零损失**（2026-09-21 取证）：v39 起平台 key 只在 env，线上 encrypted 行数 = **0**
+⇒ 现在照上面恢复不会丢任何数据。但**一旦线上存过 BYOK provider 或搜索 key，这一步就从「重填」变成「没得填」** ——
+所以这条不是「将来再说」，是**下一次有人往线上填 key 之前**就得知道的事。
+
+★ **不想重填的话**（将来选做，今日不做）：把 `.mk` 单独存密码管理器 / 离线介质，恢复时手工放回 `data/`
+（`chmod 600`）。**但不要把它并进备份仓** —— 私有仓也不行：主密钥进 GitHub，等于「库文件 + 开锁钥匙」
+装进同一个信封，前面所有备份链路的隔离都白做。两害相权，选「异机要重填」。
+
+★ 另：线上 Linux 的 `.mk` 是**明文 32 字节、0600 root**（非 Windows 平台没有 DPAPI，代码如实降级并打警示）
+⇒ 它不能出现在任何同步盘、仓、工单里；本机 Windows 装的实例则与 **Windows 账号**绑定（DPAPI CurrentUser），
+换机/换账号同样解不开 —— 本地版跨机搬数据时按同一清单重填。
 
 ---
 
@@ -267,6 +302,7 @@ ssh -i ~/.ssh/id_ed25519 $SERVER 'journalctl -u studentbuddy -n 30 --no-pager'  
 7. **发信 DNS**：`SB_MAIL_FROM` 所在域配 **SPF / DKIM / DMARC**；Resend 侧验证域名
 8. **GitHub OAuth App**：callback 填 `https://<域名>/api/auth/github/callback`，把 client id / secret 写进 `.env`
 9. **备份仓**：在备份目录 `git init` 并指向私有远端，且**配好免密 push 的 deploy key**（`sb-backup` 里 push 失败不会中断服务，但会静默丢异地备份 —— 要定期看 `/var/log/sb-backup.log`）
+10. **主密钥 `.mk`**：**不随备份走**（口径与理由见 §6「异机恢复」）—— 换机/重建恢复后，把各 BYOK provider 与搜索 key **重填一遍**，并用 `GET /api/providers/:id/key-status` 验 roundtrip；若不想重填，恢复时把离线另存的 `.mk` 手工放回 `data/`（**不要**并进备份仓）
 
 ---
 
@@ -295,5 +331,6 @@ git checkout main             # 发完切回来
 - **全站并发值 8 是占位值**，未按真实业务校准。
 - **看门狗只留痕、不告警**（对外告警依赖外部监控服务）。
 - **备份是「每日一次」**：最坏情况会丢一天的数据。要更小的 RPO 得加 WAL 归档或提高备份频率。
+- **主密钥 `.mk` 不随备份走**（§6）：异机恢复后要重填 provider/搜索 key。危害形态是**静默失效**——服务照常起、health 照绿，只有密文解出来是空串。
 - **`/opt/studentbuddy/app` 不是 git 仓库**：服务器上的代码状态**无法用 `git log` 追溯**，只能靠本机提交历史 + 发版时间对应。想知道线上跑的是哪个版本，看 `/api/status`（若暴露版本号）或比对文件 mtime。
 - **本手册的配置快照取自 2026-09-20 实测**；服务器上的配置文件是**真相源**，本文与服务器不一致时以服务器为准，并回来更新本文。

@@ -16,9 +16,9 @@ import { ownerIdOf } from '../auth/ownership.js';
 
 export const scenarioRouter = Router();
 
-/** 按套题反查 demoId（题库 JSON 不存 demoId；前端从题库页打开面板前先换 id） */
+/** 按套题反查 demoId（题库 JSON 不存 demoId；前端从题库页打开面板前先换 id）。别人的套题 → 404。 */
 scenarioRouter.get('/by-quiz/:quizId', (req: Request, res: Response) => {
-  const demoId = getScenarioDemoId(req.params.quizId ?? '');
+  const demoId = getScenarioDemoId(req.params.quizId ?? '', ownerIdOf(req));
   if (!demoId) {
     res.status(404).json({ error: '该套题没有情景 demo（可能不是情景题或已损坏）' });
     return;
@@ -75,9 +75,9 @@ scenarioRouter.post('/generate', async (req: Request, res: Response) => {
   }
 });
 
-/** 出 demo 页（宿主面板 iframe 与浏览器直开共用）：404 用 HTML 提示，保持 type 一致 */
+/** 出 demo 页（宿主面板 iframe 与浏览器直开共用）：404 用 HTML 提示，保持 type 一致。别人的 demo → 404。 */
 scenarioRouter.get('/demo/:id', (req: Request, res: Response) => {
-  const page = buildScenarioDemoPage(req.params.id ?? '');
+  const page = buildScenarioDemoPage(req.params.id ?? '', ownerIdOf(req));
   res.setHeader('Content-Security-Policy', 'sandbox allow-scripts allow-modals allow-forms');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   if (!page) {

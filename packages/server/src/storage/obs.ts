@@ -39,14 +39,28 @@ function parsePayload(s: string | null): ObsPayload | null {
   }
 }
 
-/** 只读查询：kind 精确过滤、sinceId 增量拉取、limit 钳制 1..200（默认 50），按 id 倒序。 */
-export function listObsEvents(opts: { kind?: ObsKind; sinceId?: number; limit?: number } = {}): ObsEventRow[] {
+/**
+ * 只读查询：kind 精确过滤、sinceId 增量拉取、limit 钳制 1..200（默认 50），按 id 倒序。
+ *
+ * ★ 归属（2026-09-21 闸门 #2 修批）：`event_log` 没有 owner 列，归属**回 sessions 判**
+ *   （会话是唯一锚点，见 ownership.ts 头注）。`ownerId` 非空时只回「本人会话里的事件」——
+ *   无会话的平台事件（session_id IS NULL）也一并挡掉：它们不属于任何用户，云模式下没人该看见。
+ *   `null` = 未登录单人模式，不过滤（本地旧行为）。
+ */
+export function listObsEvents(
+  opts: { kind?: ObsKind; sinceId?: number; limit?: number; ownerId?: string | null } = {},
+): ObsEventRow[] {
   const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
   const conds: string[] = [];
   const args: Array<string | number> = [];
   if (opts.kind) {
     conds.push('kind = ?');
     args.push(opts.kind);
+  }
+  const ownerId = opts.ownerId ?? null;
+  if (ownerId !== null) {
+    conds.push('session_id IN (SELECT id FROM sessions WHERE user_id = ?)');
+    args.push(ownerId);
   }
   if (opts.sinceId !== undefined) {
     conds.push('id > ?');

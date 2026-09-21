@@ -24,6 +24,8 @@ const { resetRateLimits } = await import('../auth/rate-limit.js');
 const { resetAuthCaches, createUser } = await import('../auth/users.js');
 const { createSession: issueSession } = await import('../auth/session.js');
 const { upsertMemoryItems } = await import('../chat/memory.js');
+const { wireObsEvents } = await import('../storage/obs.js');
+const { publishEvent } = await import('../events/bus.js');
 const request = (await import('supertest')).default;
 
 const origin = 'http://localhost:5173';
@@ -202,6 +204,79 @@ describe('长期画像归属：跨会话数据也不串台', () => {
       .set('Origin', origin)
       .set('Cookie', cookieB);
     expect(clear.status).toBe(404);
+  });
+});
+
+/**
+ * 文档 / 情景题 / 可观测三处归属补丁（2026-09-21 闸门 #2 修批）。
+ *
+ * ★ 为什么并进本文件：这三处的性质与上文完全一致——**测的不是功能，是会不会泄露**。
+ *   探针 `_probe/owner-isolation.mjs` 2026-09-21 打出 9 条泄露，全落在这三处：
+ *   · doc：三个端点零归属断言（B 读得到 A 的资料元信息、改得掉、删得掉）；
+ *   · scenario：`scenario_demo` 表没有 owner 列，`by-quiz` 与 `demo/:id` 拿 id 就能跨用户取件；
+ *     且删套题时 `deleteScenarioDemoByQuiz` 不带 owner（B 删不动 A 的套题行，却删得掉 A 的 demo）；
+ *   · obs：`event_log` 无 owner 列，观测台形同全站共享（B 看得到 A 的会话 id 与事件摘要）。
+ *   ⇒ 修法一律「归属回 sessions 判」（会话是唯一锚点），跨用户与不存在**同形**：404 / 空。
+ */
+describe('文档 / 情景题 / 可观测：归属补丁（2026-09-21）', () => {
+  it('doc：B 对 A 的资料读不到、写不进、删不掉；A 的正文毫发无损', async () => {
+    const body = '甲的机密正文';
+    await request(app)
+      .post('/api/doc')
+      .set('Origin', origin)
+      .set('Cookie', cookieA)
+      .send({ sessionId: sessA, name: '甲.md', text: body })
+      .expect(200);
+
+    // 读：回 404 而不是 {doc:null}——后者等于答「这个会话存在、只是没资料」
+    await request(app).get(`/api/doc?sessionId=${sessA}`).set('Origin', origin).set('Cookie', cookieB).expect(404);
+
+    await request(app)
+      .post('/api/doc')
+      .set('Origin', origin)
+      .set('Cookie', cookieB)
+      .send({ sessionId: sessA, name: '乙.md', text: '乙的覆盖' })
+      .expect(404);
+    await request(app).delete(`/api/doc?sessionId=${sessA}`).set('Origin', origin).set('Cookie', cookieB).expect(404);
+
+    const mine = await request(app).get(`/api/doc?sessionId=${sessA}`).set('Origin', origin).set('Cookie', cookieA);
+    expect(mine.status).toBe(200); // 对照：A 自己照常
+    expect(mine.body.doc).toEqual({ name: '甲.md', chars: body.length, truncated: false });
+  });
+
+  it('scenario：B 取不到 A 的 demoId 与 demo 页；删 A 的套题也删不掉 A 的 demo', async () => {
+    const html = '<!doctype html><html><body><button id="t1">t1</button></body></html>';
+    const seeded = await request(app)
+      .post('/api/scenario/seed')
+      .set('Origin', origin)
+      .set('Cookie', cookieA)
+      .send({
+        title: '甲的排序情景',
+        html,
+        tasks: [{ id: 't1', prompt: '任务一', criteria: { kind: 'choice', answer: [1] } }],
+      })
+      .expect(200);
+    const { quizId, demoId } = seeded.body as { quizId: string; demoId: string };
+
+    await request(app).get(`/api/scenario/by-quiz/${quizId}`).set('Origin', origin).set('Cookie', cookieB).expect(404);
+    await request(app).get(`/api/scenario/demo/${demoId}`).set('Origin', origin).set('Cookie', cookieB).expect(404);
+    await request(app).get(`/api/scenario/by-quiz/${quizId}`).set('Origin', origin).set('Cookie', cookieA).expect(200);
+
+    // ★ 破坏性一条：响应恒 {ok:true} 证不了，判据只能是 A 回读自己的 demo
+    await request(app).delete(`/api/quiz/bank/${quizId}`).set('Origin', origin).set('Cookie', cookieB).expect(200);
+    const after = await request(app).get(`/api/scenario/by-quiz/${quizId}`).set('Origin', origin).set('Cookie', cookieA);
+    expect(after.status).toBe(200);
+    expect(after.body.demoId).toBe(demoId);
+  });
+
+  it('obs：A 自己会话里的观测事件，B 一条都读不到', async () => {
+    wireObsEvents(); // 测试里 index.ts 的启动分支不跑（不监听端口），订阅要自己接一次
+    publishEvent({ type: 'obs', kind: 'search_empty', sessionId: sessA, payload: { query: '甲的秘密查询词' } });
+
+    const a = await request(app).get('/api/obs/events').set('Origin', origin).set('Cookie', cookieA);
+    expect(a.body.events.some((e: { sessionId: string }) => e.sessionId === sessA)).toBe(true); // 对照成立
+    const b = await request(app).get('/api/obs/events').set('Origin', origin).set('Cookie', cookieB);
+    expect(b.body.events.some((e: { sessionId: string }) => e.sessionId === sessA)).toBe(false);
   });
 });
 

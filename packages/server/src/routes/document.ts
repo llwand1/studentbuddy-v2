@@ -10,6 +10,7 @@
  */
 import { Router } from 'express';
 import type { Request, Response } from 'express';
+import { canAccessSession, ownerIdOf } from '../auth/ownership.js';
 import { getSessionDoc, setSessionDoc, clearSessionDoc, docMeta } from '../learning/document.js';
 
 export const documentRouter = Router();
@@ -26,7 +27,12 @@ documentRouter.get('/', (req: Request, res: Response) => {
     res.status(400).json({ error: 'sessionId 必填' });
     return;
   }
-  res.json({ doc: docMeta(getSessionDoc(sessionId)) });
+  // ★ 别人的会话与不存在同形 → 404（不学本地模式回 {doc:null}：那等于答"这个会话存在、只是没资料"）
+  if (!canAccessSession(sessionId, ownerIdOf(req))) {
+    res.status(404).json({ error: '会话不存在' });
+    return;
+  }
+  res.json({ doc: docMeta(getSessionDoc(sessionId, ownerIdOf(req))) });
 });
 
 documentRouter.post('/', (req: Request, res: Response) => {
@@ -40,7 +46,7 @@ documentRouter.post('/', (req: Request, res: Response) => {
     res.status(400).json({ error: '资料正文不能为空' });
     return;
   }
-  const doc = setSessionDoc(sessionId, (name ?? '').trim(), text);
+  const doc = setSessionDoc(sessionId, (name ?? '').trim(), text, ownerIdOf(req));
   if (!doc) {
     res.status(404).json({ error: '会话不存在' });
     return;
@@ -54,7 +60,7 @@ documentRouter.delete('/', (req: Request, res: Response) => {
     res.status(400).json({ error: 'sessionId 必填' });
     return;
   }
-  if (!clearSessionDoc(sessionId)) {
+  if (!clearSessionDoc(sessionId, ownerIdOf(req))) {
     res.status(404).json({ error: '会话不存在' });
     return;
   }

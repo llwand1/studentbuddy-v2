@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { openIsolated } from './db.js';
+import { getDb, openIsolated } from './db.js';
 import { recordObsEvent, listObsEvents, wireObsEvents } from './obs.js';
 import { publishEvent } from '../events/bus.js';
 
@@ -54,6 +54,28 @@ describe('storage/obs — 可观测地基（v9 event_log）', () => {
     expect(listObsEvents({ limit: 999 })).toHaveLength(5); // 上钳 200，数据只有 5
     expect(listObsEvents({ limit: 0 })).toHaveLength(1); // 下钳 1
     expect(listObsEvents({ kind: 'thumbs_down' })).toHaveLength(0); // 合法 kind 无数据
+  });
+
+  /**
+   * 归属过滤（2026-09-21 闸门 #2 修批）：`event_log` 没有 owner 列 ⇒ 归属**回 sessions 判**。
+   * 钉三件事：非空 ownerId 只回本人会话的事件；无会话的平台事件与孤儿会话事件一并挡掉；
+   * `null`（未登录单人模式）不过滤——本地旧行为不许回归。
+   */
+  it('归属过滤：ownerId 非空只回本人会话的事件；平台事件（无会话）也不给；null = 本地模式不过滤', () => {
+    openIsolated(tmp());
+    getDb()
+      .prepare(`INSERT INTO sessions (id, user_id) VALUES ('sa', 'u-a'), ('sb', 'u-b'), ('s-orphan', NULL)`)
+      .run();
+    recordObsEvent({ kind: 'search_empty', sessionId: 'sa', payload: { query: '甲的问题' } });
+    recordObsEvent({ kind: 'search_empty', sessionId: 'sb', payload: { query: '乙的问题' } });
+    recordObsEvent({ kind: 'search_empty', sessionId: 's-orphan' });
+    recordObsEvent({ kind: 'tool_error' }); // 平台事件：压根没有会话
+
+    const mine = listObsEvents({ ownerId: 'u-a' });
+    expect(mine.map((r) => r.sessionId)).toEqual(['sa']); // 别家会话 / 孤儿会话 / 平台事件全挡掉
+
+    expect(listObsEvents({ ownerId: null })).toHaveLength(4); // 单人本地模式：不过滤
+    expect(listObsEvents()).toHaveLength(4); // 省略 ownerId = 旧行为（未登录调用点）
   });
 
   it('wireObsEvents：publishEvent(obs) 自动落库；重复 wire 幂等；非 obs 事件不落', () => {

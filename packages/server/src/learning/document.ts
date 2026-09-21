@@ -2,8 +2,14 @@
  * learning/document — 文档模式（契约《studentbuddy开发文档5.0》§5.1 + §5.1.1，细则 `docs/DOC-RAG-SPEC.md`）。
  * 会话绑定一篇资料；短文档整篇直塞，**长文档按本轮提问检索相关段落**（检索层在 `doc-retrieve.ts`）。
  * 零新依赖、不落盘（文本存 sessions.doc_text），故不存在上传目录/路径穿越面。
+ *
+ * ★ 归属（2026-09-21 闸门 #2 修批）：三个读写口都收 `ownerId` 并按 `ownerFilter` 过滤，
+ *   别人的会话在这里**与不存在同形**（null / false）。闸门放在域层而非路由，是因为资料正文
+ *   还有两个非 HTTP 的取用口——出题回退（routes/quiz.ts）与抽词条回退（routes/terms.ts）：
+ *   漏一处就等于「拿别人的资料给自己出题」，故必须收在唯一的数据出口上。
  */
 import { getDb } from '../storage/db.js';
+import { ownerFilter } from '../auth/ownership.js';
 import { DOC_EXTRACT_BUDGET_CHARS, DOC_EXTRACT_CHUNKS, MAX_DOC_CHARS } from '@sb/shared';
 import { getRetriever, joinChunks, pickUniformChunks } from './doc-retrieve.js';
 
@@ -42,28 +48,31 @@ function toDoc(row: DocRow | undefined): SessionDoc | null {
   };
 }
 
-export function getSessionDoc(sessionId: string): SessionDoc | null {
-  const row = getDb().prepare('SELECT doc_name, doc_text FROM sessions WHERE id = ?').get(sessionId) as
-    | DocRow
-    | undefined;
+export function getSessionDoc(sessionId: string, ownerId: string | null): SessionDoc | null {
+  const f = ownerFilter(ownerId);
+  const row = getDb()
+    .prepare(`SELECT doc_name, doc_text FROM sessions WHERE id = ?${f.sql}`)
+    .get(sessionId, ...f.params) as DocRow | undefined;
   return toDoc(row);
 }
 
-/** 载入/替换本会话资料。会话不存在或正文空白 → null（调用方据此出 404/400，不静默）。 */
-export function setSessionDoc(sessionId: string, name: string, text: string): SessionDoc | null {
+/** 载入/替换本会话资料。会话不存在、不是你的、或正文空白 → null（调用方据此出 404/400，不静默）。 */
+export function setSessionDoc(sessionId: string, name: string, text: string, ownerId: string | null): SessionDoc | null {
   const body = text.trim();
   if (!body) return null;
+  const f = ownerFilter(ownerId);
   const info = getDb()
-    .prepare(`UPDATE sessions SET doc_name = ?, doc_text = ?, updated_at = datetime('now') WHERE id = ?`)
-    .run(name.trim().slice(0, 200) || '未命名资料', body, sessionId);
-  return info.changes > 0 ? getSessionDoc(sessionId) : null;
+    .prepare(`UPDATE sessions SET doc_name = ?, doc_text = ?, updated_at = datetime('now') WHERE id = ?${f.sql}`)
+    .run(name.trim().slice(0, 200) || '未命名资料', body, sessionId, ...f.params);
+  return info.changes > 0 ? getSessionDoc(sessionId, ownerId) : null;
 }
 
-/** 清除资料：只清两列，不碰消息与标题。会话不存在 → false。 */
-export function clearSessionDoc(sessionId: string): boolean {
+/** 清除资料：只清两列，不碰消息与标题。会话不存在 / 不是你的 → false。 */
+export function clearSessionDoc(sessionId: string, ownerId: string | null): boolean {
+  const f = ownerFilter(ownerId);
   const info = getDb()
-    .prepare(`UPDATE sessions SET doc_name = NULL, doc_text = NULL WHERE id = ?`)
-    .run(sessionId);
+    .prepare(`UPDATE sessions SET doc_name = NULL, doc_text = NULL WHERE id = ?${f.sql}`)
+    .run(sessionId, ...f.params);
   return info.changes > 0;
 }
 

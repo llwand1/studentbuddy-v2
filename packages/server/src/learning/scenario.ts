@@ -79,11 +79,14 @@ export function getScenario(quizId: string, ownerId: string | null): ScenarioPay
   }
 }
 
-/** 由套题反查 demoId（题库 JSON 不存 demoId，1:1 关系在本表） */
-export function getScenarioDemoId(quizId: string): string | null {
-  const row = getDb().prepare('SELECT id FROM scenario_demo WHERE quiz_id = ?').get(quizId) as
-    | { id: string }
-    | undefined;
+/**
+ * 由套题反查 demoId（题库 JSON 不存 demoId，1:1 关系在本表）。
+ * ★ 归属靠 JOIN 回 quiz_bank 判（demo 表自己没有 owner 列，正是本批泄露的根因）；别人的套题 → null。
+ */
+export function getScenarioDemoId(quizId: string, ownerId: string | null): string | null {
+  const row = getDb()
+    .prepare('SELECT d.id FROM scenario_demo d JOIN quiz_bank q ON q.id = d.quiz_id WHERE d.quiz_id = ? AND q.owner_id = ?')
+    .get(quizId, ownerForWrite(ownerId)) as { id: string } | undefined;
   return row?.id ?? null;
 }
 
@@ -92,10 +95,12 @@ export function getScenarioDemoId(quizId: string): string | null {
  * 不挑 `<head>` 插入点是因为模型给的 html 可能是片段，没有 head 可挑）。
  * demoId 占位符替换后即回源码；找不到 demo 返回 null（路由 404）。
  */
-export function buildScenarioDemoPage(demoId: string): string | null {
-  const row = getDb().prepare('SELECT html FROM scenario_demo WHERE id = ?').get(demoId) as
-    | { html: string }
-    | undefined;
+export function buildScenarioDemoPage(demoId: string, ownerId: string | null): string | null {
+  // 归属同 getScenarioDemoId（JOIN quiz_bank）：demo 页由宿主面板的 iframe 加载，
+  // 同站请求带 httpOnly cookie ⇒ 云模式下这里的 ownerIdOf(req) 拿得到人，面板链路不受影响。
+  const row = getDb()
+    .prepare('SELECT d.html FROM scenario_demo d JOIN quiz_bank q ON q.id = d.quiz_id WHERE d.id = ? AND q.owner_id = ?')
+    .get(demoId, ownerForWrite(ownerId)) as { html: string } | undefined;
   if (!row) return null;
   const bridge = `<script>${SCENARIO_BRIDGE_JS.replace('__SB_DEMO_ID__', demoId)}</script>`;
   return bridge + row.html;
@@ -123,9 +128,16 @@ export function reportScenario(demoId: string, taskId: string, observed: unknown
   return { ok: true, correct, taskIndex };
 }
 
-/** 删套题时连带删 demo 行（quiz.ts deleteQuiz 调；无行删零行，幂等） */
-export function deleteScenarioDemoByQuiz(quizId: string): void {
-  getDb().prepare('DELETE FROM scenario_demo WHERE quiz_id = ?').run(quizId);
+/**
+ * 删套题时连带删 demo 行（routes/quiz.ts 调；无行删零行，幂等）。
+ * ★ 归属经子查询回 quiz_bank 判（2026-09-21 闸门 #2）：B 删不动 A 的套题行，但此前能删掉 A 的
+ *   demo 行——响应恒 {ok:true} 证不了，表现为「套题还在、情景题突然不可玩」。
+ * ★ 调用点必须在 `deleteQuiz` **之前**：bank 行一删，这条子查询就判不出归属（本来该删的也删不掉）。
+ */
+export function deleteScenarioDemoByQuiz(quizId: string, ownerId: string | null): void {
+  getDb()
+    .prepare('DELETE FROM scenario_demo WHERE quiz_id IN (SELECT id FROM quiz_bank WHERE id = ? AND owner_id = ?)')
+    .run(quizId, ownerForWrite(ownerId));
 }
 
 /**

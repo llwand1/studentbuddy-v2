@@ -107,7 +107,8 @@ export function collectContextSegments(inputs: ContextInputs): CollectedContext 
   // 文档模式（契约 5.0 §5.1.1 + DOC-RAG-SPEC）：短文档整篇直塞（逐字等价旧行为），
   // 长文档拿本轮提问作查询检索 Top-K——传 query 就是这一行的全部改动，预算口径不需动：
   // 下面量的就是最终要上屏的那段字，不管它是全文还是 12 个段落。
-  const doc = getSessionDoc(sessionId);
+  // ★ 归属：会话归属上游已断言，但资料出口本身也按人过滤（同 `getRelevantTerms` 的口径）
+  const doc = getSessionDoc(sessionId, ownerId ?? null);
   const docBlock = doc ? buildDocBlock(doc, text) : '';
 
   const segments: ContextSegment[] = [

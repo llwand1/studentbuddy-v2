@@ -66,7 +66,8 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
   // 故必须在校验前算——否则「只传 sessionId、对话还是空的」会被误判为无材料。
   // 长资料按出题主题检索相关段落（出题拿得到 topic 作查询，§3.4）；短资料仍是全文。
   // `generateQuiz` 自带的材料上限仍是堆叠安全网，不靠它截正确内容。
-  const docFallback = material?.trim() || !sessionId ? null : getSessionDoc(sessionId);
+  // ★ 带归属：别人的会话取不到资料 ⇒ 回退链自然断开（拿别人的资料出题＝泄露，2026-09-21 闸门 #2）
+  const docFallback = material?.trim() || !sessionId ? null : getSessionDoc(sessionId, ownerIdOf(req));
   const effectiveMaterial =
     material?.trim() || (docFallback ? buildDocMaterial(docFallback, topic ?? '') : undefined);
   if (!topic && !effectiveMaterial) {
@@ -251,9 +252,10 @@ quizRouter.get('/bank/:id', (req: Request, res: Response) => {
 });
 
 quizRouter.delete('/bank/:id', (req: Request, res: Response) => {
+  // 情景题连带删 demo 行（quiz_bank 无外键，1:1 关系靠这里维持；普通题删零行幂等）。
+  // ★ 顺序不能反：归属经子查询回 quiz_bank 判，而 deleteQuiz 会把那行删掉——先删 demo 再删题库。
+  deleteScenarioDemoByQuiz(req.params.id ?? '', ownerIdOf(req));
   deleteQuiz(req.params.id ?? '', ownerIdOf(req));
-  // 情景题连带删 demo 行（quiz_bank 无外键，1:1 关系靠这里维持；普通题删零行幂等）
-  deleteScenarioDemoByQuiz(req.params.id ?? '');
   res.json({ ok: true });
 });
 

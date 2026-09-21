@@ -26,11 +26,11 @@
  */
 import type { ModelRole, Provider } from '@sb/shared';
 import { getDb } from '../storage/db.js';
-import { decryptSecret } from '../storage/crypto.js';
 import type { LLMAdapter, UpstreamQuota } from './types.js';
 import { OpenAICompatibleAdapter } from './openai.js';
 import { AnthropicAdapter } from './anthropic.js';
 import { bindQuota } from './upstream-gate.js';
+import { firstPlatformProviderId, platformDefaultModel, resolveProviderCredentials } from './platform-channel.js';
 
 export const MODEL_ROLES: Array<{ role: ModelRole; label: string }> = [
   { role: 'explain', label: '讲解（日常对话）' },
@@ -131,87 +131,64 @@ export function getProviders(ownerId: string | null = null): Provider[] {
 function providerById(id: string, owner: string | null) {
   return getDb()
     .prepare(
-      `SELECT id, name, base_url, api_key, type, enabled, stream_mode FROM providers
+      `SELECT id, name, base_url, api_key, type, enabled, stream_mode, owner_id FROM providers
         WHERE id = ? AND (owner_id IS NULL OR owner_id IS ?)`,
     )
     .get(id, owner) as
-    | { id: string; name: string; base_url: string; api_key: string; type: string; enabled: number; stream_mode: string | null }
+    | {
+        id: string;
+        name: string;
+        base_url: string;
+        api_key: string;
+        type: string;
+        enabled: number;
+        stream_mode: string | null;
+        owner_id: string | null;
+      }
     | undefined;
 }
 
 /**
  * 默认目标：第一个 enabled 的**平台** provider（兼容未配置角色绑定的开箱路径）。
  *
- * ★ 限定 `owner_id IS NULL`：兜底路径**绝不能**取"任意 owner 的第一个 provider"——
- *   那会让"平台绑定缺失"变成"随机用某个用户的 key 付账"。宁可返回 null 让调用方
- *   报「没有可用的服务商」，也不要静默花别人的钱。
+ * ★ 限定 `owner_id IS NULL`（由 `firstPlatformProviderId()` 保证）：兜底路径**绝不能**取
+ *   "任意 owner 的第一个 provider"——那会让"平台绑定缺失"变成"随机用某个用户的 key 付账"。
+ *   宁可返回 null 让调用方报「没有可用的服务商」，也不要静默花别人的钱。
  * ★ `requester`（M2c）是**请求者**，只用于填配额（内层按它分桶）；provider 仍取平台行。
  */
 function defaultTarget(requester: string | null): RoutedTarget | null {
-  const rows = getDb()
-    .prepare('SELECT id FROM providers WHERE enabled = 1 AND owner_id IS NULL ORDER BY created_at LIMIT 1')
-    .all() as Array<{ id: string }>;
-  const first = rows[0];
+  const first = firstPlatformProviderId();
   if (!first) return null;
-  return targetFromProvider(first.id, null, { ownerId: requester, platform: true });
-}
-
-/**
- * 平台通道的 env 注入（v39「零配置」，2026-09-21 老板拍板）。
- *
- * ── 要解决的问题 ──────────────────────────────────────────────────────────
- * `seedIfEmpty` 的注释写着「apiKey 留空待用户填，开箱不 500」——那是**给自带 key 的用户**
- * 设计的开箱路径。老板现在要的是另一种开箱：**用户什么都不用配，直接用平台的额度**。
- * 两者不冲突，靠本函数区分：**平台行的凭据优先从 env 取**。
- *
- * ── 为什么走 env 而不是把 key 写进数据库 ──────────────────────────────────
- * ① **不让用户看到**（老板原话）。`getProviders()` 会把平台行回给前端（`ownerId: null`），
- *    而它本来就不返回 `api_key` 字段——把 key 留在 env ⇒ **数据库里那把 key 永远是空的**，
- *    任何 SQL 注入/拖库/接口泄漏都拿不到它。写进库则多一份可被读到的副本。
- * ② env 是**部署配置**，不该变成数据。写进库就有了两个真相源（改 env 不生效、改库不持久）。
- * ③ 轮换 key 只需改 env + 重启，不必碰数据。
- *
- * ── 三条各自的兜底语义（都不破坏既有行为）────────────────────────────────
- * · `SB_PLATFORM_API_KEY` 未配 ⇒ 回落数据库值（老部署 / BYOK 自建 provider 照常）；
- * · `SB_PLATFORM_BASE_URL` 未配 ⇒ 回落数据库值（线上现为 `https://api.openai.com/v1`，
- *   而老板实际用中转 ⇒ **部署时必须显式配这一条**，否则零配置会打到一个用不了的地址）；
- * · `SB_PLATFORM_MODEL` 未配 ⇒ 回落角色绑定里的 model（老行为）。
- *
- * ★ 每次调用都读 `process.env`（而不是模块加载时快照）：`upstream-gate.ts` 那两个常量
- *   是模块级快照，但那是**闸门容量**（启动期定死合理）；本组是**凭据**，测试要能改 env
- *   验证回落链，且运维改完 env 重启即生效、不必担心有别的模块提前读走了旧值。
- */
-function platformEnvApiKey(): string {
-  return (process.env.SB_PLATFORM_API_KEY ?? '').trim();
-}
-function platformEnvBaseUrl(): string {
-  return (process.env.SB_PLATFORM_BASE_URL ?? '').trim();
-}
-function platformEnvModel(): string {
-  return (process.env.SB_PLATFORM_MODEL ?? '').trim();
+  return targetFromProvider(first, null, requester);
 }
 
 /**
  * 由 provider 行造目标。
- * @param owner  **可见性**归属（`null` = 取平台行；非 null = 允许"平台行或该用户的"）
- * @param quota  配额归属（M2c）。★ 与 `owner` **不是同一件事**：免费通道的 provider 其
- *               `owner` 恒为 `null`，而配额里的 `ownerId` 是**请求者**——两者混用会让
- *               所有免费用户挤进同一个内层桶（见 `upstream-gate.ts` 文件头）。
+ * @param owner      **可见性**归属（`null` = 取平台行；非 null = 允许"平台行或该用户的"）
+ * @param requesterId  **请求者**，只用于配额分桶（M2c）。★ 与 `owner` **不是同一件事**：
+ *                   平台通道的 provider 其 `owner` 恒为 `null`，而配额里的 `ownerId` 是
+ *                   请求者——两者混用会让所有免费用户挤进同一个内层桶（见 `upstream-gate.ts` 文件头）。
+ *
+ * ★★ 「谁付钱」（`quota.platform`）**由这个 provider 是谁的**决定，不由调用方从哪条分支进来决定。
+ *   2026-09-21 修：此前 ① 分支硬写 `platform: false`，于是**登录用户把角色绑到平台 provider**
+ *   时同时坏两件事——env 里的平台 key 不被注入（`apiKey` 变成空串）+ 这轮调用**不计入**
+ *   250 次/5 小时的免费额度（被误判成"平台不付钱"）。实测（`router.test.ts` 回归锁）：
+ *     · 未绑自己的  → apiKey=sk-PLATFORM-ENV、platform:true  ✅
+ *     · 绑到平台行  → apiKey=""、platform:false              ❌（本函数修的就是它）
+ *   判据改成"provider 行是不是 `owner_id IS NULL`"后，① 与 ②③ 三个分支终于同口径。
+ *   与 ②③ 的一致性不是巧合——那两条分支本来就按"平台行"注入 env，只有 ① 漏了。
  */
-function targetFromProvider(providerId: string, owner: string | null, quota: UpstreamQuota): RoutedTarget | null {
+function targetFromProvider(providerId: string, owner: string | null, requesterId: string | null): RoutedTarget | null {
   const p = providerById(providerId, owner);
   if (!p || p.enabled !== 1) return null;
   const type = p.type === 'anthropic' ? 'anthropic' : 'openai';
-  // ★ v39 零配置：**只对平台通道**注入 env 凭据（`quota.platform`）。
-  //   BYOK 通道（用户自己的 provider）**绝不能**被 env 覆盖——那会把用户自己的 key
-  //   换成一笔平台开销，等于"你配了 key，但花的还是平台的钱"。
-  const envKey = quota.platform ? platformEnvApiKey() : '';
-  const envBase = quota.platform ? platformEnvBaseUrl() : '';
+  const creds = resolveProviderCredentials(p);
+  const quota: UpstreamQuota = { ownerId: requesterId, platform: p.owner_id === null };
   return {
     adapter: bindQuota(adapters[type], quota),
-    model: '', // model 由角色绑定或 provider 默认给出
-    apiKey: envKey || decryptSecret(p.api_key),
-    baseUrl: envBase || p.base_url,
+    model: '', // model 由角色绑定或平台默认给出
+    apiKey: creds.apiKey,
+    baseUrl: creds.baseUrl,
     streamMode: normalizeStreamMode(p.stream_mode, p.type),
     quota,
   };
@@ -244,9 +221,16 @@ export function routeRole(
   if (owner !== null) {
     const mine = bindingFor(role, owner);
     if (mine) {
-      // ① 自己的 provider ⇒ **BYOK 通道**：钱不是平台出的，故不受「全站封顶」约束（§8.1.3.2）
-      const t = targetFromProvider(mine.provider_id, owner, { ownerId: owner, platform: false });
-      if (t) return { ...t, model: mine.model };
+      // ① 自己的绑定行。★ 但"自己绑的"**不等于**"自己的 key"——绑定可以指向平台 provider
+      //   （设置页的「一键默认设置」正是这么配的，测试也钉了「免费通道要可调」这条）。
+      //   故 `platform` 不在这里定，交给 `targetFromProvider` 按 provider 行的归属判。
+      const t = targetFromProvider(mine.provider_id, owner, owner);
+      if (t) {
+        // ★ 绑定行 model 为空 ⇒ 走与 ② 同一条回落链（env > 常量）。
+        //   不兜这一层的话，「一键默认」把 8 个角色绑好、model 留空之后，
+        //   `roleReady` 会判「该角色还没绑定模型」——配了却不可用。
+        return { ...t, model: mine.model || (t.quota.platform ? platformDefaultModel() : '') };
+      }
     }
   }
 
@@ -254,12 +238,12 @@ export function routeRole(
   if (platform) {
     // ② 平台绑定 ⇒ **平台付钱**。★ 但配额里的 `ownerId` 仍是**请求者**——
     //    内层「每用户 2」正是靠它分桶；若这里图省事写 `null`，所有免费用户会挤进同一个桶。
-    const t = targetFromProvider(platform.provider_id, null, { ownerId: owner, platform: true });
+    const t = targetFromProvider(platform.provider_id, null, owner);
     // ★ v39 零配置的**另一半**：光有 key 没有模型名，`roleReady()` 照样判「该角色还没绑定模型」，
     //   AI 依然不可用（线上 2026-09-21 就是这个状态：`role_bindings.model` 八行全空）。
-    //   故绑定表 model 为空时用 `SB_PLATFORM_MODEL` 兜底。优先级＝**绑定表 > env**：
+    //   故绑定表 model 为空时用平台默认模型兜底。优先级＝**绑定表 > env > 常量**：
     //   设置页配的是"这台部署要用的模型"（可随时改），env 只是部署默认值。
-    if (t) return { ...t, model: platform.model || platformEnvModel() };
+    if (t) return { ...t, model: platform.model || platformDefaultModel() };
   }
 
   const def = defaultTarget(owner);
@@ -267,9 +251,12 @@ export function routeRole(
   // 默认路径：绑定表存每角色默认 model（M1 由设置页写入），缺省用调用方给的模型名。
   // ★ 本路径**可达且带 `platform`**：上面的 ② 里 `targetFromProvider` 返回 null（provider
   //   被停用/被删）时会落到这里。故 `platform?.model` **必须留着**——v39 首次改动时曾把它
-  //   换成 `platformEnvModel()`，等于把"绑定表里写着的模型"丢了，是本次自查抓出来的回归。
-  //   优先级与 ② 一致：**绑定表 > env > 调用方给的**。
-  return { ...def, model: platform?.model || platformEnvModel() || fallbackModel || '' };
+  //   换成 `platformDefaultModel()`，等于把"绑定表里写着的模型"丢了，是本次自查抓出来的回归。
+  //   优先级与 ② 一致：**绑定表 > env > 常量**。
+  // ★ 2026-09-21：`platformDefaultModel()` 现在恒返回非空（末位兜 `DEFAULT_PLATFORM_MODEL`），
+  //   故 `|| fallbackModel || ''` 两段实际已不可达。**保留而不删**：删掉要动 16 处调用点的
+  //   签名（第 2 参一去掉，第 3 参就错位），收益不抵风险。留作后续清理项。
+  return { ...def, model: platform?.model || platformDefaultModel() || fallbackModel || '' };
 }
 
 /**
@@ -278,11 +265,20 @@ export function routeRole(
  * 用户照着不停重试，永远调不到点子上。
  * ★ M2c 起带上 `ownerId`：报错文案必须与**实际会用的那条通道**一致，否则会出现
  *   「用户自己有 key，却被告知去设置页绑模型」这种驴唇不对马嘴的提示。
+ * ★ 2026-09-21 加**密钥检查**：此前只判 model 非空。那是 v39 之前成立的——那时平台行的
+ *   key 存在数据库里，"有模型"基本等价于"能用"。v39 把平台 key 挪到 env、又给 model 加了
+ *   常量兜底之后，「**model 有值但 key 是空的**」成了一个**新的、且正是当前线上**的状态
+ *   （`SB_PLATFORM_*` 一条没配）。不判这条的话，用户看到的是"配好了"，然后每次提问撞 401。
+ *   ★ 文案刻意写成「平台免费通道还没开通（服务商密钥未配置）」而不是「密钥没配」：
+ *   调用方（`routes/quiz.ts` / `routes/scenario.ts`）会在这句后面拼
+ *   「——请到「设置」→「角色模型绑定」绑定模型后再试」，而**对用户而言那正是正确的下一步**
+ *   （平台的 key 他改不了，他能做的是配自己的模型）。故这里不改调用点，只把首句写准。
  */
 export function roleReady(role: ModelRole, ownerId?: string | null): { ok: boolean; reason: string } {
   const t = routeRole(role, undefined, ownerId);
   if (!t) return { ok: false, reason: '没有启用的服务商' };
   if (!t.model) return { ok: false, reason: '该角色还没绑定模型' };
+  if (!t.apiKey) return { ok: false, reason: '平台免费通道还没开通（服务商密钥未配置）' };
   return { ok: true, reason: '' };
 }
 

@@ -3,8 +3,11 @@
  * v13（对话体验升级）：每个服务商可切「回答形态」（流式逐字 / 一次性回答——池中 AI 形态），
  * 并可拉取该服务商的真实模型列表（此前 listModels 是无路由暴露的半成品），拉到的模型
  * 填进角色绑定的输入框 datalist 供挑选，手填仍然可用。
+ * ★ 2026-09-21（老板要「配置改得更方便」）：datalist 换成**真下拉**（见 `RoleRow`），
+ *   且**开屏就自动拉好候选模型**——不预拉的话，模型那一列在用户手点「拉模型」之前
+ *   仍是输入框，"直接用选项选"等于没落地。另加「免费通道 · 一键默认设置」卡。
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 import type { ModelRole } from '@sb/shared';
 import './settings.css';
@@ -14,6 +17,7 @@ import { QuizImageCard } from './QuizImageCard';
 import { AnswerStyleCard } from './AnswerStyleCard';
 import { ToolsCard } from './ToolsCard';
 import { SpeechCard } from './SpeechCard';
+import { PlatformChannelCard } from './PlatformChannelCard';
 import { RoleRow } from './RoleRow';
 import type { ProviderRow } from './RoleRow';
 
@@ -25,8 +29,14 @@ export function SettingsView() {
   const [bindings, setBindings] = useState<RoleBindingRow[]>([]);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
-  /** 各服务商已拉到的模型列表（datalist 供角色绑定挑选；拉不到为空，手填不受影响） */
+  /** 各服务商已拉到的模型列表（下拉候选；拉不到为空数组，此时那一列退化成手填） */
   const [modelsMap, setModelsMap] = useState<Record<string, string[]>>({});
+  /**
+   * 已经问过上游的服务商 id（**含问过但没拉到**的，那时记空数组）。
+   * ★ 用 ref 而不是从 `modelsMap` 推断：`ensureModels` 会被多次调用，
+   *   读 state 拿到的是**闭包里的旧值**，会重复打上游（同一个 baseUrl 被连问三次）。
+   */
+  const asked = useRef<Set<string>>(new Set());
 
   // 新增表单
   const [name, setName] = useState('');
@@ -34,12 +44,26 @@ export function SettingsView() {
   const [apiKey, setApiKey] = useState('');
   const [ptype, setPtype] = useState('openai');
 
+  /** 拉取"还没问过"的服务商候选模型。失败记空数组＝"问过了，没有"，不反复重试。 */
+  const ensureModels = (ps: ProviderRow[]) => {
+    const missing = ps.filter((p) => !asked.current.has(p.id));
+    if (missing.length === 0) return;
+    for (const p of missing) asked.current.add(p.id);
+    for (const p of missing) {
+      void api.providers
+        .models(p.id)
+        .then((r) => setModelsMap((m) => ({ ...m, [p.id]: r.models })))
+        .catch(() => setModelsMap((m) => ({ ...m, [p.id]: [] })));
+    }
+  };
+
   const reload = async () => {
     try {
       const [ps, rs] = await Promise.all([api.providers.list(), api.providers.roles()]);
       setProviders(ps);
       setRoles(rs.roles);
       setBindings(rs.bindings);
+      ensureModels(ps); // ★ 开屏/增删服务商后立刻把下拉候选备好
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : String(e));
     }
@@ -81,13 +105,12 @@ export function SettingsView() {
   };
 
   const bindRole = async (role: string, providerId: string, model: string) => {
-    if (!model.trim()) {
-      flash(false, '模型名必填');
-      return;
-    }
+    // ★ 不再拦空模型：留空 = 「用该服务商的默认模型」（平台通道 ⇒ env/常量；
+    //   BYOK ⇒ 该角色会明确报「还没绑定模型」）。拦掉的话，用户就没法把某个角色
+    //   从"我选的模型"改回"用默认"——而界面明明给了这个选项。
     try {
       await api.providers.bindRole(role, providerId, model.trim());
-      flash(true, '绑定已保存');
+      flash(true, model.trim() ? '绑定已保存' : '已设为「用默认模型」');
       await reload();
     } catch (e) {
       flash(false, e instanceof Error ? e.message : String(e));
@@ -105,6 +128,7 @@ export function SettingsView() {
   };
 
   const fetchModels = async (id: string) => {
+    asked.current.add(id); // 手点也算"问过了"，别让开屏预拉再补一次
     try {
       const r = await api.providers.models(id);
       setModelsMap((m) => ({ ...m, [id]: r.models }));
@@ -165,8 +189,9 @@ export function SettingsView() {
                   </td>
                   <td>{p.enabled ? '启用' : '停用'}</td>
                   <td>
+                    {/* 开屏已自动拉过；这颗按钮现在是「重拉」（key 刚填、或上游临时不通时用） */}
                     <button className="settings-add" onClick={() => void fetchModels(p.id)}>
-                      拉模型
+                      刷新模型
                     </button>
                     <button className="settings-del" disabled={isPlatform} onClick={() => void removeProvider(p.id)}>
                       删除
@@ -216,12 +241,17 @@ export function SettingsView() {
                   initialProvider={b?.provider_id ?? ''}
                   initialModel={b?.model ?? ''}
                   onBind={(pid, model) => void bindRole(r.role, pid, model)}
+                  // 行内换服务商时按需补拉（该服务商可能还没被问过）
+                  onNeedModels={(pid) => void fetchModels(pid)}
                 />
               );
             })}
           </tbody>
         </table>
       </section>
+      {/* 一键粗调卡放在「精细绑定表」之后：读序＝先看逐角色的现状，再决定要不要一键拉平。
+          放最上面会把"你现在的绑定是什么"挡在首屏之外。 */}
+      <PlatformChannelCard flash={flash} onConfigured={() => void reload()} />
       <AnswerStyleCard flash={flash} />
       <QuizMixCard flash={flash} />
       <QuizImageCard flash={flash} />

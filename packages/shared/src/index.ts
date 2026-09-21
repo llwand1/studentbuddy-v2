@@ -30,3 +30,4 @@ export * from './chat-limits.js';
 export * from './speech.js';
 export * from './follow-up.js';
 export * from './platform-quota.js';
+export * from './platform-channel.js';

@@ -267,10 +267,15 @@ describe('llm/router — v39 零配置：平台凭据走 env，且**只对平台
   }
 
   it('★ 零配置开箱：库里的 key 与 model 都空 —— 配上 env 立刻可用（线上 09-21 卡的就是这条）', () => {
-    // 种子原样 = 平台 provider `api_key = ''` + 各角色 `model = ''`，即线上真实状态
+    // 种子原样 = 平台 provider `api_key = ''` + 各角色 `model = ''`，即线上真实状态。
+    // ★ 2026-09-21 改判据：model 现在有 `DEFAULT_PLATFORM_MODEL` 兜底 ⇒ 不再是"没绑模型"，
+    //   卡点**只在密钥**。这条断言跟着改，是把报错改成说真话（ADR-5），不是放宽要求——
+    //   下一条 `ok === false` 才是"不可用"这个结论本身，它一个字没动。
     const before = roleReady('explain', 'uNew');
     expect(before.ok).toBe(false);
-    expect(before.reason).toBe('该角色还没绑定模型');
+    expect(before.reason).toBe('平台免费通道还没开通（服务商密钥未配置）');
+    // 模型确实已经由常量兜住了（证明上面的 reason 不是因为 model 空）
+    expect(routeRole('explain', undefined, 'uNew')!.model).toBe('agnes-2.5-flash');
 
     process.env.SB_PLATFORM_API_KEY = 'sk-platform-ENV';
     process.env.SB_PLATFORM_BASE_URL = 'https://relay.example/v1';
@@ -281,6 +286,40 @@ describe('llm/router — v39 零配置：平台凭据走 env，且**只对平台
     expect(t.baseUrl).toBe('https://relay.example/v1');
     expect(t.model).toBe('gpt-4o-mini');
     expect(roleReady('explain', 'uNew').ok).toBe(true);
+  });
+
+  it('★ 回归锁：**一键默认设置**把角色绑到平台 provider 且 model 留空 ⇒ 仍走平台通道', () => {
+    // 这条锁的是 2026-09-21 实测抓到的真 bug：`targetFromProvider` 曾按"调用方从哪条分支进来"
+    // 决定 `platform`，而 ① 分支硬写 `false`。于是用户只要把角色绑到平台 provider（设置页
+    // 的「一键默认设置」正是这么配的，也是"免费通道要可调"的正路），就同时坏两件事：
+    //   · env 里的平台 key **不被注入** ⇒ apiKey 变成空串，一发请求就 401；
+    //   · 这轮调用**不计入** 250 次/5 小时免费额度（被误判成"平台不付钱"）。
+    // 实测对照（修复前）：未绑自己的 → sk-PLATFORM-ENV/platform:true；绑到平台行 → ""/platform:false
+    process.env.SB_PLATFORM_API_KEY = 'sk-platform-ENV';
+    process.env.SB_PLATFORM_BASE_URL = 'https://relay.example/v1';
+    process.env.SB_PLATFORM_MODEL = 'agnes-2.5-flash';
+    // 模拟一键默认：绑平台 provider + **model 留空**（单一真相源，见 shared/platform-channel.ts）
+    bind('summarizer', 'openai-default', '', 'uA');
+
+    const t = routeRole('summarizer', undefined, 'uA')!;
+    expect(t.apiKey).toBe('sk-platform-ENV'); // ① env 凭据必须注入
+    expect(t.baseUrl).toBe('https://relay.example/v1');
+    expect(t.model).toBe('agnes-2.5-flash'); // ① model 留空 ⇒ 走平台默认
+    expect(t.quota).toEqual({ ownerId: 'uA', platform: true }); // ① 必须计平台账、算进免费额度
+    expect(roleReady('summarizer', 'uA').ok).toBe(true);
+  });
+
+  it('★ 回归锁：绑到平台 provider 但**自己写了模型名** ⇒ 用户的选择胜过平台默认', () => {
+    process.env.SB_PLATFORM_MODEL = 'agnes-2.5-flash';
+    bind('summarizer', 'openai-default', 'my-pick', 'uA');
+    const t = routeRole('summarizer', undefined, 'uA')!;
+    expect(t.model).toBe('my-pick'); // 优先级：绑定表 > env > 常量
+  });
+
+  it('★ 密钥缺失时 `roleReady` 说真话（不是"配好了"然后撞 401）', () => {
+    // 平台行 key 空 + env 未配：model 有常量兜底，但**不能**因此判成可用
+    expect(roleReady('explain', 'uA').ok).toBe(false);
+    expect(roleReady('explain', 'uA').reason).toContain('密钥');
   });
 
   it('★ env 里的平台 key 不会从 /providers 漏出去（"不让用户看到"）', () => {
@@ -331,6 +370,41 @@ describe('llm/router — v39 零配置：平台凭据走 env，且**只对平台
     const t = routeRole('explain', undefined, 'uA')!;
     expect(t.apiKey).toBe('sk-platform-DB');
     expect(t.baseUrl).toBe('https://db.example/v1');
+  });
+
+  it('★ v39.1 双入口随机：逗号分隔多路按位配对，50 次采样只许出现合法组合', () => {
+    process.env.SB_PLATFORM_API_KEY = 'sk-A-1,sk-B-2';
+    process.env.SB_PLATFORM_BASE_URL = 'https://a.example/v1,https://b.example/v1';
+    process.env.SB_PLATFORM_MODEL = 'agnes-2.5-pro';
+    for (let i = 0; i < 50; i++) {
+      const t = routeRole('explain', undefined, 'uNew')!;
+      const aSide = t.apiKey === 'sk-A-1';
+      expect(aSide || t.apiKey === 'sk-B-2').toBe(true); // 只许是两把 key 之一
+      expect(aSide === (t.baseUrl === 'https://a.example/v1')).toBe(true); // 按位配对，不许错配
+      expect(t.model).toBe('agnes-2.5-pro');
+    }
+  });
+
+  it('v39.1 长度不等按 min 配对：keys=2 / bases=1 ⇒ 恒取第 0 对（宁少一路不错配）', () => {
+    process.env.SB_PLATFORM_API_KEY = 'sk-A-1,sk-B-2';
+    process.env.SB_PLATFORM_BASE_URL = 'https://a.example/v1';
+    for (let i = 0; i < 30; i++) {
+      const t = routeRole('explain', undefined, 'uNew')!;
+      expect(t.apiKey).toBe('sk-A-1');
+      expect(t.baseUrl).toBe('https://a.example/v1');
+    }
+  });
+
+  it('v39.1 单边多值：只配多把 key ⇒ 随机选一把，baseUrl 照旧回落数据库（v39 语义不变）', () => {
+    seedPlatformCreds('sk-platform-DB', 'https://db.example/v1');
+    process.env.SB_PLATFORM_API_KEY = 'sk-A-1,sk-B-2';
+    const seen = new Set<string>();
+    for (let i = 0; i < 60; i++) {
+      const t = routeRole('explain', undefined, 'uA')!;
+      expect(t.baseUrl).toBe('https://db.example/v1');
+      seen.add(t.apiKey);
+    }
+    expect(seen.size).toBe(2); // 60 次全落同一边的概率 ≈ 2^-59，可当确定性读
   });
 
   it('★ 回归锁：平台绑定的 provider 被停用 ⇒ 走默认兜底路径，**绑定表里的 model 不许丢**', () => {

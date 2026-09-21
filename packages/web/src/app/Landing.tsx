@@ -131,13 +131,13 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
               <span className="landing-cta-note">邮箱注册，一分钟开始</span>
             </div>
             {/* 首屏数据：★ 数字必须与实测一致——`node tools/metrics.mjs` 是唯一事实源。
-                2026-09-20 知识图演示批顺手校准：此前写「2000+ 自动化测试 / 127 个 REST 接口」，
-                实测已是 2339 / 140。★ 127 这种**精确的旧值**比模糊表述更危险——它看起来像真的，
-                而且首屏是访客第一眼看到的地方（README 徽章有 metrics --check 守着，这里没有）。 */}
+                2026-09-21 展示面校准：此前写「2300+ 自动化测试 / 140 个 REST 接口」（09-20 那次记的
+                实测值是 2339 / 140），本轮实测已是 2647 / 149。★ 精确的旧值比模糊表述更危险——它看起来
+                像真的，而首屏是访客第一眼看到的地方（README 徽章有 metrics --check 守着，这里没有）。 */}
             <div className="landing-stats" aria-label="项目数据">
-              <span>2300+ 自动化测试</span>
+              <span>2600+ 自动化测试</span>
               <span>6 个运行时依赖</span>
-              <span>140 个 REST 接口</span>
+              <span>149 个 REST 接口</span>
               <span>0 个第三方 UI 库</span>
             </div>
           </div>

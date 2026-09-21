@@ -21,9 +21,12 @@
 > `node tools/metrics.mjs --check` 会在数字与代码漂移时退出码 1。测试基线的**逐文件不变量**仍在
 > `docs/dev/test-plan.md` §3、上线阶梯在 `docs/dev/launch-plan.md` §2——那两份讲「为什么」，本文件讲「有多少」。
 
+![studentbuddy · 落地页首屏](docs/images/landing-hero.png)
+
 ## 目录
 
 - [这是什么](#这是什么)
+- [界面预览](#界面预览)
 - [当前状态](#当前状态)
 - [核心优势](#核心优势)
 - [功能总览](#功能总览)
@@ -61,9 +64,35 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 
 两种形态**共用同一份代码**，差异只在环境变量——且这条差异本身是**显式契约**：`server/auth/form.ts` 是形态的唯一事实源（`SB_REQUIRE_AUTH` 开 = cloud 线上多用户 / 关 = local 本地单人），前端据此分叉（local **免登录直进应用壳**，cloud 走落地页）。**将来「本地有、线上没有」的功能一律从这里判断，禁止再各自读 env。**
 
+## 界面预览
+
+> 下面全部是**真机截图**（无头 Chrome 直出，非设计稿、非拼接），都在**本地形态**上按**仓库当前源码**渲染：落地页要把运行形态切成 cloud 才进得去（同仓内 `tools/probes/landing-demo-cdp.mjs` 的做法），应用内则是 local 免登录直进应用壳。临时隔离库、**不调任何模型、零演示数据**——空态就是空态，没有为了好看摆拍。采集脚本是会话级临时脚本，不入仓。
+
+**落地页**——访客第一眼：品牌牌 + 知识图演示窗 + 一条词条走完的学习流程
+
+![落地页首屏](docs/images/landing-hero.png)
+
+**应用壳 · 对话**——左侧八视图导航，中间对话；右下角常驻督促胶囊（「今日无欠账」）
+
+![应用壳 · 对话](docs/images/app-chat.png)
+
+**学习流编排**——三个开箱模板，点开即进 SVG 画布：节点可拖拽落库、受控视口缩放，右侧是步骤参数与 `next` / `correct` / `wrong` 三出口
+
+![学习流编排](docs/images/app-study-flow.png)
+
+**对战**——`#/pk` 独立页（移动优先）；同一道题在**两块屏上同时走完**，这是落地页里的双屏演示
+
+![对战大厅](docs/images/app-pk.png)
+
+![落地页 · 对战双屏节](docs/images/landing-pk.png)
+
+**设置 · 一键默认设置**——按服务商识别可选模型、把 8 个角色一键绑到平台免费通道（下图为**本地形态**，故按钮注明「本地模式：不计入免费额度」）
+
+![设置页 · 一键默认设置](docs/images/app-settings.png)
+
 ## 当前状态
 
-> 本节是 [`docs/dev/launch-plan.md`](docs/dev/launch-plan.md) §2 的摘要，取数于提交 `5a15610`（2026-09-20）。**逐批证据、判据与「不改会怎样」的清单只在那份台账里。**
+> 本节是 [`docs/dev/launch-plan.md`](docs/dev/launch-plan.md) §2 的摘要，取数于提交 `addcaf0`（2026-09-21）。**逐批证据、判据与「不改会怎样」的清单只在那份台账里。**
 
 | 上线批次 | 内容 | 状态 |
 |---|---|---|
@@ -208,13 +237,13 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 │     └ sse-bus         事件序号回放 · 按 owner 分频道       │
 │   security.ts     Origin 校验 / 密钥加密 / SSRF 护栏      │
 └──────────────────────────┬─────────────────────────────┘
-                           │ better-sqlite3（WAL，逐版本迁移 v1..v37）
+                           │ better-sqlite3（WAL，逐版本迁移 v1..v39）
                            ▼
         数据目录 / studentbuddy.db（SB_DATA_DIR 可覆盖）
 
 packages/shared — 契约单一事实源：SSE 事件 / 内容块 / REST / 领域模型
 tools/gates     — 工程门禁：行数上限 / 禁内联样式 / 禁 any / 测试登记
-tools/probes    — 真机探针 13 个（CDP 真点 9 + 能力/隔离量测 4）
+tools/probes    — 真机探针 15 个（CDP 真点 10 + 能力/隔离量测 5）
 ```
 
 **三包职责**：`@sb/shared` 只放契约与纯函数（前后端共用一份，不允许各写一套）；`@sb/server` 承载全部业务域；`@sb/web` 是 React 18 前端，**零第三方运行时依赖**。
@@ -292,7 +321,7 @@ packages/
 │  ├─ llm/                  openai / anthropic 双适配 + router(归属) + upstream-gate(两层)
 │  ├─ sse-bus.ts            帧序号 · 回放去重 · 按 owner 分频道
 │  ├─ routes/               REST 分域路由（22 个域文件；全仓 REST 注册 149 条）
-│  ├─ storage/              better-sqlite3 封装 / 逐版本迁移（v1..v37，按区间分文件）
+│  ├─ storage/              better-sqlite3 封装 / 逐版本迁移（v1..v39，按区间分文件）
 │  └─ security.ts           Origin 校验（不放行 'null'）
 ├─ web/src/
 │  ├─ app/App.tsx           应用壳：侧栏八视图导航 + 可折叠历史 + 用户框
@@ -304,9 +333,9 @@ packages/
 tools/
 ├─ gates/check.mjs         行数 / 内联样式 / any / 测试登记 四项门禁
 ├─ metrics.mjs             **量化唯一产出器**：源码/测试/路由/契约/覆盖率/迁移水位 + README 漂移对账
-├─ probes/                 真机探针 13 个（CDP 真点 9 + 能力/隔离量测 4）
+├─ probes/                 真机探针 15 个（CDP 真点 10 + 能力/隔离量测 5）
 └─ migrate-from-v1/        v1→v2 数据迁移
-docs/                      契约与研发台账（23 份 SPEC 契约 + dev/ 四份 + metrics.md / metrics.json）
+docs/                      契约与研发台账（27 份 SPEC 契约 + dev/ 四份 + metrics.md / metrics.json）
 DEPLOY.md                  部署手册：服务器 / systemd / 五条部署 env / TLS / 备份 / 回滚
 CHANGELOG.md               项目改动登记册（代码/文档/测试同批登记）
 AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决策记录
@@ -328,7 +357,7 @@ AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决�
 
 | 层 | 覆盖什么 | 覆盖不到什么 |
 |---|---|---|
-| **`.test.tsx`（jsdom，15 个）** | 交互**逻辑**：点了之后状态对不对、调没调接口、条件渲染出现没有 | 真 CSS 布局、真实浏览器 API（`DOMParser` / `getBBox` / `elementFromPoint`）——jsdom 里这些要么没有、要么是桩 |
+| **`.test.tsx`（jsdom，20 个）** | 交互**逻辑**：点了之后状态对不对、调没调接口、条件渲染出现没有 | 真 CSS 布局、真实浏览器 API（`DOMParser` / `getBBox` / `elementFromPoint`）——jsdom 里这些要么没有、要么是桩 |
 | **`tools/probes/*.mjs`（真机，15 个）** | 真浏览器里的**观感与布局**：CSS 断点、SVG 几何、点击链路、在途三态 | 组件内部逻辑分支的穷举（探针不驱动 React 状态） |
 
 `.tsx` 的 jsdom **按文件 pragma 启用**（全局 environment 仍是 `node`），改交互时两层都要跑：
@@ -347,6 +376,9 @@ AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决�
 | `quiz-e2e-cdp.mjs` | 出题页「来源」行只在**答后揭晓**才渲染、`RefList` 默认折叠、`searchNote` 与来源清单的二选一 | 需后端 + vite 5174；★ **会真出题落库** ⇒ 必须对隔离实例跑 |
 | `weak-analysis-cdp.mjs` | 薄弱点分析三态（含「后」态按钮复位）+ 多主题卡片全渲染 + 降级提示不冒充 AI | 需 `npm run dev`；**只读**但真花模型额度，不进 CI |
 | `db-isolation-check.mjs` | 全量测试**前/后**各跑一次、逐字段比对一致 ⇒ 证明「测试不写真实数据目录」 | 零前置；以 `readonly` 打开库，全程无写 |
+| `landing-demo-cdp.mjs` | 落地页 hero 演示窗**5 帧逐帧**（65 断言）——jsdom 那层没有真 CSS、没有真 SVG 布局，只能真机量；★ 探针须在导航前注入 fetch 覆盖把 `form` 改成 cloud，否则本机（local 形态）根本进不去落地页 | 需 vite 起在 5173；零写入、不烧额度 |
+| `settings-platform-cdp.mjs` | 「一键默认设置 + 模型下拉」的**跨进程链路**（17 断言：真点按钮 → 真落库 → 重新拉取 → 行上真变）——自带**只实现 `/v1/models` 的本地假上游** + 隔离后端 + vite 三件套；★ 本仓此前 8 条 `RoleRow` 渲染锁全绿也没拦住那个真 bug，**它是唯一有判别力的手段** | 有 Chrome/Edge ＋ `node_modules`；**会真写隔离库**（`SB_DATA_DIR=mkdtemp`），绝不碰真实库；不调真实模型 |
+| `platform-env-check.mjs` | 零配置平台通道**接线验收**（只读）——回答「三个 `SB_PLATFORM_*` 配齐会不会 8/8 角色就绪」；`--live` **逐路**打真上游 `/models`（不消耗 token，无 key 时正确跳过） | ★ 用 `npx tsx` 跑（它 import 产品的 `.ts` 源码，非 CDP）；需一份库副本（`SB_DATA_DIR` 指向隔离目录） |
 
 **提交纪律**：
 
@@ -411,17 +443,17 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 
 ## 已知限制
 
-- **部署形态是「ssh 直传 + systemd」，不是容器**：仓内**没有 Dockerfile / Caddyfile**（服务器侧配置见 [《部署手册》](DEPLOY.md)）；`tools/deploy.sh` 是一键发布脚本（`check` → `build` → 上传 → 重启 → 健康检查，任一步失败即停）。★ 边界：`evolution_*` 与 `scenario_demo` 未加归属列（契约未点名，触达均经已归主父表的闸门）
+- **线上跑的是「ssh 直传 + systemd」，容器化路径未实机验证**：仓内**已有** `Dockerfile` / `docker-compose.yml` / `.dockerignore` / `tools/docker/`（2026-09-20 入库），但**从未真跑通**——`docker-compose.yml` 的 caddy 服务挂 `./Caddyfile` 而**仓里没有这个文件**（实测缺口，见 [`launch-plan.md`](docs/dev/launch-plan.md) §3.5），`tools/docker/部署切换手册.md` 自述「全部步骤未实机验证」，容器层又不在 vitest／gates 扫描范围。★ 另一条实测缺口：`tools/deploy.sh` **从未跑通**（依赖两端都没有的 `rsync`，线上文件属主是 Windows SID 为证）——实际发布一直是 `tar \| ssh` + `npm rebuild better-sqlite3` + 重启。★ 边界：`evolution_*` 与 `scenario_demo` 未加归属列（契约未点名，触达均经已归主父表的闸门）
 - **线上跑的是源码，不是编译产物**：systemd `ExecStart` 为 `npx tsx src/index.ts`，实测这条包装链（`npm exec` + `tsx` + `esbuild` 子进程）**白吃约 130MB**——而机器只有 961MB。编译态切换与容器化同批推进，判据与实测见 [`docs/metrics.md`](docs/metrics.md) §线上运行态快照
-- **线上运行环境与仓库要求不一致（已登记，未收口）**：服务器 Node 实测 **v20.20.2**，而 `engines` 要求 `>=22.11.0`；线上 schema 水位 v36、代码侧已到 v37（落后一次迁移，下次重启才应用）。两项都属「能跑但不受保证」，容器化时用镜像一次性钉死
+- **~~线上运行环境与仓库要求不一致~~（2026-09-21 已收口）**：服务器 Node **20.20.2 → 22.23.2**（并 `npm rebuild better-sqlite3` 重建原生模块——ABI 20→22 不重建则服务根本起不来）、线上 schema 水位 **v36 → v39**，与仓库要求一致。★ 这条留档是因为它属于**读文档永远读不出来**的那类缺口：升级前 `README`／`DEPLOY`／`metrics`／台账四份口径一致地写着「已上线」，而真相是「旧 Node + 落后一次迁移在跑」——判据必须落在生产机的实际状态，不能落在任何一份文档上
 - **可用性目前算不出来**：`sb-watchdog` 每 5 分钟采样，但**只在异常时落笔**、健康时不留记录 ⇒ 没有分母，只能给出「发生过几次 DOWN」的计数，给不出百分比。这是量化侧第一件要修的事（改成每次采样都落一行）
-- **线上真实使用量为零**：截至 2026-09-20，线上库 `assistant` 消息 **0 条**、`event_log` / `daily_activity` / `user_stats` **全 0 行**（`sqlite_sequence` 连条目都没有 ⇒ 从未写入过）。所以本文任何**产品行为类**指标（留存 / 功能分布 / 转化）此刻**没有数据、不出报表**；已上线的功能其证据仍以测试与真机探针为准，不以线上统计为准
+- **线上真实使用量为零（2026-09-21 复测）**：线上库 `assistant` 消息仍 **0 条**（`user` 3 条）、`platform_usage` **0 行** ⇒ 从没有人成功拿到过一次 AI 回复。所以本文任何**产品行为类**指标（留存 / 功能分布 / 转化）此刻**没有数据、不出报表**；已上线的功能其证据仍以测试与真机探针为准，不以线上统计为准。★ 同批复测：平台免费通道的凭据（`SB_PLATFORM_*`）**已于 2026-09-21 13:07 配好并重启生效**（**14:07 起升级为双上游逗号列表**：`apihub.agnes-ai.com` 与 `api.agnes-ai.cn` 各配一把 key、按位配对、每次调用随机挑一路），在生产机实测 **8/8 角色就绪**、`--live` **逐路均 200**（12 与 11 个模型，目标模型 `agnes-2.5-pro` 两侧清单都在；逐条见 [`launch-plan.md`](docs/dev/launch-plan.md) §3.2 第 5 项）——即「开箱即用」这一环已经通了，只是还没有人来用
 - **`security.ts` 的 Origin 白名单**：`SB_ALLOWED_ORIGINS`（逗号分隔）已在 M2 收口落码，部署域名配进白名单即可；**localhost 兜底正则刻意保留**（本机开发不因忘配 env 而挂）。配错 env 的症状是「合法域名也 403」——宁可显式失败不放宽（不收通配符）
 - **上游并发闸门是进程内 `Map`**：多实例部署下容量 × 实例数，全站封顶只在单进程内成立
 - **行内公式不渲染**：`$…$` 按原文显示（未引 katex，保持 `@sb/web` 零第三方依赖）；`mermaid` / `echarts` 围栏降级代码块（刻意不引库，数据图由自绘 ```chart 覆盖）
 - **预览页只活内存**：服务重启即失效，无分享链接（内置面板无地址栏、宽度不可拖拽，是定档边界不是缺陷）
 - **文档模式：词法检索，不是语义检索**：≤ 60k 字整篇直塞；> 60k 才切块 + BM25 取段落。**没有 embedding 向量／跨会话资料库／持久化索引／pdf-docx 解析／可点击溯源**。已知天花板：用户**不用资料里的原词**改写提问时，70 万字规模下召回收敛在 **8/13 ≈ 62%**（词法路线的性质，只能靠向量路线突破）；且**不靠分数阈值判「资料没写」**——两种阈值方案都被实测否掉（真命中区间与干扰项区间重叠），识别不到的权力交给模型如实说（契约 `DOC-RAG-SPEC.md` §3.3）
-- **渲染层覆盖仍不完整**：15 个 `.test.tsx` 覆盖了最高频的几页（对话主视图 / 词条库 / 落地页 / PK / 输入区 / 确认卡等），**其余页面仍无 jsdom 测试**；且 jsdom 里没有真 CSS、也没有 `DOMParser` / `getBBox` / `elementFromPoint` 这类真实浏览器 API ⇒ 布局与观感类症状仍只能靠真机探针 + 人工目检，覆盖率数字对交互层不适用
+- **渲染层覆盖仍不完整**：**20 个** `.test.tsx` 覆盖了最高频的几页（对话主视图 / 词条库 / 落地页 / PK / 输入区 / 确认卡 / 设置页 / 复习目标卡等），**其余页面仍无 jsdom 测试**；且 jsdom 里没有真 CSS、也没有 `DOMParser` / `getBBox` / `elementFromPoint` 这类真实浏览器 API ⇒ 布局与观感类症状仍只能靠真机探针 + 人工目检，覆盖率数字对交互层不适用
 - **全站并发值 N 仍是占位值 8**：待业务值确定后调整，沿用上线会收到「当前免费通道繁忙」
 
 ★ 工程量化（源码/测试/路由/契约/覆盖率）由 `node tools/metrics.mjs` 产出，落地在 [`docs/metrics.md`](docs/metrics.md) 的标记区；**同一份文件的 §线上运行态快照**还记着那台 VPS 的实测（内存、进程构成、可用性留痕、库实况）。

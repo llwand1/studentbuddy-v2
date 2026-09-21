@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T05:36:10.894Z",
+  "generatedAt": "2026-09-21T06:24:07.664Z",
   "code": {
     "rows": [
       {
@@ -86,16 +86,16 @@
     "probes": 15
   },
   "repo": {
-    "head": "da9360e",
+    "head": "addcaf0",
     "headDate": "2026-09-21",
-    "commitsLast14d": 129,
+    "commitsLast14d": 131,
     "branch": "main",
-    "dirtyFiles": 24
+    "dirtyFiles": 6
   },
   "tests": {
     "available": true,
-    "ranNow": true,
-    "wallSec": 33.6,
+    "ranNow": false,
+    "wallSec": 0,
     "staleDays": 0,
     "files": 191,
     "cases": 2647,

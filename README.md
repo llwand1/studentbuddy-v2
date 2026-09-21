@@ -243,6 +243,7 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 
 packages/shared — 契约单一事实源：SSE 事件 / 内容块 / REST / 领域模型
 tools/gates     — 工程门禁：行数上限 / 禁内联样式 / 禁 any / 测试登记
+tools/guard-audit — 守门判别力审计：把每条守门逐个改坏，看它到底会不会红（隔离副本，不碰工作树）
 tools/probes    — 真机探针 15 个（CDP 真点 10 + 能力/隔离量测 5）
 ```
 
@@ -333,6 +334,7 @@ packages/
 tools/
 ├─ gates/check.mjs         行数 / 内联样式 / any / 测试登记 四项门禁
 ├─ metrics.mjs             **量化唯一产出器**：源码/测试/路由/契约/覆盖率/迁移水位 + README 漂移对账
+├─ guard-audit.mjs         **守门判别力审计**：逐条改坏证明每条守门真的会红（`--selftest` 自证）
 ├─ probes/                 真机探针 15 个（CDP 真点 10 + 能力/隔离量测 5）
 └─ migrate-from-v1/        v1→v2 数据迁移
 docs/                      契约与研发台账（27 份 SPEC 契约 + dev/ 四份 + metrics.md / metrics.json）
@@ -352,6 +354,8 @@ AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决�
 **`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**192 文件 / 2653 例**（2652 passed + 1 skipped + 0 failed；**逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，本格数字由 `node tools/metrics.mjs --tests` 产出）。
 
 量化对账：`node tools/metrics.mjs --check` 会把本文的可核对数字与代码实测逐一比对，漂移即退出码 1——**本文任何数字都不许手改，改了就红**。
+
+守门自证：**「打了 ✅」不等于「真的在守」**（本仓实测逮到过一条**从未入列**的徽章守门：正则匹配不上真实格式 ＋ `ok: true` 是硬编码，输出里那一行照样打着 ✅）。`node tools/guard-audit.mjs` 把**每条**守门逐个改坏、看它到底会不会红——**一条不落**（抽查证明不了其余的），全程在**隔离副本**里跑、不碰工作树；`--selftest` 再证明**审计器自己**对「空气守门」有判别力。
 
 交互层是**两层互补**，别指望任何一层单独覆盖：
 

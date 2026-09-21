@@ -11,7 +11,8 @@
  *   node tools/metrics.mjs                静态计数，打印 + 写 docs/metrics.json
  *   node tools/metrics.mjs --tests        额外跑一遍 vitest（json reporter）取真实用例数
  *   node tools/metrics.mjs --write-docs   把数字回填进 docs/metrics.md 的标记区
- *   node tools/metrics.mjs --check        有漂移则退出码 1（供 CI/门禁调用）
+ *   node tools/metrics.mjs --check        对账 README/首屏手抄数字；有漂移则退出码 1（供 CI/门禁调用）
+ *                                         ★ **只读**：不写 docs/metrics.json（要刷快照请不带标志跑一次）
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';

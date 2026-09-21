@@ -14,10 +14,12 @@
 node tools/metrics.mjs                    # 静态计数（秒级）
 node tools/metrics.mjs --tests --coverage # 连 vitest 全量与覆盖率一起采（本机约 36s）
 node tools/metrics.mjs --write-docs       # 回填本文件标记区 + 写 docs/metrics.json
-node tools/metrics.mjs --check            # README 手抄数字与实测对账，有漂移退出码 1
+node tools/metrics.mjs --check            # README/首屏手抄数字与实测对账，有漂移退出码 1
+                                          # ★ 只读：不写 docs/metrics.json
 ```
 
 机器产物：`docs/metrics.json`（同一批数字的 JSON 形态，供脚本/CI 消费）。
+★ 只有**不带 `--check`** 的运行会刷新它 —— `--check` 是纯检查，不改工作区。
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 

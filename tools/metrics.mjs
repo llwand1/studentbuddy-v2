@@ -425,7 +425,17 @@ m.readmeDrift = readmeDrift(m);
 m.landingDrift = landingDrift(m);
 
 const body = table(m);
-fs.writeFileSync(path.join(ROOT, 'docs', 'metrics.json'), JSON.stringify(m, null, 2) + '\n');
+// ★ 2026-09-21 修：`--check` 必须**只读**。原实现无条件写 `docs/metrics.json`，
+//   于是「跑一次对账就把工作树弄脏」（实测：刚提交完该文件，连跑两次 `--check` 它就立刻变 `M`），
+//   而且会把**当次的瞬时状态**（`dirtyFiles` / `generatedAt`）刷进快照 ⇒ 提交进去的
+//   到底是「哪一刻的仓库」全凭最后一次 `--check` 落在什么时候。
+//   一个「检查」命令改工作区，还会让 diff 混进与本次改动无关的噪声、容易被误提交。
+//   （同文件里 `writeDocs` 用的就是 opt-in 范式：只在 `--write-docs` 时才写 `docs/metrics.md`。）
+if (argv.has('--check')) {
+  // 只读：不写 docs/metrics.json（提示语在末尾打印，免得插在对账表前面）
+} else {
+  fs.writeFileSync(path.join(ROOT, 'docs', 'metrics.json'), JSON.stringify(m, null, 2) + '\n');
+}
 if (argv.has('--write-docs')) writeDocs(m, body);
 
 console.log(body);
@@ -449,4 +459,7 @@ if (m.landingDrift.length) {
 }
 if (landingBad.length) console.log(`\n✗ 首屏有 ${landingBad.length} 处数字与实测不符`);
 else console.log('\n✓ 首屏可核对数字与实测一致');
-if (argv.has('--check') && (drift.length || landingBad.length)) process.exitCode = 1;
+if (argv.has('--check')) {
+  console.log('\n(--check：只读，未写 docs/metrics.json；要刷新快照请不带标志跑一次 `node tools/metrics.mjs`)');
+  if (drift.length || landingBad.length) process.exitCode = 1;
+}

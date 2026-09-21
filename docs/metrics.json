@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T10:34:58.860Z",
+  "generatedAt": "2026-09-21T10:39:42.190Z",
   "code": {
     "rows": [
       {
@@ -86,9 +86,9 @@
     "probes": 15
   },
   "repo": {
-    "head": "e59e126",
+    "head": "0266213",
     "headDate": "2026-09-21",
-    "commitsLast14d": 136,
+    "commitsLast14d": 137,
     "branch": "main",
     "dirtyFiles": 18
   },

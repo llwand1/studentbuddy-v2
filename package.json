@@ -16,7 +16,8 @@
     "dev:web": "npm run dev -w @sb/web",
     "build": "npm run build -w @sb/web && npm run build -w @sb/server",
     "lint": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/server && tsc --noEmit -p packages/web && eslint packages --max-warnings 0",
-    "test": "vitest run",
+    "test": "node tools/test-tmp.mjs",
+    "test:raw": "vitest run",
     "gates": "node tools/gates/check.mjs",
     "check": "npm run lint && npm run test && npm run gates",
     "metrics": "node tools/metrics.mjs"

@@ -11,7 +11,7 @@ import type { QuizPayload } from '@sb/shared';
 
 process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-notes-route-test-'));
 const { app } = await import('../index.js');
-const { closeDb } = await import('../storage/db.js');
+const { closeDb, getDb } = await import('../storage/db.js');
 const { saveQuiz } = await import('../learning/quiz.js');
 const request = (await import('supertest')).default;
 
@@ -27,6 +27,9 @@ const quizId = saveQuiz(quiz, 'ai', null);
 
 const record = (body: Record<string, unknown>) =>
   request(app).post('/api/quiz/stats/record').set('Origin', origin).send(body);
+
+const seed = (body: Record<string, unknown>) =>
+  request(app).post('/api/scenario/seed').set('Origin', origin).send(body);
 
 afterAll(() => closeDb());
 
@@ -82,5 +85,30 @@ describe('提交答案 → 笔记草稿自动生成', () => {
   it('写操作无 Origin → 403（与其余写接口同一道闸门）', async () => {
     await request(app).put('/api/notes/x').send({ body: 'x' }).expect(403);
     await request(app).delete('/api/notes/x').expect(403);
+  });
+});
+
+// 回归锁（2026-09-21 闸门 #2 探针实打出的缺陷）：情景套题的 data 是 `{title, tasks}` 没有 questions，
+// `quiz.questions[qi]` 曾 TypeError ⇒ 500，而 quiz_stats 已先写库 ⇒ 客户端一重试就重复计数。
+describe('情景套题 quizId 走 stats/record（缺陷锁）', () => {
+  it('不崩（200）、quiz_stats 照记、笔记不落', async () => {
+    const seeded = await seed({
+      title: '缺陷锁情景',
+      html: '<!doctype html><html><body>demo</body></html>',
+      tasks: [{ id: 't1', prompt: '把开关拨到 on', criteria: { kind: 'state', value: 'on' } }],
+    }).expect(200);
+    const scenarioQuizId = seeded.body.quizId as string;
+
+    await record({ quizId: scenarioQuizId, questionIndex: 0, correct: true }).expect(200);
+
+    // 统计主流程不受影响：情景题每个评分点在 quiz_stats 里就是一道普通题（契约 §0.1）
+    const stats = getDb()
+      .prepare('SELECT COUNT(*) AS n FROM quiz_stats WHERE quiz_id = ?')
+      .get(scenarioQuizId) as { n: number };
+    expect(stats.n).toBe(1);
+
+    // 笔记按「题目不存在」静默跳过——情景套题不产刷题草稿
+    const notes = await request(app).get(`/api/notes?quizId=${scenarioQuizId}`).expect(200);
+    expect(notes.body).toHaveLength(0);
   });
 });

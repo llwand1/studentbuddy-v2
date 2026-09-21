@@ -34,7 +34,11 @@ export function upsertNoteFromAnswer(
   myAnswer?: MyAnswer,
 ): void {
   const quiz = getQuiz(quizId, ownerId);
-  const q: QuizQuestion | undefined = quiz?.questions[questionIndex];
+  // ★ `?.` 必须连问两段：情景套题的 data 是 `{title, tasks}`——`QuizPayload.questions` 是静态形状，
+  //   库是唯一真相。只问 quiz 一段时 `quiz.questions[qi]` 照样 TypeError 崩在请求路径里，
+  //   而 quiz_stats 已先写库 ⇒ 客户端拿到 500 一重试就重复计数（2026-09-21 闸门 #2 探针实打出的 bug）。
+  //   缺失/越界一律按「题目不存在」静默跳过（见上：统计主流程不因笔记失败受影响）。
+  const q: QuizQuestion | undefined = quiz?.questions?.[questionIndex];
   if (!quiz || !q) return;
   const db = getDb();
   db.prepare(

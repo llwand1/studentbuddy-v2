@@ -45,17 +45,21 @@ describe('Landing — 未登录门面', () => {
     // 词条旅程五步（2026-09-21 B 回路批改锁）：五步现在**各出现两次**——环上药丸 + 右侧清单，
     // `getByText` 遇到多个即抛。改成锁结构，而且这比原来**更强**：
     // 原来只保证「这几个字在页面某处」，现在保证「环与清单各成一套、且顺序一致」。
+    // ★ 2026-09-21 对战双屏批：`PkJourney` **故意复用**了 `.landing-jsteps` / `.landing-jstep`
+    //   / `.landing-feature-title` 这套清单类（同一种列表样式不该抄两份），于是页面上一条
+    //   `querySelectorAll('.landing-jsteps …')` 会数到 10 项。故这几把锁一律**限定在词条段内**
+    //   ——限定不是削弱：那段自己的结构由 `PkJourney.test.tsx` 锁，两边各锁各的。
     const JOURNEY = ['抽词', '高亮', '注入', '复习', '沉淀'];
-    expect([...container.querySelectorAll('.landing-orbit-node')].map((n) => n.textContent)).toEqual(JOURNEY);
-    expect(
-      [...container.querySelectorAll('.landing-jsteps .landing-feature-title')].map((n) => n.textContent)
-    ).toEqual(JOURNEY);
+    const term = 'section[aria-label="词条的完整旅程"]';
+    const inTerm = (sel: string) => [...container.querySelectorAll(`${term} ${sel}`)];
+    expect(inTerm('.landing-orbit-node').map((n) => n.textContent)).toEqual(JOURNEY);
+    expect(inTerm('.landing-jsteps .landing-feature-title').map((n) => n.textContent)).toEqual(JOURNEY);
     // 环与清单必须**同步**（本批的设计就是一个时钟派生两侧；两条独立时钟一定会漂）
-    expect(container.querySelectorAll('.landing-orbit-node.hot').length).toBe(1);
-    expect(container.querySelectorAll('.landing-jstep.hot').length).toBe(1);
+    expect(inTerm('.landing-orbit-node.hot').length).toBe(1);
+    expect(inTerm('.landing-jstep.hot').length).toBe(1);
     // 诚实标注那一行不许删：它写明转速是压缩过的，删掉就等于让演示冒充真实节奏
-    expect(container.querySelector('.landing-jnote')?.textContent).toContain('2.6 秒转一圈');
-    expect(container.querySelector('.landing-orbit-core')?.textContent).toContain('已用次数');
+    expect(inTerm('.landing-jnote')[0]?.textContent).toContain('2.6 秒转一圈');
+    expect(inTerm('.landing-orbit-core')[0]?.textContent).toContain('已用次数');
     // 五环闭环（本批降到词条之后，但内容一条不能少）
     expect(getByText('对话讲解')).toBeTruthy();
     expect(getByText('薄弱分析')).toBeTruthy();

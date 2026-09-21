@@ -14,6 +14,7 @@
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
+import { HELP_PER_MATCH } from '@sb/shared';
 import { PkFlowDemo } from './PkFlowDemo';
 import { LANDING_DEMOS, PK_FLOW, TERM_FLOW, GRAPH_FLOW } from './registry';
 
@@ -86,6 +87,22 @@ describe('PkFlowDemo — 帧 × 内容矩阵', () => {
     expect(container.querySelector('.ld-pk-r-badge')?.textContent).toContain('胜');
     expect([...container.querySelectorAll('.ld-pk-num')].map((n) => n.textContent)).toEqual(['1', '5']);
     expect(container.querySelectorAll('.ld-pk-r-side.won').length).toBe(1);
+  });
+
+  it('★ HUD 那行小字里的每个数都必须在产品里可能出现：求助数 ≤ 每局道具上限', () => {
+    // 本批自查就是在这里翻出「我 · 求助 2」——契约每局只有 `HELP_PER_MATCH` 个道具，
+    // 那是实物里根本不可能出现的读数（货不对板最容易被忽略的一类：不是动效假，是**数字**假）。
+    for (const stage of [0, 1, 2, 3, 4]) {
+      const { container } = render(<PkFlowDemo stage={stage} />);
+      const subs = [...container.querySelectorAll('.ld-pk-hud .ld-pk-sub')].map((n) => n.textContent ?? '');
+      expect(subs.length).toBeGreaterThanOrEqual(2); // 两侧各自的「答对 n/m · 求助 x」
+      for (const text of subs) {
+        const m = /求助\s*(\d+)/.exec(text);
+        if (!m?.[1]) throw new Error(`HUD 小字里没有「求助 N」了：${text} ⇒ 本锁随之失效，按新读法重写`);
+        expect(Number(m[1]), `帧 ${stage}：${text}`).toBeLessThanOrEqual(HELP_PER_MATCH);
+      }
+      cleanup();
+    }
   });
 });
 

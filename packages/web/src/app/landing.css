@@ -594,6 +594,89 @@
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   PkJourney — 对战那一节的**双屏外框**（`app/PkJourney.tsx` + `app/pk-boards.tsx`）
+
+   ★ 这里**只有外框**：两块屏里面的每一块卡片、每一个动效都来自产品自己的 `pk.css`
+     （`.sb-pk` 就是产品的页面容器，一个 `.sb-pk` = 一块屏）。所以这一段没有第二条
+     keyframes、也没有第二套对战样式——演示与实物的差别在结构上被消掉了，
+     剩下的唯一差别是时间，已经写在页面那行 `.landing-jnote` 里。
+   ══════════════════════════════════════════════════════════════════ */
+.landing-pk-boards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sb-sp-4, 16px);
+  /* 只读演示：产品里这些是真按钮，这里点下去不会有任何反应 ⇒ 直接把事件掐掉，
+     免得留下六个"看着能点"的死控件。整段对读屏也隐藏（下面的五步清单才是正文）。 */
+  pointer-events: none;
+  user-select: none;
+}
+.landing-pk-screen {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--sb-bg, #fafafa);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.landing-pk-screen-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-3, 12px);
+  padding: 8px 12px;
+  background: var(--sb-surface, #fff);
+  border-bottom: 1px solid var(--sb-border, #e5e5ea);
+}
+.landing-pk-side {
+  font-size: 12px;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+/* 一侧自己的比分：产品对阵布局里就是「label + 大数字 + 答对/求助」那一列（PkArena.tsx:33-46） */
+.landing-pk-meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sb-sp-2, 8px);
+  margin-left: auto;
+}
+.landing-pk-screen .sb-pk-arena-score {
+  font-size: 22px;
+}
+/* 帧高必须**不随帧变**：两侧内容高度每 2.5s 换一次，没有这条就会把下面的清单顶来顶去。
+ * ★ 580 不是猜的：把 `min-height` 摘掉后，用 headless Edge + CDP 每 250ms 采一次
+ *   `.landing-pk-screen-body` 的自然高度，两整圈 × 七档视口（屏宽 = 内容列宽）：
+ *     472 → 351~554 ／ 463 → 351~554 ／ 406 → 351~551 ／ 351 → 351~573 ／ 326 → 374~573
+ *     ／ 644（≤720 单列）→ 269~530 ／ 442（单列）→ 269~551
+ *   ⇒ 最高 573（双列最窄那一档，题干换行最多），取 580 留 7px 余量；一帧之内两侧等高
+ *   （同一行 grid），所以只按最高值封顶。★ 改帧内容（加卡片、换题干长度）必须重新量：
+ *   这条一崩，症状是「下面的清单每 2.5 秒抖一下」，而 jsdom 读不到布局 ⇒ 测试不会红。
+ * ★ 七档全部 `scrollHeight - clientHeight = 0`（没有任何一帧被裁掉）。
+ * ★ `margin: 0` 是**修掉一条只有真机才看得见的抖动**：产品的 `.sb-pk` 自带 `margin: 0 auto`
+ *   （它在页面里是顶层块，靠这条限宽 1120 并居中）。一旦被放进 flex 列，交叉轴上的 auto 外边距
+ *   会**取消 stretch**，容器改成按内容收缩——「对手正在出题」那张卡窄，那一帧这块屏的内容宽
+ *   从 438 掉到 259（实测），主题条跟着一起变窄，每 2.5 秒跳一次宽度。
+ *   ★ 选择器写成两条类名是为了**压过** `.sb-pk`（同权重时谁赢看打包顺序，不可靠）。
+ *   ★ 同一条「jsdom 看不见布局」的教训上个批次刚记过一次（速览卡被 `overflow:hidden` 裁切）。 */
+/* 选择器写成两条类名是为了**压过**产品的 `.sb-pk { margin: 0 auto }`（同权重时谁赢看打包顺序，不可靠） */
+.landing-pk-screen .landing-pk-screen-body {
+  flex: 1;
+  margin: 0;
+  min-height: 580px;
+}
+/* 清单整宽铺在下面：五条说明一行都不许为动效让路（口径同 `TermJourney`） */
+.landing-pk-steps {
+  max-width: 860px;
+  margin: var(--sb-sp-5, 24px) auto 0;
+}
+
+@media (max-width: 720px) {
+  /* 窄屏回落成上下排列——与产品自己对 `sb-pk-arena` 的做法同一条规矩：
+     响应式而不是锁死横屏，「拿提示挡住功能」是错的（PK-SPEC §13.2） */
+  .landing-pk-boards {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 980px) {
   /* 环与清单堆叠：环居中在上、清单整宽在下（280px 那一列在窄屏是浪费而不是紧凑） */
   .landing-journey-loop {

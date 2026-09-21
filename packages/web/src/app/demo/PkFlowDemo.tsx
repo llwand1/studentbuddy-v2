@@ -10,12 +10,18 @@
  * ★★ 动效来源纪律（老板 2026-09-21：「实际效果和演示效果差别不要太大，别货不对板」）：
  *   产品 `pk.css` 一共只有 6 条 keyframes（sb-pop / sb-shake / sb-breathe / sb-sheen /
  *   sb-rise / sb-num，pk.css:1024-1101），挂在三处——出题中呼吸+骨架屏（:695-735）、
- *   判定闪屏（:744-800）、结算逐条登场+终分跳入（:803-889）。本演示**只用这 6 条**，
+ *   判定闪屏（:744-800）、结算逐条登场+终分跳入（:803-889）。本演示用其中 **5** 条
+ *   （答错那一支 `sb-shake` 演示不演 ⇒ 不搬，理由写在 `demo.css:471`），
  *   时长/缓动/延迟全部照抄产品原值（连 `cubic-bezier(0.2, 0.9, 0.3, 1.4)` 都没圆整）。
  *   09-16 那份《PK对战过渡动效探索稿》里的全屏 3-2-1 遮罩、内发光、白闪、VS 弹入、
  *   +2 飘字、选项 72ms 错峰、45s 走条、结果高光扫，产品里**一行对应代码都没有** ⇒ 不进产品。
  *   每一帧对应哪个真实组件的哪个状态，写在 registry.ts 的 caption 里。
+ * ★★ 屏态里的**每一个值**都必须在产品里可能出现，包括 HUD 上那行小字：本组件原先写死
+ *   「我 · 求助 2」，而契约是每局只有 `HELP_PER_MATCH = 1` 个道具（`shared/src/pk.ts:123`）
+ *   ⇒ 那是个**实物里根本不可能出现**的读数，正是「货不对板」最容易被忽略的一类
+ *   （2026-09-21 自查发现，`demo/PkFlowDemo.test.tsx` 已补不变量锁）。求助数现在直接引常量。
  */
+import { HELP_PER_MATCH } from '@sb/shared';
 import { PK_DEADLINE, PK_PENDING, PK_QUESTION, useFrameCount } from './pk-flow';
 
 /** 三栏（左对手｜中动作｜右我，`PkArena.tsx:53-61`）压成横条：302px 高放不下真布局 */
@@ -29,7 +35,9 @@ function Hud({ stage }: { stage: number }) {
           对手<span className="ld-pk-ai">AI</span>
         </span>
         <span className="ld-pk-sc">1</span>
-        <span className="ld-pk-sub">答对 1/3 · 求助 1</span>
+        <span className="ld-pk-sub">
+          答对 1/3 · 求助 {HELP_PER_MATCH}
+        </span>
       </div>
       <div className="ld-pk-topic">
         <span className="ld-pk-tl">本轮主题</span>
@@ -39,7 +47,9 @@ function Hud({ stage }: { stage: number }) {
       <div className="ld-pk-pl ld-pk-me">
         <span className="ld-pk-nm">我</span>
         <span className="ld-pk-sc">{mine}</span>
-        <span className="ld-pk-sub">答对 2/3 · 求助 2</span>
+        <span className="ld-pk-sub">
+          答对 2/3 · 求助 {HELP_PER_MATCH}
+        </span>
       </div>
     </div>
   );

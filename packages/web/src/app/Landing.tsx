@@ -29,6 +29,7 @@ import { GithubLoginButton } from '../components/GithubLoginButton';
 import { Mascot } from '../features/chat/Mascot';
 import { LandingDemo } from './demo/LandingDemo';
 import { TermJourney } from './TermJourney';
+import { PkJourney } from './PkJourney';
 import {
   ChatIcon,
   QuizIcon,
@@ -186,6 +187,11 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
 
         {/* 词条旅程：核心机制，排在五环之前（先讲机制、再讲全景） */}
         <TermJourney />
+
+        {/* 对战：两块屏同时走完一圈（老板 2026-09-21 点单「对战的过程式动画没进正式版，直接加一节」）。
+            排在词条旅程之后、五环之前——它讲的是「同一份快照在两副屏上的读法」，
+            与 hero 演示窗（一块屏的五个先后屏态）互补而不是重复。 */}
+        <PkJourney />
 
         <section className="landing-section" aria-label="五环闭环">
           <h2 className="landing-h2">

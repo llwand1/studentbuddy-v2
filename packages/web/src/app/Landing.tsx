@@ -154,7 +154,10 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
               <div className="landing-auth-github">
                 <span className="landing-auth-github-or">或</span>
                 <GithubLoginButton className="landing-github-btn" label="使用 GitHub 登录" />
-                <span className="landing-github-hint">GitHub 已验证邮箱与本站账号相同时，直接登入原账号</span>
+                {/* ★ 2026-09-21（独立建号批）文案改写：原文案是「GitHub 已验证邮箱与本站账号相同时，
+                    直接登入原账号」—— 它描述的正是**已废弃的归并口径**，与新行为**正好相反**。
+                    不改就是明着误导用户（他按原话以为会进老账号，实际进的是新账号） */}
+                <span className="landing-github-hint">GitHub 登录会新建独立账号，与你用邮箱注册的账号互不相通</span>
               </div>
             )}
           </div>

@@ -2,12 +2,27 @@
  * auth/github — GitHub OAuth 登录域逻辑（契约 docs/AUTH-SPEC.md §2.8）。
  *
  * 定位：第三条登录通道（密码 / 验证码之外）。**产出与前两条完全相同的会话**
- * （路由层复用同一个 `createSession` + `sb_sid` cookie），不是第二套账号体系——
+ * （路由层复用同一个 `createSession` + `sb_sid` cookie），不是第二套会话体系——
  * 「证明你是谁」的方式变了，会话与归属逻辑（TENANCY-SPEC）零分支。
  *
- * ★ 归并口径（2026-09-20 老板拍板）：GitHub 的**已验证邮箱**命中现有 `users.email`
- *   ⇒ 直接登入该账号并回填 `github_id`；没命中 ⇒ 新建账号。符合 §0.1
- *   「两套身份映射到同一 user，不新建割裂账号」的既定原则。
+ * ★★ **认人口径（2026-09-21 老板拍板，推翻 2026-09-20 的「按邮箱自动归并」）**：
+ *   GitHub 登录**只按 `github_id` 认人，绝不按邮箱归并**。同一邮箱在站内有邮箱账号、
+ *   GitHub 也用该邮箱 ⇒ **两个彼此独立的账号**（数据不互通，这是**刻意**的）。
+ *   理由：GitHub 的邮箱验证体系由**第三方**掌握，拿它当「可登入本站同邮箱账号」的凭据，
+ *   等于把本站账号的进入权外包给 GitHub（且用户无法在本站侧单独撤销）。详见契约 §0.1/§2.8。
+ *
+ * ★ **两条最容易做错、后果最重的点**（改这个文件前先读这两条）：
+ *   ① **查号键必须是 `github_id`** —— 同一 GitHub 账号**再次登录**要找回**同一个** users 行；
+ *      退化成「每次登录都新建」，用户第二次登录时历史数据会全部消失（且**全程不报错**）。
+ *   ② ★ **绝不按邮箱去找既有账号** —— 那是**旧口径**，改回来就等于把「独立」两个字抹掉，
+ *      而症状是「用户被静默登入到另一个账号上」，除测试外没有任何报错可依赖。
+ *
+ * ★ **`users.email` 存占位串**：该列是 `TEXT NOT NULL UNIQUE`，而新口径要求「同邮箱能有两个
+ *   账号」⇒ 真实邮箱进不了这一列。改 UNIQUE 约束在 SQLite 要整表重建（12 步），风险不成比例
+ *   ⇒ GitHub 账号在此列写 `gh-<github_id>@users.noreply.invalid`（RFC 2606 保留 TLD、
+ *   **永不可解析**；`github_id` 唯一 ⇒ 占位唯一性天然成立），真实邮箱另存 `github_email`。
+ *   `AuthUser.email` 取 `github_email ?? email` ⇒ **用户看到的仍是真实邮箱，占位串绝不外泄**。
+ *
  * ★ 建号时 `password_hash` 写**两次 randomUUID 拼接的 scrypt 哈希**：列是 NOT NULL，
  *   而 GitHub 建号的账号没有口令——随机串让密码登录对它永远 `CREDENTIALS_INVALID`
  *   （等价于"口令不可知"，不为此把约束改可空再整表重建）。
@@ -17,24 +32,22 @@
  *   测试注入桩，**绝不真连 github.com**。
  */
 import { randomUUID, timingSafeEqual } from 'node:crypto';
-import {
-  AUTH_NICKNAME_MAX,
-  nicknameFromEmail,
-  normalizeEmail,
-  type AuthError,
-  type AuthUser,
-} from '@sb/shared';
+import { AUTH_NICKNAME_MAX, nicknameFromEmail, type AuthError, type AuthUser } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { hashPassword } from './password.js';
+import { rowToAuthUser, type UserRow } from './user-row.js';
 
 /** GitHub 身份（`GET /user` + `GET /user/emails` 的最小投影，只取登录要用的字段）。 */
 export interface GithubIdentity {
-  /** GitHub 数字用户 id（库内 `users.github_id` 存字符串形态） */
+  /** GitHub 数字用户 id（库内 `users.github_id` 存字符串形态）—— ★ **唯一的认人依据** */
   id: number;
   login: string;
   name: string | null;
-  /** 已验证邮箱（primary 优先）；拿不到已验证邮箱时上游已抛 `GITHUB_EMAIL_UNAVAILABLE` */
-  email: string;
+  /**
+   * 已验证邮箱；★ **仅用于展示与昵称兜底，绝不参与认人**。
+   * 拿不到时（用户把邮箱设为私密）为 `null` —— 这在 2026-09-21 之后**不再算失败**。
+   */
+  email: string | null;
 }
 
 type FetchImpl = typeof fetch;
@@ -50,8 +63,10 @@ export function githubConfigured(): boolean {
 
 /**
  * 授权页跳转 URL（纯字符串拼接，不网络）。
- * ★ scope 只要 `user:email`：读邮箱（归并的依据）够用；`read:org` / repo 类权限一概不要
- *   ——OAuth 最小权限，多要一个 scope 用户授权页就多一行吓人的说明。
+ * ★ scope **保留 `user:email`**：邮箱虽已不作身份依据，但**账号菜单要显示它**，而唯一来源
+ *   就是 `/user/emails`（需此 scope）。⚠️ 曾计划「缩到最小」以降低授权页的吓人度，实施时
+ *   发现该计划**不成立**（缩了就只能显示占位串）—— 详见契约 §2.8「scope 为什么不缩」。
+ *   注意区分：「**保留 scope**」≠「**拿不到邮箱就拒绝登录**」，后者已取消。
  */
 export function buildAuthorizeUrl(state: string, redirectUri: string): string {
   const params = new URLSearchParams({
@@ -92,7 +107,7 @@ export async function exchangeCode(code: string, redirectUri: string, fetchImpl:
   return body.access_token;
 }
 
-/** 从 `/user/emails` 里挑归并依据：**已验证**优先级下 primary → verified 任一 → 无 ⇒ 抛码。 */
+/** 从 `/user/emails` 里挑**展示用**邮箱：已验证优先（primary → 任一 → 无 ⇒ null）。 */
 export function pickVerifiedEmail(
   emails: Array<{ email: string; primary: boolean; verified: boolean }>,
 ): string | null {
@@ -125,11 +140,15 @@ export async function fetchGithubIdentity(accessToken: string, fetchImpl: FetchI
   if (typeof profile.id !== 'number' || typeof profile.login !== 'string') {
     throw new Error('GITHUB_AUTH_FAILED' satisfies AuthError);
   }
-  // ★ 只认「已验证」邮箱：未验证的邮箱任何人都能往 GitHub 账号上填，拿它归并等于
-  //   把「知道某人的邮箱」升级成「能登入某人的账号」——归并的正确性建立在
-  //   GitHub 的邮箱验证体系上，不建立在我们自己的邮箱验证上。
-  const email = pickVerifiedEmail(Array.isArray(emails) ? emails : []) ?? (profile.email && typeof profile.email === 'string' ? profile.email : null);
-  if (!email) throw new Error('GITHUB_EMAIL_UNAVAILABLE' satisfies AuthError);
+  // ★ 仍优先取「已验证」邮箱，但**理由已经变了**：原先是为了保证**归并**的正确性（拿未验证
+  //   邮箱归并等于把「知道某人的邮箱」升级成「能登入某人的账号」）；归并取消后这条只剩
+  //   **展示**意义 —— 未验证的邮箱任何人都能往 GitHub 账号上填，**显示给用户看会误导**
+  //   （他会以为那是自己的）。故优先已验证，退到 `profile.email`（用户设为公开时才有），再无则 null。
+  // ★ 拿不到邮箱**不再是失败**（2026-09-21 起）：把邮箱设为私密是用户的合法选择，而我们已不靠
+  //   邮箱认人 ⇒ 照常建号 / 登入，展示邮箱走 `displayEmailFor` 的 noreply 兜底。
+  const email =
+    pickVerifiedEmail(Array.isArray(emails) ? emails : []) ??
+    (typeof profile.email === 'string' && profile.email ? profile.email : null);
   return {
     id: profile.id,
     login: profile.login,
@@ -138,28 +157,44 @@ export async function fetchGithubIdentity(accessToken: string, fetchImpl: FetchI
   };
 }
 
-interface UserRow {
-  id: string;
-  email: string;
-  password_hash: string;
-  nickname: string;
-  github_id: string | null;
-  created_at: string;
+// ★★ 行 → 契约用户的映射已抽到 `auth/user-row.ts`（本批由「两份」合成「一份」，理由见该文件头：
+//    此前本文件与 `users.ts` 各写一份，只改一份 ⇒ `/api/auth/me` 会返回占位邮箱且不报错）。
+
+/**
+ * GitHub 账号在 `users.email` 列的**占位串**（契约 §2.8 数据模型 v40）。
+ * ★ `.invalid` 是 RFC 2606 保留 TLD ⇒ 任何解析器都拒它、**永不可能真发信** —— 这正是要的：
+ *   它**不是一个邮箱**，只是一个「占住 UNIQUE 位、好让真实邮箱可以另起一行」的内部标识。
+ * ★ `github_id` 唯一 ⇒ 占位串唯一，**无需再加约束**。
+ */
+function placeholderEmail(githubId: number): string {
+  return `gh-${githubId}@users.noreply.invalid`;
 }
 
-function toAuthUser(row: UserRow): AuthUser {
-  return { id: row.id, email: row.email, nickname: row.nickname, createdAt: row.created_at };
+/**
+ * 展示邮箱：拿不到真实邮箱时退到 GitHub **官方**的 noreply 地址格式。
+ * ★ 为什么不能留空 / 留 NULL：`AuthUser.email` 是 `string`，留 NULL 会让映射回落成**占位串**、
+ *   照样暴露给用户。★ 为什么选 noreply：① 它是 GitHub 真实存在的地址格式（不是我们编的）；
+ *   ② `login` 全局唯一 ⇒ 值唯一；③ 用户一眼能读懂「这是我 GitHub 身份的地址」。
+ * ★ 刻意**不做** `normalizeEmail`：这是展示值、不是身份键，尊重 GitHub 返回的原样即可。
+ */
+function displayEmailFor(identity: GithubIdentity): string {
+  return identity.email ?? `${identity.login}@users.noreply.github.com`;
 }
 
-/** GitHub 昵称：name → login → 邮箱派生，统一截到 `AUTH_NICKNAME_MAX`（与邮箱注册同口径）。 */
-function nicknameFromIdentity(identity: GithubIdentity, email: string): string {
+/**
+ * GitHub 昵称：`name` → `login` → 展示邮箱派生，统一截到 `AUTH_NICKNAME_MAX`
+ * （与邮箱注册同口径）。★ 不再需要「邮箱是否存在」的分支判断 —— `login` 必然存在
+ * （`fetchGithubIdentity` 已把关），故 `nicknameFromEmail` 只是理论兜底。
+ */
+function nicknameFromIdentity(identity: GithubIdentity): string {
   const raw = (identity.name ?? '').trim() || identity.login.trim();
-  if (!raw) return nicknameFromEmail(email);
-  return raw.slice(0, AUTH_NICKNAME_MAX);
+  if (raw) return raw.slice(0, AUTH_NICKNAME_MAX);
+  return nicknameFromEmail(displayEmailFor(identity));
 }
 
-function findRowByEmail(email: string): UserRow | null {
-  return (getDb().prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRow | undefined) ?? null;
+/** 按 `github_id` 查账号 —— ★★ **本文件唯一的查号入口**（新口径的落点）。 */
+function findRowByGithubId(githubId: string): UserRow | null {
+  return (getDb().prepare('SELECT * FROM users WHERE github_id = ?').get(githubId) as UserRow | undefined) ?? null;
 }
 
 function findRowById(id: string): UserRow | null {
@@ -167,51 +202,57 @@ function findRowById(id: string): UserRow | null {
 }
 
 /**
- * GitHub 登录 / 建号（契约 §2.8 第 4 条）。返回契约用户，路由层据此发会话。
- * ★ 回填 `github_id` 是**幂等**的：同邮箱第二次登录走到这里，列已有值且相同 ⇒ 不再 UPDATE。
+ * 把既有 GitHub 账号的**展示邮箱**对齐到「本次能拿到的最佳值」（幂等；返回新行或 null 表示无需变更）。
+ * ★ 取值优先级：本次拿到的真实邮箱 → 库里已有的 → noreply 兜底。**本次没拿到就保留旧值** ——
+ *   用户这次把邮箱设为私密，不该让他账号菜单里本来显示着的真实邮箱**凭空消失**。
+ */
+function syncGithubEmail(row: UserRow, identity: GithubIdentity): UserRow | null {
+  const next = identity.email ?? row.github_email ?? displayEmailFor(identity);
+  if (next === row.github_email) return null; // 无变化 ⇒ 一次多余的 UPDATE 都不发
+  getDb().prepare('UPDATE users SET github_email = ? WHERE id = ?').run(next, row.id);
+  return findRowById(row.id);
+}
+
+/**
+ * GitHub 登录 / 建号（契约 §2.8 口径 1）。返回契约用户，路由层据此发会话。
+ *
+ * ★★ **两条不变量（改这里之前先读）**：
+ *   ① **查号只按 `github_id`** —— 同一 GitHub 账号再次登录必须回到**同一个**账号；
+ *   ② **绝不按邮箱查 / 绝不归并** —— 同邮箱也建**独立账号**（旧口径的反面）。
+ *
+ * ★ 「先查后插」的并发窗口由 `idx_users_github_id` 部分唯一索引兜底：两个并发的 callback
+ *   带同一 `github_id` 时，第二个 INSERT 撞 UNIQUE ⇒ 回读既有行按「同账号」处理
+ *   （**不能**当失败，否则用户看到一次正常登录被报错）。
  */
 export async function loginViaGithub(identity: GithubIdentity): Promise<AuthUser> {
-  const email = normalizeEmail(identity.email);
-  if (!email) throw new Error('GITHUB_EMAIL_UNAVAILABLE' satisfies AuthError);
-  const existing = findRowByEmail(email);
+  const githubId = String(identity.id);
+  const existing = findRowByGithubId(githubId);
   if (existing) {
-    if (existing.github_id !== null && existing.github_id !== String(identity.id)) {
-      // 归并撞号：邮箱已绑定**另一个** GitHub 账号。放行等于允许第二个 GitHub 身份
-      // 冒用该邮箱登入，必须是显式失败而不是静默顶替。
-      throw new Error('GITHUB_AUTH_FAILED' satisfies AuthError);
-    }
-    if (existing.github_id === null) {
-      getDb().prepare('UPDATE users SET github_id = ? WHERE id = ?').run(String(identity.id), existing.id);
-    }
-    const fresh = findRowById(existing.id);
-    if (!fresh) throw new Error('USER_ROW_MISSING');
-    return toAuthUser(fresh);
+    // 老账号：顺手对齐展示邮箱（幂等；本次没拿到就保留旧值）
+    return rowToAuthUser(syncGithubEmail(existing, identity) ?? existing);
   }
 
   const id = `u-${randomUUID()}`;
-  const nickname = nicknameFromIdentity(identity, email);
+  const nickname = nicknameFromIdentity(identity);
   const passwordHash = await hashPassword(`${randomUUID()}${randomUUID()}`);
   try {
     getDb()
-      .prepare('INSERT INTO users (id, email, password_hash, nickname, github_id) VALUES (?, ?, ?, ?, ?)')
-      .run(id, email, passwordHash, nickname, String(identity.id));
+      .prepare(
+        'INSERT INTO users (id, email, password_hash, nickname, github_id, github_email) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+      .run(id, placeholderEmail(identity.id), passwordHash, nickname, githubId, displayEmailFor(identity));
   } catch (e) {
-    // 并发回调同邮箱：UNIQUE(email) 兜底——回读既有行按归并口径走（含 github_id 回填检查）
+    // 并发同 github_id：部分唯一索引兜底 —— 回读既有行，按**同账号**处理（不是失败）
     if (e instanceof Error && /UNIQUE/i.test(e.message)) {
-      const raced = findRowByEmail(email);
-      if (!raced || (raced.github_id !== null && raced.github_id !== String(identity.id))) {
-        throw new Error('GITHUB_AUTH_FAILED' satisfies AuthError);
-      }
-      const fresh = findRowById(raced.id);
-      if (!fresh) throw new Error('USER_ROW_MISSING');
-      return toAuthUser(fresh);
+      const raced = findRowByGithubId(githubId);
+      if (raced) return rowToAuthUser(raced);
     }
     throw e;
   }
   // 与 createUser 同一手法：回读库行再映射（created_at 格式以库为准，内存对象不做事实源）
   const created = findRowById(id);
   if (!created) throw new Error('USER_ROW_MISSING');
-  return toAuthUser(created);
+  return rowToAuthUser(created);
 }
 
 /**

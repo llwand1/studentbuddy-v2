@@ -176,11 +176,22 @@ export type AuthError =
   | 'MAIL_SEND_FAILED'
   /** GitHub OAuth 未配置（缺 SB_GITHUB_CLIENT_ID/SECRET）→ 503（M1.8，§2.8） */
   | 'GITHUB_NOT_CONFIGURED'
-  /** GitHub 侧换 token / 拉身份失败 → 502（M1.8，§2.8） */
+  /**
+   * GitHub 侧换 token / 拉身份失败 → 502（M1.8，§2.8）。
+   * ★ 2026-09-21（独立建号批）：原「`github_id` 已绑定**其他**邮箱」的**撞号语义已删除**
+   *   —— 改为按 `github_id` 认人后不存在该场景（同一个 id 只会命中它自己那一行）。
+   */
   | 'GITHUB_AUTH_FAILED'
   /** OAuth state 校验不过（CSRF 防线）→ 400（M1.8，§2.8） */
   | 'GITHUB_STATE_INVALID'
-  /** GitHub 账号拿不到已验证邮箱 → 502（M1.8，§2.8） */
+  /**
+   * GitHub 账号拿不到**已验证邮箱** → 502（M1.8，§2.8）。
+   * ⚠️ **2026-09-21（独立建号批）起已退化为例外兜底**：邮箱不再作身份依据 ⇒「拿不到邮箱」
+   *   **照常建号 / 登入**（展示邮箱走 `{login}@users.noreply.github.com`）⇒ 本码**正常路径下
+   *   不再抛出**，保留仅为防御「GitHub 返回畸形响应」（连 id / login 都拿不到）。
+   *   ★ **不删的理由**：删它要连带改路由映射表与消费方，而它作为**兜底**仍有意义；
+   *   契约 §2.8 错误码表已标注其退化后的地位。
+   */
   | 'GITHUB_EMAIL_UNAVAILABLE';
 
 

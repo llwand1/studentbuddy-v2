@@ -4,7 +4,9 @@
  * 三端点，全是 GET（浏览器整页跳转，不是 fetch——OAuth 重定向流没有 XHR 版本）：
  *  · `GET /api/auth/providers`     —— 前端据此决定画不画 GitHub 按钮；
  *  · `GET /api/auth/github`        —— 发 state cookie + 302 到 GitHub 授权页；
- *  · `GET /api/auth/github/callback` —— 验 state → 换 token → 拉身份 → 归并/建号 → 发会话 → 302 回 `/`。
+ *  · `GET /api/auth/github/callback` —— 验 state → 换 token → 拉身份 → **按 `github_id` 查号 / 建号** → 发会话 → 302 回 `/`。
+ *    ★ 2026-09-21 起口径为「**按 `github_id` 认人、绝不按邮箱归并**」（严格独立建号），
+ *      本行原先写的「归并 / 建号」已不成立 —— 完整口径见 `auth/github.ts` 文件头与契约 §2.8。
  *
  * ★ 失败呈现走**内联 HTML 错误页**而不是 JSON：此刻用户在浏览器导航里，fetch 错误
  *   形状没人能看见（ADR-5：失败必须可读、可重试——错误页必带「返回首页」链接）。
@@ -38,12 +40,21 @@ const ERROR_STATUS: Partial<Record<AuthError, number>> = {
   GITHUB_EMAIL_UNAVAILABLE: 502,
 };
 
-/** 域错误码 → 错误页文案（ADR-5：说清发生了什么 + 用户下一步能做什么）。 */
+/**
+ * 域错误码 → 错误页文案（ADR-5：说清发生了什么 + 用户下一步能做什么）。
+ * ★ 2026-09-21（独立建号批）口径变更带来的两处调整：
+ *   · `GITHUB_AUTH_FAILED` —— 原含「`github_id` 已绑定其他邮箱」的**撞号分支，该分支已删除**
+ *     （按 `github_id` 认人后不存在撞号场景）⇒ 文案收敛为纯「重试 / 改邮箱登录」。
+ *   · `GITHUB_EMAIL_UNAVAILABLE` —— ⚠️ **已退化为例外兜底**：邮箱不再作身份依据，拿不到邮箱
+ *     **照常建号 / 登入** ⇒ 这条文案**正常路径下不会再出现**，仅防御 GitHub 返回畸形响应。
+ *     ★ 因此文案里原先那句「请先在 GitHub 上验证邮箱后重试」**必须删掉** —— 那是**旧口径的处方**，
+ *     照它做解决不了任何问题（用户的邮箱本来就是验证过的，问题在别处）。
+ */
 const ERROR_TEXT: Partial<Record<AuthError, string>> = {
   GITHUB_NOT_CONFIGURED: 'GitHub 登录尚未配置，请改用邮箱注册或登录',
   GITHUB_AUTH_FAILED: 'GitHub 登录没能完成，请重试；多次失败请改用邮箱登录',
   GITHUB_STATE_INVALID: '登录会话已失效，请回到首页重新点击 GitHub 登录',
-  GITHUB_EMAIL_UNAVAILABLE: 'GitHub 账号没有已验证的邮箱，无法建立登录——请先在 GitHub 上验证邮箱后重试，或改用邮箱登录',
+  GITHUB_EMAIL_UNAVAILABLE: 'GitHub 未能返回账号信息，请重试；多次失败请改用邮箱登录',
 };
 
 /** OAuth 握手失败页（最小 HTML：无脚本无样式，内容只有结论 + 出路）。 */

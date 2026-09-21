@@ -11,8 +11,10 @@
  *  · `migrations-list-v22.ts`   —— v22~v29（会话归属 / 艾宾浩斯 / 画像归主 / 复习督促 /
  *                                情景题 / 验证码 / 复习范围 / **LLM 成本归主**）
  *  · `migrations-list-v30.ts`   —— v30 及之后（M2d-1 设置与反馈环归主）
- *  · `migrations-list-v31.ts`   —— **v31 及之后**（M2d-2 词条库 / 领域 / 提及流水归主）
- *                                ★ 加新迁移加到这一片（v30 加完后本片仍是新片，见下）
+ *  · `migrations-list-v31.ts`   —— v31~v39（M2d-2 词条库 / 领域 / 提及流水归主 / 全站 FTS /
+ *                                平台配额 / GitHub OAuth / 知识图追问）
+ *  · `migrations-list-v40.ts`   —— **v40 及之后**（GitHub 独立建号）
+ *                                ★ 加新迁移加到这一片（v31 片装到 379 行后切出，见下）
  *
  * **拆分理由**：清单是**只会单向增长**的数据。本文件 2026-09-14 从 `db.ts` 拆出（当时
  * 404 行触 AGENTS.md「.ts ≤400 行」红线），拆完 387 行；2026-09-16 加 v18（学习流，七张表）
@@ -23,9 +25,9 @@
  * **零行为改动**：迁移语句与注释一字未改，只是换了文件放。执行器（`migrations.ts`）
  * 一行未动，仍然只消费 `MIGRATIONS` 这一个数组。
  *
- * ★ 追加新迁移 ＝ 往 **`migrations-list-v31.ts`** 数组**尾部**加一项（v 号顺延），
+ * ★ 追加新迁移 ＝ 往 **`migrations-list-v40.ts`** 数组**尾部**加一项（v 号顺延），
  *   **不要动既有项**——已应用的版本号是历史锚点，改了不会重跑，只会让新库与老库结构分叉。
- *   （2026-09-18 六次拆分后落点是 v31 分片；v30 在 `-v30.ts`、v22~v29 在 `-v22.ts`。）
+ *   （2026-09-21 七次拆分后落点是 v40 分片；v31~v39 在 `-v31.ts`、v22~v29 在 `-v22.ts`。）
  * ⚠️ 回放迁移链的测试必须把**加列**也 DROP 掉（`ALTER TABLE ADD COLUMN` 不幂等，
  *   本仓实测踩过 `duplicate column name: summary` / `: images`，见 `storage/db.test.ts`）。
  */
@@ -35,6 +37,7 @@ import { MIGRATIONS_V18 } from './migrations-list-v18.js';
 import { MIGRATIONS_V22 } from './migrations-list-v22.js';
 import { MIGRATIONS_V30 } from './migrations-list-v30.js';
 import { MIGRATIONS_V31 } from './migrations-list-v31.js';
+import { MIGRATIONS_V40 } from './migrations-list-v40.js';
 
 export const MIGRATIONS: Array<{ version: number; statements: string[] }> = [
   ...MIGRATIONS_V1_9,
@@ -43,4 +46,5 @@ export const MIGRATIONS: Array<{ version: number; statements: string[] }> = [
   ...MIGRATIONS_V22,
   ...MIGRATIONS_V30,
   ...MIGRATIONS_V31,
+  ...MIGRATIONS_V40,
 ];

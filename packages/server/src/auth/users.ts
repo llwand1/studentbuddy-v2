@@ -16,19 +16,11 @@ import {
 } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { hashPassword, verifyPassword } from './password.js';
-
-interface UserRow {
-  id: string;
-  email: string;
-  password_hash: string;
-  nickname: string;
-  created_at: string;
-}
-
-/** 行 → 契约对象。★ **绝不带出 `password_hash`**——它是库内列，不是契约字段。 */
-function toAuthUser(row: UserRow): AuthUser {
-  return { id: row.id, email: row.email, nickname: row.nickname, createdAt: row.created_at };
-}
+// ★★ 行 → 契约用户的映射**只有一份**（`auth/user-row.ts`）。本批的教训：此前本文件与
+//    `github.ts` **各写了一份** `toAuthUser`，只改了 github 那份 ⇒ `/api/auth/me` 直接把
+//    GitHub 账号的**占位邮箱** `gh-<id>@users.noreply.invalid` 返回给用户，而且
+//    **没有任何编译错误提示**（`row.email` 仍是 `string`，类型完全合法）。是测试逮到的。
+import { rowToAuthUser, type UserRow } from './user-row.js';
 
 function findByEmailRow(email: string): UserRow | null {
   return (getDb().prepare(`SELECT * FROM users WHERE email = ?`).get(email) as UserRow | undefined) ?? null;
@@ -37,7 +29,7 @@ function findByEmailRow(email: string): UserRow | null {
 /** 按 id 查账号（`/api/auth/me` 用）；不存在 → null。 */
 export function findUserById(id: string): AuthUser | null {
   const row = getDb().prepare(`SELECT * FROM users WHERE id = ?`).get(id) as UserRow | undefined;
-  return row ? toAuthUser(row) : null;
+  return row ? rowToAuthUser(row) : null;
 }
 
 /**
@@ -48,7 +40,7 @@ export function findUserById(id: string): AuthUser | null {
  */
 export function findUserByEmail(email: string): AuthUser | null {
   const row = findByEmailRow(email);
-  return row ? toAuthUser(row) : null;
+  return row ? rowToAuthUser(row) : null;
 }
 
 /**
@@ -84,7 +76,7 @@ export async function createUser(rawEmail: unknown, rawPassword: unknown, rawNic
   //   内存值只配用来做「写什么」，不配用来做「返回什么」。
   const created = findByEmailRow(email);
   if (!created) throw new Error('USER_ROW_MISSING'); // 理论不可达；非域码 ⇒ 走 500，不伪装成业务错误
-  return toAuthUser(created);
+  return rowToAuthUser(created);
 }
 
 /**
@@ -116,7 +108,7 @@ export async function authenticate(rawEmail: unknown, rawPassword: unknown): Pro
   }
   const ok = await verifyPassword(rawPassword, row.password_hash);
   if (!ok) throw new Error('CREDENTIALS_INVALID' satisfies AuthError);
-  return toAuthUser(row);
+  return rowToAuthUser(row);
 }
 
 /** 清空时序均衡缓存（**仅测试用**：隔离库之间切换时避免持有上一个实例的口令）。 */

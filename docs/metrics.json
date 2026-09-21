@@ -1,33 +1,33 @@
 {
-  "generatedAt": "2026-09-21T10:39:42.190Z",
+  "generatedAt": "2026-09-21T12:22:22.786Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
         "srcFiles": 29,
         "testFiles": 17,
-        "srcLines": 4297,
+        "srcLines": 4308,
         "testLines": 2187
       },
       {
         "pkg": "server",
-        "srcFiles": 157,
+        "srcFiles": 159,
         "testFiles": 113,
-        "srcLines": 25628,
-        "testLines": 24514
+        "srcLines": 25762,
+        "testLines": 24750
       },
       {
         "pkg": "web",
         "srcFiles": 176,
         "testFiles": 62,
-        "srcLines": 22215,
+        "srcLines": 22218,
         "testLines": 8410
       }
     ],
-    "srcFiles": 362,
+    "srcFiles": 364,
     "testFiles": 192,
-    "srcLines": 52140,
-    "testLines": 35111,
+    "srcLines": 52288,
+    "testLines": 35347,
     "tsxTestFiles": 21
   },
   "routes": {
@@ -47,8 +47,8 @@
     "total": 149
   },
   "migrations": {
-    "count": 39,
-    "max": 39,
+    "count": 40,
+    "max": 40,
     "gaps": 0
   },
   "deps": {
@@ -81,16 +81,16 @@
   },
   "docs": {
     "specs": 27,
-    "all": 33,
-    "dev": 4,
+    "all": 34,
+    "dev": 5,
     "probes": 15
   },
   "repo": {
-    "head": "0266213",
+    "head": "383dfc7",
     "headDate": "2026-09-21",
-    "commitsLast14d": 137,
+    "commitsLast14d": 144,
     "branch": "main",
-    "dirtyFiles": 18
+    "dirtyFiles": 17
   },
   "tests": {
     "available": true,
@@ -98,8 +98,8 @@
     "wallSec": 0,
     "staleDays": 0,
     "files": 192,
-    "cases": 2653,
-    "passed": 2652,
+    "cases": 2664,
+    "passed": 2663,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -149,8 +149,8 @@
     },
     {
       "label": "badge 测试用例",
-      "claimed": "2653",
-      "measured": "2653",
+      "claimed": "2664",
+      "measured": "2664",
       "ok": true
     },
     {
@@ -185,14 +185,14 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "192 文件 / 2653 例",
-      "measured": "192 文件 / 2653 例",
+      "claimed": "192 文件 / 2664 例",
+      "measured": "192 文件 / 2664 例",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "192 文件 / 2653 例",
-      "measured": "192 文件 / 2653 例",
+      "claimed": "192 文件 / 2664 例",
+      "measured": "192 文件 / 2664 例",
       "ok": true
     }
   ],
@@ -200,7 +200,7 @@
     {
       "label": "首屏 自动化测试（模糊档）",
       "claimed": "2600+",
-      "measured": "2653",
+      "measured": "2664",
       "ok": true
     },
     {

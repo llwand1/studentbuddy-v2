@@ -233,3 +233,119 @@ describe('llm/router — M2c 配额归属（契约 §8.1.3.1：内层按**请求
     }
   });
 });
+
+// ── v39（2026-09-21）：零配置平台通道 —— 凭据从 env 注入 ──────────────────────
+// 老板原话：「api 哪里就改成默认零配置 …… 直接使用我的 key 的额度，但是**不让用户看到**」。
+// 手法：平台行的 key/baseUrl 优先从 `SB_PLATFORM_*` 读 ⇒ **数据库里那把 key 永远是空的**，
+// 任何拖库 / 接口泄漏都拿不到它（`getProviders` 本来也不返回 api_key）。
+// ★ 这几条用例都要动 env，故逐条存还原 —— 漏还原会污染同文件后面的用例（vitest 同文件共享进程）。
+
+describe('llm/router — v39 零配置：平台凭据走 env，且**只对平台通道**生效', () => {
+  const ENV_KEYS = ['SB_PLATFORM_API_KEY', 'SB_PLATFORM_BASE_URL', 'SB_PLATFORM_MODEL'] as const;
+  let saved: Record<string, string | undefined>;
+
+  beforeEach(() => {
+    saved = {};
+    for (const k of ENV_KEYS) {
+      saved[k] = process.env[k];
+      delete process.env[k];
+    }
+  });
+
+  afterEach(() => {
+    for (const k of ENV_KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  /** 把种子平台行改造成"库里有真凭据"，用来验证 env 缺省时的回落。 */
+  function seedPlatformCreds(apiKey: string, baseUrl: string): void {
+    getDb()
+      .prepare(`UPDATE providers SET api_key = ?, base_url = ? WHERE id = 'openai-default'`)
+      .run(apiKey, baseUrl);
+  }
+
+  it('★ 零配置开箱：库里的 key 与 model 都空 —— 配上 env 立刻可用（线上 09-21 卡的就是这条）', () => {
+    // 种子原样 = 平台 provider `api_key = ''` + 各角色 `model = ''`，即线上真实状态
+    const before = roleReady('explain', 'uNew');
+    expect(before.ok).toBe(false);
+    expect(before.reason).toBe('该角色还没绑定模型');
+
+    process.env.SB_PLATFORM_API_KEY = 'sk-platform-ENV';
+    process.env.SB_PLATFORM_BASE_URL = 'https://relay.example/v1';
+    process.env.SB_PLATFORM_MODEL = 'gpt-4o-mini';
+
+    const t = routeRole('explain', undefined, 'uNew')!;
+    expect(t.apiKey).toBe('sk-platform-ENV');
+    expect(t.baseUrl).toBe('https://relay.example/v1');
+    expect(t.model).toBe('gpt-4o-mini');
+    expect(roleReady('explain', 'uNew').ok).toBe(true);
+  });
+
+  it('★ env 里的平台 key 不会从 /providers 漏出去（"不让用户看到"）', () => {
+    process.env.SB_PLATFORM_API_KEY = 'sk-platform-ENV';
+    expect(JSON.stringify(getProviders('uA'))).not.toContain('sk-platform-ENV');
+    expect(JSON.stringify(getProviders(null))).not.toContain('sk-platform-ENV');
+  });
+
+  it('★ 只对平台通道注入：BYOK 用户自己的 key/地址/模型**一个都不许被顶掉**', () => {
+    addProvider('p-a', 'uA', 'sk-A-OWN');
+    bind('explain', 'p-a', 'a-model', 'uA');
+    process.env.SB_PLATFORM_API_KEY = 'sk-platform-ENV';
+    process.env.SB_PLATFORM_BASE_URL = 'https://relay.example/v1';
+    process.env.SB_PLATFORM_MODEL = 'env-model';
+
+    const t = routeRole('explain', undefined, 'uA')!;
+    // 顶掉就是"你配了自己的 key，花的却是平台的钱"——比不生效更糟
+    expect(t.apiKey).toBe('sk-A-OWN');
+    expect(t.baseUrl).toBe('https://p-a.example/v1');
+    expect(t.model).toBe('a-model');
+  });
+
+  it('★ 优先级：绑定表里的 model 胜过 env（设置页改的才是"这台部署要用的"）', () => {
+    process.env.SB_PLATFORM_MODEL = 'env-model';
+    bind('summarizer', 'openai-default', 'picked-model', 'uA');
+    expect(routeRole('summarizer', undefined, 'uA')!.model).toBe('picked-model');
+    expect(routeRole('explain', undefined, 'uA')!.model).toBe('env-model'); // 没绑的才吃 env
+  });
+
+  it('env 未配时逐条回落数据库（老部署与 BYOK 自建 provider 行为不变）', () => {
+    seedPlatformCreds('sk-platform-DB', 'https://db.example/v1');
+    const t = routeRole('explain', undefined, 'uA')!;
+    expect(t.apiKey).toBe('sk-platform-DB');
+    expect(t.baseUrl).toBe('https://db.example/v1');
+
+    // 只配一条 ⇒ 另外两条各自回落，不是"配了一条就全用 env"
+    process.env.SB_PLATFORM_MODEL = 'env-model';
+    const t2 = routeRole('explain', undefined, 'uA')!;
+    expect(t2.apiKey).toBe('sk-platform-DB');
+    expect(t2.baseUrl).toBe('https://db.example/v1');
+    expect(t2.model).toBe('env-model');
+  });
+
+  it('空串 env 视同未配（不是"把 key 设成空串"）', () => {
+    seedPlatformCreds('sk-platform-DB', 'https://db.example/v1');
+    process.env.SB_PLATFORM_API_KEY = '';
+    process.env.SB_PLATFORM_BASE_URL = '   '; // 空白也要当未配（运维手滑留空格）
+    const t = routeRole('explain', undefined, 'uA')!;
+    expect(t.apiKey).toBe('sk-platform-DB');
+    expect(t.baseUrl).toBe('https://db.example/v1');
+  });
+
+  it('★ 回归锁：平台绑定的 provider 被停用 ⇒ 走默认兜底路径，**绑定表里的 model 不许丢**', () => {
+    // v39 自查抓到的真回归：默认分支曾写成 `platformEnvModel() || fallbackModel`，
+    // 把 `platform?.model` 丢了。本路径**可达** —— 上面的 ② 在 provider 被停用/删除时返回
+    // null 会落到这里，于是"用户明明绑了模型"却被判成"还没绑定模型"。
+    getDb()
+      .prepare(`UPDATE role_bindings SET model = 'bound-model' WHERE role = 'explain' AND owner_id IS NULL`)
+      .run();
+    getDb().prepare(`UPDATE providers SET enabled = 0 WHERE id = 'openai-default'`).run();
+    addProvider('p-live', null, 'sk-live'); // 另一个平台 provider 顶上默认兜底
+
+    const t = routeRole('explain', undefined, 'uA')!;
+    expect(t.baseUrl).toBe('https://p-live.example/v1');
+    expect(t.model).toBe('bound-model');
+    expect(roleReady('explain', 'uA').ok).toBe(true);
+  });
+});

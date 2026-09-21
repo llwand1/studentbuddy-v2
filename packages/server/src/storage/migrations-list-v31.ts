@@ -339,4 +339,41 @@ export const MIGRATIONS_V31: Array<{ version: number; statements: string[] }> = 
     version: 38,
     statements: [`ALTER TABLE sessions ADD COLUMN forked_term TEXT`],
   },
+  // ── v39：平台免费通道的**调用次数**用量（老板 2026-09-21 拍板）──
+  // 「api 改成默认零配置」= 用户开箱即用、不需要自带 key；平台出钱。代价是**成本敞口**，
+  // 故同批立一条次数配额：**每用户每 5 小时 250 次上游调用**（计数单位＝每次上游 HTTP 请求，
+  // 不是每轮对话——一轮对话实际会产生 1~3 次：主链回复 + 后台抽词 + 上下文压缩）。
+  //
+  // ★ 为什么**必须落库**而不是像 `upstream-gate.ts` 那样用进程内 `Map`：
+  //   并发闸门是"瞬时状态"，进程重启归零是**正确**的（重启后确实没有在飞请求了）；
+  //   而次数配额是**滚动窗口内的累计量**——若放进程内，**每次部署/重启都会把用户的额度洗回 250**，
+  //   而本仓部署很频繁（09-20 一天内重启 4 次）⇒ 等于配额形同虚设。故落库。
+  //
+  // ★ 表名即语义：本表**只记平台通道**的消耗（BYOK 用用户自己的钱，不计数、不入本表）。
+  //   故不设 `platform` 列——需要区分通道时，本表的存在本身就是区分。
+  //
+  // ★ `owner_id` 存**请求者**（M2c 口径，同 `llm/router.ts` 的 `quota.ownerId`），
+  //   不是 provider 的 owner——平台 provider 的 owner 恒为 NULL，用它分桶会让所有用户
+  //   挤进同一个额度里（`upstream-gate.ts` 文件头记过这个坑的姊妹版本）。
+  //
+  // ★ `ts` 用 **unix 毫秒整数**而不是 `datetime('now')` 文本：本表的唯一查询是
+  //   「窗口内的条数」（`WHERE owner_id = ? AND ts > ?`），整数比较既快又不受时区影响
+  //   ——本仓在 `coach_messages.created_at` 上付过一次学费（UTC 文本 + 本地日比较会错一天）。
+  //
+  // ⚠️ 回放迁移链的测试：本版是**建表**（`IF NOT EXISTS`），故与 v38 那类加列**不同** ——
+  //   既有的退版本重放用例（退到 v36 等）重放到本版时表已存在、`IF NOT EXISTS` 直接跳过，
+  //   **不会报错，故它们不必改**。真正需要 DROP 的是「想证明 v39 确实建了这张表」的用例：
+  //   不先 DROP，`tablesOf(db)` 里那张表是**建库时**留下的，"重放建回"就成了句空话。
+  //   见 `db.test.ts` 的 `revertV39` 与 v39 用例。
+  {
+    version: 39,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS platform_usage (
+        id       INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_id TEXT NOT NULL,
+        ts       INTEGER NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_platform_usage_owner_ts ON platform_usage(owner_id, ts)`,
+    ],
+  },
 ];

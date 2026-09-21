@@ -13,12 +13,14 @@ import {
   acquireUpstream,
   bindQuota,
   resetUpstreamGates,
+  setPlatformMeter,
   UPSTREAM_BUSY_MESSAGE,
   UPSTREAM_MAX_CONCURRENT,
   UPSTREAM_SITE_MAX_CONCURRENT,
   UPSTREAM_SITE_QUEUE_MAX,
   upstreamStats,
 } from './upstream-gate.js';
+import { NOOP_PLATFORM_METER } from './platform-quota.js';
 import type { LLMAdapter, UpstreamQuota } from './types.js';
 
 const URL_A = 'https://upstream-a.example/v1';
@@ -48,6 +50,13 @@ function probe(baseUrl: string, purpose: 'main' | 'background' = 'main', signal?
 
 beforeEach(() => {
   resetUpstreamGates();
+  // ★ v39（2026-09-21）：本文件是**纯逻辑**用例，绝不落库。
+  //   下面「按 owner 分桶」那组带的配额是 `{ ownerId: 'A', platform: true }`——恰是会被
+  //   次数配额计量的那一态。不换掉计量器的话，这里 60 来次 acquire 会打开并迁移
+  //   **老板的真实库**（`getDb()` 懒加载真实数据目录），既违反 ADR-6「不碰用户数据」，
+  //   又会与正在跑的 dev server 争 WAL 写锁 ⇒ 随机红。计量器本身的正确性由
+  //   `platform-quota.test.ts`（隔离库）负责，本文件只测**并发闸门**。
+  setPlatformMeter(NOOP_PLATFORM_METER);
 });
 
 describe('并发上限', () => {

@@ -1,6 +1,6 @@
 # TENANCY-SPEC · 多租户数据隔离（M2）
 
-> 版本：v1.9 | 状态：[活跃] | 更新：2026-09-19（**M2d-3 已落码（v0.2.67）**：§8.2 的 `quiz_bank`/`quiz_stats`/`quiz_notes`/`flow_def`/`flow_run`/`flow_run_step`/`knowledge_node`/`knowledge_edge` 八张随**迁移 v33** 加列 `owner_id`（`NOT NULL DEFAULT ''`，老行回填无主、`_probe/claim-legacy.mjs` 已预置认领）。★ 主键全是全局 uuid ⇒ 加列即可（不重建）；★ 子表 `flow_step`/`flow_edge` 刻意不加列（恒经 def_id 触达，归属随 flow_def 传递）；★ **`knowledge_node`/`knowledge_edge` 的归属过滤即已上线旧洞的收口**（改前 A 的知识图谱 B 能看见）。★ 读写两侧同用 `ownerForWrite`（照抄 M2d-1/M2d-2 口径，不重新发明）。★ M2d 至此**全部完成**，下一批 = M2 收口 → M3 部署。**前任 v1.8（2026-09-18）****M2d-2 已落码（v0.2.63）**：§8.2 里 `term_library`（`UNIQUE(term,domain)` → `UNIQUE(owner_id,term,domain)`，**`id` 仍是全局唯一 PK**——`knowledge_node.ref_id` / `term_review_log.term_id` 都指向它）、`term_domain`（`name` 单列 PK → `PK(owner_id,name)`）、`term_mention_log`（口径 `NULL` → 空串）**三张随迁移 v31 重建**（新分片 `storage/migrations-list-v31.ts`），老行一律回填空串（无主）。★★ **本批最关键的一处开工实测**：`term_review.ts` 的 `SCOPE_JOIN` 原先**只按 `name` 连领域**，`term_domain` 归主后 A 的词条会读到 **B 的同名领域开关**（跨用户串台）⇒ 连接条件补 `owner_id`。★ **`general` 改每用户懒建 + 读路径补建**（老板拍板）：写入侧已有 `INSERT OR IGNORE` 自动登记，领域接口首次访问再补建一份自己的 `general` ⇒ 领域 Tab 恒有一格 `general`（观感不变），孤儿行的 `general` 留给本地单人模式。★ **拆文件（被 server ≤400 红线逼出，照仓规不压注释）**：`terms.ts` → `term-usage.ts`（`countUsage`）；`tidy.ts` → `tidy-plan.ts`（`parseTidyBlock`/`normalizeTidyPlan`/`renameDomainTx`）；`term-review.ts` → `term-review-scope.ts`（范围开关/清零/打卡）；`study-flow-run.ts` → `emitTermNodes` 移入 `knowledge-graph.ts`。★ 连带必改：`terms.ts` 两处 `ON CONFLICT(term,domain)` 的冲突目标同步改复合；`ToolCtx.ownerId` 由可选改**必填**（逼出 `chat/flow.ts` 一处漏传——此前工具里的词条增删改查全落无主行）。**M2d-2 至此全部完成**；此前 v1.7 已落 M2d-1（迁移 v30）与 M2c 全部（§8.1，迁移 v29）。**剩 M2d-3**（`quiz_*`/`flow_*`/`knowledge_*` 加列）→ M2 收口 → M3 部署）
+> 版本：v1.10 | 状态：[活跃] | 更新：2026-09-21（**平台通道**次数**配额（v39）已落码（v0.2.98）**：§8.1.3 的「**额度不限**」被**三次拍板**推翻，新增 §8.1.3.3——**每用户每 5 小时 250 次上游调用**（计数单位＝**每次上游请求**，不是每轮对话：一轮实际产生 1~3 次，配额是成本控制手段、口径必须贴着成本走）；计数**落库 `platform_usage`（迁移 v39）**，**不能用进程内 `Map`**——次数是滚动窗口累计量，放进程内则每次部署都会把用户的额度洗回 250（本仓 09-20 一天重启 4 次）；★ **时序＝先断言后计数**（断言在拿并发槽**之前**，免额度用完的用户占着桶把正常用户挡在门外；计数在**两层并发槽都拿到之后**，被闸门拒绝的请求**不计费**）；★ **只对平台通道计量**（BYOK 与本地单人模式都不计数），且**分桶键是请求者**而非 provider 的 owner。同批平台凭据改从 **env** 注入（`SB_PLATFORM_API_KEY`／`SB_PLATFORM_BASE_URL`／`SB_PLATFORM_MODEL`）以实现「**默认零配置**」且「**不让用户看到**」——**数据库里平台行那把 key 永远是空的**，任何拖库／接口泄漏都拿不到它。★ **按 §0.4 回标不回改**：§8.1.3 与 §8.1.3.1 的原文**一字未动**，只在 §8.1.3 的表内加了一处 `[已被 2026-09-21 三次拍板推翻]` 标注。）。**前任 v1.9（2026-09-19）**：**M2d-3 已落码（v0.2.67）**：§8.2 的 `quiz_bank`/`quiz_stats`/`quiz_notes`/`flow_def`/`flow_run`/`flow_run_step`/`knowledge_node`/`knowledge_edge` 八张随**迁移 v33** 加列 `owner_id`（`NOT NULL DEFAULT ''`，老行回填无主、`_probe/claim-legacy.mjs` 已预置认领）。★ 主键全是全局 uuid ⇒ 加列即可（不重建）；★ 子表 `flow_step`/`flow_edge` 刻意不加列（恒经 def_id 触达，归属随 flow_def 传递）；★ **`knowledge_node`/`knowledge_edge` 的归属过滤即已上线旧洞的收口**（改前 A 的知识图谱 B 能看见）。★ 读写两侧同用 `ownerForWrite`（照抄 M2d-1/M2d-2 口径，不重新发明）。★ M2d 至此**全部完成**，下一批 = M2 收口 → M3 部署。**前任 v1.8（2026-09-18）****M2d-2 已落码（v0.2.63）**：§8.2 里 `term_library`（`UNIQUE(term,domain)` → `UNIQUE(owner_id,term,domain)`，**`id` 仍是全局唯一 PK**——`knowledge_node.ref_id` / `term_review_log.term_id` 都指向它）、`term_domain`（`name` 单列 PK → `PK(owner_id,name)`）、`term_mention_log`（口径 `NULL` → 空串）**三张随迁移 v31 重建**（新分片 `storage/migrations-list-v31.ts`），老行一律回填空串（无主）。★★ **本批最关键的一处开工实测**：`term_review.ts` 的 `SCOPE_JOIN` 原先**只按 `name` 连领域**，`term_domain` 归主后 A 的词条会读到 **B 的同名领域开关**（跨用户串台）⇒ 连接条件补 `owner_id`。★ **`general` 改每用户懒建 + 读路径补建**（老板拍板）：写入侧已有 `INSERT OR IGNORE` 自动登记，领域接口首次访问再补建一份自己的 `general` ⇒ 领域 Tab 恒有一格 `general`（观感不变），孤儿行的 `general` 留给本地单人模式。★ **拆文件（被 server ≤400 红线逼出，照仓规不压注释）**：`terms.ts` → `term-usage.ts`（`countUsage`）；`tidy.ts` → `tidy-plan.ts`（`parseTidyBlock`/`normalizeTidyPlan`/`renameDomainTx`）；`term-review.ts` → `term-review-scope.ts`（范围开关/清零/打卡）；`study-flow-run.ts` → `emitTermNodes` 移入 `knowledge-graph.ts`。★ 连带必改：`terms.ts` 两处 `ON CONFLICT(term,domain)` 的冲突目标同步改复合；`ToolCtx.ownerId` 由可选改**必填**（逼出 `chat/flow.ts` 一处漏传——此前工具里的词条增删改查全落无主行）。**M2d-2 至此全部完成**；此前 v1.7 已落 M2d-1（迁移 v30）与 M2c 全部（§8.1，迁移 v29）。**剩 M2d-3**（`quiz_*`/`flow_*`/`knowledge_*` 加列）→ M2 收口 → M3 部署）
 > 前任 v1.5 | 更新：2026-09-18（**M2c 归属改造已落码过测（v0.2.60）**：§8.1.2 三张表随**迁移 v29** 落地 + `routeRole` 第三参 + 14 个消费点全量穿透；★ 同批**开工实测**逮到复合主键 `(owner_id, role)` 在 SQLite 下**不拦 `NULL`** ⇒ 平台行改由**部分唯一索引**去重（两个约束分工不同、都要有）。当时 §8.1.3.1 两层闸门仍未开工，**现已完成**，见上行）
 > 上游契约：`docs/AUTH-SPEC.md`（账号与会话）。本契约只解决「**登录之后，数据归谁**」。
 
@@ -230,7 +230,7 @@ routes/chat.ts  ownerIdOf(req)
 ★ **连带必改的写口（读码实测，2026-09-18）**：`PUT /api/providers/roles/:role` 的写库语句是 `INSERT … ON CONFLICT(role) DO UPDATE`（`routes.ts:186`）。主键改复合后 **`ON CONFLICT(role)` 会直接报错**（找不到匹配的唯一索引）⇒ 必须同步改成 `ON CONFLICT(owner_id, role)`，并写入当前用户的 `owner_id`。**只改迁移不改这里 = 运行时 500**，两者必须同批。
 
 
-#### 8.1.3 免费通道的限流模型（2026-09-18 **二次拍板**：额度不限、限并发）
+#### 8.1.3 免费通道的限流模型（2026-09-18 **二次拍板**：额度不限、限并发；⚠️ **其中「额度不限」已被 2026-09-21 三次拍板推翻，见 §8.1.3.3**）
 
 老板原话：「**免费额度是无限的，但是限速，就是不能请求太多，最多同时运行两个对话**」。
 
@@ -238,7 +238,7 @@ routes/chat.ts  ownerIdOf(req)
 
 | 维度 | 决策 | 说明 |
 |---|---|---|
-| 额度 | **不限**（不按 token 计量） | 不引入"送多少 token"的概念 ⇒ **`token_usage` 不做配额聚合**（它仍要加 `user_id`，那是归属与诊断用的，见 8.1.2） |
+| 额度 | **不限**（不按 token 计量） | 不引入"送多少 token"的概念 ⇒ **`token_usage` 不做配额聚合**（它仍要加 `user_id`，那是归属与诊断用的，见 8.1.2）。★ **[已被 2026-09-21 三次拍板推翻]**：改为**每用户每 5 小时 250 次上游调用**（见 §8.1.3.3）。`token_usage` 仍不做配额聚合——次数配额用的是**独立的 `platform_usage` 表**，不是 token 账本 |
 | 限流手段 | **并发**（不是频率、不是累计配额） | ★ 两层：**每用户 2 个** + **全站封顶** |
 | 模型 | **不设白名单**（初稿「只免费便宜模型」**作废**） | 与"额度不限"配套——不计量 token 了，白名单就失去锚点 |
 
@@ -296,6 +296,38 @@ routes/chat.ts  ownerIdOf(req)
 ⚠️ **上面那句的机制不总成立（2026-09-18 落码时修正）**：用户自带 **OpenAI** key 时，其 `baseUrl` 与平台 provider **完全相同**（`https://api.openai.com/v1`）⇒ 桶是同一个，"天然另一个桶"落空。故实现改为**按"只让外层管平台通道"来落实本节的意图**（`platform === false` 的请求不进全站桶），而不是依赖那个假设。**结论不变，机制改了**——见 §8.1.3.1 的落码口径第 2 条。
 
 ★ 这一条同时解释了**为什么不能把闸门做成"全局单桶"**——那会把付费用户一起限住，等于"因为免费用户多，付费用户也被卡"。
+
+##### 8.1.3.3 ★ 平台通道的**次数**配额（2026-09-21 **三次拍板**：加一条「每用户每 5 小时 250 次」）
+
+⚠️ **本小节推翻 §8.1.3 的「额度不限」**。按 §0.4 纪律，**原文一字不改**（见上表与 §8.1.3.1），本小节记录新拍板与它为什么变。
+
+老板原话（2026-09-21）：「**api 哪里就改成默认零配置**，但是有限额，那就是**每 5 小时限定 250 次 ai 调用**，然后**直接使用我的 key 的额度**，但是**不让用户看到**。如果默认模型额度不够或者用户想自己配置模型，那就**按常规通道去配置模型**」。
+
+⇒ 拆成三件事：
+
+| 维度 | 决策 | 与二次拍板的关系 |
+|---|---|---|
+| 开箱路径 | **默认零配置**——平台通道的 `apiKey`／`baseUrl`／`model` 从 **env** 读（`SB_PLATFORM_API_KEY`／`SB_PLATFORM_BASE_URL`／`SB_PLATFORM_MODEL`），**数据库里平台行那把 key 永远是空的** | **新增**。这是「不让用户看到」的落点：`getProviders()` 本来就不返回 `api_key`，把 key 留在 env ⇒ 任何拖库／接口泄漏都拿不到它 |
+| 额度 | **有上限**：**每用户每 5 小时 250 次**（滚动窗口） | ★ **推翻「额度不限」** |
+| 保底通道 | 超限 ⇒ **引到既有 BYOK 通道**（自建 provider ＋ 角色绑定，M2c 已建好，本批不改它） | **不变**，但语义从「双通道并存」升级成「**免费有上限、超了就得自带**」 |
+
+★ **计数单位是「每次上游请求」，不是「每轮对话」**：一轮对话实际会产生 1~3 次上游调用（主链回复 ＋ `extractTerms` 抽词 ＋ `compactIfNeeded` 压缩）。若按"每轮对话"计数，用户看到的剩余次数很经用，但**平台的实际成本是 2~3 倍**——配额是成本控制手段，口径就必须贴着成本走。⇒ 250 次 ≈ **80~120 轮对话**。
+
+★ **作用域是「每个用户各 250 次」，不是全站合计**：全站合计会让几个活跃用户互相挤占（先来的把额度吃光、后来的直接不可用）。代价是**总成本随用户数线性增长**——这一点与二次拍板时 `§8.1.3` 那段「上界不随用户数收敛」是**同一个风险**，当时靠外层并发闸门兜，现在**多了一层按用户封顶**。
+
+★ **滚动窗口，不是「到点一次性重置」**：每笔消耗各自在满 5 小时后滑出窗口。故前端文案必须写「**最早一笔将在 X 后可再调用**」，**不能**写「X 后额度重置」——写成后者会让用户以为到点就能拿回全部 250 次。
+
+★ **必须落库（迁移 v39 `platform_usage`），不能像并发闸门那样用进程内 `Map`**：并发闸门是**瞬时状态**，进程重启归零是**正确**的（重启后确实没有在飞请求了）；而次数配额是**滚动窗口内的累计量**——放进程内，**每次部署／重启都会把用户的额度洗回 250**，而本仓部署很频繁（2026-09-20 一天内重启 4 次）⇒ 配额形同虚设。
+
+★ **三处「写错就是静默事故」**（都已立锁，见 `llm/platform-quota.test.ts`）：
+
+1. **计数分桶键必须是请求者**（`quota.ownerId`），**不是** provider 的 owner——平台 provider 的 `owner_id` 恒为 `NULL`，用它分桶会让**所有免费用户共享同一份额度**（同 §8.1.3.1 第 3 条内层分桶那个坑的姊妹版）。
+2. **只对平台通道计量**：`platform === false`（BYOK）**不计数**（用户自己付钱）；`platform === true && ownerId === null`（本地单人模式）**同样不计数**。
+3. **时序＝先断言、后计数**：断言（`assertPlatformQuota`）在**拿并发槽之前**——额度用完的请求不该占着并发桶，否则会把正常用户挡在门外；计数（`recordPlatformUsage`）在**两层并发槽都拿到之后**——被闸门拒绝的请求**不计费**（用户没得到服务，凭什么扣次数）。★ 已知代价（刻意取舍）：同一用户并发 2 路时两路可能都通过断言、各记一笔，**最多超出 1~2 次**；为它加一把跨请求锁，收益（少扣 1 次）远小于代价（多一个死锁面）。
+
+★ **实现接缝**：计数挂在 `llm/upstream-gate.ts#acquireUpstream`——那是「一笔上游请求确实要发出去了」的**唯一**时刻（两个适配器 `openai.ts`／`anthropic.ts` 的 `chat()` 都经过它）。挂在别处（路由层、flow 层）会漏掉后台任务，而 `extractTerms` 与 `compactIfNeeded` **恰恰是最容易被漏掉、且真花平台钱**的两笔。
+
+⚠️ **已知边界（诚实记账）**：`platform_usage` 表随用户量增长（每用户每小时最多约 50 行、5 小时窗口内至多 250 行）；`recordPlatformUsage` 每次顺带清**本用户**已滑出窗口的旧行，故稳态下每用户行数有界，但**不做全表清理**——全表 `DELETE` 在用户量上来后会变成一把大锁。
 
 #### 8.1.4 ★ 上下文传递方案（2026-09-18 拍板：**显式 `ownerId` 穿透**，不引 AsyncLocalStorage）
 

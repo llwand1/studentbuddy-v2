@@ -123,6 +123,19 @@ function revertV38(db: ReturnType<typeof openIsolated>): void {
   db.exec(`ALTER TABLE sessions DROP COLUMN forked_term`);
 }
 
+/**
+ * 把 v39（平台免费通道的调用次数用量，契约见 `llm/platform-quota.ts`）的建表退回「老库」形态。
+ *
+ * ★ 与 v38 那类加列**不同**：本版是 `CREATE TABLE IF NOT EXISTS`，**幂等**，故
+ *   **既有的退版本重放用例不必调本函数**（退到 v36 重放时表已存在，语句直接跳过，不报错）。
+ *   唯一需要它的地方是「想证明 v39 确实建了这张表」的用例——不先 DROP，表是建库时留下的，
+ *   "重放建回"就是句空话（同 `revertV29` 注释里第 2 条的道理）。
+ * ★ 索引随 `DROP TABLE` 一并消失（SQLite 会连带删掉该表上的索引），无需单独 DROP INDEX。
+ */
+function revertV39(db: ReturnType<typeof openIsolated>): void {
+  db.exec(`DROP TABLE IF EXISTS platform_usage`);
+}
+
 describe('storage/db — 版本化迁移（逐语句，根除 v1 大模板 TS1434 坑）', () => {
   it('建表齐全 + schema_version 记录 + 幂等（重复打开不动）', () => {
     const dir = tmp();
@@ -1524,6 +1537,63 @@ describe('storage/db — v37 全站搜索索引（fts5 虚表）', () => {
 
     const up = openIsolated(dir);
     expect(tablesOf(up)).toContain('search_index');
+    up.close();
+  });
+});
+
+/**
+ * v39（2026-09-21，老板拍板「默认零配置 + 每 5 小时 250 次」）：平台通道的**调用次数**用量表。
+ *
+ * ★ 为什么必须落库而不是进程内 `Map`：次数配额是**滚动窗口内的累计量**，而本仓部署很频繁
+ *   （09-20 一天重启 4 次）——放进程内，每次部署都把用户的额度洗回 250，配额形同虚设。
+ *   行为断言在 `llm/platform-quota.test.ts`，本组只钉**表结构**（它才是迁移的责任）。
+ */
+describe('storage/db — v39 平台用量表（platform_usage）', () => {
+  const tablesOf = (db: ReturnType<typeof openIsolated>): string[] =>
+    (db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as Array<{ name: string }>).map(
+      (r) => r.name,
+    );
+
+  it('新库有 platform_usage 表与 (owner_id, ts) 索引（窗口查询全靠它）', () => {
+    const db = openIsolated(tmp());
+    expect(tablesOf(db)).toContain('platform_usage');
+    const idx = db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='platform_usage'`)
+      .all() as Array<{ name: string }>;
+    expect(idx.map((r) => r.name)).toContain('idx_platform_usage_owner_ts');
+    db.close();
+  });
+
+  it('★ owner_id 是 NOT NULL：计数必须落在**某个具体的人**身上', () => {
+    const db = openIsolated(tmp());
+    // 平台 provider 的 owner 恒为 NULL；若这张表允许 NULL，就会退化成"所有免费用户
+    // 共享同一份额度"（`upstream-gate.ts` 内层分桶那个坑的姊妹版）⇒ 由约束挡住。
+    expect(() => db.prepare('INSERT INTO platform_usage (owner_id, ts) VALUES (NULL, 1)').run()).toThrow();
+    db.close();
+  });
+
+  it('ts 存 unix 毫秒整数：窗口比较不受时区影响（`coach_messages` 那个 UTC 文本坑）', () => {
+    const db = openIsolated(tmp());
+    db.prepare('INSERT INTO platform_usage (owner_id, ts) VALUES (?, ?)').run('u1', 1_700_000_000_000);
+    const row = db.prepare('SELECT ts FROM platform_usage WHERE owner_id = ?').get('u1') as { ts: number };
+    expect(row.ts).toBe(1_700_000_000_000);
+    expect(typeof row.ts).toBe('number');
+    db.close();
+  });
+
+  it('★ 退到 v38 重放：表真的被 v39 建回来（先 DROP 才有意义）', () => {
+    const dir = tmp();
+    const old = openIsolated(dir);
+    revertV39(old);
+    old.prepare('DELETE FROM schema_version WHERE version > 38').run();
+    expect(tablesOf(old)).not.toContain('platform_usage'); // ★ 退干净了，下面的"建回"才成立
+    old.close();
+
+    const up = openIsolated(dir);
+    expect(tablesOf(up)).toContain('platform_usage');
+    expect(
+      (up.prepare(`SELECT MAX(version) AS v FROM schema_version`).get() as { v: number }).v,
+    ).toBe(HEAD_VERSION);
     up.close();
   });
 });

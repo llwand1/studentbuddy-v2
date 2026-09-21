@@ -55,6 +55,8 @@
  *   契约明说「结构可以先落、外层留 config」。
  */
 import type { ChatRequest, LLMAdapter, UpstreamPurpose, UpstreamQuota } from './types.js';
+// v39（2026-09-21）：平台通道的**次数**配额。与下面的两层**并发**闸门是两件事，都要在。
+import { DB_PLATFORM_METER, type PlatformMeter } from './platform-quota.js';
 
 /** 内层：**每个用户**在每个上游同时允许的在飞请求数。2 = 两路对话可并行，且不放开限流意图。 */
 export const UPSTREAM_MAX_CONCURRENT = 2;
@@ -73,6 +75,21 @@ const QUEUE_ABORT_MESSAGE = '已停止';
 
 /** 缺省配额 = 未登录的**平台**通道（失败安全侧：宁可多限一个匿名请求，也不放跑一笔平台开销）。 */
 const DEFAULT_QUOTA: UpstreamQuota = { ownerId: null, platform: true };
+
+/**
+ * 次数配额的**计量器**（v39）。默认落库。
+ *
+ * ★ 默认取落库实现 = **fail-closed**：某条新路径万一忘了显式装计量器，代价是"照常计量"；
+ *   反过来（默认 NOOP）的代价是"配额静默失效"——正是本文件反复强调要消灭的那类 bug。
+ * ★ 可替换的唯一动机是**测试**：`upstream-gate.test.ts` 是纯逻辑用例，绝不能开真库
+ *   （理由与后果见 `platform-quota.ts` 的 `PlatformMeter`）。
+ */
+let meter: PlatformMeter = DB_PLATFORM_METER;
+
+/** 换计量器（**仅测试用**）。传 `null` 复原成落库实现。 */
+export function setPlatformMeter(next: PlatformMeter | null): void {
+  meter = next ?? DB_PLATFORM_METER;
+}
 
 /** 读正整数环境变量；非法/缺省回落到 `fallback`（不抛——启动期不该因为一个错字起不来）。 */
 function readPositiveInt(raw: string | undefined, fallback: number): number {
@@ -221,6 +238,24 @@ export async function acquireUpstream(
   quota?: UpstreamQuota,
 ): Promise<() => void> {
   const q = quota ?? DEFAULT_QUOTA;
+
+  // ★ v39（2026-09-21）**次数**配额：平台通道每用户每 5 小时 250 次上游调用。
+  //   与下面两层闸门的**并发**配额是两件不同的事，必须同时存在：
+  //   · 并发闸门管「同一时刻有几路」——防上游被打挂、防用户之间互相排队；
+  //   · 次数配额管「窗口内总共几笔」——防**成本**（平台出钱，这是唯一的成本闸）。
+  //   只做并发 ⇒ 一个用户可以慢慢刷一整天，成本无上限。
+  //
+  //   三态（与 `routeRole` 的归属口径严格对齐，写反了就是静默放跑平台开销）：
+  //   · `platform && ownerId !== null` ⇒ **计数**（线上登录用户走免费通道）；
+  //   · `platform && ownerId === null` ⇒ **不计数**（本地单人模式，老板自己用；线上未登录到不了这层）；
+  //   · `!platform` ⇒ **不计数**（BYOK，用户自己付钱，§8.1.3.2）。
+  //   ★ 这里**必须**用 `ownerId`（请求者）而不是 provider 的 owner——平台 provider 的 owner
+  //     恒为 NULL，用它当键会让所有免费用户共享同一份额度（同 `innerKey` 那个坑的姊妹版）。
+  const meteredOwner = q.platform && q.ownerId !== null ? q.ownerId : null;
+
+  // 断言放在**拿槽之前**：额度用完的请求不该占着并发桶，否则会把正常用户挡在门外。
+  if (meteredOwner !== null) meter.assert(meteredOwner);
+
   const releaseInner = await gateFor(innerGates, innerKey(baseUrl, q.ownerId), UPSTREAM_MAX_CONCURRENT).acquire(
     purpose,
     signal,
@@ -233,6 +268,9 @@ export async function acquireUpstream(
       UPSTREAM_SITE_MAX_CONCURRENT,
       UPSTREAM_SITE_QUEUE_MAX,
     ).acquire(purpose, signal);
+    // ★ 两层槽都拿到 ⇒ 这笔请求**必然发出**，此刻才记一笔。
+    //   被闸门拒绝的（外层队列满 / 排队中被停止）走 catch，**不计数**——用户没得到服务，不该扣次数。
+    if (meteredOwner !== null) meter.record(meteredOwner);
     return () => {
       releaseOuter();
       releaseInner();

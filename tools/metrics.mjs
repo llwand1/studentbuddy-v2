@@ -273,6 +273,50 @@ function readmeDrift(m) {
   return claims.filter((c) => c.claimed !== null);
 }
 
+/**
+ * `Landing.tsx` 首屏那四个统计数字 vs 实测：漂移即报。
+ *
+ * 为什么单列一条：README 徽章与正文有 `readmeDrift` 守着，而**首屏数字此前没有任何东西守着**
+ * （`Landing.tsx` 自己的注释就写着「这里没有」）—— 它已经漂移过一次
+ * （`2300+ 自动化测试` / `140 个 REST 接口` → `2600+` / `149`）。
+ * **精确的旧值比模糊表述更危险**：它看起来像真的，而首屏是访客第一眼看到的地方。
+ *
+ * 两条口径不同，别混：
+ *   - **精确档**（`6 个运行时依赖` / `149 个 REST 接口` / `0 个第三方 UI 库`）：与实测**逐字相等**。
+ *   - **模糊档**（`2600+ 自动化测试`）：语义是「**至少** N」⇒ 只要求实测落在 `[N, N+100)`；
+ *     涨到下一档就该更新文案，掉下来则说明这个数字吹了。
+ */
+function landingDrift(m) {
+  const p = path.join(ROOT, 'packages/web/src/app/Landing.tsx');
+  if (!fs.existsSync(p)) return [];
+  const block = /<div className="landing-stats"[^>]*>([\s\S]*?)<\/div>/.exec(fs.readFileSync(p, 'utf8'));
+  if (!block) return [{ label: '首屏统计块', claimed: 'landing-stats', measured: '(未找到)', ok: false }];
+  const claims = [];
+  for (const span of [...block[1].matchAll(/<span>([^<]+)<\/span>/g)].map((x) => x[1].trim())) {
+    let g;
+    if ((g = /^(\d+)\+ 自动化测试$/.exec(span))) {
+      const low = Number(g[1]);
+      claims.push({
+        label: '首屏 自动化测试（模糊档）',
+        claimed: `${low}+`,
+        measured: m.tests.available ? String(m.tests.cases) : '(未测)',
+        ok: m.tests.available && m.tests.cases >= low && m.tests.cases < low + 100,
+      });
+    } else if ((g = /^(\d+) 个运行时依赖$/.exec(span))) {
+      claims.push({ label: '首屏 运行时依赖', claimed: g[1], measured: String(m.deps.externalRuntime.length), ok: g[1] === String(m.deps.externalRuntime.length) });
+    } else if ((g = /^(\d+) 个 REST 接口$/.exec(span))) {
+      claims.push({ label: '首屏 REST 接口', claimed: g[1], measured: String(m.routes.total), ok: g[1] === String(m.routes.total) });
+    } else if ((g = /^(\d+) 个第三方 UI 库$/.exec(span))) {
+      const wdeps = JSON.parse(fs.readFileSync(path.join(ROOT, 'packages/web/package.json'), 'utf8')).dependencies ?? {};
+      const thirdPartyUi = Object.keys(wdeps).filter((d) => d !== 'react' && d !== 'react-dom' && !d.startsWith('@sb/')).length;
+      claims.push({ label: '首屏 第三方 UI 库', claimed: g[1], measured: String(thirdPartyUi), ok: g[1] === String(thirdPartyUi) });
+    } else {
+      claims.push({ label: '首屏 未识别项', claimed: span, measured: '(无对应实测口径)', ok: false });
+    }
+  }
+  return claims;
+}
+
 function table(m) {
   const L = [];
   const pad = (s, n) => String(s).padEnd(n);
@@ -352,6 +396,7 @@ const m = {
 m.tests = testRun();
 m.coverage = coverage();
 m.readmeDrift = readmeDrift(m);
+m.landingDrift = landingDrift(m);
 
 const body = table(m);
 fs.writeFileSync(path.join(ROOT, 'docs', 'metrics.json'), JSON.stringify(m, null, 2) + '\n');
@@ -367,4 +412,15 @@ if (m.readmeDrift.length) {
 }
 if (drift.length) console.log(`\n✗ README 有 ${drift.length} 处数字与实测不符`);
 else console.log('\n✓ README 可核对数字与实测一致');
-if (argv.has('--check') && drift.length) process.exitCode = 1;
+
+// ★ 首屏（Landing.tsx）那四个数字：此前没有任何东西守着，它已经漂移过一次
+const landingBad = m.landingDrift.filter((c) => !c.ok);
+if (m.landingDrift.length) {
+  console.log('\n## 首屏（Landing.tsx）统计数字对账');
+  for (const c of m.landingDrift) {
+    console.log(`| ${c.ok ? '✅' : '❌'} | ${c.label} | 首屏: ${c.claimed} | 实测: ${c.measured} |`);
+  }
+}
+if (landingBad.length) console.log(`\n✗ 首屏有 ${landingBad.length} 处数字与实测不符`);
+else console.log('\n✓ 首屏可核对数字与实测一致');
+if (argv.has('--check') && (drift.length || landingBad.length)) process.exitCode = 1;

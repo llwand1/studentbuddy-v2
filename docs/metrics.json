@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T07:03:40.117Z",
+  "generatedAt": "2026-09-21T09:38:59.233Z",
   "code": {
     "rows": [
       {
@@ -13,21 +13,21 @@
         "pkg": "server",
         "srcFiles": 157,
         "testFiles": 113,
-        "srcLines": 25580,
-        "testLines": 24372
+        "srcLines": 25628,
+        "testLines": 24514
       },
       {
         "pkg": "web",
         "srcFiles": 176,
         "testFiles": 62,
-        "srcLines": 22214,
+        "srcLines": 22215,
         "testLines": 8410
       }
     ],
     "srcFiles": 362,
     "testFiles": 192,
-    "srcLines": 52091,
-    "testLines": 34969,
+    "srcLines": 52140,
+    "testLines": 35111,
     "tsxTestFiles": 21
   },
   "routes": {
@@ -86,16 +86,16 @@
     "probes": 15
   },
   "repo": {
-    "head": "03376b3",
+    "head": "aa2d37f",
     "headDate": "2026-09-21",
-    "commitsLast14d": 132,
+    "commitsLast14d": 134,
     "branch": "main",
-    "dirtyFiles": 8
+    "dirtyFiles": 18
   },
   "tests": {
     "available": true,
-    "ranNow": true,
-    "wallSec": 42.9,
+    "ranNow": false,
+    "wallSec": 0,
     "staleDays": 0,
     "files": 192,
     "cases": 2653,
@@ -181,6 +181,32 @@
       "label": "正文基线句",
       "claimed": "192 文件 / 2653 例",
       "measured": "192 文件 / 2653 例",
+      "ok": true
+    }
+  ],
+  "landingDrift": [
+    {
+      "label": "首屏 自动化测试（模糊档）",
+      "claimed": "2600+",
+      "measured": "2653",
+      "ok": true
+    },
+    {
+      "label": "首屏 运行时依赖",
+      "claimed": "6",
+      "measured": "6",
+      "ok": true
+    },
+    {
+      "label": "首屏 REST 接口",
+      "claimed": "149",
+      "measured": "149",
+      "ok": true
+    },
+    {
+      "label": "首屏 第三方 UI 库",
+      "claimed": "0",
+      "measured": "0",
       "ok": true
     }
   ]

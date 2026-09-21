@@ -14,7 +14,7 @@
  *   在**免费通道配好 key 之前**在界面上是**看不见**的；一旦 key 配好（且上游实现了 `/models`），
  *   同一行会自动变成下拉。A5 用一个**本地假上游**（实现了 `/models`）证明"配好了就真有下拉"。
  *
- * 验什么（11 条，任一失败 EXIT=1）：
+ * 验什么（16 条，任一失败 EXIT=1）：
  *   A1  应用壳渲染出来了（不是落地页）——侧栏有「设置」导航项
  *   A2  「免费通道 · 一键默认设置」卡在场
  *   A3  卡上按钮文案 = 「一键默认设置」且可点
@@ -23,9 +23,18 @@
  *   A6  「（用默认模型）」这个选项在场（留空＝走 env/常量回落，是合法状态不是"没填"）
  *   A7  ★★ 绑到**平台通道**的行**没有**下拉、是输入框（＝免费通道未配 key 时的真实观感，见文件头）
  *   A8  ★ 反向不变量：**没有**任何 `.settings-model-input` 手填框（空模型不许被当成「自定义…」）
- *   A9  点「一键默认设置」⇒ 提示「已一键配好 8 个角色」，且按钮**复位解禁**（不是只能点一次）
+ *   A9-0  ★★ 首屏点一下**只进确认态**（出现「确认覆盖」+「取消」），且**没有**发出配置
+ *   A9-0b ★ 代价说明点名后果（覆盖 / 模型名 / 8 个角色）
+ *   A9-0c ★★ **取消干净回退**且**没有任何成功提示**（二次确认存在的全部意义）
+ *   A9-0d 取消之后还能再进确认态（不是一次性状态）
+ *   A9   点「确认覆盖」⇒ 提示「已一键配好 8 个角色」，且按钮**复位解禁**（不是只能点一次）
+ *   A9c-b ★ 成功后确认态收干净（确认键与代价说明都消失）
  *   A10 ★ 覆盖语义实证：点之前某角色绑的是"假上游 + 指定模型"，点之后被重置为"平台 + 留空"
  *   A11 ★ 反向不变量：卡上**没有任何**「显示/复制密钥」入口（老板：key 用户不可见、也取不到）
+ *
+ * ★★ **2026-09-21 起按钮是两段式的**（老板拍板「一键默认加二次确认」）：单击只进确认态、
+ *   点「确认覆盖」才真动手 ⇒ 本探针的 A9 段必须走完整流程。若发现 A9b/A9d 红而 A9-0 绿，
+ *   先怀疑**探针自己**还在按旧的单击语义写，别急着判产品坏了。
  *
  * ★ 副作用声明（**只对隔离实例**）：本探针会**真的写库**（建 1 个 provider、改 1 条 role_binding、
  *   点一次一键默认设置），故 `SB_DATA_DIR` 指向 `mkdtemp` 出来的临时目录，**绝不碰真实库**；
@@ -289,12 +298,62 @@ check('A8b ★ 反向：下拉没有显示成「自定义…」', customSelected
 
 await shot('settings-before');
 
-// ── A9 点一键默认设置 ────────────────────────────────────────────────────────
-await evalJs(`(() => {
-  const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '一键默认设置');
-  if (b) b.click();
-  return true;
-})()`);
+// ── A9 点一键默认设置（★ 2026-09-21 起是**两段式**：首屏那枚只进确认态，确认键才真动手）──
+// ★★ 探针必须跟着改：本批给按钮加了二次确认 ⇒ 「一键默认设置」**单击不再触发配置**。
+//   若探针还按单击写，A9b/A9d 会红——那是**探针过时**，不是产品坏了（同型先例见文件头：
+//   「探针的错要自己认，不能记到产品头上」）。故本段改成完整走一遍真机确认流程：
+//   首屏 → 确认态 → **取消（不许配）** → 再进确认态 → 确认（才配）。
+const clickBtn = (text) =>
+  evalJs(`(() => {
+    const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === ${JSON.stringify(text)});
+    if (b) b.click();
+    return !!b;
+  })()`);
+
+const readCard = () =>
+  evalJs(`(() => {
+    const idle = [...document.querySelectorAll('button')].some((x) => x.textContent.trim() === '一键默认设置');
+    const ok = [...document.querySelectorAll('button')].some((x) => x.textContent.trim() === '确认覆盖');
+    const cancel = [...document.querySelectorAll('button')].some((x) => x.textContent.trim() === '取消');
+    return JSON.stringify({ idle, ok, cancel,
+      warn: document.querySelector('.settings-hint.warn')?.textContent?.trim() ?? '',
+      flash: document.querySelector('.settings-msg')?.textContent?.trim() ?? '' });
+  })()`);
+
+/** 轮询直到 `pred(read)` 为真（或超时），返回最后那次读数。 */
+const until = async (pred, ms = 5_000) => {
+  const end = Date.now() + ms;
+  let last = null;
+  while (Date.now() < end) {
+    last = JSON.parse((await readCard()) ?? '{}');
+    if (pred(last)) return last;
+    await sleep(60);
+  }
+  return last;
+};
+
+await clickBtn('一键默认设置');
+const confirmState = await until((o) => o.ok === true);
+check('A9-0 ★★ 首屏点一下只进确认态：出现「确认覆盖」+「取消」，且**没有**发出配置（无成功提示）',
+  !!confirmState && confirmState.cancel === true && !/已一键配好/.test(confirmState.flash ?? ''),
+  confirmState ? `确认键=${confirmState.ok} 取消键=${confirmState.cancel} flash="${confirmState.flash}"` : '确认态未出现');
+check('A9-0b ★ 代价说明点名后果（覆盖 / 模型名 / 8 个角色）',
+  !!confirmState && /覆盖/.test(confirmState.warn) && /模型名/.test(confirmState.warn) && /8 个角色/.test(confirmState.warn),
+  confirmState?.warn || '未找到 .settings-hint.warn');
+
+// ★★ A9-0c：**取消必须真的什么都不做**。这是二次确认存在的全部意义——
+//    若取消也会配（或取消后残留确认态），用户会以为"点了取消但还是改了"，比不加确认更糟。
+await clickBtn('取消');
+const afterCancel = await until((o) => o.idle === true && o.ok === false);
+check('A9-0c ★★ 取消干净回退：回「一键默认设置」、确认键与代价说明消失、**没有任何成功提示**',
+  !!afterCancel && afterCancel.ok === false && !/已一键配好/.test(afterCancel.flash ?? '') && afterCancel.warn === '',
+  JSON.stringify(afterCancel));
+
+await clickBtn('一键默认设置');
+const reConfirm = await until((o) => o.ok === true);
+check('A9-0d 取消之后还能再进确认态（不是一次性状态）', !!reConfirm && reConfirm.ok === true, JSON.stringify(reConfirm));
+
+await clickBtn('确认覆盖');
 // 「在途态」按 §5：操作可能比采样还快 ⇒ 同时看"结果出没出"，采不到就 SKIP 而不是判 FAIL
 let busySeen = null;
 const done = await (async () => {
@@ -318,11 +377,16 @@ check('A9b 提示文案报出配好的角色数', !!done && /已一键配好 8 �
 const after = await evalJs(`(() => {
   const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '一键默认设置');
   return JSON.stringify({ t: b ? b.textContent.trim() : null, d: b ? !!b.disabled : null,
+    confirmLeft: [...document.querySelectorAll('button')].some((x) => x.textContent.trim() === '确认覆盖'),
+    warn: document.querySelector('.settings-hint.warn')?.textContent?.trim() ?? '',
     selects: document.querySelectorAll('select.settings-model-select').length,
     inputs: document.querySelectorAll('input[placeholder="模型名（没拉到候选列表，可手填）"]').length });
 })()`);
 const a = after ? JSON.parse(after) : null;
 check('A9c ★ 按钮复位解禁（不是只能点一次）', !!a && a.t === '一键默认设置' && a.d === false, JSON.stringify(a));
+// ★ 成功之后确认态必须收干净：留着「确认覆盖」或那句代价说明，用户会以为"还没配完"
+check('A9c-b ★ 成功后确认态收干净（确认键与代价说明都消失）',
+  !!a && a.confirmLeft === false && a.warn === '', JSON.stringify({ confirmLeft: a?.confirmLeft, warn: a?.warn }));
 check('A9d 8 行全部改绑平台通道（下拉消失 ⇒ 全变输入框）', !!a && a.selects === 0 && a.inputs === 8, JSON.stringify(a));
 
 // ── A10 覆盖语义实证 + 真落库 ────────────────────────────────────────────────

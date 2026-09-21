@@ -13,6 +13,9 @@
  *    是**刻意没有**（老板原话：「一键配置后 key 是用户不可见的，也无法通过其他手段获取」）。
  * ② **额度要看得见**：每 5 小时 250 次是**滚动窗口**，用户看不到剩余量就只能靠撞墙发现。
  * ③ **用完有出路**：超限不是死路——上方「服务商」一节就是 BYOK 通道，文案要指过去。
+ * ④ **覆盖要问一声**（2026-09-21 老板拍板加）：这个按钮会**覆盖用户已有的 8 行绑定**
+ *    （含自填模型名），而它偏偏是**新用户第一眼就会点的实心主色按钮**。故做成两段式：
+ *    首屏只进确认态、确认键才真动手，且代价说明用 `role="alert"` 念出来。
  */
 import { useEffect, useState } from 'react';
 import type { PlatformQuotaState } from '@sb/shared';
@@ -41,6 +44,20 @@ export function PlatformChannelCard({
   const [quota, setQuota] = useState<(PlatformQuotaState & { limited: boolean }) | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  /**
+   * ★ 二次确认态（2026-09-21 老板拍板加）。
+   *
+   * 为什么必须有：这个动作**会覆盖用户已有的 8 行绑定**——含他自己手填的模型名，
+   * `ON CONFLICT DO UPDATE` 把 `model` 一并清空。而它是个**实心主色大按钮**，
+   * 落在「免费通道」这张卡里，是**新用户第一眼就会点**的那个。没有确认，
+   * 一个已经精细调过 8 个角色的老用户误点一下，配置就没了。
+   *
+   * ★ 用**两段式按钮**而不是 `window.confirm`：本仓已有先例（`terms/DomainBar.tsx` 的
+   *   两段式删除，理由写在那个文件头注里）——原生弹窗在本地 Web 里观感割裂。
+   * ★ 状态放在本组件内、不进 `SettingsView`：确认态是**这个按钮自己的**瞬时 UI 状态，
+   *   提上去只会让父组件多一个与它无关的 state。
+   */
+  const [confirming, setConfirming] = useState(false);
 
   const loadQuota = async () => {
     try {
@@ -57,6 +74,11 @@ export function PlatformChannelCard({
     void loadQuota();
   }, []);
 
+  /**
+   * ★ 只由**确认键**调用（首屏那枚「一键默认设置」只负责进入确认态）。
+   * 无论成败都退回初始态：失败时让用户**重新读一遍那句后果**再决定要不要重试，
+   * 而不是停在一个"再点一下就生效"的确认态上（那时他已经忘了这按钮会覆盖什么）。
+   */
   const oneClick = async () => {
     setBusy(true);
     try {
@@ -68,6 +90,7 @@ export function PlatformChannelCard({
       flash(false, e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
+      setConfirming(false);
     }
   };
 
@@ -93,11 +116,31 @@ export function PlatformChannelCard({
       </p>
 
       <div className="settings-actions">
-        <button className="settings-add" disabled={busy || loading} onClick={() => void oneClick()}>
-          {busy ? '配置中…' : '一键默认设置'}
-        </button>
+        {confirming ? (
+          <>
+            <button className="settings-add danger" disabled={busy} onClick={() => void oneClick()}>
+              {busy ? '配置中…' : '确认覆盖'}
+            </button>
+            <button className="settings-cancel" disabled={busy} onClick={() => setConfirming(false)}>
+              取消
+            </button>
+          </>
+        ) : (
+          <button className="settings-add" disabled={busy || loading} onClick={() => setConfirming(true)}>
+            一键默认设置
+          </button>
+        )}
         <span className="settings-state">{state}</span>
       </div>
+
+      {confirming && (
+        // `role="alert"`：这句是**代价说明**，不是补充阅读材料。它出现的那一刻必须被读屏念出来
+        // ——确认态本身没有任何别的视觉位移（按钮原地换了文案），不念出来等于确认了个寂寞。
+        <p className="settings-hint warn" role="alert">
+          ⚠ 这一步会<b>覆盖你现有的 8 个角色绑定</b>——包括你自填的模型名，一律改回免费通道的默认模型
+          （<b>agnes-2.5-flash</b>）。想保留某个角色的自选模型，先取消，改完再逐行调。确定继续吗？
+        </p>
+      )}
     </section>
   );
 }

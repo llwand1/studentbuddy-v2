@@ -69,6 +69,22 @@
 .settings-add:hover:not(:disabled) { opacity: 0.88; }
 .settings-add:disabled { background: var(--sb-ink-tertiary); cursor: not-allowed; }
 
+/* ★ 一键默认设置的**二次确认**（2026-09-21 老板拍板加）：这个动作会覆盖用户已有的 8 行绑定
+   （含自填模型名），是不可逆的 ⇒ 确认键走危险色实心、取消键走中性描边。
+   ★ 与 `terms/DomainBar.tsx` 的两段式删除同一范式，不用 `window.confirm`（原生弹窗在本地
+   Web 里观感割裂，本仓已在那个文件里说明过）。★ 只改配色，不动 `.settings-add` 的尺寸，
+   免得确认态出现时按钮"长大/缩小"一下、把旁边的额度文案顶走。 */
+.settings-add.danger { background: var(--sb-danger); }
+.settings-cancel {
+  padding: var(--sb-sp-1) var(--sb-sp-3);
+  border-radius: var(--sb-radius-sm);
+  border: 1px solid var(--sb-line);
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+.settings-cancel:hover:not(:disabled) { background: var(--sb-bg); }
+.settings-cancel:disabled { color: var(--sb-ink-tertiary); cursor: not-allowed; }
+
 .settings-del {
   color: var(--sb-danger);
   font-size: var(--sb-fs-sm);

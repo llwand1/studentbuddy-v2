@@ -23,10 +23,28 @@
   align-items: center;
   gap: 10px;
 }
+/* 名字 + 副标题两行：文案与产品侧栏 logo 同源（`lib/brand.ts`），尺寸按门面的语境放大
+   （产品侧栏是 14px/700 + 10px，这里是 20px/700 + 12.5px——同一块牌子，两个场合） */
+.landing-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
 .landing-brand-name {
-  font-weight: 600;
-  font-size: 15px;
-  letter-spacing: 0.2px;
+  font-weight: 700;
+  font-size: var(--sb-fs-xl, 20px);
+  letter-spacing: -0.1px;
+  line-height: 1.25;
+}
+.landing-brand-tag {
+  /* ★ 这一行在打字开始前是**空的**（副标题还没轮到），若不给 min-height，
+     它出现的那一刻顶栏会长高一次、把下面整页往下推——同双屏节那条换帧跳版的教训。
+     行高与 min-height 一起定死，保证「空着」和「打完」占的是同一块地方。 */
+  min-height: 17px;
+  font-size: var(--sb-fs-sm, 12.5px);
+  line-height: 17px;
+  color: var(--sb-ink-tertiary, #9aa1b0);
+  letter-spacing: 0.5px;
 }
 .landing-ghost {
   border: 1px solid var(--sb-border, #e5e5ea);

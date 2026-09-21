@@ -26,7 +26,7 @@ import { useEffect, useState } from 'react';
 import type { AuthProviders, AuthUser } from '@sb/shared';
 import { AccountBox } from '../components/AccountBox';
 import { GithubLoginButton } from '../components/GithubLoginButton';
-import { Mascot } from '../features/chat/Mascot';
+import { LandingBrand } from './LandingBrand';
 import { LandingDemo } from './demo/LandingDemo';
 import { TermJourney } from './TermJourney';
 import { PkJourney } from './PkJourney';
@@ -102,10 +102,7 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
   return (
     <div className="landing">
       <header className="landing-top">
-        <span className="landing-brand">
-          <Mascot />
-          <span className="landing-brand-name">studentbuddy</span>
-        </span>
+        <LandingBrand />
         <div className="landing-top-right">
           <a className="landing-ghost landing-gh" href="https://github.com/llwand1/studentbuddy-v2" target="_blank" rel="noreferrer noopener">
             GitHub

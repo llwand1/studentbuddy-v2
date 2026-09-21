@@ -30,6 +30,7 @@ import { TermIndexProvider } from '../features/chat/term-index';
 import { GlobalSearch } from '../features/search/GlobalSearch';
 import { useActiveSessions } from '../features/chat/useActiveSessions';
 import { Mascot } from '../features/chat/Mascot';
+import { BRAND_NAME, BRAND_TAGLINE } from '../lib/brand';
 import { SettingsView } from '../features/settings/SettingsView';
 import { QuizBankPage } from '../features/quiz/QuizBankPage';
 import { NotesPage } from '../features/notes/NotesPage';
@@ -184,7 +185,8 @@ export function App() {
         <button className="sb-logo" title="studentbuddy" onClick={() => setView('chat')}>
           <Mascot />
           <span className="sb-logo-name">
-            studentbuddy<small>你的专属学习助手</small>
+            {BRAND_NAME}
+            <small>{BRAND_TAGLINE}</small>
           </span>
         </button>
 

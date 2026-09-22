@@ -28,6 +28,7 @@ import {
 } from '../auth/github.js';
 import { createSession } from '../auth/session.js';
 import { deployForm } from '../auth/form.js';
+import { demoLoginEnabled } from '../auth/demo.js';
 import { readCookie, sessionCookieOptions, setSessionCookie } from '../auth/middleware.js';
 
 export const githubAuthRouter = Router();
@@ -93,7 +94,7 @@ function queryStr(v: unknown): string | null {
  * ★ 端点职责从「GitHub 探针」扩为「auth 面信息」，路径不变——前端已按它发探针，扩字段零迁移。
  */
 githubAuthRouter.get('/providers', (_req: Request, res: Response) => {
-  res.json({ providers: { github: githubConfigured() }, form: deployForm() });
+  res.json({ providers: { github: githubConfigured(), demo: demoLoginEnabled() }, form: deployForm() });
 });
 
 /** 发 state + 跳 GitHub 授权页。 */

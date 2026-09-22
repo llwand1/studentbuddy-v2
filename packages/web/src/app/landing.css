@@ -118,6 +118,18 @@
   color: var(--sb-text-secondary, #6e6e73);
 }
 
+/* 公用体验账号行（契约 AUTH-SPEC §2.10）：按钮 + 警示语竖排，警示语必须读得到 */
+.landing-demo-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 12px;
+}
+.landing-demo-error {
+  color: var(--sb-danger, #ef4444);
+}
+
 /* 注册/登录卡（复用 AccountBox 的 sb-user-form 样式，这里只管容器） */
 .landing-auth-card {
   max-width: 340px;
@@ -717,3 +729,272 @@
     max-width: none;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   2026-09-22 落地页重排批：产品整体介绍（`.landing-intro`）+ 功能区（`.landing-zone`）
+   ────────────────────────────────────────────────────────────────────
+   ★ 这两块在 **DOM 顺序**上必须是「介绍在前、功能在后」（`Landing.tsx` 头注的硬约束，
+     由 `Landing.test.tsx` 机器锁）。CSS 里**刻意不给两者设不同的 z-index / 定位**，
+     免得将来有人把功能区提上来"视觉在前"——那跟调整 DOM 顺序是同一个后果，
+     却绕开了那条断言。视觉上的层次只由间距与底色表达。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── 产品整体介绍 ── */
+.landing-intro {
+  margin-top: 72px;
+}
+.landing-intro-eyebrow {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sb-primary, #007aff);
+  margin: 0 0 10px;
+}
+.landing-intro-h2 {
+  /* 与 `.landing-h2` 同源，只压一号——它是整页第一个二级标题，
+     字号若与功能区标题同大，"谁是开头"这件事就模糊了 */
+  font-size: 26px;
+}
+.landing-intro-def {
+  /* ★ 这一句是整页唯一的定义句，故给它最大的阅读宽度与行高：
+     它被 skim 掉就等于这一整段白写。左右各留 -64px 让它比正文宽一点，
+     视觉上独立于后面的卡片群。 */
+  max-width: 640px;
+  margin: 0 auto 30px;
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--sb-text-secondary, #6e6e73);
+  text-align: center;
+}
+.landing-intro-def strong {
+  color: var(--sb-text, #1d1d1f);
+  font-weight: 600;
+}
+
+/* 「词条是主体」块：整页唯一一块浅底色，用来把读者的眼睛钉在正文正中 */
+.landing-spine {
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 16px;
+  padding: 26px 28px 22px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+}
+.landing-spine-head {
+  margin-bottom: 20px;
+}
+.landing-intro-h3 {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.landing-intro-h3 strong {
+  color: var(--sb-primary, #007aff);
+}
+.landing-intro-lead {
+  text-align: center;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--sb-text-secondary, #6e6e73);
+  margin: 0;
+}
+.landing-spine-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px 22px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: spine;
+}
+.landing-spine-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 10px;
+  background: var(--sb-bg, #fafafa);
+}
+/* 覆盖 `.landing-feature-icon` 的 `margin-bottom`：这里是横排，图标要跟文字基线对齐
+   （同一套类名在两个地方用，垂直/水平是唯一差别——这也是该样式只设 color、不设排版的由来） */
+.landing-spine-icon {
+  margin-bottom: 0;
+  flex: none;
+  margin-top: 1px;
+}
+.landing-spine-text {
+  min-width: 0;
+}
+
+/* 三句话说清：T3 版式的标准件——演示已开道，文字只补三件最小必要的事 */
+.landing-intro-three {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 26px;
+}
+.landing-intro-card {
+  padding: 16px 18px;
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 12px;
+  background: var(--sb-bg, #fafafa);
+}
+.landing-intro-q {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--sb-primary, #007aff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  background: var(--sb-surface, #fff);
+  border-radius: 6px;
+  padding: 2px 8px;
+  margin-bottom: 10px;
+}
+
+/* 信任标签条：一行扫完，不占正文位置 */
+.landing-intro-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+}
+.landing-intro-tags li {
+  font-size: 12px;
+  color: var(--sb-text-secondary, #6e6e73);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  background: var(--sb-surface, #fff);
+  border-radius: 999px;
+  padding: 4px 14px;
+}
+
+/* 「词条是主体」独立成段之后，它不再与「它是什么」共用一个 section：
+   段间距刻意小于 `.landing-intro` 的 72px（那是 hero 与首个介绍段之间的距离）——
+   两段若隔得一样开，看上去就是两个各自成立的章节，读不出「讲完是什么 → 接着讲靠什么运转」的承接。 */
+.landing-intro-term {
+  margin-top: 40px;
+}
+
+/* ── 功能区 ── */
+.landing-zone {
+  margin-top: 84px;
+  padding-top: 44px;
+  border-top: 1px solid var(--sb-border, #e5e5ea);
+}
+.landing-zone-head {
+  margin-bottom: 30px;
+}
+.landing-zone-block {
+  margin-top: 58px;
+}
+.landing-zone-h3 {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+/* ── 一步步动线（2026-09-22 二次点单：功能要「一步步讲」，不是并列九宫格） ──
+   ★ 层级靠**边框虚实**区分，不靠颜色：实线卡片是「第几步」，虚线小卡是「这一步里的入口」。
+     再叠一层颜色就会跟主色抢注意力，而这一屏已经有 9 个图标了。 */
+.landing-walk {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+.landing-walk-step {
+  padding: 18px 20px 16px;
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 14px;
+  background: var(--sb-surface, #fff);
+}
+.landing-walk-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.landing-walk-no {
+  /* 等宽数字：01–05 竖着排下来，非等宽字体会让编号列看着参差 */
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--sb-primary, #007aff);
+  font-variant-numeric: tabular-nums;
+}
+.landing-walk-ring {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sb-primary, #007aff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  background: var(--sb-bg, #fafafa);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+.landing-walk-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+.landing-walk-desc {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--sb-text-secondary, #6e6e73);
+  margin: 0 0 12px;
+}
+.landing-walk-caps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px 16px;
+}
+.landing-walk-cap {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--sb-border, #e5e5ea);
+  border-radius: 10px;
+  background: var(--sb-bg, #fafafa);
+}
+/* 同 `.landing-spine-icon`：横排时图标要跟文字基线对齐，覆盖基类那 8px 下外边距 */
+.landing-walk-cap-icon {
+  margin-bottom: 0;
+  flex: none;
+  margin-top: 1px;
+}
+/* 动线与两屏演示之间的过渡句：它是「骨架 → 例子」的接缝，不是又一个标题 */
+.landing-zone-lead {
+  margin-top: 48px;
+}
+
+/* 窄屏：介绍段的三栏与词条去向的双列都堆成单列 */
+@media (max-width: 880px) {
+  .landing-intro-three {
+    grid-template-columns: 1fr;
+  }
+  /* 动线在窄屏单列：auto-fit 的 240px 下限在 320px 屏上仍会挤出两列，明确降到一列 */
+  .landing-walk-caps {
+    grid-template-columns: 1fr;
+  }
+  .landing-walk-step {
+    padding: 16px;
+  }
+  .landing-spine {
+    padding: 20px 18px 18px;
+  }
+  .landing-zone {
+    margin-top: 64px;
+  }
+}
+

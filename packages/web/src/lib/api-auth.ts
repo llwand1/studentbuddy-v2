@@ -46,5 +46,10 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify({ email, code }),
     }),
+  /**
+   * 公用体验账号登录（契约 §2.10）：零凭证，开关在服务端（`surface().providers.demo`）。
+   * 未开时端点 404——入口按钮不该存在，出现即报错算服务端违约。
+   */
+  demoLogin: () => request<AuthUser>('/api/auth/demo-login', { method: 'POST' }),
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
 };

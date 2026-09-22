@@ -1,102 +1,68 @@
 /**
- * app/Landing — 未登录的**产品落地页**（2026-09-19 上线批；同日扩容批；2026-09-20 hero 重构批）。
+ * app/Landing — 未登录的**产品落地页**（2026-09-19 上线批；09-20 hero 重构批；09-21 双屏批；2026-09-22 重排批）。
  *
- * ★ 本批（2026-09-20 hero 重构）解决老板提的三件事：
- *   ① 「hero 太简陋、没体现项目特色」⇒ hero 从**居中单栏文字**改成**左文案 + 右侧实时演示**双栏，
- *      首屏就能看到产品在动，而不是读一段自我介绍。
- *   ② 「核心功能没说白——词条才是核心」⇒ 新增「一个词条走完一整套学习流程」段（`TermJourney`），
- *      并把原先排在第 2 位的「五环闭环」**降到词条之后**：五环是**结果**，词条才是**机制**
- *      （这五环全都是围绕词条转的），先讲机制再讲全景才不会把重点讲反。
- *   ③ 「要过程式演示动画」⇒ 新 `demo/` 目录（注册表 + 播放器 + 演示视图），全部前端写死，
- *      动画一律 CSS（AGENTS.md「刻意不引库」）。
+ * ★ 本批（2026-09-22 重排）只解决老板提的一件事：**「雷点是先搞了功能介绍，而不是产品介绍」**。
+ *   做法是按 T3「演示开道」版式（Linear/Vercel 一路：hero 轻量 + 演示窗说主话），
+ *   并在 hero 之后**立刻**补一整段产品整体介绍（`LandingIntro`），然后才许进功能区（`LandingFeatures`）。
  *
- * ★ 定位：门面，不是功能页——它回答「这是什么、对我有什么用、怎么开始」，然后才放人进去。
- *   已登录用户（main.tsx 经 /api/auth/me 判定）直接进应用壳，**永远看不到本页**。
+ *   ★★★ **本文件唯一的硬顺序约束**（改任何别的都可以，这条不许松）：
+ *   **`LandingIntro` 必须排在 `LandingFeatures` 之前，且中间不许夹别的 section。**
+ *   它由 `Landing.test.tsx` 的「介绍段排在功能区之前」机器锁住——因为这条顺序塌回去时
+ *   **没有任何东西会报错**：文案不红、只测「文本在不在」的用例全绿、只有读者会觉得这页在自说自话。
+ *   2026-09-22 之前的版本正是如此：hero 一格讲完全部介绍（而且那一格还塞了 4 个 feature 从句），
+ *   从第 3 屏往下全是功能。
  *
- * ★ 注册/登录表单**复用侧栏的 `AccountBox`（standalone 模式）**，不在本页复制一份表单逻辑：
+ * ★ 「词条是主体」落到两个地方，缺一不可（2026-09-22 二次点单后重排）：
+ *   ① hero 的标题本身就是讲词条（「学过的词，会自己留下来」）；
+ *   ② `LandingIntro` 的**第二段**整段专讲「一切都以词条为主体」。
+ *   ★ 它**不出现在第一段的定义句里**：定义句只负责回答"这属于哪一类东西"，
+ *     机制留给紧随其后的词条段——读者还没搞清这是什么时先听一个内部概念，等于没讲。
+ *   ★ 功能区也随之从「并列九宫格」改成**一条编了号的动线**（01 学 → 05 反馈）：
+ *     老板二次点单原话是「接下来的功能一步步讲」。
+ *
+ * ★ 定位不变：门面，不是功能页。已登录用户直接进应用壳，**永远看不到本页**。
+ *
+ * ★ 注册/登录表单复用侧栏的 `AccountBox`（standalone 模式），不在本页复制一份表单逻辑：
  *   两处各写一遍必然漂成两种行为（同 RefList / ReviewPanel 的先例）。两条 CTA 通过 `key` 重挂
  *   切换初始模式——AccountBox 的模式是内部状态，重挂是最直白的传达。
- *   ★ 本批把登录卡从 hero **内部**移到 hero **下方**：hero 变双栏后，卡挤在左栏会把
- *   演示窗顶出首屏，且窄屏堆叠时卡的插入位置会变得不可预期。
  *
- * ★ 视觉纪律（AGENTS.md）：禁 emoji，图标全部用 `components/icons.tsx` 的自绘 line-icon；
- *   配色只取 tokens.css 的既有 token（#007aff 主色 / #fafafa 底），不另起色板。
+ * ★ 视觉纪律（AGENTS.md）：禁 emoji，图标用 `components/icons.tsx` 的自绘 line-icon；
+ *   配色只取 tokens.css 既有 token（#007aff 主色 / #fafafa 底），不另起色板；禁内联 style。
  */
 import { useEffect, useState } from 'react';
 import type { AuthProviders, AuthUser } from '@sb/shared';
 import { AccountBox } from '../components/AccountBox';
+import { DemoLoginButton } from '../components/DemoLoginButton';
 import { GithubLoginButton } from '../components/GithubLoginButton';
 import { LandingBrand } from './LandingBrand';
 import { LandingDemo } from './demo/LandingDemo';
-import { TermJourney } from './TermJourney';
-import { PkJourney } from './PkJourney';
-import {
-  ChatIcon,
-  QuizIcon,
-  StatsIcon,
-  CardsIcon,
-  CheckIcon,
-  FlowIcon,
-  GraphIcon,
-  VsIcon,
-  NoteIcon,
-  SearchIcon,
-  DocIcon,
-} from '../components/icons';
+import { LandingIntro } from './LandingIntro';
+import { LandingFeatures } from './LandingFeatures';
+import { PRIVACY } from './landing-data';
 import './landing.css';
 
 type AuthCard = 'closed' | 'register' | 'login';
 
-/** 五环闭环（README「这是什么」）：产品的核心故事，一屏讲清它不是聊天框 */
-const LOOP: Array<{ icon: typeof ChatIcon; step: string; title: string; desc: string }> = [
-  { icon: ChatIcon, step: '学', title: '对话讲解', desc: '流式对话 + 思考链 + 联网检索 + 长文档检索注入' },
-  { icon: QuizIcon, step: '练', title: '出题练习', desc: '自建出题引擎，四题型配比、自动判分、AI 配图' },
-  { icon: StatsIcon, step: '析', title: '薄弱分析', desc: '逐题正确率统计、薄弱点定位、学习趋势' },
-  { icon: CardsIcon, step: '忆', title: '记忆沉淀', desc: 'AI 词条库 + 艾宾浩斯复习时钟 + 跨会话长期记忆' },
-  { icon: CheckIcon, step: '反馈', title: '反馈激励', desc: 'XP 连签、今日总结、AI 主动督促' },
-];
-
-/** 功能九宫格（README「功能总览」精选九条，覆盖全部一级功能入口） */
-const FEATURES: Array<{ icon: typeof QuizIcon; title: string; desc: string }> = [
-  { icon: FlowIcon, title: '学习流编排', desc: '把「讲解 → 出题 → 判分 → 复盘」拖成一条自己的学习流水线，预制模板开箱即用' },
-  { icon: GraphIcon, title: '知识图谱', desc: '学过的概念自动连成图，点任一节点看它的邻里关系，薄弱环节一眼可见' },
-  { icon: QuizIcon, title: '智能出题', desc: '题型配比可配、AI 特化 SVG 配图、五级解析阶梯——模型犯错不塌整组' },
-  // 本批替换「艾宾浩斯复习」：复习已在 TermJourney 第 4 步讲得更透，此处让位给
-  // 最独特、原先**在落地页完全没有出现**的那条交互（正文词条高亮 + 悬浮卡）
-  { icon: CardsIcon, title: '词条高亮', desc: '回复里命中词条库的词自动标出：首现实线、复现虚点线，悬停即看释义与复习状态' },
-  { icon: SearchIcon, title: '联网检索', desc: '三家搜索按 key 并行聚合 + 免 key 兜底，出网带 SSRF 护栏' },
-  { icon: DocIcon, title: '文档模式', desc: '绑定长资料走 BM25 检索注入，带段号可溯源，70 万字资料也能对答' },
-  { icon: VsIcon, title: 'AI 对战', desc: '和 AI 出题官双人对战答题，移动优先的独立页面' },
-  { icon: NoteIcon, title: '笔记与总结', desc: '提交答案即落结构化笔记草稿，每日学习总结自动生成' },
-  { icon: StatsIcon, title: '长期记忆', desc: '会话内先摘要再丢弃 + 跨会话画像恒注入，越用越懂你' },
-];
-
-/** 工程上较真（README「核心优势」精选四条，给懂行的人看的底牌） */
-const ENGINEERING: Array<{ title: string; desc: string }> = [
-  { title: 'AI 输出可靠性工程', desc: '解析五级阶梯、丢图保题、流式空闲超时、两层并发闸门——每条对策都对应一次真实故障的根因登记' },
-  { title: '前端零第三方库', desc: '无 UI 库、无 Markdown 库、无图表库：解析、高亮、图表、本页的演示动画全部自绘——供应链攻击面与包体积同时趋零' },
-  { title: '模型产出敢真跑', desc: '模型生成的网页在 CSP sandbox + iframe 双层沙箱里运行，页面源为 null，读不到应用数据' },
-  { title: '不锁定供应商', desc: 'OpenAI 兼容 + Anthropic 双适配，搜索三家聚合——换模型、换服务商只动设置页' },
-];
-
-/** 隐私与数据（README「安全与隐私设计」）：对上线的用户来说这是决策项不是装饰 */
-const PRIVACY: string[] = [
-  '数据存你自己的服务器（SQLite 单文件），备份就是拷一个目录',
-  '模型 API Key 加密入库、永不出接口；会话令牌只存哈希，拖库不可用',
-  '登录态 HttpOnly cookie + 强制鉴权；口令 scrypt 派生、参数自描述',
-  '跨用户数据互相不可见，写操作校验 Origin，外部结果永不直接写库',
-];
-
 export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
   const [card, setCard] = useState<AuthCard>('closed');
   // GitHub 登录入口是否可用（契约 AUTH-SPEC §2.8）：服务端没配凭据就不画按钮，
-  // 请求失败（非 2xx / 网络）按「不可用」处理——宁少一个入口，不给用户一个点了报错的按钮
+  // 请求失败（非 2xx / 网络）按「不可用」处理——宁少一个入口，不给用户一个点了报错的按钮。
+  // ★ `demo`（§2.10 公用体验账号）同口径：开关在上游。两者共用**一次** providers 请求，
+  //   不各拉一遍——两个独立请求会让两个入口的可用性在短暂的时间窗里不一致，
+  //   表现出来就是「GitHub 按钮先出现、体验按钮后弹出」这种没人能复现的抖动。
   const [githubEnabled, setGithubEnabled] = useState(false);
+  const [demoEnabled, setDemoEnabled] = useState(false);
   useEffect(() => {
     fetch('/api/auth/providers')
       .then((r) => (r.ok ? (r.json() as Promise<{ providers: AuthProviders }>) : null))
-      .then((d) => setGithubEnabled(Boolean(d?.providers.github)))
-      .catch(() => setGithubEnabled(false));
+      .then((d) => {
+        setGithubEnabled(Boolean(d?.providers.github));
+        setDemoEnabled(Boolean(d?.providers.demo));
+      })
+      .catch(() => {
+        setGithubEnabled(false);
+        setDemoEnabled(false);
+      });
   }, []);
 
   return (
@@ -115,30 +81,36 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
       </header>
 
       <main className="landing-body">
+        {/* ① hero：按 T3 只留三样——标题、一句话、CTA。演示窗是这一屏的主角。
+            原先那句塞了 4 个 feature 从句的副标已全部下放到 `LandingIntro` / `LandingFeatures`。 */}
         <section className="landing-hero">
           <div className="landing-hero-copy">
             <h1 className="landing-title">
               学过的词，会<span className="landing-accent">自己留下来</span>
             </h1>
-            <p className="landing-sub">
-              对话里自动抽词入库，下次对话优先被想起，到期自动排队复习——同一套词条贯穿讲解、出题、复习与总结。
-              自己的模型 Key，数据只在自己手里。
-            </p>
+            <p className="landing-sub">自托管的 AI 学习助手。用你自己的模型 Key，数据在你自己的服务器。</p>
             <div className="landing-cta-row">
               <button type="button" className="landing-cta" onClick={() => setCard(card === 'register' ? 'closed' : 'register')}>
                 开始使用
               </button>
               <span className="landing-cta-note">邮箱注册，一分钟开始</span>
             </div>
+            {/* 公用体验入口（§2.10）：与上面的注册 CTA 并列，警示语必须读得到——
+                公用池里所有访客的数据互相可见，不明示等于默许隐私事故 */}
+            {demoEnabled && (
+              <div className="landing-demo-row">
+                <DemoLoginButton onAuthed={onAuthed} />
+              </div>
+            )}
             {/* 首屏数据：★ 数字必须与实测一致——`node tools/metrics.mjs` 是唯一事实源。
-                2026-09-21 展示面校准：此前写「2300+ 自动化测试 / 140 个 REST 接口」（09-20 那次记的
-                实测值是 2339 / 140），校准当轮实测 2647 / 149，二次确认批后已是 2653 / 149（首屏仍走
-                「2600+」模糊档，故此处不必逐批改；只在此记准数）。★ 精确的旧值比模糊表述更危险——它看起来
-                像真的，而首屏是访客第一眼看到的地方（README 徽章有 metrics --check 守着，这里没有）。 */}
+                2026-09-22 重排批把「数据条」降级为 hero 底部的信任信号，不再是介绍正文
+                （介绍改由 `LandingIntro` 承担，详见该文件头注）。
+                ★ 精确的旧值比模糊表述更危险——它看起来像真的，而首屏是访客第一眼看到的地方
+                （README 徽章有 metrics --check 守着，这里没有）。 */}
             <div className="landing-stats" aria-label="项目数据">
               <span>2600+ 自动化测试</span>
               <span>6 个运行时依赖</span>
-              <span>149 个 REST 接口</span>
+              <span>150 个 REST 接口</span>
               <span>0 个第三方 UI 库</span>
             </div>
           </div>
@@ -147,6 +119,7 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
           </div>
         </section>
 
+        {/* ② 注册/登录卡：贴着 CTA 展开（它是 hero 的延伸，不占内容序列的位置） */}
         {card !== 'closed' && (
           <div className="landing-auth-card">
             <AccountBox key={card} standalone initialMode={card} onAuthChange={(u) => u && onAuthed(u)} />
@@ -154,16 +127,23 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
               <div className="landing-auth-github">
                 <span className="landing-auth-github-or">或</span>
                 <GithubLoginButton className="landing-github-btn" label="使用 GitHub 登录" />
-                {/* ★ 2026-09-21（独立建号批）文案改写：原文案是「GitHub 已验证邮箱与本站账号相同时，
-                    直接登入原账号」—— 它描述的正是**已废弃的归并口径**，与新行为**正好相反**。
-                    不改就是明着误导用户（他按原话以为会进老账号，实际进的是新账号） */}
+                {/* ★ 2026-09-21（独立建号批）文案改写：原文案描述的正是**已废弃的归并口径**，
+                    与新行为正好相反。不改就是明着误导用户 */}
                 <span className="landing-github-hint">GitHub 登录会新建独立账号，与你用邮箱注册的账号互不相通</span>
               </div>
             )}
           </div>
         )}
 
-        {/* GitHub 横幅（老板 2026-09-19：项目地址放显眼位置 + 本地安装包版引导） */}
+        {/* ③ 产品整体介绍 —— 必须紧跟 hero、且在功能区之前（见文件头注的硬顺序约束） */}
+        <LandingIntro />
+
+        {/* ④ 功能介绍 */}
+        <LandingFeatures />
+
+        {/* GitHub 横幅 —— ★ 2026-09-22 重排：它原先排在 hero 之后第二位，正好插在
+            「这是什么」和「它演示了什么」中间，把介绍节奏拦腰砍断。此处移到功能区之后、
+            隐私之前：那时读者已经看完产品，正是「去哪拿源码」这个念头冒出来的时候。 */}
         <section className="landing-github" aria-label="开源仓库与本地版">
           <div className="landing-github-main">
             <span className="landing-github-title">本项目完全开源</span>
@@ -184,69 +164,6 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
           >
             更加完整的体验在<b>本地安装包版</b>，欢迎体验 →
           </a>
-        </section>
-
-        {/* 词条旅程：核心机制，排在五环之前（先讲机制、再讲全景） */}
-        <TermJourney />
-
-        {/* 对战：两块屏同时走完一圈（老板 2026-09-21 点单「对战的过程式动画没进正式版，直接加一节」）。
-            排在词条旅程之后、五环之前——它讲的是「同一份快照在两副屏上的读法」，
-            与 hero 演示窗（一块屏的五个先后屏态）互补而不是重复。 */}
-        <PkJourney />
-
-        <section className="landing-section" aria-label="五环闭环">
-          <h2 className="landing-h2">
-            而它们串起来，是一条自动运转的<span className="landing-accent">学习闭环</span>
-          </h2>
-          <p className="landing-section-sub">学 → 练 → 析 → 忆 → 反馈，五环相扣：学过的自动出题练、错的自动进复习、复习的自动记趋势</p>
-          <div className="landing-loop">
-            {LOOP.map(({ icon: Icon, step, title, desc }, i) => (
-              <div className="landing-loop-card" key={step}>
-                <div className="landing-loop-head">
-                  <span className="landing-loop-icon">
-                    <Icon size={18} />
-                  </span>
-                  <span className="landing-loop-step">{step}</span>
-                  {i < LOOP.length - 1 && <span className="landing-loop-arrow">→</span>}
-                </div>
-                <h3 className="landing-feature-title">{title}</h3>
-                <p className="landing-feature-desc">{desc}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="landing-section" aria-label="功能亮点">
-          <h2 className="landing-h2">
-            一套<span className="landing-accent">完整的工具箱</span>
-          </h2>
-          <p className="landing-section-sub">每一个功能都是一级入口，不是聊天框里的附属技巧</p>
-          <div className="landing-features">
-            {FEATURES.map(({ icon: Icon, title, desc }) => (
-              <div className="landing-feature" key={title}>
-                <span className="landing-feature-icon">
-                  <Icon size={20} />
-                </span>
-                <h3 className="landing-feature-title">{title}</h3>
-                <p className="landing-feature-desc">{desc}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="landing-section" aria-label="工程品质">
-          <h2 className="landing-h2">
-            工程上<span className="landing-accent">较真</span>
-          </h2>
-          <p className="landing-section-sub">差别不在于有没有接大模型，而在于闭环完整度、AI 输出可靠性、工程质量三层是否同时做实</p>
-          <div className="landing-eng">
-            {ENGINEERING.map(({ title, desc }) => (
-              <div className="landing-eng-card" key={title}>
-                <h3 className="landing-feature-title">{title}</h3>
-                <p className="landing-feature-desc">{desc}</p>
-              </div>
-            ))}
-          </div>
         </section>
 
         <section className="landing-section landing-privacy" aria-label="隐私与数据">

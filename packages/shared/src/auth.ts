@@ -78,6 +78,29 @@ export const AUTH_CODE_RESEND_INTERVAL_MS = 60 * 1000;
 export const AUTH_CODE_MAX_PER_HOUR = 5;
 /** 同 IP 每小时最多发几封（防「换邮箱刷」——只按邮箱限流的话换个地址就绕过了）。 */
 export const AUTH_CODE_MAX_PER_IP_HOUR = 20;
+
+// ── 公用体验账号常量（demo-login，契约 §2.10）────────────────
+
+/**
+ * 体验账号的**固定行标识**：`users.id`。★ 固定 id ⇒ demo-login 反复调用永远回到**同一行**
+ * （同 GitHub 批「查号键必须固定」的教训：退化成每次新建，访客历史会静默消失）。
+ */
+export const DEMO_USER_ID = 'u-demo-shared';
+/**
+ * 体验账号在 `users.email` 列的占位串（不是真邮箱，永不可解析——RFC 2606 保留 TLD，
+ * 与 GitHub 占位串 `gh-…@users.noreply.invalid` 同一手法）。它同时是那列 UNIQUE 的兜底键。
+ */
+export const DEMO_USER_EMAIL = 'shared-demo@studentbuddy.invalid';
+/** 体验账号昵称：直接告诉所有共用者「这是公用号」。 */
+export const DEMO_USER_NICKNAME = '公用体验账号';
+/**
+ * 同一 IP 每小时最多走几次 demo-login。★ 体验入口零凭证 = 机器人可无脑批量领会话，
+ * 烧的是平台免费 AI 额度（旁证：`AUTH_CODE_MAX_PER_IP_HOUR` 同为 20 的口径）。
+ * 会话有效期 30 天，刷满 20 次足够真人一天来回。
+ */
+export const DEMO_LOGIN_MAX_PER_IP_HOUR = 20;
+/** demo-login 限流窗口：1 小时。 */
+export const DEMO_LOGIN_WINDOW_MS = 60 * 60 * 1000;
 /**
  * ★ **`register` 用途单独一条更严的 IP 上限**（M1.6，契约 §2.7）。
  *
@@ -213,6 +236,11 @@ export const AUTH_GITHUB_STATE_TTL_MS = 10 * 60 * 1000;
  */
 export interface AuthProviders {
   github: boolean;
+  /**
+   * 公用体验账号是否开放（`SB_DEMO_LOGIN=1`，契约 §2.10）。
+   * ★ 与 `github` 同口径：**服务端没开，前端就不画入口**——按钮常在、点了 404 是坏体验。
+   */
+  demo: boolean;
 }
 
 /**

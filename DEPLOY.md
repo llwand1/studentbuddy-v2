@@ -151,6 +151,7 @@ journalctl -u studentbuddy -n 100 -f   # 跟日志
 | `SB_UPSTREAM_SITE_QUEUE_MAX` | `20` | 队列满时**明确拒绝**而非无限排队 |
 | `RESEND_API_KEY` + `SB_MAIL_FROM` | 已配 | ★ **两个都配齐才真发信**；只配一个会静默走控制台兜底，症状是「点了发送、界面说成功、邮箱永远没有」 |
 | `SB_GITHUB_CLIENT_ID` + `SB_GITHUB_CLIENT_SECRET` | 见 §9 | 两个都配齐入口才画（`/api/auth/providers` 探针决定）；callback 必须与 GitHub OAuth App 登记的完全一致 |
+| `SB_DEMO_LOGIN` | `1`（线上是否开＝发版时老板拍板；缺省不开） | 公用体验账号（AUTH-SPEC §2.10）：开了落地页画「免注册，直接体验」，访客零凭证进**全站共享**的体验号（彼此可见，页面已明示）；不开 ⇒ 端点 404、库内零足迹 |
 
 ---
 

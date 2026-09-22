@@ -15,18 +15,28 @@
  *   而真正的风险点在帧渲染口径（已由第三组锁覆盖）。
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, fireEvent, cleanup } from '@testing-library/react';
+import { render, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { Landing } from './Landing';
 import { LANDING_DEMOS, TERM_FLOW } from './demo/registry';
 import { TermFlowDemo } from './demo/TermFlowDemo';
 
+/** `DemoLoginButton` 走 `api.auth.demoLogin`——用可替换实现按用例定成败（§2.10 锁）。 */
+const demoRef = vi.hoisted(() => ({ impl: null as null | (() => Promise<unknown>) }));
+
 vi.mock('../lib/api', () => ({
+  // DemoLoginButton 顶层 `import { api, ApiError }`——mock 工厂必须两个都给，缺一个就是链接期报错
+  ApiError: class ApiError extends Error {
+    constructor(public status: number, message: string, public body?: unknown) {
+      super(message);
+    }
+  },
   api: {
     auth: {
       // 未登录：me 401（AccountBox 挂载即问，正常状态不是异常）
       me: () => Promise.reject(new Error('401')),
       sendCode: () => Promise.resolve({ ok: true, expiresInMs: 60_000 }),
       register: () => Promise.reject(new Error('unused-in-this-test')),
+      demoLogin: () => (demoRef.impl ? demoRef.impl() : Promise.reject(new Error('demoLogin 未被本用例桩化'))),
     },
   },
 }));
@@ -115,6 +125,98 @@ describe('Landing — 未登录门面', () => {
   });
 });
 
+describe('Landing — 介绍顺序：它是什么 → 词条 → 功能（2026-09-22 二次点单）', () => {
+  // ★ 老板点单的雷点是「先搞了功能介绍，而不是产品介绍」；二次点单再补一条更细的：
+  //   「它是什么要在最前面，讲完之后才是词条」。这两条顺序**没有任何"文案在不在"式的断言
+  //   替我们守住**：那种用例在把介绍挪到功能之后时照样全绿——文本一个没少，读者却先读了功能。
+  //   故这里锁的是 **DOM 顺序本身**：它就是「先介绍后功能」这条决策的唯一载体。
+  it('「它是什么」→「词条是主体」→ 功能区，三者顺序不乱、中间不夹任何区块', () => {
+    const { container } = render(<Landing onAuthed={() => undefined} />);
+    const blocks = [...container.querySelectorAll('.landing-body > *')];
+    const at = (cls: string) => blocks.findIndex((n) => n.classList.contains(cls));
+    const whatAt = at('landing-intro-what');
+    const termAt = at('landing-intro-term');
+    const zoneAt = at('landing-zone');
+    expect(whatAt).toBeGreaterThanOrEqual(0);
+    expect(termAt).toBeGreaterThan(whatAt);
+    expect(zoneAt).toBeGreaterThan(termAt);
+    // 词条段与功能区之间夹了东西（哪怕是 GitHub 横幅）就等于又把介绍拦腰斩了——09-22 之前的样子
+    expect(blocks.slice(termAt + 1, zoneAt).length).toBe(0);
+  });
+
+  it('「它是什么」段不许出现「词条」：定义句只讲类别与形态，机制由紧随其后的整段专讲', () => {
+    const { container } = render(<Landing onAuthed={() => undefined} />);
+    const what = container.querySelector('.landing-intro-what');
+    // ★ 这是二次点单的真正落点。上一版定义句第一句就是「把概念抽成词条」——
+    //   读者还没搞清这是个什么东西，先被塞了一个内部概念。
+    //   ★ 文本类的锁守不住它：「词条」在页面别处本来就该有，只有「这一段里没有」才守得住。
+    expect(what?.textContent).not.toContain('词条');
+    expect(what?.textContent).toContain('自动运转');
+    // 而紧随其后的词条段必须讲，且讲的就是这五个去向
+    expect(container.querySelector('.landing-intro-term')?.textContent).toContain('一切都以词条为主体');
+  });
+
+  it('介绍段本体：三句话说清 + 「词条是主体」五个去向齐备 + hero 副标仍是一句', () => {
+    const { container } = render(<Landing onAuthed={() => undefined} />);
+    // hero 副标瘦身为一句自我介绍：原先那句塞了 4 个 feature 从句的副标已下放介绍段/功能区
+    expect(container.querySelector('.landing-sub')?.textContent).toBe(
+      '自托管的 AI 学习助手。用你自己的模型 Key，数据在你自己的服务器。',
+    );
+    expect(container.querySelector('.landing-intro-h3')?.textContent).toBe('一切都以词条为主体');
+    expect(
+      [...container.querySelectorAll('.landing-spine-item .landing-feature-title')].map((n) => n.textContent),
+    ).toEqual(['驱动出题', '决定复习', '连成图谱', '沉淀总结', '拿去对战']);
+    expect(container.querySelectorAll('.landing-intro-three .landing-intro-card').length).toBe(3);
+  });
+});
+
+describe('Landing — 功能区按步骤讲（2026-09-22 二次点单「功能一步步讲」）', () => {
+  it('五步动线：编号 01–05、环名顺序固定、九个入口各挂在自己那一步下', () => {
+    const { container } = render(<Landing onAuthed={() => undefined} />);
+    expect([...container.querySelectorAll('.landing-walk-no')].map((n) => n.textContent)).toEqual([
+      '01',
+      '02',
+      '03',
+      '04',
+      '05',
+    ]);
+    expect([...container.querySelectorAll('.landing-walk-ring')].map((n) => n.textContent)).toEqual([
+      '学',
+      '练',
+      '析',
+      '忆',
+      '反馈',
+    ]);
+    // 每一步底下至少挂一个入口——空一步等于那一步只是个装饰环
+    const steps = [...container.querySelectorAll('.landing-walk-step')];
+    expect(steps.length).toBe(5);
+    steps.forEach((s) => expect(s.querySelectorAll('.landing-walk-cap').length).toBeGreaterThan(0));
+    // 原九宫格的九个一级入口合并进动线后一个都不能少（限在 .landing-walk-cap 内取：
+    // 演示段也复用 `.landing-feature-title`，不限制会数到演示清单上去）
+    expect([...container.querySelectorAll('.landing-walk-cap .landing-feature-title')].map((n) => n.textContent)).toEqual([
+      '联网检索',
+      '文档模式',
+      '学习流编排',
+      '智能出题',
+      'AI 对战',
+      '长期记忆',
+      '词条高亮',
+      '知识图谱',
+      '笔记与总结',
+    ]);
+  });
+
+  it('动线排在两屏演示之前：先给骨架，再给例子', () => {
+    const { container } = render(<Landing onAuthed={() => undefined} />);
+    const kids = [...container.querySelectorAll('.landing-zone > *')];
+    const walkAt = kids.findIndex((n) => n.classList.contains('landing-walk'));
+    const demoAt = kids.findIndex((n) => n.getAttribute('aria-label') === '词条的完整旅程');
+    expect(walkAt).toBeGreaterThanOrEqual(0);
+    // 演示放最前面时，读者看完只记得有个动画，不知道它在第几步——这正是本批要改掉的
+    expect(demoAt).toBeGreaterThan(walkAt);
+  });
+});
+
 describe('词条演示 — 高亮口径', () => {
   // stage=2 ⇒ 打字机收工（useTyping 的 active 为假时直接给全文），文本完整可见
   it('首现实线、复现虚点线：同一个词连标两次不能是同一种线型', () => {
@@ -133,5 +235,55 @@ describe('词条演示 — 高亮口径', () => {
     // ★ jsdom 量不到布局，所以锁的是**那条父子关系本身**（它就是 bug 的唯一成因）。
     expect(container.querySelector('.ld-reply .ld-hover')).toBeTruthy();
     expect(container.querySelector('.ld-layer > .ld-hover')).toBeNull();
+  });
+});
+
+describe('Landing — 公用体验入口（§2.10）', () => {
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+    demoRef.impl = null;
+  });
+
+  /** 桩 `/api/auth/providers` 一个响应：demo 字段按入参给。 */
+  function stubProviders(demo: boolean) {
+    global.fetch = (async () => ({
+      ok: true,
+      json: async () => ({ providers: { github: false, demo }, form: 'cloud' }),
+    })) as unknown as typeof fetch;
+  }
+
+  it('providers.demo=true → 画「免注册，直接体验」并附共享池警示文案', async () => {
+    stubProviders(true);
+    const { findByText, getByText } = render(<Landing onAuthed={() => undefined} />);
+    expect(await findByText('免注册，直接体验')).toBeTruthy();
+    // 警示语是本批决策的落点（共享池 + 页面明示），删它等于默许隐私事故
+    expect(getByText(/内容全站共享、访客彼此可见/)).toBeTruthy();
+  });
+
+  it('providers.demo=false → 入口不存在（开关在上游，按钮不点了报错）', async () => {
+    stubProviders(false);
+    const { findByText, container } = render(<Landing onAuthed={() => undefined} />);
+    await findByText('开始使用');
+    expect(container.textContent).not.toContain('免注册');
+  });
+
+  it('点击成功 → onAuthed 收到体验用户（进应用壳的动作由上层完成）', async () => {
+    stubProviders(true);
+    const user = { id: 'u-demo-shared', email: 'shared-demo@studentbuddy.invalid', nickname: '公用体验账号', createdAt: 'x' };
+    demoRef.impl = () => Promise.resolve(user);
+    const onAuthed = vi.fn();
+    const { findByText } = render(<Landing onAuthed={onAuthed} />);
+    fireEvent.click(await findByText('免注册，直接体验'));
+    await waitFor(() => expect(onAuthed).toHaveBeenCalledWith(user));
+  });
+
+  it('点击失败 → 错误文案就地可见，按钮回到可点（ADR-5 可读可重试）', async () => {
+    stubProviders(true);
+    demoRef.impl = () => Promise.reject(new Error('体验模式未开放'));
+    const { findByText, queryByText } = render(<Landing onAuthed={() => undefined} />);
+    fireEvent.click(await findByText('免注册，直接体验'));
+    await waitFor(() => expect(queryByText('进入体验失败，请稍后重试')).toBeTruthy());
+    expect(queryByText('免注册，直接体验')).toBeTruthy();
   });
 });

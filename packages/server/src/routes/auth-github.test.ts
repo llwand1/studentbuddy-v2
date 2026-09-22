@@ -134,11 +134,11 @@ describe('routes/auth-github — /providers 可用性探针（§2.8 第 1 条 / 
     delete process.env.SB_GITHUB_CLIENT_ID;
     const off = await request(app).get('/api/auth/providers');
     expect(off.status).toBe(200);
-    expect(off.body).toEqual({ providers: { github: false }, form: 'local' });
+    expect(off.body).toEqual({ providers: { github: false, demo: false }, form: 'local' });
 
     enableGithub();
     const on = await request(app).get('/api/auth/providers');
-    expect(on.body).toEqual({ providers: { github: true }, form: 'local' });
+    expect(on.body).toEqual({ providers: { github: true, demo: false }, form: 'local' });
   });
 });
 

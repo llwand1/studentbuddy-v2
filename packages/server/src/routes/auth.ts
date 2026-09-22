@@ -1,7 +1,8 @@
 /**
  * routes/auth — 账号薄路由（契约 docs/AUTH-SPEC.md §2）。
  *
- * 六端点：register / login / logout / me + send-code / login-by-code（M1.5）。
+ * 六端点：register / login / logout / me + send-code / login-by-code（M1.5）
+ * + demo-login（公用体验账号，§2.10，`SB_DEMO_LOGIN=1` 才存在）。
  * 路由只做三件事：参数校验、调域层、把域层错误码映射成 HTTP——业务规则一律不在这一层
  * （与 `routes/pk.ts` 同构）。
  *
@@ -20,6 +21,7 @@ import { createSession, deleteSession } from '../auth/session.js';
 import { clearSessionCookie, readSessionToken, resolveUser, setSessionCookie } from '../auth/middleware.js';
 import { clearFailures, isLocked, recordFailure } from '../auth/rate-limit.js';
 import { CodeRateLimitedError, loginByCode, registerByCode, sendCode } from '../auth/code-flow.js';
+import { demoLogin, demoLoginEnabled } from '../auth/demo.js';
 
 export const authRouter = Router();
 
@@ -212,5 +214,26 @@ authRouter.post('/login-by-code', (req: Request, res: Response) => {
   } catch (e: unknown) {
     failFrom(res, e);
   }
+});
+
+/**
+ * 公用体验账号登录（契约 §2.10）：**零凭证**，开关未开一律 404（不是 403——
+ * 未配置的端点对外应等同于不存在，不给探测者「差一步就能进」的信号）。
+ * ★ 会话下发与密码登录逐字同构（同一 `createSession` + 同一 cookie），体验账号在
+ *   数据模型上不是特殊态；滥用防线是 `clientIp` 桶限流（429 复用 TOO_MANY_ATTEMPTS 文案）。
+ * ⚠️ 与其它写端点一样受 originCheck 管辖：跨源无 Origin 的调用先吃 403。
+ */
+authRouter.post('/demo-login', (req: Request, res: Response) => {
+  if (!demoLoginEnabled()) {
+    res.status(404).json({ error: '体验模式未开放', code: 'DEMO_DISABLED' });
+    return;
+  }
+  void demoLogin(clientIp(req))
+    .then((user) => {
+      const { token, expiresAt } = createSession(user.id);
+      setSessionCookie(res, token, expiresAt);
+      res.json({ user });
+    })
+    .catch((e: unknown) => failFrom(res, e));
 });
 

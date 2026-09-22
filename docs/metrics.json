@@ -1,34 +1,34 @@
 {
-  "generatedAt": "2026-09-22T01:32:29.091Z",
+  "generatedAt": "2026-09-22T09:54:44.076Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
         "srcFiles": 29,
         "testFiles": 17,
-        "srcLines": 4336,
+        "srcLines": 4363,
         "testLines": 2187
       },
       {
         "pkg": "server",
-        "srcFiles": 160,
-        "testFiles": 114,
-        "srcLines": 25880,
-        "testLines": 24883
+        "srcFiles": 161,
+        "testFiles": 115,
+        "srcLines": 25957,
+        "testLines": 24908
       },
       {
         "pkg": "web",
-        "srcFiles": 181,
-        "testFiles": 62,
-        "srcLines": 22594,
-        "testLines": 8562
+        "srcFiles": 185,
+        "testFiles": 63,
+        "srcLines": 23533,
+        "testLines": 8883
       }
     ],
-    "srcFiles": 370,
-    "testFiles": 193,
-    "srcLines": 52810,
-    "testLines": 35632,
-    "tsxTestFiles": 21
+    "srcFiles": 375,
+    "testFiles": 195,
+    "srcLines": 53853,
+    "testLines": 35978,
+    "tsxTestFiles": 22
   },
   "routes": {
     "total": 150,
@@ -86,27 +86,27 @@
     "probes": 15
   },
   "repo": {
-    "head": "a696139",
-    "headDate": "2026-09-21",
-    "commitsLast14d": 146,
+    "head": "8c2c69d",
+    "headDate": "2026-09-22",
+    "commitsLast14d": 152,
     "branch": "main",
-    "dirtyFiles": 22
+    "dirtyFiles": 2
   },
   "tests": {
     "available": true,
-    "ranNow": true,
-    "wallSec": 32.8,
+    "ranNow": false,
+    "wallSec": 0,
     "staleDays": 0,
-    "files": 193,
-    "cases": 2682,
-    "passed": 2681,
+    "files": 195,
+    "cases": 2699,
+    "passed": 2698,
     "skipped": 1,
     "failed": 0,
     "success": true
   },
   "coverage": {
     "available": true,
-    "staleDays": 1,
+    "staleDays": 2,
     "perPkg": {
       "shared": {
         "lines": 99.3,
@@ -143,14 +143,14 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "193",
-      "measured": "193",
+      "claimed": "195",
+      "measured": "195",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "2682",
-      "measured": "2682",
+      "claimed": "2699",
+      "measured": "2699",
       "ok": true
     },
     {
@@ -185,41 +185,16 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "193 文件 / 2682 例",
-      "measured": "193 文件 / 2682 例",
+      "claimed": "195 文件 / 2699 例",
+      "measured": "195 文件 / 2699 例",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "193 文件 / 2682 例",
-      "measured": "193 文件 / 2682 例",
+      "claimed": "195 文件 / 2699 例",
+      "measured": "195 文件 / 2699 例",
       "ok": true
     }
   ],
-  "landingDrift": [
-    {
-      "label": "首屏 自动化测试（模糊档）",
-      "claimed": "2600+",
-      "measured": "2682",
-      "ok": true
-    },
-    {
-      "label": "首屏 运行时依赖",
-      "claimed": "6",
-      "measured": "6",
-      "ok": true
-    },
-    {
-      "label": "首屏 REST 接口",
-      "claimed": "150",
-      "measured": "150",
-      "ok": true
-    },
-    {
-      "label": "首屏 第三方 UI 库",
-      "claimed": "0",
-      "measured": "0",
-      "ok": true
-    }
-  ]
+  "landingDrift": []
 }

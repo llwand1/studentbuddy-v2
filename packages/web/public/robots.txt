@@ -1,3 +1,12 @@
-# 封闭期（IP 申请制）：全面禁止抓取。转开放当天换放行版（行动清单 T-15，含 Sitemap 行）。
+# 2026-09-22 起转「半开放」（老板拍板：只放行公开页 ＋ 词条页）。
+# 口径：默认全封，只用 Allow 精确开门 ⇒ 以后应用里新增的客户端路由不会被顺手放出去。
+# 原「封闭期 Disallow: /」一行不删意：它仍是默认策略，只是上面多了两扇明确的门。
 User-agent: *
 Disallow: /
+Allow: /$
+Allow: /terms/
+Allow: /robots.txt
+Allow: /favicon.svg
+Allow: /sitemap.xml
+
+Sitemap: https://11wand.com/sitemap.xml

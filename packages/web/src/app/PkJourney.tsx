@@ -8,7 +8,8 @@
  *   `PkAnswerBlock.tsx:28-56` 是同一份快照在两处渲染）。这个对照只有整幅宽才画得开，
  *   所以它是一节，不是演示窗的第四个 Tab。
  *
- * ★ 五帧的内容、产品代码对应、三处压缩声明，全部在 `./pk-boards` 的头注里（本文件只管时钟与外框）。
+ * ★ 五帧的屏态在 `./pk-frames`、屏态积木与产品代码对应在 `./pk-boards`、文案在 `./pk-copy`
+ *   （本文件只管时钟、外框与那句诚实标注）。
  *
  * ★ 计时口径：整段只有**一个 500ms 的表**（与 `PkMatch.tsx:66-70` 同口径——定时器只驱动展示，
  *   判定与数值一律派生），帧推进、两块屏上那个 45 秒、两侧比分全部由同一个 `tick` 算出来
@@ -17,7 +18,11 @@
  *   `prefers-reduced-motion` 下不挂表 ⇒ 冻结在第 01 帧的双屏静态对照，信息一条不少。
  */
 import { useEffect, useState } from 'react';
-import { PK_FRAMES, PK_SCORE, PK_STAT, Screen } from './pk-boards';
+import { PK_SCORE, PK_STAT, Screen } from './pk-boards';
+import { PK_FRAMES } from './pk-frames';
+import { LAND_TAG } from './landing-copy';
+import { SECTION, T } from './pk-copy';
+import { useLandingLang } from './landing-lang';
 import { prefersReducedMotion } from './demo/useDemoPlayer';
 
 const TICK_MS = 500;
@@ -25,6 +30,7 @@ const TICK_MS = 500;
 const FRAME_TICKS = 5;
 
 export function PkJourney() {
+  const { lang } = useLandingLang();
   const [tick, setTick] = useState(0);
   useEffect(() => {
     if (prefersReducedMotion()) return; // 静态：停在第 01 帧
@@ -40,20 +46,18 @@ export function PkJourney() {
   if (!frame) return null; // noUncheckedIndexedAccess ⇒ 不写 `!`
 
   return (
-    <section className="landing-section" aria-label="对战：一道题在两块屏上同时走完">
+    <section className="landing-section" aria-label={SECTION.aria[lang]}>
       <h2 className="landing-h2">
-        对战时你看到的，<span className="landing-accent">只是两块屏中的一块</span>
+        {SECTION.h2Pre[lang]}
+        <span className="landing-accent">{SECTION.h2Accent[lang]}</span>
       </h2>
-      <p className="landing-section-sub">
-        下面左右是同一局里同时开着的两块屏。同一秒钟，一块上写着「等待对手作答」，另一块上写着「轮到你答」——
-        它们必须对得上，因为两边读的是服务端同一份快照
-      </p>
+      <p className="landing-section-sub">{SECTION.sub[lang]}</p>
 
       <div className="landing-pk-boards" aria-hidden="true">
-        <Screen side="我这一侧" score={PK_SCORE.mine(lap, f)} stat={PK_STAT.mine(f)}>
+        <Screen side={T.mineSide} score={PK_SCORE.mine(lap, f)} stat={PK_STAT.mine(f, lang)}>
           {frame.mine(live)}
         </Screen>
-        <Screen side="对手那一侧" score={PK_SCORE.his(lap, f)} stat={PK_STAT.his(f)}>
+        <Screen side={T.rivalSide} score={PK_SCORE.his(lap, f)} stat={PK_STAT.his(f, lang)}>
           {frame.his(live)}
         </Screen>
       </div>
@@ -63,23 +67,17 @@ export function PkJourney() {
           <li className={i === f ? 'landing-jstep hot' : 'landing-jstep'} key={no}>
             <div className="landing-jstep-top">
               <span className="landing-jstep-no">{no}</span>
-              <h3 className="landing-feature-title">{title}</h3>
-              <span className="landing-jtag">已落地</span>
+              <h3 className="landing-feature-title">{title[lang]}</h3>
+              <span className="landing-jtag">{LAND_TAG.shipped[lang]}</span>
             </div>
-            <p className="landing-jstep-lead">{lead}</p>
-            <p className="landing-feature-desc">{desc}</p>
+            <p className="landing-jstep-lead">{lead[lang]}</p>
+            <p className="landing-feature-desc">{desc[lang]}</p>
           </li>
         ))}
       </ol>
 
       {/* 诚实标注：这一行不许被当成文案修饰删掉。口径与 `TermJourney` 那一条一致 */}
-      <p className="landing-jnote">
-        两块屏都是产品的真实屏态：样式就是对战页那份 CSS，「对手正在出题」和「答对 +2」两块用的就是产品组件本身，
-        所以这里动的东西（呼吸点、骨架扫光、判定弹入）在真机上一模一样。压缩掉的只有时间——真一局 8 分钟、
-        出题冷却 60 秒、答题 45 秒，这里 12.5 秒转一圈，冷却因此只画「冷却中」这个状态、不画剩余秒数。
-        另外两处如实交代：折叠区在真机上默认收起，这里为了让人看见「正确答案」那一行画成了展开态；
-        第 04 帧跳过了我那 40 多秒的思考，它按同一条规则在跑。演示取双人对局，单人进门时对手是 AI，走同一条出题与答题路径。
-      </p>
+      <p className="landing-jnote">{SECTION.note[lang]}</p>
     </section>
   );
 }

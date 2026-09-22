@@ -17,8 +17,18 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { Landing } from './Landing';
+import { LANDING_LANG_KEY } from './landing-lang';
 import { LANDING_DEMOS, TERM_FLOW } from './demo/registry';
 import { TermFlowDemo } from './demo/TermFlowDemo';
+
+/**
+ * ★★ 2026-09-22 双语批：整页**钉在中文口径**上跑。
+ *   jsdom 的 `navigator.language` 是 `'en-US'` ⇒ 不钉的话首探会把整页判成英文，
+ *   而下面这些锁读的全是中文文案（它们锁的是门面动线，不是语言）。英文侧另有
+ *   `LandingLang.test.tsx` 专锁（切换、记忆、首探判定、打字机时长预算）。
+ *   写在模块顶层而不是每个用例里：`LandingLangProvider` 只在挂载时读一次。
+ */
+window.localStorage.setItem(LANDING_LANG_KEY, 'zh');
 
 /** `DemoLoginButton` 走 `api.auth.demoLogin`——用可替换实现按用例定成败（§2.10 锁）。 */
 const demoRef = vi.hoisted(() => ({ impl: null as null | (() => Promise<unknown>) }));
@@ -98,9 +108,9 @@ describe('Landing — 未登录门面', () => {
     // ★ 2026-09-20 知识图演示批起，`TERM_FLOW.title` 在页面上出现**两次**了——
     //   窗口标题栏（当前演示）+ 切换 Tab（两个演示各一个）。故不能用 getByText（遇多即抛），
     //   改断 `.ld-bar-title`；顺便把"默认停在第一个演示"也锁住（Tab 一多，默认选中项选错很难发现）。
-    expect(container.querySelector('.ld-bar-title')?.textContent).toBe(TERM_FLOW.title);
+    expect(container.querySelector('.ld-bar-title')?.textContent).toBe(TERM_FLOW.title.zh);
     expect(container.querySelectorAll('.ld-tab').length).toBe(LANDING_DEMOS.length);
-    expect(container.querySelector('.ld-tab.ld-tab-on')?.textContent).toBe(TERM_FLOW.title);
+    expect(container.querySelector('.ld-tab.ld-tab-on')?.textContent).toBe(TERM_FLOW.title.zh);
     expect(getByText('对话进行中：词条库里已有的词自动标出来')).toBeTruthy();
     expect(container.querySelectorAll('.ld-pip').length).toBe(TERM_FLOW.stages.length);
     // 第 0 帧：只有 1 个点处于选中态（错位就会让「现在演到哪」失去意义）

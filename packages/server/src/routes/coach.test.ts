@@ -114,9 +114,9 @@ const nudgeCount = (): number =>
 /**
  * 建一个账号并取出会话 cookie。
  *
- * ★ M1.6（契约 §2.7「注册即验证」）起 `POST /api/auth/register` **必带 `code`**，
- *   而本文件的主体是**督促编排**、不是注册流程 ⇒ 夹具直接落在**账号 + 会话**这两层，
- *   不借道注册端点：省掉一次发信打桩，也不吃注册用途的限流名额（注册 IP 上限 5/小时）。
+ * ★ 本文件**不借道注册端点**（`POST /api/auth/register` 自 2026-09-22 起免验证码，契约 §2.7 作废；
+ *   但那条路仍要吃 `register-limit.ts` 的 5/小时 IP 名额）：本文件主体是**督促编排**、不是注册流程
+ *   ⇒ 夹具直接落在**账号 + 会话**这两层，省掉发信打桩、也不让「注册阈值一改本文件跟着红」。
  *   注册端点本身的端到端覆盖在 `routes/auth.test.ts`。
  */
 const newCookie = async (email: string): Promise<string> => {

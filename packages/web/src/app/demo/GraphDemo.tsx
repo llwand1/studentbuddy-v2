@@ -7,8 +7,9 @@
  *   全程不需要用户手工拖线，但每条 AI 连的边都标着"未经确认"。
  *
  * ★ 几何与类名**全部复用知识图页**（`graph-visual.ts` 的 `layoutNeighborhood` /
- *   `edgeClass` / `nodeClass` / 文案映射），本组件不算坐标、不写颜色：
- *   配色归 `graph.css`、几何归 `graph-visual.ts`，这里只负责"第几帧露出多少"。
+ *   `edgeClass` / `nodeClass`），本组件不算坐标、不写颜色、**也不写字面文案**：
+ *   配色归 `graph.css`、几何归 `graph-visual.ts`、中英两侧的上屏文案归 `graph-demo.ts`，
+ *   这里只负责"第几帧露出多少"。
  *
  * ★ 显现动画走 **CSS transition**（同 `TermFlowDemo`：动画一律 CSS，不引库）。
  *   两个坑写在代码里而不是踩过才想起：
@@ -18,38 +19,35 @@
  *   ② 未显现的节点**仍然渲染**（只把 opacity 置 0），不靠条件渲染卸载——
  *      卸载会让 transition 失去起点，节点变成"啪"地出现，失去生长的观感。
  */
-import type { KnowledgeEdgeOrigin } from '@sb/shared';
-import { clipLabel, edgeClass, nodeClass, nodeKindLabel } from '../../features/study-flow/graph-visual';
+import type { KnowledgeNodeKind } from '@sb/shared';
+import { clipLabel, edgeClass, nodeClass } from '../../features/study-flow/graph-visual';
+import { useLandingLang } from '../landing-lang';
 import {
+  CLIP_MAX,
   DEMO_ASK,
-  DEMO_DEEP,
-  DEMO_REPLY_TERMS,
   FRAME,
   GRAPH_DEMO_LAYOUT,
   GRAPH_DEMO_NEIGHBORHOOD,
   GRAPH_DEMO_OPTS,
   GRAPH_DEMO_VIEW,
+  GRAPH_LEGEND,
   edgeOriginAt,
   edgeVisibleAt,
+  graphAriaLabel,
+  nodeKindText,
+  nodeText,
+  nodeTitle,
   nodeVisibleAt,
+  termLabelAt,
+  termsAt,
 } from './graph-demo';
 // ★ 演示复用知识图页的类名（`.gr-node` / `.gr-edge` / `.gr-ring` / `.gr-legend-item`），
 //   故必须把那份样式表也引进来——否则类名对得上、样式却全是空的（节点没有卡片外框、
 //   边没有线型分档），图会退化成一堆无样式文字。`graph.css` 是全局的，引一次即可。
 import '../../features/study-flow/graph.css';
 
-/**
- * 图例：★ 只列**这张图上真实存在**的 origin 两种（`user` / `ai`），不把真图那三条抄全。
- *   演示里出现一条图上没有的"结构推导"图例，读者会去找那种线然后找不到
- *   （同「未配 GitHub 凭据就不画登录按钮」的纪律：不画图上没有的东西）。
- *   文案比真图的 `NeighborhoodGraph` 短（演示窗窄），但"未经确认"这个关键限定词必须留。
- */
-const LEGEND: Array<{ origin: KnowledgeEdgeOrigin; text: string }> = [
-  { origin: 'user', text: '已确认' },
-  { origin: 'ai', text: 'AI 抽的·未经确认' },
-];
-
 export function GraphDemo({ stage }: { stage: number }) {
+  const { lang } = useLandingLang();
   const { nodes, edges, rings } = GRAPH_DEMO_LAYOUT;
   const cx = GRAPH_DEMO_VIEW.w / 2;
   const cy = GRAPH_DEMO_VIEW.h / 2;
@@ -59,8 +57,10 @@ export function GraphDemo({ stage }: { stage: number }) {
   /** 帧 2~3 显示"回复抽出了哪些词条"；帧 4 换成图例（同一位置切换，不叠着挤） */
   const showTerms = stage >= FRAME.star && stage < FRAME.origin;
   const showLegend = stage >= FRAME.origin;
-  const termList: readonly string[] = stage >= FRAME.tree ? DEMO_DEEP.terms : DEMO_REPLY_TERMS;
-  const termLabel = stage >= FRAME.tree ? `对「${DEMO_DEEP.term}」再追一层，回复抽出：` : '追问回复抽出：';
+  const termList = termsAt(stage, lang);
+  const termLabel = termLabelAt(stage, lang);
+
+  const kindText = (kind: KnowledgeNodeKind) => nodeKindText(kind, lang);
 
   return (
     <div className="ld-layer ld-g">
@@ -69,10 +69,10 @@ export function GraphDemo({ stage }: { stage: number }) {
         viewBox={`0 0 ${GRAPH_DEMO_VIEW.w} ${GRAPH_DEMO_VIEW.h}`}
         preserveAspectRatio="xMidYMid meet"
         role="img"
-        aria-label={`知识关系图演示：以「${DEMO_ASK.term}」为中心，向 AI 追问后回复里的词条自动连成关系`}
+        aria-label={graphAriaLabel(lang)}
       >
         <defs>
-          {LEGEND.map(({ origin }) => (
+          {GRAPH_LEGEND.map(({ origin }) => (
             <marker
               key={origin}
               id={`ld-g-arrow-${origin}`}
@@ -114,17 +114,18 @@ export function GraphDemo({ stage }: { stage: number }) {
         {nodes.map((n) => {
           const on = nodeVisibleAt(n.node, stage);
           const isCenter = n.node.id === centerId;
+          const name = nodeText(n.node.id, lang);
           return (
             <g key={n.node.id} transform={`translate(${n.x},${n.y})`}>
               {/* 内层：只承担 CSS 动效（弹出缩放）。★ 定位必须留在外层属性 transform 上 */}
               <g className={`${nodeClass(n.node, isCenter)} ld-g-n${on ? ' on' : ''}`}>
-                <title>{`${nodeKindLabel(n.node.kind)}：${n.node.refText}`}</title>
+                <title>{nodeTitle(n.node.id, n.node.kind, lang)}</title>
                 <rect x={-box.w / 2} y={-box.h / 2} width={box.w} height={box.h} rx={9} />
                 <text className="gr-node-kind" x={0} y={-3} textAnchor="middle">
-                  {nodeKindLabel(n.node.kind)}
+                  {kindText(n.node.kind)}
                 </text>
                 <text className="gr-node-name" x={0} y={13} textAnchor="middle">
-                  {clipLabel(n.node.refText, 8)}
+                  {clipLabel(name, CLIP_MAX[lang])}
                 </text>
               </g>
             </g>
@@ -137,7 +138,7 @@ export function GraphDemo({ stage }: { stage: number }) {
           <g className={stage === FRAME.ask ? 'ld-g-ask on' : 'ld-g-ask'}>
             <rect x={-52} y={-12} width={104} height={24} rx={12} />
             <text x={0} y={4} textAnchor="middle">
-              {DEMO_ASK.button}
+              {DEMO_ASK.button[lang]}
             </text>
           </g>
         </g>
@@ -153,12 +154,12 @@ export function GraphDemo({ stage }: { stage: number }) {
           ))}
         </div>
         <div className={showLegend ? 'ld-g-legend on' : 'ld-g-legend'} aria-hidden={!showLegend}>
-          {LEGEND.map(({ origin, text }) => (
+          {GRAPH_LEGEND.map(({ origin, text }) => (
             <span key={origin} className={`gr-legend-item ${origin}`}>
               <svg width="24" height="8" viewBox="0 0 24 8" aria-hidden="true">
                 <line className="gr-legend-line" x1="1" y1="4" x2="23" y2="4" />
               </svg>
-              {text}
+              {text[lang]}
             </span>
           ))}
         </div>

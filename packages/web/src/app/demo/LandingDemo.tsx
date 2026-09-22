@@ -11,9 +11,12 @@
 import { useState } from 'react';
 import { EMPTY_DEMO, LANDING_DEMOS } from './registry';
 import { useDemoPlayer } from './useDemoPlayer';
+import { DEMO_WINDOW } from '../landing-copy';
+import { useLandingLang } from '../landing-lang';
 import './demo.css';
 
 export function LandingDemo() {
+  const { lang } = useLandingLang();
   const [pick, setPick] = useState(0);
   const demo = LANDING_DEMOS[pick] ?? LANDING_DEMOS[0] ?? EMPTY_DEMO;
   const { stage, replay, still } = useDemoPlayer(demo.stages);
@@ -27,10 +30,10 @@ export function LandingDemo() {
         <span className="ld-dot" />
         <span className="ld-dot" />
         <span className="ld-dot" />
-        <span className="ld-bar-title">{demo.title}</span>
+        <span className="ld-bar-title">{demo.title[lang]}</span>
         {!still && (
           <button type="button" className="ld-replay" onClick={replay}>
-            重播
+            {DEMO_WINDOW.replay[lang]}
           </button>
         )}
       </div>
@@ -44,7 +47,7 @@ export function LandingDemo() {
               className={i === pick ? 'ld-tab ld-tab-on' : 'ld-tab'}
               onClick={() => setPick(i)}
             >
-              {d.title}
+              {d.title[lang]}
             </button>
           ))}
         </div>
@@ -57,10 +60,10 @@ export function LandingDemo() {
       <div className="ld-foot">
         <span className="ld-progress" aria-hidden="true">
           {demo.stages.map((s, i) => (
-            <i key={s.caption} className={i === stage ? 'ld-pip ld-pip-on' : 'ld-pip'} />
+            <i key={s.caption.en} className={i === stage ? 'ld-pip ld-pip-on' : 'ld-pip'} />
           ))}
         </span>
-        <span className="ld-caption">{cur ? cur.caption : ''}</span>
+        <span className="ld-caption">{cur ? cur.caption[lang] : ''}</span>
       </div>
     </div>
   );

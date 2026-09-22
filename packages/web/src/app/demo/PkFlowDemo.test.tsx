@@ -11,6 +11,10 @@
  *   用假时钟去测等于测「setInterval 会不会响」。这里只锁挂载瞬间的初值——它是产品的
  *   初始口径（`PkQuizPending.tsx:28` 的 sec=0 显示「马上就好」、时限从 45s 起算），
  *   而初值是同步可得的，不需要等任何计时器。
+ *
+ * ★ 2026-09-22 中英切换批：本文件的渲染锁跑在**中文口径**上（直挂组件、不带 Provider，
+ *   而 `LandingLangContext` 默认 `zh`）。★ 例外是注册表那一组：它**逐语言**要求标题与帧说明
+ *   非空——那是唯一能在不渲染的情况下逮住「英文侧漏翻」的地方。
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
@@ -113,13 +117,15 @@ describe('演示注册表 — 顺序与可扩展性', () => {
   });
 
   it('每个演示的标题非空、帧数 ≥2、每帧都有说明与时长', () => {
+    // ★ 2026-09-22 双语批：标题与说明是 `{zh,en}` 成对（`Bi`）。**两语都得非空**——
+    //   只查 `zh` 的话，英文侧漏翻会一路绿到上线，而访客的浏览器首探正是英文。
     for (const d of LANDING_DEMOS) {
-      expect(d.title.length, `${d.key} 的标题不能为空`).toBeGreaterThan(0);
-      expect(d.stages.length).toBeGreaterThanOrEqual(2);
-      for (const s of d.stages) {
-        expect(s.caption.length).toBeGreaterThan(0);
-        expect(s.ms).toBeGreaterThan(0);
+      for (const lang of ['zh', 'en'] as const) {
+        expect(d.title[lang].length, `${d.key} 的${lang}标题不能为空`).toBeGreaterThan(0);
+        for (const s of d.stages) expect(s.caption[lang].length, `${d.key} 帧说明缺${lang}`).toBeGreaterThan(0);
       }
+      expect(d.stages.length).toBeGreaterThanOrEqual(2);
+      for (const s of d.stages) expect(s.ms).toBeGreaterThan(0);
     }
   });
 

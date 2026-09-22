@@ -14,7 +14,6 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   AUTH_CODE_MAX_PER_HOUR,
-  AUTH_CODE_MAX_PER_IP_REGISTER_HOUR,
   AUTH_CODE_RESEND_INTERVAL_MS,
   AUTH_CODE_TTL_MS,
 } from '@sb/shared';
@@ -22,7 +21,7 @@ import {
 process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-code-flow-test-'));
 const { getDb } = await import('../storage/db.js');
 const { createUser } = await import('./users.js');
-const { decideSend, isPurposeWired, sendCode, loginByCode, registerByCode } = await import('./code-flow.js');
+const { decideSend, isPurposeWired, sendCode, loginByCode, registerAccount } = await import('./code-flow.js');
 const { resetCodeLimits } = await import('./code-limit.js');
 const { setMailSender } = await import('../mail/send.js');
 
@@ -33,7 +32,7 @@ await createUser(MEMBER, 'good-password-1', undefined);
 const sent: Array<{ to: string; subject: string; text: string }> = [];
 
 /** 抛错的域调用 → 取错误码（域层不碰 HTTP，失败就是 `Error(message=码)`）。 */
-async function codeOf(fn: () => Promise<unknown>): Promise<string> {
+async function codeOf(fn: () => unknown): Promise<string> {
   try {
     await fn();
   } catch (e) {
@@ -89,11 +88,12 @@ describe('auth/code-flow — decideSend：契约 §2.5 那张表逐格钉死', (
     expect(decideSend('reset', false)).toBe('silent');
   });
 
-  it('★ 接线范围是**另一件事**：M1.6 起 `login` + `register`（`reset` 的消费端点还没落）', () => {
+  it('★ 接线范围是**另一件事**：2026-09-22 起只剩 `login`（`register` 随 §2.7 作废摘线、`reset` 从未接线）', () => {
     // 与上面那张表分开测，是为了让策略表**每一格都能被验到**——
-    // 混在一个函数里的话，`reset` 那一格会永远走不到，成为改错了没人报红的死分支
+    // 混在一个函数里的话，`reset` 那一格会永远走不到，成为改错了没人报红的死分支。
+    // ★ `register` 从 true 翻成 false 是本批最要紧的一格：翻回去就等于开了一个开放邮件中继。
     expect(isPurposeWired('login')).toBe(true);
-    expect(isPurposeWired('register')).toBe(true);
+    expect(isPurposeWired('register')).toBe(false);
     expect(isPurposeWired('reset')).toBe(false);
   });
 });
@@ -149,17 +149,19 @@ describe('auth/code-flow — 入参校验与未接线用途', () => {
     expect(await codeOf(() => sendCode('not-an-email', 'login', '203.0.113.7'))).toBe('EMAIL_INVALID');
     expect(await codeOf(() => sendCode(MEMBER, 'signup', '203.0.113.7'))).toBe('PURPOSE_INVALID');
     expect(await codeOf(() => sendCode(MEMBER, undefined, '203.0.113.7'))).toBe('PURPOSE_INVALID');
-    // ★ `register` 已接线（M1.6）⇒ 不再在这一组；`reset` 仍未接线（密码找回端点未做）
+    // ★ 2026-09-22 起 `register` 与 `reset` **同档未接线**（§2.7 作废 ⇒ 消费端点消失）
+    expect(await codeOf(() => sendCode(MEMBER, 'register', '203.0.113.7'))).toBe('PURPOSE_INVALID');
     expect(await codeOf(() => sendCode(MEMBER, 'reset', '203.0.113.7'))).toBe('PURPOSE_INVALID');
     expect(sent).toHaveLength(0);
   });
 
-  it('★ `register` 已接线：已注册地址 ⇒ `EMAIL_TAKEN`（**与 login 态刻意相反**：这里就是要泄露）', async () => {
-    // 这是 §2.5 那张表里**唯一主动告诉对方「账号存在」**的分支。
-    // 判据不是"一致就好"，而是「这个信息会不会让攻击者拿到他本来拿不到的东西」——
-    // 「注册时已存在」不构成隐私：对方本来就能从 register 的 409 感知到，
-    // 而注册流程里用户填错邮箱必须当场知道，否则他会一直等一封永远不来的信。
-    expect(await codeOf(() => sendCode(MEMBER, 'register', '203.0.113.7'))).toBe('EMAIL_TAKEN');
+  it('★ `register` 态在**接线闸**就被挡下：拿不到 `EMAIL_TAKEN`，也一封不发', async () => {
+    // 作废前这条钉的是「已注册地址走 register 态 ⇒ 409 `EMAIL_TAKEN`（§2.5 表里唯一主动泄露
+    // 「账号存在」的分支）」。现在它必须先挡在策略之前——**顺序本身就是那道邮件中继的闸**：
+    // 若接线判定挪到限流/策略之后，未接线用途照样会把码发出去。
+    // ★ 那张策略表仍在（`decideSend('register', true) === 'taken'`，本文件上面逐格钉着），
+    //   因为**重开邮箱验证时它要原样接回去**；这里钉的是"今天接不回去"。
+    expect(await codeOf(() => sendCode(MEMBER, 'register', '203.0.113.7'))).toBe('PURPOSE_INVALID');
     expect(sent).toHaveLength(0);
   });
 
@@ -203,96 +205,61 @@ describe('auth/code-flow — loginByCode', () => {
 });
 
 /**
- * M1.6（契约 §2.7「注册即验证」）——`register` 用途的 `sendCode` 与 `registerByCode`。
- *
- * ★ 这组用例守的核心是**顺序**：纯校验 → 核销码 → 建号。三步都不换，
- *   而"顺序对不对"恰恰是不会有任何运行时错误、只会**白烧用户一条码**的那类问题。
+ * 2026-09-22（契约 §2.7「注册即验证」**作废**批）——注册免码之后，这一组钉的是三件事：
+ *   ① `register` 用途的发码闸**必须已落下**（没有消费端点的发码用途＝开放邮件中继）；
+ *   ② 纯校验顺序与 `EMAIL_TAKEN` 竞态兜底**原样保留**，只是不再核销码；
+ *   ③ ★ 未验证邮箱**照旧建得出号**——把它写成用例是为了让本次拍板的代价**可见**，
+ *      将来接 `reset`（找回密码）时谁要是把"收得到这封邮件"当身份凭据，这条就是现场证据。
+ * ★ register/login 的 IP 分桶、邮箱桶跨用途共用，仍由 `code-limit.test.ts` 直调 `admitSend` 钉住
+ *   （那一层与 HTTP 与接线范围都无关，摘用途不影响那两张表的正确性）。
  */
-describe('auth/code-flow — register 态 sendCode + registerByCode（M1.6 §2.7）', () => {
+describe('auth/code-flow — 注册免码（§2.7 作废批）', () => {
   const IP = '198.51.100.9';
 
-  it('未注册 ⇒ 真发一封，且这个码**能建号**（注册流程的完整闭环）', async () => {
-    const email = freshEmail();
-    const r = await sendCode(email, 'register', IP);
-    expect(r.expiresInMs).toBe(AUTH_CODE_TTL_MS);
-    expect(sent).toHaveLength(1);
-    expect(sent[0]?.to).toBe(email);
+  it('★★ `register` 态发码一律 `PURPOSE_INVALID`：一封不发、一行码不落库', async () => {
+    // 注册不再核销码 ⇒ 该用途没有消费端点。留着它等于"拿我们的通道给任意陌生邮箱发信"
+    // （烧 Resend 日额度 + 发信域名被拉黑），而用户还会收到一封永远用不上的邮件。
+    expect(await codeOf(() => sendCode(freshEmail(), 'register', IP))).toBe('PURPOSE_INVALID');
+    expect(sent).toHaveLength(0);
+    const rows = getDb().prepare('SELECT COUNT(*) AS c FROM auth_codes WHERE purpose = \'register\'').get() as { c: number };
+    expect(rows.c).toBe(0);
+  });
 
-    const user = await registerByCode(email, codeFromLastMail(), 'good-password-1', '  小明  ');
+  it('建号闭环不再要码，昵称 trim 仍生效（与路由层同一份归一化）', async () => {
+    const email = freshEmail();
+    const user = await registerAccount(email, 'good-password-1', '  小明  ');
     expect(user.email).toBe(email);
-    expect(user.nickname).toBe('小明'); // 昵称 trim 生效（与路由层同一份归一化）
+    expect(user.nickname).toBe('小明');
   });
 
-  it('★ 码只能用一次：同一个码建完号再拿去建另一个号 → `CODE_INVALID`', async () => {
+  it('★ 纯校验照旧各自回自己的码，且**失败一律不落库**', async () => {
     const email = freshEmail();
-    await sendCode(email, 'register', IP);
-    const code = codeFromLastMail();
-    await registerByCode(email, code, 'good-password-1', undefined);
-    expect(await codeOf(() => registerByCode(freshEmail(), code, 'good-password-1', undefined))).toBe('CODE_INVALID');
+    expect(await codeOf(() => registerAccount(email, 'short', undefined))).toBe('PASSWORD_WEAK');
+    expect(await codeOf(() => registerAccount(email, 'good-password-1', '一'.repeat(21)))).toBe('NICKNAME_INVALID');
+    expect(await codeOf(() => registerAccount('not-an-email', 'good-password-1', undefined))).toBe('EMAIL_INVALID');
+    const rows = getDb().prepare('SELECT COUNT(*) AS c FROM users WHERE email = ?').get(email) as { c: number };
+    expect(rows.c).toBe(0);
+    expect((await registerAccount(email, 'good-password-1', undefined)).email).toBe(email);
   });
 
-  it('★★ 纯校验失败**不烧码**：弱口令 / 坏昵称 / 坏邮箱被拒后，同一个码还能建号', async () => {
-    // 顺序：纯校验 → 核销码 → 建号。反过来的话，「密码只打了 6 位」这种手滑
-    // 会白烧一条码，用户得重新收信 —— 把可避免的失败挡在不可逆操作之前。
-    const email = freshEmail();
-    await sendCode(email, 'register', IP);
-    const code = codeFromLastMail();
-
-    expect(await codeOf(() => registerByCode(email, code, 'short', undefined))).toBe('PASSWORD_WEAK');
-    expect(await codeOf(() => registerByCode(email, code, 'good-password-1', '一'.repeat(21)))).toBe('NICKNAME_INVALID');
-    expect(await codeOf(() => registerByCode('not-an-email', code, 'good-password-1', undefined))).toBe('EMAIL_INVALID');
-
-    const user = await registerByCode(email, code, 'good-password-1', undefined); // ★ 码还活着
-    expect(user.email).toBe(email);
+  it('★ 已注册邮箱 → `EMAIL_TAKEN`（库层 UNIQUE 兜底，不是 500）', async () => {
+    // 免码之后这条路**不再是竞态专属**了：没有发码闸先拦一道，重复注册每次都直接撞库层约束。
+    expect(await codeOf(() => registerAccount(MEMBER, 'good-password-1', undefined))).toBe('EMAIL_TAKEN');
   });
 
-  it('★ 码错 → `CODE_INVALID`；码过期 → `CODE_EXPIRED`（与 login 态同一套语义）', async () => {
-    const email = freshEmail();
-    const now = 1_000;
-    await sendCode(email, 'register', IP, now);
-    expect(await codeOf(() => registerByCode(email, '000000', 'good-password-1', undefined, now + 1))).toBe('CODE_INVALID');
-    expect(await codeOf(() => registerByCode(email, codeFromLastMail(), 'good-password-1', undefined, now + AUTH_CODE_TTL_MS)))
-      .toBe('CODE_EXPIRED');
+  it('⚠️ 拍板代价钉成用例：未经所有权证明的邮箱照旧建号', async () => {
+    const squatted = 'someone-else@example-corp.com';
+    expect((await registerAccount(squatted, 'good-password-1', undefined)).email).toBe(squatted);
+    // 而真主人来注册时只会拿到"这个邮箱已经注册过了" —— 这就是那条代价的样子。
+    expect(await codeOf(() => registerAccount(squatted, 'another-good-pw', undefined))).toBe('EMAIL_TAKEN');
   });
 
-  it('★ `register` 码**不能**当 `login` 码用（两个用途在库里就是两条记录）', async () => {
-    const email = freshEmail();
-    await sendCode(email, 'register', IP);
-    const code = codeFromLastMail();
-    expect(await codeOf(async () => loginByCode(email, code))).toBe('CODE_INVALID');
-  });
-
-  it('★ 已注册邮箱走**竞态兜底**：直插一条 register 码 → `EMAIL_TAKEN`（不是 500）', async () => {
-    // 正常流程里 `sendCode('register')` 已先抛 EMAIL_TAKEN，走不到这里；
-    // 但并发下两个请求可能都拿到码 ⇒ 第二个人建号时撞到库层 `users.email UNIQUE`。
-    // 撞了必须翻译成 409，原样漏出去就是 500（看着像我们挂了，其实是可预期的业务冲突）。
+  it('★ 库里遗留的 `register` 码**不能**当 `login` 码用（两用途在库里就是两条记录）', async () => {
+    // 生产库里可能还有作废前发出的 register 行，purpose 隔离必须继续挡得住它们。
     const { issueCode } = await import('./codes.js');
-    const { code } = issueCode(MEMBER, 'register');
-    expect(await codeOf(() => registerByCode(MEMBER, code, 'good-password-1', undefined))).toBe('EMAIL_TAKEN');
-  });
-
-  it('★★ register 的 IP 桶更严（5/小时）且**与 login 分桶**', async () => {
-    // 两个用途共用一个 IP 桶的话，「有人拿 register 刷满」会连带掐死同一出口 IP 上
-    // 所有人的验证码登录 —— 校园网 / 公司网 / 运营商 NAT 全中招。这是分桶的全部理由。
-    for (let i = 0; i < AUTH_CODE_MAX_PER_IP_REGISTER_HOUR; i += 1) {
-      await sendCode(freshEmail(), 'register', IP, 1_000 + i * AUTH_CODE_RESEND_INTERVAL_MS);
-    }
-    const blocked = await codeOf(() =>
-      sendCode(freshEmail(), 'register', IP, 1_000 + AUTH_CODE_MAX_PER_IP_REGISTER_HOUR * AUTH_CODE_RESEND_INTERVAL_MS),
-    );
-    expect(blocked).toBe('CODE_RATE_LIMITED');
-
-    // ★ 同一个 IP 上，已注册用户的 login 码照样发得出去
-    await expect(sendCode(MEMBER, 'login', IP, 1_000)).resolves.toEqual({ expiresInMs: AUTH_CODE_TTL_MS });
-  });
-
-  it('★ 邮箱桶**跨用途共用**：register 刷满后同一邮箱的 login 也发不出（防"换个用途绕过"）', async () => {
     const email = freshEmail();
-    for (let i = 0; i < AUTH_CODE_MAX_PER_HOUR; i += 1) {
-      await sendCode(email, 'register', `10.0.0.${i}`, 1_000 + i * AUTH_CODE_RESEND_INTERVAL_MS);
-    }
-    // 换 IP 也没用：邮箱维度是跨用途共用的
-    const err = await codeOf(() => sendCode(email, 'login', '10.0.0.99', 1_000 + AUTH_CODE_MAX_PER_HOUR * AUTH_CODE_RESEND_INTERVAL_MS));
-    expect(err).toBe('CODE_RATE_LIMITED');
+    await registerAccount(email, 'good-password-1', undefined);
+    const { code } = issueCode(email, 'register');
+    expect(await codeOf(() => loginByCode(email, code))).toBe('CODE_INVALID');
   });
 });

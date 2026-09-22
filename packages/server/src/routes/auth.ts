@@ -6,9 +6,11 @@
  * 路由只做三件事：参数校验、调域层、把域层错误码映射成 HTTP——业务规则一律不在这一层
  * （与 `routes/pk.ts` 同构）。
  *
- * ★ 2026-09-18（M1.6）：`register` 的入参**新增必填 `code`**（「注册即验证」，§2.7）。
- *   ⚠️ 这是**破坏性变更**：旧的无码注册路径已消失。留着它 = 一条**绕过邮箱验证的后门**，
- *   不是兼容性。前端漏改的症状是 `400 CODE_INVALID`（清晰可查），不是静默降级。
+ * ★ 2026-09-18（M1.6）曾把 `register` 的入参改成**必填 `code`**（「注册即验证」，§2.7）；
+ *   ★ **2026-09-22 该契约作废**（运营拍板）：`code` 取消，**同批**补 `auth/register-limit.ts`
+ *   的按 IP 计数、并把发码侧 `register` 用途摘线。三条是一个耦合，拆开会各自出错：
+ *   只摘码 = 公开无限建号机（烧平台 AI 配额）；只摘码不摘线 = 留一个没有消费端的开放邮件中继。
+ *   前端漏改的症状是**多传一个被忽略的字段**（不是报错），故 web 侧必须同批看一遍。
  *
  * ⚠️ 写端点（register/login/logout/send-code/login-by-code）受 `security.ts` 的 `originCheck`
  * 管辖：**必须带合法 Origin**，否则 403（这不是参数错误）。真机 curl 冒烟要加 `-H 'origin: ...'`。
@@ -20,7 +22,8 @@ import { authenticate } from '../auth/users.js';
 import { createSession, deleteSession } from '../auth/session.js';
 import { clearSessionCookie, readSessionToken, resolveUser, setSessionCookie } from '../auth/middleware.js';
 import { clearFailures, isLocked, recordFailure } from '../auth/rate-limit.js';
-import { CodeRateLimitedError, loginByCode, registerByCode, sendCode } from '../auth/code-flow.js';
+import { CodeRateLimitedError, loginByCode, registerAccount, sendCode } from '../auth/code-flow.js';
+import { admitRegister } from '../auth/register-limit.js';
 import { demoLogin, demoLoginEnabled } from '../auth/demo.js';
 
 export const authRouter = Router();
@@ -39,6 +42,7 @@ const ERROR_STATUS: Record<AuthError, number> = {
   CODE_INVALID: 400,
   CODE_EXPIRED: 400,
   MAIL_SEND_FAILED: 502,
+  REGISTER_RATE_LIMITED: 429,
   // GitHub OAuth（§2.8）：四个码只经 routes/auth-github.ts 的错误页出口，这里登记
   // 是为 AuthError 联合类型的穷尽性——Record<AuthError, …> 两张表编译期强制全覆盖
   GITHUB_NOT_CONFIGURED: 503,
@@ -64,6 +68,9 @@ const ERROR_TEXT: Record<AuthError, string> = {
   CODE_EXPIRED: '验证码已过期，请重新获取',
   // ★ 不写"请稍后重试"以外的话：发信通道故障是服务端的事，用户能做的只有重试或改用密码
   MAIL_SEND_FAILED: '验证码邮件没能发出去，请稍后重试，或改用密码登录',
+  // ★ 与 CODE_RATE_LIMITED 分码的理由见 `AuthError`：这条要**当场给出替代入口**
+  //   （体验账号 / GitHub 都在），而不是让人对着一小时的等待干瞪眼
+  REGISTER_RATE_LIMITED: '这个网络今天注册的人有点多，请一小时后再试；也可以先用页面上的体验入口或 GitHub 登录',
   // GitHub OAuth（§2.8）：JSON 通道不会走到这四个文案（错误页在 auth-github.ts），登记同上
   GITHUB_NOT_CONFIGURED: 'GitHub 登录尚未配置',
   GITHUB_AUTH_FAILED: 'GitHub 登录没能完成，请重试',
@@ -124,21 +131,35 @@ function failFrom(res: Response, e: unknown): void {
 }
 
 /**
- * 注册（**注册即验证**，契约 §2.7，M1.6）：核销 `register` 验证码 → 建号 → 直接登录。
+ * 注册（**免邮箱验证码**，契约 §2.7 于 2026-09-22 作废登记）：建号 → 直接登录。
  *
- * ★ `code` 是**必填**：没有它这条路就是「任何人用任意邮箱凭空建号」。
- *   校验失败回 `CODE_INVALID` / `CODE_EXPIRED`（不是 400 参数缺失——域层统一给这两个码）。
+ * ★ 入参**不再收 `code`**：多传上来的码一律忽略（不给"传了就走验证"留第二条分支——
+ *   两条分支就是两个行为，而契约只承认一个）。
+ * ★ `admitRegister` 是摘掉验证码后**补上的那道闸**，位置在调域层之前：与 `/login` 的
+ *   `isLocked` 同型（限流判定属路由，业务规则仍不在这一层）。
+ *   ⚠️ **按尝试计数、不按成功计数**——失败也占额度。反过来（只在 201 时记账）等于
+ *   让脚本用"必然失败的注册"白刷，而失败恰恰是攻击者最省成本的一档。
  * ★ 建号后复用与密码登录**完全相同**的会话下发（`createSession` + `setSessionCookie`）——
  *   注册与登录产出同一种会话，故后续归属逻辑（TENANCY-SPEC）无需分支。
+ * ★ 429 带 `retryAfterMs`（与 `failRateLimited` 同口径：被拒时用户唯一有用的信息是等多久；
+ *   本码不经 `failFrom`，故就地组响应体，映射表仍从 `ERROR_*` 两张表取、不写字面量）。
  */
 authRouter.post('/register', (req: Request, res: Response) => {
-  const { email, code, password, nickname } = req.body as {
+  const { email, password, nickname } = req.body as {
     email?: unknown;
-    code?: unknown;
     password?: unknown;
     nickname?: unknown;
   };
-  void registerByCode(email, code, password, nickname)
+  const admission = admitRegister(clientIp(req));
+  if (!admission.ok) {
+    res.status(ERROR_STATUS.REGISTER_RATE_LIMITED).json({
+      error: ERROR_TEXT.REGISTER_RATE_LIMITED,
+      code: 'REGISTER_RATE_LIMITED',
+      retryAfterMs: admission.retryAfterMs,
+    });
+    return;
+  }
+  void registerAccount(email, password, nickname)
     .then((user) => {
       const { token, expiresAt } = createSession(user.id);
       setSessionCookie(res, token, expiresAt);

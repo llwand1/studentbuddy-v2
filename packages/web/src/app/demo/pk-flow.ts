@@ -10,8 +10,12 @@
  *   （`useTyping`，同为一个 hook）是同一例外口径。调用方是**只在属于它的那一帧才挂载**
  *   的子组件（`PkFlowDemo` 条件渲染），所以传进来的 `active` 恒真、卸载即停表——
  *   留这个参数是为了让「跳到哪一帧」与「表在不在走」由同一个条件决定，不另起判据。
+ *
+ * ★ 2026-09-22 中英切换批：题面是**演示数据**（前端写死的示例考题），转 `Bi` 双语；
+ *   「已过 Ns」的秒数格式器也按语言给（`PK_SECONDS`）。产品里对应组件的真读数不受影响。
  */
 import { useEffect, useState } from 'react';
+import type { Bi, LandingLang } from '../landing-lang';
 
 /**
  * 帧内计数：`active` 为真的那一帧从 `from` 逐格走向 `to` 并停住（到点即 clearInterval，
@@ -35,12 +39,24 @@ export function useFrameCount(active: boolean, from: number, to: number, everyMs
   return n;
 }
 
-/** s3「轮到你答」的题面（`PkAnswerBlock.tsx:38-41` 的单选题形态：题干 + 4 选项） */
-export const PK_QUESTION = {
-  stem: '一个物块随圆盘一起做匀速圆周运动，使它获得向心力的是？',
-  options: ['重力沿盘面的分量', '盘面对它的静摩擦力', '沿切面的「冲力」', '支持力'],
+/** s3「轮到你答」的题面（`PkAnswerBlock.tsx:38-41` 的单选题形态：题干 + 4 选项）。★ 双语：英文是同一物理场景的等价题 */
+export const PK_QUESTION: { stem: Bi; options: Record<LandingLang, string[]>; picked: number } = {
+  stem: {
+    zh: '一个物块随圆盘一起做匀速圆周运动，使它获得向心力的是？',
+    en: 'A block rides a spinning turntable in uniform circular motion. What provides the centripetal force?',
+  },
+  options: {
+    zh: ['重力沿盘面的分量', '盘面对它的静摩擦力', '沿切面的「冲力」', '支持力'],
+    en: ['The in-plane component of gravity', 'Static friction from the disk', 'A tangential “impulse”', 'The normal force'],
+  },
   /** 演示演的是**答对**那一支（走 sb-pop .32s；答错走 sb-shake，两支点不着） */
   picked: 1,
+};
+
+/** 「已过 Ns」的两种读法（产品同帧的两个真读数，格式随语言换、数值不换） */
+export const PK_SECONDS: Record<LandingLang, (sec: number) => string> = {
+  zh: (sec) => `已过 ${sec}s`,
+  en: (sec) => `${sec}s elapsed`,
 };
 
 /** 答题时限：产品口径 45s 真递减，≤10s 加 `.urgent` 变粗（`PkAnswerBlock.tsx:34`） */

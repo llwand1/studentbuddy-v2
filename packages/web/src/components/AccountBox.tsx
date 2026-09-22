@@ -8,10 +8,12 @@
  *   `/api/auth/me`——在前端存「我已登录」会造出「界面已登录、服务端会话早过期」的假象（最难排查）。
  * ★ 校验复用 `@sb/shared` 纯函数（`normalizeEmail` / `passwordProblem`），与服务端同一份代码（ADR-5）。
  *
- * ★ 2026-09-18（M1.6）一个表单承载三条通道：**注册**（邮箱 → 发码 → 验证码+密码+昵称；契约 §2.7
- *   「注册即验证」= 没有验证码提交不了，前端必填与服务端 `code` 必填是同一件事的两侧）、
- *   **密码登录**（不依赖邮件，邮件通道挂了仍能进，§4.6）、**验证码登录**（与密码登录产出同一种
- *   会话，不是第二套账号体系）。⚠️ 三通道共用 `email` 输入框：换通道不该重打一遍邮箱。
+ * ★ 2026-09-18（M1.6）一个表单承载三条通道：**注册**、**密码登录**（不依赖邮件，邮件通道挂了
+ *   仍能进，§4.6）、**验证码登录**（与密码登录产出同一种会话，不是第二套账号体系）。
+ *   ★★ 2026-09-22（契约 §2.7 作废）：**注册不再要邮箱验证码**，注册态＝邮箱 + 密码（+ 可选昵称），
+ *   提交即进。⇒ 本组件里「注册要发码」的三处分支同时消失（`needCode`、`showCode`、发码用途），
+ *   少改任何一处都会留下一个「点了发送、码却永远核销不掉」的死入口（白烧一封真邮件）。
+ *   ⚠️ 三通道仍共用 `email` 输入框：换通道不该重打一遍邮箱。
  *
  * ⚠️ **发码的冷却秒数取自 `AUTH_CODE_RESEND_INTERVAL_MS`（不是写死 60）**：服务端的邮箱桶
  *   间隔就是它，前端写死一个数就会出现「按钮能点了但服务端还回 429」——而用户看不懂
@@ -103,15 +105,16 @@ export function AccountBox({
     setBusy(true);
     setError('');
     try {
-      // ★ 用途必须与提交时的通道一致：注册发 `register`（已注册会 409），其余发 `login`。
-      await api.auth.sendCode(em, mode === 'register' ? 'register' : 'login');
+      // ★ 用途恒为 `login`：注册态自 2026-09-22 起不显示码行（`showCode` 已收窄），
+      //   而服务端 `register` 用途同批摘线 ⇒ 这里再发一次 `register` 就是一封永远核销不掉的邮件。
+      await api.auth.sendCode(em, 'login');
       setCooldown(RESEND_SECONDS);
     } catch (err) {
       setError(err instanceof Error ? err.message : '验证码发送失败，请重试');
     } finally {
       setBusy(false);
     }
-  }, [email, mode]);
+  }, [email]);
 
   const submit = useCallback(async () => {
     const em = normalizeEmail(email);
@@ -119,17 +122,14 @@ export function AccountBox({
       setError('邮箱格式不正确');
       return;
     }
-    const needCode = mode === 'register' || byCode;
+    // ★ 只有「验证码登录」一条通道要码（注册自 2026-09-22 起免码，契约 §2.7 作废）。
+    const needCode = byCode;
     if (needCode && !code.trim()) {
       setError('请填写邮箱收到的验证码');
       return;
     }
+    // 注册与密码登录都必须设密码（双通道并存，§0.1 第 2 条）：密码是邮件通道挂掉时唯一的退路。
     if (!needCode && passwordProblem(password)) {
-      setError('密码长度需在 8~100 位之间');
-      return;
-    }
-    // 注册必须设密码（双通道并存，§0.1 第 2 条）：密码是邮件通道挂掉时唯一的退路。
-    if (mode === 'register' && passwordProblem(password)) {
       setError('密码长度需在 8~100 位之间');
       return;
     }
@@ -138,7 +138,7 @@ export function AccountBox({
     try {
       const next =
         mode === 'register'
-          ? await api.auth.register(em, code.trim(), password, nickname.trim() || undefined)
+          ? await api.auth.register(em, password, nickname.trim() || undefined)
           : byCode
             ? await api.auth.loginByCode(em, code.trim())
             : await api.auth.login(em, password);
@@ -172,7 +172,7 @@ export function AccountBox({
   }, [onAuthChange]);
 
   const showPassword = mode === 'register' || !byCode;
-  const showCode = mode === 'register' || byCode;
+  const showCode = byCode;
   const submitLabel = mode === 'register' ? '注册并登录' : byCode ? '验证码登录' : '登录';
 
   return (

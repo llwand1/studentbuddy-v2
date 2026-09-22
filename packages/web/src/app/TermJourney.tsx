@@ -29,66 +29,108 @@
  *   清单选中行、中央计数全部由同一个 `turn` 派生 ⇒ 它们不可能互相对不上。
  *   （候选稿里弧走 13s CSS 无限转、热点走 1.8s 步进，两条独立时钟必然漂，没带过来。）
  *   `prefers-reduced-motion` 下**不挂计时器**：退化成静态五站图，信息一条不少。
+ *
+ * ★ 2026-09-22 中英切换批：文案一律 `{zh,en}` 成对（`Bi`），组件里不留中文字面量。
+ *   英文侧是同一套五步的等价说法，**没有为了省字而删掉任何一条实话**（含末段那句
+ *   "2.6 秒一圈是压缩时间"的诚实标注——它在两种语言里都不许被当成文案修饰删掉）。
  */
 import { useEffect, useState } from 'react';
 import { ChatIcon, DocIcon, PinIcon, ClockIcon, GraphIcon } from '../components/icons';
+import { LAND_TAG } from './landing-copy';
+import { useLandingLang, type Bi } from './landing-lang';
 import { prefersReducedMotion } from './demo/useDemoPlayer';
 
 type Step = {
   icon: typeof ChatIcon;
   no: string;
-  title: string;
-  lead: string;
-  desc: string;
+  title: Bi;
+  lead: Bi;
+  desc: Bi;
   /** 落地状态：与 README 的标注口径一致 */
-  tag: string;
+  tag: Bi;
   /** 只有部分落码的步骤带这个标记，用于样式上弱化，避免视觉上冒充已完成 */
   partial?: boolean;
 };
+
+const SHIPPED = LAND_TAG.shipped;
+/** 第 05 步只落了一半，角标本身就写着「部分」——英文侧同样不能简写成 Shipped */
+const PARTIAL = LAND_TAG.partial;
 
 const STEPS: Step[] = [
   {
     icon: ChatIcon,
     no: '01',
-    title: '抽词',
-    lead: '对话里自动入库',
-    desc: '回复后由 [TERMS] 协议异步抽取，不阻塞对话、失败降级为空；也可以手动「存入记忆」。同名词自动合并，并向模型回灌已有词表防分裂。',
-    tag: '已落地',
+    title: { zh: '抽词', en: 'Capture' },
+    lead: { zh: '对话里自动入库', en: 'Filed automatically from the chat' },
+    desc: {
+      zh: '回复后由 [TERMS] 协议异步抽取，不阻塞对话、失败降级为空；也可以手动「存入记忆」。同名词自动合并，并向模型回灌已有词表防分裂。',
+      en: 'After each reply a [TERMS] protocol extracts terms asynchronously — it never blocks the conversation and fails soft to nothing. You can also save one by hand. Same-name terms merge, and the existing list is fed back to the model so it stops coining duplicates.',
+    },
+    tag: SHIPPED,
   },
   {
     icon: DocIcon,
     no: '02',
-    title: '高亮',
-    lead: '正文里标出来',
-    desc: '回复中命中词条库的词自动标出：首现实线、复现虚点线。悬停看释义，点开是完整卡，卡上的动作直接回写词库。',
-    tag: '已落地',
+    title: { zh: '高亮', en: 'Highlight' },
+    lead: { zh: '正文里标出来', en: 'Marked inside the prose' },
+    desc: {
+      zh: '回复中命中词条库的词自动标出：首现实线、复现虚点线。悬停看释义，点开是完整卡，卡上的动作直接回写词库。',
+      en: 'Words in a reply that hit your library get marked: solid on first sight, dotted on every repeat. Hover for the definition, click for the full card — and the actions on it write straight back to the library.',
+    },
+    tag: SHIPPED,
   },
   {
     icon: PinIcon,
     no: '03',
-    title: '注入',
-    lead: '越用越容易被想起',
-    desc: '回复前按子串命中、重要度、最近使用三路加权检索，命中的词条作为第二条软注入——用过的词更容易再被用上，形成正反馈。',
-    tag: '已落地',
+    title: { zh: '注入', en: 'Injection' },
+    lead: { zh: '越用越容易被想起', en: 'The more you use it, the more it resurfaces' },
+    desc: {
+      zh: '回复前按子串命中、重要度、最近使用三路加权检索，命中的词条作为第二条软注入——用过的词更容易再被用上，形成正反馈。',
+      en: 'Before a reply, terms are retrieved by a weighted blend of substring hits, importance and recency, and the matches are softly injected as a second system message — words you already used are likelier to be used again. That is the feedback loop.',
+    },
+    tag: SHIPPED,
   },
   {
     icon: ClockIcon,
     no: '04',
-    title: '复习',
-    lead: '到期自己排队',
-    desc: '七个复查节点 1/2/4/7/15/30/60 天，到期即进队列、先还旧账。复习范围按词条或领域勾选，忘了归零重来，进度只增不减。',
-    tag: '已落地',
+    title: { zh: '复习', en: 'Review' },
+    lead: { zh: '到期自己排队', en: 'It queues itself when due' },
+    desc: {
+      zh: '七个复查节点 1/2/4/7/15/30/60 天，到期即进队列、先还旧账。复习范围按词条或领域勾选，忘了归零重来，进度只增不减。',
+      en: 'Seven recall checkpoints at 1/2/4/7/15/30/60 days; anything due joins the queue and old debt is paid first. Pick the scope by term or by domain — forgotten means starting over, and progress never goes backwards.',
+    },
+    tag: SHIPPED,
   },
   {
     icon: GraphIcon,
     no: '05',
-    title: '沉淀',
-    lead: '连成领域与知识网',
-    desc: '领域是一级实体，改名时词条批量随迁；理解程度按 L0 直觉到 L4 迁移分级累积，让「学到哪一层」变成看得见的状态。',
-    tag: '部分落地',
+    title: { zh: '沉淀', en: 'Consolidation' },
+    lead: { zh: '连成领域与知识网', en: 'Settles into domains and a knowledge web' },
+    desc: {
+      zh: '领域是一级实体，改名时词条批量随迁；理解程度按 L0 直觉到 L4 迁移分级累积，让「学到哪一层」变成看得见的状态。',
+      en: 'Domains are first-class entities, so renaming one moves its terms in bulk. Understanding accumulates from L0 intuition to L4 transfer, turning "how deep do I have this" into a state you can see.',
+    },
+    tag: PARTIAL,
     partial: true,
   },
 ];
+
+/** 本段的标题与小字（`{zh,en}` 成对，同上面的纪律） */
+const COPY = {
+  aria: { zh: '词条的完整旅程', en: 'The full journey of one term' },
+  h2Pre: { zh: '一个词条，走完', en: 'One term, taken through' },
+  h2Accent: { zh: '一整套学习流程', en: 'an entire study loop' },
+  sub: {
+    zh: '它不在某个单独的功能页里——从你说出它的那一刻起，抽词、标注、注入、复习由系统自动接手，并且每转一圈都留下痕迹',
+    en: 'It is not one page in the product — from the moment you say the word, capture, marking, injection and review are taken over by the system, and every lap leaves a trace',
+  },
+  core: { zh: '同一个词条', en: 'The same term' },
+  used: { zh: '已用次数', en: 'Times used' },
+  note: {
+    zh: '中央的数就是词条库里那个真实的「已用次数」：每完成一轮对话、正文里命中了这个词，它才加一次。上面 2.6 秒转一圈是把时间压缩了，其余没有虚构。',
+    en: 'That number in the middle is the real "times used" counter in the term library: it ticks once per finished conversation round whose reply contained the word. The 2.6-second lap above compresses time; nothing else here is invented.',
+  },
+} satisfies Record<string, Bi>;
 
 /** 一圈 5 站 × 2.6s。转速是压缩过的（真实要一轮对话才推进一次），页面里已如实写明 */
 const STEP_MS = 2600;
@@ -111,6 +153,7 @@ const offsetY = (i: number) => Math.round(R * Math.sin(at(i)));
 const ARC_PATH = `M${C} ${C - R} A${R} ${R} 0 0 1 ${C + offsetX(1)} ${C + offsetY(1)}`;
 
 export function TermJourney() {
+  const { lang } = useLandingLang();
   const [turn, setTurn] = useState(0);
   useEffect(() => {
     if (prefersReducedMotion()) return; // 静态：停在第 0 站，一条信息都不少
@@ -123,14 +166,12 @@ export function TermJourney() {
   const used = USED_AT + Math.floor(turn / STEPS.length);
 
   return (
-    <section className="landing-section" aria-label="词条的完整旅程">
+    <section className="landing-section" aria-label={COPY.aria[lang]}>
       <h2 className="landing-h2">
-        一个词条，走完<span className="landing-accent">一整套学习流程</span>
+        {COPY.h2Pre[lang]}
+        <span className="landing-accent">{COPY.h2Accent[lang]}</span>
       </h2>
-      <p className="landing-section-sub">
-        它不在某个单独的功能页里——从你说出它的那一刻起，抽词、标注、注入、复习由系统自动接手，
-        并且每转一圈都留下痕迹
-      </p>
+      <p className="landing-section-sub">{COPY.sub[lang]}</p>
 
       <div className="landing-journey-loop">
         <div className="landing-orbit" aria-hidden="true">
@@ -146,18 +187,18 @@ export function TermJourney() {
           </svg>
           {STEPS.map(({ title }, i) => (
             <span
-              key={title}
+              key={title.en}
               className={i === hot ? 'landing-orbit-node hot' : 'landing-orbit-node'}
               /* gates:style-ok —— 五站在环上的坐标由三角函数算出，是数据不是样式表能表达的 */
               style={{ left: `calc(50% + ${offsetX(i)}px)`, top: `calc(50% + ${offsetY(i)}px)` }}
             >
-              {title}
+              {title[lang]}
             </span>
           ))}
           <span className="landing-orbit-core">
-            <span className="landing-orbit-k">同一个词条</span>
+            <span className="landing-orbit-k">{COPY.core[lang]}</span>
             <span className="landing-orbit-n">{used}</span>
-            <span className="landing-orbit-s">已用次数</span>
+            <span className="landing-orbit-s">{COPY.used[lang]}</span>
           </span>
         </div>
 
@@ -169,21 +210,18 @@ export function TermJourney() {
                   <Icon size={17} />
                 </span>
                 <span className="landing-jstep-no">{no}</span>
-                <h3 className="landing-feature-title">{title}</h3>
-                <span className={partial ? 'landing-jtag landing-jtag-part' : 'landing-jtag'}>{tag}</span>
+                <h3 className="landing-feature-title">{title[lang]}</h3>
+                <span className={partial ? 'landing-jtag landing-jtag-part' : 'landing-jtag'}>{tag[lang]}</span>
               </div>
-              <p className="landing-jstep-lead">{lead}</p>
-              <p className="landing-feature-desc">{desc}</p>
+              <p className="landing-jstep-lead">{lead[lang]}</p>
+              <p className="landing-feature-desc">{desc[lang]}</p>
             </li>
           ))}
         </ol>
       </div>
 
       {/* 诚实标注：转的是**圈**，不是真时间。这一行不许被当成文案修饰删掉 */}
-      <p className="landing-jnote">
-        中央的数就是词条库里那个真实的「已用次数」：每完成一轮对话、正文里命中了这个词，它才加一次。
-        上面 2.6 秒转一圈是把时间压缩了，其余没有虚构。
-      </p>
+      <p className="landing-jnote">{COPY.note[lang]}</p>
     </section>
   );
 }

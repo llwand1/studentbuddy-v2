@@ -1,10 +1,11 @@
 /**
  * auth/code-flow — 验证码两个端点的用例编排（契约 docs/AUTH-SPEC.md §2.5）。
  *
- * ★ 2026-09-18（M1.6）：新增 **`registerByCode`**（「注册即验证」，§2.7）——
- *   `WIRED_PURPOSES` 加 `register`，配套把 `register` 的 **IP 桶单独收紧到 5/小时**
- *   （`AUTH_CODE_MAX_PER_IP_REGISTER_HOUR`，见 `code-limit.ts` 的 `IP_HOURLY_CAP`）。
- *   两个变更**必须同批**：只开用途不收限流 = 把一个陌生地址跳板打开且不设闸。
+ * ★ 2026-09-18（M1.6）曾新增 **`registerByCode`**（「注册即验证」，§2.7）——配套把 `register` 的
+ *   **IP 桶单独收紧到 5/小时**（`AUTH_CODE_MAX_PER_IP_REGISTER_HOUR`，见 `code-limit.ts` 的
+ *   `IP_HOURLY_CAP`），两者同批。★ **2026-09-22 该契约作废**（运营拍板，理由与三处代价见
+ *   `registerAccount` 的头注）：`register` 用途摘线、注册端点改由 `auth/register-limit.ts` 计数。
+ *   **这条历史别当噪声删**——它记录了「消费端点与发码限流必须同批」这条耦合的两次生效。
  *
  * 分层的理由：`auth/codes.ts` 只管表与 crypto、`mail/` 只管发信，**两者都不该知道对方的策略**；
  * 「邮箱没注册时发不发信」这类判断是**用例级**的，收在这一层。
@@ -60,12 +61,12 @@ import { buildCodeMail, getMailSender } from '../mail/send.js';
  * ★ 用 `PURPOSE_INVALID`（400）而不是新造一个码：从调用方视角，"这个用途现在不能用"
  *   与"这个用途不存在"是同一件事，多一个码只会多一个前端分支。
  *
- * ★ **2026-09-18（M1.6）加 `register`**：消费端点 `registerByCode` 与
- *   `POST /api/auth/register` 的 `code` 必填项同批落地（§2.7），② 的配套是
- *   **`register` 单独的 IP 桶上限 5/小时**（`AUTH_CODE_MAX_PER_IP_REGISTER_HOUR`）。
- *   `reset` 仍未接线（密码找回端点未做）⇒ 继续回 400。
+ * ★ **2026-09-18（M1.6）加 `register`，2026-09-22 摘出**：注册不再要求验证码（契约 §2.7
+ *   已作废登记），`register` 态**没有消费端点**⇒ 按本文件头注 ② 的原始理由**必须同批摘线**：
+ *   留着它 = 任何人可拿我们的发信通道给任意陌生邮箱发信（垃圾邮件/钓鱼跳板 + 烧光 Resend 日额度），
+ *   却**没有任何地方能校验那枚码**。`reset` 同理仍未接线 ⇒ 继续回 400。
  */
-const WIRED_PURPOSES: readonly AuthCodePurpose[] = ['login', 'register'];
+const WIRED_PURPOSES: readonly AuthCodePurpose[] = ['login'];
 
 /**
  * 该用途**今天**有没有消费端点。★ 与 `decideSend` 刻意分成两件事：
@@ -194,31 +195,31 @@ export function loginByCode(rawEmail: unknown, rawCode: unknown, now: number = D
 }
 
 /**
- * `POST /api/auth/register` 的用例：核销 `register` 码 → 建号。**会话由路由建**（见 `routes/auth.ts`）。
+ * `POST /api/auth/register` 的用例：建号 → 返回契约用户。**会话由路由建**（见 `routes/auth.ts`）。
  *
- * ★ **这就是「注册即验证」的全部实现**（契约 §2.7）：建号前必须先证明邮箱所有权。
- *   旧的无码注册路径**必须消失**——留着它就是**绕过验证的后门**，不是兼容性。
+ * ★★ 2026-09-22（老板拍板，契约 §2.7「注册即验证」**作废登记**）：注册**不再核销邮箱验证码**。
+ *   拍板理由不是安全权衡，而是**运营**：学习题材冷启动没人注册，而注册要等一封真邮件＝
+ *   第一道流失点（同期实测：当日 27 PV、新注册 0）。
+ *   ⚠️ 如实记下的三处代价（都真实存在，本批不掩盖）：
+ *     ① 建出的账号 `email` **未经所有权证明**——任何人可用他人邮箱抢先占位
+ *        （后来者拿到 `EMAIL_TAKEN`「已经注册过了」，等于丢失该邮箱的注册权）；
+ *     ② 将来接 `reset`（密码找回）时**不能再以"收得到这封邮件"当作身份凭据**，
+ *        否则未验证邮箱＝账号所有权——这条是 §2.7 作废后**最需要记住**的一条；
+ *     ③ 摘码等于摘掉唯一的注册限流（发码闸原本是脚本刷不动的原因）⇒ 本批**同批**补
+ *        `auth/register-limit.ts` 的按 IP 计数，且发码侧 `register` 用途**同批摘线**
+ *        （没消费端的发码用途＝开放邮件中继）。
+ *   ★ 想恢复验证：把 `WIRED_PURPOSES` 的 `register` 加回来 + 这里补回 `consumeCode` +
+ *     前端 `AccountBox` 的注册态码行恢复，三处**必须同批**（少一处就是一个静默后门）。
  *
- * ★ 顺序：**纯校验 → 核销码 → 建号**，三步都不换。
- *   ① **纯校验放最前**：邮箱格式 / 密码长度 / 昵称都是纯函数、零 IO，**免费**；
- *      而核销码**不可逆**。顺序反了的话「密码只打了 6 位」这种手滑会**白烧一条码**，
- *      用户得重新收信——把可避免的失败挡在不可逆操作之前。
- *   ② **核销在建号之前**：码是一次性凭据，验证通过就该失效（同 `loginByCode`）。
- *      为「邮箱已被占用」保留码，等于给枚举账号留一个可重复试探的口子。
- *   ③ **建号复用 `createUser`**：它内部已带两层（先查一次给友好码 + catch 住并发撞
- *      `UNIQUE(email)` 的竞态）。★ 即**库层唯一约束是最终兜底**，本函数不重复实现查重——
- *      两处各写一遍必然漂成「一处拦一处不拦」。
- *
- * ⚠️ **已知代价（契约 §2.7 记账）**：`EMAIL_TAKEN` 只可能在**竞态**下从这里抛出
- *   （正常流程里 `send-code` 的 `register` 态已先回 409），而**此时码已被烧掉**。
- *   这是刻意取舍：宁可让极端竞态下的用户重收一次码，也不给「拿别人邮箱试注册」留口子。
+ * ★ 顺序仍是「**纯校验 → 建号**」，理由未变：邮箱格式 / 密码长度 / 昵称都是纯函数、零 IO，
+ *   而 `createUser` 会写库。★ **建号复用 `createUser`**：它内部已带两层（先查一次给友好码 +
+ *   catch 住并发撞 `UNIQUE(email)` 的竞态），本函数不重复实现查重——两处各写一遍必然
+ *   漂成「一处拦一处不拦」。
  */
-export async function registerByCode(
+export async function registerAccount(
   rawEmail: unknown,
-  rawCode: unknown,
   rawPassword: unknown,
   rawNickname: unknown,
-  now: number = Date.now(),
 ): Promise<AuthUser> {
   const email = normalizeEmail(rawEmail);
   if (!email) throw new Error('EMAIL_INVALID' satisfies AuthError);
@@ -226,6 +227,5 @@ export async function registerByCode(
   if (pwProblem) throw new Error(pwProblem);
   if (normalizeAuthNickname(rawNickname) === null) throw new Error('NICKNAME_INVALID' satisfies AuthError);
 
-  consumeCode(email, 'register', rawCode, now); // 失败抛 CODE_INVALID / CODE_EXPIRED
   return createUser(email, rawPassword, rawNickname);
 }

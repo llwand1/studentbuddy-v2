@@ -10,10 +10,12 @@
  *      "两套登录方式、一种会话"是 TENANCY-SPEC 全部归属逻辑不必分支的前提；
  *   ② `send-code` 在 `login` 态**对注册与否回逐字相同的响应**（用户枚举防线）。
  *
- * ★ 2026-09-18（M1.6，契约 §2.7）：`register` 用途**已接线**，本文件补三条端点级用例：
- *   · 未注册 ⇒ 真发一封（注册流程的第一步）；
- *   · 已注册 ⇒ 409 `EMAIL_TAKEN`（刻意泄露，与 `login` 态口径相反）；
- *   · **register 的 IP 桶更严（5/小时）且与 login 分桶**——后者是校园网下最容易被误伤的一处。
+ * ★ 2026-09-18（M1.6，§2.7）曾为**已接线的 `register` 用途**补三条端点级用例；
+ *   ★ **2026-09-22 该契约作废**（注册免码）⇒ 没有消费端点的发码用途必须同批摘线
+ *   （留着它＝拿我们的通道给任意陌生邮箱发信：烧 Resend 日额度 + 发信域名被拉黑）。
+ *   本文件随之改成钉四件事：`register` 态一律 400 且零发信零落码、**脏请求不占限流名额**、
+ *   `login` 的 IP 桶端点级仍生效（★★ 含 `retryAfterMs` 到达响应体那条真机逼出来的锁，一字未松）、
+ *   摘线之后 register 不再有机会挤占 login 的名额。
  *
  * ★ 发信一律打桩（`setMailSender`）：绝不真发信——会烧 Resend 额度、还会给真人发邮件。
  */
@@ -21,7 +23,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { AUTH_CODE_MAX_PER_IP_REGISTER_HOUR, AUTH_CODE_RESEND_INTERVAL_MS, AUTH_CODE_WINDOW_MS, AUTH_COOKIE_NAME } from '@sb/shared';
+import { AUTH_CODE_MAX_PER_IP_HOUR, AUTH_CODE_RESEND_INTERVAL_MS, AUTH_CODE_WINDOW_MS, AUTH_COOKIE_NAME } from '@sb/shared';
 
 process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-routes-auth-code-test-'));
 const { app } = await import('../index.js');
@@ -109,8 +111,8 @@ describe('POST /api/auth/send-code（契约 §2.5）', () => {
     expect(bad.body.code).toBe('EMAIL_INVALID');
     expect(typeof bad.body.error).toBe('string');
 
-    // ★ M1.6 起 `register` **已接线**，不在这一组里；`reset` 仍未接线（密码找回端点未做）
-    for (const purpose of ['reset', 'signup', undefined]) {
+    // ★ 2026-09-22 起 `register` 与 `reset` **同档都未接线**（注册免码 ⇒ 消费端点消失）
+    for (const purpose of ['register', 'reset', 'signup', undefined]) {
       const res = await post('/api/auth/send-code').send({ email: 'member@example.com', purpose });
       expect(res.status).toBe(400);
       expect(res.body.code).toBe('PURPOSE_INVALID');
@@ -118,59 +120,68 @@ describe('POST /api/auth/send-code（契约 §2.5）', () => {
     expect(sent).toHaveLength(0);
   });
 
-  it('★ `register` 已接线：未注册地址 ⇒ 200 且**真的发了一封**（这就是注册流程的第一步）', async () => {
-    const res = await post('/api/auth/send-code').send({ email: 'newbie@example.com', purpose: 'register' });
+  it('★★ `register` 用途已摘线 → 400 `PURPOSE_INVALID`，**一封不发、一行码不落库**', async () => {
+    // 与作废前的**相反**承诺，留痕在此：原先这条是「未注册 ⇒ 200 且真发一封（注册第一步）」、
+    // 「已注册 ⇒ 409 EMAIL_TAKEN（刻意泄露）」。注册免码之后两者都不该再发生——
+    // 一个没有消费端点的发码用途就是开放邮件中继，而它烧的是 Resend 日额度、赔的是发信域名。
+    const before = (getDb().prepare('SELECT COUNT(*) AS c FROM users').get() as { c: number }).c;
+    for (const email of ['newbie@example.com', 'MEMBER@Example.com']) {
+      const res = await post('/api/auth/send-code').send({ email, purpose: 'register' });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('PURPOSE_INVALID');
+    }
+    expect(sent).toHaveLength(0);
+    const rows = getDb()
+      .prepare("SELECT COUNT(*) AS c FROM auth_codes WHERE purpose = 'register'")
+      .get() as { c: number };
+    expect(rows.c).toBe(0);
+    const after = (getDb().prepare('SELECT COUNT(*) AS c FROM users').get() as { c: number }).c;
+    expect(after).toBe(before); // 摘线不该顺手把建号口径也改掉
+  });
+
+  it('★ 摘线**不影响 `login` 通道**：已注册邮箱照样收到登录码', async () => {
+    await seedUser('member@example.com');
+    const res = await post('/api/auth/send-code').send({ email: 'member@example.com', purpose: 'login' });
     expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
     expect(sent).toHaveLength(1);
-    expect(sent[0]?.to).toBe('newbie@example.com');
     expect(lastCode()).toMatch(/^\d{6}$/);
   });
 
-  it('★ `register` 对**已注册**地址 → 409 `EMAIL_TAKEN`（刻意泄露：填错邮箱要当场知道）', async () => {
-    await seedUser('member@example.com');
-    const again = await post('/api/auth/send-code').send({ email: 'MEMBER@Example.com', purpose: 'register' });
-    expect(again.status).toBe(409);
-    expect(again.body.code).toBe('EMAIL_TAKEN');
-    expect(sent).toHaveLength(0); // 被拒的请求一封都没发
-  });
-
-  it('★ `register` 的 IP 上限**更严**（5/小时）：同一出口 IP 第 6 个地址 → 429', async () => {
-    // 这是**产品可见**的承诺，也是校园网/公司网下真会被撞到的那个数
-    // （诚实记账见 `shared/src/auth.ts` 的 `AUTH_CODE_MAX_PER_IP_REGISTER_HOUR`）。
-    // `code-limit.test.ts` 钉的是限流器本身；这条钉的是「端点真的接上了那条更严的线」。
-    for (let i = 0; i < AUTH_CODE_MAX_PER_IP_REGISTER_HOUR; i += 1) {
-      const res = await post('/api/auth/send-code').send({ email: `fresh${i}@example.com`, purpose: 'register' });
+  it(`★ ${AUTH_CODE_MAX_PER_IP_HOUR} 个未注册地址连着要登录码 ⇒ 全部 200（静默，但**都占 IP 名额**）`, async () => {
+    // login 态对未注册走 `silent`：回一样的 200、一封不发、一行码不落库（用户枚举防线）。
+    // ★★ 但**限流记账必须在注册与否之前**——只对"已注册"记账的话，「第 N+1 次收到 429」
+    //    本身就成了一条枚举信号（未注册的永远不 429）。这条用例钉的就是这个顺序。
+    //    （原用例借 `register` 用途演示同一件事；2026-09-22 摘线后改由 login 态承担，
+    //      判据一字未变，变的只是用哪个用途。）
+    for (let i = 0; i < AUTH_CODE_MAX_PER_IP_HOUR; i += 1) {
+      const res = await post('/api/auth/send-code').send({ email: `ghost${i}@example.com`, purpose: 'login' });
       expect(res.status).toBe(200);
     }
-    const sixth = await post('/api/auth/send-code').send({ email: 'fresh6@example.com', purpose: 'register' });
-    expect(sixth.status).toBe(429);
-    expect(sixth.body.code).toBe('CODE_RATE_LIMITED');
-    expect(sent).toHaveLength(AUTH_CODE_MAX_PER_IP_REGISTER_HOUR);
-    // ★★ 429 必须带 `retryAfterMs`（契约 §2.5）：被拒的那一刻用户**唯一**有用的信息是
-    //   "还要等多久"——没有它前端只能显示"请稍后再试"，而 429 **不记账**、服务端连痕迹都没有。
-    //   这条命中的是 **IP 桶**（新邮箱 + 新地址 ⇒ 另两道闸都没碰）⇒ 等待时长按小时窗口算。
-    //   ⚠️ 这条断言是 `_probe/auth-smoke.mjs` 真机跑到第 11 节才逼出来的：
-    //      此前 `retryAfterMs` 一路算到 `sendCode` 就被丢掉了，而**所有单测都是绿的**
-    //      （`code-limit.test.ts` 只断言限流器自己算得对，从没断言它到得了响应体）。
-    expect(typeof sixth.body.retryAfterMs).toBe('number');
-    expect(sixth.body.retryAfterMs).toBeGreaterThan(0);
-    expect(sixth.body.retryAfterMs).toBeLessThanOrEqual(AUTH_CODE_WINDOW_MS);
+    expect(sent).toHaveLength(0);
+    const over = await post('/api/auth/send-code').send({ email: 'ghost-extra@example.com', purpose: 'login' });
+    expect(over.status).toBe(429);
+    expect(over.body.code).toBe('CODE_RATE_LIMITED');
+    // ★★ 429 必须带 `retryAfterMs`（契约 §2.5）：被拒的那一刻用户**唯一**有用的信息是"还要等多久"。
+    //   这条断言是 `_probe/auth-smoke.mjs` 真机跑到第 11 节才逼出来的——此前 `retryAfterMs`
+    //   一路算到 `sendCode` 就被丢掉，而**所有单测都是绿的**（`code-limit.test.ts` 只断言限流器
+    //   自己算得对，从没断言它到得了响应体）。移植时这条最容易被"顺手删掉"，故单独留注。
+    expect(typeof over.body.retryAfterMs).toBe('number');
+    expect(over.body.retryAfterMs).toBeGreaterThan(0);
+    expect(over.body.retryAfterMs).toBeLessThanOrEqual(AUTH_CODE_WINDOW_MS);
   });
 
-  it('★★ 注册被刷满**不会**掐死同一出口 IP 上的验证码登录（**分桶的全部理由**）', async () => {
-    // 两个用途共用一个 IP 桶的话，「有人拿 register 刷满」会连带掐死
-    // 同一出口 IP 上所有人的验证码登录 —— 校园网 / 公司网 / 运营商 NAT 全中招。
-    // 这条用例守的就是那个决定：IP 桶的键是 `${purpose}:${ip}`。
-    await seedUser('member@example.com'); // 夹具直接落库 ⇒ 不占 register 用途的任何名额
-    for (let i = 0; i < AUTH_CODE_MAX_PER_IP_REGISTER_HOUR; i += 1) {
-      await post('/api/auth/send-code').send({ email: `spam${i}@example.com`, purpose: 'register' });
+  it('★ 脏请求**不占限流名额**：未接线用途被拒之后，同 IP 的 login 码照发', async () => {
+    // 校验闸在限流**之前**（`code-flow.ts#sendCode` 的顺序承诺）。反过来的话，
+    // 一个脚本光刷 `register` 就能把整条出口 IP 的登录验证码全掐掉——
+    // 而这正是免码之后最容易出现的场景（页面上还有人在发注册码）。
+    await seedUser('member@example.com'); // 夹具直接落库 ⇒ 不占任何发码名额
+    for (let i = 0; i < 8; i += 1) {
+      const blocked = await post('/api/auth/send-code').send({ email: `stale${i}@example.com`, purpose: 'register' });
+      expect(blocked.status).toBe(400);
     }
-    const blocked = await post('/api/auth/send-code').send({ email: 'more@example.com', purpose: 'register' });
-    expect(blocked.status).toBe(429); // register 桶确实满了
-
     const login = await post('/api/auth/send-code').send({ email: 'member@example.com', purpose: 'login' });
-    expect(login.status).toBe(200); // ★ login 的 IP 名额没被 register 吃掉
+    expect(login.status).toBe(200);
+    expect(sent).toHaveLength(1);
   });
 
   it('连点 → 429 `CODE_RATE_LIMITED`，且**第二封不发**', async () => {

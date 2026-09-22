@@ -20,13 +20,14 @@ export const authApi = {
    */
   surface: () => request<AuthSurface>('/api/auth/providers'),
   /**
-   * 注册（契约 §2.7「注册即验证」）：**`code` 必填**。
-   * ★ 旧的无码注册签名已删——后端不再接受它，留着这个重载只会把破坏性变更藏起来。
+   * 注册（契约 §2.7，**2026-09-22 起免邮箱验证码**）：提交即建号、即登录。
+   * ★ 服务端不再收 `code`（多传一律忽略），发码侧的 `register` 用途同批摘线
+   *   ⇒ 注册态**不该再发码**（发了也永远核销不掉，只会白烧一封真邮件）。
    */
-  register: (email: string, code: string, password: string, nickname?: string) =>
+  register: (email: string, password: string, nickname?: string) =>
     request<AuthUser>('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, code, password, ...(nickname ? { nickname } : {}) }),
+      body: JSON.stringify({ email, password, ...(nickname ? { nickname } : {}) }),
     }),
   login: (email: string, password: string) =>
     request<AuthUser>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),

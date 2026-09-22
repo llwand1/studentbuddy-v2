@@ -1,5 +1,5 @@
 /**
- * app/Landing — 未登录的**产品落地页**（2026-09-19 上线批；09-20 hero 重构批；09-21 双屏批；2026-09-22 重排批）。
+ * app/Landing — 未登录的**产品落地页**（2026-09-19 上线批；09-20 hero 重构批；09-21 双屏批；2026-09-22 重排批；2026-09-22 中英切换批）。
  *
  * ★ 本批（2026-09-22 重排）只解决老板提的一件事：**「雷点是先搞了功能介绍，而不是产品介绍」**。
  *   做法是按 T3「演示开道」版式（Linear/Vercel 一路：hero 轻量 + 演示窗说主话），
@@ -20,11 +20,16 @@
  *   ★ 功能区也随之从「并列九宫格」改成**一条编了号的动线**（01 学 → 05 反馈）：
  *     老板二次点单原话是「接下来的功能一步步讲」。
  *
+ * ★ 2026-09-22（中英切换批）：文案全部出本文件（`landing-copy.ts` / `landing-data.ts`，
+ *   均为 `Bi={zh,en}` 成对），语言态由 `LandingLangProvider` 罩住整棵树，页眉 `LangToggle` 切换。
+ *   **只罩落地页**——登录后应用壳仍是中文（范围决策见 `landing-lang.tsx` 头注）。
+ *
  * ★ 定位不变：门面，不是功能页。已登录用户直接进应用壳，**永远看不到本页**。
  *
  * ★ 注册/登录表单复用侧栏的 `AccountBox`（standalone 模式），不在本页复制一份表单逻辑：
  *   两处各写一遍必然漂成两种行为（同 RefList / ReviewPanel 的先例）。两条 CTA 通过 `key` 重挂
  *   切换初始模式——AccountBox 的模式是内部状态，重挂是最直白的传达。
+ *   ★ 表单**本体**（AccountBox 的字段/按钮）不在本批双语范围内——它是登录后的同一块牌子。
  *
  * ★ 视觉纪律（AGENTS.md）：禁 emoji，图标用 `components/icons.tsx` 的自绘 line-icon；
  *   配色只取 tokens.css 既有 token（#007aff 主色 / #fafafa 底），不另起色板；禁内联 style。
@@ -38,12 +43,23 @@ import { LandingBrand } from './LandingBrand';
 import { LandingDemo } from './demo/LandingDemo';
 import { LandingIntro } from './LandingIntro';
 import { LandingFeatures } from './LandingFeatures';
-import { PRIVACY } from './landing-data';
+import { PRIVACY_ITEMS } from './landing-data';
+import { AUTH, FOOT, GITHUB_BAND, HERO, PRIVACY, STATS, STEPS, TOP } from './landing-copy';
+import { LangToggle, LandingLangProvider, useLandingLang } from './landing-lang';
 import './landing.css';
 
 type AuthCard = 'closed' | 'register' | 'login';
 
-export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
+export function Landing(props: { onAuthed: (u: AuthUser) => void }) {
+  return (
+    <LandingLangProvider>
+      <LandingPage {...props} />
+    </LandingLangProvider>
+  );
+}
+
+function LandingPage({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
+  const { lang } = useLandingLang();
   const [card, setCard] = useState<AuthCard>('closed');
   // GitHub 登录入口是否可用（契约 AUTH-SPEC §2.8）：服务端没配凭据就不画按钮，
   // 请求失败（非 2xx / 网络）按「不可用」处理——宁少一个入口，不给用户一个点了报错的按钮。
@@ -70,12 +86,13 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
       <header className="landing-top">
         <LandingBrand />
         <div className="landing-top-right">
+          <LangToggle />
           <a className="landing-ghost landing-gh" href="https://github.com/llwand1/studentbuddy-v2" target="_blank" rel="noreferrer noopener">
             GitHub
           </a>
-          {githubEnabled && <GithubLoginButton className="landing-ghost" label="GitHub 登录" />}
+          {githubEnabled && <GithubLoginButton className="landing-ghost" label={TOP.ghLogin[lang]} />}
           <button type="button" className="landing-ghost" onClick={() => setCard(card === 'login' ? 'closed' : 'login')}>
-            登录
+            {TOP.login[lang]}
           </button>
         </div>
       </header>
@@ -86,14 +103,15 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
         <section className="landing-hero">
           <div className="landing-hero-copy">
             <h1 className="landing-title">
-              学过的词，会<span className="landing-accent">自己留下来</span>
+              {HERO.titlePre[lang]}
+              <span className="landing-accent">{HERO.titleAccent[lang]}</span>
             </h1>
-            <p className="landing-sub">自托管的 AI 学习助手。用你自己的模型 Key，数据在你自己的服务器。</p>
+            <p className="landing-sub">{HERO.sub[lang]}</p>
             <div className="landing-cta-row">
               <button type="button" className="landing-cta" onClick={() => setCard(card === 'register' ? 'closed' : 'register')}>
-                开始使用
+                {HERO.cta[lang]}
               </button>
-              <span className="landing-cta-note">邮箱注册，一分钟开始</span>
+              <span className="landing-cta-note">{HERO.ctaNote[lang]}</span>
             </div>
             {/* 公用体验入口（§2.10）：与上面的注册 CTA 并列，警示语必须读得到——
                 公用池里所有访客的数据互相可见，不明示等于默许隐私事故 */}
@@ -106,12 +124,13 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
                 2026-09-22 重排批把「数据条」降级为 hero 底部的信任信号，不再是介绍正文
                 （介绍改由 `LandingIntro` 承担，详见该文件头注）。
                 ★ 精确的旧值比模糊表述更危险——它看起来像真的，而首屏是访客第一眼看到的地方
-                （README 徽章有 metrics --check 守着，这里没有）。 */}
-            <div className="landing-stats" aria-label="项目数据">
-              <span>2600+ 自动化测试</span>
-              <span>6 个运行时依赖</span>
-              <span>150 个 REST 接口</span>
-              <span>0 个第三方 UI 库</span>
+                （README 徽章有 metrics --check 守着，这里没有）。★ 双语批：两列同数，换语言不换账。 */}
+            <div className="landing-stats" aria-label={HERO.statsAria[lang]}>
+              {STATS.map((s) => (
+                <span key={s.label.en}>
+                  {s.n} {s.label[lang]}
+                </span>
+              ))}
             </div>
           </div>
           <div className="landing-hero-demo">
@@ -125,11 +144,11 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
             <AccountBox key={card} standalone initialMode={card} onAuthChange={(u) => u && onAuthed(u)} />
             {githubEnabled && (
               <div className="landing-auth-github">
-                <span className="landing-auth-github-or">或</span>
-                <GithubLoginButton className="landing-github-btn" label="使用 GitHub 登录" />
+                <span className="landing-auth-github-or">{AUTH.or[lang]}</span>
+                <GithubLoginButton className="landing-github-btn" label={AUTH.ghBtn[lang]} />
                 {/* ★ 2026-09-21（独立建号批）文案改写：原文案描述的正是**已废弃的归并口径**，
                     与新行为正好相反。不改就是明着误导用户 */}
-                <span className="landing-github-hint">GitHub 登录会新建独立账号，与你用邮箱注册的账号互不相通</span>
+                <span className="landing-github-hint">{AUTH.ghHint[lang]}</span>
               </div>
             )}
           </div>
@@ -144,9 +163,9 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
         {/* GitHub 横幅 —— ★ 2026-09-22 重排：它原先排在 hero 之后第二位，正好插在
             「这是什么」和「它演示了什么」中间，把介绍节奏拦腰砍断。此处移到功能区之后、
             隐私之前：那时读者已经看完产品，正是「去哪拿源码」这个念头冒出来的时候。 */}
-        <section className="landing-github" aria-label="开源仓库与本地版">
+        <section className="landing-github" aria-label={GITHUB_BAND.aria[lang]}>
           <div className="landing-github-main">
-            <span className="landing-github-title">本项目完全开源</span>
+            <span className="landing-github-title">{GITHUB_BAND.title[lang]}</span>
             <a
               className="landing-github-link"
               href="https://github.com/llwand1/studentbuddy-v2"
@@ -156,29 +175,33 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
               github.com/llwand1/studentbuddy-v2
             </a>
           </div>
+          {/* ★ 锚点 `#快速开始` 两语同值：README 只有中文标题，EN 侧跟着跳同一节（已知代价） */}
           <a
             className="landing-github-note"
             href="https://github.com/llwand1/studentbuddy-v2#快速开始"
             target="_blank"
             rel="noreferrer noopener"
           >
-            更加完整的体验在<b>本地安装包版</b>，欢迎体验 →
+            {GITHUB_BAND.notePre[lang]}
+            <b>{GITHUB_BAND.noteMid[lang]}</b>
+            {GITHUB_BAND.noteTail[lang]}
           </a>
         </section>
 
-        <section className="landing-section landing-privacy" aria-label="隐私与数据">
+        <section className="landing-section landing-privacy" aria-label={PRIVACY.aria[lang]}>
           <div>
             <h2 className="landing-h2">
-              隐私与<span className="landing-accent">数据自持</span>
+              {PRIVACY.h2Pre[lang]}
+              <span className="landing-accent">{PRIVACY.h2Mid[lang]}</span>
             </h2>
             <ul className="landing-privacy-list">
-              {PRIVACY.map((t) => (
-                <li key={t}>{t}</li>
+              {PRIVACY_ITEMS.map((t) => (
+                <li key={t.en}>{t[lang]}</li>
               ))}
             </ul>
           </div>
           <div className="landing-privacy-cta">
-            <p className="landing-privacy-title">一分钟开始</p>
+            <p className="landing-privacy-title">{PRIVACY.ctaTitle[lang]}</p>
             <button
               type="button"
               className="landing-cta"
@@ -187,25 +210,22 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
             >
-              免费注册
+              {PRIVACY.cta[lang]}
             </button>
           </div>
         </section>
 
-        <section className="landing-steps" aria-label="开始步骤">
-          <div className="landing-step">
-            <span className="landing-step-num">1</span>邮箱注册账号
-          </div>
-          <div className="landing-step">
-            <span className="landing-step-num">2</span>设置页绑定自己的模型 Key
-          </div>
-          <div className="landing-step">
-            <span className="landing-step-num">3</span>提问、出题、复习，闭环开始转
-          </div>
+        <section className="landing-steps" aria-label={STEPS.aria[lang]}>
+          {STEPS.items.map((s, i) => (
+            <div className="landing-step" key={s.en}>
+              <span className="landing-step-num">{i + 1}</span>
+              {s[lang]}
+            </div>
+          ))}
         </section>
       </main>
 
-      <footer className="landing-foot">本地优先 · 数据自持 · © 2026 studentbuddy</footer>
+      <footer className="landing-foot">{FOOT[lang]}</footer>
     </div>
   );
 }

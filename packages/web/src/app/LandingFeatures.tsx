@@ -1,5 +1,5 @@
 /**
- * app/LandingFeatures — 落地页的**功能区**（2026-09-22 落地页重排批新建）。
+ * app/LandingFeatures — 落地页的**功能区**（2026-09-22 落地页重排批新建；同日中英切换批文案外提）。
  *
  * ★ 为什么抽出来：老板 2026-09-22 点单「雷点是先搞了功能介绍，而不是产品介绍」。
  *   抽文件的意义不在省行数，而在让**「介绍区」与「功能区」在 DOM 上成为两个可辨认的块**——
@@ -18,19 +18,22 @@
  */
 import { LANDING_ICONS } from './landing-icons';
 import { ENGINEERING, WALK } from './landing-data';
+import { FEATURES } from './landing-copy';
+import { useLandingLang } from './landing-lang';
 import { TermJourney } from './TermJourney';
 import { PkJourney } from './PkJourney';
 
 export function LandingFeatures() {
+  const { lang } = useLandingLang();
   return (
-    <section className="landing-zone" aria-label="功能介绍">
+    <section className="landing-zone" aria-label={FEATURES.aria[lang]}>
       <div className="landing-zone-head">
         <h2 className="landing-h2">
-          它是<span className="landing-accent">怎么运转</span>的
+          {FEATURES.h2Pre[lang]}
+          <span className="landing-accent">{FEATURES.h2Mid[lang]}</span>
+          {FEATURES.h2Tail[lang]}
         </h2>
-        <p className="landing-section-sub">
-          到这里你已经知道它是什么了。这一节按你上手后真实的先后顺序，一步一步走一遍——每一步底下挂的，是这一步里的一级功能入口。
-        </p>
+        <p className="landing-section-sub">{FEATURES.sub[lang]}</p>
       </div>
 
       {/* ① 一步步动线：骨架。★ 编号取自数据的 `no`，不是渲染下标——编号是给读者看的路标，
@@ -40,21 +43,21 @@ export function LandingFeatures() {
           <li className="landing-walk-step" key={no}>
             <div className="landing-walk-head">
               <span className="landing-walk-no">{no}</span>
-              <span className="landing-walk-ring">{step}</span>
-              <h3 className="landing-walk-title">{title}</h3>
+              <span className="landing-walk-ring">{step[lang]}</span>
+              <h3 className="landing-walk-title">{title[lang]}</h3>
             </div>
-            <p className="landing-walk-desc">{desc}</p>
+            <p className="landing-walk-desc">{desc[lang]}</p>
             <ul className="landing-walk-caps">
               {caps.map((cap) => {
                 const Icon = LANDING_ICONS[cap.icon];
                 return (
-                  <li className="landing-walk-cap" key={cap.title}>
+                  <li className="landing-walk-cap" key={cap.title.en}>
                     <span className="landing-feature-icon landing-walk-cap-icon">
                       <Icon size={16} />
                     </span>
                     <div>
-                      <h4 className="landing-feature-title">{cap.title}</h4>
-                      <p className="landing-feature-desc">{cap.desc}</p>
+                      <h4 className="landing-feature-title">{cap.title[lang]}</h4>
+                      <p className="landing-feature-desc">{cap.desc[lang]}</p>
                     </div>
                   </li>
                 );
@@ -65,23 +68,22 @@ export function LandingFeatures() {
       </ol>
 
       {/* ② 动线讲完，再放两屏真实界面的回放：先看一个词走完一整趟，再看同一份快照在两块屏上的读法 */}
-      <p className="landing-section-sub landing-zone-lead">
-        动线是骨架，下面两屏是它跑起来的样子 ——
-      </p>
+      <p className="landing-section-sub landing-zone-lead">{FEATURES.boards[lang]}</p>
       <TermJourney />
       <PkJourney />
 
       {/* ③ 工程底牌：给懂行的人看的，排在最后（不看懂它也不影响前面怎么用） */}
-      <div className="landing-zone-block" aria-label="工程品质">
+      <div className="landing-zone-block" aria-label={FEATURES.engAria[lang]}>
         <h3 className="landing-zone-h3">
-          工程上<span className="landing-accent">较真</span>
+          {FEATURES.engH2Pre[lang]}
+          <span className="landing-accent">{FEATURES.engH2Mid[lang]}</span>
         </h3>
-        <p className="landing-section-sub">差别不在于有没有接大模型，而在于闭环完整度、AI 输出可靠性、工程质量三层是否同时做实</p>
+        <p className="landing-section-sub">{FEATURES.engSub[lang]}</p>
         <div className="landing-eng">
           {ENGINEERING.map(({ title, desc }) => (
-            <div className="landing-eng-card" key={title}>
-              <h4 className="landing-feature-title">{title}</h4>
-              <p className="landing-feature-desc">{desc}</p>
+            <div className="landing-eng-card" key={title.en}>
+              <h4 className="landing-feature-title">{title[lang]}</h4>
+              <p className="landing-feature-desc">{desc[lang]}</p>
             </div>
           ))}
         </div>

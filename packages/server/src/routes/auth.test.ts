@@ -8,26 +8,27 @@
  *  · 会话闭环：cookie → /me 200；logout → /me 401；
  *  · 写端点缺 Origin → 403（`security.ts` 的 originCheck，跨源闸门）。
  *
- * ★ 2026-09-18（M1.6，契约 §2.7「注册即验证」）：`/register` 的入参**多了必填的 `code`**。
- *   本文件的 `register()` 辅助函数随之改成**走完整流程**（发注册码 → 用码注册）——
- *   这是刻意的：让每个用例都顺手把新链路跑一遍，而不是绕过它直插账号。
- *   ★ 新增两条用例守的正是「后门必须消失」与「兜底必须是 409 而不是 500」。
+ * ★ 2026-09-18（M1.6，§2.7「注册即验证」）曾要求 `register()` 走完整流程（发码 → 用码注册）；
+ *   ★ **2026-09-22 该契约作废**：注册免验证码，`register()` 随之退回**一步**。
+ *   ⇒ 本文件新增一组用例钉住"作废后的新边界"：免码能建号、多传的 `code` 一律忽略、
+ *     发码侧 `register` 用途已摘线、同 IP 第 6 次注册吃 429（那条是摘码**同批**补的闸）。
  *
  * ⚠️ 限流与「时序均衡哈希缓存」是**进程内模块状态**，跨用例会串——故 beforeEach 一律重置。
- *   ★ 验证码限流（`code-limit.ts`）也必须重置：注册的 IP 桶上限只有 **5/小时**，
- *     而本文件有 9 处 `register()`，全走同一个出口 IP ⇒ 不重置的话第 6 个用例起必吃 429。
+ *   ★ 注册的 IP 桶上限只有 **5/小时**（`register-limit.ts`），而本文件有 9+ 处 `register()`、
+ *     全走同一个出口 IP ⇒ 不重置的话第 6 个用例起必吃 429。
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { AUTH_COOKIE_NAME, AUTH_MAX_LOGIN_FAILURES } from '@sb/shared';
+import { AUTH_COOKIE_NAME, AUTH_MAX_LOGIN_FAILURES, AUTH_REGISTER_MAX_PER_IP_HOUR } from '@sb/shared';
 
 process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-routes-auth-test-'));
 const { app } = await import('../index.js');
 const { getDb, closeDb } = await import('../storage/db.js');
 const { resetRateLimits } = await import('../auth/rate-limit.js');
 const { resetCodeLimits } = await import('../auth/code-limit.js');
+const { resetRegisterLimits } = await import('../auth/register-limit.js');
 const { resetAuthCaches } = await import('../auth/users.js');
 const { setMailSender } = await import('../mail/send.js');
 const request = (await import('supertest')).default;
@@ -38,13 +39,6 @@ const get = (url: string) => request(app).get(url).set('Origin', origin);
 
 /** 桩发信收集器（**绝不真发**：会烧 Resend 额度、还会给真人发邮件）。 */
 const sent: Array<{ to: string; subject: string; text: string }> = [];
-
-/** 从最近一封邮件取验证码（`buildCodeMail` 把码单独放在首行，就是为了这一眼能抄到）。 */
-function lastCode(): string {
-  const last = sent[sent.length - 1];
-  if (!last) throw new Error('预期有发信，实际一封都没发');
-  return last.text.split('\n')[0] ?? '';
-}
 
 /** 当前用户数（用于断言"失败请求不落库"）。 */
 function userCount(): number {
@@ -61,20 +55,18 @@ function sidCookie(headers: Record<string, string | string[] | undefined>): stri
 
 /**
  * 注册一个账号，返回响应 + 会话 cookie。
- * ★ M1.6 起必须先发码再注册（§2.7）——这里把两步封在一起，用例只管调它。
+ * ★ 2026-09-22（§2.7 作废）起**一步就够**：不再先发码（发码侧 `register` 用途已摘线，
+ *   这里再发一次只会拿到 400）。
  */
 async function register(email: string, password = 'good-password-1', nickname?: string) {
-  const asked = await post('/api/auth/send-code').send({ email, purpose: 'register' });
-  if (asked.status !== 200) {
-    throw new Error(`发注册码失败（${asked.status}）：${JSON.stringify(asked.body)}`);
-  }
-  const res = await post('/api/auth/register').send({ email, code: lastCode(), password, nickname });
+  const res = await post('/api/auth/register').send({ email, password, nickname });
   return { res, cookie: sidCookie(res.headers) };
 }
 
 beforeEach(() => {
   resetRateLimits();
   resetCodeLimits();
+  resetRegisterLimits();
   resetAuthCaches();
   sent.length = 0;
   setMailSender({
@@ -86,7 +78,7 @@ beforeEach(() => {
   });
 });
 
-describe('POST /api/auth/register（契约 §2 + §2.7 注册即验证）', () => {
+describe('POST /api/auth/register（契约 §2；§2.7 注册即验证已于 2026-09-22 作废）', () => {
   it('建号 + 直接下发会话 cookie；响应体含 user 四字段且**不含 password_hash**', async () => {
     const { res, cookie } = await register('Alice@Example.COM');
     expect(res.status).toBe(200);
@@ -111,56 +103,56 @@ describe('POST /api/auth/register（契约 §2 + §2.7 注册即验证）', () =
     expect(res.body.user.nickname).toBe('小明');
   });
 
-  it('★★ 不传 `code` 的注册 → 400 `CODE_INVALID`，且**不落库**（旧的无码注册路径必须已消失）', async () => {
-    // 这条是本批最要紧的回归防线：无码注册若还能建号，M1.6 等于没做，
-    // 而且它不是一个"兼容性入口"，是**绕过邮箱验证的后门**。
+  it('★★ 免码注册直接建号（§2.7 作废后的新边界）：不传 `code` 也 200 且落库', async () => {
+    // 原用例断言的是「无码注册必须 400，留着就是绕过邮箱验证的后门」。
+    // 2026-09-22 拍板作废：注册不再要码 ⇒ **这条边界反过来了**，故在此留痕：
+    // 未验证邮箱能建号是**已知代价**（真主人来注册只会拿到 409），不是漏网。
     const before = userCount();
     const res = await post('/api/auth/register').send({ email: 'nocode@example.com', password: 'good-password-1' });
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe('CODE_INVALID');
-    expect(userCount()).toBe(before);
+    expect(res.status).toBe(200);
+    expect(res.body.user.email).toBe('nocode@example.com');
+    expect(userCount()).toBe(before + 1);
   });
 
-  it('★ 拿 `login` 用途的码去注册 → 400 `CODE_INVALID`（两个用途的码在库里是两条记录）', async () => {
-    await register('purp@example.com');
-    await post('/api/auth/send-code').send({ email: 'purp@example.com', purpose: 'login' });
-    const before = userCount();
-
+  it('★ 多传一个 `code` 一律**忽略**（不给"传了就走验证"留第二条分支）', async () => {
     const res = await post('/api/auth/register').send({
-      email: 'purp@example.com',
-      code: lastCode(), // 这是 login 码，不是 register 码
+      email: 'extra-code@example.com',
+      code: '000000', // 库里根本没有这条码
       password: 'good-password-1',
     });
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe('CODE_INVALID');
-    expect(userCount()).toBe(before);
+    expect(res.status).toBe(200);
   });
 
-  it('重复邮箱：**发注册码当场 409 `EMAIL_TAKEN`**（§2.7 第一道闸，用户填错邮箱要立刻知道）', async () => {
-    // ★ 直接落库造账号，**不走注册流程**：走的话会先真发一封注册码，
-    //   而「同一邮箱 + 同一用途」的 60 秒最小间隔会把下面这次发码拦成 429
-    //   ——那是另一条闸（`code-limit.ts`），不是本用例要验的东西。
-    const { createUser } = await import('../auth/users.js');
-    await createUser('dup@example.com', 'good-password-1', undefined);
-    const again = await post('/api/auth/send-code').send({ email: 'DUP@Example.com', purpose: 'register' });
+  it('★ 发码侧 `register` 用途**同批摘线** → 400 `PURPOSE_INVALID`，一行码不落库', async () => {
+    // 摘线的理由不是洁癖：没有消费端点的发码用途＝拿我们的通道给任意陌生邮箱发信
+    // （烧 Resend 日额度 + 发信域名被拉黑），而且用户会收到一封永远用不上的邮件。
+    const res = await post('/api/auth/send-code').send({ email: 'relay@example.com', purpose: 'register' });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('PURPOSE_INVALID');
+    const rows = getDb()
+      .prepare("SELECT COUNT(*) AS c FROM auth_codes WHERE purpose = 'register'")
+      .get() as { c: number };
+    expect(rows.c).toBe(0);
+  });
+
+  it(`★ 摘码同批补的闸：同一 IP 第 ${AUTH_REGISTER_MAX_PER_IP_HOUR + 1} 次注册 → 429（带 retryAfterMs）`, async () => {
+    // 注册原本靠发码闸限流；码摘了就必须有这条，否则这台端点是**公开无限建号机**，
+    // 而每号一份平台配额（250 次/5h 走平台 key）⇒ 烧的是我方额度、症状落在真人身上。
+    for (let i = 0; i < AUTH_REGISTER_MAX_PER_IP_HOUR; i += 1) {
+      const r = await post('/api/auth/register').send({ email: `bulk${i}@example.com`, password: 'good-password-1' });
+      expect(r.status).toBe(200);
+    }
+    const blocked = await post('/api/auth/register').send({ email: 'bulk-extra@example.com', password: 'good-password-1' });
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.code).toBe('REGISTER_RATE_LIMITED');
+    expect(typeof blocked.body.retryAfterMs).toBe('number');
+  });
+
+  it('★ 重复邮箱 → 409 `EMAIL_TAKEN`（免码之后这是**唯一**的重复拦截点，且不是 500）', async () => {
+    await register('dup@example.com');
+    const again = await post('/api/auth/register').send({ email: 'DUP@Example.com', password: 'good-password-1' });
     expect(again.status).toBe(409);
     expect(again.body.code).toBe('EMAIL_TAKEN');
-  });
-
-  it('★ 库层唯一约束是**最终兜底**：直插一条 `register` 码再注册已占用邮箱 → 409（**不是 500**）', async () => {
-    // 正常流程里 `send-code` 已先回 409，走不到这里；但并发下两个请求可能都拿到码，
-    // ⇒ 第二个人建号时必须撞到 `users.email UNIQUE`。撞了要**翻译成 409**，
-    //   原样漏出去就是 500（"服务器错误"看着像我们挂了，其实是可预期的业务冲突）。
-    await register('dup2@example.com');
-    const { issueCode } = await import('../auth/codes.js');
-    const { code } = issueCode('dup2@example.com', 'register');
-    const res = await post('/api/auth/register').send({
-      email: 'dup2@example.com',
-      code,
-      password: 'good-password-1',
-    });
-    expect(res.status).toBe(409);
-    expect(res.body.code).toBe('EMAIL_TAKEN');
   });
 
   it.each([
@@ -176,20 +168,9 @@ describe('POST /api/auth/register（契约 §2 + §2.7 注册即验证）', () =
     expect(userCount()).toBe(before);
   });
 
-  it('★ 纯校验失败**不烧码**：手滑打成弱口令后，同一个码还能用来注册（校验在核销之前）', async () => {
-    // 顺序（`code-flow.ts` `registerByCode`）：纯校验 → 核销码 → 建号。
-    // 反过来的话，用户"密码只打了 6 位"这种手滑会白烧一条码，得重新收信。
-    await post('/api/auth/send-code').send({ email: 'order@example.com', purpose: 'register' });
-    const code = lastCode();
-
-    const weak = await post('/api/auth/register').send({ email: 'order@example.com', code, password: 'short' });
-    expect(weak.status).toBe(400);
-    expect(weak.body.code).toBe('PASSWORD_WEAK');
-
-    const ok = await post('/api/auth/register').send({ email: 'order@example.com', code, password: 'good-password-1' });
-    expect(ok.status).toBe(200); // ★ 码没被那次失败吃掉
-    expect(ok.body.user.email).toBe('order@example.com');
-  });
+  // ★ 2026-09-22 作废：原「纯校验失败**不烧码**（校验在核销之前）」用例随验证码一并删除——
+  //   注册不再核销码，就没有"烧不烧"可言。它钉的顺序（纯校验先于不可逆操作）在
+  //   `auth/code-flow.test.ts` 的「失败一律不落库」那条里以更弱的形式继续守着。
 });
 
 describe('POST /api/auth/login（契约 §2 + §4.4 限流）', () => {

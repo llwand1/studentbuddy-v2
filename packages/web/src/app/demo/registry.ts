@@ -9,6 +9,10 @@
  *     `LandingDemo.tsx` 与 `useDemoPlayer.ts` 确实一行未改，多演示的 Tab 也自动出现
  *     （切换位早就留好：只有 1 个演示时刻意不画 Tab）。
  *
+ * ★ 2026-09-22 中英切换批：`title` / `caption` 转 `Bi={zh,en}`，帧时长 `ms` **两语共用**——
+ *   打字机帧的英文段刻意写短并把每字速度调低（见 `TermFlowDemo`），预算由
+ *   `LandingLang.test.tsx` 的「两种语言都要在帧内跑完」机器锁住，不靠自觉。
+ *
  * ★ 帧只读 `stage` 序号，**帧内动画一律走 CSS**（`demo.css` 的 keyframes/transition）。
  *   JS 只承担一件必须逐帧推进的事：打字机。它也是 `setTimeout` 而非补间库 ——
  *   AGENTS.md「刻意不引库」是明文纪律（前端零第三方库，动画同理）。
@@ -18,21 +22,22 @@
  *   打字机帧的时长必须 ≥ 文本揭示耗时（已按 25 字 × 42ms + 尾停留核算，见 TermFlowDemo）。
  */
 import type { ComponentType } from 'react';
+import type { Bi } from '../landing-lang';
 import { TermFlowDemo } from './TermFlowDemo';
 import { GraphDemo } from './GraphDemo';
 import { PkFlowDemo } from './PkFlowDemo';
 
 export type DemoStage = {
-  /** 底部阶段条的说明文案（一帧一句） */
-  caption: string;
-  /** 本帧停留时长(ms) */
+  /** 底部阶段条的说明文案（一帧一句，中英成对） */
+  caption: Bi;
+  /** 本帧停留时长(ms)。两语共用——英文帧内容按此预算写短 */
   ms: number;
 };
 
 export type DemoDefinition = {
   key: string;
   /** 演示窗标题栏文案 */
-  title: string;
+  title: Bi;
   stages: DemoStage[];
   /** 帧渲染器：只读 stage，不持有自己的计时器 */
   View: ComponentType<{ stage: number }>;
@@ -41,13 +46,13 @@ export type DemoDefinition = {
 /** 词条流程演示：对话抽词 → 高亮 → 悬浮卡 → 入库 → 复习翻牌 */
 export const TERM_FLOW: DemoDefinition = {
   key: 'term-flow',
-  title: '对话 · 词条',
+  title: { zh: '对话 · 词条', en: 'Chat · Terms' },
   stages: [
-    { caption: '对话进行中：词条库里已有的词自动标出来', ms: 3800 },
-    { caption: '悬停出速览卡：释义、领域、已用次数', ms: 2400 },
-    { caption: '回复结束自动入库，不打断对话', ms: 1900 },
-    { caption: '到期自动进复习队列：先翻牌自测', ms: 2300 },
-    { caption: '翻牌看释义与进度：1/2/4/7/15/30/60 天', ms: 3800 },
+    { caption: { zh: '对话进行中：词条库里已有的词自动标出来', en: 'Mid-chat: terms already in your library get marked automatically' }, ms: 3800 },
+    { caption: { zh: '悬停出速览卡：释义、领域、已用次数', en: 'Hover for the quick card: meaning, domain, usage count' }, ms: 2400 },
+    { caption: { zh: '回复结束自动入库，不打断对话', en: 'When the reply ends, terms file themselves — the chat is never interrupted' }, ms: 1900 },
+    { caption: { zh: '到期自动进复习队列：先翻牌自测', en: 'Due terms queue themselves for review: recall first, flip second' }, ms: 2300 },
+    { caption: { zh: '翻牌看释义与进度：1/2/4/7/15/30/60 天', en: 'Flip to see meaning & progress: 1/2/4/7/15/30/60 days' }, ms: 3800 },
   ],
   View: TermFlowDemo,
 };
@@ -61,13 +66,13 @@ export const TERM_FLOW: DemoDefinition = {
  */
 export const GRAPH_FLOW: DemoDefinition = {
   key: 'graph-flow',
-  title: '知识图 · 追问长出关系',
+  title: { zh: '知识图 · 追问长出关系', en: 'Knowledge graph · follow-ups grow links' },
   stages: [
-    { caption: '词条攒了一些，但关系还是稀的——孤立的词条算不上知识', ms: 3000 },
-    { caption: '对词条点「向 AI 追问」：开一条独立会话，自动带上原对话摘要', ms: 3600 },
-    { caption: '追问回复里抽出的词条自动连回来——一次追问长出一个星型', ms: 4200 },
-    { caption: '孩子还能再追问：星就长成了树', ms: 3800 },
-    { caption: 'AI 连的边都标着「未经确认」——确认一次就转成实线', ms: 4400 },
+    { caption: { zh: '词条攒了一些，但关系还是稀的——孤立的词条算不上知识', en: 'Terms have piled up, links haven’t — isolated terms are hardly knowledge' }, ms: 3000 },
+    { caption: { zh: '对词条点「向 AI 追问」：开一条独立会话，自动带上原对话摘要', en: 'Hit “Ask AI” on a term: a fresh thread opens, auto-seeded with the original summary' }, ms: 3600 },
+    { caption: { zh: '追问回复里抽出的词条自动连回来——一次追问长出一个星型', en: 'Terms extracted from the answer link straight back — one follow-up grows a star' }, ms: 4200 },
+    { caption: { zh: '孩子还能再追问：星就长成了树', en: 'Keep drilling down: the star grows into a tree' }, ms: 3800 },
+    { caption: { zh: 'AI 连的边都标着「未经确认」——确认一次就转成实线', en: 'AI-drawn edges are marked “unconfirmed” — confirm once and they turn solid' }, ms: 4400 },
   ],
   View: GraphDemo,
 };
@@ -86,13 +91,13 @@ export const GRAPH_FLOW: DemoDefinition = {
  */
 export const PK_FLOW: DemoDefinition = {
   key: 'pk-flow',
-  title: '对战 · PK',
+  title: { zh: '对战 · PK', en: 'Duel · PK' },
   stages: [
-    { caption: '对阵：你与对手各占一栏，中间是本轮主题', ms: 2000 },
-    { caption: '对手正在出题：只给呼吸和「已过 Ns」，不给假进度条', ms: 3200 },
-    { caption: '轮到你答：45 秒真倒计时，最后 10 秒变粗提醒', ms: 4400 },
-    { caption: '判定：答对只闪一条横幅，2.5 秒后自动清空', ms: 2600 },
-    { caption: '结算：胜败、原因与终局比分，逐条登场', ms: 3200 },
+    { caption: { zh: '对阵：你与对手各占一栏，中间是本轮主题', en: 'Face-off: you and your rival each get a column, the round topic sits center' }, ms: 2000 },
+    { caption: { zh: '对手正在出题：只给呼吸和「已过 Ns」，不给假进度条', en: 'Rival is authoring: dots breathe and a real “Ns elapsed” ticks — never a fake progress bar' }, ms: 3200 },
+    { caption: { zh: '轮到你答：45 秒真倒计时，最后 10 秒变粗提醒', en: 'Your turn: a real 45-second countdown that thickens in the last 10' }, ms: 4400 },
+    { caption: { zh: '判定：答对只闪一条横幅，2.5 秒后自动清空', en: 'Verdict: one banner flashes for 2.5s, then clears itself' }, ms: 2600 },
+    { caption: { zh: '结算：胜败、原因与终局比分，逐条登场', en: 'Wrap-up: outcome, reason and final score enter one by one' }, ms: 3200 },
   ],
   View: PkFlowDemo,
 };
@@ -110,7 +115,7 @@ export const LANDING_DEMOS: DemoDefinition[] = [TERM_FLOW, GRAPH_FLOW, PK_FLOW];
 /** 注册表为空的兜底（理论不可达）——用来避开 hook 前的条件返回与 `!` 断言 */
 export const EMPTY_DEMO: DemoDefinition = {
   key: 'empty',
-  title: '',
-  stages: [{ caption: '', ms: 4000 }],
+  title: { zh: '', en: '' },
+  stages: [{ caption: { zh: '', en: '' }, ms: 4000 }],
   View: () => null,
 };

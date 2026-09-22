@@ -9,9 +9,14 @@
  *      这类错位不会报错、不会崩，只有交叉断言拦得住。
  *   ④ **帧只控制显现、不重算布局**：若有人把 `GRAPH_DEMO_LAYOUT` 改回函数并按帧调用，
  *      节点会在帧间飞位（观感像抽搐）。"两次布局结果全等"这条断言把该约定钉死。
+ *
+ * ★ 2026-09-22 中英切换批：③ 那类交叉断言改成**逐语言各跑一遍**，另加一条「任一语言的节点名
+ *   都不许宽到被 `clipLabel` 截断」——卡片上截成「…」而清单里是全名，正是要拦的那种错位。
+ *   （英文侧因此换成与中文侧**同构不同词**的一例，理由见 `graph-demo.ts` 头注。）
  */
 import { describe, it, expect } from 'vitest';
 import {
+  CLIP_MAX,
   DEMO_CENTER,
   DEMO_DEEP,
   DEMO_REPLY_TERMS,
@@ -23,7 +28,9 @@ import {
   CONFIRMED_EDGE_ID,
   edgeOriginAt,
   edgeVisibleAt,
+  nodeText,
   nodeVisibleAt,
+  termLabelAt,
 } from './graph-demo';
 import { layoutNeighborhood } from '../../features/study-flow/graph-visual';
 
@@ -141,18 +148,45 @@ describe('知识图演示 — 末帧「确认转正」', () => {
   });
 });
 
-describe('知识图演示 — 抽词清单与图上节点必须逐字一致', () => {
-  it('帧 2 的抽词清单 === 该帧新增的节点名（顺序无关）', () => {
+describe('知识图演示 — 抽词清单与图上节点必须逐字一致（★ 逐语言各跑一遍）', () => {
+  /**
+   * 2026-09-22 双语批：中文侧是「梯度下降」那堂课，英文侧换成同构的「Overfitting」一例
+   *   （92px 卡片放不进 'Gradient descent'）。★ 换词可以，**结构不许换**：
+   *   每帧新增哪些节点、抽词清单点不点名，两语必须各自对得上——这条交叉断言就是仪器。
+   */
+  const LANGS = ['zh', 'en'] as const;
+
+  it('帧 2 的抽词清单 === 该帧新增的节点名（两语各自，顺序无关）', () => {
     const added = GRAPH_DEMO_LAYOUT.nodes.filter((n) => !nodeVisibleAt(n.node, FRAME.ask) && nodeVisibleAt(n.node, FRAME.star));
-    expect([...added.map((n) => n.node.refText)].sort()).toEqual([...DEMO_REPLY_TERMS].sort());
+    for (const lang of LANGS) {
+      expect(added.map((n) => nodeText(n.node.id, lang)).sort(), `${lang} 侧对不上`).toEqual([...DEMO_REPLY_TERMS[lang]].sort());
+    }
   });
 
   it('帧 3 的抽词清单 === 该帧新增的节点名，且父节点就是提示里那个词条', () => {
     const added = GRAPH_DEMO_LAYOUT.nodes.filter((n) => !nodeVisibleAt(n.node, FRAME.star) && nodeVisibleAt(n.node, FRAME.tree));
-    expect([...added.map((n) => n.node.refText)].sort()).toEqual([...DEMO_DEEP.terms].sort());
-    // 提示说"对「学习率」再追一层"⇒ 图上也必须是从「学习率」连出去的
-    const parent = GRAPH_DEMO_LAYOUT.nodes.find((n) => n.node.refText === DEMO_DEEP.term)!;
+    for (const lang of LANGS) {
+      expect(added.map((n) => nodeText(n.node.id, lang)).sort(), `${lang} 侧对不上`).toEqual([...DEMO_DEEP.terms[lang]].sort());
+    }
+    // 提示说"对「学习率」再追一层"⇒ 图上也必须是从「学习率」连出去的（按中文侧名字认节点，两语同一个 id）
+    const parentId = GRAPH_DEMO_LAYOUT.nodes.find((n) => nodeText(n.node.id, 'zh') === DEMO_DEEP.term.zh)?.node.id;
+    if (!parentId) throw new Error('二跳的父词条在图上找不到 ⇒ `DEMO_DEEP.term` 写成了另一份文案，本锁失效');
     const kids = GRAPH_DEMO_LAYOUT.edges.filter((e) => edgeVisibleAt(e.edge, FRAME.tree) && !edgeVisibleAt(e.edge, FRAME.star));
-    for (const e of kids) expect([e.edge.fromNodeId, e.edge.toNodeId]).toContain(parent.node.id);
+    for (const e of kids) expect([e.edge.fromNodeId, e.edge.toNodeId]).toContain(parentId);
+    for (const lang of LANGS) {
+      // ★ 引导语里点名的那个词条，也必须就是这一帧长出来的父节点（否则解说词与图各说各的）
+      expect(termLabelAt(FRAME.tree, lang)).toContain(nodeText(parentId, lang));
+    }
+  });
+
+  it('★ 任一语言的节点名都不许宽到被截断（截断会让卡片与抽词清单当场对不上）', () => {
+    // `clipLabel` 超宽会砍成「…」、清单里却是全名——这条把「英文侧不许写出放不下的词」钉住。
+    for (const lang of LANGS) {
+      for (const n of GRAPH_DEMO_LAYOUT.nodes) {
+        expect(nodeText(n.node.id, lang).length, `${lang} 侧「${nodeText(n.node.id, lang)}」超出 ${CLIP_MAX[lang]} 字会被截断`).toBeLessThanOrEqual(
+          CLIP_MAX[lang],
+        );
+      }
+    }
   });
 });

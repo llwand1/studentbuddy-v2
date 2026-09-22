@@ -8,6 +8,11 @@
  *
  * ★ `vitest.config` 没开 `globals` ⇒ RTL 的自动 cleanup 不会跑，必须显式 `afterEach(cleanup)`，
  *   否则上一个用例的 DOM 会留下来污染 `querySelectorAll` 的计数（本仓既有约定）。
+ *
+ * ★ 2026-09-22 中英切换批：本文件全部跑在**中文口径**上——这些用例直挂 `<GraphDemo/>`、
+ *   不带 Provider，而 `LandingLangContext` 的默认值就是 `zh`（这正是当初把默认值定成 zh 的理由：
+ *   存量锁一条都不用改语义，只把取文案的写法改成 `.zh`）。英文侧的渲染锁在
+ *   `LandingLang.test.tsx`（切到 EN 后按钮/节点名/图例真的换了一套词）。
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
@@ -30,7 +35,7 @@ describe('知识图演示 — 显现落到 DOM', () => {
   it('帧 1：追问按钮亮起，文案与真机词条卡一致', () => {
     const c = at(FRAME.ask);
     expect(c.querySelectorAll('.ld-g-ask.on').length).toBe(1);
-    expect(c.querySelector('.ld-g-ask text')?.textContent).toBe(DEMO_ASK.button);
+    expect(c.querySelector('.ld-g-ask text')?.textContent).toBe(DEMO_ASK.button.zh);
     // 这一帧不加节点（动作还没发生）
     expect(c.querySelectorAll('.ld-g-n.on').length).toBe(2);
   });
@@ -40,7 +45,7 @@ describe('知识图演示 — 显现落到 DOM', () => {
     expect(c.querySelectorAll('.ld-g-n.on').length).toBe(5); // 含中心
     expect(c.querySelectorAll('.ld-g-e.on').length).toBe(4);
     expect(c.querySelectorAll('.ld-g-terms.on').length).toBe(1);
-    for (const t of DEMO_REPLY_TERMS) {
+    for (const t of DEMO_REPLY_TERMS.zh) {
       expect([...c.querySelectorAll('.ld-g-term')].map((e) => e.textContent)).toContain(t);
     }
   });
@@ -50,8 +55,8 @@ describe('知识图演示 — 显现落到 DOM', () => {
     expect(c.querySelectorAll('.ld-g-n.on').length).toBe(7);
     expect(c.querySelectorAll('.ld-g-e.on').length).toBe(6);
     const texts = [...c.querySelectorAll('.ld-g-term')].map((e) => e.textContent);
-    expect(texts).toEqual([...DEMO_DEEP.terms]);
-    expect(c.querySelector('.ld-g-terms-label')?.textContent).toContain(DEMO_DEEP.term);
+    expect(texts).toEqual([...DEMO_DEEP.terms.zh]);
+    expect(c.querySelector('.ld-g-terms-label')?.textContent).toContain(DEMO_DEEP.term.zh);
   });
 
   it('★ 未显现的节点**仍在 DOM 里**（只是 opacity 0）——卸载会让"长出来"变成"啪地弹出"', () => {

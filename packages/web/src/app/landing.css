@@ -274,6 +274,34 @@
   align-items: center;
   gap: 10px;
 }
+/* 中英切换按钮组（2026-09-22 双语批）：比 ghost 更小一号，门面上不跟登录键抢位 */
+.landing-lang {
+  display: inline-flex;
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.landing-lang-btn {
+  border: none;
+  background: var(--sb-surface, #fff);
+  color: var(--sb-text-secondary, #6e6e73);
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.landing-lang-btn + .landing-lang-btn {
+  border-left: 1px solid var(--sb-border, #e5e5ea);
+}
+.landing-lang-btn:hover {
+  color: var(--sb-primary, #007aff);
+}
+.landing-lang-on {
+  background: var(--sb-primary, #007aff);
+  color: #fff;
+}
+.landing-lang-on:hover {
+  color: #fff;
+}
 .landing-gh {
   text-decoration: none;
 }

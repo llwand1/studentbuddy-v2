@@ -9,6 +9,8 @@
  *   ★ 换句话说，这段打字机的产品事实是「**终态**」：它是产品里那块牌子的逐字复刻；
  *   而「打字」本身是门面的修辞（产品不会打自己的名字）——故减速设置下整段打字被摘掉，
  *   直接落终态（同 `useDemoPlayer` 的「停在最后一帧」口径，不是停成空白）。
+ *   ★ 2026-09-22 双语批：中文侧仍是上面那条逐字锁；EN 侧打的是 `landing-copy.BRAND_TAGLINE.en`
+ *   ——落地页修辞，**不进产品**（登录后侧栏回到中文那句，范围决策知情的代价）。
  *
  * ★★ 光标也不是自己画的：直接复用产品的**流式光标** `.chat-caret`（定义在
  *   `features/chat/chat.css:52-60`，产品里挂载它的先例是 `ChatView.tsx:222`：
@@ -26,28 +28,34 @@ import { useEffect, useState } from 'react';
 import { BRAND_NAME, BRAND_TAGLINE } from '../lib/brand';
 import { Mascot } from '../features/chat/Mascot';
 import { prefersReducedMotion } from './demo/useDemoPlayer';
+import { BRAND_TAGLINE as TAGLINE_BI } from './landing-copy';
+import { useLandingLang } from './landing-lang';
 
 /** 每字一格（毫秒）。门面修辞，不是产品节奏——产品的流式吐字速度由模型决定，不适用在这里 */
 const STEP_MS = 70;
 /** 名字打完后停几格再打副标题（4 格 ≈ 280ms）：一口气连打会读成一行，停一下才分得出主次 */
 const NAME_HOLD_TICKS = 4;
-/** 走完需要的格数（tick 从 1 起，最后一格是终态） */
-export const TOTAL_TICKS = BRAND_NAME.length + NAME_HOLD_TICKS + BRAND_TAGLINE.length;
+/** 走完需要的格数（tick 从 1 起，最后一格是终态）。副标按语言给长度 */
+export const totalTicks = (tagLen: number) => BRAND_NAME.length + NAME_HOLD_TICKS + tagLen;
+/** 中文口径的总格数（`LandingBrand.test.tsx` 的矩阵锁用；EN 侧走 `totalTicks(en.length)`） */
+export const TOTAL_TICKS = totalTicks(BRAND_TAGLINE.length);
 
-/** 第 `tick` 格时两行各应显示几个字（纯函数：组件只负责把它画出来） */
-export function typedAt(tick: number): { name: number; tag: number } {
+/** 第 `tick` 格时两行各应显示几个字（纯函数：组件只负责把它画出来）。默认长度 = 中文副标，存量锁零改动 */
+export function typedAt(tick: number, tagLen: number = BRAND_TAGLINE.length): { name: number; tag: number } {
   return {
     name: Math.min(Math.max(tick, 0), BRAND_NAME.length),
-    tag: Math.min(Math.max(tick - BRAND_NAME.length - NAME_HOLD_TICKS, 0), BRAND_TAGLINE.length),
+    tag: Math.min(Math.max(tick - BRAND_NAME.length - NAME_HOLD_TICKS, 0), tagLen),
   };
 }
 
 export function LandingBrand() {
+  const { lang } = useLandingLang();
   // ★ 渲染期只问一次：`prefersReducedMotion` 自带三重防御（无 window / jsdom 无 matchMedia
   //   都恒 false），所以放进惰性初值是安全的——放 effect 里反而会先画一格空牌子再跳终态
   const [reduce] = useState(() => prefersReducedMotion());
   const [tick, setTick] = useState(1);
-  const done = tick >= TOTAL_TICKS;
+  const tagText = TAGLINE_BI[lang];
+  const done = tick >= totalTicks(tagText.length);
 
   useEffect(() => {
     if (reduce || done) return;
@@ -55,9 +63,9 @@ export function LandingBrand() {
     return () => window.clearTimeout(id);
   }, [reduce, tick, done]);
 
-  const shown = reduce ? { name: BRAND_NAME.length, tag: BRAND_TAGLINE.length } : typedAt(tick);
+  const shown = reduce ? { name: BRAND_NAME.length, tag: tagText.length } : typedAt(tick, tagText.length);
   const typingName = !reduce && shown.name < BRAND_NAME.length;
-  const typingTag = !reduce && !typingName && shown.tag < BRAND_TAGLINE.length;
+  const typingTag = !reduce && !typingName && shown.tag < tagText.length;
 
   return (
     <span className="landing-brand">
@@ -70,7 +78,7 @@ export function LandingBrand() {
         {/* 副标题那一行**从第一帧就占着位**（landing.css 给 min-height）：
             不占位的话它出现的那一刻顶栏会长高，把下面整页往下推一次 */}
         <span className="landing-brand-tag">
-          {BRAND_TAGLINE.slice(0, shown.tag)}
+          {tagText.slice(0, shown.tag)}
           {typingTag && <span className="chat-caret" />}
         </span>
       </span>

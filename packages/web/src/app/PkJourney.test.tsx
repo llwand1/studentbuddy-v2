@@ -13,12 +13,18 @@
  *   翻出 hero 演示的「求助 2」（契约每局只有 `HELP_PER_MATCH = 1` 个道具）。
  * ★ 假时钟在这里不是「测 setInterval 会不会响」：两侧读数是时间派生值，不推进就只能证明
  *   第 0 帧那一种取值，而这一节要证的恰好是「换了帧还对不对得上」。
+ *
+ * ★ 2026-09-22 中英切换批：本文件跑在**中文口径**上（直挂 `<PkJourney/>`、不带 Provider，
+ *   `LandingLangContext` 默认 `zh`）⇒ 上面三条性质与语言无关，一条语义都不用改，只把取文案
+ *   的写法改成 `.zh`。★ 帧表本批拆到 `./pk-frames`（屏态积木留在 `./pk-boards`），
+ *   「每帧画哪几块」这件事仍然只由那张表决定——英文侧想偷偷换屏态，得先改表类型。
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, cleanup, act, type RenderResult } from '@testing-library/react';
 import { HELP_PER_MATCH } from '@sb/shared';
 import { PkJourney } from './PkJourney';
-import { PK_FRAMES, PK_SCORE } from './pk-boards';
+import { PK_SCORE } from './pk-boards';
+import { PK_FRAMES } from './pk-frames';
 
 const TICK_MS = 500;
 const FRAME_TICKS = 5;
@@ -187,9 +193,9 @@ describe('PkJourney — 两块屏在同一秒钟读同一份快照', () => {
     expect(container.querySelectorAll('.landing-pk-steps .landing-jtag').length).toBe(PK_FRAMES.length);
     const text = container.textContent ?? '';
     for (const { title, lead, desc } of PK_FRAMES) {
-      expect(text).toContain(title);
-      expect(text).toContain(lead);
-      expect(text).toContain(desc);
+      expect(text).toContain(title.zh);
+      expect(text).toContain(lead.zh);
+      expect(text).toContain(desc.zh);
     }
   });
 });

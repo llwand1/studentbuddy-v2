@@ -14,9 +14,17 @@ interface Props {
   text: string;
   /** 已过秒数（真数字，来自 `quizPendingSec`） */
   sec: number;
+  /**
+   * 秒数那一格的读法。**缺省 = 产品原句**（`已过 Ns` / `马上就好`），本仓唯一传它的地方是
+   * 落地页那块双语演示屏（`app/pk-boards.tsx`）。留成可选而不是让演示另画一张卡：
+   * 另画就要抄一遍骨架屏与呼吸点，两份必然漂（那正是老板要的「货不对板」）。
+   */
+  secText?: string;
+  /** 底部那句提示，同上（缺省即产品原句） */
+  hint?: string;
 }
 
-export function PkQuizPending({ text, sec }: Props) {
+export function PkQuizPending({ text, sec, secText, hint }: Props) {
   return (
     <section className="sb-pk-card sb-pk-pending">
       <div className="sb-pk-pending-head">
@@ -26,14 +34,14 @@ export function PkQuizPending({ text, sec }: Props) {
           <i />
         </span>
         <span className="sb-pk-pending-text">{text}</span>
-        <span className="sb-pk-pending-sec">{sec > 0 ? `已过 ${sec}s` : '马上就好'}</span>
+        <span className="sb-pk-pending-sec">{secText ?? (sec > 0 ? `已过 ${sec}s` : '马上就好')}</span>
       </div>
       <div className="sb-pk-skeleton" aria-hidden="true">
         <span className="sb-pk-sk-line w70" />
         <span className="sb-pk-sk-line w92" />
         <span className="sb-pk-sk-line w55" />
       </div>
-      <p className="sb-pk-hint">题目一出来就自动出现在这里，不用刷新</p>
+      <p className="sb-pk-hint">{hint ?? '题目一出来就自动出现在这里，不用刷新'}</p>
     </section>
   );
 }

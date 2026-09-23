@@ -1,6 +1,6 @@
 # SEO-SPEC — 词条长尾静态页（公开门面）
 
-> 版本：v0.1.0 | 状态：[活跃] | 更新：2026-09-22
+> 版本：v0.1.1 | 状态：[活跃] | 更新：2026-09-23（**v0.1.1：线上只读取证后补两条代价**——① 词条页零 JS ⇒ **GoatCounter 永远数不到它们**，效果只能看 Caddy 日志（§5 第 6 条＋§6 第 7 条判据）；② **Googlebot 已在场、Baiduspider 从没来过** ⇒ 发版对 Google 是顺水推舟，对百度必须另去站长平台主动提交（§5 第 7 条）。v0.1.0：2026-09-22 初版）
 >
 > 本契约管的是**本站第一次对外部访客与搜索引擎公开的内容面**：一批独立静态词条页、`robots.txt` 的放行口径、`sitemap.xml`。
 > 产品内的词条（`term_library`）是**用户私有数据**，与本文件说的「词条页」不是一回事，见 §4 红线。
@@ -59,6 +59,9 @@ packages/web/src/seo/term-entries-b.ts ┘→ term-corpus.ts（唯一事实源�
 4. **应用内没有入口指向这批页**（登录后侧栏看不见），只有页面之间互链与回首页。是否在产品里挂「学习科学词条」目录，属产品决策，留给老板。
 5. `robots.txt` 的 `Allow` 口径只管**自觉爬虫**；对无视 robots 的抓取，私有面仍由 `SB_REQUIRE_AUTH` 与鉴权守（那才是真闸）。
 
+6. ★ **这批页零 `<script>`（§4 的锁），代价是「GoatCounter 数不到它们」**——统计靠的是页面里那段 JS 埋点，爬虫可读＝统计不可读。⇒ **词条页的真实访问量只能从 Caddy 访问日志看**（`grep -oE '"uri":"/terms[^"]*' /var/log/caddy/access.log`），**不要**去 GoatCounter 里找它，更**不要因为 GoatCounter 上词条页是 0 就判定「没人看」**。要不要给词条页补一条不破坏「零脚本」承诺的计数通道（服务端日志入表），属后续决策。
+7. ★ **中文长尾的真实瓶颈不在代码，在「百度没来过」**（2026-09-23 08:47 只读取证；日志跨度自 09-19 23:40）：**Googlebot 每 1～2 天来访，并主动读 `robots.txt`**（最近一次 09-22 21:00）⇒ 线上那条 `Disallow: /` 一改，`Allow: /terms/` 立刻对它可见，**发版就是顺水推舟**。而 **Baiduspider 一次都没出现过**：日志里带 "Baidu" 字样的三类 UA 中，09-22 11:00 那批（`Baidu; P1 5.1.1) NABar/1.0` 在扫 `/junhuashen.php`、`/index.php/user/login`）是**伪装百度 UA 的漏洞扫描器**，不是蜘蛛。⇒ 百度侧必须去**百度搜索资源平台验证站点＋主动推送 API 提交**，光改 robots 与 sitemap 不会自己生效；这一步是老板本人的账号动作（要手机号/邮箱验证），AI 不代做。
+
 ## 6. 上线与验收判据（发版后逐条 curl）
 
 1. `curl -s https://11wand.com/robots.txt` ⇒ 含 `Allow: /terms/` 与 `Sitemap:` 行。
@@ -67,6 +70,7 @@ packages/web/src/seo/term-entries-b.ts ┘→ term-corpus.ts（唯一事实源�
 4. `curl -s -o /dev/null -w '%{http_code}' https://11wand.com/terms/` ⇒ 200 且正文含「学习科学词条」（见 §5 第 1 条）。
 5. `curl -s https://11wand.com/sitemap.xml` ⇒ 14 个 `<loc>`、xmlns 为 `sitemaps.org`。
 6. 三条红线：页面上找不到任何「N 人」「好评」「包过」字样。
+7. 效果观测（★ **别用 GoatCounter，理由见 §5 第 6 条**）：上线满 1～2 天后 `ssh` 到服务器跑一次 `grep -cE '"uri":"/terms[^"]*html' /var/log/caddy/access.log*` ⇒ **只看它有没有出现过非零**，出现即证明「静态页真被拿到过」；同一份日志按 UA 分一下就能看见是谁来的（`Googlebot`／`bingbot`／真人）。★ 判据是「有没有人来」，不是「来了几个」——**在 §5 第 7 条那条百度提交做完之前，不许拿这个词对外说「有流量」**。
 
 ## 7. 维护
 

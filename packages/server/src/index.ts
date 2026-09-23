@@ -22,6 +22,7 @@ import { pkRouter } from './routes/pk.js';
 import { pkScenarioRouter } from './routes/pk-scenario.js';
 import { authRouter } from './routes/auth.js';
 import { githubAuthRouter } from './routes/auth-github.js';
+import { growthRouter } from './routes/growth.js';
 import { studyFlowRouter } from './routes/study-flow.js';
 import { scenarioRouter } from './routes/scenario.js';
 import { coachRouter } from './routes/coach.js';
@@ -108,11 +109,14 @@ app.use('/api', attachUser);
  *   会让「所有登录用户互相看到全部数据」（现有 sessions/messages/题库/笔记全是全局表）。
  *   等 M2 把 `user_id` 隔离做完，两者**同一批打开**。
  * ★ 豁免是「必须公开」的白名单：登录端点自身不能要求登录；status/health 是探活。
+ * ★ **`/api/growth/counters` 也在名单里＝一个决策，不是配置**（渠道台账 C4，GROWTH-SPEC §3）：
+ *   这三个整数将来要给未登录访客看，所以按公开口径定型（自带 IP 限流、响应体不含任何个体痕迹）。
+ *   ⚠️ 公开的就是「有多少人来过」，不是「谁来过」——表里只有加盐哈希桶，没有 IP／邮箱。
  * ★ 只管 `/api/*`——非 api 路径（静态/未知路由）放行给各自的处理器，不在这里 401。
  */
 function isAuthProtected(path: string): boolean {
   if (!path.startsWith('/api/')) return false;
-  return !/^\/api\/(auth(\/|$)|status$|health$)/.test(path);
+  return !/^\/api\/(auth(\/|$)|status$|health$|growth\/counters$)/.test(path);
 }
 
 app.use((req, res, next) => {
@@ -132,6 +136,8 @@ app.get<never, StatusResponse>('/api/status', (_req, res) => {
 app.use('/api/auth', authRouter);
 // GitHub OAuth（契约 docs/AUTH-SPEC.md §2.8）：与邮箱通道同挂 /api/auth，产出同一种会话
 app.use('/api/auth', githubAuthRouter);
+// 诚实计数只读出口（渠道台账 C4／GROWTH-SPEC §3）：公开、只读、自带 IP 限流
+app.use('/api/growth', growthRouter);
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/providers', providersRouter);

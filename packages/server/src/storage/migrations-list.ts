@@ -27,7 +27,7 @@
  *
  * ★ 追加新迁移 ＝ 往 **`migrations-list-v40.ts`** 数组**尾部**加一项（v 号顺延），
  *   **不要动既有项**——已应用的版本号是历史锚点，改了不会重跑，只会让新库与老库结构分叉。
- *   （2026-09-21 七次拆分后落点是 v40 分片；v31~v39 在 `-v31.ts`、v22~v29 在 `-v22.ts`。）
+ *   （2026-09-23 批次 F-2 起落点是 **v41 分片**；v40 在 `-v40.ts`、v31~v39 在 `-v31.ts`、v22~v29 在 `-v22.ts`。）
  * ⚠️ 回放迁移链的测试必须把**加列**也 DROP 掉（`ALTER TABLE ADD COLUMN` 不幂等，
  *   本仓实测踩过 `duplicate column name: summary` / `: images`，见 `storage/db.test.ts`）。
  */
@@ -38,6 +38,7 @@ import { MIGRATIONS_V22 } from './migrations-list-v22.js';
 import { MIGRATIONS_V30 } from './migrations-list-v30.js';
 import { MIGRATIONS_V31 } from './migrations-list-v31.js';
 import { MIGRATIONS_V40 } from './migrations-list-v40.js';
+import { MIGRATIONS_V41 } from './migrations-list-v41.js';
 
 export const MIGRATIONS: Array<{ version: number; statements: string[] }> = [
   ...MIGRATIONS_V1_9,
@@ -47,4 +48,5 @@ export const MIGRATIONS: Array<{ version: number; statements: string[] }> = [
   ...MIGRATIONS_V30,
   ...MIGRATIONS_V31,
   ...MIGRATIONS_V40,
+  ...MIGRATIONS_V41,
 ];

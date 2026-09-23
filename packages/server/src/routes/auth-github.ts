@@ -30,6 +30,7 @@ import { createSession } from '../auth/session.js';
 import { deployForm } from '../auth/form.js';
 import { demoLoginEnabled } from '../auth/demo.js';
 import { readCookie, sessionCookieOptions, setSessionCookie } from '../auth/middleware.js';
+import { recordGrowthAction } from '../growth/counters.js';
 
 export const githubAuthRouter = Router();
 
@@ -92,8 +93,14 @@ function queryStr(v: unknown): string | null {
  * 登录面信息（契约 §2.8/§2.9）：GitHub 可用性 + **部署形态**——前端启动分叉的唯一依据
  * （`local` 本地单人形态免登录直进应用壳；`cloud` 线上形态走落地页）。
  * ★ 端点职责从「GitHub 探针」扩为「auth 面信息」，路径不变——前端已按它发探针，扩字段零迁移。
+ * ★★ **这里同时是 C4 计数「应用被打开一次」的采集点**（`growth/counters.ts`）：SPA 启动必调本端点
+ *   （`web/src/main.tsx`），而**关掉 JS 的爬虫永远不会调** ⇒ 这个信号是白拿的，不必自己猜 UA。
+ *   ⚠️ 两个口径要如实说：① 它数的是「SPA 被装载」，已登录用户刷新页面同样算一次（所以单位是「次」，
+ *   与 IP·天去重绑在一起，见 `GROWTH-SPEC.md` §2）；② 本文件从 github 路由借出，是因为端点在这儿——
+ *   不是因为它与 GitHub 有关。
  */
-githubAuthRouter.get('/providers', (_req: Request, res: Response) => {
+githubAuthRouter.get('/providers', (req: Request, res: Response) => {
+  recordGrowthAction('app_open', req);
   res.json({ providers: { github: githubConfigured(), demo: demoLoginEnabled() }, form: deployForm() });
 });
 

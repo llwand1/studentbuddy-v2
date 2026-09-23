@@ -23,28 +23,28 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-09-23 11:24:25（本机时区）｜ 基准 `cb3982d` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-09-23 17:54:48（本机时区）｜ 基准 `026e730` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
 | shared | 30 | 4,482 | 18 | 2,251 | 50% |
-| server | 162 | 26,106 | 116 | 25,078 | 96% |
+| server | 165 | 26,382 | 118 | 25,388 | 96% |
 | web | 191 | 24,421 | 65 | 9,159 | 38% |
-| **合计** | **383** | **55,009** | **199** | **36,488** | **66%** |
+| **合计** | **386** | **55,285** | **201** | **36,798** | **67%** |
 
 ## 接口与契约
 
-- REST 路由注册：**150**（get 65 / post 54 / delete 15 / put 15 / patch 1）· 另 /api 挂载点 26 个
+- REST 路由注册：**151**（get 66 / post 54 / delete 15 / put 15 / patch 1）· 另 /api 挂载点 27 个
 - shared 契约类型：**150**（export interface 97 + export type 53）
 - 外部运行时依赖：**6** 个 —— better-sqlite3, cors, express, pino, react, react-dom
-- 迁移水位：代码侧 **v40**（40 个 version 条目，非连续号 0 处）
+- 迁移水位：代码侧 **v41**（41 个 version 条目，非连续号 0 处）
 
 ## 测试基线（vitest 实跑）
 
-- **199 文件 / 2738 例**（2737 passed + 1 skipped + 0 failed）⇒ 全绿
-- ⚠️ 本次未重跑 vitest，读的是 今日的 test-results 产物——要新鲜数字加 `--tests`
+- **201 文件 / 2761 例**（2760 passed + 1 skipped + 0 failed）⇒ 全绿
+- 本次本机实跑（Node v22.23.2）全量耗时 46.9s
 - jsdom 交互测试文件（`.test.tsx`）22 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
@@ -56,11 +56,11 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 | web | 43.9% | 83.7% | 43.9% | 60.2% |
 | **三包合计** | 67.7% | 83.8% | 67.7% | 78.7% |
 - ⚠️ 口径：分母只含 vitest 实际 import 到的源文件（未跑到 0% 的模块不进 json-summary 的按包聚合），故本表**只能用于同版本自身纵向对比**，不能与外部项目横比。
-- ⚠️ 覆盖率产物是 2 天前的（本次未跑 `--coverage`）
+- ⚠️ 覆盖率产物是 3 天前的（本次未跑 `--coverage`）
 
 ## 文档与仓库
-- docs/：SPEC 契约 28 份 · md 共 36 份（dev/ 5）· 真机探针 15 个
-- git：main @ `cb3982d`（2026-09-23）· 近 14 天 159 commits · 工作区未提交 11 文件
+- docs/：SPEC 契约 29 份 · md 共 37 份（dev/ 5）· 真机探针 15 个
+- git：main @ `026e730`（2026-09-23）· 近 14 天 160 commits · 工作区未提交 12 文件
 
 <!-- metrics:end -->
 

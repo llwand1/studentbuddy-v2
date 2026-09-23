@@ -25,6 +25,7 @@ import { clearFailures, isLocked, recordFailure } from '../auth/rate-limit.js';
 import { CodeRateLimitedError, loginByCode, registerAccount, sendCode } from '../auth/code-flow.js';
 import { admitRegister } from '../auth/register-limit.js';
 import { demoLogin, demoLoginEnabled } from '../auth/demo.js';
+import { recordGrowthAction } from '../growth/counters.js';
 
 export const authRouter = Router();
 
@@ -163,6 +164,8 @@ authRouter.post('/register', (req: Request, res: Response) => {
     .then((user) => {
       const { token, expiresAt } = createSession(user.id);
       setSessionCookie(res, token, expiresAt);
+      // ★ C4「注册完成」只记**成功**这一次：429／409／400 都不是有人注册了（记在成功支路里，见 growth/counters.ts 头注）
+      recordGrowthAction('register_done', req);
       res.json({ user });
     })
     .catch((e: unknown) => failFrom(res, e));
@@ -253,6 +256,9 @@ authRouter.post('/demo-login', (req: Request, res: Response) => {
     .then((user) => {
       const { token, expiresAt } = createSession(user.id);
       setSessionCookie(res, token, expiresAt);
+      // ★ C4「进入体验号」：★ 这条正是探针污染最重的一个动作（`prod-pulse` 每几分钟 demo-login 一次），
+      //   剔除全靠在写入口认 `X-SB-Probe`／探针 UA——所以它记在**成功之后**、判探针在 counters 内部。
+      recordGrowthAction('demo_enter', req);
       res.json({ user });
     })
     .catch((e: unknown) => failFrom(res, e));

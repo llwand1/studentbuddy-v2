@@ -14,6 +14,7 @@ import { CardsIcon, SearchIcon, PlusIcon } from '../../components/icons';
 import { DomainBar, type DomainStat } from './DomainBar';
 import { ReviewPanel } from './ReviewPanel';
 import { UndoDeleteBar } from './UndoDeleteBar';
+import { CATALOG_PATH } from '../../seo/paths';
 import './terms.css';
 
 /**
@@ -186,6 +187,16 @@ export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) 
             <p className="term-empty-sub">
               AI 会在每次对话/搜索后自动把重要术语存进来；也可以手动添加。
             </p>
+            {/* 空态才有这条：还没有词条的人正是「这些概念到底在说什么」的读者。
+                新开标签——SPA 没有路由，同标签跳走等于丢掉整个应用状态。 */}
+            <a
+              className="term-empty-link"
+              href={CATALOG_PATH}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              先读公开词条：这些学习科学概念到底说什么
+            </a>
           </div>
         )}
         {terms.map((t) => (

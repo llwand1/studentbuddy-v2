@@ -9,6 +9,7 @@
  */
 import { ENTRIES_A } from './term-entries-a';
 import { ENTRIES_B } from './term-entries-b';
+import { CATALOG_PATH } from './paths';
 
 export interface TermSection {
   /** 小节标题 */
@@ -50,6 +51,15 @@ export function termPath(term: PublicTerm): string {
 export function termUrl(term: PublicTerm): string {
   return `${SITE_ORIGIN}${termPath(term)}`;
 }
+
+/**
+ * 目录页路径：值在 `seo/paths`，SPA 侧与构建侧共用同一份常量。
+ * 这里转出只是为了 `termUrl` 那批地址都在同一个模块里拼齐。
+ */
+export { CATALOG_PATH };
+
+/** 目录页的绝对地址（canonical 与 sitemap 用） */
+export const CATALOG_URL = `${SITE_ORIGIN}${CATALOG_PATH}`;
 
 export const PUBLIC_TERMS: readonly PublicTerm[] = [...ENTRIES_A, ...ENTRIES_B];
 

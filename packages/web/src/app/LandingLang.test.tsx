@@ -18,7 +18,8 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, cleanup, fireEvent, act, screen } from '@testing-library/react';
 import { HELP_PER_MATCH } from '@sb/shared';
 import { LANDING_LANG_KEY, LandingLangProvider, LangToggle, initialLandingLang } from './landing-lang';
-import { BRAND_TAGLINE, DEMO_BTN, HERO } from './landing-copy';
+import { BRAND_TAGLINE, DEMO_BTN, FOOT_TERMS, HERO } from './landing-copy';
+import { CATALOG_PATH } from '../seo/paths';
 import { Landing } from './Landing';
 import { LandingBrand, totalTicks } from './LandingBrand';
 import { GraphDemo } from './demo/GraphDemo';
@@ -255,5 +256,27 @@ describe('落地页双语 — 两块屏的屏态与语言无关', () => {
       if (!m?.[1]) throw new Error(`英文侧屏态小字里没有「N help」了：${text} ⇒ 本锁随之失效，按新读法重写`);
       expect(Number(m[1])).toBeLessThanOrEqual(HELP_PER_MATCH);
     }
+  });
+});
+
+describe('落地页页脚的公开词条入口（2026-09-23 批次 E，渠道台账 C1）', () => {
+  it('★ 两语侧都挂着这条：地址是带 .html 的目录页，英文侧如实写明只有中文', () => {
+    // 默认态（localStorage 空 + nav=en-US）即英文侧，见上面的 beforeEach
+    const en = render(<Landing onAuthed={() => undefined} />);
+    const enLink = en.container.querySelector<HTMLAnchorElement>('.landing-foot a');
+    expect(enLink?.textContent).toBe(FOOT_TERMS.en);
+    // ★ 词条页目前只有中文一套（SEO-SPEC §5 第 3 条），英文标签配中文页面＝承诺一个不存在的东西
+    expect(enLink?.textContent).toBe('Glossary (Chinese only)');
+    en.unmount();
+
+    store('zh');
+    const zh = render(<Landing onAuthed={() => undefined} />);
+    const link = zh.container.querySelector<HTMLAnchorElement>('.landing-foot a');
+    expect(link?.textContent).toBe('学习科学词条');
+    // ★ `/terms/` 线上兜成 SPA 壳（09-23 实测 1487 字节、正文全空），一旦改回去就是指向空页
+    expect(link?.getAttribute('href')).toBe(CATALOG_PATH);
+    expect(CATALOG_PATH).toBe('/terms/index.html');
+    // 站内跳刻意同标签页：新开等于把爬虫从首页走到词条页的那条路掐断
+    expect(link?.getAttribute('target')).toBeNull();
   });
 });

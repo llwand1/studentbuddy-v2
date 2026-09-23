@@ -4,11 +4,13 @@
  * ★ 为什么写 `.html` 文件而不是靠前端路由：线上 Caddy 对**无扩展名**路径一律
  *   `try_files → /index.html`（实测 `/terms/1234` 与 `/` 返回同一份 SPA 壳），
  *   带 `.html` 才走静态文件通道。用扩展名换掉一次服务器配置改动。
+ * ★ 目录页同一条规矩：`/terms/`（目录形式）线上没有目录索引，兜出来是 SPA 壳，
+ *   所以落盘名与指向它的链接一律从 `CATALOG_PATH` 拼（09-23 线上实测钉死）。
  * ★ 只在本机/CI 构建期运行（由 `vite.config.ts` 的 closeBundle 钩子调用）。
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { PUBLIC_TERMS, SITE_ORIGIN, termPath, type PublicTerm } from './term-corpus';
+import { CATALOG_PATH, PUBLIC_TERMS, SITE_ORIGIN, termPath, type PublicTerm } from './term-corpus';
 import { renderTermIndexPage, renderTermPage } from './term-page';
 
 function isoDate(d: Date): string {
@@ -21,7 +23,11 @@ export function renderSitemapXml(
   today: Date = new Date(),
 ): string {
   const stamp = isoDate(today);
-  const locs = [`${SITE_ORIGIN}/`, `${SITE_ORIGIN}/terms/`, ...terms.map((t) => `${SITE_ORIGIN}${termPath(t)}`)];
+  const locs = [
+    `${SITE_ORIGIN}/`,
+    `${SITE_ORIGIN}${CATALOG_PATH}`,
+    ...terms.map((t) => `${SITE_ORIGIN}${termPath(t)}`),
+  ];
   const urls = locs.map((loc) => `  <url><loc>${loc}</loc><lastmod>${stamp}</lastmod></url>`);
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -52,7 +58,8 @@ export function writeSeoPages(
     written.push({ rel, bytes: Buffer.byteLength(html, 'utf8') });
   };
   for (const term of terms) put(`terms/${term.slug}.html`, renderTermPage(term));
-  put('terms/index.html', renderTermIndexPage(terms));
+  // ★ 落盘名从 CATALOG_PATH 派生：URL 与文件必须同形（差一个扩展名，线上就兜成 SPA 壳）
+  put(CATALOG_PATH.slice(1), renderTermIndexPage(terms));
   put('sitemap.xml', renderSitemapXml(terms, today));
   return written;
 }

@@ -252,6 +252,13 @@
   font-size: 12px;
   color: var(--sb-text-secondary, #6e6e73);
 }
+.landing-foot a {
+  color: var(--sb-primary, #007aff);
+  text-decoration: none;
+}
+.landing-foot a:hover {
+  text-decoration: underline;
+}
 
 /* ── 窄屏适配 ── */
 @media (max-width: 720px) {

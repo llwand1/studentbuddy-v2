@@ -151,6 +151,13 @@ export const STEPS: { aria: Bi; items: Bi[] } = {
 
 export const FOOT: Bi = { zh: '本地优先 · 数据自持 · © 2026 studentbuddy', en: 'Local-first · Own your data · © 2026 studentbuddy' };
 
+/**
+ * 页脚的公开词条入口（构建期静态页，地址从 `seo/term-corpus` 的 CATALOG_PATH 来）。
+ * ★ 英文侧写明 Chinese only：词条页目前只有中文一套（SEO-SPEC §6 的未做项），
+ *   英文标签配中文页面等于承诺了一个不存在的东西。
+ */
+export const FOOT_TERMS: Bi = { zh: '学习科学词条', en: 'Glossary (Chinese only)' };
+
 /** 演示窗外壳 chrome（帧内容各自在 registry / demo 数据文件里双语） */
 export const DEMO_WINDOW: { replay: Bi } = { replay: { zh: '重播', en: 'Replay' } };
 

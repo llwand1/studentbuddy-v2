@@ -1,6 +1,6 @@
 # SEO-SPEC — 词条长尾静态页（公开门面）
 
-> 版本：v0.1.1 | 状态：[活跃] | 更新：2026-09-23（**v0.1.1：线上只读取证后补两条代价**——① 词条页零 JS ⇒ **GoatCounter 永远数不到它们**，效果只能看 Caddy 日志（§5 第 6 条＋§6 第 7 条判据）；② **Googlebot 已在场、Baiduspider 从没来过** ⇒ 发版对 Google 是顺水推舟，对百度必须另去站长平台主动提交（§5 第 7 条）。v0.1.0：2026-09-22 初版）
+> 版本：v0.1.2 | 状态：[活跃] | 更新：2026-09-23（**v0.1.1：线上只读取证后补两条代价**——① 词条页零 JS ⇒ **GoatCounter 永远数不到它们**，效果只能看 Caddy 日志（§5 第 6 条＋§6 第 7 条判据）；② **Googlebot 已在场、Baiduspider 从没来过** ⇒ 发版对 Google 是顺水推舟，对百度必须另去站长平台主动提交（§5 第 7 条）。v0.1.0：2026-09-22 初版）
 >
 > 本契约管的是**本站第一次对外部访客与搜索引擎公开的内容面**：一批独立静态词条页、`robots.txt` 的放行口径、`sitemap.xml`。
 > 产品内的词条（`term_library`）是**用户私有数据**，与本文件说的「词条页」不是一回事，见 §4 红线。
@@ -23,6 +23,8 @@
 ```
 packages/web/src/seo/term-entries-a.ts ┐
 packages/web/src/seo/term-entries-b.ts ┘→ term-corpus.ts（唯一事实源：类型＋拼装＋URL）
+                                     ↑
+                  paths.ts（CATALOG_PATH 一个常量，SPA 侧与构建侧共用）
                                      ↓
                     term-page.ts（纯函数：词条 → 完整 HTML 字符串）
                                      ↓
@@ -35,6 +37,7 @@ packages/web/src/seo/term-entries-b.ts ┘→ term-corpus.ts（唯一事实源�
 - **产物随 `deploy.sh` 的 tar 上线**（`packages/web/dist` 在包内），不需要任何服务器改动。
 - 页面**不带 `<script>`**，只有一个 `<link>`（canonical）；样式自带一小段，不引 SPA 产物 ⇒ 关掉 JS 也读得到正文。
 - 首页壳（`packages/web/index.html`）同时补了 `<title>`／description／og 三件，此前是 `<title>studentbuddy</title>` 裸奔。
+- **指向目录页的链接一律从 `paths.ts` 的 `CATALOG_PATH` 拼**（值是 `/terms/index.html`）：SPA 侧（落地页页脚、词条库空态）与构建侧（页内导航、`sitemap`、canonical）共用同一个常量，两侧各写一份必然漂。
 
 ## 3. 数据口径
 
@@ -53,24 +56,27 @@ packages/web/src/seo/term-entries-b.ts ┘→ term-corpus.ts（唯一事实源�
 
 ## 5. 已知代价与刻意未做
 
-1. ⚠️ **`/terms/`（目录页）依赖 Caddy 的目录索引行为**，本批未在线上真机验证。最坏情况：它回落到 SPA 壳（人畜无害，只是目录页对爬虫没内容）。**12 个 `.html` 页不受影响**。上线后用 §6 的第 4 条判据验，不成再决定改 Caddy 或改用 `all.html`。
+1. ✅ **目录页地址（09-23 09:09 线上实测已定，批次 E 已按此改）**：原先挂的「依赖 Caddy 目录索引行为」已证伪——线上**没有目录索引**，`try_files {path} /index.html` 把目录形式 `/terms/` 兜成了 SPA 壳（**1487 字节、正文一句都没有**），而 `/terms/index.html` 吐的是真目录（**5705 字节**）。⇒ 目录页地址从此**必须是带扩展名那一个**，由 `term-page.test.ts` 的「一条目录形式的链接都不留」与「每条 `/terms/` 链接都有落盘文件」两把锁守着（含 `sitemap` 里也不许出现 `https://11wand.com/terms/`）。
 2. **没做 JSON-LD 结构化数据**（`DefinedTerm`／`Article`）：线上 CSP 是 `script-src 'self'` 的 Report-Only，内联 `<script type="application/ld+json">` 会不会刷报告未实测，先不放。
 3. **英文侧词条页未做**：落地页已双语，词条页只有中文。英文访客的长尾要靠另一批。
-4. **应用内没有入口指向这批页**（登录后侧栏看不见），只有页面之间互链与回首页。是否在产品里挂「学习科学词条」目录，属产品决策，留给老板。
+4. 🔵 **产品内入口**（批次 E 已落码，未发版）：两处——落地页页脚一条站内链接（同标签页，爬虫从首页走得到），词条库**空态**一条（新标签，只给「还没有词条、不知道该存什么」的人；有词条的人不显示）。★ 刻意**不是**侧栏常驻项：登录后应用是干活的地方，挂一排外部阅读页是噪音。真机排版与文案待老板判（`manual-test.md` MT-16）。
 5. `robots.txt` 的 `Allow` 口径只管**自觉爬虫**；对无视 robots 的抓取，私有面仍由 `SB_REQUIRE_AUTH` 与鉴权守（那才是真闸）。
-
 6. ★ **这批页零 `<script>`（§4 的锁），代价是「GoatCounter 数不到它们」**——统计靠的是页面里那段 JS 埋点，爬虫可读＝统计不可读。⇒ **词条页的真实访问量只能从 Caddy 访问日志看**（`grep -oE '"uri":"/terms[^"]*' /var/log/caddy/access.log`），**不要**去 GoatCounter 里找它，更**不要因为 GoatCounter 上词条页是 0 就判定「没人看」**。要不要给词条页补一条不破坏「零脚本」承诺的计数通道（服务端日志入表），属后续决策。
 7. ★ **中文长尾的真实瓶颈不在代码，在「百度没来过」**（2026-09-23 08:47 只读取证；日志跨度自 09-19 23:40）：**Googlebot 每 1～2 天来访，并主动读 `robots.txt`**（最近一次 09-22 21:00）⇒ 线上那条 `Disallow: /` 一改，`Allow: /terms/` 立刻对它可见，**发版就是顺水推舟**。而 **Baiduspider 一次都没出现过**：日志里带 "Baidu" 字样的三类 UA 中，09-22 11:00 那批（`Baidu; P1 5.1.1) NABar/1.0` 在扫 `/junhuashen.php`、`/index.php/user/login`）是**伪装百度 UA 的漏洞扫描器**，不是蜘蛛。⇒ 百度侧必须去**百度搜索资源平台验证站点＋主动推送 API 提交**，光改 robots 与 sitemap 不会自己生效；这一步是老板本人的账号动作（要手机号/邮箱验证），AI 不代做。
+
+8. ★ **站长验证文件的通路（渠道台账 C9），坑在 `robots.txt`**：本站 robots 是「**默认全封、只用 `Allow` 精确开门**」的口径 ⇒ 老板从 Google／百度搜索资源平台拿到验证文件（形如 `googleAb12cd.html`／`baiduAb12cd.txt`）后，**只把文件放进 `packages/web/public/` 是不够的**——Googlebot 与 Baiduspider 抓它会先读 robots，被 `Disallow: /` 挡住就直接验证失败（文件本身线上可 curl 到，爬虫却不去）。正路四步：① 文件放进 `packages/web/public/`（带扩展名 ⇒ 构建后进 `dist/` 根，Caddy 按静态文件直出，这条实测同 `robots.txt` 本身）；② `packages/web/public/robots.txt` 加**一条精确 `Allow`**（★ 别写通配：百度老 parser 不认 `Allow: /*.html` 这类形状）；③ `npm run build` 后本地核 `dist/<文件名>` 与 robots 两样都在；④ 发版（逐次点名授权）后再回平台点「验证」。meta 标签那条路同理，但它是首页 HTML，`Allow: /$` 已经放行，不用改 robots。
 
 ## 6. 上线与验收判据（发版后逐条 curl）
 
 1. `curl -s https://11wand.com/robots.txt` ⇒ 含 `Allow: /terms/` 与 `Sitemap:` 行。
 2. `curl -sI https://11wand.com/terms/tiqu-lixian.html` ⇒ `200 text/html`。
 3. `curl -s .../terms/tiqu-lixian.html | grep -c '<script'` ⇒ **0**；`grep -o '<title>[^<]*'` ⇒ 该页自己的标题。
-4. `curl -s -o /dev/null -w '%{http_code}' https://11wand.com/terms/` ⇒ 200 且正文含「学习科学词条」（见 §5 第 1 条）。
+4. ★ 目录页（09-23 已实测一轮，见 §5 第 1 条）：`curl -s https://11wand.com/terms/index.html | grep -c '学习科学词条'` ⇒ 非零；同批再跑一次 `curl -s https://11wand.com/terms/ | grep -c '<script'` ⇒ **仍然非零**（它是 SPA 壳，这一条是**反向判据**：壳还在就说明线上没换过逻辑，正常）。页内导航与页脚两条链接、`sitemap` 第三条 `<loc>` 都必须是 `/terms/index.html`。
 5. `curl -s https://11wand.com/sitemap.xml` ⇒ 14 个 `<loc>`、xmlns 为 `sitemaps.org`。
 6. 三条红线：页面上找不到任何「N 人」「好评」「包过」字样。
-7. 效果观测（★ **别用 GoatCounter，理由见 §5 第 6 条**）：上线满 1～2 天后 `ssh` 到服务器跑一次 `grep -cE '"uri":"/terms[^"]*html' /var/log/caddy/access.log*` ⇒ **只看它有没有出现过非零**，出现即证明「静态页真被拿到过」；同一份日志按 UA 分一下就能看见是谁来的（`Googlebot`／`bingbot`／真人）。★ 判据是「有没有人来」，不是「来了几个」——**在 §5 第 7 条那条百度提交做完之前，不许拿这个词对外说「有流量」**。
+7. 效果观测（★ **别用 GoatCounter，理由见 §5 第 6 条**）：上线满 1～2 天后 `ssh` 到服务器跑一次
+   `grep -hE '"uri":"/terms[^"]*html' /var/log/caddy/access.log* | grep -vE 'studentbuddy-probe|"user_agent":"curl/' | wc -l`
+   ⇒ **只看它有没有出现过非零**（★ 前半段剔自己：C10 打标的脚本走 `studentbuddy-probe`，发版验收时的 `curl` 走 `curl/`，两条都是我们干的，不剔就是自增流量）。同一份日志按 UA 分一下就能看见是谁来的（`Googlebot`／`bingbot`／真人）。★ 判据是「有没有人来」，不是「来了几个」——**在 §5 第 7 条那条百度提交做完之前，不许拿这个词对外说「有流量」**。
 
 ## 7. 维护
 

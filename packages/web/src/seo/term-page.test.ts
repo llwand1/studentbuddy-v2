@@ -9,7 +9,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { PUBLIC_TERMS } from './term-corpus';
+import { CATALOG_PATH, PUBLIC_TERMS } from './term-corpus';
 import { escapeHtml, renderTermIndexPage, renderTermPage } from './term-page';
 import { renderSitemapXml, writeSeoPages } from './ssg';
 
@@ -52,7 +52,16 @@ describe('词条页 · 单页形状', () => {
   it('★ 互链指向同批页面且带扩展名（不给爬虫留 404），并有一条回首页的路', () => {
     for (const r of t.related) expect(html).toContain(`href="/terms/${r}.html"`);
     expect(html).toContain('href="/"');
-    expect(html).toContain('href="/terms/"');
+    expect(html).toContain(`href="${CATALOG_PATH}"`);
+  });
+
+  it('★ 一条「目录形式」的链接都不留（线上实测 /terms/ 兜成 SPA 壳，点了读不到正文）', () => {
+    for (const page of [...PUBLIC_TERMS.map(renderTermPage), renderTermIndexPage()]) {
+      for (const href of page.match(/href="(\/[^"]*)"/g) ?? []) {
+        expect(href).not.toBe('href="/terms/"');
+        expect(href).not.toMatch(/\/terms\/$/);
+      }
+    }
   });
 
   it('零外部资源与零内联 style 属性（样式全在自带的那一段 <style> 里，脚本一个都不放）', () => {
@@ -90,7 +99,11 @@ describe('词条目录页', () => {
       expect(html).toContain(`/terms/${t.slug}.html`);
       expect(html).toContain(t.title);
     }
-    expect(html).toContain('<link rel="canonical" href="https://11wand.com/terms/">');
+    expect(html).toContain('<link rel="canonical" href="https://11wand.com/terms/index.html">');
+  });
+
+  it('★ 目录页 URL 与线上真吐得出内容的那一个同形（带 .html）', () => {
+    expect(CATALOG_PATH).toBe('/terms/index.html');
   });
 });
 
@@ -105,6 +118,21 @@ describe('sitemap 与落盘', () => {
     expect(xml).toContain('<lastmod>2026-09-22</lastmod>');
     expect(xml).toContain('https://11wand.com/</loc>');
     expect(xml).toContain('https://11wand.com/terms/tiqu-lixian.html</loc>');
+    // ★ 目录页进 sitemap 的必须是带扩展名那一个：报 `/terms/` 等于请爬虫来收 SPA 壳
+    expect(xml).toContain('https://11wand.com/terms/index.html</loc>');
+    expect(xml).not.toContain('https://11wand.com/terms/</loc>');
+  });
+
+  it('★ 每条指向词条页的链接都有对应落盘文件（URL 与文件同形，上线才有内容可吐）', () => {
+    const written = writeSeoPages(dir, PUBLIC_TERMS, new Date('2026-09-22T12:00:00Z'));
+    const files = new Set(written.map((w) => `/${w.rel}`));
+    for (const html of [...PUBLIC_TERMS.map(renderTermPage), renderTermIndexPage()]) {
+      for (const raw of html.match(/href="(\/terms\/[^"]*)"/g) ?? []) {
+        const href = raw.slice(6, -1);
+        expect(files.has(href), `链接 ${href} 没有落盘文件`).toBe(true);
+      }
+    }
+    expect(files.has(CATALOG_PATH)).toBe(true);
   });
 
   it('writeSeoPages 真的把页面写进目录，内容与渲染函数逐字一致', () => {

@@ -389,6 +389,18 @@
   color: var(--sb-ink-tertiary);
 }
 
+.term-empty-link {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--sb-primary);
+  text-decoration: none;
+}
+
+.term-empty-link:hover {
+  text-decoration: underline;
+}
+
 /* 手动添加：固定在列表下方（不随列表滚动） */
 .term-add {
   margin-top: 14px;

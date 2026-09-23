@@ -11,6 +11,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, fireEvent, cleanup, waitFor, screen } from '@testing-library/react';
 import type { TermItem } from '../../lib/api';
+import { CATALOG_PATH } from '../../seo/paths';
 
 const apiMock = {
   domains: vi.fn(),
@@ -72,6 +73,10 @@ describe('TermsPage 浏览与统计', () => {
     await waitFor(() => expect(apiMock.list).toHaveBeenCalled());
     expect(screen.getByText('词条库还是空的')).toBeTruthy();
     expect(document.querySelectorAll('.term-item').length).toBe(0);
+    // ★ 公开词条入口只在空态出现，且必须指向带扩展名那一个地址（`/terms/` 线上是 SPA 壳）
+    const link = document.querySelector<HTMLAnchorElement>('.term-empty-link');
+    expect(link?.getAttribute('href')).toBe(CATALOG_PATH);
+    expect(CATALOG_PATH).toBe('/terms/index.html');
   });
 
   it('列表与统计同屏：总数/领域数/今日新增 + 词条行含主词名与别名', async () => {
@@ -81,6 +86,8 @@ describe('TermsPage 浏览与统计', () => {
     await waitFor(() => expect(screen.getByText('闭包')).toBeTruthy());
     expect(screen.getByText('闭包').parentElement!.textContent).toContain('别名 closure');
     expect(screen.getByText(/已在对话中使用 3 次/)).toBeTruthy();
+    // ★ 有词条的人不给这条入口：它服务的是「还不知道该存什么」的那一批
+    expect(document.querySelector('.term-empty-link')).toBeNull();
   });
 
   it('搜索过滤：输入搜词真打到 list（带 keyword），结果随之换', async () => {

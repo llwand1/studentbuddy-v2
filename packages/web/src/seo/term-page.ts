@@ -5,6 +5,8 @@
  * 因此页面自带一段极小的样式，除本站链接外不放任何外部资源。
  */
 import {
+  CATALOG_PATH,
+  CATALOG_URL,
   PUBLIC_TERMS,
   relatedTerms,
   termPath,
@@ -90,7 +92,7 @@ function topBar(): string {
     '<body>',
     '<header class="top">',
     '<a class="brand" href="/">StudentBuddy</a>',
-    '<nav><a href="/terms/">全部词条</a></nav>',
+    `<nav><a href="${CATALOG_PATH}">全部词条</a></nav>`,
     '</header>',
     '<main>',
   ].join('\n');
@@ -102,7 +104,7 @@ function footBar(): string {
     '<footer>',
     '<p>StudentBuddy：把学过的东西抽成词条，再让它自己长出复习、出题与讲解。',
     '数据存在自己手里（本地安装包或自己的服务器）。</p>',
-    '<p><a href="/">回到首页</a> · <a href="/terms/">全部词条</a></p>',
+    `<p><a href="/">回到首页</a> · <a href="${CATALOG_PATH}">全部词条</a></p>`,
     '</footer>',
     '</body>',
     '</html>',
@@ -149,7 +151,7 @@ export function renderTermPage(term: PublicTerm): string {
   return [head(titleOf(term), termDescription(term), termUrl(term)), ...body].join('\n');
 }
 
-/** 词条目录页（/terms/）：既是人看的索引，也是爬虫的入口 */
+/** 词条目录页（落盘为 `terms/index.html`，线上地址见 `CATALOG_PATH`）：既是人看的索引，也是爬虫的入口 */
 export function renderTermIndexPage(terms: readonly PublicTerm[] = PUBLIC_TERMS): string {
   const rows = terms.map((t) => {
     return `<li><a href="${escapeHtml(termPath(t))}">${escapeHtml(t.title)}</a> — ${escapeHtml(
@@ -169,7 +171,7 @@ export function renderTermIndexPage(terms: readonly PublicTerm[] = PUBLIC_TERMS)
     head(
       '学习科学词条目录 - StudentBuddy',
       '提取练习、间隔重复、认知负荷、元认知……每条一页讲清它是什么、为什么有效、以及最容易怎么做错。',
-      'https://11wand.com/terms/',
+      CATALOG_URL,
     ),
     ...body,
   ].join('\n');

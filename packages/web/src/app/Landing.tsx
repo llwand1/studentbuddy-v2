@@ -44,8 +44,9 @@ import { LandingDemo } from './demo/LandingDemo';
 import { LandingIntro } from './LandingIntro';
 import { LandingFeatures } from './LandingFeatures';
 import { PRIVACY_ITEMS } from './landing-data';
-import { AUTH, FOOT, GITHUB_BAND, HERO, PRIVACY, STATS, STEPS, TOP } from './landing-copy';
+import { AUTH, FOOT, FOOT_TERMS, GITHUB_BAND, HERO, PRIVACY, STATS, STEPS, TOP } from './landing-copy';
 import { LangToggle, LandingLangProvider, useLandingLang } from './landing-lang';
+import { CATALOG_PATH } from '../seo/paths';
 import './landing.css';
 
 type AuthCard = 'closed' | 'register' | 'login';
@@ -225,7 +226,11 @@ function LandingPage({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
         </section>
       </main>
 
-      <footer className="landing-foot">{FOOT[lang]}</footer>
+      <footer className="landing-foot">
+        {FOOT[lang]} ·{' '}
+        {/* ★ 站内链接、同标签页：这是爬虫从首页走到词条页的那条路，新开标签等于把它掐掉 */}
+        <a href={CATALOG_PATH}>{FOOT_TERMS[lang]}</a>
+      </footer>
     </div>
   );
 }

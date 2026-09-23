@@ -1,6 +1,6 @@
 # SEO-SPEC — 词条长尾静态页（公开门面）
 
-> 版本：v0.1.3 | 状态：[活跃] | 更新：2026-09-23（**v0.1.3：批次 E 发版（09:54）后线上复验，七条判据全绿**，实录见 §6.1；同批补一条取证出来的代价——**不存在的 `/terms/*.html` 返 200 壳而不是 404**（§5 第 9 条），并把 §6 第 2 条判据从「看状态码」改成「状态码＋字节数」，因为光看状态码这类问题一律漏网。v0.1.2：目录页地址换正＋两处入口；v0.1.1：线上只读取证后补两条代价——① 词条页零 JS ⇒ **GoatCounter 永远数不到它们**，效果只能看 Caddy 日志（§5 第 6 条＋§6 第 7 条判据）；② **Googlebot 已在场、Baiduspider 从没来过** ⇒ 发版对 Google 是顺水推舟，对百度必须另去站长平台主动提交（§5 第 7 条）。v0.1.0：2026-09-22 初版）
+> 版本：v0.1.4 | 状态：[活跃] | 更新：2026-09-23 19:1x（**v0.1.4：批次 F-3 给 14 页公开页装上分享卡（`og:image` 1200×630，v0.2.116，未发版）**——★ 两条新代价进 §5 第 10 条：**PNG 是提交资源**（改了语料不重跑 `npm run og:shots` 就是旧图，内容陈旧机器拦不住）、`robots.txt` 为 `/og/` 开了一扇 `Allow`（Google 图片抓图看 robots）；★ 验收新增 §6 第 8 条，判据带 **`content-type: image/png` ＋ 字节数**，理由正是 v0.1.3 那条前科：本站错地址也返 200 壳。v0.1.3：批次 E 发版（09:54）后线上复验，七条判据全绿，实录见 §6.1；同批补一条取证出来的代价——**不存在的 `/terms/*.html` 返 200 壳而不是 404**（§5 第 9 条），并把 §6 第 2 条判据从「看状态码」改成「状态码＋字节数」，因为光看状态码这类问题一律漏网。v0.1.2：目录页地址换正＋两处入口；v0.1.1：线上只读取证后补两条代价——① 词条页零 JS ⇒ **GoatCounter 永远数不到它们**，效果只能看 Caddy 日志（§5 第 6 条＋§6 第 7 条判据）；② **Googlebot 已在场、Baiduspider 从没来过** ⇒ 发版对 Google 是顺水推舟，对百度必须另去站长平台主动提交（§5 第 7 条）。v0.1.0：2026-09-22 初版）
 >
 > 本契约管的是**本站第一次对外部访客与搜索引擎公开的内容面**：一批独立静态词条页、`robots.txt` 的放行口径、`sitemap.xml`。
 > 产品内的词条（`term_library`）是**用户私有数据**，与本文件说的「词条页」不是一回事，见 §4 红线。
@@ -38,6 +38,7 @@ packages/web/src/seo/term-entries-b.ts ┘→ term-corpus.ts（唯一事实源�
 - 页面**不带 `<script>`**，只有一个 `<link>`（canonical）；样式自带一小段，不引 SPA 产物 ⇒ 关掉 JS 也读得到正文。
 - 首页壳（`packages/web/index.html`）同时补了 `<title>`／description／og 三件，此前是 `<title>studentbuddy</title>` 裸奔。
 - **指向目录页的链接一律从 `paths.ts` 的 `CATALOG_PATH` 拼**（值是 `/terms/index.html`）：SPA 侧（落地页页脚、词条库空态）与构建侧（页内导航、`sitemap`、canonical）共用同一个常量，两侧各写一份必然漂。
+- ★ **分享卡（批次 F-3）也走同一个事实源**：`src/seo/og-card.ts` 是卡面文案与 `og:image` 那四行 meta 的**单点**（它从 `term-corpus` 取字段，不另写一份文案），`term-page.ts` 的 `head()` 与首页壳的 og 块都对着它；14 张 1200×630 PNG 落 `packages/web/public/og/`、随构建进 `dist/og/`，重新生成＝`npm run og:shots`。⚠️ **它们是提交资源、不是构建产物**，理由与代价见 §5 第 10 条。
 
 ## 3. 数据口径
 
@@ -68,6 +69,8 @@ packages/web/src/seo/term-entries-b.ts ┘→ term-corpus.ts（唯一事实源�
 
 9. ★ **不存在的 `/terms/*.html` 不返 404，返 200 ＋ SPA 壳**（09-23 09:56 取证：`curl -sI /terms/bu-cun-zai.html` ⇒ `200`、`Content-Length: 1487`）。这是 `try_files {path} /index.html` 那条兜底的**另一面**：§5 第 1 条用它解释了「为什么目录形式是壳」，同一机制也让**任何错地址都长得像活页**。⇒ 两条后果：① **验收判据不许只看状态码**，必须核字节数（真页 5.9～6.2 KB，壳 1487 B），本批 §6 第 2 条按此加强；② 对爬虫这是一类 **soft 404**——语料改 slug、或外链写错一个字符，页面不会被机器拦下，只会被 Google 判成「空页」并**拖累整节的可信度**。目前唯一的守法是仓内的死链锁（`term-corpus.test.ts` 的 `related` 锁＋`term-page.test.ts` 的「每条链接都有落盘文件」锁），★ 它管不到**别人写错的外链**，那一段没有解，除非给 `/terms/` 单独配一条真 404（要动 Caddy，属服务器改动，本批刻意没做）。
 
+10. ★ **分享卡（`og:image`）的 PNG 是提交资源、不是构建产物**（批次 F-3，v0.2.116）：发版 tar 与 CI 里都没有浏览器，所以 14 张 1200×630 卡**签进 `packages/web/public/og/`**。⇒ **代价是「语料改了、图不会自己跟着变」**：文案漂移由锁拦（卡片字段逐字取自 `term-corpus`，页与卡不同源即刻红），**图内容的陈旧拦不住**——唯一的守法是改完语料重跑 `npm run og:shots`（它会逐张量排版越界并报最低内容底边，红在退出码里）。另三条如实记账：① PNG 由**本机 Edge 153.0.4234.32** 无头截出，别的操作系统字体度量不同 ⇒ 仓内的锁读的是 **PNG 的 IHDR 字节**（尺寸与存在性），不锁像素；② `robots.txt` 加了 `Allow: /og/`——**社交平台抓图不看 robots，Google 图片抓它看**，本站 robots 是默认全封口径，不放行就是自己挡自己的图；③ **英文侧尚无公开页 ⇒ 无英文卡**（与 §5 第 3 条同一条代价）。
+
 ## 6. 上线与验收判据（发版后逐条 curl）
 
 1. `curl -s https://11wand.com/robots.txt` ⇒ 含 `Allow: /terms/` 与 `Sitemap:` 行。
@@ -79,6 +82,12 @@ packages/web/src/seo/term-entries-b.ts ┘→ term-corpus.ts（唯一事实源�
 7. 效果观测（★ **别用 GoatCounter，理由见 §5 第 6 条**）：上线满 1～2 天后 `ssh` 到服务器跑一次
    `grep -hE '"uri":"/terms[^"]*html' /var/log/caddy/access.log* | grep -vE 'studentbuddy-probe|"user_agent":"curl/' | wc -l`
    ⇒ **只看它有没有出现过非零**（★ 前半段剔自己：C10 打标的脚本走 `studentbuddy-probe`，发版验收时的 `curl` 走 `curl/`，两条都是我们干的，不剔就是自增流量）。同一份日志按 UA 分一下就能看见是谁来的（`Googlebot`／`bingbot`／真人）。★ 判据是「有没有人来」，不是「来了几个」——**在 §5 第 7 条那条百度提交做完之前，不许拿这个词对外说「有流量」**。
+
+8. ★ **分享卡（批次 F-3 之后才有这条，发版后跑）**：
+   - `curl -sI https://11wand.com/og/tiqu-lixian.png` ⇒ `200` ＋ **`content-type: image/png`** ＋ `content-length` 与仓内该文件字节数一致（实测本机 **62.1 KB**）。★★ **只看状态码等于没验**——§5 第 9 条已取证「本站任何错地址都返 200 ＋ 1487 字节 SPA 壳」，图若被同一条 `try_files` 兜住，平台抓到的是 HTML、渲染出来就是没有卡，而**没有任何一端会报错**。
+   - `curl -s https://11wand.com/terms/tiqu-lixian.html | grep -o 'og:image" content="[^"]*'` ⇒ 该页**指向自己那张**（14 页逐一核对，串页＝给 A 页配 B 页的图）；`grep -c 'twitter:card" content="summary_large_image'` ⇒ **1**（还是 `summary` 就是没发新版）。
+   - `curl -s https://11wand.com/robots.txt | grep -c 'Allow: /og/'` ⇒ 1。
+   - ⚠️ **卡片在真实对话框里清不清楚／淡不淡，curl 判不了** ⇒ 见 `manual-test.md` **MT-20**（判定权在老板）。
 
 ## 6.1 最近一轮验收实录（09-23 09:54 批次 E 发版后，全绿）
 

@@ -13,6 +13,7 @@ import {
   termUrl,
   type PublicTerm,
 } from './term-corpus';
+import { ogCardForTerm, ogImageMetaLines, CATALOG_OG_CARD, type OgCard } from './og-card';
 
 export function escapeHtml(s: string): string {
   return s
@@ -64,7 +65,7 @@ li { margin: .4rem 0; }
 footer { color: #6b7280; font-size: .88rem; padding-bottom: 2.5rem; }
 `;
 
-function head(title: string, desc: string, canonical: string): string {
+function head(title: string, desc: string, canonical: string, card: OgCard): string {
   const t = escapeHtml(title);
   const d = escapeHtml(desc);
   return [
@@ -81,7 +82,8 @@ function head(title: string, desc: string, canonical: string): string {
     `<meta property="og:title" content="${t}">`,
     `<meta property="og:description" content="${d}">`,
     `<meta property="og:url" content="${escapeHtml(canonical)}">`,
-    '<meta name="twitter:card" content="summary">',
+    // ★ 分享卡与它三件（宽高／alt／`summary_large_image`）由 `og-card.ts` 一处拼，尺寸常量不留两份
+    ...ogImageMetaLines(card),
     `<style>${CSS}</style>`,
     '</head>',
   ].join('\n');
@@ -148,7 +150,7 @@ export function renderTermPage(term: PublicTerm): string {
   body.push('</aside>');
   body.push(footBar());
 
-  return [head(titleOf(term), termDescription(term), termUrl(term)), ...body].join('\n');
+  return [head(titleOf(term), termDescription(term), termUrl(term), ogCardForTerm(term)), ...body].join('\n');
 }
 
 /** 词条目录页（落盘为 `terms/index.html`，线上地址见 `CATALOG_PATH`）：既是人看的索引，也是爬虫的入口 */
@@ -172,6 +174,7 @@ export function renderTermIndexPage(terms: readonly PublicTerm[] = PUBLIC_TERMS)
       '学习科学词条目录 - StudentBuddy',
       '提取练习、间隔重复、认知负荷、元认知……每条一页讲清它是什么、为什么有效、以及最容易怎么做错。',
       CATALOG_URL,
+      CATALOG_OG_CARD,
     ),
     ...body,
   ].join('\n');

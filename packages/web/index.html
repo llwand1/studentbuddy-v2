@@ -11,7 +11,13 @@
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://11wand.com/" />
   <meta property="og:site_name" content="StudentBuddy" />
-  <meta name="twitter:card" content="summary" />
+  <!-- 分享卡 1200×630：PNG 是静态资源（`public/og/home.png`，重新生成 `npm run og:shots`），
+       这里那串地址与 `src/seo/og-card.ts` 的 HOME_OG_CARD 由 `og-card.test.ts` 锁成同一个值 -->
+  <meta property="og:image" content="https://11wand.com/og/home.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="StudentBuddy：以词条为中心的学习助手，学练析忆反馈一条闭环" />
+  <meta name="twitter:card" content="summary_large_image" />
   <title>StudentBuddy - 以词条为中心的学习助手</title>
 </head>
 <body>

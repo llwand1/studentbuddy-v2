@@ -19,6 +19,7 @@
     "test": "node tools/test-tmp.mjs",
     "test:raw": "vitest run",
     "gates": "node tools/gates/check.mjs",
+    "og:shots": "tsx tools/probes/og-card-cdp.mts",
     "check": "npm run lint && npm run test && npm run gates",
     "metrics": "node tools/metrics.mjs"
   },

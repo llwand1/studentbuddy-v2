@@ -3,7 +3,7 @@
 [![CI](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-204%20files%20%2F%202815%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-204%20files%20%2F%202817%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-151-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-150%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
@@ -123,7 +123,7 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 | **AI 输出可靠性工程** | 模型不听话不塌系统：出题五级解析阶梯（补括号 → 剥图重试 → 截断逐题回退）、丢图保题、非法转义修复、SSE 屏上文本与库内文本逐字一致；**上游挂起不再让会话永久卡住**——流式空闲超时 120s / 一次性总时长 180s，超时抛可读错误；**并发闸门两层：每用户 2 路 + 全站封顶 N（占位 8）**（两路对话可并行，主链优先、后台让路，超额明确拒绝而非无限排队） | 每个对策都对应一次真实故障的根因登记与回归锁（[`docs/dev/bug-ledger.md`](docs/dev/bug-ledger.md) + CHANGELOG 09-04、09-17 两批） |
 | **模型产出敢真跑** | ```html 围栏产出的网页在 `CSP: sandbox` + iframe 双层沙箱里运行，页面源为 `null`；SVG 净化剥 `<image>` 外链（防外链信标泄露 IP） | 真机实测沙箱页调写接口 / 读数据全被拒；净化有 `web/lib/svg-utils.test.ts` 锁 |
 | **前端零第三方库** | 无 UI 库 · 无 Markdown 库 · 无图表库：Markdown 解析、代码高亮、数据图自绘 SVG、SVG 净化自愈全部自写——供应链攻击面与包体积同时趋零、行为完全可控 | `packages/web/package.json` 运行时依赖只有 `react` / `react-dom` / `@sb/shared` |
-| **测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；交互层是**两层互补**——**22 个 `.test.tsx`**（jsdom 按文件 pragma 启用，锁交互逻辑）＋ **15 个真机探针脚本**（`tools/probes/*.mjs`，其中 10 个走 CDP 真点真渲染，锁 CSS 与真实浏览器行为） | 基线 **204 文件 / 2815 例**（2026-09-23 批次 F-3 后；★ 线上现况＝**已上线到 v0.2.112**（09-23 09:56 那次点名授权的发版，含注册免验证码 v0.2.110／中英切换 v0.2.109／SEO 静态页 v0.2.111／目录页 URL 换正 v0.2.112），**未发版的只有本批 v0.2.113（体验号种子）**，`metrics --tests` 实测口径；2737 passed + 1 skipped + 0 failed，全绿）；**逐文件不变量见 §3**（数字由 `node tools/metrics.mjs --tests` 产出，非手抄） |
+| **测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；交互层是**两层互补**——**22 个 `.test.tsx`**（jsdom 按文件 pragma 启用，锁交互逻辑）＋ **15 个真机探针脚本**（`tools/probes/*.mjs`，其中 10 个走 CDP 真点真渲染，锁 CSS 与真实浏览器行为） | 基线 **204 文件 / 2817 例**（2026-09-23 批次 G-1（静态可抓入口）后；★ 线上现况＝**已上线到 v0.2.112**（09-23 09:56 那次点名授权的发版，含注册免验证码 v0.2.110／中英切换 v0.2.109／SEO 静态页 v0.2.111／目录页 URL 换正 v0.2.112），**v0.2.113／114／115／116／117 五批全部未发版**（发版逐次点名授权，本文件不预授权），`metrics --tests` 实测口径；2816 passed + 1 skipped + 0 failed，全绿）；**逐文件不变量见 §3**（数字由 `node tools/metrics.mjs --tests` 产出，非手抄） |
 | **契约先行的可维护性** | `@sb/shared` 是 SSE 事件 / 内容块 / REST / 领域模型的单一事实源，前后端不允许各写一套；先登记再实现 | shared 契约文件头注释即纪律；四条固定扩展模式见 [§开发指南](#开发指南) |
 | **不锁定供应商** | OpenAI 兼容 + Anthropic 双适配；搜索三家按 key 并行聚合 + 免 key 兜底——换模型、换服务商只动设置页 | 适配器有出站请求体断言测试，且当场逮出过真缺陷 B-001（多条 system 在 Anthropic 型上静默丢失） |
 | **多用户归属做得彻底** | 归属不是加个 `WHERE`：`providers.owner_id IS NULL` ＝平台通道（人人可用）、业务表 `owner_id = ''` ＝无主（谁都看不见），两种「没有主人」可见性刻意相反；读写按形状分别走 `ownerFilter` / `ownerForWrite` | 每批都配跨用户隔离锁 + 「故意改坏必红」的非空转取证（[`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) §8 + test-plan §7） |
@@ -354,7 +354,7 @@ AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决�
 - 禁内联 `style={{…}}`（一律走 tokens.css 的 token）；禁 `any`；测试也禁 `!` 非空断言
 - 每个测试文件必须在 `docs/dev/test-plan.md` 成行登记（未登记 = 门禁红）
 
-**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**204 文件 / 2815 例**（2814 passed + 1 skipped + 0 failed；**逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，本格数字由 `node tools/metrics.mjs --tests` 产出）。
+**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**204 文件 / 2817 例**（2816 passed + 1 skipped + 0 failed；**逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，本格数字由 `node tools/metrics.mjs --tests` 产出）。
 
 量化对账：`node tools/metrics.mjs --check` 会把本文的可核对数字与代码实测逐一比对，漂移即退出码 1——**本文任何数字都不许手改，改了就红**。
 

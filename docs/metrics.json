@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-23T14:49:43.279Z",
+  "generatedAt": "2026-09-23T14:53:52.304Z",
   "code": {
     "rows": [
       {
@@ -21,13 +21,13 @@
         "srcFiles": 192,
         "testFiles": 66,
         "srcLines": 24644,
-        "testLines": 9465
+        "testLines": 9480
       }
     ],
     "srcFiles": 390,
     "testFiles": 204,
     "srcLines": 55847,
-    "testLines": 37583,
+    "testLines": 37598,
     "tsxTestFiles": 22
   },
   "routes": {
@@ -90,16 +90,16 @@
     "headDate": "2026-09-23",
     "commitsLast14d": 163,
     "branch": "main",
-    "dirtyFiles": 4
+    "dirtyFiles": 5
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 31.3,
+    "wallSec": 38.8,
     "staleDays": 0,
     "files": 204,
-    "cases": 2815,
-    "passed": 2814,
+    "cases": 2817,
+    "passed": 2816,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -150,8 +150,8 @@
     {
       "label": "badge 测试用例",
       "claimed": "2815",
-      "measured": "2815",
-      "ok": true
+      "measured": "2817",
+      "ok": false
     },
     {
       "label": "badge REST 路由",
@@ -186,14 +186,14 @@
     {
       "label": "正文基线句",
       "claimed": "204 文件 / 2815 例",
-      "measured": "204 文件 / 2815 例",
-      "ok": true
+      "measured": "204 文件 / 2817 例",
+      "ok": false
     },
     {
       "label": "正文基线句",
       "claimed": "204 文件 / 2815 例",
-      "measured": "204 文件 / 2815 例",
-      "ok": true
+      "measured": "204 文件 / 2817 例",
+      "ok": false
     }
   ],
   "landingDrift": []

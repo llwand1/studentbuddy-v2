@@ -18,9 +18,16 @@
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="StudentBuddy：以词条为中心的学习助手，学练析忆反馈一条闭环" />
   <meta name="twitter:card" content="summary_large_image" />
+  <!-- 抓取入口之一（HTML 规范的 sitemap link 扩展）：与 `robots.txt` 里那行 `Sitemap:` 同指一处 -->
+  <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
   <title>StudentBuddy - 以词条为中心的学习助手</title>
 </head>
 <body>
+  <!-- ★ 静态可抓入口：SPA 首页在不执行 JS 的抓取器眼里原本零 `<a>`。为什么用 `hidden`、
+       它的锁与线上判据，一律见 `docs/SEO-SPEC.md` §5 第 11 条（这份文件随站发布，不装施工理由） -->
+  <nav hidden>
+    <a href="/terms/index.html">学习词条目录</a>
+  </nav>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
   <!-- 访问统计（自托管 GoatCounter，无 cookie 无个人信息——与「数据自持」产品叙事一致） -->

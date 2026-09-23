@@ -123,6 +123,21 @@ describe('sitemap 与落盘', () => {
     expect(xml).not.toContain('https://11wand.com/terms/</loc>');
   });
 
+  /** 手写的 SPA 外壳（不执行 JS 的抓取器看到的就是这一份字节） */
+  const shell = () => readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+
+  it('★ 首页给不执行 JS 的抓取器留了一跳：静态 `<a>` 的地址＝`CATALOG_PATH`，并声明 sitemap', () => {
+    expect(shell()).toContain(`href="${CATALOG_PATH}"`);
+    expect(shell()).toContain('rel="sitemap"');
+  });
+
+  it('★ 那一跳必须待在 `hidden` 容器里（一旦可见＝一次没登记的视觉改动）', () => {
+    const nav = shell().match(/<nav\b[^>]*>[\s\S]*?<\/nav>/);
+    expect(nav, 'index.html 里那条静态入口 nav 被删了').not.toBeNull();
+    expect(nav![0]).toContain('hidden');
+    expect(nav![0]).toContain(`href="${CATALOG_PATH}"`);
+  });
+
   it('★ 每条指向词条页的链接都有对应落盘文件（URL 与文件同形，上线才有内容可吐）', () => {
     const written = writeSeoPages(dir, PUBLIC_TERMS, new Date('2026-09-22T12:00:00Z'));
     const files = new Set(written.map((w) => `/${w.rel}`));

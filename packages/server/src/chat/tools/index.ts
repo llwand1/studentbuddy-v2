@@ -15,6 +15,8 @@ import './web-search.js';
 import './fetch-page.js';
 import './fetch-image.js';
 import './term-tidy.js';
+// 出题工具化（2026-09-23）：把 `routes/quiz.ts` 那条 REST 引擎接进模型手里
+import './generate-quiz.js';
 // P3 拍板⑭：term-manage（manage_terms 四合一裸写口）退役，词条写门面收进 term-ops 三工具
 import './term-ops.js';
 

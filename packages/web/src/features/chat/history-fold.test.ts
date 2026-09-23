@@ -213,3 +213,63 @@ describe('foldToolRounds', () => {
     expect(out[1]?.steps?.[0]?.durationMs).toBe(0);
   });
 });
+
+/**
+ * `[QUIZ]` 登记行的还原（2026-09-23「出题工具化」批：聊天模型自己能出题之后，
+ * 会话里出现题卡成了常态，这一坨 JSON 再原样上屏就是对外可见的残骸）。
+ * ★ 下面的行序是**服务端真实行序**，不是我想当然：出卡发生在工具执行中
+ *   （`learning/quiz-announce.ts` 直接 INSERT），而工具轮与正文行要等本轮收口才由
+ *   `chat/persist.ts#persistRounds` 一次性写入 ⇒ `[QUIZ]` 行的 rowid **在前**。
+ *   代价见 `docs/TOOL-ECOSYSTEM-SPEC.md` §5.4：重开会话时卡片排在「我出了 5 道题」那句前面。
+ */
+describe('foldToolRounds — [QUIZ] 登记行还原成题卡', () => {
+  const QUIZ_ROW =
+    '[QUIZ]{"title":"词根 spect","questions":[{"type":"single","question":"aspect 本义？","options":["外表","旁观"],"answer":[1]}],"quizId":"q-77"}[/QUIZ]';
+
+  it('真实行序（卡片行在工具轮之前）：卡片独立成一条，步骤仍归最后那条正文', () => {
+    const out = foldToolRounds([
+      row({ role: 'user', content: '考我几个词根' }),
+      row({ role: 'assistant', content: QUIZ_ROW }),
+      row({ role: 'assistant', content: '', tool_calls: calls(['c1', 'generate_quiz', '{"topic":"词根 spect"}']) }),
+      row({ role: 'tool', content: '已出题 1 道…', tool_call_id: 'c1' }),
+      row({ role: 'assistant', content: '给你出了 1 道题，点在卡片上作答' }),
+    ]);
+    expect(out.map((m) => m.role)).toEqual(['user', 'assistant', 'assistant']);
+    const card = out[1];
+    expect(card?.quizBlock?.quizId).toBe('q-77');
+    expect(card?.content).toBe('');
+    // 卡片行当时没有待收口的步骤 ⇒ 步骤自然留在后面那条正文上（`MessageRow` 见到 quizBlock 就
+    // 早退，挂在卡片行上的步骤是渲染不出来的——这条与本批行序结论一起锁住）
+    expect(card?.steps).toBeUndefined();
+    expect(out[2]?.steps?.map((s) => s.tool)).toEqual(['generate_quiz']);
+    // JSON 残骸不许以任何形式出现在正文里
+    expect(out.every((m) => !m.content.includes('[QUIZ]'))).toBe(true);
+  });
+
+  it('老行没有 quizId ⇒ 照样还原成卡（只是答了不记账），不回落成一坨 JSON', () => {
+    const out = foldToolRounds([row({ role: 'assistant', content: QUIZ_ROW.replace(/,"quizId":"q-77"/, '') })]);
+    expect(out[0]?.quizBlock?.quiz.questions).toHaveLength(1);
+    expect(out[0]?.quizBlock?.quizId).toBeUndefined();
+  });
+
+  it('[QUIZ] 标记在但 JSON 坏了 ⇒ 原样当普通文本回放（内容一个字不丢，比开一张空卡诚实）', () => {
+    const broken = '[QUIZ]{"title":"半截","questions":[{"type":"single"}';
+    const out = foldToolRounds([row({ role: 'assistant', content: broken })]);
+    expect(out[0]?.quizBlock).toBeUndefined();
+    expect(out[0]?.content).toBe(broken);
+  });
+
+  it('卡片行把前面悬空的步骤收走时不串到下一条正文（跨轮污染防护同 user 行口径）', () => {
+    // 现实中不发生（见上面的行序说明）；这里锁的是「卡片行 = 一次归属收口」这条规则本身，
+    // 免得哪天出卡时机挪到工具轮之后就静默双挂
+    const out = foldToolRounds([
+      row({ role: 'user', content: 'q' }),
+      row({ role: 'assistant', content: '', tool_calls: calls(['c1', 'generate_quiz', '{}']) }),
+      row({ role: 'tool', content: '已出题…', tool_call_id: 'c1' }),
+      row({ role: 'assistant', content: QUIZ_ROW }),
+      row({ role: 'assistant', content: '做完了告诉我' }),
+    ]);
+    expect(out[1]?.quizBlock?.quizId).toBe('q-77');
+    expect(out[2]?.steps).toBeUndefined();
+  });
+});

@@ -2,8 +2,9 @@
  * chat-blocks —— 聊天流内容块的**分派与还原**（纯函数层，契约 docs/SCENARIO-SPEC.md §8 M3）。
  *
  * 职责两条：① live：SSE block 事件 → 消息卡片（quiz 是既有动线、scenario 是 M3 新增）；
- * ② 历史：assistant 行 content 里的 `[SCENARIO]{…}[/SCENARIO]` 登记文本 → 还原成卡片消息
- * （重开会话不丢情景题——quiz 块历史上没做这一步，情景题从第一天生效）。
+ * ② 历史：assistant 行 content 里的 `[QUIZ]{…}[/QUIZ]` / `[SCENARIO]{…}[/SCENARIO]` 登记文本 → 还原成卡片消息
+ * （重开会话不丢卡片。★ scenario 从第一天生效，quiz 到 2026-09-23「出题工具化」批才补上——
+ *   补的原因就写在 `restoreQuizBlock` 的注释里：模型能在对话里出题之后，丢卡从偶发变成常态）。
  *
  * 为什么单开一文件：useChatStream 贴着 398/400 行红线装不下分派逻辑；把 quiz 的分派一并
  * 挪过来既救了行数，又让「一个 block 事件怎么变成消息」只有一个事实源。
@@ -65,6 +66,34 @@ export function applyChatBlock<T>(
   if (p.kind === 'scenario' && p.payload) {
     const view = openScenarioView(blockId, p.payload);
     if (view) setMessages((ms) => [...ms, { role: 'assistant', content: '', scenarioBlock: view } as unknown as T]);
+  }
+}
+
+/**
+ * 历史还原：assistant 行 content 里的 `[QUIZ]{…}[/QUIZ]` → 题卡视图（2026-09-23 出题工具化批补）。
+ * ★ 这一步 quiz 比 scenario 晚了一个功能周期：本文件头注原先就自认「quiz 块历史上没做这一步」。
+ *   出题只有 REST 一条入口时，丢卡要人主动点「出题」才看得见；聊天模型能自己出题之后，
+ *   「AI 刚出的题、重开会话只剩一坨 JSON」会变成常态，所以补齐。
+ * ★ `quizId` 从登记行顶层键读回来（与 `[SCENARIO]` 同构）：没有它卡片答完不写 `quiz_stats`，
+ *   而 live 那条是从 `blockId` 反解的、历史拿不到 ⇒ 老行没这键就还原成「只看不记账」的卡（不炸流）。
+ */
+export function restoreQuizBlock(content: string): QuizBlockView | null {
+  const body = content.match(/\[QUIZ\]([\s\S]*?)\[\/QUIZ\]/)?.[1];
+  if (!body) return null;
+  try {
+    const o = JSON.parse(body) as { title?: unknown; questions?: unknown; quizId?: unknown };
+    if (!Array.isArray(o.questions) || o.questions.length === 0) return null;
+    const quizId = typeof o.quizId === 'string' && o.quizId ? o.quizId : undefined;
+    return {
+      blockId: `quiz-${quizId ?? 'legacy'}`,
+      quiz: {
+        ...(typeof o.title === 'string' ? { title: o.title } : {}),
+        questions: o.questions as QuizBlockView['quiz']['questions'],
+      },
+      ...(quizId ? { quizId } : {}),
+    };
+  } catch {
+    return null;
   }
 }
 

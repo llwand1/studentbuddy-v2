@@ -16,6 +16,7 @@ import { generateBlendedQuiz } from '../learning/quiz-blend.js';
 import { removeQuizQuestion } from '../learning/quiz-edit.js';
 import { analyzeWeakPoints } from '../learning/quiz-weak.js';
 import { collectQuiz, normalizeCollectedQuiz } from '../learning/collect.js';
+import { announceQuizToSession } from '../learning/quiz-announce.js';
 import { announceScenarioToSession, generateScenario } from '../learning/scenario.js';
 import { emptyScenarioGenReport } from '../learning/scenario-protocol.js';
 import { deleteScenarioDemoByQuiz } from '../learning/scenario.js';
@@ -35,7 +36,6 @@ import { getSessionDoc, buildDocMaterial } from '../learning/document.js';
 import { upsertNoteFromAnswer } from '../learning/notes.js';
 import { getDb } from '../storage/db.js';
 import { publishEvent } from '../events/bus.js';
-import { publish } from '../chat/sse-bus.js';
 import { ownerIdOf, ownerForWrite } from '../auth/ownership.js';
 
 export const quizRouter = Router();
@@ -168,19 +168,9 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
     const hasReal = sourceMixTotal(blended.report.real.actual) > 0;
     if (save) quizId = saveQuiz(quiz, hasReal ? 'blend' : 'ai', ownerIdOf(req));
     if (quizId) publishEvent({ type: 'quiz_generated', quizId, ownerId: ownerIdOf(req) });
-    if (sessionId) {
-      // 内容块流（演进③）：quiz 经 SSE block 事件下发聊天视图
-      publish(sessionId, {
-        type: 'block',
-        sessionId,
-        blockId: `quiz-${quizId ?? Date.now()}`,
-        done: true,
-        payload: { kind: 'quiz', blockId: `quiz-${quizId ?? Date.now()}`, payload: quiz },
-      });
-      getDb()
-        .prepare(`INSERT INTO messages (id, session_id, role, content, tokens) VALUES (?, ?, 'assistant', ?, ?)`)
-        .run(`m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, sessionId, `[QUIZ]${JSON.stringify(quiz)}[/QUIZ]`, 0);
-    }
+    // 出卡走唯一门面（`learning/quiz-announce.ts`）：聊天侧 `generate_quiz` 工具用的是同一个函数，
+    // 两处各写一份就是 blockId / 登记行 content / 前端还原解析三口径漂移的来源（2026-09-23 收口）
+    if (sessionId) announceQuizToSession(sessionId, quiz, quizId);
     // 情景档在传统题之后逐套出（顺序即 MIX_KINDS 档位序）；每套成败如实进响应
     const scenarios = scenarioCount > 0 ? await genScenarios(scenarioCount) : undefined;
     // `mix` 仍是 AI 侧报告（前端既有 shortfallText 读的就是它，**向后兼容零改动**）；

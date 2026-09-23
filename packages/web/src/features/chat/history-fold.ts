@@ -10,7 +10,7 @@
  * 纯函数：吃原始行、吐 StreamMessage[]，不碰 DOM 也不碰 React，可直接单测。
  */
 import type { StreamMessage, TaskItem, ToolStep } from './useChatStream';
-import { restoreScenarioBlock } from './chat-blocks';
+import { restoreQuizBlock, restoreScenarioBlock } from './chat-blocks';
 
 /** /messages 下发的原始行（口径见服务端 routes.ts 的 SELECT；多出的字段这里不用） */
 export interface HistoryRow {
@@ -103,8 +103,21 @@ export function foldToolRounds(rows: HistoryRow[]): StreamMessage[] {
       }
       // 正文 assistant：把累积的过程整块挂给它（无工具轮则 steps 为 undefined；
       // reasoning / tasks 是 v11 起直接存在这条行上的列，一并对上）
-      // 情景题历史行（M3，契约 SCENARIO-SPEC §8）：[SCENARIO] 登记文本还原成卡片——
-      // 还原失败回落普通文本，不让一行旧数据毁掉整个会话的加载
+      // 卡片登记行还原（[QUIZ] 由 2026-09-23 出题工具化批补上、[SCENARIO] 是 M3 既有）：
+      // 还原失败一律回落普通文本，不让一行旧数据毁掉整个会话的加载
+      const quiz = restoreQuizBlock(r.content);
+      if (quiz) {
+        out.push({
+          role: 'assistant',
+          content: '',
+          ts: r.created_at,
+          quizBlock: quiz,
+          steps: pending.length > 0 ? pending : undefined,
+        });
+        pending = [];
+        byCallId.clear();
+        continue;
+      }
       const scenario = restoreScenarioBlock(r.content);
       if (scenario) {
         out.push({

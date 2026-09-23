@@ -7,12 +7,21 @@
  *   ② 内容里不能出现**任何使用量数字**（真实计数尚未上线，写一个就是造假）。
  */
 import { describe, expect, it } from 'vitest';
+import { DEMO_SEED_TERMS } from '@sb/shared';
 import { PUBLIC_TERMS, findPublicTerm, relatedTerms, termPath, termUrl } from './term-corpus';
 import { termDescription } from './term-page';
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 describe('词条语料 · 形状', () => {
+  it('★ 体验号种子的词条名逐个能在本语料里找到（两边同名同源，漂一个字即刻红）', () => {
+    // 为什么锁在 web 侧：种子常量住在 `@sb/shared`（server 写库要读它），而公开语料住在这里——
+    // 只有这个文件能同时看见两边。访客从讲解页点进产品，词条库里那个概念**必须同名**。
+    const titles = new Set(PUBLIC_TERMS.map((t) => t.title));
+    expect(DEMO_SEED_TERMS.length).toBeGreaterThan(0);
+    for (const s of DEMO_SEED_TERMS) expect(titles.has(s.term), s.term).toBe(true);
+  });
+
   it('★ 十二条齐备，slug 唯一且是纯 ASCII（发版 tar 链路不引入编码变量）', () => {
     expect(PUBLIC_TERMS).toHaveLength(12);
     const slugs = PUBLIC_TERMS.map((t) => t.slug);

@@ -31,3 +31,4 @@ export * from './speech.js';
 export * from './follow-up.js';
 export * from './platform-quota.js';
 export * from './platform-channel.js';
+export * from './demo-content.js';

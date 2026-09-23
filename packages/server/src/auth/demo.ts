@@ -16,6 +16,8 @@
  * ⚠️ 公用池 = 访客彼此可见（老板拍板「共享池原样 + 页面明示」），防误伤靠前端文案，
  *   不靠数据层；体验账号与普通账号在数据模型上**没有任何特殊化**。
  * ★ 惰性建号（刻意不走迁移）：本地安装包版永远不该有这行，且开关未开时零足迹。
+ *   同一处顺带灌**首屏种子内容**（`demo-seed.ts`，渠道台账 C5）——同样惰性、同样零足迹：
+ *   开关未开时这个函数根本不会被调用。
  */
 import { randomUUID } from 'node:crypto';
 import {
@@ -28,6 +30,7 @@ import {
   type AuthUser,
 } from '@sb/shared';
 import { getDb } from '../storage/db.js';
+import { tryEnsureDemoSeed } from './demo-seed.js';
 import { hashPassword } from './password.js';
 import { rowToAuthUser, type UserRow } from './user-row.js';
 
@@ -89,5 +92,8 @@ export async function demoLogin(ip: string): Promise<AuthUser> {
   const kept = attempts.get(ip) ?? [];
   kept.push(now);
   attempts.set(ip, kept);
-  return rowToAuthUser(await ensureDemoUser());
+  const user = rowToAuthUser(await ensureDemoUser());
+  // ★ 首次进入时顺带灌首屏种子内容（渠道台账 C5；幂等、失败不影响登录，见 `demo-seed.ts` 头注③）
+  tryEnsureDemoSeed();
+  return user;
 }

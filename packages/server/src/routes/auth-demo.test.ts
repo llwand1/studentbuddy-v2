@@ -62,6 +62,15 @@ describe('开关未开（本地/未配置部署）', () => {
     const res = await request(app).get('/api/auth/providers');
     expect(res.body.providers.demo).toBe(false);
   });
+
+  it('★ 开关未开时**种子内容也不落**：体验号在 `term_library` 里同样零足迹', async () => {
+    // 防的是将来有人把 `tryEnsureDemoSeed()` 挪到建号处/启动时——那会让未配置的部署凭空多出八条词条
+    await post('/api/auth/demo-login').send({});
+    const c = (
+      getDb().prepare('SELECT COUNT(*) AS c FROM term_library WHERE owner_id = ?').get(DEMO_USER_ID) as { c: number }
+    ).c;
+    expect(c).toBe(0);
+  });
 });
 
 describe('开关打开（SB_DEMO_LOGIN=1，仅生产）', () => {

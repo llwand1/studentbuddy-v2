@@ -10,7 +10,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { CATALOG_PATH, PUBLIC_TERMS } from './term-corpus';
-import { escapeHtml, renderTermIndexPage, renderTermPage } from './term-page';
+import { renderTermIndexPage, renderTermPage } from './term-page';
+import { escapeHtml } from './page-shell';
+import { CHANGELOG_PATH, FEED_PATH } from './paths';
 import { renderSitemapXml, writeSeoPages } from './ssg';
 
 describe('词条页 · 单页形状', () => {
@@ -121,6 +123,15 @@ describe('sitemap 与落盘', () => {
     // ★ 目录页进 sitemap 的必须是带扩展名那一个：报 `/terms/` 等于请爬虫来收 SPA 壳
     expect(xml).toContain('https://11wand.com/terms/index.html</loc>');
     expect(xml).not.toContain('https://11wand.com/terms/</loc>');
+    // ★ 更新页刻意**不在** sitemap 里：C2 的拍板是分享图只做那 14 个公开页，而 sitemap 与卡数
+    //   之间没有机器绑定 ⇒ 这一格由下面这两行 not.toContain 守着：要加进来先决定它配不配图。
+    expect(xml).not.toContain(CHANGELOG_PATH);
+  });
+
+  it('★ 词条页与目录页页脚都链向更新页（清洗后的公开面要被现有公开页带出来）', () => {
+    for (const html of [...PUBLIC_TERMS.map(renderTermPage), renderTermIndexPage()]) {
+      expect(html).toContain(`href="${CHANGELOG_PATH}"`);
+    }
   });
 
   /** 手写的 SPA 外壳（不执行 JS 的抓取器看到的就是这一份字节） */
@@ -150,13 +161,27 @@ describe('sitemap 与落盘', () => {
     expect(files.has(CATALOG_PATH)).toBe(true);
   });
 
+  it('★ 手写的 SPA 外壳里每一条静态链接都落得出盘（拼错一个字就是一条死链）', () => {
+    const files = new Set(
+      writeSeoPages(dir, PUBLIC_TERMS, new Date('2026-09-22T12:00:00Z')).map((w) => `/${w.rel}`),
+    );
+    const hrefs = [...shell().matchAll(/<a href="(\/[^"]*)">/g)].map((m) => m[1]!);
+    // 外壳里那条 hidden nav 是唯一给爬虫的静态入口，一条都不能是空的
+    expect(hrefs.length).toBeGreaterThanOrEqual(2);
+    for (const href of hrefs) expect(files.has(href), `静态入口 ${href} 没有落盘文件`).toBe(true);
+  });
+
   it('writeSeoPages 真的把页面写进目录，内容与渲染函数逐字一致', () => {
     const written = writeSeoPages(dir, PUBLIC_TERMS, new Date('2026-09-22T12:00:00Z'));
-    expect(written).toHaveLength(PUBLIC_TERMS.length + 2);
+    // 十二条词条页 ＋ 目录页 ＋ 更新页 ＋ 订阅 ＋ sitemap
+    expect(written).toHaveLength(PUBLIC_TERMS.length + 4);
     expect(readFileSync(join(dir, 'terms/tiqu-lixian.html'), 'utf8')).toBe(
       renderTermPage(PUBLIC_TERMS[0]!),
     );
     expect(readFileSync(join(dir, 'sitemap.xml'), 'utf8')).toContain('<urlset');
+    const rels = new Set(written.map((w) => `/${w.rel}`));
+    expect(rels.has(CHANGELOG_PATH)).toBe(true);
+    expect(rels.has(FEED_PATH)).toBe(true);
     for (const w of written) expect(w.bytes).toBeGreaterThan(200);
   });
 });

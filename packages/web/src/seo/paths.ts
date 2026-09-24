@@ -7,3 +7,12 @@
  *   兜成 SPA 壳（09-23 实测：壳 1487 B / 真目录 5705 B），差一个扩展名就吐不出内容。
  */
 export const CATALOG_PATH = '/terms/index.html';
+
+/**
+ * 公开更新记录页。★ 与目录页同一条规矩：必须带 `.html`（线上 Caddy 没有目录索引，
+ * `/changelog/` 会被兜成 SPA 壳），而且**默认全封**的 `robots.txt` 要为它开一扇 `Allow`。
+ */
+export const CHANGELOG_PATH = '/changelog/index.html';
+
+/** 更新记录的 Atom 订阅地址；同样要在 `robots.txt` 里点名放行 */
+export const FEED_PATH = '/atom.xml';

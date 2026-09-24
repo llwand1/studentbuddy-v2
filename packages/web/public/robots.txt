@@ -1,14 +1,15 @@
-# 2026-09-22 起转「半开放」（老板拍板：只放行公开页 ＋ 词条页）。
-# 口径：默认全封，只用 Allow 精确开门 ⇒ 以后应用里新增的客户端路由不会被顺手放出去。
-# 原「封闭期 Disallow: /」一行不删意：它仍是默认策略，只是上面多了两扇明确的门。
+# 默认不抓取，只按路径放行公开页与公开静态资源。
+# 新增一个公开面，就要在这里补一行，否则它不会被收录。
 User-agent: *
 Disallow: /
 Allow: /$
 Allow: /terms/
+Allow: /changelog/
+Allow: /atom.xml
 Allow: /robots.txt
 Allow: /favicon.svg
 Allow: /sitemap.xml
-# 分享卡（og:image）：社交平台抓图不看 robots，但 Google 图片抓它看——放行才不会被自己的默认策略挡住
+# 分享图（og:image）：社交平台抓图不看 robots，图片搜索看——不放行就是自己挡自己的图
 Allow: /og/
 
 Sitemap: https://11wand.com/sitemap.xml

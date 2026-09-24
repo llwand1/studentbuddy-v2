@@ -158,6 +158,12 @@ export const FOOT: Bi = { zh: '本地优先 · 数据自持 · © 2026 studentbu
  */
 export const FOOT_TERMS: Bi = { zh: '学习科学词条', en: 'Glossary (Chinese only)' };
 
+/**
+ * 页脚的公开更新记录入口（构建期静态页，地址从 `seo/paths` 的 `CHANGELOG_PATH` 来）。
+ * ★ 与上面那条同一口径：更新页目前只有中文一套，英文标签如实写明，不许诺不存在的语言。
+ */
+export const FOOT_CHANGELOG: Bi = { zh: '更新记录', en: 'Changelog (Chinese only)' };
+
 /** 演示窗外壳 chrome（帧内容各自在 registry / demo 数据文件里双语） */
 export const DEMO_WINDOW: { replay: Bi } = { replay: { zh: '重播', en: 'Replay' } };
 

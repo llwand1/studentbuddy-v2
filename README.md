@@ -340,7 +340,7 @@ tools/
 ├─ guard-audit.mjs         **守门判别力审计**：逐条改坏证明每条守门真的会红（`--selftest` 自证）
 ├─ probes/                 真机探针 15 个（CDP 真点 10 + 能力/隔离量测 5）
 └─ migrate-from-v1/        v1→v2 数据迁移
-docs/                      契约与研发台账（27 份 SPEC 契约 + dev/ 四份 + metrics.md / metrics.json）
+docs/                      契约与研发台账（29 份 `*-SPEC.md` 契约 + dev/ 五份 + 三份增长台账 + metrics.md / metrics.json；★ 09-24 现读 `ls` 改正，原句「27 份／四份」两处都已过期）
 DEPLOY.md                  部署手册：服务器 / systemd / 五条部署 env / TLS / 备份 / 回滚
 CHANGELOG.md               项目改动登记册（代码/文档/测试同批登记）
 AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决策记录

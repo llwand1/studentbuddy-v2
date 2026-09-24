@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-24T08:27:10.872Z",
+  "generatedAt": "2026-09-24T13:00:27.300Z",
   "code": {
     "rows": [
       {
@@ -86,16 +86,16 @@
     "probes": 15
   },
   "repo": {
-    "head": "373c464",
+    "head": "11f3953",
     "headDate": "2026-09-24",
-    "commitsLast14d": 185,
+    "commitsLast14d": 186,
     "branch": "main",
-    "dirtyFiles": 20
+    "dirtyFiles": 5
   },
   "tests": {
     "available": true,
-    "ranNow": true,
-    "wallSec": 63.9,
+    "ranNow": false,
+    "wallSec": 0,
     "staleDays": 0,
     "files": 208,
     "cases": 2886,
@@ -149,9 +149,9 @@
     },
     {
       "label": "badge 测试用例",
-      "claimed": "2885",
+      "claimed": "2886",
       "measured": "2886",
-      "ok": false
+      "ok": true
     },
     {
       "label": "badge REST 路由",
@@ -184,16 +184,34 @@
       "ok": true
     },
     {
-      "label": "正文基线句",
-      "claimed": "208 文件 / 2885 例",
-      "measured": "208 文件 / 2886 例",
-      "ok": false
+      "label": "线上现况版本",
+      "claimed": "v0.2.118",
+      "measured": "v0.2.118",
+      "ok": true
+    },
+    {
+      "label": "正文 passed 口径",
+      "claimed": "2885 passed + 1 skipped + 0 failed",
+      "measured": "2885 passed + 1 skipped + 0 failed",
+      "ok": true
+    },
+    {
+      "label": "正文 passed 口径",
+      "claimed": "2885 passed + 1 skipped + 0 failed",
+      "measured": "2885 passed + 1 skipped + 0 failed",
+      "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "208 文件 / 2885 例",
+      "claimed": "208 文件 / 2886 例",
       "measured": "208 文件 / 2886 例",
-      "ok": false
+      "ok": true
+    },
+    {
+      "label": "正文基线句",
+      "claimed": "208 文件 / 2886 例",
+      "measured": "208 文件 / 2886 例",
+      "ok": true
     }
   ],
   "landingDrift": []

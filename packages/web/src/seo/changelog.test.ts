@@ -101,8 +101,8 @@ describe('更新页 · HTML 形状', () => {
   it('★ 这一页不在 sitemap 里（要进去先决定它配不配分享图，别顺手补一行）', () => {
     const xml2 = renderSitemapXml(PUBLIC_TERMS, PUBLIC_TERMS_EN, new Date('2026-09-24T00:00:00Z'));
     expect(xml2).not.toContain(CHANGELOG_PATH);
-    // ★ 条数＝首页＋中英两个目录页＋两边全部词条页（此刻 12＋6＝18 条词条页 ⇒ 21）
-    expect(xml2.match(/<loc>/g)).toHaveLength(PUBLIC_TERMS.length + PUBLIC_TERMS_EN.length + 3);
+    // ★ 条数＝首页＋中英两个目录页＋两边全部词条页＋计划表页（此刻 12＋6＝18 条词条页 ⇒ 22）
+    expect(xml2.match(/<loc>/g)).toHaveLength(PUBLIC_TERMS.length + PUBLIC_TERMS_EN.length + 4);
   });
 });
 

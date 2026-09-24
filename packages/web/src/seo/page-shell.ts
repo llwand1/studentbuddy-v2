@@ -85,6 +85,11 @@ export interface HeadOptions {
    * 只写对方不写自己，Google 判整簇作废——所以这里给的是全簇，不是「别人」。
    */
   alternates?: readonly { hreflang: string; href: string }[];
+  /**
+   * 这一页自己的那点样式。★ 只给共用壳覆盖不到的东西用（此刻只有计划表页的表单与表格），
+   *   而且必须是**写死的常量**——它是公网字节，走同一把「内部字样」锁。
+   */
+  extraStyle?: string;
 }
 
 /** hreflang 行；一簇都没有就一行都不吐（更新页此刻是单语，不需要假装有多语） */
@@ -118,6 +123,7 @@ export function pageHead(o: HeadOptions): string[] {
     ...(o.card ? ogImageMetaLines(o.card) : []),
     ...(o.extraLinks ?? []),
     `<style>${CSS}</style>`,
+    ...(o.extraStyle ? [`<style>${o.extraStyle}</style>`] : []),
     '</head>',
   ];
 }

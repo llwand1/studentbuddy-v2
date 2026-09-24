@@ -14,7 +14,7 @@ import {
   type PublicTerm,
 } from './term-corpus';
 import { ogCardForTerm, CATALOG_OG_CARD, type OgCard } from './og-card';
-import { CATALOG_PATH_EN, CHANGELOG_PATH } from './paths';
+import { CATALOG_PATH_EN, CHANGELOG_PATH, PLAN_TOOL_PATH } from './paths';
 import { CATALOG_ALTERNATES, englishCounterpartOf, termEnPath, zhAlternatesFor } from './term-corpus-en';
 import { escapeHtml, pageFoot, pageHead, pageTop, type ShellLink } from './page-shell';
 
@@ -31,6 +31,7 @@ const TERM_NAV: ShellLink[] = [{ href: CATALOG_PATH, label: '全部词条' }];
 const TERM_FOOT: ShellLink[] = [
   { href: '/', label: '回到首页' },
   { href: CATALOG_PATH, label: '全部词条' },
+  { href: PLAN_TOOL_PATH, label: '复习计划表' },
   { href: CATALOG_PATH_EN, label: 'English' },
   { href: CHANGELOG_PATH, label: '更新记录' },
 ];

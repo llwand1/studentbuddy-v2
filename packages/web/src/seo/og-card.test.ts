@@ -35,8 +35,8 @@ const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const asset = (rel: string) => readFileSync(new URL(rel, import.meta.url));
 
 describe('分享卡 · 形状', () => {
-  it('★ 卡数＝首页＋中英两个目录页＋两边全部词条页＝sitemap 的 `<loc>` 数，slug 唯一且纯 ASCII', () => {
-    expect(ALL_OG_CARDS).toHaveLength(PUBLIC_TERMS.length + PUBLIC_TERMS_EN.length + 3);
+  it('★ 卡数＝首页＋中英两个目录页＋两边全部词条页＋计划表工具页＝sitemap 的 `<loc>` 数，slug 唯一且纯 ASCII', () => {
+    expect(ALL_OG_CARDS).toHaveLength(PUBLIC_TERMS.length + PUBLIC_TERMS_EN.length + 4);
     const slugs = ALL_OG_CARDS.map((c) => c.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
     for (const s of slugs) expect(s).toMatch(SLUG_RE);
@@ -46,6 +46,7 @@ describe('分享卡 · 形状', () => {
       ...PUBLIC_TERMS.map((t) => t.slug),
       'terms-en-index',
       ...PUBLIC_TERMS_EN.map((t) => t.slug),
+      'ebbinghaus-plan',
     ]);
   });
 

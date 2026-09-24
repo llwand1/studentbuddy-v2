@@ -24,3 +24,11 @@ export const CHANGELOG_PATH = '/changelog/index.html';
 
 /** 更新记录的 Atom 订阅地址；同样要在 `robots.txt` 里点名放行 */
 export const FEED_PATH = '/atom.xml';
+
+/**
+ * 复习计划表生成器（公开工具页）。★ 同一条规矩：必须带 `.html`，且不在 `/terms/` 前缀下，
+ *   所以 `robots.txt` 要为它单开一扇 `Allow`。
+ * ★ 路径里刻意不叫 `/tools/`：那是仓内目录名，`public-hygiene.ts` 把它算作内部字样，
+ *   而 canonical 与页内链接都是公网字节——起名字的时候就被那把锁挡回来了。
+ */
+export const PLAN_TOOL_PATH = '/ebbinghaus-plan.html';

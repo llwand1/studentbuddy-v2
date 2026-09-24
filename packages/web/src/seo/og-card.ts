@@ -11,6 +11,8 @@
  *   底部那行「N 个常见误区 · N 件今天就能做的事」是**语料字段的实算长度**，不是使用量。
  */
 import { CATALOG_PATH, PUBLIC_TERMS, SITE_ORIGIN, termPath, type PublicTerm } from './term-corpus';
+import { PLAN_TOOL_PATH } from './paths';
+import { REVIEW_INTERVALS_DAYS } from '@sb/shared/ebbinghaus';
 import {
   CATALOG_PATH_EN,
   PUBLIC_TERMS_EN,
@@ -122,9 +124,27 @@ export const HOME_OG_CARD: OgCard = {
   alt: 'StudentBuddy：以词条为中心的学习助手，学练析忆反馈一条闭环',
 };
 
+/** 计划表工具页的绝对地址（canonical 与卡片底部那行都用它，避免两处各拼一遍字符串） */
+export const PLAN_TOOL_URL = `${SITE_ORIGIN}${PLAN_TOOL_PATH}`;
+
 /**
- * 全部卡片：首页 ＋ 中文目录页 ＋ 每条中文词条 ＋ 英文目录页 ＋ 每条英文词条。
- * ★ 它与 `sitemap.xml` 的 `<loc>` 数一一对应（此刻 **21**），这条对应关系由 `og-card.test.ts` 与
+ * 复习计划表生成器页的卡（档位 3＝渠道 C1 的工具意图侧）。
+ * ★ 与其余卡同一条纪律：底部那行数字是复查节点数组实算长度，不是使用量；不许诺效果。
+ */
+export const PLAN_OG_CARD: OgCard = {
+  slug: 'ebbinghaus-plan',
+  kicker: '在线工具 · 免登录',
+  title: '复习计划表生成器',
+  alias: `按 ${REVIEW_INTERVALS_DAYS.join(' / ')} 天这七个复查点排`,
+  lead: '填开始日期与每天新学几条，得到一张逐日要做什么的表。',
+  itemsLine: '往下：这张表怎么排出来的、一个不带日期的例子、三条容易做歪的地方',
+  urlLine: hostless(PLAN_TOOL_URL),
+  alt: 'StudentBuddy 复习计划表生成器：填三个格子，排出逐日的新学与回炉任务。',
+};
+
+/**
+ * 全部卡片：首页 ＋ 中文目录页 ＋ 每条中文词条 ＋ 英文目录页 ＋ 每条英文词条 ＋ 计划表页。
+ * ★ 它与 `sitemap.xml` 的 `<loc>` 数一一对应（此刻 **22**），这条对应关系由 `og-card.test.ts` 与
  *   `term-en.test.ts` 各锁一半——「多了一个公开页却忘了配图」正是这批最想拦住的那种漏。
  */
 export const ALL_OG_CARDS: readonly OgCard[] = [
@@ -133,6 +153,7 @@ export const ALL_OG_CARDS: readonly OgCard[] = [
   ...PUBLIC_TERMS.map(ogCardForTerm),
   CATALOG_EN_OG_CARD,
   ...PUBLIC_TERMS_EN.map(ogCardForTermEn),
+  PLAN_OG_CARD,
 ];
 
 /** `https://11wand.com/terms/x.html` → `11wand.com/terms/x.html`（卡片上不出现可点的绝对地址） */

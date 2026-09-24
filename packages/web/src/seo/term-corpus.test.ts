@@ -101,7 +101,8 @@ describe('词条语料 · 主词措辞（档位 1）', () => {
     const t = findPublicTerm('jian-ge-chongfu');
     expect(t).toBeDefined();
     const first = t!.sections[0];
-    const text = first.h + first.p.join('');
+    expect(first, '间隔重复页首屏没有小节').toBeDefined();
+    const text = `${first?.h ?? ''}${(first?.p ?? []).join('')}`;
     for (const d of REVIEW_INTERVALS_DAYS) {
       expect(text.includes(String(d)), `首屏缺节点 ${d}`).toBe(true);
     }

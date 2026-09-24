@@ -17,6 +17,7 @@ import { PUBLIC_TERMS_EN } from './term-corpus-en';
 import { renderTermIndexPage, renderTermPage } from './term-page';
 import { renderTermIndexPageEn, renderTermPageEn } from './term-page-en';
 import { renderAtomFeed, renderChangelogPage } from './changelog-page';
+import { renderPlanToolPage } from './plan-page';
 import { renderSitemapXml } from './ssg';
 import { INTERNAL_SHAPES, SHELL_ENTRY_EXCEPTION, internalWordingHits } from './public-hygiene';
 
@@ -66,7 +67,7 @@ describe('公开字节 · 内部字样红线', () => {
     }
   });
 
-  it('★ 全部构建期渲染产物：中英两边词条页／两个目录页／更新页／订阅／sitemap 一个都不放过', () => {
+  it('★ 全部构建期渲染产物：中英两边词条页／两个目录页／更新页／订阅／计划表页／sitemap 一个都不放过', () => {
     const pages = [
       ...PUBLIC_TERMS.map((t) => renderTermPage(t)),
       renderTermIndexPage(),
@@ -74,9 +75,10 @@ describe('公开字节 · 内部字样红线', () => {
       renderTermIndexPageEn(),
       renderChangelogPage(),
       renderAtomFeed(),
+      renderPlanToolPage(),
       renderSitemapXml(PUBLIC_TERMS, PUBLIC_TERMS_EN),
     ];
-    expect(pages.length).toBe(PUBLIC_TERMS.length + PUBLIC_TERMS_EN.length + 5);
+    expect(pages.length).toBe(PUBLIC_TERMS.length + PUBLIC_TERMS_EN.length + 6);
     pages.forEach((text, i) => {
       expect(internalWordingHits(text), `第 ${i} 份渲染产物里有内部字样`).toEqual([]);
     });
@@ -89,6 +91,7 @@ describe('公开字节 · 内部字样红线', () => {
       ...PUBLIC_TERMS_EN.map(renderTermPageEn),
       renderTermIndexPageEn(),
       renderChangelogPage(),
+      renderPlanToolPage(),
     ];
     for (const text of pages) {
       for (const raw of text.match(/href="(\/[^"]*)"/g) ?? []) {
@@ -105,5 +108,7 @@ describe('公开字节 · 内部字样红线', () => {
     expect(robots).toContain('Allow: /atom.xml');
     expect(robots).toContain('Allow: /terms/');
     expect(robots).toContain('Allow: /og/');
+    // ★ 计划表页不在 /terms/ 前缀下，忘了单开一扇就是静默不公开
+    expect(robots).toContain('Allow: /ebbinghaus-plan.html');
   });
 });

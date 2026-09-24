@@ -26,7 +26,7 @@
   <rect x="60" y="190" width="620" height="118" rx="10" fill="#f0fdf4" stroke="#86efac"/>
   <text x="80" y="216" font-size="14" font-weight="700" fill="#14532d">App Server · Express（packages/server，单实例）</text>
   <rect x="80" y="230" width="180" height="30" rx="5" fill="#ffffff" stroke="#bbf7d0"/>
-  <text x="170" y="250" text-anchor="middle" font-size="12" fill="#166534">REST 路由（151 端点）</text>
+  <text x="170" y="250" text-anchor="middle" font-size="12" fill="#166534">REST 路由（分域注册）</text>
   <rect x="272" y="230" width="180" height="30" rx="5" fill="#ffffff" stroke="#bbf7d0"/>
   <text x="362" y="250" text-anchor="middle" font-size="12" fill="#166534">SSE 总线（分桶缓冲）</text>
   <rect x="464" y="230" width="196" height="30" rx="5" fill="#ffffff" stroke="#bbf7d0"/>
@@ -70,7 +70,7 @@
   <!-- ===== Storage ===== -->
   <rect x="380" y="486" width="300" height="88" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
   <text x="400" y="512" font-size="14" font-weight="700" fill="#0f172a">存储 SQLite（WAL）</text>
-  <text x="400" y="534" font-size="11.5" fill="#334155">41 张表 · 版本化迁移 v1→v41</text>
+  <text x="400" y="534" font-size="11.5" fill="#334155">逐版本迁移 v1→v41 · 全部数字对账口径见 metrics.mjs</text>
   <text x="400" y="553" font-size="11.5" fill="#334155">providers.api_key 列 = AES-GCM 密文（enc:v1:）</text>
 
   <line x1="210" y1="464" x2="210" y2="486" stroke="#475569" stroke-width="1.4" marker-end="url(#arr)"/>

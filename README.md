@@ -1,6 +1,7 @@
 # studentbuddy v2
 
 [![CI](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml)
+![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
 ![tests](https://img.shields.io/badge/tests-207%20files%20%2F%202870%20cases-brightgreen)
@@ -13,30 +14,45 @@
 
 > 🧪 **零凭证通道**：首页 hero 上那颗「免注册，直接体验」按钮直连公用体验账号，不必先给邮箱（开关在服务端）。
 > ⚠️ 公用池**全站共享**、访客彼此可见 ⇒ 别在里面放个人信息或私密内容（应用内同一句警示，两语都写）。要长期留自己的词条再走邮箱注册，一分钟。
+> 🧬 **不想点网页？**  clone 后 `npm run demo:e2e` 一条命令跑完**确定性全栈演示**（用户→API→假 LLM→SSE→落库→重启后仍在；零 API key、零真实外呼），见 [§在线体验与演示](#在线体验与演示)。
 
 > **studentbuddy —— 你的专属学习助手。** 本地优先的 AI 学习产品：**学 → 练 → 析 → 忆 → 反馈** 五环闭环，同一套代码既可**单机本地运行**，也可作为**多用户 Web 服务**部署。
 >
 > v2 是全新重写仓（v1 [`llwand1/studentbuddy`](https://github.com/llwand1/studentbuddy) 已冻结），按「需求为纲、简洁优先」六条 ADR 从零建成。
 >
-> ✅ **已上线**（`2.0.0-alpha.0`）：多用户 Web 形态运行于 **<https://11wand.com>**（2026-09-19 起）——上线阶梯 12 批全部交付、部署闸门全部清空；部署与运维清单见根目录 [《部署手册》](DEPLOY.md)，[§当前状态](#当前状态) 与 [§已知限制](#已知限制) 照常如实维护。
+> ✅ **已上线**：多用户 Web 形态运行于 **<https://11wand.com>**（2026-09-19 起）——上线阶梯 12 批全部交付、部署闸门全部清空；部署与运维清单见根目录 [《部署手册》](DEPLOY.md)，[§当前状态](#当前状态) 与 [§已知限制](#已知限制) 照常如实维护。
+>
+> 🏷️ **仓里有两套版本号，各管各的**（这不是漂移，是分工）：**`v0.2.x` 是部署构建号**——对外线，GitHub Releases / tag / 线上公开更新页 `/changelog` 都走它，每次发版加一；**`2.0.0-alpha.0` 是内部产品号**（`package.json` 的 `version`），标记「v2 重写线」这个产品大版本，不随每次部署跳。⚠️ `/api/status` 返回的是**内部号** ⇒「打开接口看版本号」这条老验证判据已失效，判线上版本请对 **GitHub Release** 或 **`/changelog`** 页。
 >
 > 📌 本文所有定量数字**不许手抄**：由 `node tools/metrics.mjs` 产出，`docs/metrics.md` 是它的落地处，
 > `node tools/metrics.mjs --check` 会在数字与代码漂移时退出码 1。测试基线的**逐文件不变量**仍在
 > `docs/dev/test-plan.md` §3、上线阶梯在 `docs/dev/launch-plan.md` §2——那两份讲「为什么」，本文件讲「有多少」。
 
-![studentbuddy · 落地页首屏](docs/images/landing-hero.png)
+## 给面试官：一条 30 秒到 15 分钟的阅读路径
+
+| 时间 | 建议路径 | 从这里进 |
+|---|---|---|
+| **30 秒** | 一句话定位 ＋ 打开线上站点点一次「免注册直接体验」 | 上方定位块 · **[11wand.com](https://11wand.com)** |
+| **2 分钟** | 为什么这个 AI 产品在工程上值得看：四类难题各一句话 ＋ 可当场复验的证据 | [§为什么技术上值得看](#为什么技术上值得看) |
+| **5 分钟** | 挑三道最难的讲透（Problem→Design→Test→Trade-off）＋ 单页架构图 | [§三道最难的工程问题](#三道最难的工程问题) · [§架构](#架构) |
+| **10 分钟** | 亲手复验，不信文档信机器：一条 `npm run check` ＋ 一条 `npm run demo:e2e` ＋ 按图索骥读码 | [§工程证明](#工程证明) · [`docs/INTERVIEW.md`](docs/INTERVIEW.md) |
+| **15 分钟** | 深挖某一条链：SSE 协议 / 归属改造 / 契约漂移锁 / 真机探针 | [`docs/INTERVIEW.md`](docs/INTERVIEW.md) §3 与 §5 代码地图 · 下方各 `*-SPEC.md` |
 
 ## 目录
 
 - [这是什么](#这是什么)
+- [给面试官：一条 30 秒到 15 分钟的阅读路径](#给面试官一条-30-秒到-15-分钟的阅读路径)
+- [在线体验与演示](#在线体验与演示)
 - [界面预览](#界面预览)
 - [当前状态](#当前状态)
-- [核心优势](#核心优势)
+- [三道最难的工程问题](#三道最难的工程问题)
+- [为什么技术上值得看](#为什么技术上值得看)
 - [功能总览](#功能总览)
 - [内容块协议](#内容块协议)
 - [架构](#架构)
 - [安全与隐私设计](#安全与隐私设计)
 - [部署形态](#部署形态)
+- [工程证明](#工程证明)
 - [快速开始](#快速开始)
 - [仓库结构](#仓库结构)
 - [开发指南](#开发指南)
@@ -66,6 +82,18 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 | **多用户 Web 服务** | 邮箱注册/登录（密码 + 邮件验证码 + GitHub OAuth）+ 按用户的数据归属 + 用量闸门，Caddy 反代 + systemd 守护 | ✅ **已上线**：<https://11wand.com>（2026-09-19 起） |
 
 两种形态**共用同一份代码**，差异只在环境变量——且这条差异本身是**显式契约**：`server/auth/form.ts` 是形态的唯一事实源（`SB_REQUIRE_AUTH` 开 = cloud 线上多用户 / 关 = local 本地单人），前端据此分叉（local **免登录直进应用壳**，cloud 走落地页）。**将来「本地有、线上没有」的功能一律从这里判断，禁止再各自读 env。**
+
+## 在线体验与演示
+
+> 这一节回答「不用装环境，怎么最快看到真的东西」。三档，按代价从低到高排。
+
+| 档位 | 入口 | 代价 | 你会看到什么 |
+|---|---|---|---|
+| **① 线上站点** | **[11wand.com](https://11wand.com)** → 首页点「免注册，直接体验」 | 零安装 | 多用户 cloud 形态的完整产品（公用体验池，全站共享、访客彼此可见 ⇒ 别放私密内容） |
+| **② 一条命令的确定性演示** | `npm install && npm run demo:e2e` | 零 API key · 零真实外呼 · 不碰真实数据目录 | 9 幕 **36 条断言**全链路：双用户注册 → 挂**假 LLM 上游** → SSE 收流 → 逐字校验「流什么就存什么」 → 重连只回放已完成轮 → 跨用户读被 404 → 出题→作答→判分→统计 → **杀进程重启后逐字仍在** → 全程自证零真实外呼（约 3 秒） |
+| **③ 本地完整形态** | `npm run dev` → http://localhost:5173 | 需自带一家模型 key | local 单机形态，免登录直进应用壳，数据只在你机器上（SQLite 单文件） |
+
+★ ② 是**产品级验证**不是测试脚手架：它真起 Express、真开 SQLite（临时隔离库）、真走 SSE 帧协议，只把 LLM 上游换成确定性假件（`tools/e2e/fake-provider.mjs`，按请求 `model` 字段分派，未知模型走无协议文本＝顺手演示降级）。断言里最硬的两条：**seq 轮内严格 +1 单调**、**上屏 token 拼接与库内 assistant 正文逐字相等**——这两条是「流式不丢不重不多字」的机器证据，跑一次现场就能看。
 
 ## 界面预览
 
@@ -113,9 +141,30 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 
 ★ 注意**两套编号不是一回事**：`M1/M1.5/M2a~d/M3` 是**上线阶梯**（本节），`M0~M6` 是**产品功能里程碑**（见 [§里程碑](#里程碑)）。功能里程碑不决定能不能上线。
 
-## 核心优势
+## 三道最难的工程问题
 
-差别不在于有没有接大模型，而在于**闭环完整度、AI 输出可靠性、工程质量**三层是否同时做实。每条都给出可当场复验的证据。
+> 每道只留「问题一句话 / 解法一句话 / 怎么复验」；完整版（Problem→Design→Implementation→Test→Trade-off，含被否掉的方案和代价）在 [`docs/INTERVIEW.md`](docs/INTERVIEW.md) §3。
+
+**① 模型输出不可靠，但学生不能拿不到题（难题 A）**
+- **问题**：`[QUIZ]` 协议要求模型一次产出结构化题组，但它会少括号、坏转义、SVG 不闭合、把解析塞进题干——批量生成里这是常态不是异常。
+- **解法**：五级解析阶梯（无损补括号 → 原样 parse → 剥图重试 → 截断逐题回退 → 回退后再剥图）＋ **丢图保题**（残缺的几何图比没图更糟，会教错学生 ⇒ 只删该题 `svg` 字段，题目照常交付）＋ `QuizImageReport` 四态如实上报（绝不拿「开关已开」冒充「图已交付」）＋ 缺几题说几题、不补题。
+- **复验**：阶梯各级有单测；`npm run demo:e2e` 第五幕跑出题→作答→判分→统计全链；故障根因逐条在 [`docs/dev/bug-ledger.md`](docs/dev/bug-ledger.md)。
+
+**② 流式输出不许丢字、不许重字，断线还要能接上（难题 B）**
+- **问题**：网络抖动 / 标签页休眠会断流；重连时上游会把 token 再推一遍；上游自己挂起则会让会话永久卡住。
+- **解法**：**轮内 seq** 严格 +1（回放去重的地基）＋ 重连 `since` **只回放已完成轮**（不重放 token）＋ 空闲超时 120s / 一次性总时长 180s（超时抛可读错误）＋ 两层并发闸门（每用户 2 路 + 全站封顶，超额**明确拒绝**而非无限排队）＋ 「流什么就存什么」不变量。
+- **复验**：`npm run demo:e2e` 第 3~5 幕把「seq 单调」「屏上与库内逐字相等」「重连不重放」三条断言成机器证据。
+
+**③ 多用户数据的归属要彻底，不能靠到处写 WHERE（难题 C）**
+- **问题**：读「一批行」和读「一个聚合值」是两种形状——只用一把过滤锁，前者会串出别人的行，后者会**静默返回任意一行**（不报错，直接串台）。
+- **解法**：读写按形状分两把锁（`ownerFilter` / `ownerForWrite`）＋ 跨用户访问一律 **404 不回 403**（403 等于承认「这个 id 存在」）＋ 成本归属 `providers.owner_id IS NULL`＝平台通道、业务表 `''`＝无主——**两种「没有主人」可见性刻意相反**，因为语义本来就相反。
+- **复验**：每批隔离锁都配「故意改坏必红」取证（[`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) §8）；`npm run demo:e2e` 第 6 幕现场演示 B 读 A 撞 404。
+
+（第四类难题 D——**AI 产出内容的安全**：模型写的 ```html 在 `CSP: sandbox`＋iframe 双层沙箱里跑、页面源为 `null`；SVG 净化剥 `<image>` 外链防信标泄露 IP；外部搜集结果逐字锚点锁＋两段确认才入库。证据见 [§安全与隐私设计](#安全与隐私设计) 与 [`docs/INTERVIEW.md`](docs/INTERVIEW.md) §3-D。）
+
+## 为什么技术上值得看
+
+差别不在于有没有接大模型，而在于**闭环完整度、AI 输出可靠性、工程质量**三层是否同时做实。每条都给出可当场复验的证据（上一节是三道最难的题，这一节是整张优势台账）。
 
 | 优势 | 强在哪 | 可当场复验的证据 |
 |------|--------|------------------|
@@ -220,6 +269,10 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 
 ## 架构
 
+**单页架构图**（20 秒读法：从上往下＝一次请求的旅程；三条虚线＝三道边界——信任、归属、凭据）：
+
+![架构总览：浏览器 → 信任边界 → App Server → 归属边界 → 域层 → SQLite；右侧凭据边界外是 LLM 上游](docs/images/architecture.svg)
+
 ```
 浏览器  http://localhost:5173（Vite dev；生产态由 api 同源托管 dist/web）
     │  HTTP + SSE  /api/*（同源代理）+ 会话 cookie
@@ -240,12 +293,13 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 │     └ sse-bus         事件序号回放 · 按 owner 分频道       │
 │   security.ts     Origin 校验 / 密钥加密 / SSRF 护栏      │
 └──────────────────────────┬─────────────────────────────┘
-                           │ better-sqlite3（WAL，逐版本迁移 v1..v39）
+                           │ better-sqlite3（WAL，逐版本迁移 v1..v41）
                            ▼
         数据目录 / studentbuddy.db（SB_DATA_DIR 可覆盖）
 
 packages/shared — 契约单一事实源：SSE 事件 / 内容块 / REST / 领域模型
 tools/gates     — 工程门禁：行数上限 / 禁内联样式 / 禁 any / 测试登记
+tools/e2e       — 确定性全栈演示：假 LLM 上游 + 9 幕 36 断言（`npm run demo:e2e`）
 tools/guard-audit — 守门判别力审计：把每条守门逐个改坏，看它到底会不会红（隔离副本，不碰工作树）
 tools/probes    — 真机探针 15 个（CDP 真点 10 + 能力/隔离量测 5）
 ```
@@ -284,6 +338,23 @@ tools/probes    — 真机探针 15 个（CDP 真点 10 + 能力/隔离量测 5�
 
 配置侧另有四条必验项（发信双变量、数据目录指持久卷、端口对齐、全站并发值 N），误配症状逐条写在台账 §3.2。**外部依赖类**（域名/DNS/服务器/邮件送达）与**人工验收类**只能由项目所有者推进。
 
+⚠️ **容器化路径标了 EXPERIMENTAL，且是真话**：`Dockerfile` / `docker-compose.yml` 在仓（`deploy/docker/Caddyfile` 已补进仓、compose 三处一跑必挂的硬伤已修），但**从未实机跑通**——开发机没有可用的 docker daemon，不拿「配置文件齐了」冒充「能一键部署」。线上实际形态一直是 **ssh 直传 ＋ systemd**。判据与逐条缺口见 [§已知限制](#已知限制)。
+
+## 工程证明
+
+> 这一节的立场：**文档说的任何话都可以不信，下面四条命令的输出可以当场信。** 面试场景下它们全部可跑（② 连 API key 都不需要）。
+
+| # | 复验动作 | 证明什么 | 耗时量级 |
+|---|---|---|---|
+| ① | `npm run check` | tsc×3 ＋ eslint ＋ vitest 全量 ＋ 四项门禁（行数红线 / 禁 any / 禁内联样式 / 测试逐文件登记）一次跑绿 | 分钟级 |
+| ② | `npm run demo:e2e` | **确定性全栈**：注册→假 LLM→SSE→落库→重启后仍在，9 幕 36 断言，零 key、零真实外呼自证 | ~3 秒 |
+| ③ | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 收尾同款一步——README 不许手抄） | 十秒级 |
+| ④ | `node tools/guard-audit.mjs` | **每条守门逐个改坏、证明它真的会红**（含审计器自证 `--selftest`），全程在隔离副本里跑、不碰工作树 | 分钟级 |
+
+**读码入口**（13 行「想看 X 打开这里」的代码地图在 [`docs/INTERVIEW.md`](docs/INTERVIEW.md) §5）：SSE 协议看 `shared/src/sse-events.ts`，出题阶梯看 `server/learning/quiz/`，归属两把锁看 `server/auth/ownership.ts`，安全中间件看 `server/security.ts`。
+
+**真机探针层**（15 个，`tools/probes/`）：jsdom 测逻辑、CDP 真机验观感，两层互补；代表探针与前置条件见 [§开发指南](#开发指南) 探针表。
+
 ## 快速开始
 
 **不想装环境？** 直接打开 **<https://11wand.com>**（邮箱注册即用；多用户 Web 形态，数据存服务器）。**想完全本地、数据只留在自己机器上？** 按下文跑本地单机形态——两种形态**共用同一份代码**，差异只在环境变量。
@@ -293,6 +364,7 @@ tools/probes    — 真机探针 15 个（CDP 真点 10 + 能力/隔离量测 5�
 ```bash
 npm install          # workspaces 三包一次装齐（装依赖的 Node = 以后跑的 Node）
 npm run check        # lint(tsc×3 + eslint) + test(vitest) + gates —— 全绿基线
+npm run demo:e2e     # 确定性全栈演示：9 幕 36 断言，零 API key、零真实外呼、临时隔离库
 npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 一起停）
 npm run dev:server   # 只起 api :18791（端口被占时 SB_PORT=18792）
 npm run dev:web      # 只起 web :5173（代理目标 SB_PROXY_TARGET 可配）
@@ -325,7 +397,7 @@ packages/
 │  ├─ llm/                  openai / anthropic 双适配 + router(归属) + upstream-gate(两层)
 │  ├─ sse-bus.ts            帧序号 · 回放去重 · 按 owner 分频道
 │  ├─ routes/               REST 分域路由（23 个域文件；全仓 REST 注册 151 条）
-│  ├─ storage/              better-sqlite3 封装 / 逐版本迁移（v1..v39，按区间分文件）
+│  ├─ storage/              better-sqlite3 封装 / 逐版本迁移（v1..v41，按区间分文件）
 │  └─ security.ts           Origin 校验（不放行 'null'）
 ├─ web/src/
 │  ├─ app/App.tsx           应用壳：侧栏八视图导航 + 可折叠历史 + 用户框
@@ -339,8 +411,9 @@ tools/
 ├─ metrics.mjs             **量化唯一产出器**：源码/测试/路由/契约/覆盖率/迁移水位 + README 漂移对账
 ├─ guard-audit.mjs         **守门判别力审计**：逐条改坏证明每条守门真的会红（`--selftest` 自证）
 ├─ probes/                 真机探针 15 个（CDP 真点 10 + 能力/隔离量测 5）
+├─ e2e/                    确定性全栈演示（demo-e2e.mjs ＋假 LLM 上游 fake-provider.mjs，零 key 零真实外呼）
 └─ migrate-from-v1/        v1→v2 数据迁移
-docs/                      契约与研发台账（29 份 `*-SPEC.md` 契约 + dev/ 五份 + 三份增长台账 + metrics.md / metrics.json；★ 09-24 现读 `ls` 改正，原句「27 份／四份」两处都已过期）
+docs/                      契约与研发台账（现读：31 份契约文档（30 个 `*-SPEC.md` + `SSE-CONTRACT.md`）＋ `dev/` 五份台账 ＋ `INTERVIEW.md` ＋ 增长面四份（GROWTH-SPEC / GROWTH-CHANNELS / GROWTH-COMMUNITY-PACK / GROWTH-SUBMISSION-PACK）＋ SEO/运营面五份（SEO-SPEC / GITHUB-OPS-SPEC / metrics / metrics-product / project-growth））
 DEPLOY.md                  部署手册：服务器 / systemd / 五条部署 env / TLS / 备份 / 回滚
 CHANGELOG.md               项目改动登记册（代码/文档/测试同批登记）
 AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决策记录
@@ -450,11 +523,12 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 
 ## 已知限制
 
-- **线上跑的是「ssh 直传 + systemd」，容器化路径未实机验证**：仓内**已有** `Dockerfile` / `docker-compose.yml` / `.dockerignore` / `tools/docker/`（2026-09-20 入库），但**从未真跑通**——`docker-compose.yml` 的 caddy 服务挂 `./Caddyfile` 而**仓里没有这个文件**（实测缺口，见 [`launch-plan.md`](docs/dev/launch-plan.md) §3.5），`tools/docker/部署切换手册.md` 自述「全部步骤未实机验证」，容器层又不在 vitest／gates 扫描范围。★ 另一条实测缺口：`tools/deploy.sh` **从未跑通**（依赖两端都没有的 `rsync`，线上文件属主是 Windows SID 为证）——实际发布一直是 `tar \| ssh` + `npm rebuild better-sqlite3` + 重启。★ 边界：`evolution_*` 与 `scenario_demo` 未加归属列（契约未点名，触达均经已归主父表的闸门）
+- **容器化路径整体标 EXPERIMENTAL，且是真话**：`Dockerfile` / `docker-compose.yml` / `.dockerignore` / `deploy/docker/` 在仓（2026-09-20 入库；09-24 已把 compose 三处一跑必挂的硬伤修掉、并把原缺失的 `Caddyfile` 补进 `deploy/docker/`），但**从未实机跑通**——开发机没有可用的 docker daemon，故文档明写「没跑通」而不冒充「一键部署可用」；容器层也不在 vitest／gates 扫描范围。线上实际形态一直是 **ssh 直传 + systemd**。★ `tools/deploy.sh` 已于 2026-09-21 重写（原版依赖两端都没有的 `rsync`、从未跑通；现为与手工流程同源的 `tar | ssh`，带回滚点 / `.env` 必带 / 库副本预演 / 工作树体检四道闸）。★ 边界：`evolution_*` 与 `scenario_demo` 未加归属列（契约未点名，触达均经已归主父表的闸门）
+- **版本号验证判据已换**：`/api/status` 返回的是 `package.json` 的**内部产品号**（`2.0.0-alpha.0`），不是部署构建号 `v0.2.x` ⇒ 判线上版本请对 **GitHub Release** 或线上公开更新记录页 `https://11wand.com/changelog/index.html`（`/changelog` 与 `/changelog/` 现均兜成 SPA 壳，RSS 在 `/atom.xml`；逐条判据实录见 `docs/SEO-SPEC.md` §6.2／§6.3）——「打开 `/api/status` 看版本」这条老判据自 v0.2.x 上线起失效，本条即它的作废登记
 - **线上跑的是源码，不是编译产物**：systemd `ExecStart` 为 `npx tsx src/index.ts`，实测这条包装链（`npm exec` + `tsx` + `esbuild` 子进程）**白吃约 130MB**——而机器只有 961MB。编译态切换与容器化同批推进，判据与实测见 [`docs/metrics.md`](docs/metrics.md) §线上运行态快照
 - **~~线上运行环境与仓库要求不一致~~（2026-09-21 已收口）**：服务器 Node **20.20.2 → 22.23.2**（并 `npm rebuild better-sqlite3` 重建原生模块——ABI 20→22 不重建则服务根本起不来）、线上 schema 水位 **v36 → v39**，与仓库要求一致。★ 这条留档是因为它属于**读文档永远读不出来**的那类缺口：升级前 `README`／`DEPLOY`／`metrics`／台账四份口径一致地写着「已上线」，而真相是「旧 Node + 落后一次迁移在跑」——判据必须落在生产机的实际状态，不能落在任何一份文档上
 - **可用性目前算不出来**：`sb-watchdog` 每 5 分钟采样，但**只在异常时落笔**、健康时不留记录 ⇒ 没有分母，只能给出「发生过几次 DOWN」的计数，给不出百分比。这是量化侧第一件要修的事（改成每次采样都落一行）
-- **线上真实使用量为零（2026-09-21 复测）**：线上库 `assistant` 消息仍 **0 条**（`user` 3 条）、`platform_usage` **0 行** ⇒ 从没有人成功拿到过一次 AI 回复。所以本文任何**产品行为类**指标（留存 / 功能分布 / 转化）此刻**没有数据、不出报表**；已上线的功能其证据仍以测试与真机探针为准，不以线上统计为准。★ 同批复测：平台免费通道的凭据（`SB_PLATFORM_*`）**已于 2026-09-21 13:07 配好并重启生效**（**14:07 起升级为双上游逗号列表**：`apihub.agnes-ai.com` 与 `api.agnes-ai.cn` 各配一把 key、按位配对、每次调用随机挑一路），在生产机实测 **8/8 角色就绪**、`--live` **逐路均 200**（12 与 11 个模型，目标模型 `agnes-2.5-pro` 两侧清单都在；逐条见 [`launch-plan.md`](docs/dev/launch-plan.md) §3.2 第 5 项）——即「开箱即用」这一环已经通了，只是还没有人来用
+- **线上有真实使用，但量级是个位数**（2026-09-24 只读审计）：线上库 users **6**（含 owner 1）/ sessions **47** / assistant 消息 **139** 条——本仓旧版这里写的「assistant 0 条、从没有人成功拿到过一次 AI 回复」是 **2026-09-21 的读数，已过时作废**。⚠️ 反面同样不许冒充：注册数**含 owner**、独立访客数没有可靠口径，按日看活跃仍是个位数 ⇒ 产品指标 **L3 档（留存 / 转化 / 功能分布）此刻算不出来**，本文任何产品行为类声明都不出自它们；逐条实测与复验命令在 [`docs/metrics-product.md`](docs/metrics-product.md) §2。★ 平台免费通道的凭据（`SB_PLATFORM_*`）**已于 2026-09-21 13:07 配好并重启生效**（**14:07 起升级为双上游逗号列表**：两家服务商各配一把 key、按位配对、每次调用随机挑一路），在生产机实测 **8/8 角色就绪**、`--live` **逐路均 200**（逐条见 [`launch-plan.md`](docs/dev/launch-plan.md) §3.2 第 5 项）——「开箱即用」这一环已通，剩下的瓶颈是流量不是功能
 - **`security.ts` 的 Origin 白名单**：`SB_ALLOWED_ORIGINS`（逗号分隔）已在 M2 收口落码，部署域名配进白名单即可；**localhost 兜底正则刻意保留**（本机开发不因忘配 env 而挂）。配错 env 的症状是「合法域名也 403」——宁可显式失败不放宽（不收通配符）
 - **上游并发闸门是进程内 `Map`**：多实例部署下容量 × 实例数，全站封顶只在单进程内成立
 - **行内公式不渲染**：`$…$` 按原文显示（未引 katex，保持 `@sb/web` 零第三方依赖）；`mermaid` / `echarts` 围栏降级代码块（刻意不引库，数据图由自绘 ```chart 覆盖）
@@ -467,10 +541,13 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 
 ## 文档索引
 
-`docs/` 是本仓的**权威技术文档面**。分两类：`*SPEC*.md` 是行为契约（改行为先改契约），`dev/` 是研发台账。
+`docs/` 是本仓的**权威技术文档面**。分两类：`*SPEC*.md` 是行为契约（改行为先改契约），`dev/` 是研发台账。另有三份**对外面**文档（面试导览 / 产品度量 / 增长快照）列在最前。
 
 | 文档 | 内容 |
 |------|------|
+| [`INTERVIEW.md`](docs/INTERVIEW.md) | **面试导览**：90 秒陈述稿 / 5 分钟架构导览跳表 / 四难题 Problem→Design→Implementation→Test→Trade-off / 诚实取舍表 / 代码地图 |
+| [`metrics-product.md`](docs/metrics-product.md) | **产品度量台账**：三条红线（不虚构·每数带取证命令／不夸大／分母<30 不出百分比）＋ 线上库第一笔真账与缺口登记 |
+| [`project-growth.md`](docs/project-growth.md) | **增长台账**：GitHub 流量按快照记账（14 天窗口）＋「clone≠用户」口径总则与禁止表述清单＋污染源清单 |
 | [`SSE-CONTRACT.md`](docs/SSE-CONTRACT.md) | SSE 事件与 HTTP 接口契约（前端对接核心） |
 | [`AUTH-SPEC.md`](docs/AUTH-SPEC.md) | 账号契约（注册/登录/验证码/限流/后续批次划分） |
 | [`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) | 多租户归属契约（M2a~M2d 改造准绳） |
@@ -493,6 +570,8 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 | [`PK-SPEC.md`](docs/PK-SPEC.md) · [`PK-DEMO-SPEC.md`](docs/PK-DEMO-SPEC.md) | 对战契约与演示脚本 |
 | [`SCENARIO-SPEC.md`](docs/SCENARIO-SPEC.md) | 场景卡契约 |
 | [`TOOL-ECOSYSTEM-SPEC.md`](docs/TOOL-ECOSYSTEM-SPEC.md) | 工具生态契约（工具内核 / MCP / 确认门 / 计时口径） |
+| [`SEO-SPEC.md`](docs/SEO-SPEC.md) | 中英 SEO 静态页契约（SSG 产物 / hreflang / 上线判据实录 §6.2·§6.3） |
+| [`GITHUB-OPS-SPEC.md`](docs/GITHUB-OPS-SPEC.md) | GitHub 对外面运维纪律（issue→分支→PR / 发版三件套 / 对外零内部字样） |
 | [`metrics.md`](docs/metrics.md) | 量化基线：工程数字（`tools/metrics.mjs` 产出）+ **线上运行态实测快照** + 作废登记 |
 | [`dev/test-plan.md`](docs/dev/test-plan.md) | **测试基线权威口径** / 逐文件不变量 / 挂账清单 |
 | [`dev/launch-plan.md`](docs/dev/launch-plan.md) | **上线台账**：阶梯进展 + 部署闸门清单＝「什么时候能上线」的答案 |

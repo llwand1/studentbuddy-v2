@@ -1,5 +1,8 @@
 /**
- * og-card-cdp.mts — 用真机浏览器把 14 张社交分享卡截成 PNG，落进 `packages/web/public/og/`。
+ * og-card-cdp.mts — 用真机浏览器把 ALL_OG_CARDS 那一批社交分享卡截成 PNG，落进 `packages/web/public/og/`。
+ *
+ *   条数不写死在这儿：卡片清单的唯一事实源是 `og-card.ts` 的 `ALL_OG_CARDS`，而它的条数由
+ *   `og-card.test.ts` 与 `term-page.test.ts` 两处锁住 ⇒ 这里改成常量反而会漂。
  *
  * ★ 为什么这些图是**提交进仓的静态资源**而不是构建产物：`npm run build` 跑的机器上没有浏览器
  *   （本仓 CI 与老板机器都只有 Node），而社交平台只认一张位图 URL。⇒ 生成一次、提交、构建原样拷贝。

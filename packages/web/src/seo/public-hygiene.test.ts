@@ -13,7 +13,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { PUBLIC_TERMS } from './term-corpus';
+import { PUBLIC_TERMS_EN } from './term-corpus-en';
 import { renderTermIndexPage, renderTermPage } from './term-page';
+import { renderTermIndexPageEn, renderTermPageEn } from './term-page-en';
 import { renderAtomFeed, renderChangelogPage } from './changelog-page';
 import { renderSitemapXml } from './ssg';
 import { INTERNAL_SHAPES, SHELL_ENTRY_EXCEPTION, internalWordingHits } from './public-hygiene';
@@ -33,6 +35,21 @@ describe('公开字节 · 内部字样红线', () => {
     expect(INTERNAL_SHAPES.length).toBeGreaterThan(20);
   });
 
+  it('★ 第五组（拉丁写法）不是空锁：英文页里带出仓内文件名或命令名必须红', () => {
+    const leakyEn =
+      'See AGENTS.md for the release plan, run npm run build, and check test-plan.md plus the worktree.';
+    const hits = internalWordingHits(leakyEn);
+    for (const want of ['AGENTS.md', 'npm', 'test-plan', 'worktree']) {
+      expect(hits.some((h) => h.includes(want)), `漏检 ${want}`).toBe(true);
+    }
+    // ★ 反向也要成立：正常的讲解文案不能被这把锁咬到（咬到了下一次就有人拆锁）
+    expect(
+      internalWordingHits(
+        'Spaced repetition spreads the same material over widening gaps, so each review lands before it is gone.',
+      ),
+    ).toEqual([]);
+  });
+
   it('手写的 SPA 外壳：零 HTML 注释，且不含内部字样', () => {
     const shell = asset('../../index.html');
     // ★ 注释是这一条的原始由来：vite 构建不剥 HTML 注释，写进去的就是发出去的
@@ -49,22 +66,30 @@ describe('公开字节 · 内部字样红线', () => {
     }
   });
 
-  it('★ 全部构建期渲染产物：词条页／目录页／更新页／订阅／sitemap 一个都不放过', () => {
+  it('★ 全部构建期渲染产物：中英两边词条页／两个目录页／更新页／订阅／sitemap 一个都不放过', () => {
     const pages = [
       ...PUBLIC_TERMS.map((t) => renderTermPage(t)),
       renderTermIndexPage(),
+      ...PUBLIC_TERMS_EN.map((t) => renderTermPageEn(t)),
+      renderTermIndexPageEn(),
       renderChangelogPage(),
       renderAtomFeed(),
-      renderSitemapXml(PUBLIC_TERMS),
+      renderSitemapXml(PUBLIC_TERMS, PUBLIC_TERMS_EN),
     ];
-    expect(pages.length).toBe(PUBLIC_TERMS.length + 4);
+    expect(pages.length).toBe(PUBLIC_TERMS.length + PUBLIC_TERMS_EN.length + 5);
     pages.forEach((text, i) => {
       expect(internalWordingHits(text), `第 ${i} 份渲染产物里有内部字样`).toEqual([]);
     });
   });
 
   it('公开页面上不许有目录形式的链接（点了兜成空壳）', () => {
-    const pages = [...PUBLIC_TERMS.map(renderTermPage), renderTermIndexPage(), renderChangelogPage()];
+    const pages = [
+      ...PUBLIC_TERMS.map(renderTermPage),
+      renderTermIndexPage(),
+      ...PUBLIC_TERMS_EN.map(renderTermPageEn),
+      renderTermIndexPageEn(),
+      renderChangelogPage(),
+    ];
     for (const text of pages) {
       for (const raw of text.match(/href="(\/[^"]*)"/g) ?? []) {
         const href = raw.slice(6, -1);

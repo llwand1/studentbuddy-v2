@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CHANGELOG_PATH, FEED_PATH } from './paths';
 import { PUBLIC_TERMS } from './term-corpus';
+import { PUBLIC_TERMS_EN } from './term-corpus-en';
 import { PUBLIC_RELEASES, RELEASE_SCOPE, releaseAnchor, type ReleaseNote } from './changelog-public';
 import { CHANGELOG_URL, FEED_URL, renderAtomFeed, renderChangelogPage } from './changelog-page';
 import { renderSitemapXml } from './ssg';
@@ -98,9 +99,10 @@ describe('更新页 · HTML 形状', () => {
   });
 
   it('★ 这一页不在 sitemap 里（要进去先决定它配不配分享图，别顺手补一行）', () => {
-    const xml2 = renderSitemapXml(PUBLIC_TERMS, new Date('2026-09-24T00:00:00Z'));
+    const xml2 = renderSitemapXml(PUBLIC_TERMS, PUBLIC_TERMS_EN, new Date('2026-09-24T00:00:00Z'));
     expect(xml2).not.toContain(CHANGELOG_PATH);
-    expect(xml2.match(/<loc>/g)).toHaveLength(PUBLIC_TERMS.length + 2);
+    // ★ 条数＝首页＋中英两个目录页＋两边全部词条页（此刻 12＋6＝18 条词条页 ⇒ 21）
+    expect(xml2.match(/<loc>/g)).toHaveLength(PUBLIC_TERMS.length + PUBLIC_TERMS_EN.length + 3);
   });
 });
 

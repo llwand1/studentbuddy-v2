@@ -14,7 +14,8 @@ import {
   type PublicTerm,
 } from './term-corpus';
 import { ogCardForTerm, CATALOG_OG_CARD, type OgCard } from './og-card';
-import { CHANGELOG_PATH } from './paths';
+import { CATALOG_PATH_EN, CHANGELOG_PATH } from './paths';
+import { CATALOG_ALTERNATES, englishCounterpartOf, termEnPath, zhAlternatesFor } from './term-corpus-en';
 import { escapeHtml, pageFoot, pageHead, pageTop, type ShellLink } from './page-shell';
 
 /** meta description：一句话定义 ＋ 一句「往下有什么」，实测控制在 90 字内 */
@@ -30,16 +31,29 @@ const TERM_NAV: ShellLink[] = [{ href: CATALOG_PATH, label: '全部词条' }];
 const TERM_FOOT: ShellLink[] = [
   { href: '/', label: '回到首页' },
   { href: CATALOG_PATH, label: '全部词条' },
+  { href: CATALOG_PATH_EN, label: 'English' },
   { href: CHANGELOG_PATH, label: '更新记录' },
 ];
 
-function headOf(title: string, desc: string, canonical: string, card: OgCard): string[] {
-  return pageHead({ title, desc, canonical, card });
+/** 顶栏：配了英文版的词条多一条可见的「English」，没配的保持原样（★ 不是 12 条都有的东西不许硬凑） */
+function termNavOf(term: PublicTerm): ShellLink[] {
+  const en = englishCounterpartOf(term.slug);
+  return en ? [...TERM_NAV, { href: termEnPath(en), label: 'English' }] : TERM_NAV;
+}
+
+function headOf(
+  title: string,
+  desc: string,
+  canonical: string,
+  card: OgCard,
+  alternates?: readonly { hreflang: string; href: string }[],
+): string[] {
+  return pageHead({ title, desc, canonical, card, alternates });
 }
 
 /** 生成一个词条页的完整 HTML */
 export function renderTermPage(term: PublicTerm): string {
-  const body: string[] = [...pageTop(TERM_NAV)];
+  const body: string[] = [...pageTop(termNavOf(term))];
   body.push(`<h1>${escapeHtml(term.title)}</h1>`);
   body.push(`<p class="alias">${escapeHtml(term.alias)}</p>`);
   body.push(`<p class="lead">${escapeHtml(term.oneLine)}</p>`);
@@ -75,7 +89,13 @@ export function renderTermPage(term: PublicTerm): string {
   body.push(...pageFoot(TERM_FOOT));
 
   return [
-    ...headOf(titleOf(term), termDescription(term), termUrl(term), ogCardForTerm(term)),
+    ...headOf(
+      titleOf(term),
+      termDescription(term),
+      termUrl(term),
+      ogCardForTerm(term),
+      zhAlternatesFor(term),
+    ),
     ...body,
   ].join('\n');
 }
@@ -102,6 +122,7 @@ export function renderTermIndexPage(terms: readonly PublicTerm[] = PUBLIC_TERMS)
       '提取练习、间隔重复、认知负荷、元认知……每条一页讲清它是什么、为什么有效、以及最容易怎么做错。',
       CATALOG_URL,
       CATALOG_OG_CARD,
+      CATALOG_ALTERNATES,
     ),
     ...body,
   ].join('\n');

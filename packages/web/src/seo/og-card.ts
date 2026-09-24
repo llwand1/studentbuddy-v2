@@ -11,6 +11,12 @@
  *   底部那行「N 个常见误区 · N 件今天就能做的事」是**语料字段的实算长度**，不是使用量。
  */
 import { CATALOG_PATH, PUBLIC_TERMS, SITE_ORIGIN, termPath, type PublicTerm } from './term-corpus';
+import {
+  CATALOG_PATH_EN,
+  PUBLIC_TERMS_EN,
+  termEnPath,
+  type EnglishTerm,
+} from './term-corpus-en';
 
 /** 卡片尺寸：1200×630 是各平台通用的 1.91:1（小于这个数会被拉伸，大于则被裁） */
 export const OG_CARD_W = 1200;
@@ -36,6 +42,14 @@ export interface OgCard {
   urlLine: string;
   /** `og:image:alt`：给读屏与平台兜底用，描述图里有什么 */
   alt: string;
+  /**
+   * 标题用的是哪套文字：`cjk`（默认）或 `latin`。★ 为什么要有这一格：汉字每字约 1em 宽、
+   *   拉丁字母约 0.55em，同一档字号两种文字不可能都合适——「Spaced repetition」在 104px 下
+   *   直接顶出画框。**这不是把字调小**：调的是**另一套版式**，且每张卡由探针量「有没有被裁」，
+   *   撑破了不落盘（`tools/probes/og-card-cdp.mts` 的 `EXIT=1`）。
+   * ★ 缺省是 `cjk`，所以 14 张旧卡的 HTML 逐字节不变（PNG 也就不必重截）。
+   */
+  script?: 'cjk' | 'latin';
 }
 
 /** 词条页的卡：文案全从语料派生，一个字都不另写（另写一份就会漂） */
@@ -64,6 +78,38 @@ export const CATALOG_OG_CARD: OgCard = {
   alt: `StudentBuddy 学习科学词条目录：${PUBLIC_TERMS.length} 条，一条一页`,
 };
 
+/**
+ * 英文词条页的卡（批次 H-1＝渠道 C1 英文侧）。
+ * ★ 与中文侧同一条纪律：**五个可见字段全从语料派生，一个字都不另写**（另写一份就会漂），
+ *   底部那行数字仍是语料数组的实算长度，不是使用量。
+ */
+export function ogCardForTermEn(term: EnglishTerm): OgCard {
+  return {
+    slug: term.slug,
+    kicker: 'Learning science term',
+    title: term.title,
+    alias: term.alias,
+    lead: term.oneLine,
+    itemsLine: `Why it works · ${term.pitfalls.length} mistakes · ${term.actions.length} things to try`,
+    urlLine: hostless(`${SITE_ORIGIN}${termEnPath(term)}`),
+    alt: `StudentBuddy term card: ${term.title}. ${term.oneLine}`,
+    script: 'latin',
+  };
+}
+
+/** 英文目录页的卡 */
+export const CATALOG_EN_OG_CARD: OgCard = {
+  slug: 'terms-en-index',
+  kicker: 'Learning science terms · index',
+  title: 'Learning science terms',
+  alias: `${PUBLIC_TERMS_EN.length} concepts learners keep hearing, one page each`,
+  lead: 'What it is, why it works, and how it usually goes wrong — in plain language.',
+  itemsLine: `${PUBLIC_TERMS_EN.length} pages, cross-linked, each with a Chinese twin`,
+  urlLine: hostless(`${SITE_ORIGIN}${CATALOG_PATH_EN}`),
+  alt: `StudentBuddy learning science terms index: ${PUBLIC_TERMS_EN.length} concepts, one page each`,
+  script: 'latin',
+};
+
 /** 首页（落地页）的卡 */
 export const HOME_OG_CARD: OgCard = {
   slug: 'home',
@@ -76,11 +122,17 @@ export const HOME_OG_CARD: OgCard = {
   alt: 'StudentBuddy：以词条为中心的学习助手，学练析忆反馈一条闭环',
 };
 
-/** 全部卡片：首页 ＋ 目录页 ＋ 每个词条页 ⇒ 与 sitemap 的 14 条 `<loc>` 一一对应 */
+/**
+ * 全部卡片：首页 ＋ 中文目录页 ＋ 每条中文词条 ＋ 英文目录页 ＋ 每条英文词条。
+ * ★ 它与 `sitemap.xml` 的 `<loc>` 数一一对应（此刻 **21**），这条对应关系由 `og-card.test.ts` 与
+ *   `term-en.test.ts` 各锁一半——「多了一个公开页却忘了配图」正是这批最想拦住的那种漏。
+ */
 export const ALL_OG_CARDS: readonly OgCard[] = [
   HOME_OG_CARD,
   CATALOG_OG_CARD,
   ...PUBLIC_TERMS.map(ogCardForTerm),
+  CATALOG_EN_OG_CARD,
+  ...PUBLIC_TERMS_EN.map(ogCardForTermEn),
 ];
 
 /** `https://11wand.com/terms/x.html` → `11wand.com/terms/x.html`（卡片上不出现可点的绝对地址） */
@@ -147,20 +199,24 @@ h1 { font-size: 104px; line-height: 1.12; font-weight: 700; letter-spacing: .01e
 .foot { margin-top: auto; display: flex; align-items: baseline; justify-content: space-between; gap: 24px; }
 .items { font-size: 21px; color: #6b7385; }
 .url { font-size: 21px; color: #9aa1b0; letter-spacing: .02em; }
+/** 拉丁版式：CJK 每字约 1em 宽、拉丁约 0.55em，104px 那一档给英文标题必顶出画框，故另开一档 */
+.frame--latin h1 { font-size: 72px; letter-spacing: -.01em; }
+.frame--latin .lead { font-size: 28px; padding-left: 22px; }
 `;
 
 /** 生成一张卡的独立 HTML（只给截图脚本用，不进 dist、不进 sitemap） */
 export function renderOgCardHtml(card: OgCard): string {
+  const latin = card.script === 'latin';
   return [
     '<!doctype html>',
-    '<html lang="zh-CN">',
+    `<html lang="${latin ? 'en' : 'zh-CN'}">`,
     '<head>',
     '<meta charset="utf-8">',
     `<title>${escapeAttr(card.title)}</title>`,
     `<style>${CARD_CSS}</style>`,
     '</head>',
     '<body>',
-    '<div class="frame">',
+    `<div class="frame${latin ? ' frame--latin' : ''}">`,
     '<div class="brand"><span class="chip">S</span><span class="bname">StudentBuddy</span>' +
       `<span class="bkicker">${escapeAttr(card.kicker)}</span></div>`,
     `<h1>${escapeAttr(card.title)}</h1>`,

@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { CATALOG_PATH, PUBLIC_TERMS } from './term-corpus';
+import { PUBLIC_TERMS_EN } from './term-corpus-en';
 import { renderTermIndexPage, renderTermPage } from './term-page';
 import { escapeHtml } from './page-shell';
 import { CHANGELOG_PATH, FEED_PATH } from './paths';
@@ -68,13 +69,21 @@ describe('词条页 · 单页形状', () => {
 
   it('零外部资源与零内联 style 属性（样式全在自带的那一段 <style> 里，脚本一个都不放）', () => {
     expect(html).not.toMatch(/<script/);
-    // ★ 整页只允许一个 <link>，就是 canonical 自己——没有样式表、没有外部资源
+    // ★ 批次 H-1 之前这一条锁的是「整页只有一个 <link>＝canonical」。现在合法的多了 hreflang，
+    //   所以判据换成形状：**恰好一条 canonical，其余全是 hreflang**，别的一律不许（样式表／外部资源）
     const links = html.match(/<link[^>]*>/g) ?? [];
-    expect(links).toHaveLength(1);
-    expect(links[0]).toContain('rel="canonical"');
+    const canonicals = links.filter((l) => l.includes('rel="canonical"'));
+    expect(canonicals).toHaveLength(1);
+    for (const l of links) {
+      expect(
+        l.includes('rel="canonical"') || /^<link rel="alternate" hreflang="[A-Za-z-]+" href="https:\/\/11wand\.com\/[^"]*">$/.test(l),
+        `不在允许形状里的 <link>：${l}`,
+      ).toBe(true);
+    }
+    expect(html).not.toMatch(/rel="stylesheet"/);
     expect(html).not.toMatch(/src="https?:/);
     expect(html).not.toMatch(/ style="/);
-    // ★ 只有 canonical／og:url 是绝对地址（那是它们的规定），页面里每一条可点的链接都是站内路径
+    // ★ 只有 canonical／og:url／hreflang 是绝对地址（那是它们的规定），页面里每一条可点的链接都是站内路径
     for (const href of html.match(/<a [^>]*href="([^"]*)"/g) ?? []) {
       expect(href).not.toMatch(/href="https?:/);
     }
@@ -113,17 +122,23 @@ describe('sitemap 与落盘', () => {
   const dir = mkdtempSync(join(tmpdir(), 'sb-seo-test-'));
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-  it('★ sitemap：命名空间正确、条数＝首页＋目录页＋十二条、日期是 ISO', () => {
-    const xml = renderSitemapXml(PUBLIC_TERMS, new Date('2026-09-22T12:00:00Z'));
+  it('★ sitemap：命名空间正确、条数＝首页＋中英两个目录页＋两边全部词条页、日期是 ISO', () => {
+    const xml = renderSitemapXml(PUBLIC_TERMS, PUBLIC_TERMS_EN, new Date('2026-09-22T12:00:00Z'));
     expect(xml).toContain('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
-    expect(xml.match(/<loc>/g)).toHaveLength(PUBLIC_TERMS.length + 2);
+    expect(xml.match(/<loc>/g)).toHaveLength(
+      PUBLIC_TERMS.length + PUBLIC_TERMS_EN.length + 3,
+    );
     expect(xml).toContain('<lastmod>2026-09-22</lastmod>');
     expect(xml).toContain('https://11wand.com/</loc>');
     expect(xml).toContain('https://11wand.com/terms/tiqu-lixian.html</loc>');
     // ★ 目录页进 sitemap 的必须是带扩展名那一个：报 `/terms/` 等于请爬虫来收 SPA 壳
     expect(xml).toContain('https://11wand.com/terms/index.html</loc>');
     expect(xml).not.toContain('https://11wand.com/terms/</loc>');
-    // ★ 更新页刻意**不在** sitemap 里：C2 的拍板是分享图只做那 14 个公开页，而 sitemap 与卡数
+    // ★ 英文侧同一条规矩：目录形式（`/terms/en/`）不进，进的是 `/terms/en/index.html`
+    expect(xml).toContain('https://11wand.com/terms/en/index.html</loc>');
+    expect(xml).not.toContain('https://11wand.com/terms/en/</loc>');
+    expect(xml).toContain('https://11wand.com/terms/en/spaced-repetition.html</loc>');
+    // ★ 更新页刻意**不在** sitemap 里：C2 的拍板是分享图只做公开词条页那一族，而 sitemap 与卡数
     //   之间没有机器绑定 ⇒ 这一格由下面这两行 not.toContain 守着：要加进来先决定它配不配图。
     expect(xml).not.toContain(CHANGELOG_PATH);
   });
@@ -150,7 +165,7 @@ describe('sitemap 与落盘', () => {
   });
 
   it('★ 每条指向词条页的链接都有对应落盘文件（URL 与文件同形，上线才有内容可吐）', () => {
-    const written = writeSeoPages(dir, PUBLIC_TERMS, new Date('2026-09-22T12:00:00Z'));
+    const written = writeSeoPages(dir, PUBLIC_TERMS, PUBLIC_TERMS_EN, new Date('2026-09-22T12:00:00Z'));
     const files = new Set(written.map((w) => `/${w.rel}`));
     for (const html of [...PUBLIC_TERMS.map(renderTermPage), renderTermIndexPage()]) {
       for (const raw of html.match(/href="(\/terms\/[^"]*)"/g) ?? []) {
@@ -163,7 +178,7 @@ describe('sitemap 与落盘', () => {
 
   it('★ 手写的 SPA 外壳里每一条静态链接都落得出盘（拼错一个字就是一条死链）', () => {
     const files = new Set(
-      writeSeoPages(dir, PUBLIC_TERMS, new Date('2026-09-22T12:00:00Z')).map((w) => `/${w.rel}`),
+      writeSeoPages(dir, PUBLIC_TERMS, PUBLIC_TERMS_EN, new Date('2026-09-22T12:00:00Z')).map((w) => `/${w.rel}`),
     );
     const hrefs = [...shell().matchAll(/<a href="(\/[^"]*)">/g)].map((m) => m[1]!);
     // 外壳里那条 hidden nav 是唯一给爬虫的静态入口，一条都不能是空的
@@ -172,9 +187,9 @@ describe('sitemap 与落盘', () => {
   });
 
   it('writeSeoPages 真的把页面写进目录，内容与渲染函数逐字一致', () => {
-    const written = writeSeoPages(dir, PUBLIC_TERMS, new Date('2026-09-22T12:00:00Z'));
-    // 十二条词条页 ＋ 目录页 ＋ 更新页 ＋ 订阅 ＋ sitemap
-    expect(written).toHaveLength(PUBLIC_TERMS.length + 4);
+    const written = writeSeoPages(dir, PUBLIC_TERMS, PUBLIC_TERMS_EN, new Date('2026-09-22T12:00:00Z'));
+    // 中英全部词条页 ＋ 两个目录页 ＋ 更新页 ＋ 订阅 ＋ sitemap（此刻 12＋6＋5＝**23 件**）
+    expect(written).toHaveLength(PUBLIC_TERMS.length + PUBLIC_TERMS_EN.length + 5);
     expect(readFileSync(join(dir, 'terms/tiqu-lixian.html'), 'utf8')).toBe(
       renderTermPage(PUBLIC_TERMS[0]!),
     );

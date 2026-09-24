@@ -4,6 +4,7 @@ User-agent: *
 Disallow: /
 Allow: /$
 Allow: /terms/
+# 英文侧 /terms/en/ 由上面那扇前缀放行；新公开面若不在 /terms/ 下，要另开一扇
 Allow: /changelog/
 Allow: /atom.xml
 Allow: /robots.txt

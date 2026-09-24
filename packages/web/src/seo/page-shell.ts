@@ -66,6 +66,10 @@ footer { color: #6b7280; font-size: .88rem; padding-bottom: 2.5rem; }
 export const FOOT_LINE =
   'StudentBuddy：把学过的东西抽成词条，再让它自己长出复习、出题与讲解。数据存在自己手里（本地安装包或自己的服务器）。';
 
+/** 英文侧那一句（批次 H-1）。★ 不是中文句的对译：这一句要的是「这站干什么」，两种语言各自说清楚 */
+export const FOOT_LINE_EN =
+  'StudentBuddy turns what you have studied into terms, then lets those terms grow their own reviews, quizzes and explanations. The data stays in your hands — a local install or your own server.';
+
 export interface HeadOptions {
   title: string;
   desc: string;
@@ -74,6 +78,23 @@ export interface HeadOptions {
   card?: OgCard | null;
   /** canonical 之外还允许哪几条 link（目前只有更新页的 atom 自动发现） */
   extraLinks?: readonly string[];
+  /** ★ `<html lang>` 的值。中文侧不传就是 `zh-CN`；英文侧必须传 `en`——语言声明写错，检索侧按中文页排 */
+  lang?: string;
+  /**
+   * 多语言版本（批次 H-1）。★ 每一条都要含本页自己：hreflang 簇要**互相且自指**，
+   * 只写对方不写自己，Google 判整簇作废——所以这里给的是全簇，不是「别人」。
+   */
+  alternates?: readonly { hreflang: string; href: string }[];
+}
+
+/** hreflang 行；一簇都没有就一行都不吐（更新页此刻是单语，不需要假装有多语） */
+export function hreflangLines(
+  alternates: readonly { hreflang: string; href: string }[] | undefined,
+): string[] {
+  if (!alternates || alternates.length === 0) return [];
+  return alternates.map(
+    (a) => `<link rel="alternate" hreflang="${escapeHtml(a.hreflang)}" href="${escapeHtml(a.href)}">`,
+  );
 }
 
 export function pageHead(o: HeadOptions): string[] {
@@ -81,13 +102,14 @@ export function pageHead(o: HeadOptions): string[] {
   const d = escapeHtml(o.desc);
   return [
     '<!doctype html>',
-    '<html lang="zh-CN">',
+    `<html lang="${escapeHtml(o.lang ?? 'zh-CN')}">`,
     '<head>',
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     `<title>${t}</title>`,
     `<meta name="description" content="${d}">`,
     `<link rel="canonical" href="${escapeHtml(o.canonical)}">`,
+    ...hreflangLines(o.alternates),
     '<meta property="og:type" content="article">',
     `<meta property="og:site_name" content="StudentBuddy">`,
     `<meta property="og:title" content="${t}">`,
@@ -111,11 +133,11 @@ export function pageTop(nav: readonly ShellLink[]): string[] {
   ];
 }
 
-export function pageFoot(links: readonly ShellLink[]): string[] {
+export function pageFoot(links: readonly ShellLink[], line: string = FOOT_LINE): string[] {
   return [
     '</main>',
     '<footer>',
-    `<p>${escapeHtml(FOOT_LINE)}</p>`,
+    `<p>${escapeHtml(line)}</p>`,
     `<p>${links
       .map((l) => `<a href="${escapeHtml(l.href)}">${escapeHtml(l.label)}</a>`)
       .join(' · ')}</p>`,

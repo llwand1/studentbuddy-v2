@@ -100,7 +100,7 @@ packages/web/src/seo/term-entries-b.ts ┘→ term-corpus.ts（唯一事实源�
    - `curl -s https://11wand.com/ | grep -c 'href="/terms/index.html"'` ⇒ **发版前 0、发版后 1**（不需要浏览器，量的正是 §5 第 11 条那句话）；
    - `curl -s https://11wand.com/ | grep -c 'rel="sitemap"'` ⇒ 发版前 0、发版后 1；
    - ★★ **反向判据（防的是「入口漏成可见」）**：`curl -s https://11wand.com/ | grep -c '<nav hidden>'` ⇒ 1——那条链接**必须**待在带 `hidden` 的容器里；若它变成屏上一行字，就是有人改掉了 `hidden`，属一次没登记的视觉改动（`term-page.test.ts` ⑮ 已在仓内拦，这条是线上侧的对账）。。
-   - ✅ **（09-24 批次 G-3 回标，原句不回改）**上面两条「发版后＝1」的读法从此**只适用于 `/terms/index.html` 那一条**：本批在同一只 `hidden` 容器里加了第二条静态 `<a href="/changelog/index.html">`，所以「壳里有几条静态链接」这个数**不再是判据**（判据改成第 10 条那种「每条链接都得落得出盘」，仓内由 `term-page.test.ts` 的新锁守着）。★ 首页壳字节随之从 2548 B 变 **1888 B**（因为施工注释全清了）——**壳变小不是异常**，别再拿字节数当「有没有换壳」的唯一凭据。
+   - ✅ **（09-24 批次 G-3 回标，原句不回改）**上面两条「发版后＝1」的读法从此**只适用于 `/terms/index.html` 那一条**：本批在同一只 `hidden` 容器里加了第二条静态 `<a href="/changelog/index.html">`，所以「壳里有几条静态链接」这个数**不再是判据**（判据改成第 10 条那种「每条链接都得落得出盘」，仓内由 `term-page.test.ts` 的新锁守着）。★ 首页壳字节随之从 2548 B 变 **1888 B**（因为施工注释全清了）——**壳变小不是异常**，别再拿字节数当「有没有换壳」的唯一凭据。★ **而且这个数连自己都不稳**：09-24 为复验「干净检出可构建」另开临时 `git worktree`，同一份源码 build 出的壳是 **1919 B**、主仓工作树是 **1888 B**，逐行比下来**唯一差别是换行符**（checkout 时 `core.autocrlf` 把 31 行变成了 CRLF，恰好 +31 字节）⇒ **字节数会随检出的行尾而变**，「壳里有没有那一页的正文」才是判据。
 
 10. ★ **公开更新页与订阅（批次 G-3 之后才有这条；⚠️ 未发版 ⇒ 此刻跑必为空，发版当批现跑）**：
     - `curl -s https://11wand.com/changelog/index.html | wc -c` ⇒ **≥6000**（本机 `dist` 实测 7204 B）；`grep -c '<script'` ⇒ **0**；`grep -c 'rel="alternate"'` ⇒ 1（RSS 自动发现）；

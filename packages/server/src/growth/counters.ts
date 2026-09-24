@@ -37,6 +37,34 @@ export const GROWTH_UNIT_LABEL = '次（同一来源 IP 当天只算一次）';
 export const PROBE_HEADER = 'x-sb-probe';
 export const PROBE_UA_PREFIX = 'studentbuddy-probe/';
 
+/** 归因头（契约 §2.5）：前端把落地 URL 上的 `?ref=` 存下来，之后每个请求带回来。 */
+export const REF_HEADER = 'x-sb-ref';
+
+/** 没有来源信息时读侧看到的名字。★ 不叫 `unknown`：`direct`（直链／书签／站内跳转）是它的真实含义。 */
+export const GROWTH_SOURCE_DIRECT = 'direct';
+
+/**
+ * 渠道名的形状限制：小写字母数字起头，≤24 字符，只留 `[a-z0-9_-]`。
+ *
+ * ★ 为什么**不设白名单**（老板 2026-09-24 拍板）：每开一条新渠道都要改一次代码＋重发版，
+ *   而渠道台账那十条就是会长大的那部分。限制只留在字符集与长度上——够防「把整条 URL 塞进来」，
+ *   不需要枚举。
+ * ⚠️ 代价如实记：垃圾值写得进来。但它**涨不起来**：一个 `(kind, bucket, day)` 只有一行、
+ *   一行只有一个 source，所以垃圾 source 的条数上界就是垃圾 IP·天的条数。
+ */
+const SOURCE_MAX = 24;
+
+/** 把任意来源串归一成表里那一格能放的样子；空／全是非法字符 ⇒ `''`（读侧折成 `direct`）。 */
+export function normalizeGrowthSource(raw: string): string {
+  const cleaned = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^[-_]+|[-_]+$/g, '')
+    .slice(0, SOURCE_MAX);
+  return cleaned;
+}
+
 /**
  * 只声明本模块真正要读的两样，不 import express 的 `Request`：
  * 这样测试可以直接喂字面量，而调用点传 `req` 一样过（结构化类型）。
@@ -50,6 +78,11 @@ export interface GrowthRequestLike {
 function headerValue(value: string | string[] | undefined): string {
   const one = Array.isArray(value) ? value[0] : value;
   return typeof one === 'string' ? one : '';
+}
+
+/** 这条请求带回来的渠道名（已归一；空串＝没带，读侧折成 `direct`）。 */
+function sourceOfRequest(req: GrowthRequestLike): string {
+  return normalizeGrowthSource(headerValue(req.headers[REF_HEADER]));
 }
 
 /**
@@ -97,10 +130,10 @@ export function recordGrowthAction(action: GrowthAction, req: GrowthRequestLike)
     const day = localDayKey(new Date());
     const info = getDb()
       .prepare(
-        `INSERT OR IGNORE INTO growth_action_day (kind, bucket, day, first_seen_at)
-         VALUES (?, ?, ?, datetime('now'))`,
+        `INSERT OR IGNORE INTO growth_action_day (kind, bucket, day, first_seen_at, source)
+         VALUES (?, ?, ?, datetime('now'), ?)`,
       )
-      .run(action, bucket, day);
+      .run(action, bucket, day, sourceOfRequest(req));
     return info.changes > 0;
   } catch (e) {
     // ★ 旁路观测不许变成故障源：这里只 warn，不抛（见头注不变式③）
@@ -109,8 +142,40 @@ export function recordGrowthAction(action: GrowthAction, req: GrowthRequestLike)
   }
 }
 
+/** 一个渠道名在一天的一个桶里只会出现一次，所以「按来源分组」与「按动作分组」是同一张表的两面。 */
+export interface GrowthSourceRow {
+  /** 归一后的渠道名；库里那格空串在这里折成 `direct`。 */
+  source: string;
+  counts: Record<GrowthAction, number>;
+}
+
+/**
+ * 读侧：按渠道名分组。★ 与 `counts` 同源同表 ⇒ 判据「各来源之和 == counts」在 SQL 之外成立与否
+ *   是可查的（`counters.test.ts` 锁住它），不是设计上的承诺。
+ * ⚠️ 排序不能交给 `ORDER BY source`：那会让「谁最多」这条读数每次翻页都在变（渠道名是外来值，
+ *   字典序没有意义）。这里按三动作之和降序，和相同再按名字，**结果是确定的**。
+ */
+function readSources(): GrowthSourceRow[] {
+  const rows = getDb()
+    .prepare('SELECT source, kind, COUNT(*) AS c FROM growth_action_day GROUP BY source, kind')
+    .all() as Array<{ source: string; kind: string; c: number }>;
+  const bySource = new Map<string, Record<GrowthAction, number>>();
+  for (const r of rows) {
+    const key = r.source === '' ? GROWTH_SOURCE_DIRECT : r.source;
+    const slot = bySource.get(key) ?? emptyCounts();
+    if (isGrowthAction(r.kind)) slot[r.kind] = r.c;
+    bySource.set(key, slot);
+  }
+  return [...bySource.entries()]
+    .map(([source, counts]) => ({ source, counts }))
+    .sort((a, b) => sum(a.counts) - sum(b.counts) || a.source.localeCompare(b.source))
+    .reverse();
+}
+
 export interface GrowthSnapshot {
   counts: Record<GrowthAction, number>;
+  /** ★ 与 `counts` 同一张表的另一面：按渠道名分组，各来源之和 == `counts`（判据见 §5 第 7 条）。 */
+  bySource: GrowthSourceRow[];
   /** 见 `GROWTH_UNIT_LABEL`——数字与它的算法必须一起出门。 */
   unit: string;
   unitLabel: string;
@@ -118,8 +183,23 @@ export interface GrowthSnapshot {
   firstDay: string | null;
 }
 
+function emptyCounts(): Record<GrowthAction, number> {
+  const counts = {} as Record<GrowthAction, number>;
+  for (const a of GROWTH_ACTIONS) counts[a] = 0;
+  return counts;
+}
+
+/** `kind` 是库里的裸文本，读到不认识的值不当 0 吞掉、也不给它编一个新键。 */
+function isGrowthAction(kind: string): kind is GrowthAction {
+  return (GROWTH_ACTIONS as readonly string[]).includes(kind);
+}
+
+function sum(counts: Record<GrowthAction, number>): number {
+  return GROWTH_ACTIONS.reduce((n, a) => n + counts[a], 0);
+}
+
 /**
- * 读侧快照：三种动作各自的「IP·天」数。
+ * 读侧快照：三种动作各自的「IP·天」数，加上它们的来源分解。
  *
  * ★ **零填充在 SQL 之外做**（`GROWTH_ACTIONS` 是唯一的键表）：`GROUP BY` 出来的行只含非零项，
  *   少了这一步，读侧就得到「缺键」而不是「0」——而缺键在上层极易被当成 0 之外的事实源。
@@ -129,9 +209,14 @@ export function readGrowthSnapshot(): GrowthSnapshot {
   const rows = getDb()
     .prepare('SELECT kind, COUNT(*) AS c FROM growth_action_day GROUP BY kind')
     .all() as Array<{ kind: string; c: number }>;
-  const byKind = new Map(rows.map((r) => [r.kind, r.c]));
-  const counts = {} as Record<GrowthAction, number>;
-  for (const action of GROWTH_ACTIONS) counts[action] = byKind.get(action) ?? 0;
+  const counts = emptyCounts();
+  for (const r of rows) if (isGrowthAction(r.kind)) counts[r.kind] = r.c;
   const first = getDb().prepare('SELECT MIN(day) AS d FROM growth_action_day').get() as { d: string | null };
-  return { counts, unit: GROWTH_UNIT, unitLabel: GROWTH_UNIT_LABEL, firstDay: first.d };
+  return {
+    counts,
+    bySource: readSources(),
+    unit: GROWTH_UNIT,
+    unitLabel: GROWTH_UNIT_LABEL,
+    firstDay: first.d,
+  };
 }

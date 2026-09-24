@@ -9,7 +9,7 @@
  */
 import { REVIEW_INTERVALS_DAYS } from '@sb/shared/ebbinghaus';
 import { CATALOG_PATH } from './term-corpus';
-import { CHANGELOG_PATH } from './paths';
+import { appHome, CHANGELOG_PATH, REF_PLAN } from './paths';
 import { buildPlan } from './plan-schedule';
 import { PLAN_OG_CARD, PLAN_TOOL_URL } from './og-card';
 import { escapeHtml, pageFoot, pageHead, pageTop, type ShellLink } from './page-shell';
@@ -44,7 +44,7 @@ const NAV: ShellLink[] = [
   { href: '/terms/yiwang-quxian.html', label: '这条规律是什么' },
 ];
 const FOOT: ShellLink[] = [
-  { href: '/', label: '回到首页' },
+  { href: appHome(REF_PLAN), label: '回到首页' },
   { href: CATALOG_PATH, label: '全部词条' },
   { href: '/terms/yiwang-quxian.html', label: '艾宾浩斯遗忘曲线' },
   { href: '/terms/jian-ge-chongfu.html', label: '间隔重复' },
@@ -260,7 +260,7 @@ export function renderPlanToolPage(): string {
     card: PLAN_OG_CARD,
     extraStyle: STYLE,
   });
-  const body: string[] = [...pageTop(NAV)];
+  const body: string[] = [...pageTop(NAV, appHome(REF_PLAN))];
   body.push('<h1>复习计划表生成器</h1>');
   body.push(`<p class="alias">按 ${REVIEW_INTERVALS_DAYS.join(' / ')} 天这七个复查点排</p>`);
   body.push(
@@ -294,7 +294,7 @@ export function renderPlanToolPage(): string {
     '<p>本产品的复习队列干的就是这张表的活：每个词条学过一次之后，它自己按这七个点决定下一次什么时候出现，' +
       '答不上来就退回短间隔。省掉的是「同时盯几十组各自的进度」这件事。</p>',
   );
-  body.push('<a href="/">看看怎么用</a>');
+  body.push(`<a href="${escapeHtml(appHome(REF_PLAN))}">看看怎么用</a>`);
   body.push('</aside>');
   body.push(...pageFoot(FOOT));
   body.splice(body.length - 2, 0, `<script>${PLAN_PAGE_SCRIPT}</script>`);

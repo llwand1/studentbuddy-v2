@@ -32,6 +32,7 @@ const PROBE = { 'User-Agent': 'studentbuddy-probe/1.0 (growth-test)', 'X-SB-Prob
 /** 端点返回的数（读侧唯一出口）。 */
 async function counters(): Promise<{
   counts: Record<'app_open' | 'demo_enter' | 'register_done', number>;
+  bySource: Array<{ source: string; counts: Record<'app_open' | 'demo_enter' | 'register_done', number> }>;
   unit: string;
   unitLabel: string;
   firstDay: string | null;
@@ -97,6 +98,53 @@ describe('读侧公开形状', () => {
     expect(res.body.code).toBe('GROWTH_RATE_LIMITED');
     expect(res.body.retryAfterMs).toBeGreaterThan(0);
     resetGrowthRateLimits();
+  });
+});
+
+describe('归因端到端：`X-SB-Ref` → 库 → `bySource`（契约 §2.5／§3）', () => {
+  const refGet = (url: string, ref: string) =>
+    request(app).get(url).set('Origin', origin).set('X-SB-Ref', ref);
+  const refPost = (url: string, ref: string) =>
+    request(app).post(url).set('Origin', origin).set('X-SB-Ref', ref);
+
+  it('★ 公开读端点把 `bySource` 一起交出去（对外只有这一个出口，分解不能在别处另算一套）', async () => {
+    const body = await counters();
+    expect(body.bySource).toEqual([]);
+  });
+
+  it('★ `app_open` 带着渠道名进库、带着渠道名出来', async () => {
+    expect((await refGet('/api/auth/providers', 'ZhiHu Blog')).status).toBe(200);
+    expect(getDb().prepare('SELECT source FROM growth_action_day').all()).toEqual([{ source: 'zhihu-blog' }]);
+    const body = await counters();
+    expect(body.bySource).toEqual([{ source: 'zhihu-blog', counts: { app_open: 1, demo_enter: 0, register_done: 0 } }]);
+  });
+
+  it('★ `demo_enter`／`register_done` 两个采集点同样认这个头', async () => {
+    await refPost('/api/auth/demo-login', 'v2ex').send({});
+    await refPost('/api/auth/register', 'xiaohongshu').send({
+      email: 'ref-e2e@example.com',
+      password: 'good-password-1',
+    });
+    const { bySource } = await counters();
+    expect(bySource.find((b) => b.source === 'v2ex')?.counts.demo_enter).toBe(1);
+    expect(bySource.find((b) => b.source === 'xiaohongshu')?.counts.register_done).toBe(1);
+  });
+
+  it('★ 只把 `?ref=` 放在 URL 上而不带请求头 ⇒ 服务端不认它（采集在前端那一半：存下来、回头带头）', async () => {
+    await refGet('/api/auth/providers', 'zhihu');
+    expect((await post('/api/auth/demo-login?ref=xiaohongshu').send({})).status).toBe(200);
+    const { counts, bySource } = await counters();
+    expect(counts).toEqual({ app_open: 1, demo_enter: 1, register_done: 0 });
+    expect(bySource.find((b) => b.source === 'zhihu')?.counts.app_open).toBe(1);
+    expect(bySource.find((b) => b.source === 'direct')?.counts.demo_enter).toBe(1);
+    expect(bySource.some((b) => b.source === 'xiaohongshu')).toBe(false); // ★ 查询串没进过库
+  });
+
+  it('探针带渠道名也不涨（端到端再验一次：归因不是绕过 C10 的入口）', async () => {
+    await request(app).get('/api/auth/providers').set({ ...PROBE, 'X-SB-Ref': 'zhihu' });
+    const body = await counters();
+    expect(body.counts.app_open).toBe(0);
+    expect(body.bySource).toEqual([]);
   });
 });
 

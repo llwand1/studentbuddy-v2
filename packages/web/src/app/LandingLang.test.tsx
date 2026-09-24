@@ -53,6 +53,9 @@ vi.mock('../lib/api', () => ({
   api: {
     auth: {
       me: () => Promise.reject(new Error('401')),
+      // ★ 2026-09-24 归因批：`Landing` 的 providers 请求从裸 `fetch` 换成了 `api.auth.surface()`
+      //   （那条请求是服务端 `app_open` 的采集点，归因头只在 api 层注入）。桩点跟着上移一层。
+      surface: () => Promise.resolve({ providers: { github: false, demo: true }, form: 'cloud' }),
       sendCode: () => Promise.resolve({ ok: true, expiresInMs: 60_000 }),
       register: () => Promise.reject(new Error('unused')),
       demoLogin: () => Promise.reject(new Error('unused')),
@@ -60,18 +63,12 @@ vi.mock('../lib/api', () => ({
   },
 }));
 
-const realFetch = global.fetch;
 beforeEach(() => {
   window.localStorage.clear();
   setNav('en-US'); // jsdom 本来就是 en-US；写明是因为下面的用例要改它
-  global.fetch = (async () => ({
-    ok: true,
-    json: async () => ({ providers: { github: false, demo: true }, form: 'cloud' }),
-  })) as unknown as typeof fetch;
 });
 afterEach(() => {
   cleanup();
-  global.fetch = realFetch;
   window.localStorage.clear();
 });
 

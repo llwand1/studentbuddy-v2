@@ -71,7 +71,7 @@ describe('更新页 · HTML 形状', () => {
     expect(html.startsWith('<!doctype html>')).toBe(true);
     expect(html.trimEnd().endsWith('</html>')).toBe(true);
     expect(html).not.toMatch(/<script/);
-    expect(html).toContain('href="/"');
+    expect(html).toContain('href="/?ref=changelog"');
     expect(html).toContain('href="/terms/index.html"');
   });
 

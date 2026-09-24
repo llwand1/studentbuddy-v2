@@ -15,10 +15,12 @@ import { localDayKey } from '@sb/shared';
 import { closeDb, getDb, openIsolated } from '../storage/db.js';
 import {
   GROWTH_ACTIONS,
+  GROWTH_SOURCE_DIRECT,
   GROWTH_UNIT,
   GROWTH_UNIT_LABEL,
   growthBucket,
   isProbeRequest,
+  normalizeGrowthSource,
   readGrowthSnapshot,
   recordGrowthAction,
   type GrowthRequestLike,
@@ -131,6 +133,104 @@ describe('隐私形状（不落裸 IP）', () => {
     const salts = getDb().prepare('SELECT salt FROM growth_secret').all() as Array<{ salt: string }>;
     expect(salts).toHaveLength(1);
     expect(salts[0]?.salt).toMatch(/^[0-9a-f]{32}$/); // `undefined` 走 `toMatch` 必红，不会假过
+  });
+});
+
+describe('归因：渠道名从 `X-SB-Ref` 走进这张表（契约 §2.5）', () => {
+  /** 直接读库里那一格，不经读侧（折叠与分组另有各自的锁）。 */
+  function sourceInDb(): string | undefined {
+    const row = getDb().prepare('SELECT source FROM growth_action_day LIMIT 1').get() as
+      | { source: string }
+      | undefined;
+    return row?.source;
+  }
+
+  it('★ 带 `X-SB-Ref` ⇒ 渠道名进 source（「这条渠道带来了多少人」在库里唯一的落点）', () => {
+    expect(recordGrowthAction('app_open', req(IP_A, { 'x-sb-ref': 'zhihu' }))).toBe(true);
+    expect(sourceInDb()).toBe('zhihu');
+  });
+
+  it('★ 没带头 ⇒ 库里存**空串**，`direct` 只是读侧给空串起的名字', () => {
+    recordGrowthAction('app_open', req(IP_A));
+    expect(sourceInDb()).toBe('');
+    expect(readGrowthSnapshot().bySource.map((b) => b.source)).toEqual([GROWTH_SOURCE_DIRECT]);
+  });
+
+  it('归一：大小写／空格／非法字符／超长都落成同一形状', () => {
+    for (const [raw, want] of [
+      ['ZhiHu', 'zhihu'],
+      ['  Class Group ', 'class-group'],
+      ['--x__', 'x'],
+      ['a'.repeat(40), 'a'.repeat(24)],
+      ['贴吧', ''],
+      ['v2.0-beta', 'v2-0-beta'],
+      ['', ''],
+    ] as const) {
+      expect(normalizeGrowthSource(raw)).toBe(want);
+    }
+  });
+
+  it('★ 写侧真的归一（外来值不会带着大写与空格长在库里）', () => {
+    recordGrowthAction('app_open', req(IP_A, { 'x-sb-ref': 'ZhiHu Blog' }));
+    expect(sourceInDb()).toBe('zhihu-blog');
+  });
+
+  it('归一后为空的外来值折进 `direct`，不在表里长出脏行', () => {
+    recordGrowthAction('app_open', req(IP_A, { 'x-sb-ref': '中文渠道名' }));
+    expect(sourceInDb()).toBe('');
+  });
+
+  it('重复头取第一个（Node 把同名头解析成数组，这里不能变成 `[object Object]`）', () => {
+    recordGrowthAction('app_open', { ip: IP_A, headers: { 'x-sb-ref': ['zhihu', 'v2ex'] } });
+    expect(sourceInDb()).toBe('zhihu');
+  });
+
+  it('★ 同一 IP·天换渠道仍只有一行、source 是**第一次**那个（`INSERT OR IGNORE` 的连带代价，§4 第 7 条）', () => {
+    recordGrowthAction('app_open', req(IP_A, { 'x-sb-ref': 'zhihu' }));
+    recordGrowthAction('app_open', req(IP_A, { 'x-sb-ref': 'v2ex' }));
+    expect(getDb().prepare('SELECT source FROM growth_action_day').all()).toEqual([{ source: 'zhihu' }]);
+    expect(readGrowthSnapshot().counts.app_open).toBe(1);
+  });
+
+  it('★ 换一天再来就带自己的渠道名（首写定源只在同一自然日内成立，不是永久绑定）', () => {
+    recordGrowthAction('app_open', req(IP_A, { 'x-sb-ref': 'zhihu' }));
+    const yesterday = localDayKey(new Date(Date.now() - 86_400_000));
+    getDb().prepare(`UPDATE growth_action_day SET day = ? WHERE kind = 'app_open'`).run(yesterday);
+    recordGrowthAction('app_open', req(IP_A, { 'x-sb-ref': 'v2ex' }));
+    const { counts, bySource } = readGrowthSnapshot();
+    expect(counts.app_open).toBe(2);
+    expect(bySource.find((b) => b.source === 'zhihu')?.counts.app_open).toBe(1);
+    expect(bySource.find((b) => b.source === 'v2ex')?.counts.app_open).toBe(1);
+  });
+
+  it('★ 各来源之和 == counts（判据 §5 第 7 条：一个答案的两面必须复算对得上）', () => {
+    recordGrowthAction('app_open', req(IP_A, { 'x-sb-ref': 'zhihu' }));
+    recordGrowthAction('demo_enter', req(IP_A, { 'x-sb-ref': 'zhihu' }));
+    recordGrowthAction('app_open', req(IP_B, { 'x-sb-ref': 'v2ex' }));
+    recordGrowthAction('register_done', req('198.51.100.7'));
+    const { counts, bySource } = readGrowthSnapshot();
+    expect(bySource).toHaveLength(3); // zhihu / v2ex / direct
+    for (const a of GROWTH_ACTIONS) {
+      expect(bySource.reduce((n, b) => n + b.counts[a], 0)).toBe(counts[a]);
+    }
+  });
+
+  it('★ 排序按三动作之和降序，不是按渠道名字典序（外来值的字典序排不出「谁最多」）', () => {
+    recordGrowthAction('app_open', req(IP_A, { 'x-sb-ref': 'zzz' }));
+    recordGrowthAction('demo_enter', req(IP_A, { 'x-sb-ref': 'zzz' }));
+    recordGrowthAction('register_done', req(IP_A, { 'x-sb-ref': 'zzz' }));
+    recordGrowthAction('app_open', req(IP_B, { 'x-sb-ref': 'aaa' }));
+    expect(readGrowthSnapshot().bySource.map((b) => b.source)).toEqual(['zzz', 'aaa']);
+  });
+
+  it('★ 空库 ⇒ `bySource` 是空数组（不是「direct: 0」那种凭空一行，§3「0 不许显示假数」同源）', () => {
+    expect(readGrowthSnapshot().bySource).toEqual([]);
+  });
+
+  it('探针就算带渠道名也不写（归因不能变成绕过 C10 的后门）', () => {
+    const r = req(IP_A, { 'x-sb-ref': 'zhihu', 'x-sb-probe': 'prod-pulse' });
+    expect(recordGrowthAction('app_open', r)).toBe(false);
+    expect(readGrowthSnapshot().bySource).toEqual([]);
   });
 });
 

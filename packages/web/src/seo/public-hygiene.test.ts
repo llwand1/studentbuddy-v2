@@ -96,8 +96,11 @@ describe('公开字节 · 内部字样红线', () => {
     for (const text of pages) {
       for (const raw of text.match(/href="(\/[^"]*)"/g) ?? []) {
         const href = raw.slice(6, -1);
-        if (href === '/') continue;
-        expect(/\.\w+$/.test(href), `目录形式的链接：${href}`).toBe(true);
+        // ★ 扩展名那条规矩只管**落盘路径**，不管查询串：`/?ref=terms` 的 pathname 还是 `/`（SPA 壳），
+        //   整串拿去配正则会把归因链误杀成「目录形式的链接」。
+        const bare = href.split('?')[0] ?? href;
+        if (bare === '/') continue;
+        expect(/\.\w+$/.test(bare), `目录形式的链接：${href}`).toBe(true);
       }
     }
   });

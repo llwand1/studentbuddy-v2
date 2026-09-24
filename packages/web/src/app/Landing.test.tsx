@@ -15,7 +15,7 @@
  *   而真正的风险点在帧渲染口径（已由第三组锁覆盖）。
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, fireEvent, cleanup, waitFor } from '@testing-library/react';
+import { render, fireEvent, cleanup } from '@testing-library/react';
 import { Landing } from './Landing';
 import { LANDING_LANG_KEY } from './landing-lang';
 import { LANDING_DEMOS, TERM_FLOW } from './demo/registry';
@@ -30,9 +30,13 @@ import { TermFlowDemo } from './demo/TermFlowDemo';
  */
 window.localStorage.setItem(LANDING_LANG_KEY, 'zh');
 
-/** `DemoLoginButton` 走 `api.auth.demoLogin`——用可替换实现按用例定成败（§2.10 锁）。 */
-const demoRef = vi.hoisted(() => ({ impl: null as null | (() => Promise<unknown>) }));
-
+/**
+ * ★ 2026-09-24 归因批：`Landing` 里那句裸 `fetch('/api/auth/providers')` 换成了 `api.auth.surface()`
+ * ——那条请求是服务端 `app_open` 的采集点，归因头只在 api 层注入。换路之后桩 fetch 已经桩不到它
+ * （`api` 整个被 mock 掉）⇒ 桩点跟着上移一层。
+ * ★ 同批把「公用体验入口」那组锁搬到了 `LandingDemoEntry.test.tsx`（本文件当时贴 300 行红线），
+ *   所以这里**不再需要按用例改桩**：默认「问不到 providers」＝两个体验入口都不画，门面动线照旧。
+ */
 vi.mock('../lib/api', () => ({
   // DemoLoginButton 顶层 `import { api, ApiError }`——mock 工厂必须两个都给，缺一个就是链接期报错
   ApiError: class ApiError extends Error {
@@ -44,9 +48,11 @@ vi.mock('../lib/api', () => ({
     auth: {
       // 未登录：me 401（AccountBox 挂载即问，正常状态不是异常）
       me: () => Promise.reject(new Error('401')),
+      // 默认「问不到」＝两个入口都不画（开关在上游，点了报错的按钮不如没有）
+      surface: () => Promise.reject(new Error('本文件的用例不桩 providers（体验入口锁在 LandingDemoEntry.test.tsx）')),
       sendCode: () => Promise.resolve({ ok: true, expiresInMs: 60_000 }),
       register: () => Promise.reject(new Error('unused-in-this-test')),
-      demoLogin: () => (demoRef.impl ? demoRef.impl() : Promise.reject(new Error('demoLogin 未被本用例桩化'))),
+      demoLogin: () => Promise.reject(new Error('unused-in-this-test')),
     },
   },
 }));
@@ -245,55 +251,5 @@ describe('词条演示 — 高亮口径', () => {
     // ★ jsdom 量不到布局，所以锁的是**那条父子关系本身**（它就是 bug 的唯一成因）。
     expect(container.querySelector('.ld-reply .ld-hover')).toBeTruthy();
     expect(container.querySelector('.ld-layer > .ld-hover')).toBeNull();
-  });
-});
-
-describe('Landing — 公用体验入口（§2.10）', () => {
-  const realFetch = global.fetch;
-  afterEach(() => {
-    global.fetch = realFetch;
-    demoRef.impl = null;
-  });
-
-  /** 桩 `/api/auth/providers` 一个响应：demo 字段按入参给。 */
-  function stubProviders(demo: boolean) {
-    global.fetch = (async () => ({
-      ok: true,
-      json: async () => ({ providers: { github: false, demo }, form: 'cloud' }),
-    })) as unknown as typeof fetch;
-  }
-
-  it('providers.demo=true → 画「免注册，直接体验」并附共享池警示文案', async () => {
-    stubProviders(true);
-    const { findByText, getByText } = render(<Landing onAuthed={() => undefined} />);
-    expect(await findByText('免注册，直接体验')).toBeTruthy();
-    // 警示语是本批决策的落点（共享池 + 页面明示），删它等于默许隐私事故
-    expect(getByText(/内容全站共享、访客彼此可见/)).toBeTruthy();
-  });
-
-  it('providers.demo=false → 入口不存在（开关在上游，按钮不点了报错）', async () => {
-    stubProviders(false);
-    const { findByText, container } = render(<Landing onAuthed={() => undefined} />);
-    await findByText('开始使用');
-    expect(container.textContent).not.toContain('免注册');
-  });
-
-  it('点击成功 → onAuthed 收到体验用户（进应用壳的动作由上层完成）', async () => {
-    stubProviders(true);
-    const user = { id: 'u-demo-shared', email: 'shared-demo@studentbuddy.invalid', nickname: '公用体验账号', createdAt: 'x' };
-    demoRef.impl = () => Promise.resolve(user);
-    const onAuthed = vi.fn();
-    const { findByText } = render(<Landing onAuthed={onAuthed} />);
-    fireEvent.click(await findByText('免注册，直接体验'));
-    await waitFor(() => expect(onAuthed).toHaveBeenCalledWith(user));
-  });
-
-  it('点击失败 → 错误文案就地可见，按钮回到可点（ADR-5 可读可重试）', async () => {
-    stubProviders(true);
-    demoRef.impl = () => Promise.reject(new Error('体验模式未开放'));
-    const { findByText, queryByText } = render(<Landing onAuthed={() => undefined} />);
-    fireEvent.click(await findByText('免注册，直接体验'));
-    await waitFor(() => expect(queryByText('进入体验失败，请稍后重试')).toBeTruthy());
-    expect(queryByText('免注册，直接体验')).toBeTruthy();
   });
 });

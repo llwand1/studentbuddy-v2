@@ -13,7 +13,7 @@
  *   豁免清单是「必须公开」的名单，加一行是一个**决策**，不是配置细节（见 `index.ts` 行内注）。
  */
 import { Router, type Request, type Response } from 'express';
-import { readGrowthSnapshot } from '../growth/counters.js';
+import { readGrowthSnapshot, type GrowthSourceRow } from '../growth/counters.js';
 
 /** 与 demo-login／发码同档（`DEMO_LOGIN_MAX_PER_IP_HOUR=20`）——同类的公开读端点用同一把尺。 */
 export const GROWTH_MAX_PER_IP_HOUR = 20;
@@ -41,6 +41,13 @@ function rateLimited(ip: string, now: number): number | null {
 
 export interface GrowthCountersResponse {
   counts: { app_open: number; demo_enter: number; register_done: number };
+  /**
+   * 同一个答案的「按渠道」那一面（契约 §2.5／§3）。★ 每个渠道名的三动作之和与 `counts` 逐项相等——
+   * 这条不是注释里的承诺，`routes/growth.test.ts` 与 `counters.test.ts` 各锁一遍（§5 第 7 条）。
+   * ⚠️ `source: 'direct'` 那一行**含第三方抓取器**（台账 §3 最后那行的裁定：本批不换采集点，
+   * 先用这份分解取证），所以对外引用它要带这句前缀。
+   */
+  bySource: GrowthSourceRow[];
   unit: string;
   unitLabel: string;
   firstDay: string | null;

@@ -152,6 +152,20 @@ function revertV40(db: ReturnType<typeof openIsolated>): void {
   db.exec(`ALTER TABLE users DROP COLUMN github_email`);
 }
 
+/**
+ * 把 v42（诚实计数的来源列，契约 `docs/GROWTH-SPEC.md` §2.5）退回「老库」形态。
+ * **每个"退版本重放"用例都要调**（v42 落在链尾 ⇒ 只要退到的版本 < 42 就要退列）。
+ *
+ * ★ 为什么 **v41 不需要退、v42 需要**：v41 只有 `CREATE TABLE IF NOT EXISTS` ⇒ 重放时表已在、
+ *   语句整体跳过，天然幂等（所以链上五个重放用例从没为它加过 revert）。而 v42 是
+ *   `ALTER TABLE growth_action_day ADD COLUMN` ⇒ 第一次建库时那一列已经加上了，退到 v10 重放
+ *   整条链会撞 `duplicate column name: source`（本仓**第十一次**踩这坑，见上面 v40 的注释）。
+ * ★ 退的是列、**不退表**：表归 v41 建，退掉 v42 的列才是「v41 当时的样子」。
+ */
+function revertV42(db: ReturnType<typeof openIsolated>): void {
+  db.exec(`ALTER TABLE growth_action_day DROP COLUMN source`);
+}
+
 describe('storage/db — 版本化迁移（逐语句，根除 v1 大模板 TS1434 坑）', () => {
   it('建表齐全 + schema_version 记录 + 幂等（重复打开不动）', () => {
     const dir = tmp();
@@ -294,6 +308,7 @@ describe('storage/db — v11 过程回放迁移（思考链 / 任务清单随消
     revertV36(v10);
     revertV38(v10);
     revertV40(v10);
+    revertV42(v10);
     v10.prepare('DELETE FROM schema_version WHERE version > 10').run();
     expect(cols(v10)).not.toContain('reasoning');
     v10.close();
@@ -351,6 +366,7 @@ describe('storage/db — v13 回答形态迁移（providers.stream_mode）', () 
     revertV36(old);
     revertV38(old);
     revertV40(old);
+    revertV42(old);
     old.prepare('DELETE FROM schema_version WHERE version > 12').run();
     old.close();
 
@@ -461,6 +477,7 @@ describe('storage/db — v24 长期画像归主（docs/TENANCY-SPEC.md §7）', 
     revertV36(old);
     revertV38(old);
     revertV40(old);
+    revertV42(old);
     old.prepare('DELETE FROM schema_version WHERE version > 23').run();
     old.close();
 
@@ -540,6 +557,7 @@ describe('storage/db — v19 领域表迁移（term_domain，领域升为一等�
     revertV36(old);
     revertV38(old);
     revertV40(old);
+    revertV42(old);
     old.prepare('DELETE FROM schema_version WHERE version > 18').run();
     old.close();
 
@@ -663,6 +681,7 @@ describe('storage/db — v23 词条复习迁移（docs/EBBINGHAUS-SPEC.md，艾�
     revertV36(old);
     revertV38(old);
     revertV40(old);
+    revertV42(old);
     old.prepare('DELETE FROM schema_version WHERE version > 22').run();
     old.close();
 
@@ -719,6 +738,7 @@ describe('storage/db — v25 督促小窗流水迁移（docs/COACH-SPEC.md，B+C
     revertV36(old);
     revertV38(old);
     revertV40(old);
+    revertV42(old);
     old.prepare('DELETE FROM schema_version WHERE version > 23').run();
     old.close();
 
@@ -808,6 +828,7 @@ describe('storage/db — v27 邮箱验证码迁移（docs/AUTH-SPEC.md §1，M1.
     revertV36(old);
     revertV38(old);
     revertV40(old);
+    revertV42(old);
     old.prepare('DELETE FROM schema_version WHERE version > 26').run();
     old.close();
 
@@ -862,6 +883,7 @@ describe('storage/db — v28 复习范围迁移（docs/EBBINGHAUS-SPEC.md §9，
     revertV36(old);
     revertV38(old);
     revertV40(old);
+    revertV42(old);
     old.prepare('DELETE FROM schema_version WHERE version > 27').run();
     old.close();
 
@@ -978,6 +1000,7 @@ describe('storage/db — v29 LLM 成本归主迁移（docs/TENANCY-SPEC.md §8.1
     revertV36(old);
     revertV38(old);
     revertV40(old);
+    revertV42(old);
     old.prepare('DELETE FROM schema_version WHERE version > 28').run();
     old.close();
 
@@ -1092,6 +1115,7 @@ describe('storage/db — v30 设置与反馈环归主迁移（docs/TENANCY-SPEC.
     revertV36(old);
     revertV38(old);
     revertV40(old);
+    revertV42(old);
     old.prepare('DELETE FROM schema_version WHERE version > 29').run();
     old.close();
 
@@ -1123,6 +1147,7 @@ describe('storage/db — v30 设置与反馈环归主迁移（docs/TENANCY-SPEC.
     revertV36(old);
     revertV38(old);
     revertV40(old);
+    revertV42(old);
     old.prepare('DELETE FROM schema_version WHERE version > 29').run();
     old.close();
     const up = openIsolated(dir);
@@ -1329,6 +1354,7 @@ describe('storage/db — v31 词条库/领域归主迁移（docs/TENANCY-SPEC.md
     revertV36(old);
     revertV38(old);
     revertV40(old);
+    revertV42(old);
     old.prepare(`DELETE FROM schema_version WHERE version > 30`).run();
     old.close();
 
@@ -1355,6 +1381,7 @@ describe('storage/db — v31 词条库/领域归主迁移（docs/TENANCY-SPEC.md
     revertV36(old);
     revertV38(old);
     revertV40(old);
+    revertV42(old);
     old.prepare(`DELETE FROM schema_version WHERE version > 30`).run();
     old.close();
 
@@ -1395,6 +1422,7 @@ describe('storage/db — v31 词条库/领域归主迁移（docs/TENANCY-SPEC.md
     revertV36(old);
     revertV38(old);
     revertV40(old);
+    revertV42(old);
     old.prepare(`DELETE FROM schema_version WHERE version > 30`).run();
     old.close();
     const up = openIsolated(dir);
@@ -1453,6 +1481,7 @@ describe('storage/db — v32 计时落库迁移（thinking_ms / duration_ms）',
     revertV36(old);
     revertV38(old);
     revertV40(old);
+    revertV42(old);
     old.prepare('DELETE FROM schema_version WHERE version > 31').run();
     expect(msgCols(old)).not.toContain('thinking_ms');
     old.close();
@@ -1496,6 +1525,7 @@ describe('storage/db — v33 其余表归主迁移（M2d-3：quiz_*/flow_*/knowl
     revertV36(old);
     revertV38(old);
     revertV40(old);
+    revertV42(old);
     old.prepare('DELETE FROM schema_version WHERE version > 32').run();
     expect(colsOf(old, 'quiz_bank')).not.toContain('owner_id');
     old.close();
@@ -1564,6 +1594,7 @@ describe('storage/db — v37 全站搜索索引（fts5 虚表）', () => {
     old.exec('DROP TABLE IF EXISTS search_index');
     revertV38(old);
     revertV40(old);
+    revertV42(old);
     old.prepare('DELETE FROM schema_version WHERE version > 36').run();
     expect(tablesOf(old)).not.toContain('search_index');
     old.close();
@@ -1618,7 +1649,8 @@ describe('storage/db — v39 平台用量表（platform_usage）', () => {
     const dir = tmp();
     const old = openIsolated(dir);
     revertV39(old);
-    revertV40(old); // ★ v40 > 38 ⇒ 同样要退（v39 是幂等建表可免，v40 是加列**不可免**）
+    revertV40(old);
+    revertV42(old); // ★ v40 > 38 ⇒ 同样要退（v39 是幂等建表可免，v40 是加列**不可免**）
     old.prepare('DELETE FROM schema_version WHERE version > 38').run();
     expect(tablesOf(old)).not.toContain('platform_usage'); // ★ 退干净了，下面的"建回"才成立
     old.close();

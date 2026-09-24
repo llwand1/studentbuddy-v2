@@ -128,11 +128,18 @@ export function pageHead(o: HeadOptions): string[] {
   ];
 }
 
-export function pageTop(nav: readonly ShellLink[]): string[] {
+/**
+ * 顶栏：品牌链＋本页导航。
+ *
+ * ★ `homeHref` **刻意没有默认值**：品牌那一条链是公开页回应用唯一的常驻入口，
+ *   给个 `'/'` 的默认值等于允许某个新页面「安静地不带来源」（GROWTH-SPEC §2.5 那条归因
+ *   就是这么漏的——`Landing.tsx` 那处裸 fetch 也是同一族）。要调用方显式说清自己是谁。
+ */
+export function pageTop(nav: readonly ShellLink[], homeHref: string): string[] {
   return [
     '<body>',
     '<header class="top">',
-    '<a class="brand" href="/">StudentBuddy</a>',
+    `<a class="brand" href="${escapeHtml(homeHref)}">StudentBuddy</a>`,
     `<nav>${nav.map((l) => `<a href="${escapeHtml(l.href)}">${escapeHtml(l.label)}</a>`).join(' · ')}</nav>`,
     '</header>',
     '<main>',

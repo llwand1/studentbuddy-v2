@@ -158,9 +158,11 @@ describe('计划表页 · 公开面形状', () => {
     const hrefs = [...PAGE.matchAll(/href="(\/[^"]*)"/g)].map((m) => m[1] ?? '');
     expect(hrefs.length).toBeGreaterThanOrEqual(5);
     for (const href of hrefs) {
-      if (href === '/') continue;
-      expect(/\.\w+$/.test(href), `目录形式的链接：${href}`).toBe(true);
-      expect(WRITTEN.has(href), `死链：${href}`).toBe(true);
+      // ★ 只管落盘路径：`?ref=` 是归因查询串，不是文件名的一部分（整串配正则会把归因链误杀）
+      const bare = href.split('?')[0] ?? href;
+      if (bare === '/') continue;
+      expect(/\.\w+$/.test(bare), `目录形式的链接：${href}`).toBe(true);
+      expect(WRITTEN.has(bare), `死链：${href}`).toBe(true);
     }
   });
 

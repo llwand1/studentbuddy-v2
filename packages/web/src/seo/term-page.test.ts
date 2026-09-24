@@ -52,9 +52,10 @@ describe('词条页 · 单页形状', () => {
     expect(html).toContain(t.productHint);
   });
 
-  it('★ 互链指向同批页面且带扩展名（不给爬虫留 404），并有一条回首页的路', () => {
+  it('★ 互链指向同批页面且带扩展名（不给爬虫留 404），并有一条**带来源**回首页的路', () => {
     for (const r of t.related) expect(html).toContain(`href="/terms/${r}.html"`);
-    expect(html).toContain('href="/"');
+    // ★ `?ref=terms`：静态页零 JS，链接是它唯一能传出去的来源信息（GROWTH-SPEC §2.5）
+    expect(html).toContain('href="/?ref=terms"');
     expect(html).toContain(`href="${CATALOG_PATH}"`);
   });
 

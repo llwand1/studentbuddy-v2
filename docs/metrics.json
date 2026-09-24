@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-24T02:19:05.634Z",
+  "generatedAt": "2026-09-24T05:52:12.494Z",
   "code": {
     "rows": [
       {
@@ -12,9 +12,9 @@
       {
         "pkg": "server",
         "srcFiles": 168,
-        "testFiles": 120,
-        "srcLines": 26721,
-        "testLines": 25867
+        "testFiles": 121,
+        "srcLines": 26724,
+        "testLines": 25901
       },
       {
         "pkg": "web",
@@ -25,9 +25,9 @@
       }
     ],
     "srcFiles": 397,
-    "testFiles": 207,
-    "srcLines": 56943,
-    "testLines": 38265,
+    "testFiles": 208,
+    "srcLines": 56946,
+    "testLines": 38299,
     "tsxTestFiles": 22
   },
   "routes": {
@@ -80,26 +80,26 @@
     ]
   },
   "docs": {
-    "specs": 29,
-    "all": 38,
+    "specs": 30,
+    "all": 40,
     "dev": 5,
     "probes": 15
   },
   "repo": {
-    "head": "cb44d9d",
+    "head": "89d12ad",
     "headDate": "2026-09-24",
-    "commitsLast14d": 171,
+    "commitsLast14d": 181,
     "branch": "main",
-    "dirtyFiles": 25
+    "dirtyFiles": 8
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 21.4,
+    "wallSec": 40.4,
     "staleDays": 0,
-    "files": 207,
-    "cases": 2864,
-    "passed": 2863,
+    "files": 208,
+    "cases": 2867,
+    "passed": 2866,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -143,15 +143,15 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "206",
-      "measured": "207",
-      "ok": false
+      "claimed": "208",
+      "measured": "208",
+      "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "2839",
-      "measured": "2864",
-      "ok": false
+      "claimed": "2867",
+      "measured": "2867",
+      "ok": true
     },
     {
       "label": "badge REST 路由",
@@ -185,15 +185,15 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "206 文件 / 2839 例",
-      "measured": "207 文件 / 2864 例",
-      "ok": false
+      "claimed": "208 文件 / 2867 例",
+      "measured": "208 文件 / 2867 例",
+      "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "206 文件 / 2839 例",
-      "measured": "207 文件 / 2864 例",
-      "ok": false
+      "claimed": "208 文件 / 2867 例",
+      "measured": "208 文件 / 2867 例",
+      "ok": true
     }
   ],
   "landingDrift": []

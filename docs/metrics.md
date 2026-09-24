@@ -23,29 +23,29 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-09-24 10:19:27（本机时区）｜ 基准 `cb44d9d` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-09-24 22:21:20（本机时区）｜ 基准 `1269c9f` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
 | shared | 30 | 4,482 | 18 | 2,251 | 50% |
-| server | 168 | 26,721 | 120 | 25,867 | 97% |
-| web | 199 | 25,740 | 69 | 10,147 | 39% |
-| **合计** | **397** | **56,943** | **207** | **38,265** | **67%** |
+| server | 168 | 26,832 | 120 | 26,047 | 97% |
+| web | 202 | 26,384 | 73 | 10,749 | 41% |
+| **合计** | **400** | **57,698** | **211** | **39,047** | **68%** |
 
 ## 接口与契约
 
 - REST 路由注册：**151**（get 66 / post 54 / delete 15 / put 15 / patch 1）· 另 /api 挂载点 27 个
 - shared 契约类型：**150**（export interface 97 + export type 53）
 - 外部运行时依赖：**6** 个 —— better-sqlite3, cors, express, pino, react, react-dom
-- 迁移水位：代码侧 **v41**（41 个 version 条目，非连续号 0 处）
+- 迁移水位：代码侧 **v42**（42 个 version 条目，非连续号 0 处）
 
 ## 测试基线（vitest 实跑）
 
-- **207 文件 / 2864 例**（2863 passed + 1 skipped + 0 failed）⇒ 全绿
-- 本次本机实跑（Node v22.23.2）全量耗时 21.4s
-- jsdom 交互测试文件（`.test.tsx`）22 个
+- **211 文件 / 2922 例**（2921 passed + 1 skipped + 0 failed）⇒ 全绿
+- 本次本机实跑（Node v22.23.2）全量耗时 28.2s
+- jsdom 交互测试文件（`.test.tsx`）23 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
 
@@ -56,11 +56,11 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 | web | 43.9% | 83.7% | 43.9% | 60.2% |
 | **三包合计** | 67.7% | 83.8% | 67.7% | 78.7% |
 - ⚠️ 口径：分母只含 vitest 实际 import 到的源文件（未跑到 0% 的模块不进 json-summary 的按包聚合），故本表**只能用于同版本自身纵向对比**，不能与外部项目横比。
-- ⚠️ 覆盖率产物是 3 天前的（本次未跑 `--coverage`）
+- ⚠️ 覆盖率产物是 4 天前的（本次未跑 `--coverage`）
 
 ## 文档与仓库
-- docs/：SPEC 契约 29 份 · md 共 38 份（dev/ 5）· 真机探针 15 个
-- git：main @ `cb44d9d`（2026-09-24）· 近 14 天 171 commits · 工作区未提交 25 文件
+- docs/：SPEC 契约 30 份 · md 共 43 份（dev/ 5）· 真机探针 15 个
+- git：main @ `1269c9f`（2026-09-24）· 近 14 天 189 commits · 工作区未提交 28 文件
 
 <!-- metrics:end -->
 

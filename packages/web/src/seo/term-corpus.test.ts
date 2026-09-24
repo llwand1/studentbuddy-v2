@@ -7,7 +7,7 @@
  *   ② 内容里不能出现**任何使用量数字**（真实计数尚未上线，写一个就是造假）。
  */
 import { describe, expect, it } from 'vitest';
-import { DEMO_SEED_TERMS } from '@sb/shared';
+import { DEMO_SEED_TERMS, REVIEW_INTERVALS_DAYS } from '@sb/shared';
 import { PUBLIC_TERMS, findPublicTerm, relatedTerms, termPath, termUrl } from './term-corpus';
 import { termDescription } from './term-page';
 
@@ -68,6 +68,83 @@ describe('词条语料 · 形状', () => {
       const d = termDescription(t);
       expect(d.length, t.slug).toBeLessThanOrEqual(105);
       expect(d.startsWith(t.oneLine), t.slug).toBe(true);
+    }
+  });
+});
+
+describe('词条语料 · 主词措辞（档位 1）', () => {
+  /** 改名的三件：新主词 ＋ 页面上必须仍然看得见的旧名。换叫法不许把原来那条搜索意图丢掉。 */
+  const RENAMED: readonly { slug: string; title: string; old: string }[] = [
+    { slug: 'tiqu-lixian', title: '主动回忆', old: '提取练习' },
+    { slug: 'jiao-cuo-lixian', title: '交错学习', old: '交错练习' },
+    { slug: 'yiwang-quxian', title: '艾宾浩斯遗忘曲线', old: '遗忘曲线' },
+  ];
+
+  it('★ 三个主词是中文里活着的那种叫法，旧名逐字还在页面上', () => {
+    for (const { slug, title, old } of RENAMED) {
+      const t = findPublicTerm(slug);
+      expect(t, slug).toBeDefined();
+      expect(t!.title, slug).toBe(title);
+      const page = [
+        t!.alias,
+        t!.oneLine,
+        ...t!.sections.flatMap((s) => [s.h, ...s.p]),
+        ...t!.pitfalls,
+        ...t!.actions,
+        t!.productHint,
+      ].join('\n');
+      expect(page.includes(old), `${slug} 丢了旧名 ${old}`).toBe(true);
+    }
+  });
+
+  it('★ 间隔重复首屏摆出七个复习节点，且与产品契约 `REVIEW_INTERVALS_DAYS` 同值同序', () => {
+    const t = findPublicTerm('jian-ge-chongfu');
+    expect(t).toBeDefined();
+    const first = t!.sections[0];
+    const text = first.h + first.p.join('');
+    for (const d of REVIEW_INTERVALS_DAYS) {
+      expect(text.includes(String(d)), `首屏缺节点 ${d}`).toBe(true);
+    }
+    const nums = [...text.matchAll(/\d+/g)].map((m) => Number(m[0]));
+    expect(nums.slice(0, REVIEW_INTERVALS_DAYS.length)).toEqual([...REVIEW_INTERVALS_DAYS]);
+  });
+
+  it('★「复习计划表」真的写进了遗忘曲线的正文，不是只挂在 title 上', () => {
+    const t = findPublicTerm('yiwang-quxian');
+    expect(t).toBeDefined();
+    expect(t!.title).toContain('艾宾浩斯');
+    const body = t!.sections.flatMap((s) => [s.h, ...s.p]).join('\n');
+    expect(body).toContain('复习计划表');
+  });
+
+  it('★ 费曼页给了「四步」并配一个走到底的例子（讲解页最缺的就是一个具体样子）', () => {
+    const t = findPublicTerm('fei-man-xuexi-fa');
+    expect(t).toBeDefined();
+    expect(t!.sections.map((s) => s.h).join('\n')).toContain('四步');
+    const body = t!.sections.flatMap((s) => s.p).join('\n');
+    expect(body).toContain('例子');
+    expect(body).toContain('光合作用');
+  });
+
+  it('★ 认知负荷按老板判决保持书面：它不在改名清单里，title 逐字未动', () => {
+    const t = findPublicTerm('renzhi-fuhe');
+    expect(t).toBeDefined();
+    expect(t!.title).toBe('认知负荷');
+  });
+
+  it('★ 中文正文不混未成句的英文、不漏 markdown 星号（本批逮到 `harder` 与 `**辨别**` 两处）', () => {
+    const ALLOWED = new Set(['AI', 'AAA', 'BBB', 'CCC', 'ABC', 'CAB']);
+    for (const t of PUBLIC_TERMS) {
+      const prose = [
+        ...t.sections.flatMap((s) => [s.h, ...s.p]),
+        ...t.pitfalls,
+        ...t.actions,
+        t.productHint,
+      ].join('\n');
+      expect(prose.includes('*'), `${t.slug} 正文含 *`).toBe(false);
+      for (const m of prose.matchAll(/[A-Za-z]+/g)) {
+        expect(ALLOWED.has(m[0]), `${t.slug} 正文里的英文词 ${m[0]}`).toBe(true);
+      }
     }
   });
 });

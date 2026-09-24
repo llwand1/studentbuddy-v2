@@ -119,7 +119,7 @@ export function renderTermIndexPage(terms: readonly PublicTerm[] = PUBLIC_TERMS)
   return [
     ...headOf(
       '学习科学词条目录 - StudentBuddy',
-      '提取练习、间隔重复、认知负荷、元认知……每条一页讲清它是什么、为什么有效、以及最容易怎么做错。',
+      '主动回忆、间隔重复、艾宾浩斯遗忘曲线、元认知……每条一页讲清它是什么、为什么有效、以及最容易怎么做错。',
       CATALOG_URL,
       CATALOG_OG_CARD,
       CATALOG_ALTERNATES,

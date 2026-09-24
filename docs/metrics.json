@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-24T02:19:05.634Z",
+  "generatedAt": "2026-09-24T06:21:03.942Z",
   "code": {
     "rows": [
       {
@@ -20,14 +20,14 @@
         "pkg": "web",
         "srcFiles": 199,
         "testFiles": 69,
-        "srcLines": 25740,
-        "testLines": 10147
+        "srcLines": 25762,
+        "testLines": 10224
       }
     ],
     "srcFiles": 397,
     "testFiles": 207,
-    "srcLines": 56943,
-    "testLines": 38265,
+    "srcLines": 56965,
+    "testLines": 38342,
     "tsxTestFiles": 22
   },
   "routes": {
@@ -80,26 +80,26 @@
     ]
   },
   "docs": {
-    "specs": 29,
-    "all": 38,
+    "specs": 30,
+    "all": 43,
     "dev": 5,
     "probes": 15
   },
   "repo": {
-    "head": "cb44d9d",
+    "head": "db39fa5",
     "headDate": "2026-09-24",
-    "commitsLast14d": 171,
+    "commitsLast14d": 182,
     "branch": "main",
     "dirtyFiles": 25
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 21.4,
+    "wallSec": 43,
     "staleDays": 0,
     "files": 207,
-    "cases": 2864,
-    "passed": 2863,
+    "cases": 2870,
+    "passed": 2869,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -143,14 +143,14 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "206",
+      "claimed": "207",
       "measured": "207",
-      "ok": false
+      "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "2839",
-      "measured": "2864",
+      "claimed": "2864",
+      "measured": "2870",
       "ok": false
     },
     {
@@ -185,14 +185,14 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "206 文件 / 2839 例",
-      "measured": "207 文件 / 2864 例",
+      "claimed": "207 文件 / 2864 例",
+      "measured": "207 文件 / 2870 例",
       "ok": false
     },
     {
       "label": "正文基线句",
-      "claimed": "206 文件 / 2839 例",
-      "measured": "207 文件 / 2864 例",
+      "claimed": "207 文件 / 2864 例",
+      "measured": "207 文件 / 2870 例",
       "ok": false
     }
   ],

@@ -6,7 +6,7 @@
 >
 > 线上状态：**<https://11wand.com>** 自 2026-09-19 起运行（`2.0.0-alpha.0`）。
 >
-> ⚠️ **本仓是公开仓库**：本文**不含任何密钥、口令、私钥或哈希**；服务器地址已在 `tools/deploy.sh` 中公开，如介意请改为读环境变量。
+> ⚠️ **本仓是公开仓库**：本文与 `tools/deploy.sh` **不含任何密钥、口令、私钥、哈希或真实服务器地址**。`SERVER` 一律经环境变量注入，真实地址存放于仓外的私有运维清单（2026-09-24 起脱敏入规——此前 `deploy.sh` 曾带默认值，git 历史里那条仍在，属公开 DNS 同源信息，但组合了 `root@` 不该留）。
 
 ---
 
@@ -33,7 +33,7 @@ studentbuddy.service（systemd, root）
 
 | 项 | 值 |
 |---|---|
-| 主机 | RackNerd VPS —— `SERVER` 见 `tools/deploy.sh`（默认 `root@107.172.96.209`） |
+| 主机 | RackNerd 1GB VPS —— `SERVER=root@<服务器IP>`；**真实地址不入本仓**（公开仓库），存放于仓外私有运维清单，发版时用环境变量注入 |
 | 规格 | 1 vCPU / 961 MB RAM / 19 GB 磁盘 / 1 GB swap（实测 2026-09-20） |
 | SSH | `ssh -i ~/.ssh/id_ed25519 root@<SERVER>`（密钥路径可用 `KEY` 覆盖） |
 | 应用目录 | `/opt/studentbuddy/app` —— **ssh 直传，不是 git 仓库**（服务器上没有 `.git`） |
@@ -176,7 +176,7 @@ journalctl -u studentbuddy -n 100 -f   # 跟日志
 ### 恢复步骤
 
 ```bash
-SERVER=root@107.172.96.209   # 与 tools/deploy.sh 一致
+SERVER=root@<服务器IP>   # 真实地址见私有运维清单
 
 # 1) 停服务（避免恢复期间还在写）
 ssh -i ~/.ssh/id_ed25519 $SERVER 'systemctl stop studentbuddy'
@@ -256,7 +256,7 @@ curl -sf https://11wand.com/api/health
 仓内 `tools/deploy.sh`（**在本机跑，不在服务器跑**）：
 
 ```bash
-SERVER=${SERVER:-root@107.172.96.209}
+SERVER=${SERVER:?必须提供，如 root@203.0.113.10（真实地址不入仓，见私有运维清单）}
 KEY=${KEY:-$HOME/.ssh/id_ed25519}
 APP=/opt/studentbuddy/app
 

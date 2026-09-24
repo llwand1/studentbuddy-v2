@@ -67,7 +67,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 ## 线上运行态快照（手工采集，采集时点写死在每段）
 
 > 这一节不进 `metrics.mjs`：它测的是**那台机器**，不是这个仓库。复现命令逐条附在下面。
-> 采集：2026-09-20 13:55 CST，`root@107.172.96.209`（RackNerd 1GB VPS），全程只读。
+> 采集：2026-09-20 13:55 CST，`root@<服务器IP>`（RackNerd 1GB VPS），全程只读。
 
 ### 主机资源
 

@@ -1,3 +1,13 @@
+# ⚠️⚠️ EXPERIMENTAL —— 本 compose 从未实机跑通（诚实声明，2026-09-24 定性）⚠️⚠️
+# 线上真实运行形态是「ssh 直传 + systemd + Caddy」，判据与逐条实测见 DEPLOY.md 与
+# docs/dev/launch-plan.md §3.5。本文件是那条路径的**容器化平移草案**：
+#   - 已知风险点：better-sqlite3 原生模块在 slim 镜像内的编译工具链（Dockerfile 头注）；
+#   - web/dist 目前靠一次性容器拷入共享卷（切换手册 §3），server 尚不托管静态站；
+#   - 想把它当 quick start 用的人：请先读 docs/dev/launch-plan.md §3.5，别从本文件进门。
+# 修硬伤记录（2026-09-24，与「标 experimental」同批）：
+#   1. caddy 曾挂载仓里**不存在**的 `./Caddyfile` ⇒ 改挂 `deploy/docker/Caddyfile`（本仓现在真有这份示例）；
+#   2. env_file 曾硬编码**生产机私有路径** `/opt/studentbuddy/app/.env` ⇒ 改走 compose 对根 `.env` 的原生插值，仓库不再引用任何机器专属路径；
+#   3. 域名曾写死 `11wand.com` ⇒ 改 `${SB_PUBLIC_ORIGIN}` 注入，本地起测不必改文件。
 services:
   server:
     build:
@@ -6,17 +16,23 @@ services:
     image: studentbuddy-server:v0.1
     restart: unless-stopped
     environment:
-      # —— 五条安全闸门：与 DEPLOY.md §4 表逐一对齐，一个都不能少 ——
+      # —— 五条安全闸门：与 DEPLOY.md §5 表逐一对齐，一个都不能少 ——
       SB_HOST: 0.0.0.0            # 容器内必须 0.0.0.0（systemd 形态用默认 127.0.0.1，此处刻意不同）
       SB_PORT: "18791"
       SB_REQUIRE_AUTH: "1"
-      SB_COOKIE_SECURE: "1"
+      SB_COOKIE_SECURE: "1"       # ⚠️ 纯 http 本地试跑时浏览器会丢弃 Secure cookie，本地试请置 0
       SB_TRUST_PROXY: "1"
-      SB_ALLOWED_ORIGINS: https://11wand.com   # 不收通配符；换域名显式改
+      SB_ALLOWED_ORIGINS: ${SB_PUBLIC_ORIGIN:-http://localhost:8080}   # 不收通配符；换域名用根 .env 注入
       SB_UPSTREAM_SITE_MAX_CONCURRENT: "8"      # 占位值，业务值定了改这里
       SB_UPSTREAM_SITE_QUEUE_MAX: "20"
-    env_file:
-      - /opt/studentbuddy/app/.env    # 复用现网 .env（RESEND_API_KEY / SB_MAIL_FROM 等 secrets）
+      # —— 密钥类：值放仓库根 `.env`（gitignore 的），compose 原生插值透传，本文件零明文 ——
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SB_MAIL_FROM: ${SB_MAIL_FROM:-}
+      SB_GITHUB_CLIENT_ID: ${SB_GITHUB_CLIENT_ID:-}
+      SB_GITHUB_CLIENT_SECRET: ${SB_GITHUB_CLIENT_SECRET:-}
+      SB_PLATFORM_BASE_URL: ${SB_PLATFORM_BASE_URL:-}
+      SB_PLATFORM_API_KEY: ${SB_PLATFORM_API_KEY:-}
+      SB_PLATFORM_MODEL: ${SB_PLATFORM_MODEL:-}
     volumes:
       - sb-data:/data                  # SQLite 持久卷；容器可删，卷不能删
     deploy:
@@ -39,10 +55,10 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "${SB_PUB_HTTP:-80}:80"
+      - "${SB_PUB_HTTPS:-443}:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/docker/Caddyfile:/etc/caddy/Caddyfile:ro   # ★ 本仓真实存在的示例（原引用的 ./Caddyfile 不存在）
       - caddy-config:/config
       - caddy-data:/data               # ★ TLS 证书存这里，删卷=重签发（Let's Encrypt 有频控）
     networks: [sbnet]                  # 走桥接：反代目标写服务名 server:18791 / web:8080

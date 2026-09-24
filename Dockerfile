@@ -1,6 +1,10 @@
 # StudentBuddy v2 · 容器运行时（构建期烘焙 dist）
+# ⚠️ EXPERIMENTAL（2026-09-24 定性）：本 Dockerfile 与 docker-compose.yml **从未实机跑通**——
+#   线上真实形态是「ssh 直传 + systemd」（DEPLOY.md）。已知最大风险点：better-sqlite3
+#   原生模块在 slim 镜像里的编译链。跑通验证前，请不要把 `docker compose up` 当作 quick start，
+#   判据与缺口清单见 docs/dev/launch-plan.md §3.5 与 tools/docker/部署切换手册.md。
 # ★ 本文件只烘焙构建产物，挂载/反代编排见 docker-compose.yml；
-#   首次上服务器前必须先跑 §docker/部署切换手册.md 的构建验证（better-sqlite3 原生编译是已知风险点）。
+#   首次上服务器前必须先跑 tools/docker/部署切换手册.md 的构建验证。
 FROM node:22-bookworm AS build
 WORKDIR /app
 COPY . .

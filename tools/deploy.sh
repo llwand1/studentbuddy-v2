@@ -28,7 +28,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."          # 一律在仓库根跑，路径都相对它
 
-SERVER=${SERVER:-root@107.172.96.209}
+SERVER=${SERVER:?必须提供，如 root@203.0.113.10（真实地址不入仓，见私有运维清单）}
 KEY=${KEY:-$HOME/.ssh/id_ed25519}
 BASE=${BASE:-/opt/studentbuddy}
 APP=$BASE/app

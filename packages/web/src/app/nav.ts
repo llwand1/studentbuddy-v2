@@ -11,16 +11,13 @@ import {
   NoteIcon,
   StatsIcon,
   SettingsIcon,
-  FlowIcon,
-  GraphIcon,
 } from '../components/icons';
 
-export type View = 'chat' | 'flow' | 'graph' | 'quiz' | 'notes' | 'terms' | 'summary' | 'settings';
+export type View = 'chat' | 'quiz' | 'notes' | 'terms' | 'summary' | 'settings';
 
 /**
  * 侧栏功能列表（顺序 = 用户的主线动线）。
- * ★ 2026-09-17：「学习流」「知识图」排在最前——它们是**学习的主线**（编排怎么学 → 看学出了什么），
- *   题库/笔记/词条是素材，今日总结是回顾。新功能成组放最前，而不是塞在末尾当"附加功能"。
+ * ★ 2026-09-25：「学习流」「知识图」两项随功能整体下线删除（批次 K，老板判决：联动性太低）。
  * `pk` 是个**例外项**：PK 页是 `#/pk` 上的独立移动优先页面（契约 PK-SPEC §5，
  * 与主壳互不嵌套），所以它不进 `View` 联合、也不 `setView`，只改 hash 交给 `main.tsx` 换根。
  *
@@ -30,8 +27,6 @@ export type View = 'chat' | 'flow' | 'graph' | 'quiz' | 'notes' | 'terms' | 'sum
 export type NavKey = View | 'pk';
 
 export const NAV: Array<{ key: NavKey; label: string; icon: typeof QuizIcon }> = [
-  { key: 'flow', label: '学习流', icon: FlowIcon },
-  { key: 'graph', label: '知识图', icon: GraphIcon },
   { key: 'quiz', label: '题库', icon: QuizIcon },
   { key: 'pk', label: '对战', icon: VsIcon },
   { key: 'notes', label: '笔记', icon: NoteIcon },

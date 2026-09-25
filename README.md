@@ -4,9 +4,9 @@
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-217%20files%20%2F%203004%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-154-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-153%20types-8a63f6)
+![tests](https://img.shields.io/badge/tests-206%20files%20%2F%202799%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-134-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-133%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -103,13 +103,12 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 
 ![落地页首屏](docs/images/landing-hero.png)
 
-**应用壳 · 对话**——左侧八视图导航，中间对话；右下角常驻督促胶囊（「今日无欠账」）
+**应用壳 · 对话**——左侧六视图导航，中间对话；右下角常驻督促胶囊（「今日无欠账」）
+（★ 截图拍于 2026-09-21，那会儿侧栏还是八项；2026-09-25 学习流／知识图下线后为六项，**待重拍**）
 
 ![应用壳 · 对话](docs/images/app-chat.png)
 
-**学习流编排**——三个开箱模板，点开即进 SVG 画布：节点可拖拽落库、受控视口缩放，右侧是步骤参数与 `next` / `correct` / `wrong` 三出口
-
-![学习流编排](docs/images/app-study-flow.png)
+~~（此处原有「学习流编排」一张真机截图，2026-09-25 随功能下线移除；图片文件 `docs/images/app-study-flow.png` 仍在，作为历史资产与对外素材的作废标记留在原地）~~
 
 **对战**——`#/pk` 独立页（移动优先）；同一道题在**两块屏上同时走完**，这是落地页里的双屏演示
 
@@ -172,7 +171,7 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 | **AI 输出可靠性工程** | 模型不听话不塌系统：出题五级解析阶梯（补括号 → 剥图重试 → 截断逐题回退）、丢图保题、非法转义修复、SSE 屏上文本与库内文本逐字一致；**上游挂起不再让会话永久卡住**——流式空闲超时 120s / 一次性总时长 180s，超时抛可读错误；**并发闸门两层：每用户 2 路 + 全站封顶 N（占位 8）**（两路对话可并行，主链优先、后台让路，超额明确拒绝而非无限排队） | 每个对策都对应一次真实故障的根因登记与回归锁（[`docs/dev/bug-ledger.md`](docs/dev/bug-ledger.md) + CHANGELOG 09-04、09-17 两批） |
 | **模型产出敢真跑** | ```html 围栏产出的网页在 `CSP: sandbox` + iframe 双层沙箱里运行，页面源为 `null`；SVG 净化剥 `<image>` 外链（防外链信标泄露 IP） | 真机实测沙箱页调写接口 / 读数据全被拒；净化有 `web/lib/svg-utils.test.ts` 锁 |
 | **前端零第三方库** | 无 UI 库 · 无 Markdown 库 · 无图表库：Markdown 解析、代码高亮、数据图自绘 SVG、SVG 净化自愈全部自写——供应链攻击面与包体积同时趋零、行为完全可控 | `packages/web/package.json` 运行时依赖只有 `react` / `react-dom` / `@sb/shared` |
-| **测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；交互层是**两层互补**——**24 个 `.test.tsx`**（jsdom 按文件 pragma 启用，锁交互逻辑）＋ **15 个真机探针脚本**（`tools/probes/*.mjs`，其中 10 个走 CDP 真点真渲染，锁 CSS 与真实浏览器行为） | 基线 **217 文件 / 3004 例**（2026-09-25 对战邀请批（`offer_pk_battle` → 迁移 v43 `pk_invites` → 聊天内联邀请卡）·上一档＝2026-09-24 归因批（`?ref=` → `X-SB-Ref` → 迁移 v42 `source` → `bySource`）后；★ 线上现况＝**已上线到 v0.2.118**（09-24 08:48 单批＝公开更新页＋Atom 订阅；**v0.2.113／114／115／116／117 五批** 09-23 23:5x 上线；**v0.2.109／110／111／112 四批**（中英切换／注册免验证码／SEO 静态页／目录页 URL 换正）09-23 09:56 上线。⚠️ 本句的导语在这里此前一直写着 `v0.2.112`——★ 那是上一轮的历史水位不是现况，而紧跟它的两句当场自纠到了 v0.2.118，**等于一句导语和它自己的下文打架**；现由 `node tools/metrics.mjs --check` 的「线上现况版本」一条与公开清洗表 `PUBLIC_RELEASES` 最高版本逐字对账，写旧即红。★ 发版逐次点名授权，本文件不预授权——那句「未发版」在它自己的历史上是对的，只是被今天改写了；线上判据实录见 `docs/SEO-SPEC.md` §6.2／§6.3），`metrics --tests` 实测口径；3003 passed + 1 skipped + 0 failed，全绿）；**逐文件不变量见 §3**（数字由 `node tools/metrics.mjs --tests` 产出，非手抄） |
+| **测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；交互层是**两层互补**——**24 个 `.test.tsx`**（jsdom 按文件 pragma 启用，锁交互逻辑）＋ **15 个真机探针脚本**（`tools/probes/*.mjs`，其中 10 个走 CDP 真点真渲染，锁 CSS 与真实浏览器行为） | 基线 **206 文件 / 2799 例**（2026-09-25 学习流·知识图下线批实测；上一读数 217/3004＝对战邀请批（`offer_pk_battle` → 迁移 v43 `pk_invites` → 聊天内联邀请卡）·上一档＝2026-09-24 归因批（`?ref=` → `X-SB-Ref` → 迁移 v42 `source` → `bySource`）后；★ 线上现况＝**已上线到 v0.2.118**（09-24 08:48 单批＝公开更新页＋Atom 订阅；**v0.2.113／114／115／116／117 五批** 09-23 23:5x 上线；**v0.2.109／110／111／112 四批**（中英切换／注册免验证码／SEO 静态页／目录页 URL 换正）09-23 09:56 上线。⚠️ 本句的导语在这里此前一直写着 `v0.2.112`——★ 那是上一轮的历史水位不是现况，而紧跟它的两句当场自纠到了 v0.2.118，**等于一句导语和它自己的下文打架**；现由 `node tools/metrics.mjs --check` 的「线上现况版本」一条与公开清洗表 `PUBLIC_RELEASES` 最高版本逐字对账，写旧即红。★ 发版逐次点名授权，本文件不预授权——那句「未发版」在它自己的历史上是对的，只是被今天改写了；线上判据实录见 `docs/SEO-SPEC.md` §6.2／§6.3），`metrics --tests` 实测口径；2798 passed + 1 skipped + 0 failed，全绿）；**逐文件不变量见 §3**（数字由 `node tools/metrics.mjs --tests` 产出，非手抄） |
 | **契约先行的可维护性** | `@sb/shared` 是 SSE 事件 / 内容块 / REST / 领域模型的单一事实源，前后端不允许各写一套；先登记再实现 | shared 契约文件头注释即纪律；四条固定扩展模式见 [§开发指南](#开发指南) |
 | **不锁定供应商** | OpenAI 兼容 + Anthropic 双适配；搜索三家按 key 并行聚合 + 免 key 兜底——换模型、换服务商只动设置页 | 适配器有出站请求体断言测试，且当场逮出过真缺陷 B-001（多条 system 在 Anthropic 型上静默丢失） |
 | **多用户归属做得彻底** | 归属不是加个 `WHERE`：`providers.owner_id IS NULL` ＝平台通道（人人可用）、业务表 `owner_id = ''` ＝无主（谁都看不见），两种「没有主人」可见性刻意相反；读写按形状分别走 `ownerFilter` / `ownerForWrite` | 每批都配跨用户隔离锁 + 「故意改坏必红」的非空转取证（[`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) §8 + test-plan §7） |
@@ -234,11 +233,11 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 - **督促冷却在服务端**（2h）：前端刷新就没了，靠前端冷却等于每次进页面被催一遍
 - **趋势卡**（记忆联动 P4/P5）：定时线程按 6h tick 出当日趋势卡，**折线图的数字全部来自 SQL、模型只写那一句摘要**（数字交给模型就会好看但不真实）；模型不可用四类情况全退确定性模板，卡片照常生成；胶囊与气泡收进同一 `flex` 列，**重叠在结构上不可能发生**（契约 [`COACH-SPEC.md`](docs/COACH-SPEC.md) / [`MEMORY-TREND-SPEC.md`](docs/MEMORY-TREND-SPEC.md)）
 
-### 学习流与知识图
-- **编排页**：左「我的学习流」列表 → 中 SVG 画布（节点可拖拽改 `position` 并落库，受控视口缩放/平移）→ 右步骤面板（参数表单 + `next`/`correct`/`wrong` 三出口连线）→ 下运行面板（步进 + 逐步轨迹）；**有未保存改动时禁止开跑**（运行冻结的是库里那一版）
-- **开箱模板**：三个预制流（四步课堂／错题重练／考前速通），参数与连线均已配好并逐模板过 shared 校验——「新建」不再一进门就是必填空着
-- **知识图页**：统计 → 节点列表 → **邻域子图**（点任一节点即以它为新中心重画，顺着关系走下去）+ 节点详情（它指向谁／谁指向它、手工连边、删边）；边分 `user`/`ai`/`derived` 三档，推导边只整批清理（单删下次又冒出来）
-- 几何与映射全抽成纯 `.ts`（79 例回归锁），交互接线由真机 CDP 探针核验（契约 [`STUDY-FLOW-SPEC.md`](docs/STUDY-FLOW-SPEC.md)）
+### 学习流与知识图（⚰️ 2026-09-25 整族下线）
+- 这两项曾**完整交付过**：编排画布（拖拽落库 / 受控视口 / 三出口连线）＋ 运行器（定义快照 + 逐步轨迹）＋ 知识数据图（`user`/`ai`/`derived` 三档边），几何与映射全抽成纯 `.ts`、由回归锁钉住（契约 [`STUDY-FLOW-SPEC.md`](docs/STUDY-FLOW-SPEC.md)）。
+- ★ **2026-09-25 按老板判决整体删除**（原话：「这两个功能对于项目总体的联动性太低了」）。**实证而非观感**：`chat` 每一轮回复都在往 `knowledge_edge` 写边，而知识图页上线以来无人访问 ⇒ **写侧持续付成本、读侧零收益**。
+- 库面由**本仓第一条删除型迁移 v44** DROP 那七张表（不备份、不归档，判决留痕在契约墓碑里）；「向 AI 追问」功能保留、但它的**自动连边那一半随之撤销**（见 [`KNOWLEDGE-FOLLOWUP-SPEC.md`](docs/KNOWLEDGE-FOLLOWUP-SPEC.md)）。
+- ⚠️ 落地页 hero 此刻仍在跑的那张图是**渲染纯逻辑的临时住户**（`packages/web/src/app/demo/graph-visual.ts`），hero 替换定案后一并删除。
 
 ### 对战（移动优先独立页）
 - `#/pk` 上的独立页，与主应用五环并列；断点适配有 9 档视口真机探针锁（契约 [`PK-SPEC.md`](docs/PK-SPEC.md)）
@@ -286,14 +285,13 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 │     ├ chat/compact    会话压缩 + 跨会话画像               │
 │     ├ learning/*      quiz / terms / review / tidy / document│
 │     ├ coach/*         督促卡片 · 趋势 · 定时 tick         │
-│     ├ flow/*          学习流编排 · 知识图                 │
 │     ├ pk/*            对战赛局                            │
 │     ├ search/*        三路聚合 → 免 key 兜底              │
 │     ├ llm/*           openai / anthropic 双适配 + 两层闸门 │
 │     └ sse-bus         事件序号回放 · 按 owner 分频道       │
 │   security.ts     Origin 校验 / 密钥加密 / SSRF 护栏      │
 └──────────────────────────┬─────────────────────────────┘
-                           │ better-sqlite3（WAL，逐版本迁移 v1..v41）
+                           │ better-sqlite3（WAL，逐版本迁移 v1..v44）
                            ▼
         数据目录 / studentbuddy.db（SB_DATA_DIR 可覆盖）
 
@@ -306,7 +304,7 @@ tools/probes    — 真机探针 15 个（CDP 真点 10 + 能力/隔离量测 5�
 
 **三包职责**：`@sb/shared` 只放契约与纯函数（前后端共用一份，不允许各写一套）；`@sb/server` 承载全部业务域；`@sb/web` 是 React 18 前端，**零第三方运行时依赖**。
 
-**一级视图八个**（`App.tsx` 的 `View` 联合）：对话 / 学习流 / 知识图 / 题库 / 笔记 / 词条 / 今日总结 / 设置；对战是 `#/pk` 独立页，督促是常驻胶囊 + 抽屉。
+**一级视图六个**（`App.tsx` 的 `View` 联合）：对话 / 题库 / 笔记 / 词条 / 今日总结 / 设置；对战是 `#/pk` 独立页，督促是常驻胶囊 + 抽屉。
 
 ## 安全与隐私设计
 
@@ -391,18 +389,18 @@ packages/
 │  ├─ chat/flow.ts          对话编排：多段 system 注入 + 上下文预算收口
 │  ├─ chat/compact.ts       会话压缩 + 跨会话画像
 │  ├─ chat/tools/           工具注册表（search_web / fetch_page / tidy_terms / 词条三工具 …）
-│  ├─ learning/             quiz(+json-repair) / terms / domains / review / tidy / document(+BM25) / verdict / knowledge-graph
-│  ├─ coach/ · flow/ · pk/   督促卡片 / 学习流与知识图 / 对战赛局
+│  ├─ learning/             quiz(+json-repair) / terms / domains / review / tidy / document(+BM25) / verdict
+│  ├─ coach/ · pk/          督促卡片 / 对战赛局
 │  ├─ search/               多路聚合 + 免 key 兜底 + 24h 缓存 + SSRF 护栏
 │  ├─ llm/                  openai / anthropic 双适配 + router(归属) + upstream-gate(两层)
 │  ├─ sse-bus.ts            帧序号 · 回放去重 · 按 owner 分频道
-│  ├─ routes/               REST 分域路由（24 个域文件；全仓 REST 注册 154 条）
-│  ├─ storage/              better-sqlite3 封装 / 逐版本迁移（v1..v41，按区间分文件）
+│  ├─ routes/               REST 分域路由（23 个域文件；全仓 REST 注册 134 条）
+│  ├─ storage/              better-sqlite3 封装 / 逐版本迁移（v1..v44，按区间分文件）
 │  └─ security.ts           Origin 校验（不放行 'null'）
 ├─ web/src/
-│  ├─ app/App.tsx           应用壳：侧栏八视图导航 + 可折叠历史 + 用户框
+│  ├─ app/App.tsx           应用壳：侧栏六视图导航 + 可折叠历史 + 用户框
 │  ├─ features/chat/        ChatView / useChatStream / Markdown / Thinking / AskStyleCard / 像素吉祥物
-│  ├─ features/{quiz,terms,notes,summary,coach,study-flow,pk,settings,preview}/
+│  ├─ features/{quiz,terms,notes,summary,coach,pk,settings,preview}/
 │  ├─ lib/                  svg-utils（净化+自愈）/ chart-utils（自绘图表）/ markdown / highlight（零依赖）/ api*
 │  ├─ components/icons.tsx  SVG line-icon 基座（禁 emoji）
 │  └─ styles/tokens.css     设计 token 唯一事实源
@@ -427,7 +425,7 @@ AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决�
 - 禁内联 `style={{…}}`（一律走 tokens.css 的 token）；禁 `any`；测试也禁 `!` 非空断言
 - 每个测试文件必须在 `docs/dev/test-plan.md` 成行登记（未登记 = 门禁红）
 
-**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**217 文件 / 3004 例**（3003 passed + 1 skipped + 0 failed，2026-09-25 对战邀请因批后实测；**逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，本格数字由 `node tools/metrics.mjs --tests` 产出）。
+**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**206 文件 / 2799 例**（2798 passed + 1 skipped + 0 failed，2026-09-25 学习流·知识图下线批实测；**逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，本格数字由 `node tools/metrics.mjs --tests` 产出）。
 
 量化对账：`node tools/metrics.mjs --check` 会把本文的可核对数字与代码实测逐一比对，漂移即退出码 1——**本文任何数字都不许手改，改了就红**。
 
@@ -511,7 +509,7 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 | 文档模式（短文档直塞 + 长文档 BM25 检索） | ✅ 2026-09-02，检索改造 2026-09-06 |
 | 长期记忆（会话压缩 + 跨会话画像） | ✅ 2026-09-15 |
 | 对战（PK 独立页） | ✅ 2026-09-13 |
-| 学习流 + 知识图（编排 / 模板 / 画布视口） | ✅ 2026-09-17 |
+| 学习流 + 知识图（编排 / 模板 / 画布视口） | ✅ 2026-09-17 → ⚰️ **2026-09-25 整族下线**（老板判决：与主链路联动性太低；沿革留在 `docs/STUDY-FLOW-SPEC.md` 墓碑） |
 | 复习时钟（艾宾浩斯 + 选择式范围） | ✅ 2026-09-17，范围选择 2026-09-18 |
 | 督促小窗 + 趋势卡（记忆联动 P1~P5） | ✅ 2026-09-18 |
 | 现场搜集真题（逐字锚点锁 + 两段确认） | ✅ 2026-09-18 |
@@ -555,7 +553,7 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 | [`MEMORY-TREND-SPEC.md`](docs/MEMORY-TREND-SPEC.md) | 记忆联动契约（提及流水 → 偏好领域 → 督促趋势卡） |
 | [`EBBINGHAUS-SPEC.md`](docs/EBBINGHAUS-SPEC.md) | 复习时钟契约（间隔序列 / 日历日口径 / 选择式范围） |
 | [`COACH-SPEC.md`](docs/COACH-SPEC.md) | 督促小窗契约（胶囊与抽屉 / 卡片合并 / 冷却在服务端） |
-| [`STUDY-FLOW-SPEC.md`](docs/STUDY-FLOW-SPEC.md) | 学习流契约（步骤注册表 / 控制流 / 知识数据图；「图静态、流动态」） |
+| [`STUDY-FLOW-SPEC.md`](docs/STUDY-FLOW-SPEC.md) | ⚰️ **墓碑**：学习流契约沿革（步骤注册表 / 控制流 / 知识数据图；「图静态、流动态」的三方取材判断仍在）——★ 2026-09-25 功能整族下线，文中"现役"字样均不再是事实 |
 | [`DEEP-UNDERSTANDING-SPEC.md`](docs/DEEP-UNDERSTANDING-SPEC.md) | 深度理解契约（★ 状态：**待评审**，实施范围以其头部为准） |
 | [`QUIZ-IMAGE-SPEC.md`](docs/QUIZ-IMAGE-SPEC.md) | 出题配图契约（字段加法 / 丢图保题 / 提示词口径） |
 | [`QUIZ-SEARCH-SPEC.md`](docs/QUIZ-SEARCH-SPEC.md) | 出题联网检索契约（素材不是指令 / 失败不阻断不静默） |

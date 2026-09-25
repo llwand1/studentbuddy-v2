@@ -219,7 +219,7 @@ export function TermCard({
                 type="button"
                 className="term-card-btn primary"
                 disabled={fuBusy}
-                title="另开一个对话专门深挖这个词条；回答里出现的词条会自动连到知识图上"
+                title="另开一个对话专门深挖这个词条（会把原对话的摘要带过去）"
                 onClick={() => void askFollowUp()}
               >
                 {fuBusy ? '开新对话…' : '向 AI 追问'}

@@ -23,29 +23,29 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-09-25 09:54:29（本机时区）｜ 基准 `51c653d` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-09-25 11:21:58（本机时区）｜ 基准 `1b40c66` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
-| shared | 30 | 4,596 | 18 | 2,251 | 49% |
-| server | 172 | 27,442 | 124 | 26,898 | 98% |
-| web | 205 | 26,702 | 75 | 11,143 | 42% |
-| **合计** | **407** | **58,740** | **217** | **40,292** | **69%** |
+| shared | 28 | 4,127 | 18 | 2,251 | 55% |
+| server | 166 | 25,829 | 119 | 25,943 | 100% |
+| web | 185 | 23,631 | 69 | 9,973 | 42% |
+| **合计** | **379** | **53,587** | **206** | **38,167** | **71%** |
 
 ## 接口与契约
 
-- REST 路由注册：**154**（get 67 / post 56 / delete 15 / put 15 / patch 1）· 另 /api 挂载点 28 个
-- shared 契约类型：**153**（export interface 98 + export type 55）
+- REST 路由注册：**134**（get 58 / post 48 / delete 13 / put 14 / patch 1）· 另 /api 挂载点 27 个
+- shared 契约类型：**133**（export interface 86 + export type 47）
 - 外部运行时依赖：**6** 个 —— better-sqlite3, cors, express, pino, react, react-dom
-- 迁移水位：代码侧 **v43**（43 个 version 条目，非连续号 0 处）
+- 迁移水位：代码侧 **v44**（44 个 version 条目，非连续号 0 处）
 
 ## 测试基线（vitest 实跑）
 
-- **217 文件 / 3004 例**（3003 passed + 1 skipped + 0 failed）⇒ 全绿
-- 本次本机实跑（Node v22.23.2）全量耗时 27.8s
-- jsdom 交互测试文件（`.test.tsx`）24 个
+- **206 文件 / 2799 例**（2798 passed + 1 skipped + 0 failed）⇒ 全绿
+- 本次本机实跑（Node v22.23.2）全量耗时 30.3s
+- jsdom 交互测试文件（`.test.tsx`）23 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
 
@@ -59,8 +59,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 - ⚠️ 覆盖率产物是 4 天前的（本次未跑 `--coverage`）
 
 ## 文档与仓库
-- docs/：SPEC 契约 30 份 · md 共 43 份（dev/ 5）· 真机探针 15 个
-- git：main @ `51c653d`（2026-09-24）· 近 14 天 191 commits · 工作区未提交 33 文件
+- docs/：SPEC 契约 30 份 · md 共 43 份（dev/ 5）· 真机探针 14 个
+- git：main @ `1b40c66`（2026-09-25）· 近 14 天 192 commits · 工作区未提交 84 文件
 
 <!-- metrics:end -->
 

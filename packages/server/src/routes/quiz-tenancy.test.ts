@@ -1,10 +1,10 @@
 /**
  * routes/quiz-tenancy — **M2d-3 其余表归主**的端到端（契约 `docs/TENANCY-SPEC.md` §8.2，迁移 v33）。
  *
- * ★ 这批与 M2d-1/M2d-2 性质不同：`quiz_*`/`flow_*`/`knowledge_*` 的主键全是**全局唯一 uuid**，
- *   天然不撞键 ⇒ 加列即可。要消灭的洞只有一个形状：**读侧不带归属 ⇒ A 能看见/删到 B 的题库、
- *   学习流与知识图谱**——其中 `knowledge_node`/`knowledge_edge` 此前**无任何归属过滤**
- *   （M2d-1 普查发现的已上线旧洞，本文件 §「知识图谱」段就是它的收口锁）。
+ * ★ 这批与 M2d-1 性质不同：`quiz_*` 的主键全是**全局唯一 uuid**，天然不撞键 ⇒ 加列即可。
+ *   要消灭的洞只有一个形状：**读侧不带归属 ⇒ A 能看见/删到 B 的题库与笔记**。
+ * ★ 2026-09-25：`flow_*`/`knowledge_*` 的归主段随「学习流＋知识图」功能整体下线而删除
+ *   （批次 K；铁律口径对将来的每张新表仍然成立）。
  *
  * ★ 三条锁的口径（照抄 terms-tenancy 的铁律）：
  *   ① **"不串"要用"另一人拿到空"来断言**，不能只断言"不含 A 的那条"（值相等时偶然通过）；
@@ -25,7 +25,6 @@ const { createUser } = await import('../auth/users.js');
 const { createSession: issueSession } = await import('../auth/session.js');
 const { saveQuiz } = await import('../learning/quiz.js');
 const { upsertNoteFromAnswer } = await import('../learning/notes.js');
-const { ensureNode } = await import('../learning/knowledge-graph.js');
 const request = (await import('supertest')).default;
 
 const origin = 'http://localhost:5173';
@@ -55,7 +54,7 @@ const quizA = {
 
 beforeEach(() => {
   const db = getDb();
-  for (const t of ['quiz_bank', 'quiz_stats', 'quiz_notes', 'flow_def', 'flow_step', 'flow_edge', 'knowledge_node', 'knowledge_edge']) {
+  for (const t of ['quiz_bank', 'quiz_stats', 'quiz_notes']) {
     db.prepare(`DELETE FROM ${t}`).run();
   }
 });
@@ -100,28 +99,3 @@ describe('quiz_bank / quiz_notes 归主（v33）', () => {
   });
 });
 
-describe('flow_def 归主（v33）', () => {
-  it('A 建的学习流：A 列表可见，B 列表为空、按 id 取 → 404', async () => {
-    const made = await req.post('/api/study-flow/defs', cookieA, {
-      name: 'A 的流',
-      steps: [{ id: 's1', kind: 'explain', label: '讲', params: { topic: '闭包' }, position: { x: 0, y: 0 }, orderIndex: 0 }],
-      edges: [],
-    });
-    expect(made.status).toBe(201);
-    const defId = (made.body as { id: string }).id;
-    expect((await req.get('/api/study-flow/defs', cookieA)).body).toHaveLength(1);
-    expect((await req.get('/api/study-flow/defs', cookieB)).body).toHaveLength(0);
-    expect((await req.get(`/api/study-flow/defs/${defId}`, cookieB)).status).toBe(404);
-  });
-});
-
-describe('knowledge_node / knowledge_edge 归主（v33，★ 已上线旧洞收口）', () => {
-  it('A 的知识节点：B 的 stats 是零图、邻域查询 → 404——改前 B 能看见 A 的整张图', async () => {
-    const node = ensureNode({ kind: 'term', refId: null, refText: 'A 学到的概念', ownerId: idA });
-    const statsB = (await req.get('/api/study-flow/graph/stats', cookieB)).body as { nodes: number };
-    expect(statsB.nodes).toBe(0);
-    const statsA = (await req.get('/api/study-flow/graph/stats', cookieA)).body as { nodes: number };
-    expect(statsA.nodes).toBe(1);
-    expect((await req.get(`/api/study-flow/graph/neighborhood/${node.id}`, cookieB)).status).toBe(404);
-  });
-});

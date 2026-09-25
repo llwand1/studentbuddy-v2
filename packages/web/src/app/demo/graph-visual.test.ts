@@ -8,7 +8,7 @@
  * ④ 三种 `origin` 的视觉分档必须**真的不一样**（契约 §4.2：AI 幻觉边不许和用户确认边长得一样）。
  */
 import { describe, it, expect } from 'vitest';
-import type { KnowledgeEdge, KnowledgeNeighborhood, KnowledgeNode } from '@sb/shared';
+import type { KnowledgeEdge, KnowledgeNeighborhood, KnowledgeNode } from './graph-types';
 import {
   GRAPH_VIEW,
   NODE_BOX,

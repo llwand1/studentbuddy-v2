@@ -32,7 +32,7 @@ import {
   nodeVisibleAt,
   termLabelAt,
 } from './graph-demo';
-import { layoutNeighborhood } from '../../features/study-flow/graph-visual';
+import { layoutNeighborhood } from './graph-visual';
 
 const box = GRAPH_DEMO_OPTS.box;
 

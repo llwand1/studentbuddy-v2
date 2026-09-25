@@ -83,20 +83,32 @@ function revertV32(db: ReturnType<typeof openIsolated>): void {
 }
 
 /**
- * 把 v33（M2d-3 其余表归主）的八处加列退回「老库」形态。**每个"退版本重放"用例都要调**
- * （v33 落在链尾 ⇒ 只要退到的版本 < 33 就要退列）。八列全是 `NOT NULL DEFAULT ''` 的纯加列
+ * 把 v33（M2d-3 其余表归主）的加列退回「老库」形态。**每个"退版本重放"用例都要调**
+ * （v33 落在链尾 ⇒ 只要退到的版本 < 33 就要退列）。三列全是 `NOT NULL DEFAULT ''` 的纯加列
  * （无索引无外键）⇒ 退回动作只有 DROP；漏退一列，重放整条链时 v33 的 ADD COLUMN 就报
  * `duplicate column name`（同 v28/v32 的第七次先例，见 v11 用例内注释）。
+ *
+ * ★★ **2026-09-25 两处改动，第二条是这条删除型迁移教给本仓的通用规矩**：
+ *  1. 由八列改成三列：v33 原本还退 `flow_def`/`flow_run`/`flow_run_step`/`knowledge_node`/
+ *     `knowledge_edge` 五张表，但 v44 把它们整族 DROP 了 ⇒ 在 v44 之后的库里对它们做 ALTER
+ *     会抛 `no such table`。别把它当"手滑删了五列"改回去。
+ *  2. ★ **先按 v18 原句把那五张表建回来，再退列**。理由不是凑测试：真实的 v32 老库里
+ *     **本来就有这五张表**，而本文件的"造老库"手法是**开一个最新库再把 `schema_version` 抹掉**——
+ *     在 v44 之前这个替身是等价的，v44 之后它**不再等价**（表没了）。不补这一步，重放时
+ *     v33 的 `ALTER TABLE flow_def` 就会抛 `no such table`（★ 实测 14 例全灭在这一点上，
+ *     且**生产路径完全正常**：只有"抹版本号重放"这条路会撞上）。
+ *     ⇒ 从此本仓多一条常驻约束：**链上任何一版 DROP 掉表，所有"退版本重放"用例都要在退之前
+ *        把那张表按它当初的建表语句补回来**，否则中间版本再也重放不动。
+ *     ⚠️ 建回来用的是 **v18 的形状**（不带 `owner_id`，那正是 v32 时代的样子）⇒ 补完直接就是退列后
+ *        的状态，无需再 DROP；`CREATE TABLE IF NOT EXISTS` 幂等，所以库里已有同名表也不会报错。
  */
 function revertV33(db: ReturnType<typeof openIsolated>): void {
+  const v18 = MIGRATIONS.find((m) => m.version === 18);
+  if (!v18) throw new Error('v18 不在链上：学习流的建表项被回改了？');
+  for (const stmt of v18.statements) db.exec(stmt);
   db.exec(`ALTER TABLE quiz_bank DROP COLUMN owner_id`);
   db.exec(`ALTER TABLE quiz_stats DROP COLUMN owner_id`);
   db.exec(`ALTER TABLE quiz_notes DROP COLUMN owner_id`);
-  db.exec(`ALTER TABLE flow_def DROP COLUMN owner_id`);
-  db.exec(`ALTER TABLE flow_run DROP COLUMN owner_id`);
-  db.exec(`ALTER TABLE flow_run_step DROP COLUMN owner_id`);
-  db.exec(`ALTER TABLE knowledge_node DROP COLUMN owner_id`);
-  db.exec(`ALTER TABLE knowledge_edge DROP COLUMN owner_id`);
 }
 
 /**
@@ -1492,13 +1504,13 @@ describe('storage/db — v32 计时落库迁移（thinking_ms / duration_ms）',
   });
 });
 
-describe('storage/db — v33 其余表归主迁移（M2d-3：quiz_*/flow_*/knowledge_* 八处加列）', () => {
+describe('storage/db — v33 其余表归主迁移（M2d-3：当时八处加列，★ v44 后只有 quiz_* 三处存活）', () => {
   const colsOf = (db: ReturnType<typeof openIsolated>, table: string): string[] =>
     (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((c) => c.name);
 
-  it("新库八张表都含 owner_id 且 NOT NULL DEFAULT ''（无主 = 谁都看不见，与 v29 平台可见刻意相反）", () => {
+  it("新库活着的三张表都含 owner_id 且 NOT NULL DEFAULT ''（无主 = 谁都看不见，与 v29 平台可见刻意相反）", () => {
     const db = openIsolated(tmp());
-    for (const t of ['quiz_bank', 'quiz_stats', 'quiz_notes', 'flow_def', 'flow_run', 'flow_run_step', 'knowledge_node', 'knowledge_edge']) {
+    for (const t of ['quiz_bank', 'quiz_stats', 'quiz_notes']) {
       expect(colsOf(db, t)).toContain('owner_id');
       const col = (db.prepare(`PRAGMA table_info(${t})`).all() as Array<{ name: string; notnull: number; dflt_value: string | null }>).find(
         (c) => c.name === 'owner_id',
@@ -1518,7 +1530,7 @@ describe('storage/db — v33 其余表归主迁移（M2d-3：quiz_*/flow_*/knowl
     db.close();
   });
 
-  it('退到 v32 重放不撞 duplicate column：八列自动补回（ADD COLUMN 不幂等的第七次先例）', () => {
+  it('退到 v32 重放不撞 duplicate column：三列自动补回（ADD COLUMN 不幂等的第七次先例）', () => {
     const dir = tmp();
     const old = openIsolated(dir);
     revertV33(old);
@@ -1532,7 +1544,9 @@ describe('storage/db — v33 其余表归主迁移（M2d-3：quiz_*/flow_*/knowl
 
     const up = openIsolated(dir);
     expect(colsOf(up, 'quiz_bank')).toContain('owner_id');
-    expect(colsOf(up, 'knowledge_node')).toContain('owner_id');
+    expect(colsOf(up, 'quiz_notes')).toContain('owner_id');
+    // ★ 原第三条断言是 `colsOf(up, 'knowledge_node')` —— 那张表 v44 起整族不存在，
+    //   断它"有 owner_id"在 v44 之后是一句**假话**（PRAGMA 对不存在的表返回空数组，会红在这里）。
     up.close();
   });
 });

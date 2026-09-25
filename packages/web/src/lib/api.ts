@@ -23,7 +23,6 @@ import { providersApi } from './api-providers.js';
 import { authApi } from './api-auth.js';
 import { termsDomainApi } from './api-terms-domain.js';
 import { termsReviewApi } from './api-terms-review.js';
-import { studyFlowApi } from './api-study-flow.js';
 import { toolsApi, termsUndoApi } from './api-tools.js';
 import { searchApi } from './api-search.js';
 import { pkInviteApi } from './api-pk-invite.js';
@@ -42,10 +41,8 @@ export { ApiError };
  * 由 `App` 提供唯一实现（`api.sessions.fork` + 切到新会话 + 刷列表），任何页面注入给控件即可。
  *
  * ★ `fromSessionId` 省缺 ＝ **当前正在看的那条会话**——词条卡走的就是这条路（它在对话页里，
- *   "当前会话"是个明确的东西）。学习流页是另一个视图，用户此刻并没有"正在看的对话"，
- *   故它必须显式给：那一次运行的 `flow_run.session_id`（见 `study-flow/ProducedNodes.tsx` 文件头 ②）。
- * ★ 类型放这里而不是各组件内联：三个文件（App / FlowPage / ProducedNodes）都要用它，
- *   内联三次就是三份口径，将来加参数会漏改。
+ *   "当前会话"是个明确的东西）。
+ * ★ 类型放这里而不是各组件内联：调用方都从 `lib/api` 引这一个口径，内联多处就是多份口径。
  */
 export type FollowUpAction = (term: string, question?: string, fromSessionId?: string) => Promise<void>;
 
@@ -329,12 +326,6 @@ export const api = {
     clear: (sessionId: string) =>
       request<{ ok: boolean }>(`/api/doc?sessionId=${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
   },
-
-  /**
-   * 学习流（契约 docs/STUDY-FLOW-SPEC.md）：控制流编排 + 知识数据图。
-   * ★ 分组本体在 `api-study-flow.ts`（行数红线 + 断环，见该文件头注释），此处只挂引用。
-   */
-  studyFlow: studyFlowApi,
 
   /**
    * 工具生态（契约 TOOL-ECOSYSTEM-SPEC）：设置页阈值/统计 + 确认卡回执。

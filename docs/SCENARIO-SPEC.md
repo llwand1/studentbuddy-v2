@@ -9,7 +9,7 @@
 ## 0. 设计总纲（改码前必读）
 
 1. **数据层同待遇**：情景题的每个评分点（task）在 `quiz_stats` 里就是一道普通题（占一个 `question_index`）。
-   正确率 / streak / 薄弱点分析 / study-flow 编排**零新增接线**——这是「统一管理、统计、编排」的实现方式，
+   正确率 / streak / 薄弱点分析 / ~~study-flow 编排~~（⚰️ 2026-09-25 学习流整族下线删除，批次 K；其余三项照旧）**零新增接线**——这是「统一管理、统计、编排」的实现方式，
    不另建第二套统计。
 2. **裁判在服务端**：demo 只上报「发生了什么」（observed 事实），**对错由服务端按 criteria 判**
    （`judgeTask` 纯函数）。demo 内的即时对错反馈用同一份 criteria 本地判（只管体验），入库以服务端复核为准。
@@ -175,7 +175,7 @@ interface ScenarioReportMessage {
 | **M1（已实施）** | shared 契约 + v20 迁移 + saveScenario/reportScenario/桥接注入 + 端点 + ScenarioPanel + 题库入口 | 测试内 `POST /seed` 一套手写情景题 → `GET /demo/:id` 含桥接 → `POST /report` 判对/判错各一条 → `quiz_stats` 出数；题库页可见「情景」题并能玩 |
 | **M2（本批）** | 出题协议（§6）：`SCENARIO_PROTOCOL` 双标记 + 解析救援阶梯 + 引用完整性检查 + `generateScenario` + `POST /generate` | 解析阶梯 10 例 + 端点 2 例全绿；**真实模型出题入库待真机验收** |
 | **M3（本批）** | 聊天流 scenario 卡片（BlockKind 登记 + 渲染器） | 对话内「+」菜单出情景题 → SSE block 进消息流 → ScenarioPanel 内嵌可玩 → 对错进 quiz_stats；历史还原纯函数 8 例 + 路由接线回归 1 例；**真机端到端待目检** |
-| **M4（本批）** | study-flow 编排接入 + 薄弱点分析覆盖情景题：`FlowStepKind` 第 7 种 `'scenario'` + **专用执行器** `scenarioStep`（唯一不走 chatStep 的步骤——聊天模型吐不出可接桥接的 demo，直接调 generateScenario 再经与 REST 同一份 `announceScenarioToSession` 下发）+ `buildStepPrompt('scenario')` 抛哨兵错误（穷尽性契约锁）；quiz-weak 形状探测 tasks 分支（越界过滤上界=tasks.length）+ `buildScenarioWeakPrompt`（任务+判据做素材） | 执行器 5 例（wired/无会话抛/入参抛/no-model 抛/announce 落库）+ 薄弱点情景 3 例全绿；flow 画布可拖「情景演练」步骤、跑到该步停下等人玩、对错自动进 quiz_stats；**真机端到端待目检** |
+| **M4（本批）** | study-flow 编排接入 + 薄弱点分析覆盖情景题：`FlowStepKind` 第 7 种 `'scenario'` + **专用执行器** `scenarioStep`（唯一不走 chatStep 的步骤——聊天模型吐不出可接桥接的 demo，直接调 generateScenario 再经与 REST 同一份 `announceScenarioToSession` 下发）+ `buildStepPrompt('scenario')` 抛哨兵错误（穷尽性契约锁）；quiz-weak 形状探测 tasks 分支（越界过滤上界=tasks.length）+ `buildScenarioWeakPrompt`（任务+判据做素材） | 执行器 5 例（wired/无会话抛/入参抛/no-model 抛/announce 落库）+ 薄弱点情景 3 例全绿；flow 画布可拖「情景演练」步骤、跑到该步停下等人玩、对错自动进 quiz_stats；**真机端到端待目检**。⚰️ **2026-09-25 批次 K：本行"编排"半边随学习流整族下线删除**（`flow-executors.ts` 的 `scenarioStep`、`FlowStepKind` 的 `'scenario'`、画布与执行器 5 例一起走；**其中第 5 例测的 `announceScenarioToSession` 是幸存函数，已搬到 `routes/scenario.test.ts` 的 M3 组**），**薄弱点半边与聊天流卡片（M3）原样活着** |
 
 ## 9. 已知边界（诚实记账）
 

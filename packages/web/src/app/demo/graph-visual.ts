@@ -1,5 +1,8 @@
 /**
- * graph-visual —— 知识数据图的**渲染纯逻辑**（契约 docs/STUDY-FLOW-SPEC.md §3 / §4）。
+ * graph-visual —— 知识图的**渲染纯逻辑**（**临时住户**，只服务落地页 hero 的 GraphDemo）。
+ *
+ * ★ 来历：原属知识图功能页（契约 docs/STUDY-FLOW-SPEC.md §3 / §4），2026-09-25 功能整体
+ *   下线（批次 K）时随 graph.css 一起就近搬进 demo 目录；hero 演示替换定案后本文件一并删除。
  *
  * ★ 为什么单独成文件（而不是写在组件里）：本仓 web 组件有 `.tsx ≤300 行` 的 gates 红线，
  *   而「邻域怎么摆、边从哪画到哪、三种 origin 怎么区分」全是**与 React 无关的几何/映射**，
@@ -15,7 +18,7 @@ import type {
   KnowledgeNeighborhood,
   KnowledgeNode,
   KnowledgeNodeKind,
-} from '@sb/shared';
+} from './graph-types';
 
 /**
  * 邻域图的固定坐标系（组件按容器宽度等比缩放，`preserveAspectRatio` 兜住比例）。

@@ -169,4 +169,42 @@ describe('POST /api/scenario/generate — 聊天流接线（M3）', () => {
     const n = (getDb().prepare('SELECT COUNT(*) AS n FROM messages WHERE session_id = ?').get(sid) as { n: number }).n;
     expect(n).toBe(0);
   });
+
+  // ★ 本例 2026-09-25 从 `learning/scenario-flow.test.ts` **搬过来**（不是新写）：那个文件测的是
+  //   「编排执行器 + announce」两件事，学习流整族下线时执行器半边随宿主删掉（批次 K），但
+  //   `announceScenarioToSession` **还活着**（`routes/scenario.ts` 是它现在唯一的调用方）⇒
+  //   删宿主不等于可以删掉对幸存函数的覆盖。落点选这里而不是新建文件：本文件已经跑在 REST 域上。
+  it('announceScenarioToSession：历史落一条 `[SCENARIO]` 登记文本（含 quizId/demoId 登记键）、无订阅者不炸', async () => {
+    const { saveScenario, announceScenarioToSession } = await import('../learning/scenario.js');
+    const { getDb } = await import('../storage/db.js');
+    const announceTasks = [
+      { id: 't1', prompt: '选出危险源', criteria: { kind: 'choice' as const, answer: [1] } },
+      { id: 't2', prompt: '完成断电操作', criteria: { kind: 'state' as const, key: 'power', value: 'off' } },
+    ];
+    const saved = saveScenario(
+      { title: '下发测试', tasks: announceTasks },
+      '<!doctype html><html><body><button id="sb-t1"></button></body></html>',
+      null,
+    );
+    // ★ 夹具建不成就是本例前提破了（不是被测行为坏了）——这里用 throw 而不是 `expect(...).not.toBeNull()`：
+    //   `saveScenario` 的回值是 `| null`，expect 不做类型收窄 ⇒ 下一行取 `.quizId` 在 tsc 那侧仍是空值，
+    //   `npm run check` 的 lint 段会红在**夹具**上、把真正的判据淹掉（本批实测踩过）。
+    if (!saved) throw new Error('夹具没建成：saveScenario 回了 null（先查 normalize 闸门，别改断言）');
+    const sid = 'sess-announce-' + String(Date.now());
+    // messages.session_id 有外键 ⇒ 照真实链路前提先把会话行补上
+    getDb().prepare('INSERT INTO sessions (id, title) VALUES (?, ?)').run(sid, '下发测试会话');
+    announceScenarioToSession(sid, {
+      quizId: saved.quizId,
+      demoId: saved.demoId,
+      payload: { title: '下发测试', tasks: announceTasks },
+    } as Parameters<typeof announceScenarioToSession>[1]);
+    const row = getDb()
+      .prepare('SELECT content FROM messages WHERE session_id = ? AND role = ?')
+      .get(sid, 'assistant') as { content: string };
+    expect(row.content.startsWith('[SCENARIO]')).toBe(true);
+    expect(row.content).toContain(`"quizId":"${saved.quizId}"`);
+    expect(row.content).toContain(`"demoId":"${saved.demoId}"`);
+    const written = (getDb().prepare('SELECT COUNT(*) AS n FROM messages WHERE session_id = ?').get(sid) as { n: number }).n;
+    expect(written).toBe(1);
+  });
 });

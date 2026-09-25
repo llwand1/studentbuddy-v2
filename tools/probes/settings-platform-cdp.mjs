@@ -238,11 +238,11 @@ await send('Page.enable'); await send('Runtime.enable');
 // ★ 别用「固定 sleep N 秒再断言」：首屏挂载时间不定，早一步就会把「还没挂载」误判成「没渲染」。
 //   实测踩过：固定 3 秒后 `innerText` 还是空、A1/A2 双红，而截图里应用壳明明好好的。
 const shellUp = await waitFor(
-  `document.body.innerText.includes('学习流') && document.body.innerText.includes('设置')`,
+  `document.body.innerText.includes('题库') && document.body.innerText.includes('设置')`,
   30_000,
   300,
 );
-check('A1 应用壳渲染（本地形态免登录直进）', !!shellUp, '侧栏含「学习流」「设置」');
+check('A1 应用壳渲染（本地形态免登录直进）', !!shellUp, '侧栏含「题库」「设置」');
 
 // 进设置页：按**文案**定位（不写死 nth-child —— 侧栏项顺序会变）。
 // ★ 只在 button/a/li 里找：找到外层 div 点下去不会触发 React 的 onClick（看着像"点了没反应"）

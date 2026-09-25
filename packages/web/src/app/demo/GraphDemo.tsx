@@ -19,8 +19,8 @@
  *   ② 未显现的节点**仍然渲染**（只把 opacity 置 0），不靠条件渲染卸载——
  *      卸载会让 transition 失去起点，节点变成"啪"地出现，失去生长的观感。
  */
-import type { KnowledgeNodeKind } from '@sb/shared';
-import { clipLabel, edgeClass, nodeClass } from '../../features/study-flow/graph-visual';
+import type { KnowledgeNodeKind } from './graph-types';
+import { clipLabel, edgeClass, nodeClass } from './graph-visual';
 import { useLandingLang } from '../landing-lang';
 import {
   CLIP_MAX,
@@ -44,7 +44,7 @@ import {
 // ★ 演示复用知识图页的类名（`.gr-node` / `.gr-edge` / `.gr-ring` / `.gr-legend-item`），
 //   故必须把那份样式表也引进来——否则类名对得上、样式却全是空的（节点没有卡片外框、
 //   边没有线型分档），图会退化成一堆无样式文字。`graph.css` 是全局的，引一次即可。
-import '../../features/study-flow/graph.css';
+import './graph.css';
 
 export function GraphDemo({ stage }: { stage: number }) {
   const { lang } = useLandingLang();

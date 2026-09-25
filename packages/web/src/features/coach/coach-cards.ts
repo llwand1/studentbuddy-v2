@@ -3,7 +3,7 @@
  *
  * ★ 为什么单独成文件：卡片流的合并规则（SSE 增量 + 乐观插入 + 服务端落库回读三方交汇）
  *   是本功能最容易出 bug 的地方，而它**完全不需要 React 就能测**——本仓既有约定
- *   （判定逻辑留在纯函数里，组件只接线，先例 `chat/doc-name.ts`／`study-flow/flow-viewport.ts`）。
+ *   （判定逻辑留在纯函数里，组件只接线，先例 `chat/doc-name.ts`）。
  * ★ 时间一律走 `shared/coach.ts` 的 `parseCoachTime`：库里的 `datetime('now')` 是
  *   **UTC 且无时区标记**，直接 `new Date(raw)` 在 +8 区会差 8 小时（"刚刚发生的复习"显示成 8 小时前）。
  */

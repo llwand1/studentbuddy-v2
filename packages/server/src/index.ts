@@ -24,13 +24,11 @@ import { pkScenarioRouter } from './routes/pk-scenario.js';
 import { authRouter } from './routes/auth.js';
 import { githubAuthRouter } from './routes/auth-github.js';
 import { growthRouter } from './routes/growth.js';
-import { studyFlowRouter } from './routes/study-flow.js';
 import { scenarioRouter } from './routes/scenario.js';
 import { coachRouter } from './routes/coach.js';
 import { toolsRouter } from './routes/tools.js';
 import { searchRouter } from './routes/search.js';
 import { ensureSearchIndex } from './search/fts-index.js';
-import { registerDefaultExecutors } from './learning/flow-executors.js';
 import { startTrendScheduler } from './learning/trend.js';
 import { wireActivityEvents } from './learning/activity.js';
 import { wireObsEvents } from './storage/obs.js';
@@ -158,7 +156,6 @@ app.use('/api/pk', pkScenarioRouter);
 // §16 AI 主动发起对战：邀请是**另一个资源**（不是房间），独立前缀 + 独立薄路由
 app.use('/api/pk/invites', pkInviteRouter);
 app.use('/api/choices', choiceRouter);
-app.use('/api/study-flow', studyFlowRouter);
 app.use('/api/scenario', scenarioRouter);
 // v25 复习督促小窗（B+C+E，契约 docs/COACH-SPEC.md）：独立链路，不挂在 /api/chat 上
 app.use('/api/coach', coachRouter);
@@ -187,9 +184,6 @@ if (process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('index.js
   wireObsEvents();
   // 工具统计（P3 §4.5）：订阅 tool_called 落 tool_stats，与 obs 同一订阅位（发布方零感知，ADR-3/4）
   wireToolStats();
-  // 学习流：注册六种「学习交互体验」的默认执行器（委派既有单轮编排，见 learning/flow-executors.ts）。
-  // ★ 必须在服务开始接请求前注册完——否则第一步推进就会撞「尚未接入执行器」而失败。
-  registerDefaultExecutors();
   // 逃生口③（启动清理）：重启后内存里挂起的 Promise 已随进程消失，库里遗留的 pending
   // 方案选择永远等不到答复——不清就会变成前端能捞到、却怎么点都没反应的死卡。
   const swept = sweepStaleChoices();

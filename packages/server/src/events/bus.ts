@@ -33,8 +33,6 @@ export type DomainEvent =
    * ★ 同日重复打卡也会各发一笔（与答题同口径：XP 按次累加，连签只看当日有没有行，重复不额外拉长连签）。
    */
   | { type: 'review_completed'; termId: string; ownerId: string | null }
-  /** 深度理解升级（DEEP-UNDERSTANDING-SPEC §9.2）；XP 订阅在任务 10 接入 */
-  | { type: 'evolution_levelup'; termId: string; term: string; from: number; to: number }
   /** 可观测（可观测与数据飞轮方案）；订阅方 storage/obs.ts，发布方 search/flow/quiz/点踩 */
   | ({ type: 'obs' } & ObsEventBody)
   /**

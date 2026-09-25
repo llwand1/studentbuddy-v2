@@ -4,9 +4,9 @@
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-207%20files%20%2F%202801%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-204%20files%20%2F%202766%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-129-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-131%20types-8a63f6)
+![contracts](https://img.shields.io/badge/shared%20contracts-127%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -171,7 +171,7 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 | **AI 输出可靠性工程** | 模型不听话不塌系统：出题五级解析阶梯（补括号 → 剥图重试 → 截断逐题回退）、丢图保题、非法转义修复、SSE 屏上文本与库内文本逐字一致；**上游挂起不再让会话永久卡住**——流式空闲超时 120s / 一次性总时长 180s，超时抛可读错误；**并发闸门两层：每用户 2 路 + 全站封顶 N（占位 8）**（两路对话可并行，主链优先、后台让路，超额明确拒绝而非无限排队） | 每个对策都对应一次真实故障的根因登记与回归锁（[`docs/dev/bug-ledger.md`](docs/dev/bug-ledger.md) + CHANGELOG 09-04、09-17 两批） |
 | **模型产出敢真跑** | ```html 围栏产出的网页在 `CSP: sandbox` + iframe 双层沙箱里运行，页面源为 `null`；SVG 净化剥 `<image>` 外链（防外链信标泄露 IP） | 真机实测沙箱页调写接口 / 读数据全被拒；净化有 `web/lib/svg-utils.test.ts` 锁 |
 | **前端零第三方库** | 无 UI 库 · 无 Markdown 库 · 无图表库：Markdown 解析、代码高亮、数据图自绘 SVG、SVG 净化自愈全部自写——供应链攻击面与包体积同时趋零、行为完全可控 | `packages/web/package.json` 运行时依赖只有 `react` / `react-dom` / `@sb/shared` |
-| **测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；交互层是**两层互补**——**23 个 `.test.tsx`**（★ 本批删的三件测试都是 `.ts`，这个 24 是上一批留下的旧抄，按 `find packages -name "*.test.tsx"` 实测改正）（jsdom 按文件 pragma 启用，锁交互逻辑）＋ **15 个真机探针脚本**（`tools/probes/*.mjs`，其中 10 个走 CDP 真点真渲染，锁 CSS 与真实浏览器行为） | 基线 **207 文件 / 2801 例**（2800 passed＋1 skipped＋0 failed，2026-09-25 移除「今日总结」＋「刷题笔记」批（issue #21）后实测（★ 该批 −3 文件／−29 例：删 `learning/notes`／`routes/notes`／`note-format` 三件测试＋四处就地摘例；★ **读数口径＝先 build 再测**：本批首读在全新 worktree 里、`dist` 尚不存在，`src/seo/public-hygiene` 那两例 `it.skipIf(!HAS_DIST)` 当时是跳过的（2798 passed＋3 skipped）；补跑 `npm run build` 后重测＝下面这一读，两个读数**总量恒为 2801**，变的只是 passed/skipped 怎么分）；上一读数 210/2830＝构建产物卫生锁批（issue #8）（★ 先 build 再测：卫生锁里两例要读 `dist` 产物才跑）；上一读数 210/2826＝公开抓取覆盖锁批（issue #4）；上一读数 209/2820＝批次 I（主聊天 AI 图解能力批）随 PR #10 合并入 main；上一读数 208/2817＝搜索通道形状批；上一读数 207/2810＝游戏化 S1-a 批·再上一读数 206/2799＝学习流·知识图下线批·再上一读数 217/3004＝对战邀请批（`offer_pk_battle` → 迁移 v43 `pk_invites` → 聊天内联邀请卡）·上一档＝2026-09-24 归因批（`?ref=` → `X-SB-Ref` → 迁移 v42 `source` → `bySource`）后；★ 线上现况＝**已上线到 v0.2.132**（09-25 21:5x 三批合一＝联网搜索通道修复（bug-ledger B-019／issue #11）＋「今日总结」／「刷题笔记」断线下线（issue #21；★ 只断线、`daily_summaries`／`quiz_notes` 两张表仍在库里，DROP 归 v45 另批逐次点名）＋「连续学习 N 天」换算法（游戏化 S1-a，零迁移）；上一档＝09-25 11:44 三批合一＝渠道归因（迁移 v42）＋聊天内 AI 主动发起对战邀请（迁移 v43 `pk_invites`）＋学习流／知识图整族下线（迁移 v44 DROP 那七张表，按判决不留备份）；上一档 v0.2.118＝09-24 08:48 单批＝公开更新页＋Atom 订阅；**v0.2.113／114／115／116／117 五批** 09-23 23:5x 上线；**v0.2.109／110／111／112 四批**（中英切换／注册免验证码／SEO 静态页／目录页 URL 换正）09-23 09:56 上线。⚠️ 本句的导语在这里此前一直写着 `v0.2.112`——★ 那是上一轮的历史水位不是现况，而紧跟它的两句当场自纠到了 v0.2.118，**等于一句导语和它自己的下文打架**；现由 `node tools/metrics.mjs --check` 的「线上现况版本」一条与公开清洗表 `PUBLIC_RELEASES` 最高版本逐字对账，写旧即红。★ 发版逐次点名授权，本文件不预授权——那句「未发版」在它自己的历史上是对的，只是被今天改写了；线上判据实录见 `docs/SEO-SPEC.md` §6.2／§6.3），`metrics --tests` 实测口径；2800 passed + 1 skipped + 0 failed，全绿）；**逐文件不变量见 §3**（数字由 `node tools/metrics.mjs --tests` 产出，非手抄） |
+| **测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；交互层是**两层互补**——**23 个 `.test.tsx`**（★ 本批删的三件测试都是 `.ts`，这个 24 是上一批留下的旧抄，按 `find packages -name "*.test.tsx"` 实测改正）（jsdom 按文件 pragma 启用，锁交互逻辑）＋ **15 个真机探针脚本**（`tools/probes/*.mjs`，其中 10 个走 CDP 真点真渲染，锁 CSS 与真实浏览器行为） | 基线 **204 文件 / 2766 例**（2765 passed＋1 skipped＋0 failed，2026-09-25 深度理解族断线批（issue #27）后实测（★ 该批 −3 文件／−35 例：删 `learning/verdict`／`learning/verdict-gate`／`domain` 三件测试，★ **零摘例、零改断言**（其余 201 个测试文件一行未碰）；上一读数 207/2801＝移除「今日总结」＋「刷题笔记」批（issue #21）（★ 该批 −3 文件／−29 例：删 `learning/notes`／`routes/notes`／`note-format` 三件测试＋四处就地摘例；★ **读数口径＝先 build 再测**：本批首读在全新 worktree 里、`dist` 尚不存在，`src/seo/public-hygiene` 那两例 `it.skipIf(!HAS_DIST)` 当时是跳过的（2798 passed＋3 skipped）；补跑 `npm run build` 后重测＝下面这一读，两个读数**总量恒为 2801**，变的只是 passed/skipped 怎么分）；上一读数 210/2830＝构建产物卫生锁批（issue #8）（★ 先 build 再测：卫生锁里两例要读 `dist` 产物才跑）；上一读数 210/2826＝公开抓取覆盖锁批（issue #4）；上一读数 209/2820＝批次 I（主聊天 AI 图解能力批）随 PR #10 合并入 main；上一读数 208/2817＝搜索通道形状批；上一读数 207/2810＝游戏化 S1-a 批·再上一读数 206/2799＝学习流·知识图下线批·再上一读数 217/3004＝对战邀请批（`offer_pk_battle` → 迁移 v43 `pk_invites` → 聊天内联邀请卡）·上一档＝2026-09-24 归因批（`?ref=` → `X-SB-Ref` → 迁移 v42 `source` → `bySource`）后；★ 线上现况＝**已上线到 v0.2.132**（09-25 21:5x 三批合一＝联网搜索通道修复（bug-ledger B-019／issue #11）＋「今日总结」／「刷题笔记」断线下线（issue #21；★ 只断线、`daily_summaries`／`quiz_notes` 两张表仍在库里，DROP 归 v45 另批逐次点名）＋「连续学习 N 天」换算法（游戏化 S1-a，零迁移）；上一档＝09-25 11:44 三批合一＝渠道归因（迁移 v42）＋聊天内 AI 主动发起对战邀请（迁移 v43 `pk_invites`）＋学习流／知识图整族下线（迁移 v44 DROP 那七张表，按判决不留备份）；上一档 v0.2.118＝09-24 08:48 单批＝公开更新页＋Atom 订阅；**v0.2.113／114／115／116／117 五批** 09-23 23:5x 上线；**v0.2.109／110／111／112 四批**（中英切换／注册免验证码／SEO 静态页／目录页 URL 换正）09-23 09:56 上线。⚠️ 本句的导语在这里此前一直写着 `v0.2.112`——★ 那是上一轮的历史水位不是现况，而紧跟它的两句当场自纠到了 v0.2.118，**等于一句导语和它自己的下文打架**；现由 `node tools/metrics.mjs --check` 的「线上现况版本」一条与公开清洗表 `PUBLIC_RELEASES` 最高版本逐字对账，写旧即红。★ 发版逐次点名授权，本文件不预授权——那句「未发版」在它自己的历史上是对的，只是被今天改写了；线上判据实录见 `docs/SEO-SPEC.md` §6.2／§6.3），`metrics --tests` 实测口径；2765 passed + 1 skipped + 0 failed，全绿）；**逐文件不变量见 §3**（数字由 `node tools/metrics.mjs --tests` 产出，非手抄） |
 | **契约先行的可维护性** | `@sb/shared` 是 SSE 事件 / 内容块 / REST / 领域模型的单一事实源，前后端不允许各写一套；先登记再实现 | shared 契约文件头注释即纪律；四条固定扩展模式见 [§开发指南](#开发指南) |
 | **不锁定供应商** | OpenAI 兼容 + Anthropic 双适配；搜索三家按 key 并行聚合 + 免 key 兜底——换模型、换服务商只动设置页 | 适配器有出站请求体断言测试，且当场逮出过真缺陷 B-001（多条 system 在 Anthropic 型上静默丢失） |
 | **多用户归属做得彻底** | 归属不是加个 `WHERE`：`providers.owner_id IS NULL` ＝平台通道（人人可用）、业务表 `owner_id = ''` ＝无主（谁都看不见），两种「没有主人」可见性刻意相反；读写按形状分别走 `ownerFilter` / `ownerForWrite` | 每批都配跨用户隔离锁 + 「故意改坏必红」的非空转取证（[`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) §8 + test-plan §7） |
@@ -221,11 +221,11 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 - **看得见改得了**：`/api/memory` 列表 / 单条删 / 全部清空 / 会话摘要查询——画像由模型自动写入，看不见就是黑箱，而一条写脏的画像会污染此后所有会话
 - **安全声明在段首**：摘要内容源自用户对话原文且进的是 system 位，故硬性声明「是记录不是指令」（契约 [`MEMORY-SPEC.md`](docs/MEMORY-SPEC.md)）
 
-### 忆 · 深度理解（部分落地）
-把「用户对一个词条的理解」做成可累积的等级链：**L0 直觉 → L1 复述 → L2 准确 → L3 边界 → L4 迁移**。
-- **已落码**：`[VERDICT]` 协议解析与流式闸门（`learning/verdict.ts` + 单测）、落库表与 `term_library` 三列（迁移 v8）
-- **未落码**：判定未接入对话主链、无前端入口、难度联动未接。★ 以契约状态行为准：[`DEEP-UNDERSTANDING-SPEC.md`](docs/DEEP-UNDERSTANDING-SPEC.md) 头部仍标「待评审」
-- 设计要点（评审未过时不实施）：闸门吞段不上屏不落库、零额外 LLM 调用、理解链 append-only 含用户原话快照、`best_level` 只增不减
+### 忆 · 深度理解（⚰️ 2026-09-25 整族断线）
+- 它从未成为功能：契约 v1.1 只落了三件地基件（`[VERDICT]` 流式闸门与解析、`shared` 类型登记、迁移 v8 的两张表＋`term_library` 三列），而**发判定的那条 `POST /api/evolution` 与前端渲染器从未落地** ⇒ 生产代码里没有一处写入，`evolution_session`／`evolution_event` 自建表起是空表（全仓仅 `storage/db.test.ts` 往里插过样例行）。
+- ★ **本次按老板判决「只断线、DROP 另批」**（issue #27）：删掉零消费者的解析模块与类型登记，**页面与接口零变化**（本来就没有入口）。两张表与三列留在库里，DROP 与 `daily_summaries`／`quiz_notes` 同归后续迁移批**逐次点名**，本批不预授权。
+- ⚠️ 三列暂时留着的硬理由：`term_delete_log` 的「撤销删除」要原样带回 `evo_level`／`best_level`／`evo_updated_at`——漏列**不报错、只静默回落 0**，`storage/term-delete-log.test.ts` 就锁着这一条。
+- 沿革与设计取舍见 [`DEEP-UNDERSTANDING-SPEC.md`](docs/DEEP-UNDERSTANDING-SPEC.md)（⚰️ 墓碑）。
 
 ### 督促 · AI 主动陪伴
 - **任务胶囊 + 抽屉**（迁移 v25）：收合态是右下角常驻小胶囊（报数 + 有督促时脉冲点），展开态是贴右缘抽屉，内为**卡片流**——队列卡（待做的题，翻转揭晓）与流卡（AI／我／打卡／督促）分两列，**待办与历史不混排**
@@ -424,7 +424,7 @@ AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决�
 - 禁内联 `style={{…}}`（一律走 tokens.css 的 token）；禁 `any`；测试也禁 `!` 非空断言
 - 每个测试文件必须在 `docs/dev/test-plan.md` 成行登记（未登记 = 门禁红）
 
-**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**207 文件 / 2801 例**（2800 passed + 1 skipped + 0 failed，2026-09-25 移除「今日总结」＋「刷题笔记」批（issue #21）后实测（★ 该批 −3 文件／−29 例；上一读数 210/2830＝构建产物卫生锁批（issue #8）（★ 先 build 再测：卫生锁里两例要读 `dist` 产物才跑）；上一读数 210/2826＝公开抓取覆盖锁批（issue #4）；上一读数 209/2820＝批次 I（主聊天 AI 图解能力批）随 PR #10 合并入 main；上一读数 208/2817＝搜索通道形状批；上一读数 207/2810＝游戏化 S1-a 批；再上一 206/2799＝学习流·知识图下线批；**逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，本格数字由 `node tools/metrics.mjs --tests` 产出）。
+**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**204 文件 / 2766 例**（2765 passed + 1 skipped + 0 failed，2026-09-25 深度理解族断线批（issue #27）后实测（★ 该批 −3 文件／−35 例＝三份专属测试整体下线、零摘例零改断言；上一读数 207/2801＝移除「今日总结」＋「刷题笔记」批（issue #21）（★ 该批 −3 文件／−29 例；上一读数 210/2830＝构建产物卫生锁批（issue #8）（★ 先 build 再测：卫生锁里两例要读 `dist` 产物才跑）；上一读数 210/2826＝公开抓取覆盖锁批（issue #4）；上一读数 209/2820＝批次 I（主聊天 AI 图解能力批）随 PR #10 合并入 main；上一读数 208/2817＝搜索通道形状批；上一读数 207/2810＝游戏化 S1-a 批；再上一 206/2799＝学习流·知识图下线批；**逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，本格数字由 `node tools/metrics.mjs --tests` 产出）。
 
 量化对账：`node tools/metrics.mjs --check` 会把本文的可核对数字与代码实测逐一比对，漂移即退出码 1——**本文任何数字都不许手改，改了就红**。
 
@@ -512,7 +512,7 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 | 复习时钟（艾宾浩斯 + 选择式范围） | ✅ 2026-09-17，范围选择 2026-09-18 |
 | 督促小窗 + 趋势卡（记忆联动 P1~P5） | ✅ 2026-09-18 |
 | 现场搜集真题（逐字锚点锁 + 两段确认） | ✅ 2026-09-18 |
-| 深度理解（判定链完整闭环） | 🔶 闸门件与落库表已就位，主链未接线 |
+| 深度理解（判定链完整闭环） | 🔶 闸门件与落库表已就位，主链未接线 → ⚰️ **2026-09-25 整族断线**（零消费者的解析件与类型登记已删；两张表与 `term_library` 三列留库，DROP 另批逐次点名；沿革留在 `docs/DEEP-UNDERSTANDING-SPEC.md` 墓碑） |
 | M4 定稿（反馈环收口 + v1 迁移实跑） | 🔶 反馈与迁移工具已落，定稿未做 |
 | M5 工具生态（MCP / 文件工具 / 确认门） | 🔶 S1 内核与 S2 确认门/词条三工具已落码（契约 v1.4.5，2026-09-20）；★ 2026-09-20 新增 `fetch_page` 网络读工具（§5.3，已落码），**同批补三条真机/自审驱动的红线**——红线 2「内容闸门」（只回网页正文，PDF/图片等非网页**如实拒绝**，登记 B-011）、红线 8「编码层」（GBK 页按声明/嗅探的编码解码，不再以乱码冒充正文，登记 B-012）、★ 红线 2 **判据层次订正**（嗅探钉死在**原始字节**、判在解码之前——旧 PNG 魔数分支因字面量多一个空格从未命中，登记 B-013）；S3 MCP 接入未开工 |
 | 全站搜索（FTS5 三族索引：消息 / 词条 / 错题本） | ✅ 已入库 2026-09-20（契约 `docs/FTS-SPEC.md`；迁移 v37；`GET /api/search`）★ 真机端到端待目检 |
@@ -553,7 +553,7 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 | [`EBBINGHAUS-SPEC.md`](docs/EBBINGHAUS-SPEC.md) | 复习时钟契约（间隔序列 / 日历日口径 / 选择式范围） |
 | [`COACH-SPEC.md`](docs/COACH-SPEC.md) | 督促小窗契约（胶囊与抽屉 / 卡片合并 / 冷却在服务端） |
 | [`STUDY-FLOW-SPEC.md`](docs/STUDY-FLOW-SPEC.md) | ⚰️ **墓碑**：学习流契约沿革（步骤注册表 / 控制流 / 知识数据图；「图静态、流动态」的三方取材判断仍在）——★ 2026-09-25 功能整族下线，文中"现役"字样均不再是事实 |
-| [`DEEP-UNDERSTANDING-SPEC.md`](docs/DEEP-UNDERSTANDING-SPEC.md) | 深度理解契约（★ 状态：**待评审**，实施范围以其头部为准） |
+| [`DEEP-UNDERSTANDING-SPEC.md`](docs/DEEP-UNDERSTANDING-SPEC.md) | ⚰️ **墓碑**：深度理解契约沿革（`[VERDICT]` 闸门的跨 chunk 切断处理 / append-only 抗删链 / `best_level` 只增不减的取舍仍在）——★ 2026-09-25 整族断线（解析件与四类型已删，两表与 `term_library` 三列留库待 DROP 另批点名），文中"待评审／§14 WBS 待开工"字样均不再是事实 |
 | [`QUIZ-IMAGE-SPEC.md`](docs/QUIZ-IMAGE-SPEC.md) | 出题配图契约（字段加法 / 丢图保题 / 提示词口径） |
 | [`QUIZ-SEARCH-SPEC.md`](docs/QUIZ-SEARCH-SPEC.md) | 出题联网检索契约（素材不是指令 / 失败不阻断不静默） |
 | [`QUIZ-NOTES-SPEC.md`](docs/QUIZ-NOTES-SPEC.md) | ⚰️ **墓碑**：刷题笔记契约沿革（快照自洽不设外键 / 每题一篇幂等 upsert 的取舍仍在）——★ 2026-09-25 功能整族下线（表待 v44 之后的 v45 DROP），文中"现役"字样均不再是事实 |

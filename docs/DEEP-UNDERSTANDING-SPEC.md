@@ -1,6 +1,49 @@
 # 深度理解（Deep Understanding）功能契约 v1.1
 
-> 状态：**待评审**（写代码前的准备工作，尚未落任何实现代码）
+> ## ⚰️ 状态：**已下线（墓碑）** — 2026-09-25 已落的那半族代码断线删除，本文件不再描述现役能力
+>
+> ★ **一句话**：`[VERDICT]` 的流式闸门与解析（`learning/verdict.ts` 197 行 + 两份测试 28 例）、
+>   shared 的 `Verdict`/`EvolutionTermState`/`EvolutionState`/`EvolutionEventRow` 四类型（连同 `domain.test.ts` 7 例编译锁）、
+>   `BlockKind` 的 `'verdict'` 登记、`DomainEvent` 的 `evolution_levelup` 变体**全部从仓里删掉了**（issue #27）。
+>   **没删的是库面**：迁移 v8 建的 `evolution_session`／`evolution_event` 两表与 `term_library` 三列
+>   （`evo_level`／`best_level`／`evo_updated_at`）留在库里，DROP 归**另批逐次点名**（同 `daily_summaries`／`quiz_notes` 的口径）。
+>   本文件保留全文只作沿革（§6.3 闸门跨 chunk 的处理、§5 抗删 append-only 链、§16 反馈加强的那段判断与功能在否无关），
+>   ⚠️ 但**文中任何"已落码/待评审/§14 WBS 待开工"的字样都不再是事实**——引用前先读本段。
+>
+> **为什么删（老板原话，2026-09-25）**：「studentbuddy因为我搞了游戏化,所以应该出现了不少死代码和无用代码,我建议好好去核查一下」；
+> 核查结论摆出候选后拍板「**直接开一版下线批：删 A 组深度理解**」，追问库面那一层时拍板「**只断线，DROP 另批**」。
+>
+> **实证的动因（不是审美判断）**：这条链**从未接通过**——契约 §8 的 `POST /api/evolution` 与 §11 的 `VerdictCard.tsx`
+> 从未开工，于是已落三件地基件零生产消费者：`verdict.ts` 只被它自己的两份测试引用、四类型全仓零引用、
+> `evolution_levelup` 零发布也零订阅，两张表**自建表起没有一行生产写入**（全仓仅 `storage/db.test.ts` 插过样例行）。
+> 它与"学习流／知识图"那种"完整交付过又下线"不是一类：那是读侧零收益，这是**从来没有读侧也没有写侧**。
+>
+> **已知代价（同批登记，别当成没发生）**：
+>  · 两张空表与三列继续被 `storage/db.test.ts` 的 v8 schema 锁钉住 ⇒ 锁在保护一个没人写的形状，直到 DROP 批一并撤
+>  · `term_delete_log` 的"撤销删除"复原清单仍带 `evo_level`／`best_level`／`evo_updated_at`（漏列不报错、只静默回落 0，
+>    `term-delete-log.test.ts` 锁着这条）⇒ 三列**不能**在 DROP 批之前先摘
+>  · 落地页「词条旅程」第 05 步原文案写着"理解程度按 L0 直觉到 L4 迁移分级累积，变成看得见的状态"——
+>    **产品里从来没有这个展示位**，本批把这一半文案摘掉；同一句里"知识网"那一半属批次 K 的在册账，未随本批处理
+>
+> **被这条牵连的其他契约/资产（同批改）**：
+>  · `README.md`：功能节改墓碑、能力表与 docs 索引两行改口、徽章与两处基线数现测重写
+>  · `AGENTS.md`：抗删快照手法的举例位（`evolution_event.term_text`）换成仍在库的 `pk_matches.snapshot_json`，并加 ⚰️ 行
+>  · `docs/SSE-CONTRACT.md`：§2 现状行加删除线，变更记录 2026-09-06 那行**不回改**、在其下补订正行
+>  · `docs/dev/test-plan.md`：`learning/verdict` · `learning/verdict-gate` · `shared/domain` 三行登记删除
+>  · `docs/TERM-TIDY-SPEC.md`：v7/v8 占号那句里的"待评审未实现"加注（占号沿革照旧有效）
+>  · 代码内注释：`shared/follow-up.ts` 拿 `normalizeVerdict` 当手法先例的引用、`chat/memory.ts` 声称"词条被删有
+>    `evolution_event` 冗余快照兜底"——**那句是假的**（该表从未被写过），真实兜底是 `term_delete_log`，两处同批改真
+>
+> **回收路径（若将来真要重做）**：代码从 git 历史取（`git log --oneline -- packages/server/src/learning/verdict.ts`），
+> 等级口径与 rubric 留在本文件 §3/§6；数据**没有**回收需求（两张表一直是空的）。
+>
+> ---
+>
+> 版本：v1.1（v1.1.2 改名）| 状态：~~[待评审]~~ → ~~[部分落码]~~ **已下线**（2026-09-02 立 v1；2026-09-06 修订 v1.1 并落 WBS 任务 1–3；2026-09-25 断线，见上方墓碑）
+
+> ⚠️ 以下为删除前的原始契约全文，保留不回改（回标不回改）。原文头一行曾写「状态：**待评审**（写代码前的准备工作，尚未落任何实现代码）」——
+> 那句在它写下来几小时后就不成立了（WBS 任务 1–3 当日落码），今天也不再是待评审而是**不再评审**。
+>
 > 日期：2026-09-02 立 v1 · **2026-09-06 修订 v1.1**（反馈加强：证据式判定 + 词条直达深度理解·出题评估，老板拍板，全量纪要见 §16）· **2026-09-16 改名 v1.1.2**（对外名称由「认知进化」改为「深度理解」，文件随改名 `DEEP-UNDERSTANDING-SPEC.md`；内部标识符未动，见 §16.4）· 适用仓库：`Desktop\studentbuddy-v2`（monorepo：server / shared / web）
 > 铁律来源：`AGENTS.md`（六条 ADR + 工程红线）；本文是「先改契约再改码」（`AGENTS.md` §已知约束）要求的载体。
 

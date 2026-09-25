@@ -26,7 +26,7 @@ import type { ComponentType } from 'react';
 import type { Bi } from './landing-lang';
 
 /** 落地页可选的 line-icon（与 `components/icons.tsx` 的导出一一对应，缺一个就编译不过） */
-export type LandingIconKey = 'chat' | 'quiz' | 'stats' | 'cards' | 'check' | 'flow' | 'graph' | 'vs' | 'note' | 'search' | 'doc';
+export type LandingIconKey = 'chat' | 'quiz' | 'stats' | 'cards' | 'check' | 'flow' | 'graph' | 'vs' | 'search' | 'doc';
 
 /** key → 组件 的映射形状（消费点各自给出具体映射表，这里只定形状） */
 export type LandingIconMap = Record<LandingIconKey, ComponentType<{ size?: number }>>;
@@ -170,16 +170,16 @@ export const WALK: WalkStep[] = [
     step: { zh: '反馈', en: 'Feedback' },
     title: { zh: '反馈激励', en: 'Feedback & streaks' },
     desc: {
-      zh: 'XP 连签、今日总结、AI 主动督促——闭环的最后一步是把你拽回来',
-      en: 'XP streaks, daily summaries, and AI nudges — the loop closes by pulling you back in',
+      zh: 'XP 连签、AI 主动督促——闭环的最后一步是把你拽回来',
+      en: 'XP streaks and AI nudges — the loop closes by pulling you back in',
     },
     caps: [
       {
-        icon: 'note',
-        title: { zh: '笔记与总结', en: 'Notes & summaries' },
+        icon: 'check',
+        title: { zh: 'AI 主动督促', en: 'AI nudges' },
         desc: {
-          zh: '提交答案即落结构化笔记草稿，每日学习总结自动生成',
-          en: 'Every submitted answer drops a structured note draft; daily study summaries generate themselves',
+          zh: '欠几条复习、逾期几天、连续学了几天，督促小窗随时报——不用你自己盯着',
+          en: 'Reviews due, days overdue, streak so far — the nudge dock keeps the count, you keep the topic',
         },
       },
     ],
@@ -251,12 +251,13 @@ export const PRIVACY_ITEMS: Bi[] = [
  *   两者都在页面上、都围绕同一个词，若口径再做成同一套，就成了用两种姿势讲同一件事——
  *   读者只会记住「这段刚才看过」。故本表刻意只写「它流向哪」，不写「它第几步」。
  *
- * ★ 五条逐条对得上代码，不是产品想象：
+ * ★ 四条逐条对得上代码，不是产品想象：
  *   - 驱动出题：`shared/content-blocks.ts` 的 `normalizeQuizMix` + PK 侧 `resolvePkTerms`（PK-SPEC §15.6）
  *   - 决定复习：`TermFlowDemo` 末帧写明 1/2/4/7/15/30/60 天档位，`routes/term-review.ts` 执行
  *   - 连成图谱：`GRAPH_FLOW` 演示「追问抽出的词自动连回源词条」（`emitTermNodes` 只产 term 节点）
- *   - 沉淀总结：`learning/activity.ts` 的 `daily_summaries`
  *   - 拿去对战：PK 出题区的 `PkTermPicker`（§15.6），指定词条即锁定出题范围
+ *   （★ 原第五条「沉淀总结」指向 `daily_summaries`，随今日总结于 2026-09-25 下线一并摘除——
+ *     落地页写着一个点不到的功能，比少写一条更伤。）
  */
 export const TERM_SPINE: Array<{ icon: LandingIconKey; title: Bi; desc: Bi }> = [
   {
@@ -281,14 +282,6 @@ export const TERM_SPINE: Array<{ icon: LandingIconKey; title: Bi; desc: Bi }> = 
     desc: {
       zh: '追问里抽出的新词自动连回它：一个词长出一个星，越问越密',
       en: 'New terms from follow-ups auto-link back: one term grows a star, denser with every question',
-    },
-  },
-  {
-    icon: 'note',
-    title: { zh: '沉淀总结', en: 'Feeds summaries' },
-    desc: {
-      zh: '今天吃透的词自动进当日总结，明天该干什么由它提醒',
-      en: 'Today’s mastered terms flow into the daily summary, which then nudges what tomorrow should be',
     },
   },
   {

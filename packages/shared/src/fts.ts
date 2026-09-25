@@ -51,17 +51,19 @@ export const FTS_TITLE_CHARS = 400;
 
 /**
  * 索引可承载的数据类别（FTS-SPEC §3.2 的 `kind` 列取值）。
- * P1 三类；P2 计划加 `'quiz'`（题库）/`'doc'`（跨会话资料）。
+ * P2 计划加 `'quiz'`（题库）/`'doc'`（跨会话资料）。
  * ★ 做成常量数组而不是裸字符串字面量：路由参数解析、前端分区渲染、测试遍历都要用它。
+ * ★ 原第三类 `'note'`（错题笔记）随刷题笔记功能于 2026-09-25 下线；库里可能残留
+ *   `kind='note'` 的旧索引行，本清单就是它的过滤器（查询侧 `kind IN (...)` 挡掉）。
  */
-export const FTS_KINDS = ['message', 'term', 'note'] as const;
+export const FTS_KINDS = ['message', 'term'] as const;
 
 export type FtsKind = (typeof FTS_KINDS)[number];
 
 /** 一条搜索命中（`GET /api/search` 的响应元素，前后端共用一份形状）。 */
 export interface FtsHit {
   kind: FtsKind;
-  /** 源表主键：`messages.id` / `term_library.id` / `quiz_notes.id` */
+  /** 源表主键：`messages.id` / `term_library.id` */
   refId: string;
   /** 结果主标题（原文截断，非分词；前端直接显示） */
   title: string;
@@ -77,7 +79,6 @@ export interface FtsHit {
   /**
    * 跳转所需的定位信息（可选，按 kind 语义不同）：
    * · `message` → 所属会话 id（点结果要跳进那个会话）
-   * · `note` → 所属套题 id（可选，用于「本套笔记」入口）
    * 无跳转语义的 kind 不带此字段。
    */
   parentId?: string;

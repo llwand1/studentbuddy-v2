@@ -15,7 +15,6 @@ import type { TokenChunk } from '../llm/types.js';
 import { openIsolated, closeDb } from '../storage/db.js';
 import { saveQuiz, recordAnswer } from './quiz.js';
 import { saveScenario } from './scenario.js';
-import { upsertNoteFromAnswer } from './notes.js';
 import {
   analyzeWeakPoints,
   localWeakPoints,
@@ -102,26 +101,20 @@ describe('analyzeWeakPoints — AI 实时分析为主路径', () => {
     expect(r.weak[1]?.topic).toBe('积分次序');
   });
 
-  it('提示词带上题干/选项/正确答案/学生所选/正确率——错选是「真洞察」的唯一来源', async () => {
+  it('提示词带上题干/选项/正确答案/正确率；★ 素材里已无「学生所选」（笔记 2026-09-25 下线）', async () => {
     const id = seed();
     markWrong(id, 0);
-    upsertNoteFromAnswer(id, 0, false, null, [1]);
     stub.turn = ok([]);
     await analyzeWeakPoints(id, null);
     expect(stub.lastPrompt).toContain('[0] 单选');
     expect(stub.lastPrompt).toContain('题干：Q0');
     expect(stub.lastPrompt).toContain('选项：A. a B. b C. c');
     expect(stub.lastPrompt).toContain('正确答案：C. c');
-    expect(stub.lastPrompt).toContain('学生所选：B. b');
     expect(stub.lastPrompt).toContain('历史正确率：0/2（0%）');
-  });
-
-  it('从没带 answer 提交过 → 错选显示「未记录」，不编造', async () => {
-    const id = seed();
-    markWrong(id, 0);
-    stub.turn = ok([]);
-    await analyzeWeakPoints(id, null);
-    expect(stub.lastPrompt).toContain('学生所选：未记录');
+    // ★ 下线锁：作答快照没有别的落处 ⇒ 提示词再带上它就等于让模型对着一个空字段编造错因。
+    expect(stub.lastPrompt).not.toContain('学生所选');
+    // 反过来，"看不见所选"必须显式告诉模型，否则它会从正确率反推出一个具体选项来。
+    expect(stub.lastPrompt).toContain('不要假装知道 TA 选了什么');
   });
 
   it('模型给出越界题号时被归一闸门滤掉，但整条合法主题仍保留', async () => {

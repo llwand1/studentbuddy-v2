@@ -26,10 +26,8 @@ const { searchAll, rebuildSearchIndex, countIndexRows, indexRow, dropSessionMess
 const { saveOneTerm, saveTerms, updateTerm, removeTerm } = await import('../learning/terms.js');
 const { mergeTerms } = await import('../learning/tidy.js');
 const { logTermDeletions, undoDeleteBatch, selectTermRowsForSnapshot } = await import('../storage/term-delete-log.js');
-const { upsertNoteFromAnswer, updateNoteBody, deleteNote } = await import('../learning/notes.js');
 const { insertUserMessage, insertAssistantMessage, dropMessagesAfter, updateMessageContent } =
   await import('../chat/persist.js');
-const { saveQuiz } = await import('../learning/quiz.js');
 const { insertSession } = await import('../auth/ownership.js');
 const { tokenizeForFts, buildFtsMatch, FTS_TITLE_CHARS } = await import('@sb/shared');
 
@@ -154,42 +152,21 @@ describe('search/fts-index — 词条写点全覆盖', () => {
   });
 });
 
-describe('search/fts-index — 错题本写点全覆盖', () => {
-  const quizId = saveQuiz(
-    {
-      title: '虚拟语气练习',
-      questions: [
-        { type: 'single', question: '虚拟语气的核心特征是什么', options: ['a', 'b'], answer: [0], explanation: '解析' },
-      ],
-    },
-    'ai',
-    U1,
-  );
-
-  it('upsertNoteFromAnswer → 题干可搜（title 取题干，不是套题名）', () => {
-    upsertNoteFromAnswer(quizId, 0, false, U1, [1]);
-    const hits = searchAll('虚拟语气的核心特征', { kinds: ['note'], ownerId: U1 });
-    expect(hits).toHaveLength(1);
-    expect(first(hits).title).toContain('虚拟语气');
-  });
-
-  it('★ 重复作答（ON CONFLICT 分支）→ 仍能搜到：索引必须挂**回读到的真实 id**', () => {
-    // 这条锁的是「拿新生成的 uuid 去建索引」那个坑——ON CONFLICT 时 id 列不更新，
-    // 新 uuid 根本没被采用，索引会挂到不存在的 id 上（表现：搜不到，且不报错）。
-    upsertNoteFromAnswer(quizId, 0, true, U1, [0]);
-    expect(searchAll('虚拟语气的核心特征', { kinds: ['note'], ownerId: U1 })).toHaveLength(1);
-  });
-
-  it('updateNoteBody → 心得可搜', () => {
-    const hits = searchAll('虚拟语气的核心特征', { kinds: ['note'], ownerId: U1 });
-    updateNoteBody(first(hits).refId, '虚拟语气用于表达与事实相反的假设', U1);
-    expect(searchAll('与事实相反的假设', { kinds: ['note'], ownerId: U1 })).toHaveLength(1);
-  });
-
-  it('deleteNote → 索引行消失', () => {
-    const hits = searchAll('虚拟语气的核心特征', { kinds: ['note'], ownerId: U1 });
-    deleteNote(first(hits).refId, U1);
-    expect(searchAll('虚拟语气的核心特征', { kinds: ['note'], ownerId: U1 })).toHaveLength(0);
+describe('search/fts-index — 已下线的 note 类不再进结果', () => {
+  // 刷题笔记 2026-09-25 整族下线：`search_index` 里 v37~v44 期间写入的 `kind='note'` 旧行
+  // 不会自动消失（DROP 要等 v45），查询侧的 `kind IN (...)` 是它们唯一的过滤器。
+  // ★ 这条锁的就是那道过滤器：一旦有人把 kinds 默认值改回"透传"，旧笔记行会带着
+  //   读不到的源行浮出来（snippet 退化成索引里那份过期原文）。
+  it('★ 手工塞一条 kind=note 的索引行 → 任何检索都读不到它', () => {
+    const db = getDb();
+    // owner 刻意写成 U1：否则挡住它的是归属过滤，这条锁就成了空锁。
+    db.prepare(
+      `INSERT INTO search_index (tokens, kind, ref_id, owner, title, snippet, updated_at)
+       VALUES (?, 'note', 'legacy-note-row', ?, '虚拟语气的核心特征是什么', '陈旧笔记行', '')`,
+    ).run(tokenizeForFts('虚拟语气的核心特征是什么').join(' '), U1);
+    expect(searchAll('虚拟语气的核心特征', { ownerId: U1 }).map((h) => h.refId)).not.toContain('legacy-note-row');
+    expect(searchAll('虚拟语气的核心特征', { kinds: [], ownerId: U1 })).toHaveLength(0);
+    db.prepare(`DELETE FROM search_index WHERE kind = 'note'`).run();
   });
 });
 
@@ -262,7 +239,7 @@ describe('search/fts-index — 可见性（FTS-SPEC §4 矩阵）', () => {
     expect(searchAll('无主行', { kinds: ['term'], ownerId: U1 })).toHaveLength(0);
   });
 
-  it('★ 未认证（本地单人）：term/note 只看无主行（挡住过渡期里别的用户写的数据）', () => {
+  it('★ 未认证（本地单人）：term 只看无主行（挡住过渡期里别的用户写的数据）', () => {
     saveOneTerm('可见性词条己', '甲用户写的新数据', '测试', U1);
     saveOneTerm('可见性词条庚', '无主模式写的数据', '测试', null);
     expect(searchAll('无主模式写的数据', { kinds: ['term'], ownerId: null })).toHaveLength(1);

@@ -2,9 +2,11 @@
  * routes/quiz-tenancy — **M2d-3 其余表归主**的端到端（契约 `docs/TENANCY-SPEC.md` §8.2，迁移 v33）。
  *
  * ★ 这批与 M2d-1 性质不同：`quiz_*` 的主键全是**全局唯一 uuid**，天然不撞键 ⇒ 加列即可。
- *   要消灭的洞只有一个形状：**读侧不带归属 ⇒ A 能看见/删到 B 的题库与笔记**。
+ *   要消灭的洞只有一个形状：**读侧不带归属 ⇒ A 能看见/删到 B 的题库**。
  * ★ 2026-09-25：`flow_*`/`knowledge_*` 的归主段随「学习流＋知识图」功能整体下线而删除
  *   （批次 K；铁律口径对将来的每张新表仍然成立）。
+ * ★ 2026-09-25 同批：`quiz_notes` 的归主段随「刷题笔记」下线删除——那张表不再有读写方，
+ *   等 v45 DROP，本文件不留空壳用例。
  *
  * ★ 三条锁的口径（照抄 terms-tenancy 的铁律）：
  *   ① **"不串"要用"另一人拿到空"来断言**，不能只断言"不含 A 的那条"（值相等时偶然通过）；
@@ -24,7 +26,6 @@ const { getDb, closeDb } = await import('../storage/db.js');
 const { createUser } = await import('../auth/users.js');
 const { createSession: issueSession } = await import('../auth/session.js');
 const { saveQuiz } = await import('../learning/quiz.js');
-const { upsertNoteFromAnswer } = await import('../learning/notes.js');
 const request = (await import('supertest')).default;
 
 const origin = 'http://localhost:5173';
@@ -54,7 +55,7 @@ const quizA = {
 
 beforeEach(() => {
   const db = getDb();
-  for (const t of ['quiz_bank', 'quiz_stats', 'quiz_notes']) {
+  for (const t of ['quiz_bank', 'quiz_stats']) {
     db.prepare(`DELETE FROM ${t}`).run();
   }
 });
@@ -63,7 +64,7 @@ afterAll(() => {
   closeDb();
 });
 
-describe('quiz_bank / quiz_notes 归主（v33）', () => {
+describe('quiz_bank 归主（v33）', () => {
   it('A 存的题组：A 的 bank 列表可见，B 的列表是空的（不是"不含那条"，是长度 0）', async () => {
     saveQuiz(quizA, 'ai', idA);
     expect((await req.get('/api/quiz/bank', cookieA)).body).toHaveLength(1);
@@ -86,16 +87,5 @@ describe('quiz_bank / quiz_notes 归主（v33）', () => {
     expect(after.c).toBe(0);
   });
 
-  it('笔记随归属隔离：A 的作答笔记 B 看不见；★ 无主行（owner_id=\'\'）登录用户也看不见', async () => {
-    const quizId = saveQuiz(quizA, 'ai', idA);
-    upsertNoteFromAnswer(quizId, 0, false, idA, [0]);
-    // 直接落一条无主笔记（模拟 v33 之前的历史行）
-    getDb()
-      .prepare(`INSERT INTO quiz_notes (id, quiz_id, question_index, quiz_title, question_data, correct, owner_id)
-                VALUES ('legacy-n', ?, 1, '老题', '{}', 0, '')`)
-      .run(quizId);
-    expect((await req.get('/api/notes', cookieA)).body).toHaveLength(1);
-    expect((await req.get('/api/notes', cookieB)).body).toHaveLength(0);
-  });
 });
 

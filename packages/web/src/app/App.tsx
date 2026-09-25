@@ -22,9 +22,7 @@ import { Mascot } from '../features/chat/Mascot';
 import { BRAND_NAME, BRAND_TAGLINE } from '../lib/brand';
 import { SettingsView } from '../features/settings/SettingsView';
 import { QuizBankPage } from '../features/quiz/QuizBankPage';
-import { NotesPage } from '../features/notes/NotesPage';
 import { TermsPage } from '../features/terms/TermsPage';
-import { DailySummaryPage } from '../features/summary/DailySummaryPage';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
 import { CoachDock } from '../features/coach/CoachDock';
 import { TrialNotice } from '../components/TrialNotice';
@@ -46,16 +44,8 @@ export function App() {
   const busy = useActiveSessions(localBusySid);
   /** 历史对话列表展开/收起（默认展开） */
   const [historyOpen, setHistoryOpen] = useState(true);
-  /** 笔记页的套题过滤（题库页「本套笔记」入口带入；从导航点「笔记」时清除） */
-  const [notesQuizId, setNotesQuizId] = useState<string | null>(null);
   /** 词条库的搜索词（词条卡「打开词条库」入口带入；从导航点「词条」时清除） */
   const [termsKeyword, setTermsKeyword] = useState('');
-
-  /** 题库页 → 笔记页的跨页入口：带 quizId 过滤直达本套题的笔记 */
-  const openNotes = useCallback((quizId?: string) => {
-    setNotesQuizId(quizId ?? null);
-    setView('notes');
-  }, []);
 
   /** 词条卡 → 词条库的跨页入口：按词条名直达（知识图只存引用快照那套已随功能下线，此入口由对话页词条卡使用） */
   const openTerms = useCallback((keyword: string) => {
@@ -165,7 +155,6 @@ export function App() {
                   return;
                 }
                 setView(key);
-                if (key === 'notes') setNotesQuizId(null);
                 if (key === 'terms') setTermsKeyword('');
               }}
             >
@@ -196,7 +185,7 @@ export function App() {
         )}
         {/* 全站搜索第二路（契约 docs/FTS-SPEC.md §3.4）：上面那路纯前端 title 过滤**保留不动**，两路并存。
             折叠历史区时传空串 ⇒ 面板整块不渲染（它自己判 `active`，不额外占 App 的行数预算）。 */}
-        <GlobalSearch query={historyOpen ? query : ''} onOpenSession={openSession} onOpenTerm={openTerms} onOpenNotes={openNotes} />
+        <GlobalSearch query={historyOpen ? query : ''} onOpenSession={openSession} onOpenTerm={openTerms} />
         <SessionList
           sessions={visible}
           activeId={view === 'chat' ? currentId : null}
@@ -232,13 +221,9 @@ export function App() {
             />
           </TermIndexProvider>
         )}
-        {view === 'quiz' && <QuizBankPage onOpenNotes={openNotes} />}
-        {view === 'notes' && (
-          <NotesPage quizId={notesQuizId} onClearQuiz={() => setNotesQuizId(null)} />
-        )}
-        {/* key 变化时重挂：从知识图带词进来要重新初始化搜索框（同「笔记」页的 quizId 手法） */}
+        {view === 'quiz' && <QuizBankPage />}
+        {/* key 变化时重挂：从词条卡带词进来要重新初始化搜索框 */}
         {view === 'terms' && <TermsPage key={termsKeyword} initialKeyword={termsKeyword} />}
-        {view === 'summary' && <DailySummaryPage />}
         {view === 'settings' && <SettingsView />}
       </main>
       <PreviewPanel />

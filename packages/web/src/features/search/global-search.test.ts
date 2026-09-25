@@ -15,17 +15,16 @@ function hit(kind: FtsHit['kind'], refId: string): FtsHit {
 }
 
 describe('groupHits — 按 kind 分区', () => {
-  it('三类各归各位', () => {
-    const g = groupHits([hit('term', 't1'), hit('message', 'm1'), hit('note', 'n1'), hit('term', 't2')]);
+  it('两类各归各位', () => {
+    const g = groupHits([hit('term', 't1'), hit('message', 'm1'), hit('term', 't2')]);
     expect(g.term.map((h) => h.refId)).toEqual(['t1', 't2']);
     expect(g.message.map((h) => h.refId)).toEqual(['m1']);
-    expect(g.note.map((h) => h.refId)).toEqual(['n1']);
   });
 
-  it('★ 空输入也返回**三个固定键**（不是 {}）——渲染层少判一次 undefined 的代价是整块不渲染', () => {
+  it('★ 空输入也返回**固定两键**（不是 {}）——渲染层少判一次 undefined 的代价是整块不渲染', () => {
     const g = groupHits([]);
-    expect(g).toEqual({ message: [], term: [], note: [] });
-    expect(Object.keys(g).sort()).toEqual(['message', 'note', 'term']);
+    expect(g).toEqual({ message: [], term: [] });
+    expect(Object.keys(g).sort()).toEqual(['message', 'term']);
   });
 
   it('保持服务端给的顺序（bm25 升序 = 越相关越前），前端不重排', () => {

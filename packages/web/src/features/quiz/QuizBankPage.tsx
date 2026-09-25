@@ -18,7 +18,7 @@ import './quiz.css';
 
 type BankItem = { id: string; title: string; source: string; count: number; created_at: string };
 
-export function QuizBankPage({ onOpenNotes }: { onOpenNotes?: (quizId?: string) => void }) {
+export function QuizBankPage() {
   const [bank, setBank] = useState<BankItem[]>([]);
   const [topic, setTopic] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -121,16 +121,11 @@ export function QuizBankPage({ onOpenNotes }: { onOpenNotes?: (quizId?: string) 
     setPracticing({ quizId: id, quiz: r.quiz });
   };
 
-  const answer = (index: number, correct: boolean, answerVal?: number[] | string) => {
+  const answer = (index: number, correct: boolean) => {
     if (practicing?.quizId) {
       void api.request('/api/quiz/stats/record', {
         method: 'POST',
-        body: JSON.stringify({
-          quizId: practicing.quizId,
-          questionIndex: index,
-          correct,
-          ...(answerVal !== undefined ? { answer: answerVal } : {}),
-        }),
+        body: JSON.stringify({ quizId: practicing.quizId, questionIndex: index, correct }),
       });
     }
   };
@@ -214,9 +209,6 @@ export function QuizBankPage({ onOpenNotes }: { onOpenNotes?: (quizId?: string) 
         <div className="quiz-practice-actions">
           <button className="quiz-gen-btn" disabled={analyzing} onClick={() => void analyze()}>
             {analyzing ? '分析中…' : '薄弱点分析'}
-          </button>
-          <button className="quiz-gen-btn" onClick={() => onOpenNotes?.(practicing.quizId)}>
-            本套笔记
           </button>
         </div>
         {weakErr && <div className="quiz-explain quiz-explain-mt">分析失败：{weakErr}</div>}

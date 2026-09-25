@@ -4,9 +4,9 @@
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-210%20files%20%2F%202830%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-134-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-133%20types-8a63f6)
+![tests](https://img.shields.io/badge/tests-207%20files%20%2F%202801%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-129-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-131%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -70,7 +70,7 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 - **练** —— 自建出题引擎：结构化协议、自动判分、题型配比可配、AI 特化 SVG 配图
 - **析** —— 逐题正确率、薄弱点定位、学习趋势
 - **忆** —— AI 自学词条库 + 艾宾浩斯复习时钟 + 跨会话长期记忆
-- **反馈** —— 事件总线驱动 XP / 连签 / 今日总结，外加 AI 主动督促
+- **反馈** —— 事件总线驱动 XP / 连签，外加 AI 主动督促
 
 它同时管住了「模型不听话」这一整类工程问题：解析阶梯、丢图保题、流式超时、上游并发闸门、契约漂移回归锁——每条对策都对应一次真实故障的根因登记。
 
@@ -103,8 +103,8 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 
 ![落地页首屏](docs/images/landing-hero.png)
 
-**应用壳 · 对话**——左侧六视图导航，中间对话；右下角常驻督促胶囊（「今日无欠账」）
-（★ 截图拍于 2026-09-21，那会儿侧栏还是八项；2026-09-25 学习流／知识图下线后为六项，**待重拍**）
+**应用壳 · 对话**——左侧四视图导航，中间对话；右下角常驻督促胶囊（「今日无欠账」）
+（★ 截图拍于 2026-09-21，那会儿侧栏还是八项；2026-09-25 学习流／知识图下线后为六项，同日「笔记」「今日总结」再下线 ⇒ **现为四项，待重拍**）
 
 ![应用壳 · 对话](docs/images/app-chat.png)
 
@@ -171,7 +171,7 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 | **AI 输出可靠性工程** | 模型不听话不塌系统：出题五级解析阶梯（补括号 → 剥图重试 → 截断逐题回退）、丢图保题、非法转义修复、SSE 屏上文本与库内文本逐字一致；**上游挂起不再让会话永久卡住**——流式空闲超时 120s / 一次性总时长 180s，超时抛可读错误；**并发闸门两层：每用户 2 路 + 全站封顶 N（占位 8）**（两路对话可并行，主链优先、后台让路，超额明确拒绝而非无限排队） | 每个对策都对应一次真实故障的根因登记与回归锁（[`docs/dev/bug-ledger.md`](docs/dev/bug-ledger.md) + CHANGELOG 09-04、09-17 两批） |
 | **模型产出敢真跑** | ```html 围栏产出的网页在 `CSP: sandbox` + iframe 双层沙箱里运行，页面源为 `null`；SVG 净化剥 `<image>` 外链（防外链信标泄露 IP） | 真机实测沙箱页调写接口 / 读数据全被拒；净化有 `web/lib/svg-utils.test.ts` 锁 |
 | **前端零第三方库** | 无 UI 库 · 无 Markdown 库 · 无图表库：Markdown 解析、代码高亮、数据图自绘 SVG、SVG 净化自愈全部自写——供应链攻击面与包体积同时趋零、行为完全可控 | `packages/web/package.json` 运行时依赖只有 `react` / `react-dom` / `@sb/shared` |
-| **测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；交互层是**两层互补**——**24 个 `.test.tsx`**（jsdom 按文件 pragma 启用，锁交互逻辑）＋ **15 个真机探针脚本**（`tools/probes/*.mjs`，其中 10 个走 CDP 真点真渲染，锁 CSS 与真实浏览器行为） | 基线 **210 文件 / 2830 例**（2829 passed＋1 skipped＋0 failed，2026-09-25 构建产物卫生锁批（issue #8）后实测（★ 先 build 再测：卫生锁里两例要读 `dist` 产物才跑）；上一读数 210/2826＝公开抓取覆盖锁批（issue #4）；上一读数 209/2820＝批次 I（主聊天 AI 图解能力批）随 PR #10 合并入 main；上一读数 208/2817＝搜索通道形状批；上一读数 207/2810＝游戏化 S1-a 批·再上一读数 206/2799＝学习流·知识图下线批·再上一读数 217/3004＝对战邀请批（`offer_pk_battle` → 迁移 v43 `pk_invites` → 聊天内联邀请卡）·上一档＝2026-09-24 归因批（`?ref=` → `X-SB-Ref` → 迁移 v42 `source` → `bySource`）后；★ 线上现况＝**已上线到 v0.2.125**（09-25 11:44 三批合一＝渠道归因（迁移 v42）＋聊天内 AI 主动发起对战邀请（迁移 v43 `pk_invites`）＋学习流／知识图整族下线（迁移 v44 DROP 那七张表，按判决不留备份）；上一档 v0.2.118＝09-24 08:48 单批＝公开更新页＋Atom 订阅；**v0.2.113／114／115／116／117 五批** 09-23 23:5x 上线；**v0.2.109／110／111／112 四批**（中英切换／注册免验证码／SEO 静态页／目录页 URL 换正）09-23 09:56 上线。⚠️ 本句的导语在这里此前一直写着 `v0.2.112`——★ 那是上一轮的历史水位不是现况，而紧跟它的两句当场自纠到了 v0.2.118，**等于一句导语和它自己的下文打架**；现由 `node tools/metrics.mjs --check` 的「线上现况版本」一条与公开清洗表 `PUBLIC_RELEASES` 最高版本逐字对账，写旧即红。★ 发版逐次点名授权，本文件不预授权——那句「未发版」在它自己的历史上是对的，只是被今天改写了；线上判据实录见 `docs/SEO-SPEC.md` §6.2／§6.3），`metrics --tests` 实测口径；2829 passed + 1 skipped + 0 failed，全绿）；**逐文件不变量见 §3**（数字由 `node tools/metrics.mjs --tests` 产出，非手抄） |
+| **测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；交互层是**两层互补**——**23 个 `.test.tsx`**（★ 本批删的三件测试都是 `.ts`，这个 24 是上一批留下的旧抄，按 `find packages -name "*.test.tsx"` 实测改正）（jsdom 按文件 pragma 启用，锁交互逻辑）＋ **15 个真机探针脚本**（`tools/probes/*.mjs`，其中 10 个走 CDP 真点真渲染，锁 CSS 与真实浏览器行为） | 基线 **207 文件 / 2801 例**（2800 passed＋1 skipped＋0 failed，2026-09-25 移除「今日总结」＋「刷题笔记」批（issue #21）后实测（★ 该批 −3 文件／−29 例：删 `learning/notes`／`routes/notes`／`note-format` 三件测试＋四处就地摘例；★ **读数口径＝先 build 再测**：本批首读在全新 worktree 里、`dist` 尚不存在，`src/seo/public-hygiene` 那两例 `it.skipIf(!HAS_DIST)` 当时是跳过的（2798 passed＋3 skipped）；补跑 `npm run build` 后重测＝下面这一读，两个读数**总量恒为 2801**，变的只是 passed/skipped 怎么分）；上一读数 210/2830＝构建产物卫生锁批（issue #8）（★ 先 build 再测：卫生锁里两例要读 `dist` 产物才跑）；上一读数 210/2826＝公开抓取覆盖锁批（issue #4）；上一读数 209/2820＝批次 I（主聊天 AI 图解能力批）随 PR #10 合并入 main；上一读数 208/2817＝搜索通道形状批；上一读数 207/2810＝游戏化 S1-a 批·再上一读数 206/2799＝学习流·知识图下线批·再上一读数 217/3004＝对战邀请批（`offer_pk_battle` → 迁移 v43 `pk_invites` → 聊天内联邀请卡）·上一档＝2026-09-24 归因批（`?ref=` → `X-SB-Ref` → 迁移 v42 `source` → `bySource`）后；★ 线上现况＝**已上线到 v0.2.125**（09-25 11:44 三批合一＝渠道归因（迁移 v42）＋聊天内 AI 主动发起对战邀请（迁移 v43 `pk_invites`）＋学习流／知识图整族下线（迁移 v44 DROP 那七张表，按判决不留备份）；上一档 v0.2.118＝09-24 08:48 单批＝公开更新页＋Atom 订阅；**v0.2.113／114／115／116／117 五批** 09-23 23:5x 上线；**v0.2.109／110／111／112 四批**（中英切换／注册免验证码／SEO 静态页／目录页 URL 换正）09-23 09:56 上线。⚠️ 本句的导语在这里此前一直写着 `v0.2.112`——★ 那是上一轮的历史水位不是现况，而紧跟它的两句当场自纠到了 v0.2.118，**等于一句导语和它自己的下文打架**；现由 `node tools/metrics.mjs --check` 的「线上现况版本」一条与公开清洗表 `PUBLIC_RELEASES` 最高版本逐字对账，写旧即红。★ 发版逐次点名授权，本文件不预授权——那句「未发版」在它自己的历史上是对的，只是被今天改写了；线上判据实录见 `docs/SEO-SPEC.md` §6.2／§6.3），`metrics --tests` 实测口径；2800 passed + 1 skipped + 0 failed，全绿）；**逐文件不变量见 §3**（数字由 `node tools/metrics.mjs --tests` 产出，非手抄） |
 | **契约先行的可维护性** | `@sb/shared` 是 SSE 事件 / 内容块 / REST / 领域模型的单一事实源，前后端不允许各写一套；先登记再实现 | shared 契约文件头注释即纪律；四条固定扩展模式见 [§开发指南](#开发指南) |
 | **不锁定供应商** | OpenAI 兼容 + Anthropic 双适配；搜索三家按 key 并行聚合 + 免 key 兜底——换模型、换服务商只动设置页 | 适配器有出站请求体断言测试，且当场逮出过真缺陷 B-001（多条 system 在 Anthropic 型上静默丢失） |
 | **多用户归属做得彻底** | 归属不是加个 `WHERE`：`providers.owner_id IS NULL` ＝平台通道（人人可用）、业务表 `owner_id = ''` ＝无主（谁都看不见），两种「没有主人」可见性刻意相反；读写按形状分别走 `ownerFilter` / `ownerForWrite` | 每批都配跨用户隔离锁 + 「故意改坏必红」的非空转取证（[`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) §8 + test-plan §7） |
@@ -204,7 +204,6 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 - **如实上报**：`QuizImageReport{on, delivered, droppedSvg, truncated}` 四态贯穿 server→路由→前端，绝不拿「开关已开」冒充「图已交付」
 - **题库与统计**：逐题正确率统计、薄弱点定位、golden dataset
 - **现场搜集真题**（v0.2.57）：题库页「搜集题目」一条闭环——派生搜集词联网检索 → 受护栏抓页 → 模型从正文**逐字摘录**题目 → **verbatim 锚点锁**（题干锚点命不中原文即拒，宁漏真题不误收编题）→ preview/commit 两段人工确认才入库（外部结果永不直接写库）（契约 [`RESOURCE-SPEC.md`](docs/RESOURCE-SPEC.md)）
-- **刷题笔记**：**提交答案即自动落一篇结构化笔记草稿**（题目 / 我的作答 / 对错 / 解析整题快照，每题一篇幂等 upsert），心得手写补全且重答永不覆盖；独立「笔记」一级页（全部 / 只看错题筛选）+ 题库页「本套笔记」直达；快照自洽不设外键——题库删除后笔记仍可读（契约 [`QUIZ-NOTES-SPEC.md`](docs/QUIZ-NOTES-SPEC.md)）
 
 ### 忆 · AI 词条库
 - **双通道抽词**：回复后 `[TERMS]` 协议 fire-and-forget 自动抽取（不阻塞对话、失败降级空列表）+ 对话页「存入记忆」手动通道；入库按 `UNIQUE(owner, term, domain)` upsert 合并，并向模型注入已有领域 top-12 引导复用词表——防词条库分裂
@@ -251,7 +250,7 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 - ⚠️ **微信 / 短信登录未做**：两者均要求企业主体资质，个人无法申请；留作企业资质就绪后的增强，且必须映射到同一个 user（契约 [`AUTH-SPEC.md`](docs/AUTH-SPEC.md)）
 
 ### 反馈
-- 学 / 练 / 忆的每个动作经事件总线 `publishEvent` 按费率表落 XP（归属必填，漏传是静默少算），驱动 XP 连签、今日总结、近 7 天趋势
+- 学 / 练 / 忆的每个动作经事件总线 `publishEvent` 按费率表落 XP（归属必填，漏传是静默少算），驱动 XP 与连签
 
 ### 回答方式偏好
 - 四维偏好（详略 / 口吻 / 辅助 / 形状）：**L0** 设置页常驻卡 + **L1** 出题前没配过就先就地问一次（勾「记住」才落库）；默认档逐字等价原口径，老用户零感知（契约 [`ANSWER-STYLE-SPEC.md`](docs/ANSWER-STYLE-SPEC.md)）
@@ -304,7 +303,7 @@ tools/probes    — 真机探针 15 个（CDP 真点 10 + 能力/隔离量测 5�
 
 **三包职责**：`@sb/shared` 只放契约与纯函数（前后端共用一份，不允许各写一套）；`@sb/server` 承载全部业务域；`@sb/web` 是 React 18 前端，**零第三方运行时依赖**。
 
-**一级视图六个**（`App.tsx` 的 `View` 联合）：对话 / 题库 / 笔记 / 词条 / 今日总结 / 设置；对战是 `#/pk` 独立页，督促是常驻胶囊 + 抽屉。
+**一级视图四个**（`App.tsx` 的 `View` 联合）：对话 / 题库 / 词条 / 设置；对战是 `#/pk` 独立页，督促是常驻胶囊 + 抽屉。
 
 ## 安全与隐私设计
 
@@ -394,13 +393,13 @@ packages/
 │  ├─ search/               多路聚合 + 免 key 兜底 + 24h 缓存 + SSRF 护栏
 │  ├─ llm/                  openai / anthropic 双适配 + router(归属) + upstream-gate(两层)
 │  ├─ sse-bus.ts            帧序号 · 回放去重 · 按 owner 分频道
-│  ├─ routes/               REST 分域路由（23 个域文件；全仓 REST 注册 134 条）
+│  ├─ routes/               REST 分域路由（22 个域文件；全仓 REST 注册 129 条）
 │  ├─ storage/              better-sqlite3 封装 / 逐版本迁移（v1..v44，按区间分文件）
 │  └─ security.ts           Origin 校验（不放行 'null'）
 ├─ web/src/
-│  ├─ app/App.tsx           应用壳：侧栏六视图导航 + 可折叠历史 + 用户框
+│  ├─ app/App.tsx           应用壳：侧栏四视图导航 + 可折叠历史 + 用户框
 │  ├─ features/chat/        ChatView / useChatStream / Markdown / Thinking / AskStyleCard / 像素吉祥物
-│  ├─ features/{quiz,terms,notes,summary,coach,pk,settings,preview}/
+│  ├─ features/{quiz,terms,search,coach,pk,settings,preview}/
 │  ├─ lib/                  svg-utils（净化+自愈）/ chart-utils（自绘图表）/ markdown / highlight（零依赖）/ api*
 │  ├─ components/icons.tsx  SVG line-icon 基座（禁 emoji）
 │  └─ styles/tokens.css     设计 token 唯一事实源
@@ -425,7 +424,7 @@ AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决�
 - 禁内联 `style={{…}}`（一律走 tokens.css 的 token）；禁 `any`；测试也禁 `!` 非空断言
 - 每个测试文件必须在 `docs/dev/test-plan.md` 成行登记（未登记 = 门禁红）
 
-**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**210 文件 / 2830 例**（2829 passed + 1 skipped + 0 failed，2026-09-25 构建产物卫生锁批（issue #8）后实测（★ 先 build 再测：卫生锁里两例要读 `dist` 产物才跑）；上一读数 210/2826＝公开抓取覆盖锁批（issue #4）；上一读数 209/2820＝批次 I（主聊天 AI 图解能力批）随 PR #10 合并入 main；上一读数 208/2817＝搜索通道形状批；上一读数 207/2810＝游戏化 S1-a 批；再上一 206/2799＝学习流·知识图下线批；**逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，本格数字由 `node tools/metrics.mjs --tests` 产出）。
+**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**207 文件 / 2801 例**（2800 passed + 1 skipped + 0 failed，2026-09-25 移除「今日总结」＋「刷题笔记」批（issue #21）后实测（★ 该批 −3 文件／−29 例；上一读数 210/2830＝构建产物卫生锁批（issue #8）（★ 先 build 再测：卫生锁里两例要读 `dist` 产物才跑）；上一读数 210/2826＝公开抓取覆盖锁批（issue #4）；上一读数 209/2820＝批次 I（主聊天 AI 图解能力批）随 PR #10 合并入 main；上一读数 208/2817＝搜索通道形状批；上一读数 207/2810＝游戏化 S1-a 批；再上一 206/2799＝学习流·知识图下线批；**逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，本格数字由 `node tools/metrics.mjs --tests` 产出）。
 
 量化对账：`node tools/metrics.mjs --check` 会把本文的可核对数字与代码实测逐一比对，漂移即退出码 1——**本文任何数字都不许手改，改了就红**。
 
@@ -557,7 +556,7 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 | [`DEEP-UNDERSTANDING-SPEC.md`](docs/DEEP-UNDERSTANDING-SPEC.md) | 深度理解契约（★ 状态：**待评审**，实施范围以其头部为准） |
 | [`QUIZ-IMAGE-SPEC.md`](docs/QUIZ-IMAGE-SPEC.md) | 出题配图契约（字段加法 / 丢图保题 / 提示词口径） |
 | [`QUIZ-SEARCH-SPEC.md`](docs/QUIZ-SEARCH-SPEC.md) | 出题联网检索契约（素材不是指令 / 失败不阻断不静默） |
-| [`QUIZ-NOTES-SPEC.md`](docs/QUIZ-NOTES-SPEC.md) | 刷题笔记契约（提交即落草稿 / 快照自洽不设外键） |
+| [`QUIZ-NOTES-SPEC.md`](docs/QUIZ-NOTES-SPEC.md) | ⚰️ **墓碑**：刷题笔记契约沿革（快照自洽不设外键 / 每题一篇幂等 upsert 的取舍仍在）——★ 2026-09-25 功能整族下线（表待 v44 之后的 v45 DROP），文中"现役"字样均不再是事实 |
 | [`QUIZ-WEAK-SPEC.md`](docs/QUIZ-WEAK-SPEC.md) | 薄弱点分析契约 |
 | [`RESOURCE-SPEC.md`](docs/RESOURCE-SPEC.md) | 现场搜集契约（逐字锚点锁 / 两段确认入库） |
 | [`DOC-RAG-SPEC.md`](docs/DOC-RAG-SPEC.md) | 文档检索契约（常量取值依据与被否掉的两条阈值方案） |

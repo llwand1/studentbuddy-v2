@@ -252,7 +252,7 @@ ALTER TABLE sessions ADD COLUMN forked_term TEXT
    逼他先开一个空会话再打字，等于把动作拆成两步。输入框 `placeholder` = 默认问题
    （`defaultFollowUpQuestion`），**留空即用默认**。
 3. **未注入 `onFollowUp` 时不渲染**这组控件（同 `openTerms` 的既有手法）——
-   不做点了才报错的假按钮。`Markdown` 被笔记页复用时自然没有这个能力，不该出现按钮。
+   不做点了才报错的假按钮。`Markdown` 被~~笔记页~~（★ 该页 2026-09-25 已随刷题笔记下线）复用过的场景自然没有这个能力，不该出现按钮。
 4. 点击后：`POST …/fork` → **切到新会话**（`setView('chat')` + `setCurrentId`）→ 刷会话列表
    （新会话要立刻出现在侧栏）。回答的流由既有 `useChatStream` + `GET /api/chat/active` 接住。
 5. 走 `TermIndexProvider` 的上下文注入，**不穿透** `Markdown`/`MessageRow` 的 props 链

@@ -96,7 +96,7 @@ describe('Landing — 未登录门面', () => {
     expect(getByText('智能出题')).toBeTruthy();
     expect(getByText('词条高亮')).toBeTruthy();
     expect(getByText('AI 对战')).toBeTruthy();
-    expect(getByText('笔记与总结')).toBeTruthy();
+    expect(getByText('AI 主动督促')).toBeTruthy();
     // 工程较真/隐私自持两段齐备，默认也全渲染（门面一次讲完）
     expect(getByText('AI 输出可靠性工程')).toBeTruthy();
     expect(getByText('不锁定供应商')).toBeTruthy();
@@ -172,7 +172,7 @@ describe('Landing — 介绍顺序：它是什么 → 词条 → 功能（2026-0
     expect(container.querySelector('.landing-intro-term')?.textContent).toContain('一切都以词条为主体');
   });
 
-  it('介绍段本体：三句话说清 + 「词条是主体」五个去向齐备 + hero 副标仍是一句', () => {
+  it('介绍段本体：三句话说清 + 「词条是主体」四个去向齐备 + hero 副标仍是一句', () => {
     const { container } = render(<Landing onAuthed={() => undefined} />);
     // hero 副标瘦身为一句自我介绍：原先那句塞了 4 个 feature 从句的副标已下放介绍段/功能区
     expect(container.querySelector('.landing-sub')?.textContent).toBe(
@@ -181,7 +181,7 @@ describe('Landing — 介绍顺序：它是什么 → 词条 → 功能（2026-0
     expect(container.querySelector('.landing-intro-h3')?.textContent).toBe('一切都以词条为主体');
     expect(
       [...container.querySelectorAll('.landing-spine-item .landing-feature-title')].map((n) => n.textContent),
-    ).toEqual(['驱动出题', '决定复习', '连成图谱', '沉淀总结', '拿去对战']);
+    ).toEqual(['驱动出题', '决定复习', '连成图谱', '拿去对战']);
     expect(container.querySelectorAll('.landing-intro-three .landing-intro-card').length).toBe(3);
   });
 });
@@ -218,7 +218,7 @@ describe('Landing — 功能区按步骤讲（2026-09-22 二次点单「功能�
       '长期记忆',
       '词条高亮',
       '知识图谱',
-      '笔记与总结',
+      'AI 主动督促',
     ]);
   });
 

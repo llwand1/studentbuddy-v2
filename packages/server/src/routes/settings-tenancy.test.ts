@@ -6,7 +6,8 @@
  *     · `app_settings` 是**全局写口** ⇒ A 在设置页改一次出题配比/回答方式/配图开关/搜索 key，
  *       **全站所有人都跟着变**（与 `role_bindings` 同一类隐患）；
  *     · `user_stats` 里存 `xp` ⇒ **A 和 B 的 XP 是同一个数**，等级与连签同理；
- *     · `daily_summaries` 的 `PK(day)` ⇒ **B 直接读到 A 的今日总结**；
+ *     · `daily_summaries` 的 `PK(day)` ⇒ **B 直接读到 A 的今日总结**（★ 2026-09-25 该功能下线，
+ *       本文件不再测它；v30 那次归主迁移本身仍由 `storage/db.test.ts` 的建表段守着）；
  *     · `daily_activity` 的 `PK(day,type)` ⇒ A、B 同一天聊天**直接撞主键**。
  *
  * ★ 三条容易写成"看着对但没测到"的口径，本文件各配一条锁：
@@ -66,10 +67,11 @@ const cookieB = await signUp('b@example.com');
 beforeEach(() => {
   resetRateLimits();
   resetAuthCaches();
-  // ★ 每个用例从干净状态起：四张表全清。不清的话前一个用例写进 `''` 的行会漏进后一个，
+  // ★ 每个用例从干净状态起：三张表全清。不清的话前一个用例写进 `''` 的行会漏进后一个，
   //   于是「B 拿到默认值」变成「B 拿到了上一个用例的值」——红的是**正确的代码**，极难读。
+  //   （`daily_summaries` 曾在名单里，随今日总结下线的同批摘掉：等 v45 DROP 后清它就直接抛。）
   const db = getDb();
-  for (const t of ['app_settings', 'daily_activity', 'daily_summaries', 'user_stats']) {
+  for (const t of ['app_settings', 'daily_activity', 'user_stats']) {
     db.prepare(`DELETE FROM ${t}`).run();
   }
 });
@@ -167,37 +169,6 @@ describe('routes/settings-tenancy — 反馈环三表归主（v30）', () => {
       { owner_id: idA, count: 2 },
       { owner_id: idB, count: 5 },
     ]);
-  });
-
-  it('★ 今日总结按人各一份：A 的总结只含 A 的活动，B 的一分不沾（改前 `PK(day)` 就是这个洞）', async () => {
-    const meA = await req.get('/api/auth/me', cookieA);
-    chatDone(meA.body.user.id as string, 1);
-    // 没配 summarizer 模型 ⇒ 走降级统计文本（ADR-4），正好是"可断言且含本人数据"的一段
-    const a = await req.get('/api/activity/summary', cookieA);
-    const b = await req.get('/api/activity/summary', cookieB);
-    expect(a.body.content).toContain('chat_done×1');
-    expect(b.body.content).not.toContain('chat_done×1'); // B 今天没活动
-    expect(b.body.content).toContain('暂无活动');
-  });
-
-  it('★ 今日总结的**缓存**按人各一份：库里同时有「无主」与 A 的两条缓存时，两人各读各的', async () => {
-    const meA = await req.get('/api/auth/me', cookieA);
-    const idA = meA.body.user.id as string;
-    // 直接铺缓存（走 LLM 那条路要真配一个模型，本用例要测的是**读缓存时的归属**，不是生成）
-    // ★ 日键走**本地** `localDayKey` 而不是 sqlite 的 `date('now')`（那是 UTC）：读侧已按本地日键取缓存，
-    //   铺 UTC 行会在 00:00–08:00 窗口写成"昨天"，用例于是在凌晨随机变红。
-    const ins = getDb().prepare(`INSERT INTO daily_summaries (owner_id, day, content) VALUES (?, ?, ?)`);
-    ins.run('', localDayKey(new Date()), '无主行的旧总结');
-    ins.run(idA, localDayKey(new Date()), 'A 的缓存总结');
-
-    expect((await req.get('/api/activity/summary', cookieA)).body.content).toBe('A 的缓存总结');
-    // ★ B 没有缓存 ⇒ 走降级文本；关键是**不能读到「无主行的旧总结」**（豁免过滤就会读到它）
-    const b = await req.get('/api/activity/summary', cookieB);
-    expect(b.body.content).not.toBe('无主行的旧总结');
-    expect(b.body.content).toContain('暂无活动');
-    // 无主行仍在库里（没被误删、也没被误读）——未登录模式才看得见它
-    const anon = await req.get('/api/activity/summary');
-    expect(anon.body.content).toBe('无主行的旧总结');
   });
 
   it('★ 未登录读不到任何人的数据（无主 ≠ 谁都能看见），也读不到登录用户的行', async () => {

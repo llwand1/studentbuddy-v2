@@ -1,12 +1,19 @@
 # 全站全文搜索（FTS）功能契约
 
-> 版本：**v1.0（已实现 · 2026-09-20 交付；原 v0.1 草案的批复＝老板「你去接手然后开始实现」）** | 日期：2026-09-20
+> 版本：**v1.0.1（已实现 · 2026-09-20 交付；v1.0.1＝2026-09-25 索引三类收成两类；原 v0.1 草案的批复＝老板「你去接手然后开始实现」）** | 日期：2026-09-20
 > 起因：搜索策略盘点（2026-09-20 会话）确认：联网搜索与文档 BM25 两条线已成型，但
 > **应用内六类用户数据（messages / 词条 / 错题本 / 题库 / 会话标题 / 会话资料）全部没有文本搜索**，
 > 全仓唯一一条 SQL LIKE 还是前缀匹配（`learning/terms.ts:268`）。本契约补这个洞。
 > 关联：`DOC-RAG-SPEC.md`（词法检索范式与 tokenizeDoc 同源复用）、`TENANCY-SPEC.md` §8（归属可见性判据）、
 > `MEMORY-SPEC.md` §5.2（记忆仍恒注入，本契约**不**碰）、`dev/test-plan.md`（测试登记门禁）。
 > **本文的 SQLite 能力结论来自 §8 实跑，不是文档推断。**
+>
+> ⚠️ **v1.0.1（2026-09-25，刷题笔记下线批 / issue #21）：三类索引收成两类**——`'note'`（错题笔记）随「刷题笔记」
+> 功能下线，`FTS_KINDS` 现为 `['message', 'term']`。★ **一个不会自己消失的坑留在这里**：`search_index` 是虚表，
+> 功能删了**不等于**索引行删了，库里那些 `kind='note'` 的旧行仍在表中；挡住它们的**只有查询侧的 `kind IN (...)` 白名单**
+> （就是那份 `FTS_KINDS`）⇒ **这份常量从此兼任过滤器**，谁把它"补回三类"，旧笔记就会带着已删功能的标题重新出现在搜索结果里。
+> v45 的 `DROP TABLE quiz_notes` 那一批要**连带** `DELETE FROM search_index WHERE kind='note'`（契约见 `QUIZ-NOTES-SPEC.md` 墓碑）。
+> 该回归由 `src/search/fts-index.test.ts` 的一条反向锁钉住（手插一条 owner 非空的 `kind='note'` 残留行，断言它不进结果）。
 >
 > ★ **实现记录与偏离登记见 §10**——本版把 v0.1 里**两处写错的行为描述**按实测订正
 > （§3.4 的空 MATCH、§3.4 的 `-` 前缀），并逐条列出实现与草案的偏离。**读本文请以 §10 为准。**
@@ -54,7 +61,7 @@
 ```sql
 CREATE VIRTUAL TABLE search_index USING fts5(
   tokens,                    -- 唯一可检索列：tokenizeForFts(原文) 空格拼接
-  kind, ref_id UNINDEXED,    -- 'message'|'term'|'note'（P2 加 'quiz'|'doc'）
+  kind, ref_id UNINDEXED,    -- 'message'|'term'（★ v1.0.1：原第三类 'note' 随刷题笔记于 2026-09-25 下线；P2 加 'quiz'|'doc'）
   owner,                     -- 归属冗余列，见 §4；'' = 无主
   title UNINDEXED,           -- 结果展示用，400 字截断原文（非分词）
   snippet UNINDEXED,         -- 命中处附近原文 ≤FTS_SNIPPET_CHARS 字，高亮由前端 indexOf 做
@@ -77,10 +84,10 @@ CREATE VIRTUAL TABLE search_index USING fts5(
 
 ### 3.4 路由与前端
 
-- `GET /api/search?q=…&kinds=message,term,note&limit=20`：查询词过 `tokenizeForFts`，产出多词元用 `AND` 连接（召回不足时才在 P2 讨论 OR）；空 token 结果直接返回空，不发 SQL。
+- `GET /api/search?q=…&kinds=message,term&limit=20`（★ v1.0.1：原清单里的 `note` 随刷题笔记下线，传它会被 `FTS_KINDS` 白名单挡成空结果）：查询词过 `tokenizeForFts`，产出多词元用 `AND` 连接（召回不足时才在 P2 讨论 OR）；空 token 结果直接返回空，不发 SQL。
   ★ **订正（v1.0，实测）**：v0.1 此处写「fts5 空 MATCH 会全表扫」，**这个说法是错的**——实测 `MATCH ''` 与纯空白串都抛 `SqliteError: fts5: syntax error near ""`。短路仍然必须做，但理由是**防 500**（用户敲几个空格就把接口打挂），不是防"返回全站内容"。证据见 `tools/probes/fts-capability.mjs` §5。
   ★ **订正（v1.0，实测）**：v0.1 §3.3 未提转义，实现时按「不转义 ⇒ 语法错误 ⇒ 500」加了双引号包裹。另一条常见说法「裸拼 `-牛顿` 会被读成 NOT、静默返回不含牛顿的结果」**同样不成立**——实测报 `no such column: 牛顿`；fts5 的 `NOT` **只能做二元运算符**（`a NOT b` 可跑），**没有 fts3/4 那种 `-term` 前缀简写**。
-- 前端 P1 只做一件事：会话侧栏搜索框输入 ≥2 字时**追加**一路服务器结果（分区：词条 / 消息 / 错题），点消息结果跳转会话。既有纯前端 title 过滤**保留不动**，两路并存。
+- 前端 P1 只做一件事：会话侧栏搜索框输入 ≥2 字时**追加**一路服务器结果（分区：词条 / 消息 / ~~错题~~，★ v1.0.1 起两区），点消息结果跳转会话。既有纯前端 title 过滤**保留不动**，两路并存。
   ★ **范围缩减（v1.0 诚实记账）**：v0.1 写「跳转会话**并滚动定位**」——实现只做到**跳到会话**，**未做精确滚动定位**（`FtsHit.parentId` 已带会话 id，滚动定位需要目标消息的 DOM 锚点，属 P2）。
 
 ## 4. 可见性矩阵（逐表，动码前对照 TENANCY-SPEC 复核）
@@ -89,7 +96,7 @@ CREATE VIRTUAL TABLE search_index USING fts5(
 |---|---|---|---|---|
 | message | messages 全局，锚在 `sessions.user_id`（NULL=孤儿） | 建行时 join sessions 快照 `user_id ?? ''` | `owner = 当前用户` | 不过滤（等价今天全量列表） |
 | term | `term_library.owner_id`（'' = 无主） | 直接冗余 | `ownerForWrite` 口径：`owner = ?`，无主行谁都不泄露 | `owner = ''` |
-| note | `quiz_notes.owner_id` 同上 | 同上 | 同上 | `owner = ''` |
+| ~~note~~ | ~~`quiz_notes.owner_id` 同上~~ | ⚰️ **v1.0.1（2026-09-25）随刷题笔记下线**：写点没了，但**库里残留的旧索引行仍在这张虚表里**（v45 才连带清）⇒ 靠 `kind IN (FTS_KINDS)` 挡住，别靠归属过滤 | — | — |
 
 ★ message 行若会话改主/删除，索引按快照冗余处理：改主走 rebuild 兜底，**会话删除时必须级联删索引行**（写点在 `canAccessSession` 域的删除函数里）。
 ★ **实现偏离（v1.0）**：实际落点不在 `canAccessSession` 域，而在 **`routes.ts` 的 `DELETE /sessions/:id`**——因为 `sessions` 是**软删**（只置 `deleted_at`，messages 行保留），域层没有"删除函数"可挂。故级联动作 `dropSessionMessages(sessionId)` 放在软删之后，且 **`rebuildSearchIndex()` 同样要过滤 `deleted_at IS NULL`**（否则全量重建会把已删会话的消息**复活**——这条已单独作用例锁住）。

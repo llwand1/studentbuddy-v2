@@ -1,50 +1,50 @@
 {
-  "generatedAt": "2026-09-25T06:42:09.998Z",
+  "generatedAt": "2026-09-25T11:41:10.645Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
         "srcFiles": 28,
         "testFiles": 18,
-        "srcLines": 4127,
+        "srcLines": 4099,
         "testLines": 2251
       },
       {
         "pkg": "server",
-        "srcFiles": 166,
+        "srcFiles": 167,
         "testFiles": 120,
-        "srcLines": 25881,
-        "testLines": 26140
+        "srcLines": 25604,
+        "testLines": 25986
       },
       {
         "pkg": "web",
-        "srcFiles": 185,
+        "srcFiles": 182,
         "testFiles": 69,
-        "srcLines": 23642,
-        "testLines": 9973
+        "srcLines": 23308,
+        "testLines": 10137
       }
     ],
-    "srcFiles": 379,
+    "srcFiles": 377,
     "testFiles": 207,
-    "srcLines": 53650,
-    "testLines": 38364,
+    "srcLines": 53011,
+    "testLines": 38374,
     "tsxTestFiles": 23
   },
   "routes": {
-    "total": 134,
+    "total": 129,
     "byMethod": {
-      "get": 58,
+      "get": 55,
       "post": 48,
-      "delete": 13,
-      "put": 14,
+      "delete": 12,
+      "put": 13,
       "patch": 1
     },
-    "apiMounts": 27
+    "apiMounts": 26
   },
   "contracts": {
-    "iface": 86,
+    "iface": 84,
     "type": 47,
-    "total": 133
+    "total": 131
   },
   "migrations": {
     "count": 44,
@@ -83,86 +83,53 @@
     "specs": 31,
     "all": 44,
     "dev": 5,
-    "probes": 14
+    "probes": 15
   },
   "repo": {
-    "head": "594597e",
+    "head": "f219199",
     "headDate": "2026-09-25",
-    "commitsLast14d": 199,
-    "branch": "main",
-    "dirtyFiles": 12
+    "commitsLast14d": 215,
+    "branch": "feat/remove-daily-summary-notes",
+    "dirtyFiles": 56
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 26,
+    "wallSec": 44.3,
     "staleDays": 0,
     "files": 207,
-    "cases": 2810,
-    "passed": 2809,
+    "cases": 2801,
+    "passed": 2800,
     "skipped": 1,
     "failed": 0,
     "success": true
   },
   "coverage": {
-    "available": true,
-    "staleDays": 5,
-    "perPkg": {
-      "shared": {
-        "lines": 99.3,
-        "branches": 91.2,
-        "stmts": 99.3,
-        "funcs": 100
-      },
-      "server": {
-        "lines": 88.9,
-        "branches": 83,
-        "stmts": 88.9,
-        "funcs": 93.1
-      },
-      "web": {
-        "lines": 43.9,
-        "branches": 83.7,
-        "stmts": 43.9,
-        "funcs": 60.2
-      }
-    },
-    "allPackages": {
-      "lines": 67.7,
-      "branches": 83.8,
-      "stmts": 67.7,
-      "funcs": 78.7
-    },
-    "repoTotal": {
-      "lines": 53.9,
-      "branches": 83.4,
-      "stmts": 53.9,
-      "funcs": 76.7
-    }
+    "available": false
   },
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "206",
+      "claimed": "207",
       "measured": "207",
-      "ok": false
+      "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "2799",
-      "measured": "2810",
-      "ok": false
+      "claimed": "2801",
+      "measured": "2801",
+      "ok": true
     },
     {
       "label": "badge REST 路由",
-      "claimed": "134",
-      "measured": "134",
+      "claimed": "129",
+      "measured": "129",
       "ok": true
     },
     {
       "label": "badge 契约类型",
-      "claimed": "133",
-      "measured": "133",
+      "claimed": "131",
+      "measured": "131",
       "ok": true
     },
     {
@@ -191,27 +158,27 @@
     },
     {
       "label": "正文 passed 口径",
-      "claimed": "2798 passed + 1 skipped + 0 failed",
-      "measured": "2809 passed + 1 skipped + 0 failed",
-      "ok": false
+      "claimed": "2800 passed + 1 skipped + 0 failed",
+      "measured": "2800 passed + 1 skipped + 0 failed",
+      "ok": true
     },
     {
       "label": "正文 passed 口径",
-      "claimed": "2798 passed + 1 skipped + 0 failed",
-      "measured": "2809 passed + 1 skipped + 0 failed",
-      "ok": false
+      "claimed": "2800 passed + 1 skipped + 0 failed",
+      "measured": "2800 passed + 1 skipped + 0 failed",
+      "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "206 文件 / 2799 例",
-      "measured": "207 文件 / 2810 例",
-      "ok": false
+      "claimed": "207 文件 / 2801 例",
+      "measured": "207 文件 / 2801 例",
+      "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "206 文件 / 2799 例",
-      "measured": "207 文件 / 2810 例",
-      "ok": false
+      "claimed": "207 文件 / 2801 例",
+      "measured": "207 文件 / 2801 例",
+      "ok": true
     }
   ],
   "landingDrift": []

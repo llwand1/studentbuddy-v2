@@ -91,8 +91,8 @@ export const INTRO: {
   h2Mid: { zh: '自托管', en: 'self-hosted' },
   h2Tail: { zh: '的 AI 学习助手', en: ' AI study copilot' },
   def: {
-    zh: '它把「学 → 练 → 析 → 忆 → 反馈」做成一条自动运转的闭环：你只管提问，讲解、出题、判分、复习排期、每日总结自己往下走。用你自己的模型 Key，数据在你自己的服务器。',
-    en: 'It runs the loop for you — learn → practice → analyze → remember → feedback. Just ask questions; explaining, quiz-making, grading, review scheduling and daily summaries keep going on their own. Bring your own model key; your data stays on your server.',
+    zh: '它把「学 → 练 → 析 → 忆 → 反馈」做成一条自动运转的闭环：你只管提问，讲解、出题、判分、复习排期自己往下走。用你自己的模型 Key，数据在你自己的服务器。',
+    en: 'It runs the loop for you — learn → practice → analyze → remember → feedback. Just ask questions; explaining, quiz-making, grading and review scheduling keep going on their own. Bring your own model key; your data stays on your server.',
   },
   eyebrowCore: { zh: '核心机制', en: 'Core mechanic' },
   h3TermAria: { zh: '词条是主体', en: 'Terms take center stage' },

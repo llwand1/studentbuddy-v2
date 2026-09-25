@@ -11,20 +11,19 @@ import { useEffect, useState } from 'react';
 import { FTS_MIN_QUERY_CHARS, type FtsHit } from '@sb/shared';
 import { api } from '../../lib/api';
 
-/** 命中按 kind 分区。固定三键（空的一侧给空数组），渲染层不必再判 undefined。 */
+/** 命中按 kind 分区。固定两键（空的一侧给空数组），渲染层不必再判 undefined。 */
 export interface SearchGroups {
   message: FtsHit[];
   term: FtsHit[];
-  note: FtsHit[];
 }
 
 /**
  * 按 kind 分区。
- * ★ 用**固定三键**而不是 `Record<string, FtsHit[]>`：后者让渲染层每次都要判 undefined，
+ * ★ 用**固定键**而不是 `Record<string, FtsHit[]>`：后者让渲染层每次都要判 undefined，
  *   而"少判一次"的表现是整块结果不渲染（用户以为没搜到）。多一个键的成本是零。
  */
 export function groupHits(hits: FtsHit[]): SearchGroups {
-  const groups: SearchGroups = { message: [], term: [], note: [] };
+  const groups: SearchGroups = { message: [], term: [] };
   for (const h of hits) groups[h.kind].push(h);
   return groups;
 }
@@ -73,11 +72,11 @@ export interface GlobalSearchState {
 export function useGlobalSearch(query: string): GlobalSearchState {
   const q = query.trim();
   const active = q.length >= FTS_MIN_QUERY_CHARS;
-  const [groups, setGroups] = useState<SearchGroups>({ message: [], term: [], note: [] });
+  const [groups, setGroups] = useState<SearchGroups>({ message: [], term: [] });
   const [loading, setLoading] = useState(false);
   useEffect(() => {
     if (!active) {
-      setGroups({ message: [], term: [], note: [] });
+      setGroups({ message: [], term: [] });
       setLoading(false);
       return;
     }
@@ -95,7 +94,7 @@ export function useGlobalSearch(query: string): GlobalSearchState {
         })
         .catch(() => {
           if (cancelled) return;
-          setGroups({ message: [], term: [], note: [] });
+          setGroups({ message: [], term: [] });
           setLoading(false);
         });
     }, DEBOUNCE_MS);

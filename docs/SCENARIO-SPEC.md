@@ -180,7 +180,8 @@ interface ScenarioReportMessage {
 ## 9. 已知边界（诚实记账）
 
 - M1 的 observed 不留快照、不落刷题笔记（`upsertNoteFromAnswer` 的 questionData 是 QuizQuestion 形状，
-  情景题接入笔记属独立批）。
+  情景题接入笔记属独立批）。⚠️ **2026-09-25 订正**：那条「独立批」**已被撤销**——刷题笔记功能整体下线（issue #21），
+  `upsertNoteFromAnswer` 已从仓里删除，observed 快照不再有"接进笔记"这个去向；要留作答原文得先找新的存储位。
 - 桥接脚本 `ready` 事件（`sb-scenario-ready`）仅用于面板显示「已连接」，不作为判分依据。
 - M2 的解析阶梯已落地（§6.2/§6.3），但**提示词对 demo 质量的约束只能靠真机模型验证**——
   引用完整性检查保证「接不上的评分点不进库」，不保证「进库的 demo 都好玩」；真机首批生成结果要人目检。

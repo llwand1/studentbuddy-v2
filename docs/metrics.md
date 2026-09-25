@@ -23,44 +23,37 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-09-25 11:21:58（本机时区）｜ 基准 `1b40c66` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-09-25 19:41:55（本机时区）｜ 基准 `f219199` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
-| shared | 28 | 4,127 | 18 | 2,251 | 55% |
-| server | 166 | 25,829 | 119 | 25,943 | 100% |
-| web | 185 | 23,631 | 69 | 9,973 | 42% |
-| **合计** | **379** | **53,587** | **206** | **38,167** | **71%** |
+| shared | 28 | 4,099 | 18 | 2,251 | 55% |
+| server | 167 | 25,604 | 120 | 25,986 | 101% |
+| web | 182 | 23,308 | 69 | 10,137 | 43% |
+| **合计** | **377** | **53,011** | **207** | **38,374** | **72%** |
 
 ## 接口与契约
 
-- REST 路由注册：**134**（get 58 / post 48 / delete 13 / put 14 / patch 1）· 另 /api 挂载点 27 个
-- shared 契约类型：**133**（export interface 86 + export type 47）
+- REST 路由注册：**129**（get 55 / post 48 / delete 12 / put 13 / patch 1）· 另 /api 挂载点 26 个
+- shared 契约类型：**131**（export interface 84 + export type 47）
 - 外部运行时依赖：**6** 个 —— better-sqlite3, cors, express, pino, react, react-dom
 - 迁移水位：代码侧 **v44**（44 个 version 条目，非连续号 0 处）
 
 ## 测试基线（vitest 实跑）
 
-- **206 文件 / 2799 例**（2798 passed + 1 skipped + 0 failed）⇒ 全绿
-- 本次本机实跑（Node v22.23.2）全量耗时 30.3s
+- **207 文件 / 2801 例**（2800 passed + 1 skipped + 0 failed）⇒ 全绿
+- 本次本机实跑（Node v22.23.2）全量耗时 44.3s
 - jsdom 交互测试文件（`.test.tsx`）23 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
 
-| 范围 | Lines | Branches | Stmts | Funcs |
-|---|---|---|---|---|
-| shared | 99.3% | 91.2% | 99.3% | 100% |
-| server | 88.9% | 83% | 88.9% | 93.1% |
-| web | 43.9% | 83.7% | 43.9% | 60.2% |
-| **三包合计** | 67.7% | 83.8% | 67.7% | 78.7% |
-- ⚠️ 口径：分母只含 vitest 实际 import 到的源文件（未跑到 0% 的模块不进 json-summary 的按包聚合），故本表**只能用于同版本自身纵向对比**，不能与外部项目横比。
-- ⚠️ 覆盖率产物是 4 天前的（本次未跑 `--coverage`）
+- ⬜ 无覆盖率产物（跑 `node tools/metrics.mjs --tests --coverage` 生成，**不编数**）
 
 ## 文档与仓库
-- docs/：SPEC 契约 30 份 · md 共 43 份（dev/ 5）· 真机探针 14 个
-- git：main @ `1b40c66`（2026-09-25）· 近 14 天 192 commits · 工作区未提交 84 文件
+- docs/：SPEC 契约 31 份 · md 共 44 份（dev/ 5）· 真机探针 15 个
+- git：feat/remove-daily-summary-notes @ `f219199`（2026-09-25）· 近 14 天 215 commits · 工作区未提交 56 文件
 
 <!-- metrics:end -->
 

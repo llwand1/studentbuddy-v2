@@ -19,7 +19,6 @@ import {
   DocIcon,
   FlowIcon,
   GraphIcon,
-  NoteIcon,
   QuizIcon,
   SearchIcon,
   StatsIcon,
@@ -36,7 +35,6 @@ export const LANDING_ICONS: LandingIconMap = {
   flow: FlowIcon,
   graph: GraphIcon,
   vs: VsIcon,
-  note: NoteIcon,
   search: SearchIcon,
   doc: DocIcon,
 };

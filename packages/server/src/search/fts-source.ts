@@ -146,42 +146,6 @@ export function readSource(kind: FtsKind, refId: string): SourceRow | null {
       updatedAt: row.updated_at ?? '',
     };
   }
-  // note（错题本）
-  // ★ 索引 `quiz_title` + **题干** + `body`（心得），**不索引 `question_data` 原始 JSON**：
-  //   那串 JSON 里含选项、正确答案、解析，整串灌进去会让「搜一个选项词」命中一堆题，
-  //   而且搜出来的 snippet 是 `{"options":[...` 这种不可读的东西。
-  //   ⇒ 先解析出 `question` 字段再索引，是本 kind 唯一需要"读懂 JSON"的地方。
-  const row = db
-    .prepare(
-      `SELECT id AS ref_id, quiz_title, question_data, body, owner_id AS owner, updated_at
-         FROM quiz_notes WHERE id = ?`,
-    )
-    .get(refId) as
-    | {
-        ref_id: string;
-        quiz_title: string;
-        question_data: string;
-        body: string;
-        owner: string;
-        updated_at: string | null;
-      }
-    | undefined;
-  if (!row) return null;
-  let question = '';
-  try {
-    const q = JSON.parse(row.question_data) as { question?: unknown };
-    if (typeof q.question === 'string') question = q.question;
-  } catch {
-    question = ''; // 坏 JSON 不毁索引：至少 title 与 body 仍可搜
-  }
-  const body = row.body ?? '';
-  return {
-    refId: row.ref_id,
-    owner: row.owner,
-    tokensText: `${row.quiz_title} ${question} ${body}`,
-    // 错题本里用户找的是「那道题」，故主标题取题干；题干缺失（坏快照）才退到套题名
-    title: flatten(question || row.quiz_title).slice(0, FTS_TITLE_CHARS),
-    snippetSource: body || question || row.quiz_title,
-    updatedAt: row.updated_at ?? '',
-  };
+  // 错题笔记（`note` kind）随刷题笔记功能于 2026-09-25 下线，本函数不再有第三支。
+  return null;
 }

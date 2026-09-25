@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-25T06:42:09.998Z",
+  "generatedAt": "2026-09-25T09:35:18.910Z",
   "code": {
     "rows": [
       {
@@ -11,10 +11,10 @@
       },
       {
         "pkg": "server",
-        "srcFiles": 166,
-        "testFiles": 120,
-        "srcLines": 25881,
-        "testLines": 26140
+        "srcFiles": 169,
+        "testFiles": 121,
+        "srcLines": 25988,
+        "testLines": 26325
       },
       {
         "pkg": "web",
@@ -24,10 +24,10 @@
         "testLines": 9973
       }
     ],
-    "srcFiles": 379,
-    "testFiles": 207,
-    "srcLines": 53650,
-    "testLines": 38364,
+    "srcFiles": 382,
+    "testFiles": 208,
+    "srcLines": 53757,
+    "testLines": 38549,
     "tsxTestFiles": 23
   },
   "routes": {
@@ -81,25 +81,25 @@
   },
   "docs": {
     "specs": 31,
-    "all": 44,
+    "all": 45,
     "dev": 5,
-    "probes": 14
+    "probes": 15
   },
   "repo": {
-    "head": "594597e",
+    "head": "f705331",
     "headDate": "2026-09-25",
-    "commitsLast14d": 199,
-    "branch": "main",
-    "dirtyFiles": 12
+    "commitsLast14d": 206,
+    "branch": "fix/search-key-priority",
+    "dirtyFiles": 4
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 26,
+    "wallSec": 25.4,
     "staleDays": 0,
-    "files": 207,
-    "cases": 2810,
-    "passed": 2809,
+    "files": 208,
+    "cases": 2821,
+    "passed": 2820,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -143,14 +143,14 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "206",
-      "measured": "207",
-      "ok": false
+      "claimed": "208",
+      "measured": "208",
+      "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "2799",
-      "measured": "2810",
+      "claimed": "2817",
+      "measured": "2821",
       "ok": false
     },
     {
@@ -191,26 +191,26 @@
     },
     {
       "label": "正文 passed 口径",
-      "claimed": "2798 passed + 1 skipped + 0 failed",
-      "measured": "2809 passed + 1 skipped + 0 failed",
+      "claimed": "2816 passed + 1 skipped + 0 failed",
+      "measured": "2820 passed + 1 skipped + 0 failed",
       "ok": false
     },
     {
       "label": "正文 passed 口径",
-      "claimed": "2798 passed + 1 skipped + 0 failed",
-      "measured": "2809 passed + 1 skipped + 0 failed",
+      "claimed": "2816 passed + 1 skipped + 0 failed",
+      "measured": "2820 passed + 1 skipped + 0 failed",
       "ok": false
     },
     {
       "label": "正文基线句",
-      "claimed": "206 文件 / 2799 例",
-      "measured": "207 文件 / 2810 例",
+      "claimed": "208 文件 / 2817 例",
+      "measured": "208 文件 / 2821 例",
       "ok": false
     },
     {
       "label": "正文基线句",
-      "claimed": "206 文件 / 2799 例",
-      "measured": "207 文件 / 2810 例",
+      "claimed": "208 文件 / 2817 例",
+      "measured": "208 文件 / 2821 例",
       "ok": false
     }
   ],

@@ -4,7 +4,7 @@
  * 三家全无 key 时退回 Bing 免费通道（免 key 兜底，端点现指 www.bing.com；
  * 2026-09-17 由 DDG 换入、2026-09-25 由 cn 子域换到 www，RSS 主 + HTML 兜底双通道不变）；
  * 并行聚合、单家失败跳过、URL 去重；search_cache 单表 TTL（强化包 S2）。
- * key 优先取环境变量，其次 app_settings（密文，见 storage/crypto）。
+ * key 优先取该用户自己在设置里存的（密文，见 storage/crypto），其次环境变量（B-020 倒正）。
  */
 import { getDb } from '../storage/db.js';
 import { encryptSecret, decryptSecret } from '../storage/crypto.js';
@@ -32,13 +32,26 @@ export interface SearchProviderConfig {
 }
 
 /**
- * 取某家的 key：**环境变量优先，其次该用户自己的设置**。
+ * 取某家的 key：**该用户自己的设置优先，其次环境变量**。
  *
  * ★ M2d（2026-09-18，契约 TENANCY-SPEC §8.2）：`app_settings` 归主后，`search_key_*`
- *   是**每个用户自己的 key**（BYOK 语义），而环境变量仍是**平台兜底**
+ *   是**每个用户自己的 key**（BYOK 语义），而环境变量是**平台兜底**
  *   （与 §8.1.1 的双通道一致：平台免费额度来自 env 里配的 key，不需要也不应该有"平台行"）。
  *   ⚠️ 老库里的 `search_key_*` 行在 v30 之后变成无主行（`owner_id = ''`）⇒ 登录用户读不到，
  *   需用 `_probe/claim-legacy.mjs` 认领（或直接重新填一次）。
+ * ★★ **B-020（2026-09-25）：上面那句「env 是兜底」以前只写在注释里，实现是反的**
+ *   （旧写法 `keyFromEnv() || keyFromSettings()`）⇒ `.env` 一旦配上平台 key，
+ *   **所有人自己填的 key 会被静默绕过**（他自己的额度不被使用，他在设置里删掉 key
+ *   也删不掉那盏「已配置」的灯）。修法＝把顺序倒回来，让 env 真的只在「这个用户没配」时出现。
+ *   ★ **倒完之后两侧口径是一致的，不是各说各话**：聊天侧 `llm/platform-channel.ts` 的
+ *   `resolveProviderCredentials()` 早就是「env **只对平台行**注入，BYOK 行绝不覆盖」，
+ *   它原话写着「那会把用户自己的 key 换成一笔平台开销，等于"你配了 key，但花的还是平台的钱"」——
+ *   搜索侧以前做的正是那句话禁的事。（两处语义仍不完全同形：聊天侧有"平台行"这个数据概念，
+ *   搜索侧没有，所以搜索侧的 env 只能靠「这个用户没填」这个条件登场。）
+ *   ⚠️ **对现网零影响**：生产 `.env` 现读**零条**搜索 key（09-25 只读数 `grep -cE "^(EXA|TAVILY|ZHIPU)_API_KEY=" = 0`；
+ *   ★ 探针那句 `providers:["bing"]` **不算证据**——它自己会先把这三个变量删掉），
+ *   故本批是**把一条还没踩的坑填了**，不是止血；它真正的价值在下一批——一旦给 `.env` 配了平台 key，
+ *   顺序不倒就会立刻咬到自带 key 的用户。
  */
 function keyFromEnv(type: string): string {
   const env: Record<string, string | undefined> = {
@@ -57,10 +70,19 @@ function keyFromSettings(type: string, ownerId: string | null): string {
 }
 
 export function getProviderKey(type: string, ownerId: string | null): string {
-  return keyFromEnv(type) || keyFromSettings(type, ownerId);
+  // ★ 顺序即语义（B-020）：**用户自己的 key 在前**，env 只在用户没配时兜底。
+  return keyFromSettings(type, ownerId) || keyFromEnv(type);
 }
 
-/** 三家 key 的配置状态（只回布尔，明文/密文都不出响应）。 */
+/**
+ * 三家 key 的配置状态（只回布尔，明文/密文都不出响应）。
+ *
+ * ⚠️ **B-020 的口径（刻意不改，但要说清）**：这里答的是「**这一家现在有没有 key 可用**」，
+ *   不是「**你自己**填过没有」——所以 `.env` 里配了平台 key 时，未登录/没填的用户看到的灯也是亮的，
+ *   而他在设置里删掉自己那把之后灯**仍然亮**（此刻用的是平台那把，灯说的还是实话）。
+ *   要把两件事分开得给响应加字段（`configured: 'byok' | 'platform'`），那是 UI 语义变更、
+ *   由老板点单再做；本批只倒顺序、不动对外形状（动了会把设置页的 `Record<p, boolean>` 消费方一起卷进来）。
+ */
 export function listKeyStatus(ownerId: string | null): Record<KeyedProvider, boolean> {
   const out = {} as Record<KeyedProvider, boolean>;
   for (const p of KEYED_PROVIDERS) out[p] = getProviderKey(p, ownerId).length > 0;
@@ -128,7 +150,17 @@ async function tavilySearch(query: string, apiKey: string, signal?: AbortSignal)
   }));
 }
 
-/** 智谱 web-search-pro（国产兜底：字段名接入前以实测为准，失败自动跳过不阻塞降级链） */
+/**
+ * 智谱 web-search-pro（国产兜底：字段名接入前以实测为准，失败自动跳过不阻塞降级链）
+ *
+ * ⚠️ **2026-09-25 对照官方文档发现一处可能对不上，刻意未改**：`docs.bigmodel.cn` 的「网络搜索」
+ *   参考页写的请求字段是 `search_query`（另有可选 `search_engine`），而这里发的是 `query`。
+ *   ★ **不改的理由不是"相信现在的对"，是"没资格判"**：三家托管 provider 在本仓**一次真调用都没有过**
+ *   （生产 `.env` 零条搜索 key，见 `docs/SEARCH-PROVIDER-SELECTION.md` §2），
+ *   把 `query` 改成 `search_query` 会同时改掉唯一那条能证伪它的线索——真要修，
+ *   得连着「拿一把 key 实跑一次」一起做，那是选型批的事，不是注释批的事。
+ *   响应侧解析（`search_result[].title/link/content`）与文档一致，故若坏也只坏一个字段。
+ */
 async function zhipuSearch(query: string, apiKey: string, signal?: AbortSignal): Promise<SearchResult[]> {
   const res = await fetchSafe('https://open.bigmodel.cn/api/paas/v4/web_search', {
     method: 'POST',

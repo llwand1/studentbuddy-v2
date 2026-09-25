@@ -18,12 +18,17 @@ const { searchWeb, resultsToContext, saveProviderKey, getProviderKey, listKeySta
 
 type Fake = { json?: unknown; text?: string; status?: number };
 const calls: string[] = [];
+/** ★ 与 `calls` 平行：记录每次外呼**实际带出去的那把 key**（B-020 判的就是「用的是谁的 key」，
+ *  只断言 URL 的话，实现把两把 key 用反了也不会红）。 */
+const auths: string[] = [];
 function mockFetch(handler: (url: string) => Fake) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (input: string | URL) => {
+    vi.fn(async (input: string | URL, init?: RequestInit) => {
       const url = String(input);
       calls.push(url);
+      const h = (init?.headers ?? {}) as Record<string, string | undefined>;
+      auths.push(h['x-api-key'] ?? h.Authorization ?? '');
       const r = handler(url);
       const status = r.status ?? 200;
       return {
@@ -51,6 +56,7 @@ const BING_HTML = `<ol id="b_results">
 
 beforeEach(() => {
   calls.length = 0;
+  auths.length = 0;
   getDb().prepare('DELETE FROM search_cache').run();
   getDb().prepare('DELETE FROM app_settings').run();
   for (const k of ['EXA_API_KEY', 'TAVILY_API_KEY', 'ZHIPU_API_KEY']) delete process.env[k];
@@ -193,6 +199,51 @@ describe('search 聚合', () => {
 
     saveProviderKey('zhipu', '', null);
     expect(listKeyStatus(null).zhipu).toBe(false);
+  });
+
+  // ── B-020（issue #16）：key 取用顺序。注释与契约（TENANCY-SPEC §8.2）一直说 env 是
+  // 「平台兜底」，实现却是 env 在前 ⇒ 用户自己填的 key 被静默绕过。这一组锁的是
+  // **外呼真正带出去的那把 key**（`auths`），不是「有没有 key」——顺序写反必红。
+
+  it('B-020：用户自己的 key 优先于 env（外呼带出去的是他那把）', async () => {
+    process.env.EXA_API_KEY = 'env-exa';
+    saveProviderKey('exa', 'my-own-exa', null);
+    mockFetch(() => ({ json: { results: [{ title: 'T', url: 'https://exa.example/1', text: '正文' }] } }));
+    const r = await searchWeb('byok-first', null);
+    expect(auths).toContain('my-own-exa');
+    expect(auths).not.toContain('env-exa');
+    expect(getProviderKey('exa', null)).toBe('my-own-exa');
+    expect(r.providers).toEqual(['exa']);
+  });
+
+  it('B-020：用户没配时 env 仍然兜底（平台免费额度那条路不能修断）', async () => {
+    process.env.EXA_API_KEY = 'env-exa';
+    mockFetch(() => ({ json: { results: [{ title: 'T', url: 'https://exa.example/1', text: '正文' }] } }));
+    const r = await searchWeb('env-fallback', null);
+    expect(auths).toContain('env-exa');
+    expect(r.providers).toEqual(['exa']);
+  });
+
+  it('B-020：他在设置里删掉自己的 key ⇒ 立刻回落 env，「已配置」灯随删除改口', async () => {
+    process.env.EXA_API_KEY = 'env-exa';
+    saveProviderKey('exa', 'my-own-exa', null);
+    expect(listKeyStatus(null).exa).toBe(true);
+    saveProviderKey('exa', '', null);
+    expect(getProviderKey('exa', null)).toBe('env-exa');
+    // ⚠️ 口径锁：删干净之后灯**仍亮**（env 那把确实在被使用）——见 listKeyStatus 的注释。
+    expect(listKeyStatus(null).exa).toBe(true);
+    mockFetch(() => ({ json: { results: [{ title: 'T', url: 'https://exa.example/1', text: '正文' }] } }));
+    await searchWeb('key-deleted', null);
+    expect(auths).toContain('env-exa');
+    expect(auths).not.toContain('my-own-exa');
+  });
+
+  it('B-020：按用户各取各的 key，不互相串（登录用户读不到别人的那把）', async () => {
+    process.env.EXA_API_KEY = 'env-exa';
+    saveProviderKey('exa', 'key-of-alice', 'u-alice');
+    mockFetch(() => ({ json: { results: [{ title: 'T', url: 'https://exa.example/1', text: '正文' }] } }));
+    expect(getProviderKey('exa', 'u-alice')).toBe('key-of-alice');
+    expect(getProviderKey('exa', 'u-bob')).toBe('env-exa'); // bob 没填 → 吃平台额度
   });
 
   it('resultsToContext 带来源编号与 URL（供模型引用溯源）', () => {

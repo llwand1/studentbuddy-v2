@@ -68,7 +68,8 @@ describe('搜索 key 接口（密钥永不回显，v2 P1）', () => {
   }, 30_000);
 
   beforeEach(() => {
-    // getProviderKey 环境变量优先于库：不清会让真机上的"未配置"断言变脆
+    // 库优先于环境变量（B-020 之后）；但这里的清理动机不变——env 是兜底位，
+    // 留着真机上那把平台 key，"未配置"断言照样会脆。
     for (const k of ['EXA_API_KEY', 'TAVILY_API_KEY', 'ZHIPU_API_KEY']) delete process.env[k];
   });
 

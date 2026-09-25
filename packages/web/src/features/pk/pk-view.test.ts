@@ -33,6 +33,7 @@ import {
   verdictKind,
   buildPkInviteLink,
   pkInviteCodeFromHash,
+  pkRoomIdFromHash,
   sanitizeReturnTo,
 } from './pk-view';
 
@@ -424,6 +425,24 @@ describe('pkInviteCodeFromHash（§14.2：query 在 hash 片段内，location.se
     expect(pkInviteCodeFromHash('#/pk?code=1234567')).toBe('123456'); // 截到 6 位
     expect(pkInviteCodeFromHash('#/pk')).toBe('');
     expect(pkInviteCodeFromHash('#/pk?other=x')).toBe('');
+  });
+});
+
+describe('pkRoomIdFromHash（§16.9：接受邀请后靠它把对局捞回来）', () => {
+  it('标准链接：#/pk?roomId=xxx → xxx（这个字面量与 PkInviteCard 的 href 同源，两处都锁）', () => {
+    expect(pkRoomIdFromHash('#/pk?roomId=R-9')).toBe('R-9');
+    expect(pkRoomIdFromHash('#/pk?roomId=R-9&from=chat')).toBe('R-9');
+  });
+
+  it('★ 与房号 `?code=` 是两个字段两种语义，不许互相认（合并了就会拿 roomId 去查邀请码）', () => {
+    expect(pkRoomIdFromHash('#/pk?code=123456')).toBe('');
+    expect(pkInviteCodeFromHash('#/pk?roomId=R-9')).toBe('');
+  });
+
+  it('缺参 / 空值 → 空串（PkApp 据此不发起恢复请求，也不会跳到 #/pk 就报错）', () => {
+    expect(pkRoomIdFromHash('#/pk')).toBe('');
+    expect(pkRoomIdFromHash('#/pk?roomId=')).toBe('');
+    expect(pkRoomIdFromHash('#/pk?roomId=%20%20')).toBe(''); // 编码过的空白也要归零
   });
 });
 

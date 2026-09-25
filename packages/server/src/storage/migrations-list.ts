@@ -15,6 +15,9 @@
  *                                平台配额 / GitHub OAuth / 知识图追问）
  *  · `migrations-list-v40.ts`   —— **v40 及之后**（GitHub 独立建号）
  *                                ★ 加新迁移加到这一片（v31 片装到 379 行后切出，见下）
+ *  · `migrations-list-v43.ts`   —— **v43 及之后**（AI 主动发起对战的邀请）
+ *                                ★ 新开一片的理由写在那片文件头（避同仓另一会话在途的 v41 片），
+ *                                  ⚠️ 那片还钉着一条「v43 不得早于 v42 发版」的执行器拦路牌
  *
  * **拆分理由**：清单是**只会单向增长**的数据。本文件 2026-09-14 从 `db.ts` 拆出（当时
  * 404 行触 AGENTS.md「.ts ≤400 行」红线），拆完 387 行；2026-09-16 加 v18（学习流，七张表）
@@ -28,6 +31,8 @@
  * ★ 追加新迁移 ＝ 往 **`migrations-list-v40.ts`** 数组**尾部**加一项（v 号顺延），
  *   **不要动既有项**——已应用的版本号是历史锚点，改了不会重跑，只会让新库与老库结构分叉。
  *   （2026-09-23 批次 F-2 起落点是 **v41 分片**；v40 在 `-v40.ts`、v31~v39 在 `-v31.ts`、v22~v29 在 `-v22.ts`。）
+ *   **2026-09-24 起落点改为 `-v43.ts` 片尾**（新开一片避同仓另一会话在途的 v41 片，理由与一条
+ *   执行器拦路牌都在那片文件头；等 v41/v42 那片空下来可并片，纯搬运零行为改动）。
  * ⚠️ 回放迁移链的测试必须把**加列**也 DROP 掉（`ALTER TABLE ADD COLUMN` 不幂等，
  *   本仓实测踩过 `duplicate column name: summary` / `: images`，见 `storage/db.test.ts`）。
  */
@@ -39,6 +44,7 @@ import { MIGRATIONS_V30 } from './migrations-list-v30.js';
 import { MIGRATIONS_V31 } from './migrations-list-v31.js';
 import { MIGRATIONS_V40 } from './migrations-list-v40.js';
 import { MIGRATIONS_V41 } from './migrations-list-v41.js';
+import { MIGRATIONS_V43 } from './migrations-list-v43.js';
 
 export const MIGRATIONS: Array<{ version: number; statements: string[] }> = [
   ...MIGRATIONS_V1_9,
@@ -49,4 +55,5 @@ export const MIGRATIONS: Array<{ version: number; statements: string[] }> = [
   ...MIGRATIONS_V31,
   ...MIGRATIONS_V40,
   ...MIGRATIONS_V41,
+  ...MIGRATIONS_V43,
 ];

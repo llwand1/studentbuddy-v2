@@ -17,7 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PkMatchDetail, PkMatchRecord, PkRoomState } from '@sb/shared';
 import { api, ApiError } from '../../lib/api';
 import { connectSse, type SseReadyState } from '../../lib/sse-client';
-import { pkInviteCodeFromHash, sanitizeReturnTo } from './pk-view';
+import { pkInviteCodeFromHash, pkRoomIdFromHash, sanitizeReturnTo } from './pk-view';
 import { usePkIdentity } from './usePkIdentity';
 import { PkLobby } from './PkLobby';
 import { PkRoom } from './PkRoom';
@@ -49,6 +49,9 @@ export function PkApp() {
   const inviteCode = useMemo(() => pkInviteCodeFromHash(window.location.hash), []);
   /** 邀请入房只自动尝试一次（404/409 后不该对着死链接反复撞） */
   const inviteTried = useRef(false);
+  /** §16.9：AI 邀请接受后带进来的房（`#/pk?roomId=`），同样只解析一次、只认一次 */
+  const linkedRoomId = useMemo(() => pkRoomIdFromHash(window.location.hash), []);
+  const linkedTried = useRef(false);
 
   // 房间事件流：pk-state 全量快照即真相；断线重连 3 次失败 → 降级 2s 轮询（契约 §2.2）
   useEffect(() => {
@@ -127,6 +130,20 @@ export function PkApp() {
     inviteTried.current = true;
     void joinRoom(inviteCode, true);
   }, [inviteCode, identity, joinRoom]);
+
+  /**
+   * §16.9 流程：AI 邀请卡点「接受」⇒ 聊天页把用户送到 `#/pk?roomId=`（房已在服务端建好并开局，
+   * 所以这里**取快照进房**，不是建房/入房）。取不到（内存房被 TTL 回收或进程重启）就说清楚：
+   * ★ 不能静默停在大厅——那等于「我明明点了接受」，与 `INVITE_ROOM_GONE` 的契约口径同一条。
+   */
+  useEffect(() => {
+    if (!linkedRoomId || !identity || linkedTried.current) return;
+    linkedTried.current = true;
+    void api.pk
+      .roomState(linkedRoomId)
+      .then((r) => setRoom(r.state))
+      .catch(() => setError('这场对战已经结束或失效了（房间只在服务端留 30 分钟），可以在大厅再开一局'));
+  }, [linkedRoomId, identity]);
 
   const startRoom = useCallback(async () => {
     if (!room) return;

@@ -19,6 +19,9 @@ import './term-tidy.js';
 import './generate-quiz.js';
 // P3 拍板⑭：term-manage（manage_terms 四合一裸写口）退役，词条写门面收进 term-ops 三工具
 import './term-ops.js';
+// §16（2026-09-24）：AI 主动发起对战——邀请只能由模型的工具发出，**没有** REST 创建口，
+// 所以这一行 import 就是那张卡片的唯一来源（漏挂的症状＝「AI 嘴上说要打，屏上没有卡」）
+import './offer-pk-battle.js';
 
 // §4.2 元数据：对模型是「读一个决策」、对系统是挂起等待——kind 'read'（30s 档）。
 // 但等待时长取决于人 not 机器，**30s 档照样会掐死它**：豁免靠 tool-exec 的 `noTimeout`

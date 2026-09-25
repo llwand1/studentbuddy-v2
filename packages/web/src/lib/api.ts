@@ -26,6 +26,7 @@ import { termsReviewApi } from './api-terms-review.js';
 import { studyFlowApi } from './api-study-flow.js';
 import { toolsApi, termsUndoApi } from './api-tools.js';
 import { searchApi } from './api-search.js';
+import { pkInviteApi } from './api-pk-invite.js';
 
 // 领域的类型**转出**给调用方（形状定义在 `api-terms-domain.ts`，那里承担行数红线的解释）。
 export type { DomainRow, DomainsResponse, RenameDomainResult, RemoveDomainResult } from './api-terms-domain.js';
@@ -149,6 +150,9 @@ export const api = {
     matchDetail: (id: string) =>
       request<{ match: PkMatchDetail }>(`/api/pk/matches/${encodeURIComponent(id)}`),
   },
+
+  /** §16 对战邀请（AI 主动发起对战）：只有"捞卡/接受/拒绝"三件事，创建口子在模型侧 */
+  pkInvites: pkInviteApi,
 
   sessions: {
     list: () => request<Session[]>('/api/sessions'),

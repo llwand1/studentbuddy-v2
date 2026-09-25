@@ -26,6 +26,7 @@ import { Markdown } from './Markdown';
 import { Welcome } from './Welcome';
 import { Thinking } from './Thinking';
 import { ChatComposer } from './ChatComposer';
+import { PkInviteCard } from './PkInviteCard';
 import { useGrillChoice } from './useGrillChoice';
 import { useDocMode } from './useDocMode';
 import { useAskStyle } from './AskStyleCard';
@@ -74,6 +75,7 @@ export function ChatView({
     confirmNowMs,
     replyConfirm,
     dismissConfirm,
+    pkInvite,
   } = useChatStream(sessionId, onRoundDone, onBusyChange, online);
   const [input, setInput] = useState('');
   const [sendError, setSendError] = useState('');
@@ -232,6 +234,17 @@ export function ChatView({
         {roundMeta && <div className="chat-round-meta">{roundMeta}</div>}
         {grillNode}
       </div>
+
+      {/* AI 主动发起对战的邀请卡（PK-SPEC §16）。挂在这里而不是 ChatComposer 内部：
+          那张卡要吃的是一整个 queue（十个回调），composer 已经贴着 300 行门禁，
+          从这儿透传只会把它推过线 —— 于是本视图只留这一行。
+          外层的 `chat-composer-wrap` 与 composer 同壳：左右留白和最大宽度对齐，
+          不然卡会裸奔成通栏（那条 css 就是为此存在，不另写一份）。 */}
+      {pkInvite.invite && (
+        <div className="chat-composer-wrap">
+          <PkInviteCard queue={pkInvite} />
+        </div>
+      )}
 
       <ChatComposer
         sessionId={sessionId}

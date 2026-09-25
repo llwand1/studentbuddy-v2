@@ -40,6 +40,21 @@ export function buildPkInviteLink(
 }
 
 /**
+ * §16.9：从 hash 取 `#/pk?roomId=<id>` 的**房间 id**——AI 邀请的「接受」在服务端建好房后，
+ * 聊天页把用户送到这里（`usePkInviteQueue` 的 `pkRoomHash`）。
+ *
+ * ★ 与 `pkInviteCodeFromHash` 是**两个字段、两种语义**，不要合并：
+ *   `code` 是 6 位数字房号（给人念、给人输），`roomId` 是服务端内部 id（只出现在链接里）。
+ *   合并成一个参数迟早让某一边把 roomId 当房号去查表（必然 404 且难以排查）。
+ * ★ 同一条坑：query 在 **hash 片段内**，`location.search` 取不到。
+ * ★ 不裁剪长度、只 trim：id 的形状由服务端裁定，前端这里只做「有没有带」的判定；
+ *   真去取快照时 404 会由 PkApp 如实回话（不静默停在大厅）。
+ */
+export function pkRoomIdFromHash(hash: string): string {
+  return (new URLSearchParams(hash.split('?')[1] ?? '').get('roomId') ?? '').trim();
+}
+
+/**
  * §14.3 returnTo 白名单：**只允许 `#/` 开头的站内 hash**，其余（绝对 URL / 裸路径）一律丢弃。
  * 这是开放重定向的闸门——钓鱼链接不能借本站登录页跳去外站。
  */

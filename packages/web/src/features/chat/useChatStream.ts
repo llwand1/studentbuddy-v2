@@ -13,6 +13,7 @@ import { createTokenDrain, type TokenDrain } from './stream-smooth';
 import { foldToolRounds } from './history-fold';
 import { useChoiceQueue } from './useChoiceQueue';
 import { useConfirmQueue } from './useConfirmQueue';
+import { usePkInviteQueue } from './usePkInviteQueue';
 import { useSendActions } from './useSendActions';
 import { useRoundBegin } from './useRoundBegin';
 import { foldStepEvent, type ToolStep } from './step-fold';
@@ -128,6 +129,8 @@ export function useChatStream(
     replyConfirm,
     dismissConfirm,
   } = useConfirmQueue(sessionId, setError);
+  /** §16 对战邀请卡：队列/闸门文案全在 `usePkInviteQueue`，本 hook 只在事件入口转发两帧（不参与 reset——邀请跨轮存活） */
+  const pkInvite = usePkInviteQueue(sessionId, setError);
   const [usage, setUsage] = useState<TokenUsage | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const clientRef = useRef<ReturnType<typeof connectSse> | null>(null);
@@ -274,7 +277,7 @@ export function useChatStream(
       // 消化掉就 return，其余事件照旧往下分发
       if (applyChoiceEvent(ev)) return;
       // 确认门两帧（request/resolved）同法交 useConfirmQueue 消化（P3）
-      if (applyConfirmEvent(ev)) return;
+      if (applyConfirmEvent(ev) || pkInvite.applyEvent(ev)) return;
       if (ev.type === 'round-start') {
         // 轮起点以服务端为事实源：切回会话时重挂的 Thinking 靠回放的本帧续表，不从头起（B-009）
         startedAtRef.current = ev.startedAt;
@@ -390,5 +393,6 @@ export function useChatStream(
     confirmNowMs,
     replyConfirm,
     dismissConfirm,
+    pkInvite, // §16 对战邀请（ChatView 挂在输入区上方）
   };
 }

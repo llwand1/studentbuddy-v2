@@ -569,7 +569,7 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 | [`SCENARIO-SPEC.md`](docs/SCENARIO-SPEC.md) | 场景卡契约 |
 | [`TOOL-ECOSYSTEM-SPEC.md`](docs/TOOL-ECOSYSTEM-SPEC.md) | 工具生态契约（工具内核 / MCP / 确认门 / 计时口径） |
 | [`SEO-SPEC.md`](docs/SEO-SPEC.md) | 中英 SEO 静态页契约（SSG 产物 / hreflang / 上线判据实录 §6.2·§6.3） |
-| [`GITHUB-OPS-SPEC.md`](docs/GITHUB-OPS-SPEC.md) | GitHub 对外面运维纪律（issue→分支→PR / 发版三件套 / 对外零内部字样） |
+| [`GITHUB-OPS-SPEC.md`](docs/GITHUB-OPS-SPEC.md) | GitHub 对外面运维纪律（issue→分支→PR / 发版四件套 / 对外零内部字样） |
 | [`metrics.md`](docs/metrics.md) | 量化基线：工程数字（`tools/metrics.mjs` 产出）+ **线上运行态实测快照** + 作废登记 |
 | [`dev/test-plan.md`](docs/dev/test-plan.md) | **测试基线权威口径** / 逐文件不变量 / 挂账清单 |
 | [`dev/launch-plan.md`](docs/dev/launch-plan.md) | **上线台账**：阶梯进展 + 部署闸门清单＝「什么时候能上线」的答案 |

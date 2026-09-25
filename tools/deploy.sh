@@ -24,11 +24,19 @@
 #   BingSiteAuth.xml 被直接塞上线）。⇒ 步骤 ①b 断言 `packages/web/public/**` 全数落在 `dist/**`，
 #   要长期待在站点根的东西只能走 public/，不能走线上手工塞。
 #
+# ★★ 2026-09-25 补闸（对外更新表同步核对）
+#   线上那页公开更新记录（含 Atom 订阅）的内容是一份**手写的对外清洗表**（`PUBLIC_RELEASES`），
+#   每次发版要人工补一行，而这件事从来没有机器拦着——既有的锁只防「把还没上线的版本写进去」，
+#   不防「上线了却忘了写」，而后者正是这一页存在的意义被悄悄掏空的那一侧。
+#   ⇒ 步骤 ①c 拿「已合并进当前历史的最高 tag」与表头逐字对账（tag ＝这一版真的上线过的唯一机械证据），
+#   不一致就停；确知要带着不一致上线才许 SKIP_PUBLIC_CHANGELOG_CHECK=1。判据细节见 tools/check-public-changelog.mjs。
+#
 # 用法：
 #   bash tools/deploy.sh                  # 正常发布（含预演）
 #   DRY_RUN=1 bash tools/deploy.sh        # 只做 体检+校验+构建+打包，不上传不切换（验闸用）
 #   SKIP_PRETEST=1 bash tools/deploy.sh   # 跳过预演（仅当你已单独验过）
 #   ALLOW_DIRTY=1 bash tools/deploy.sh    # 明知工作树有 packages/** 改动仍发（危险）
+#   SKIP_PUBLIC_CHANGELOG_CHECK=1 bash tools/deploy.sh  # 明知对外更新表落后仍发（要写明为什么）
 #   SERVER=root@1.2.3.4 KEY=~/.ssh/k bash tools/deploy.sh
 set -euo pipefail
 
@@ -79,6 +87,10 @@ echo "=== ①b 根级公开文件核对（public/ → dist/）==="
 # 站点根 = Caddy 的 root = packages/web/dist，而 ⑦ 是**整目录轮换** ⇒ 没落进 public/ 的
 # 根级文件（搜索引擎验证文件是典型）会在发版后静默 404。闸门细节见 tools/check-root-files.sh。
 bash tools/check-root-files.sh
+
+echo "=== ①c 对外更新表同步核对（那页不许落后于线上）==="
+# 判据钉在 tag 上而不是内部拟号上：tag 才是「这一版真的上线过」的机械证据。
+node tools/check-public-changelog.mjs
 
 echo "=== ② 打包（排除运行时不需要、或绝不能覆盖线上那份的）==="
 tar czf "$TAR" \

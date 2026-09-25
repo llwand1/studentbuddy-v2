@@ -62,7 +62,7 @@ function emptyQuizSearchReport(on = false): QuizSearchReport;
 | PK 出题 | `generateQuiz(..., true)` **硬编码联网** | 老板明确要求 PK 出题也联网（AI 与人同口径）；PK 不面向用户、不传 report。★ **v1.0 因判据写成 `online && report` 而从未真正生效**（不传 report ⇒ 判为不联网），v1.1 修为只看 `online`（详见 §4 第 4 条与 §5.2） |
 
 **默认开**的理由：出题踩事实坑的代价（错题）高于联网的延迟与 token 成本；
-不配搜索 key 时 `searchWeb` 内部走 Bing 免费通道兜底（cn.bing.com，RSS 主 + HTML 兜底），**不需要用户先配 key 才能用**。
+不配搜索 key 时 `searchWeb` 内部走 Bing 免费通道兜底（**`www.bing.com/search`，RSS 主 + HTML 兜底；通道本体在 `search/bing-channel.ts`**——★ 2026-09-17 起原本是 `cn.bing.com`，2026-09-25 因该域名 301 丢掉 `/search` 路径而换，见 `bug-ledger` B-019），**不需要用户先配 key 才能用**。
 
 ### 2.3 检索词派生（`buildQuizQuery(topic, material)`）
 

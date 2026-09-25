@@ -1,4 +1,4 @@
-# CI —— 每次推送/PR 跑全量质量门禁（tsc×3 + eslint + vitest + gates + **build**）。
+# CI —— 每次推送/PR 跑全量质量门禁（**build** ＋ tsc×3 ＋ eslint ＋ vitest ＋ gates）。
 # 判据与本地 `npm run check` 同源，★ 但**比它多一步 `npm run build`**：09-24 实测过一起
 # 「`npm run check` 四连全绿而 `npm run build` EXIT=1」——`vite.config.ts` 在纯 Node 里加载 `src/seo/`，
 # 那里 `@sb/shared` 根入口的 NodeNext 写法解析不动。⇒ check 绿不代表发得出去，build 必须有人查。
@@ -26,8 +26,10 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
-      - run: npm run check
       # ★ 构建也在 CI 里跑：`npm run check` 不含它，而「构建产物出不来」＝这一版根本发不出去
+      # ★ 2026-09-25 起它排在 check **前面**（issue #8）：公开字节卫生扫描要读 `dist` 里的
+      #   JS／CSS 产物，放在 check 之后就永远是「没有产物」⇒ 那几例显式跳过、锁形同虚设。
       - run: npm run build
+      - run: npm run check
       # README/docs 里的定量数字必须与代码实测一致（漂移即红）——数字不许手抄，见 docs/metrics.md
       - run: node tools/metrics.mjs --tests --check

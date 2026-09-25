@@ -2,15 +2,20 @@
 /**
  * 「公开字节里不许出现内部字样」这把锁（渠道台账 C8 ＋ `docs/SEO-SPEC.md` §5 第 12 条）。
  *
- * ★ 扫的是**会被发布出去的四类字节**：手写的 SPA 外壳、`public/` 下的静态文件、
+ * ★ 扫的是**会被发布出去的字节**：手写的 SPA 外壳、`public/` 下的静态文件、
  *   构建期渲染出来的词条页／目录页／更新页／订阅／sitemap。
- *   不扫 `dist/`——干净检出与 CI 里没有构建产物，锁在那儿等于没锁（同族教训见批次 G-1）。
+ * ★ 下面那条「不扫 `dist/`」的旧判据**已于 issue #8 撤销**，理由记在这里不删：
+ *   当时的依据是「干净检出与 CI 里没有构建产物，锁在那儿等于没锁」——这话对了一半，
+ *   另一半是 CI 从此**先 `npm run build` 再 `npm run check`**，产物就在场上；
+ *   本地没构建时那几例显式 skip（看得见地跳过），而不是悄悄绿过去。
+ *   ★ 而当初推断「压缩器会剥注释所以 bundle 干净」也被实测否掉了：注释确实剥了，
+ *   字符串常量原样进 bundle（逐条账见 `public-hygiene.ts` 末段）。
  * ★ 这一批锁的来历值得留一句：它上线前从没存在过，所以「首页壳里带着 5 条施工注释」
  *   是**发版之后读线上字节**才看见的（SEO-SPEC §5 第 12 条）。
  *   ★ 本轮第一次跑它就逮到第二处：`public/robots.txt` 的注释里写着内部称呼——
  *   同一个坑，同一个原因：从来没人把「公开字节里写了什么」当判据。
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { PUBLIC_TERMS } from './term-corpus';
 import { PUBLIC_TERMS_EN } from './term-corpus-en';
@@ -19,7 +24,7 @@ import { renderTermIndexPageEn, renderTermPageEn } from './term-page-en';
 import { renderAtomFeed, renderChangelogPage } from './changelog-page';
 import { renderPlanToolPage } from './plan-page';
 import { renderSitemapXml } from './ssg';
-import { INTERNAL_SHAPES, SHELL_ENTRY_EXCEPTION, internalWordingHits } from './public-hygiene';
+import { BUNDLE_ALLOW, BUNDLE_INAPPLICABLE, INTERNAL_SHAPES, SHELL_ENTRY_EXCEPTION, bundleWordingHits, internalWordingHits } from './public-hygiene';
 
 const asset = (rel: string): string => readFileSync(new URL(rel, import.meta.url), 'utf8');
 
@@ -113,5 +118,66 @@ describe('公开字节 · 内部字样红线', () => {
     expect(robots).toContain('Allow: /og/');
     // ★ 计划表页不在 /terms/ 前缀下，忘了单开一扇就是静默不公开
     expect(robots).toContain('Allow: /ebbinghaus-plan.html');
+  });
+});
+
+/**
+ * 构建产物那一路（issue #8）：`dist/assets/` 下那份 `.js`／`.css` 就是访客浏览器里真正跑着的字节。
+ *
+ * ★ 没有产物时这几例**显式跳过**（本地没跑 build 就是这样），而不是悄悄绿过去；
+ *   CI 已把 `npm run build` 排在 `npm run check` 前面，那边一定在跑。
+ */
+interface Shipped {
+  readonly name: string;
+  readonly text: string;
+}
+
+function shippedBytes(): Shipped[] {
+  const dir = new URL('../../dist/assets/', import.meta.url);
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((f) => /\.(js|css)$/.test(f))
+    .map((f) => ({ name: f, text: readFileSync(new URL(f, dir), 'utf8') }));
+}
+
+const SHIPPED = shippedBytes();
+const HAS_DIST = SHIPPED.length > 0;
+
+describe('公开字节 · 构建产物（JS／CSS，issue #8）', () => {
+  it('★ 假 leak 必须红：加了豁免之后这一路不能变成空锁', () => {
+    const fake =
+      'const cfg={host:"http://127.0.0.1:8787/x",key:"sk-proj-abcdefgh",password:"hunter2hunter2"};import("docs/SEO-SPEC.md");unit="systemd";';
+    const hits = bundleWordingHits(fake);
+    for (const want of ['127.0.0.1', 'sk-p', 'docs/', 'systemd']) {
+      expect(hits, `漏检 ${want}`).toContain(want);
+    }
+    // 口令写成字符串常量必须红（`password` 那个形状整体不适用，是它的替顶上来的）
+    expect(hits.some((h) => h.includes('hunter2')), '口令字面值漏检').toBe(true);
+    // ★ 豁免只放行那一处写法，不是整类放行：`/api/tools/` 后面接上别的东西照样红
+    expect(bundleWordingHits('fetch("/api/tools/../../etc/shadow")').length, '豁免把整类放行了').toBeGreaterThan(0);
+    // 反向：同一个字段名当值用是正常代码，不能被咬（咬了下一次就有人删豁免）
+    expect(bundleWordingHits('a.type==="password"&&a.autoComplete==="new-password"')).toEqual([]);
+  });
+
+  it('★ 整体不适用的只有那两条，不许有人偷偷加第三条', () => {
+    expect(BUNDLE_INAPPLICABLE.map((re) => re.source)).toEqual(['\\bP[012]\\b', 'password']);
+  });
+
+  it.skipIf(!HAS_DIST)('★ 真实产物：未豁免前确实带字样（钉住「bundle 本来就干净」这个偷懒前提），豁免后必须为空', () => {
+    // 至少一份 JS ＋ 一份 CSS，且总量像一份真 bundle——目录空了／只剩个壳都过不了这条
+    expect(SHIPPED.length, 'dist/assets 下没有 .js/.css').toBeGreaterThan(1);
+    const bytes = SHIPPED.reduce((n, s) => n + s.text.length, 0);
+    expect(bytes, '产物小得不像真 bundle').toBeGreaterThan(200_000);
+    for (const { name, text } of SHIPPED) {
+      expect(internalWordingHits(text).length, `${name} 一条都没命中，词表该重看`).toBeGreaterThan(0);
+      expect(bundleWordingHits(text), `${name} 里有内部字样`).toEqual([]);
+    }
+  });
+
+  it.skipIf(!HAS_DIST)('★ 豁免不许变成死的：每一条必须当场还在产物里出现（依赖升级／文案改动之后要重看）', () => {
+    const all = SHIPPED.map((s) => s.text).join('\n');
+    for (const a of BUNDLE_ALLOW) {
+      expect(all, `豁免已失效，产物里找不到它：${a.needle}`).toContain(a.needle);
+    }
   });
 });

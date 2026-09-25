@@ -101,6 +101,70 @@ export function pkQuizMixFor(kind: PkObjectiveKind = 'single'): QuizMix {
 /** 单次出题最多带几条词条（与 `MAX_QUIZ_REAL_PER_TYPE` 同族上限）。★ 不占 `PK_PROMPT_MAX` 额度——那是玩家自己写的提示词上限，词条走独立入参独立拼接 */
 export const PK_TERM_MAX = 5;
 
+// ── AI 主动发起对战（§16，2026-09-24 老板点单；迁移 v43 建表 `pk_invites`）─────
+
+/**
+ * 邀请状态。★ **终态不可逆**（`accepted`/`rejected` 不再接受第二次决定），
+ * 且**未答复刻意不写 `expired`**：读侧按 `created_at` 判旧（超过 `PK_ROOM_TTL_MS` 不再浮卡）——
+ * 加一个终态就多一条写路径与一条并发裁决，而「旧邀请不再骚扰」纯读就能做到（契约 §16.4）。
+ */
+export type PkInviteStatus = 'pending' | 'accepted' | 'rejected';
+
+/**
+ * 一行 `pk_invites`（模型经 `offer_pk_battle` 工具发出，用户在聊天里点接受/拒绝）。
+ *
+ * ★ 与房间相反的存储取向：房间刻意全内存（§4），**邀请必须落库**——它要活过「刷新捞回卡」
+ *   「频率闸门跨重启」「双点裁决要有唯一权威」三件事，逐条理由见契约 §16.2。
+ */
+export interface PkInviteRecord {
+  id: string;
+  /** 邀请挂在哪个聊天会话上（两帧 SSE 走的就是这个频道的 sessionId） */
+  sessionId: string;
+  /**
+   * 可空＝本地单人形态无主（与 `ownerIdOf → null` 同语义）。
+   * ⇒ 「每人 24 小时 ≤ N 张」这条**只在有主时数得准**，无主由会话维度兜住（本地只有一人）。
+   */
+  ownerId: string | null;
+  /** ★ 存的是**已截断**值（≤ `TOPIC_MAX`）：留到点接受时才校验，报错就落在用户已做完决定之后 */
+  topic: string;
+  /** 给学习者看的一句话（为什么建议他现在打一局），≤ `PK_INVITE_REASON_MAX` */
+  reason: string;
+  status: PkInviteStatus;
+  /**
+   * `accepted` 之后指向那间**内存房**。★ 发版重启后它指不到东西——这是 §4 既有接受项在本批的
+   * 延伸（不是新 bug），所以卡片文案必须能自解释（契约 §16.12 风险 5）。未接受为 `null`。
+   */
+  roomId: string | null;
+  createdAt: number;
+}
+
+/** 同一会话两张邀请的最小间隔（闸门之一，契约 §16.7） */
+export const PK_INVITE_SESSION_COOLDOWN_MS = 5 * 60_000;
+/** 同一 `ownerId` 在 24 小时内最多发几张（闸门之一；「24 小时」这个窗口写死在 SQL 的 `-1 day` 里，不另造常量——它只有一个读者） */
+export const PK_INVITE_OWNER_DAILY_MAX = 3;
+/** 邀请说明句上限：再长就不是「一句话」，而且卡片要能在一屏里放下按钮 */
+export const PK_INVITE_REASON_MAX = 80;
+
+/**
+ * 工具入参归一（纯函数，零 IO）：校验 + 截断一次做完。
+ *
+ * ★ 为什么在 shared 而不是域层：与 `normalizeChoiceInput` 同一处置——**「截断发生在发邀请
+ * 那一刻」是本批最容易做错的一条**（留到 accept 才校验＝报错出现在用户已经做完决定之后），
+ * 放这里才能被两侧（server 工具面 / 测试）同引一份，不各写一份口径。
+ * 入参收 `unknown`：模型给的东西一律先当不可信。
+ */
+export function normalizePkInviteInput(raw: {
+  topic?: unknown;
+  reason?: unknown;
+}): { ok: true; topic: string; reason: string } | { ok: false; error: string } {
+  const topic = typeof raw.topic === 'string' ? raw.topic.trim().slice(0, TOPIC_MAX) : '';
+  if (!topic) return { ok: false, error: 'topic 不能为空：要给出这局对战的话题（来自当前对话）' };
+  const reason = typeof raw.reason === 'string' ? raw.reason.trim().slice(0, PK_INVITE_REASON_MAX) : '';
+  if (!reason) return { ok: false, error: 'reason 不能为空：用一句话告诉他为什么现在该打一局' };
+  return { ok: true, topic, reason };
+}
+
+
 // ── 主题轮转 / 道具 / 二次机会（P0-7，2026-09-13 老板点单）────────────
 
 /** 主题字数上限：太长则判不出贴合度，也显示不下（服务端截断前硬校验） */
@@ -428,4 +492,36 @@ export type PkRoomError =
   // ── §15 B4：情景题进对战 ──
   /** 回传的评分点 id 不在该题白名单内（不在 tasks 里＝不存在，不泄露别的） → 400 */
   | 'SCENARIO_TASK_INVALID';
+
+/**
+ * §16 邀请错误码（2026-09-24 老板点单「AI 主动发起对战」）。
+ *
+ * ★ 为什么不并进 `PkRoomError`（契约 §16.5 原写「进 PkRoomError」，本批就地改正并留痕）：
+ *   `routes/pk.ts` 里有两份 `Record<PkRoomError, …>`（状态码 + 人话文案）是**穷尽映射**，
+ *   那个文件此刻 388/400 行——每往联合里加一码就要写满两行，加三码就把它顶到门禁红线。
+ *   拆成独立联合后编译期仍然强制「每个错误码都有 HTTP 状态与文案」（换到新路由文件里写一份
+ *   `Record<PkInviteError, …>`），**保证没丢，只是不再挤在同一张表里**。
+ */
+export type PkInviteError =
+  /**
+   * 邀请不存在**或不属于这个会话/这个主** → 404。
+   * ★ 与 `MATCH_NOT_FOUND` 同取向：合成一个码，分开写等于告诉别人「这条 id 确实存在」。
+   */
+  | 'INVITE_NOT_FOUND'
+  /** 这张卡已是终态（已接受/已拒绝），不再接受第二次决定 → 409。★ 幂等 accept 例外：重复点「接受」返回第一次那间房 */
+  | 'INVITE_NOT_PENDING'
+  /**
+   * 频率闸门挡下（本会话有未答复的卡 / 距上一张太近 / 这人 24 小时内已发满）。
+   * ★ **只回灌给模型，不映射成用户可见错误**——用户没点任何按钮时弹一条报错，
+   *   只会让他以为产品坏了（契约 §16.7）。
+   */
+  | 'INVITE_THROTTLED'
+  /** 工具入参不合法（话题/说明为空、无 sessionId）→ 400 语义。★ 只回灌给模型自纠，用户界面永远看不到它 */
+  | 'INVITE_INPUT_INVALID'
+  /**
+   * 卡已 accepted，但它指的那间**内存房**没了（TTL 回收或发版重启）→ 404。
+   * ★ 刻意不与 `INVITE_NOT_FOUND` 合码：这里的真相是「邀请在、局没了」，
+   *   文案必须说「这场对战已结束或已失效」——说「邀请不存在」会让人以为按钮是坏的（§16.12 风险 5）。
+   */
+  | 'INVITE_ROOM_GONE';
 

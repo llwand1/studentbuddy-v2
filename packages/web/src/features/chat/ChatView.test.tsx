@@ -8,10 +8,16 @@
  * useDocMode/useAskStyle）返回固定状态，锁**用户能感知的结构**：空会话合规渲染 Welcome，
  * 点一张建议卡把提示语填进输入框（不直接发送，避免误触烧 token）并顺手开新会话，即是
  * 新用户第一屏的完整体验。hook 内部逻辑与其真实返回由各自文件另有补位，此处不重复。
+ *
+ * 2026-09-25 追加：对战邀请卡（PK-SPEC §16）的**挂线锁**。它是这层最容易无声断掉的东西——
+ * ChatView 少写一行 `{pkInvite.invite && <PkInviteCard …/>}`，服务端、SSE、hook 全都是绿的，
+ * 只有用户看不见卡。所以这里不测卡本身（`PkInviteCard.test.tsx` 管），只测"它出现在哪、什么时候出现"。
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, fireEvent, cleanup } from '@testing-library/react';
+import type { PkInviteRecord } from '@sb/shared';
 import { ChatView } from './ChatView';
+import type { PkInviteQueue } from './usePkInviteQueue';
 
 vi.mock('../../lib/api', () => ({
   api: {
@@ -47,9 +53,20 @@ const emptyStream = {
   confirmNowMs: 0,
   replyConfirm: vi.fn(),
   dismissConfirm: vi.fn(),
+  /** 对战邀请（PK-SPEC §16）：默认无卡。见下方「挂线锁」 */
+  pkInvite: {
+    invite: null,
+    inviteBusy: false,
+    applyEvent: () => false,
+    acceptInvite: async () => true,
+    rejectInvite: () => {},
+    dismissInvite: () => {},
+  } satisfies PkInviteQueue,
 };
 
-vi.mock('./useChatStream', () => ({ useChatStream: () => emptyStream }));
+/** 换状态不改 mock 工厂本身：工厂只认这一个可变引用（用例里按需覆盖某几个字段） */
+const { stream } = vi.hoisted(() => ({ stream: { current: null as unknown } }));
+vi.mock('./useChatStream', () => ({ useChatStream: () => stream.current }));
 vi.mock('./useGrillChoice', () => ({
   useGrillChoice: () => ({
     composerProps: { grillMe: false, setGrillMe: () => {} },
@@ -88,7 +105,8 @@ vi.mock('./AskStyleCard', () => ({ useAskStyle: () => ({ summary: '', hint: '', 
 
 afterEach(cleanup);
 
-function setup(onNewSession = vi.fn()) {
+function setup(onNewSession = vi.fn(), over: Record<string, unknown> = {}) {
+  stream.current = { ...emptyStream, ...over };
   const r = render(
     <ChatView sessionId={null} onNewSession={onNewSession} onRoundDone={() => {}} onBusyChange={() => {}} />,
   );
@@ -125,5 +143,46 @@ describe('ChatView 空会话合规渲染', () => {
     expect(container.querySelector('.chat-round-meta')).toBeNull();
     expect(container.querySelector('.tool-steps')).toBeNull();
     expect(container.querySelector('.thinking')).toBeNull();
+  });
+});
+
+// ── 对战邀请卡的挂线（PK-SPEC §16，2026-09-25）────────────────────────
+
+describe('对战邀请卡在 ChatView 的挂线', () => {
+  const invite = (over: Partial<PkInviteRecord> = {}): PkInviteRecord => ({
+    id: 'i1',
+    sessionId: 's1',
+    ownerId: null,
+    topic: '牛顿第二定律',
+    reason: '这块你已经推了两轮，值得打一局验一下',
+    status: 'pending',
+    roomId: null,
+    createdAt: 1_000,
+    ...over,
+  });
+
+  it('无卡 ⇒ 一张都不渲染（空会话第一屏不许凭空挂着邀请）', () => {
+    const { container } = setup();
+    expect(container.querySelector('.pk-invite')).toBeNull();
+  });
+
+  it('有卡 ⇒ 渲染出来，认的是这一局的主题', () => {
+    const pkInvite: PkInviteQueue = { ...emptyStream.pkInvite, invite: invite() };
+    const { container } = setup(vi.fn(), { pkInvite });
+    const card = container.querySelector('.pk-invite');
+    expect(card).toBeTruthy();
+    expect(card?.textContent).toContain('牛顿第二定律');
+  });
+
+  it('★ 位置：在消息流**外面**、composer **上面**（它是浮层，不跟着这一轮滚走）', () => {
+    const pkInvite: PkInviteQueue = { ...emptyStream.pkInvite, invite: invite() };
+    const { container } = setup(vi.fn(), { pkInvite });
+    const card = container.querySelector('.pk-invite')!;
+    expect(card.closest('.chat-scroll')).toBeNull();
+    // 两层同壳（左右留白/最大宽度对齐），邀请卡那层排在 composer 那层之前
+    const wraps = container.querySelectorAll('.chat-composer-wrap');
+    expect(wraps).toHaveLength(2);
+    expect(wraps[0]?.contains(card)).toBe(true);
+    expect(wraps[1]?.contains(container.querySelector('.chat-composer'))).toBe(true);
   });
 });

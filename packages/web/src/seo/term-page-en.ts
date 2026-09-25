@@ -5,7 +5,7 @@
  * ★ 壳仍共用 `page-shell.ts` 那一份。★ 这里刻意**不复制一份中文渲染器**：两边文案、语言、
  *   配对各不同，但「head 长什么样、页脚那句话挂在哪个标签里」漂一次就是两份公开字节漂一次。
  */
-import { CHANGELOG_PATH, CATALOG_PATH } from './paths';
+import { appHome, CHANGELOG_PATH, CATALOG_PATH, REF_TERMS_EN } from './paths';
 import {
   CATALOG_ALTERNATES,
   CATALOG_PATH_EN,
@@ -41,7 +41,7 @@ function navOf(term: EnglishTerm): ShellLink[] {
 }
 
 const EN_FOOT: ShellLink[] = [
-  { href: '/', label: 'Home' },
+  { href: appHome(REF_TERMS_EN), label: 'Home' },
   { href: CATALOG_PATH_EN, label: 'All terms' },
   { href: CATALOG_PATH, label: '中文词条' },
   { href: CHANGELOG_PATH, label: 'Changelog (in Chinese)' },
@@ -49,7 +49,7 @@ const EN_FOOT: ShellLink[] = [
 
 /** 生成一个英文词条页的完整 HTML */
 export function renderTermPageEn(term: EnglishTerm): string {
-  const body: string[] = [...pageTop(navOf(term))];
+  const body: string[] = [...pageTop(navOf(term), appHome(REF_TERMS_EN))];
   body.push(`<h1>${escapeHtml(term.title)}</h1>`);
   body.push(`<p class="alias">${escapeHtml(term.alias)}</p>`);
   body.push(`<p class="lead">${escapeHtml(term.oneLine)}</p>`);
@@ -80,7 +80,7 @@ export function renderTermPageEn(term: EnglishTerm): string {
   body.push('<aside class="cta">');
   body.push('<h2>Where this lives in StudentBuddy</h2>');
   body.push(`<p>${escapeHtml(term.productHint)}</p>`);
-  body.push('<a href="/">See how it works</a>');
+  body.push(`<a href="${escapeHtml(appHome(REF_TERMS_EN))}">See how it works</a>`);
   body.push('</aside>');
   body.push(...pageFoot(EN_FOOT, FOOT_LINE_EN));
 
@@ -108,7 +108,7 @@ export function renderTermIndexPageEn(
       )}</li>`,
   );
   const body = [
-    ...pageTop([{ href: CATALOG_PATH, label: '中文目录' }]),
+    ...pageTop([{ href: CATALOG_PATH, label: '中文目录' }], appHome(REF_TERMS_EN)),
     '<h1>Learning science terms</h1>',
     '<p class="kw">Concepts learners keep hearing and rarely get explained. One page each: what it is, why it works, how it goes wrong.</p>',
     '<ul>',

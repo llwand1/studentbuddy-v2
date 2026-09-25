@@ -21,7 +21,7 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { AUTH_COOKIE_NAME, DEFAULT_QUIZ_MIX, DEFAULT_ANSWER_STYLE } from '@sb/shared';
+import { AUTH_COOKIE_NAME, DEFAULT_QUIZ_MIX, DEFAULT_ANSWER_STYLE, localDayKey } from '@sb/shared';
 
 process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-routes-settings-'));
 const { app } = await import('../index.js');
@@ -158,9 +158,11 @@ describe('routes/settings-tenancy — 反馈环三表归主（v30）', () => {
     expect(a.body.activities).toEqual([{ type: 'chat_done', count: 2 }]);
     expect(b.body.activities).toEqual([{ type: 'chat_done', count: 5 }]);
     // 同一天同 type 两人各一条（改前 PK(day,type) 第二个人直接插不进去）
+    // ★ 日键用 `localDayKey` 而不是 SQLite 的 `date('now')`：后者是 **UTC**，而写侧 `recordActivity`
+    //   自契约 §8.4 起按本地日历日记 ⇒ 拿 UTC 断言会在北京时间 00:00–08:00 偶发查不到行（假红）。
     const rows = getDb()
-      .prepare(`SELECT owner_id, count FROM daily_activity WHERE day = date('now') ORDER BY count`)
-      .all() as Array<{ owner_id: string; count: number }>;
+      .prepare('SELECT owner_id, count FROM daily_activity WHERE day = ? ORDER BY count')
+      .all(localDayKey(new Date())) as Array<{ owner_id: string; count: number }>;
     expect(rows).toEqual([
       { owner_id: idA, count: 2 },
       { owner_id: idB, count: 5 },
@@ -182,9 +184,11 @@ describe('routes/settings-tenancy — 反馈环三表归主（v30）', () => {
     const meA = await req.get('/api/auth/me', cookieA);
     const idA = meA.body.user.id as string;
     // 直接铺缓存（走 LLM 那条路要真配一个模型，本用例要测的是**读缓存时的归属**，不是生成）
-    const ins = getDb().prepare(`INSERT INTO daily_summaries (owner_id, day, content) VALUES (?, date('now'), ?)`);
-    ins.run('', '无主行的旧总结');
-    ins.run(idA, 'A 的缓存总结');
+    // ★ 日键走**本地** `localDayKey` 而不是 sqlite 的 `date('now')`（那是 UTC）：读侧已按本地日键取缓存，
+    //   铺 UTC 行会在 00:00–08:00 窗口写成"昨天"，用例于是在凌晨随机变红。
+    const ins = getDb().prepare(`INSERT INTO daily_summaries (owner_id, day, content) VALUES (?, ?, ?)`);
+    ins.run('', localDayKey(new Date()), '无主行的旧总结');
+    ins.run(idA, localDayKey(new Date()), 'A 的缓存总结');
 
     expect((await req.get('/api/activity/summary', cookieA)).body.content).toBe('A 的缓存总结');
     // ★ B 没有缓存 ⇒ 走降级文本；关键是**不能读到「无主行的旧总结」**（豁免过滤就会读到它）

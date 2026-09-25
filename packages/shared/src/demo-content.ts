@@ -2,7 +2,7 @@
  * shared/demo-content — 公用体验账号（`u-demo-shared`）的种子内容（渠道台账 C5）。
  *
  * ★ 为什么放 shared：这批名字**必须与对外讲解页同源**（`packages/web/src/seo/term-corpus.ts`
- *   的 `title`）——访客从「提取练习是什么、怎么做」那页点进来，词条库里就该看见同一个概念。
+ *   的 `title`）——访客从「主动回忆是什么、怎么练」那页点进来，词条库里就该看见同一个概念。
  *   常量放 server 侧，web 的语料就锁不到它；放 shared ⇒ `term-corpus.test.ts` 能直接断言
  *   「每个种子词条名都在公开语料里」，漂一个字即刻红（同 `ebbinghaus.ts` 当年为「前后端同一答案」
  *   进 shared 的理由，不是顺手一放）。
@@ -40,7 +40,7 @@ export interface DemoSeedTerm {
  */
 export const DEMO_SEED_TERMS: readonly DemoSeedTerm[] = [
   {
-    term: '提取练习',
+    term: '主动回忆',
     definition: '先合上书自己把答案捞出来，再翻开对。再看一遍不算，得先出答案。',
     domain: '记忆机制',
     stage: 3,
@@ -54,7 +54,7 @@ export const DEMO_SEED_TERMS: readonly DemoSeedTerm[] = [
     dueToday: true,
   },
   {
-    term: '遗忘曲线',
+    term: '艾宾浩斯遗忘曲线',
     definition: '记住的量随时间往下掉，掉得最快的是刚学完那阵。复习是把它抬回去。',
     domain: '记忆机制',
     stage: 1,

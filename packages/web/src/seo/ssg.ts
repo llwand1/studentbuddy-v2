@@ -22,14 +22,15 @@ import {
 import { CATALOG_PATH_EN, PUBLIC_TERMS_EN, termEnPath, type EnglishTerm } from './term-corpus-en';
 import { renderTermIndexPage, renderTermPage } from './term-page';
 import { renderTermIndexPageEn, renderTermPageEn } from './term-page-en';
-import { CHANGELOG_PATH, FEED_PATH } from './paths';
+import { CHANGELOG_PATH, FEED_PATH, PLAN_TOOL_PATH } from './paths';
 import { renderAtomFeed, renderChangelogPage } from './changelog-page';
+import { renderPlanToolPage } from './plan-page';
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** sitemap：首页 ＋ 中英两个目录页 ＋ 两边每一个词条页 */
+/** sitemap：首页 ＋ 中英两个目录页 ＋ 两边每一个词条页 ＋ 计划表工具页 */
 export function renderSitemapXml(
   terms: readonly PublicTerm[] = PUBLIC_TERMS,
   enTerms: readonly EnglishTerm[] = PUBLIC_TERMS_EN,
@@ -42,6 +43,7 @@ export function renderSitemapXml(
     ...terms.map((t) => `${SITE_ORIGIN}${termPath(t)}`),
     `${SITE_ORIGIN}${CATALOG_PATH_EN}`,
     ...enTerms.map((t) => `${SITE_ORIGIN}${termEnPath(t)}`),
+    `${SITE_ORIGIN}${PLAN_TOOL_PATH}`,
   ];
   const urls = locs.map((loc) => `  <url><loc>${loc}</loc><lastmod>${stamp}</lastmod></url>`);
   return [
@@ -82,6 +84,8 @@ export function writeSeoPages(
   // ★ 更新页与订阅同一把尺：落盘名一律从地址常量派生
   put(CHANGELOG_PATH.slice(1), renderChangelogPage());
   put(FEED_PATH.slice(1), renderAtomFeed());
+  // ★ 工具页：带日期那张表由页内脚本算，构建期只落那张不带日期的形状表（所以它永远不会过期）
+  put(PLAN_TOOL_PATH.slice(1), renderPlanToolPage());
   put('sitemap.xml', renderSitemapXml(terms, enTerms, today));
   return written;
 }

@@ -1,10 +1,19 @@
 # KNOWLEDGE-FOLLOWUP-SPEC —— 「向 AI 追问」与知识图自动连边
 
-> 版本：v1.0 | 状态：[活跃] | 2026-09-20 契约登记 · 首版
-> 上游：`docs/STUDY-FLOW-SPEC.md`（知识数据图 §3/§4）、`docs/TERM-HIGHLIGHT-SPEC.md`（词条卡 §3/§6）、
+> 版本：v1.1 | 状态：**[活跃 · 半边作废]** | 2026-09-20 契约登记 · 首版 | **2026-09-25 v1.1：自动连边半边随知识图下线作废（§9）**
+>
+> ⚰️ **本契约的两半今天命运不同**：
+>  · **活着**：「追问 = 另开一个带原对话摘要的 fork 会话」——`shared/src/follow-up.ts` · `server/src/chat/follow-up.ts` ·
+>    `server/src/routes/fork.ts` · `web/src/features/chat/TermCard.tsx` 都在仓里，动线照 §5.1~§5.3 与 §6 走。
+>  · **已删**：「回答里出现的词条自动与源词条连边」——2026-09-25 随「学习流＋知识图」整族下线删除（批次 K）。
+>    **§2 / §3 / §5.4 三节写的正是这半边**，按本仓「历史沿革一字不回改」的规矩**原样留着**，
+>    读的时候请自带「实现已不在仓里、`knowledge_edge` 表已被迁移 v44 DROP」这个前提。
+>    判决原话与理由见 §9 和 `docs/STUDY-FLOW-SPEC.md` 的墓碑。
+>
+> 上游：~~`docs/STUDY-FLOW-SPEC.md`（知识数据图 §3/§4）~~ ⚰️ 该文已转墓碑、`docs/TERM-HIGHLIGHT-SPEC.md`（词条卡 §3/§6）、
 > `docs/MEMORY-SPEC.md`（会话压缩摘要 §4）
-> 落地：`shared/src/follow-up.ts` · `server/src/chat/follow-up.ts` · `server/src/chat/post-turn.ts` ·
-> `server/src/learning/follow-up-links.ts` · `web/src/features/chat/TermCard.tsx`
+> 落地：`shared/src/follow-up.ts` · `server/src/chat/follow-up.ts` · `server/src/chat/post-turn.ts`（**v1.1 起只剩三环：抽词 → 落库 → 压缩**）·
+> `web/src/features/chat/TermCard.tsx` ｜ ~~`server/src/learning/follow-up-links.ts`~~（⚰️ v1.1 随下线删除）
 
 ---
 
@@ -12,6 +21,10 @@
 
 在**词条卡**上点「向 AI 追问」→ **另开一个 fork 会话**（带原对话摘要）→ 该会话回答里沉淀的词条
 **自动与源词条连一条边**。一次追问 = 一个**星型拓扑**；追问出来的词条可以再追问 ⇒ 长成**树**。
+
+> ⚰️ **v1.1 注（2026-09-25，批次 K）**：上面这句里只有前半「点追问 → 另开 fork 会话」还在产品里；
+> 后半「自动连边 / 星型 / 长成树」**已随知识图整族下线删除**。今天点「向 AI 追问」的实际效果 =
+> **一个新会话 + 带过去的原对话摘要 + 首问**，不再有任何图数据被写。
 
 ---
 

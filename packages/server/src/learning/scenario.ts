@@ -141,13 +141,12 @@ export function deleteScenarioDemoByQuiz(quizId: string, ownerId: string | null)
 }
 
 /**
- * 把生成好的一套情景题推进某个会话的聊天流（M3 引入、M4 编排执行器复用——
- * REST 路由与 study-flow 执行器是仅有的两个出题入口，下发逻辑必须同一份，不许双写漂移）：
+ * 把生成好的一套情景题推进某个会话的聊天流（M3 引入；REST 路由是唯一的出题入口——
+ * 学习流执行器入口 2026-09-25 随功能下线拆除，批次 K）：
  * ① SSE `block` 事件（blockId=`scenario-<demoId>`，前端 live 出卡片）；
  * ② messages 历史落库：`[SCENARIO]{payload 顶层 + quizId/demoId 登记键}[/SCENARIO]`
  *    （登记键只进聊天消息 content，quiz_bank data 保持纯契约形状）。
- * publish 无订阅者时是安全空转（学习流执行器在后台跑时用户可能没开这个会话页，
- * 历史落库保证重开能看到），所以这里不关心订阅状态。
+ * publish 无订阅者时是安全空转（用户可能没开这个会话页，
  */
 export function announceScenarioToSession(sessionId: string, gen: ScenarioGenerated): void {
   // publish 无订阅者时是安全空转（见上），所以这里不关心订阅状态、同步发完即落库

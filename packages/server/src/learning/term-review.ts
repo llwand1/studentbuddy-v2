@@ -57,6 +57,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
+import { publishEvent } from '../events/bus.js';
 import { ownerForWrite } from '../auth/ownership.js';
 import {
   computeReviewState,
@@ -305,8 +306,15 @@ export function termReviewState(id: string, ownerId: string | null): ReviewTerm 
  *   ★ 判据是「该词条**今天有没有流水**」（查 `term_review_log`），不是内存标记、
  *   也不是 `last_reviewed_at` 的日期：后者在"首次打卡 23:59、重复打卡次日 00:01"
  *   这类边界上会把跨日的两次误判成同日（那会让第二天的那次白刷）。
+ * ★ `opts.silent` 只给**体验号首屏种子**用（`auth/demo-seed.ts` 的「诚实红线」）：种子走的是真实
+ *   领域函数，但它不是「有人今天学习了」——发事件就会点亮 XP／连签，等于往公共池里灌假活跃。
  */
-export function markReviewed(id: string, remembered: boolean, ownerId: string | null): ReviewTerm | null {
+export function markReviewed(
+  id: string,
+  remembered: boolean,
+  ownerId: string | null,
+  opts: { silent?: boolean } = {},
+): ReviewTerm | null {
   const db = getDb();
   const owner = ownerForWrite(ownerId);
   const now = new Date();
@@ -338,45 +346,16 @@ export function markReviewed(id: string, remembered: boolean, ownerId: string | 
     //   否则曲线图的时间轴会多出一个"由重复打卡造成、但对曲线零贡献"的基准点。
     if (advance || !remembered) updateTerm.run(after, id, owner);
   })();
+  // ★ 事务**之后**才发事件（契约 `GAMIFIED-AGENT-SPEC` §8.1）：订阅方 `learning/activity.ts` 要在
+  //   `daily_activity` 上写一行，而同步发布意味着「订阅者抛错」会顺着调用栈打回打卡这条路——
+  //   放在事务外，配合 ADR-4（订阅者失败只记日志），最坏是这一笔没记进连签，不会连带动摇复习曲线。
+  // ⚠️ 口径变化如实记：这里**不看词条在不在复习范围内**（老 `reviewStreak` 用范围 JOIN 筛过）——
+  //   范围外的词条被手动打卡同样算「今天学了」。契约 §8.3 已登记该取舍：连签数的是学习行为，不是队列归属。
+  if (!opts.silent) publishEvent({ type: 'review_completed', termId: id, ownerId });
   // ★ **回读库行再算状态**（不拿内存里的 row 拼）：本仓已在 auth 的 `createdAt` 上为
   //   「两个事实源」付过一次学费，库行是唯一事实源。
   const freshRow = db
     .prepare(`SELECT ${SELECT_REVIEW_COLS} FROM ${SCOPE_FROM} WHERE t.id = ? AND t.owner_id = ?`)
     .get(id, owner) as TermReviewRow | undefined;
   return freshRow ? toReviewTerm(freshRow, now) : null;
-}
-
-/**
- * 连续复习天数（督促小窗的「连续 N 天」）。
- *
- * ★ 口径：**今天复习了就从今天起算；今天还没复习则从昨天起算**。若严格只认「今天也复习了」，
- *   用户一早打开小窗看到连续天数归零会以为是 bug（他昨晚刚背完）——而这数字的作用是
- *   **给正反馈**，不是记账，让它更早归零只会反向激励。真断了（昨天也没复习）才归 0。
- * ★ 用 `reviewed_day`（本地日历日）而不是 `reviewed_at` 时间戳：与 `computeReviewState`
- *   同口径（本功能的全部时间判断都以天为最小单位，跨时区/凌晨复习不该算成断签）。
- * ★ LIMIT 400：足够覆盖任何现实的连续天数，避免把全表流水拉进内存。
- * ★ v28 起 JOIN 回词条判范围：范围外的打卡不算"今天复习过"，否则用户把娱乐域移出后
- *   连续天数还挂着——那数字会被读成"我今天已经复习过了"。
- * ★ `ownerId` 放**第一参**（`now` 有默认值，必填参数不能排在可选参数之后）。
- */
-export function reviewStreak(ownerId: string | null, now: Date = new Date()): number {
-  const rows = getDb()
-    .prepare(
-      `SELECT DISTINCT l.reviewed_day AS day FROM term_review_log l
-         JOIN term_library t ON t.id = l.term_id ${SCOPE_JOIN}
-        WHERE ${IN_SCOPE} AND t.owner_id = ? ORDER BY day DESC LIMIT 400`,
-    )
-    .all(ownerForWrite(ownerId)) as Array<{ day: string }>;
-  const days = new Set(rows.map((r) => r.day));
-  let cursor = localDayKey(now);
-  if (!days.has(cursor)) {
-    cursor = addDays(cursor, -1);
-    if (!days.has(cursor)) return 0;
-  }
-  let n = 0;
-  while (days.has(cursor)) {
-    n += 1;
-    cursor = addDays(cursor, -1);
-  }
-  return n;
 }

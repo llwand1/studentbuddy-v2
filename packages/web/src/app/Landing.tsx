@@ -35,7 +35,8 @@
  *   配色只取 tokens.css 既有 token（#007aff 主色 / #fafafa 底），不另起色板；禁内联 style。
  */
 import { useEffect, useState } from 'react';
-import type { AuthProviders, AuthUser } from '@sb/shared';
+import type { AuthUser } from '@sb/shared';
+import { api } from '../lib/api';
 import { AccountBox } from '../components/AccountBox';
 import { DemoLoginButton } from '../components/DemoLoginButton';
 import { GithubLoginButton } from '../components/GithubLoginButton';
@@ -70,11 +71,14 @@ function LandingPage({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
   const [githubEnabled, setGithubEnabled] = useState(false);
   const [demoEnabled, setDemoEnabled] = useState(false);
   useEffect(() => {
-    fetch('/api/auth/providers')
-      .then((r) => (r.ok ? (r.json() as Promise<{ providers: AuthProviders }>) : null))
+    // ★ 走 `api` 而不是裸 `fetch`：这条请求正是服务端 `app_open` 的采集点（GROWTH-SPEC §2.1），
+    //   而归因头 `X-SB-Ref` 由 `lib/api-request.ts` 那一层统一注入。裸 fetch 绕过那层
+    //   ＝**全站最关键的一个计数拿不到来源**（2026-09-24 归因批就是为它而开）。
+    api.auth
+      .surface()
       .then((d) => {
-        setGithubEnabled(Boolean(d?.providers.github));
-        setDemoEnabled(Boolean(d?.providers.demo));
+        setGithubEnabled(Boolean(d.providers.github));
+        setDemoEnabled(Boolean(d.providers.demo));
       })
       .catch(() => {
         setGithubEnabled(false);

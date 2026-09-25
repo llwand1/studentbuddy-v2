@@ -24,8 +24,8 @@
  *   而 caption/解说词从不点名「梯度下降」，只讲"词条→追问→连边"这套机制。
  *   ★ 交叉一致锁（抽词清单 === 该帧新增节点）在 `graph-demo.test.ts` 里**逐语言**跑。
  */
-import type { KnowledgeEdge, KnowledgeEdgeOrigin, KnowledgeNeighborhood, KnowledgeNode, KnowledgeNodeKind } from '@sb/shared';
-import { layoutNeighborhood } from '../../features/study-flow/graph-visual';
+import type { KnowledgeEdge, KnowledgeEdgeOrigin, KnowledgeNeighborhood, KnowledgeNode, KnowledgeNodeKind } from './graph-types';
+import { layoutNeighborhood } from './graph-visual';
 import type { Bi, LandingLang } from '../landing-lang';
 
 /**

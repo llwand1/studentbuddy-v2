@@ -228,6 +228,11 @@ export function createRoom(identity: PkIdentity, mode: PkMode = 'pvp', aiTopic?:
     existing.lastActivity = now;
     return snapshotRoom(existing);
   }
+  return snapshotRoom(openRoom(identity, mode, aiTopic, topic, now));
+}
+
+/** 建一间新房并登记进两张表（纯机械动作，不含幂等/归属判断）——`createRoom` 与 §16 共用一份座位表 */
+function openRoom(identity: PkIdentity, mode: PkMode, aiTopic: string | undefined, topic: string | undefined, now: number): Room {
   const room: Room = {
     roomId: `r-${randomUUID()}`,
     code: genCode(),
@@ -258,7 +263,26 @@ export function createRoom(identity: PkIdentity, mode: PkMode = 'pvp', aiTopic?:
   }
   rooms.set(room.roomId, room);
   codes.set(room.code, room.roomId);
-  return snapshotRoom(room);
+  return room;
+}
+
+/**
+ * §16：用户点「接受 AI 邀请」⇒ 给他一间**自己的 PVE 房，按邀请主题立即开局**。
+ * ★ AI 座位主题 = 学习者主题 = 邀请的 `topic`，**不走** §8.2 的主题池轮换：轮换会让 AI 出的题与
+ *   刚讲的内容不同题，「相关话题的出题对战」就落空了（契约 §16.8）。★ 对局中不另开第二间
+ *   （§16.10「active 房守卫」的落点，放本函数而非 `createRoom`）；旧 waiting 房摘身沿用 `leaveWaitingRooms`。
+ */
+export function acceptInviteRoom(identity: PkIdentity, topic: string): PkRoomState {
+  const now = Date.now();
+  sweepExpired(now);
+  const playing = [...rooms.values()].find(
+    (r) => r.status === 'active' && r.players.some((p) => p.userId === identity.userId),
+  );
+  if (playing) return snapshotRoom(playing);
+  leaveWaitingRooms(identity.userId);
+  const t = topic.trim().slice(0, TOPIC_MAX);
+  const room = openRoom(identity, 'pve', t, t, now);
+  return startRoom(room.roomId, identity);
 }
 
 /**

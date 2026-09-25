@@ -11,6 +11,7 @@
  *   `import { api, ApiError } from '../../lib/api'` 三处调用方（PkApp / PkMatch / SettingsView）
  *   零改动。
  */
+import { currentRef, REF_HEADER } from './attribution';
 
 export class ApiError extends Error {
   constructor(
@@ -54,7 +55,19 @@ export const NO_RESPONSE = 0;
 
 /** 同源经 vite proxy；错误统一抛 `ApiError`，UI 层可见可重试（ADR-5） */
 export async function request<T>(path: string, init?: RequestOptions): Promise<T> {
-  const { timeoutMs, signal, ...rest } = init ?? {};
+  const { timeoutMs, signal, headers, ...rest } = init ?? {};
+
+  /**
+   * ★★ 头在这里汇一次，而不是让每个调用方自己记得带：`X-SB-Ref`（渠道归因，契约
+   *   `docs/GROWTH-SPEC.md` §2.5）漏带一次的代价是「这一天的数查不出来源」，而那种缺失
+   *   不会报错、只在事后读数据时发现。汇在这一层 ⇒ 新增 API 方法**不可能**漏。
+   * ⚠️ 顺序有意：调用方显式给的 `Content-Type` 覆盖默认值，而归因头永远由本层给（它不是
+   *   业务头，没有「调用方想换一个来源」这种场景）。
+   */
+  const merged = new Headers(headers ?? undefined);
+  if (!merged.has('content-type')) merged.set('Content-Type', 'application/json');
+  const ref = currentRef();
+  if (ref) merged.set(REF_HEADER, ref);
 
   /**
    * ★ 为什么自己造 `AbortController` 而不是直接把 `signal` 传下去：
@@ -79,8 +92,8 @@ export async function request<T>(path: string, init?: RequestOptions): Promise<T
 
   try {
     const res = await fetch(path, {
-      headers: { 'Content-Type': 'application/json' },
       ...rest,
+      headers: merged,
       signal: ctrl.signal,
     });
     if (!res.ok) {

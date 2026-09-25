@@ -85,6 +85,11 @@ export interface HeadOptions {
    * 只写对方不写自己，Google 判整簇作废——所以这里给的是全簇，不是「别人」。
    */
   alternates?: readonly { hreflang: string; href: string }[];
+  /**
+   * 这一页自己的那点样式。★ 只给共用壳覆盖不到的东西用（此刻只有计划表页的表单与表格），
+   *   而且必须是**写死的常量**——它是公网字节，走同一把「内部字样」锁。
+   */
+  extraStyle?: string;
 }
 
 /** hreflang 行；一簇都没有就一行都不吐（更新页此刻是单语，不需要假装有多语） */
@@ -118,15 +123,23 @@ export function pageHead(o: HeadOptions): string[] {
     ...(o.card ? ogImageMetaLines(o.card) : []),
     ...(o.extraLinks ?? []),
     `<style>${CSS}</style>`,
+    ...(o.extraStyle ? [`<style>${o.extraStyle}</style>`] : []),
     '</head>',
   ];
 }
 
-export function pageTop(nav: readonly ShellLink[]): string[] {
+/**
+ * 顶栏：品牌链＋本页导航。
+ *
+ * ★ `homeHref` **刻意没有默认值**：品牌那一条链是公开页回应用唯一的常驻入口，
+ *   给个 `'/'` 的默认值等于允许某个新页面「安静地不带来源」（GROWTH-SPEC §2.5 那条归因
+ *   就是这么漏的——`Landing.tsx` 那处裸 fetch 也是同一族）。要调用方显式说清自己是谁。
+ */
+export function pageTop(nav: readonly ShellLink[], homeHref: string): string[] {
   return [
     '<body>',
     '<header class="top">',
-    '<a class="brand" href="/">StudentBuddy</a>',
+    `<a class="brand" href="${escapeHtml(homeHref)}">StudentBuddy</a>`,
     `<nav>${nav.map((l) => `<a href="${escapeHtml(l.href)}">${escapeHtml(l.label)}</a>`).join(' · ')}</nav>`,
     '</header>',
     '<main>',

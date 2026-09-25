@@ -50,4 +50,23 @@ export const MIGRATIONS_V41: Array<{ version: number; statements: string[] }> = 
       )`,
     ],
   },
+  /**
+   * ── v42：给诚实计数加「谁带来的」这一维（渠道台账 C4/C1，契约 `docs/GROWTH-SPEC.md` §2.5）──
+   *
+   * 起因是 2026-09-24 的线上取证：**当天 12 个 `app_open` 桶没有一个查得出来源**——站内一跳之后
+   * referer 就变成 `11wand.com` 自己，于是从贴吧／班级群／词条页点进来的人第二跳起再也认不出。
+   *
+   * ★ 为什么是加一列而不是另起一张表：主键 `(kind, bucket, day)` 已经是去重单元，来源只是这个
+   *   事件的一个**属性**；另起表要让「各来源之和 == counts」这条复算判据变成跨表对账。
+   * ⚠️ 来源落在**第一次**那次请求上（`INSERT OR IGNORE` 命中已存在的行不更新）⇒ 同 IP 同一天
+   *   先 `direct` 后 `tieba` 会留在 `direct`。代价记进 §4 第 7 条，不做「后到覆盖先到」——
+   *   那一行就该是「第一次见到这个桶」的事实，与 `first_seen_at` 同名同义。
+   * ★ 默认空串而不是 NULL：空＝「没带来源」，读侧统一归 `direct`。库里**仍零裸 IP、零完整 URL、
+   *   零 referer 原文**，多出来的只是一个 ≤24 字符的渠道名 ⇒ §2.4 的隐私形状不因本列改变
+   *   （这也是刻意不收 `utm_content`／整条 URL 的理由）。
+   */
+  {
+    version: 42,
+    statements: [`ALTER TABLE growth_action_day ADD COLUMN source TEXT NOT NULL DEFAULT ''`],
+  },
 ];

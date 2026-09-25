@@ -278,6 +278,33 @@ function readmeDrift(m) {
     const claimed = badgeVer[1].replace(/--/g, '-');
     claims.push({ label: 'badge 版本', claimed, measured: pkg.version, ok: claimed === pkg.version });
   }
+  // ★ 2026-09-24 加：**线上现况版本**（README 导语「已上线到 vX.Y.Z」）。
+  //   起因是实测到的一个**自我矛盾**：README 同一格里的导语写着 `v0.2.112`，而紧跟它的两句已经自纠到 v0.2.118
+  //   ⇒ 那不是假事实，是**旧导语**，所以只查「数字对不对得上实测」的这几条一条都没拦到（`v0.2.112` 曾是真实现况）。
+  //   对账点选**公开清洗表 `PUBLIC_RELEASES` 的最高版本**而不是 `package.json` 的 version：
+  //   那页是全站唯一对外宣称「线上有什么」的一份内容，而 `package.json` 是本地安装包版——**它通常领先线上**，拿它当现况会把导语推向另一个错处。
+  const changelogPublic = path.join(ROOT, 'packages/web/src/seo/changelog-public.ts');
+  if (fs.existsSync(changelogPublic)) {
+    const nums = [...fs.readFileSync(changelogPublic, 'utf8').matchAll(/version:\s*'v(\d+)\.(\d+)\.(\d+)'/g)]
+      .map((g) => [Number(g[1]), Number(g[2]), Number(g[3])])
+      .sort((a, b) => b[0] - a[0] || b[1] - a[1] || b[2] - a[2]);
+    const top = nums.length ? `v${nums[0].join('.')}` : '(清洗表里没有 version 条目)';
+    const liveVer = /已上线到\s*\*{0,2}\s*v(\d+\.\d+\.\d+)/.exec(text);
+    if (liveVer) claims.push({ label: '线上现况版本', claimed: `v${liveVer[1]}`, measured: top, ok: `v${liveVer[1]}` === top });
+  }
+  // ★ 同批加：**正文那句 `N passed + M skipped + K failed`**。
+  //   它紧邻的「N 文件 / M 例」有「正文基线句」守着，这一半**从来没有对账** ⇒ 实测抓到它是上一批留下的旧数
+  //   （基线已写成 2886 例，同一句里还写着 2869 passed；正确值 2885）——**新基线旁边挂着旧明细，肉眼看不出来**。
+  if (m.tests.available) {
+    for (const g of text.matchAll(/(\d+) passed \+ (\d+) skipped \+ (\d+) failed/g)) {
+      claims.push({
+        label: '正文 passed 口径',
+        claimed: `${g[1]} passed + ${g[2]} skipped + ${g[3]} failed`,
+        measured: `${m.tests.passed} passed + ${m.tests.skipped} skipped + ${m.tests.failed} failed`,
+        ok: g[1] === String(m.tests.passed) && g[2] === String(m.tests.skipped) && g[3] === String(m.tests.failed),
+      });
+    }
+  }
   const prose = [...text.matchAll(/(\d+) 文件 \/ (\d+) 例/g)];
   for (const g of prose) {
     if (!m.tests.available) break;
@@ -291,11 +318,11 @@ function readmeDrift(m) {
   // ★ 2026-09-21 加：**防「静默消失」** —— 上面每条都是「找得到才入列」，于是徽章被改名/删掉时
   //   检查会**无声地不存在**（本仓刚发生过：Node 那条就是这么没的，谁都没发现）。
   //   故对「实测值必然可得」的几条做**存在性断言**：该在的没在 ⇒ 报 ❌，而不是当作通过。
-  const REQUIRED = ['badge REST 路由', 'badge 契约类型', 'badge 外部运行时依赖', 'badge Node 下限', 'badge 版本'];
+  const REQUIRED = ['badge REST 路由', 'badge 契约类型', 'badge 外部运行时依赖', 'badge Node 下限', 'badge 版本', '线上现况版本'];
   if (m.tests.available) REQUIRED.push('badge 测试文件', 'badge 测试用例');
   const seen = new Set(claims.map((c) => c.label));
   for (const label of REQUIRED) {
-    if (!seen.has(label)) claims.push({ label, claimed: '(README 里找不到该徽章)', measured: '—', ok: false });
+    if (!seen.has(label)) claims.push({ label, claimed: '(README 里找不到该对账项)', measured: '—', ok: false });
   }
   return claims.filter((c) => c.claimed !== null);
 }

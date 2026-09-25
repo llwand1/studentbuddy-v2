@@ -7,7 +7,7 @@
  * Enter 与点击同效、失败必须**说出来**、成功**不回文案**（此刻卡片已被切走的会话卸载）。
  *
  * 判定规则（`term` 超长拒绝、问题截断、标题截断）在 `shared/follow-up.test.ts`；
- * 服务端建会话与连边在 `server/{chat/follow-up,routes/fork,learning/follow-up-links}.test.ts`。
+ * 服务端建会话在 `server/{chat/follow-up,routes/fork}.test.ts`（原「连边」一步 2026-09-25 随知识图下线）。
  * 本文件**不重复**那些，只钉接线。
  *
  * ★ `afterEach(cleanup)` 是**必须**的：本仓 `vitest.config.ts` 没有开 `globals`，

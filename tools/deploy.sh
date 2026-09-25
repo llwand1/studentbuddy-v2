@@ -18,6 +18,12 @@
 #   于是在途改动会被**一起推上生产**，且 `npm run check` 还会连带跑他们的半成品测试。
 #   ⇒ 步骤 ⓪ 拦下「packages/** 有未提交改动」；确需强发用 ALLOW_DIRTY=1。
 #
+# ★★ 2026-09-24 补闸（根级公开文件核对）
+#   站点根是 Caddy 的 `root` = `packages/web/dist`，而步骤 ⑦ 是**整目录轮换**（$APP → app-old-$TS）
+#   ⇒ 手工 scp 进 dist 的根级文件**下一次发版就没了**（当天就发生过一次：搜索引擎验证文件
+#   BingSiteAuth.xml 被直接塞上线）。⇒ 步骤 ①b 断言 `packages/web/public/**` 全数落在 `dist/**`，
+#   要长期待在站点根的东西只能走 public/，不能走线上手工塞。
+#
 # 用法：
 #   bash tools/deploy.sh                  # 正常发布（含预演）
 #   DRY_RUN=1 bash tools/deploy.sh        # 只做 体检+校验+构建+打包，不上传不切换（验闸用）
@@ -28,7 +34,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."          # 一律在仓库根跑，路径都相对它
 
-SERVER=${SERVER:-root@107.172.96.209}
+SERVER=${SERVER:?必须提供，如 root@203.0.113.10（真实地址不入仓，见私有运维清单）}
 KEY=${KEY:-$HOME/.ssh/id_ed25519}
 BASE=${BASE:-/opt/studentbuddy}
 APP=$BASE/app
@@ -68,6 +74,11 @@ fi
 echo "=== ① 本地校验 + 构建 ==="
 npm run check
 npm run build
+
+echo "=== ①b 根级公开文件核对（public/ → dist/）==="
+# 站点根 = Caddy 的 root = packages/web/dist，而 ⑦ 是**整目录轮换** ⇒ 没落进 public/ 的
+# 根级文件（搜索引擎验证文件是典型）会在发版后静默 404。闸门细节见 tools/check-root-files.sh。
+bash tools/check-root-files.sh
 
 echo "=== ② 打包（排除运行时不需要、或绝不能覆盖线上那份的）==="
 tar czf "$TAR" \

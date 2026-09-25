@@ -14,7 +14,7 @@ import {
   type PublicTerm,
 } from './term-corpus';
 import { ogCardForTerm, CATALOG_OG_CARD, type OgCard } from './og-card';
-import { CATALOG_PATH_EN, CHANGELOG_PATH } from './paths';
+import { appHome, CATALOG_PATH_EN, CHANGELOG_PATH, PLAN_TOOL_PATH, REF_TERMS } from './paths';
 import { CATALOG_ALTERNATES, englishCounterpartOf, termEnPath, zhAlternatesFor } from './term-corpus-en';
 import { escapeHtml, pageFoot, pageHead, pageTop, type ShellLink } from './page-shell';
 
@@ -29,8 +29,9 @@ function titleOf(term: PublicTerm): string {
 
 const TERM_NAV: ShellLink[] = [{ href: CATALOG_PATH, label: '全部词条' }];
 const TERM_FOOT: ShellLink[] = [
-  { href: '/', label: '回到首页' },
+  { href: appHome(REF_TERMS), label: '回到首页' },
   { href: CATALOG_PATH, label: '全部词条' },
+  { href: PLAN_TOOL_PATH, label: '复习计划表' },
   { href: CATALOG_PATH_EN, label: 'English' },
   { href: CHANGELOG_PATH, label: '更新记录' },
 ];
@@ -53,7 +54,7 @@ function headOf(
 
 /** 生成一个词条页的完整 HTML */
 export function renderTermPage(term: PublicTerm): string {
-  const body: string[] = [...pageTop(termNavOf(term))];
+  const body: string[] = [...pageTop(termNavOf(term), appHome(REF_TERMS))];
   body.push(`<h1>${escapeHtml(term.title)}</h1>`);
   body.push(`<p class="alias">${escapeHtml(term.alias)}</p>`);
   body.push(`<p class="lead">${escapeHtml(term.oneLine)}</p>`);
@@ -84,7 +85,7 @@ export function renderTermPage(term: PublicTerm): string {
   body.push('<aside class="cta">');
   body.push('<h2>这一条在 StudentBuddy 里落在哪一环</h2>');
   body.push(`<p>${escapeHtml(term.productHint)}</p>`);
-  body.push('<a href="/">看看怎么用</a>');
+  body.push(`<a href="${escapeHtml(appHome(REF_TERMS))}">看看怎么用</a>`);
   body.push('</aside>');
   body.push(...pageFoot(TERM_FOOT));
 
@@ -108,7 +109,7 @@ export function renderTermIndexPage(terms: readonly PublicTerm[] = PUBLIC_TERMS)
     )}</li>`;
   });
   const body = [
-    ...pageTop(TERM_NAV),
+    ...pageTop(TERM_NAV, appHome(REF_TERMS)),
     '<h1>学习科学词条</h1>',
     '<p class="kw">都是学习者常听到、却很少被说清的说法。每条一页：它是什么、为什么有效、容易怎么做错。</p>',
     '<ul>',
@@ -119,7 +120,7 @@ export function renderTermIndexPage(terms: readonly PublicTerm[] = PUBLIC_TERMS)
   return [
     ...headOf(
       '学习科学词条目录 - StudentBuddy',
-      '提取练习、间隔重复、认知负荷、元认知……每条一页讲清它是什么、为什么有效、以及最容易怎么做错。',
+      '主动回忆、间隔重复、艾宾浩斯遗忘曲线、元认知……每条一页讲清它是什么、为什么有效、以及最容易怎么做错。',
       CATALOG_URL,
       CATALOG_OG_CARD,
       CATALOG_ALTERNATES,

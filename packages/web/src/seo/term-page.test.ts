@@ -52,9 +52,10 @@ describe('词条页 · 单页形状', () => {
     expect(html).toContain(t.productHint);
   });
 
-  it('★ 互链指向同批页面且带扩展名（不给爬虫留 404），并有一条回首页的路', () => {
+  it('★ 互链指向同批页面且带扩展名（不给爬虫留 404），并有一条**带来源**回首页的路', () => {
     for (const r of t.related) expect(html).toContain(`href="/terms/${r}.html"`);
-    expect(html).toContain('href="/"');
+    // ★ `?ref=terms`：静态页零 JS，链接是它唯一能传出去的来源信息（GROWTH-SPEC §2.5）
+    expect(html).toContain('href="/?ref=terms"');
     expect(html).toContain(`href="${CATALOG_PATH}"`);
   });
 
@@ -122,11 +123,11 @@ describe('sitemap 与落盘', () => {
   const dir = mkdtempSync(join(tmpdir(), 'sb-seo-test-'));
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-  it('★ sitemap：命名空间正确、条数＝首页＋中英两个目录页＋两边全部词条页、日期是 ISO', () => {
+  it('★ sitemap：命名空间正确、条数＝首页＋中英两个目录页＋两边全部词条页＋计划表页、日期是 ISO', () => {
     const xml = renderSitemapXml(PUBLIC_TERMS, PUBLIC_TERMS_EN, new Date('2026-09-22T12:00:00Z'));
     expect(xml).toContain('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
     expect(xml.match(/<loc>/g)).toHaveLength(
-      PUBLIC_TERMS.length + PUBLIC_TERMS_EN.length + 3,
+      PUBLIC_TERMS.length + PUBLIC_TERMS_EN.length + 4,
     );
     expect(xml).toContain('<lastmod>2026-09-22</lastmod>');
     expect(xml).toContain('https://11wand.com/</loc>');
@@ -188,8 +189,8 @@ describe('sitemap 与落盘', () => {
 
   it('writeSeoPages 真的把页面写进目录，内容与渲染函数逐字一致', () => {
     const written = writeSeoPages(dir, PUBLIC_TERMS, PUBLIC_TERMS_EN, new Date('2026-09-22T12:00:00Z'));
-    // 中英全部词条页 ＋ 两个目录页 ＋ 更新页 ＋ 订阅 ＋ sitemap（此刻 12＋6＋5＝**23 件**）
-    expect(written).toHaveLength(PUBLIC_TERMS.length + PUBLIC_TERMS_EN.length + 5);
+    // 中英全部词条页 ＋ 两个目录页 ＋ 更新页 ＋ 订阅 ＋ 计划表页 ＋ sitemap（此刻 12＋6＋6＝**24 件**）
+    expect(written).toHaveLength(PUBLIC_TERMS.length + PUBLIC_TERMS_EN.length + 6);
     expect(readFileSync(join(dir, 'terms/tiqu-lixian.html'), 'utf8')).toBe(
       renderTermPage(PUBLIC_TERMS[0]!),
     );

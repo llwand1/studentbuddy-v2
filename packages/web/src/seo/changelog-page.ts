@@ -9,7 +9,7 @@
  *   `not.toContain` 守着——要把这页报给爬虫，先决定它配不配图。
  *   它的被发现目前走三条路：首页静态入口、词条页与目录页页脚、订阅地址本身。
  */
-import { CHANGELOG_PATH, FEED_PATH } from './paths';
+import { appHome, CHANGELOG_PATH, FEED_PATH, REF_CHANGELOG } from './paths';
 import { CATALOG_PATH, SITE_ORIGIN } from './term-corpus';
 import { pageFoot, pageHead, pageTop, escapeHtml, type ShellLink } from './page-shell';
 import { PUBLIC_RELEASES, RELEASE_SCOPE, releaseAnchor, type ReleaseNote } from './changelog-public';
@@ -31,7 +31,7 @@ function navLinks(): ShellLink[] {
 
 function footLinks(): ShellLink[] {
   return [
-    { href: '/', label: '回到首页' },
+    { href: appHome(REF_CHANGELOG), label: '回到首页' },
     { href: CATALOG_PATH, label: '全部词条' },
     { href: FEED_PATH, label: '订阅更新' },
   ];
@@ -61,7 +61,7 @@ export function renderChangelogPage(releases: readonly ReleaseNote[] = PUBLIC_RE
   });
   return [
     ...head,
-    ...pageTop(navLinks()),
+    ...pageTop(navLinks(), appHome(REF_CHANGELOG)),
     `<h1>${escapeHtml(FEED_TITLE)}</h1>`,
     `<p class="lead">${escapeHtml(RELEASE_SCOPE.lead)}</p>`,
     `<p class="note">${escapeHtml(RELEASE_SCOPE.note)}</p>`,

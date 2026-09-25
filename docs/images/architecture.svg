@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="660" viewBox="0 0 980 660" font-family="'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#475569"/>
+    </marker>
+    <marker id="arrBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#2563eb"/>
+    </marker>
+  </defs>
+
+  <rect width="980" height="660" fill="#ffffff"/>
+  <text x="490" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#0f172a">StudentBuddy v2 架构总览</text>
+  <text x="490" y="55" text-anchor="middle" font-size="12.5" fill="#64748b">一条请求的旅程：浏览器 → 服务端 → 域层 → SQLite / 大模型上游；虚线 = 三道边界</text>
+
+  <!-- ===== Browser ===== -->
+  <rect x="60" y="76" width="620" height="72" rx="10" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="80" y="103" font-size="14" font-weight="700" fill="#1e3a8a">浏览器 · React SPA（零第三方运行时依赖）</text>
+  <text x="80" y="126" font-size="12" fill="#334155">会话流 / 出题卡 / 词条库 · SSE 客户端（seq 对齐 + 断线重连回放）· 中英双语落地页</text>
+
+  <!-- boundary 1 -->
+  <line x1="40" y1="172" x2="940" y2="172" stroke="#dc2626" stroke-width="1.4" stroke-dasharray="7 5"/>
+  <rect x="40" y="160" width="252" height="20" rx="4" fill="#ffffff"/>
+  <text x="46" y="175" font-size="12" font-weight="700" fill="#dc2626">边界① 信任边界：同源 + Origin 白名单 + Cookie(sb_sid)</text>
+
+  <!-- ===== App Server ===== -->
+  <rect x="60" y="190" width="620" height="118" rx="10" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="80" y="216" font-size="14" font-weight="700" fill="#14532d">App Server · Express（packages/server，单实例）</text>
+  <rect x="80" y="230" width="180" height="30" rx="5" fill="#ffffff" stroke="#bbf7d0"/>
+  <text x="170" y="250" text-anchor="middle" font-size="12" fill="#166534">REST 路由（分域注册）</text>
+  <rect x="272" y="230" width="180" height="30" rx="5" fill="#ffffff" stroke="#bbf7d0"/>
+  <text x="362" y="250" text-anchor="middle" font-size="12" fill="#166534">SSE 总线（分桶缓冲）</text>
+  <rect x="464" y="230" width="196" height="30" rx="5" fill="#ffffff" stroke="#bbf7d0"/>
+  <text x="562" y="250" text-anchor="middle" font-size="12" fill="#166534">鉴权 · 归属 · 限流中间件</text>
+  <text x="80" y="288" font-size="12" fill="#334155">写请求无合法 Origin ⇒ 403；跨归属资源一律 404（不泄露「存在」）；</text>
+  <text x="80" y="305" font-size="12" fill="#334155">会话内串行锁：同 sessionId 的消息排队执行，流绝不交错</text>
+
+  <!-- streaming arrow (browser <-> sse bus) -->
+  <line x1="452" y1="148" x2="452" y2="230" stroke="#2563eb" stroke-width="1.8" marker-end="url(#arrBlue)"/>
+  <line x1="170" y1="230" x2="170" y2="148" stroke="#475569" stroke-width="1.4" marker-end="url(#arr)"/>
+  <text x="470" y="196" font-size="11.5" fill="#2563eb">下行流：帧带轮内 seq，重连按 since 回放</text>
+  <text x="72" y="196" font-size="11.5" fill="#475569">上行：fetch POST</text>
+
+  <!-- boundary 2 -->
+  <line x1="40" y1="336" x2="940" y2="336" stroke="#f59e0b" stroke-width="1.4" stroke-dasharray="7 5"/>
+  <rect x="40" y="324" width="300" height="20" rx="4" fill="#ffffff"/>
+  <text x="46" y="339" font-size="12" font-weight="700" fill="#b45309">边界② 数据归属边界：ownerFilter 读 / ownerForWrite 写，NULL=平台</text>
+
+  <!-- ===== Domain ===== -->
+  <rect x="60" y="354" width="620" height="110" rx="10" fill="#fefce8" stroke="#fde047"/>
+  <text x="80" y="380" font-size="14" font-weight="700" fill="#713f12">域层（业务不变量的所在地）</text>
+  <rect x="80" y="394" width="140" height="52" rx="5" fill="#ffffff" stroke="#fef08a"/>
+  <text x="150" y="414" text-anchor="middle" font-size="12" font-weight="600" fill="#713f12">chat 循环</text>
+  <text x="150" y="432" text-anchor="middle" font-size="10.5" fill="#854d0e">工具·预算·上下文段</text>
+  <rect x="230" y="394" width="140" height="52" rx="5" fill="#ffffff" stroke="#fef08a"/>
+  <text x="300" y="414" text-anchor="middle" font-size="12" font-weight="600" fill="#713f12">quiz 出题引擎</text>
+  <text x="300" y="432" text-anchor="middle" font-size="10.5" fill="#854d0e">五级解析阶梯</text>
+  <rect x="380" y="394" width="140" height="52" rx="5" fill="#ffffff" stroke="#fef08a"/>
+  <text x="450" y="414" text-anchor="middle" font-size="12" font-weight="600" fill="#713f12">terms / FTS5+BM25</text>
+  <text x="450" y="432" text-anchor="middle" font-size="10.5" fill="#854d0e">词条·复习时钟</text>
+  <rect x="530" y="394" width="130" height="52" rx="5" fill="#ffffff" stroke="#fef08a"/>
+  <text x="595" y="414" text-anchor="middle" font-size="12" font-weight="600" fill="#713f12">coach / growth</text>
+  <text x="595" y="432" text-anchor="middle" font-size="10.5" fill="#854d0e">学习教练·诚实计数</text>
+
+  <!-- ===== Shared contracts ===== -->
+  <rect x="60" y="486" width="300" height="88" rx="10" fill="#f5f3ff" stroke="#c4b5fd"/>
+  <text x="80" y="512" font-size="14" font-weight="700" fill="#4c1d95">共享契约 @sb/shared</text>
+  <text x="80" y="534" font-size="11.5" fill="#5b21b6">类型 · SSE 事件 · [QUIZ] 协议 · 配额口径</text>
+  <text x="80" y="553" font-size="11.5" fill="#5b21b6">前后端 import 同一份 ⇒ 漂移即编译错</text>
+
+  <!-- ===== Storage ===== -->
+  <rect x="380" y="486" width="300" height="88" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="400" y="512" font-size="14" font-weight="700" fill="#0f172a">存储 SQLite（WAL）</text>
+  <text x="400" y="534" font-size="11.5" fill="#334155">逐版本迁移 v1→v41 · 全部数字对账口径见 metrics.mjs</text>
+  <text x="400" y="553" font-size="11.5" fill="#334155">providers.api_key 列 = AES-GCM 密文（enc:v1:）</text>
+
+  <line x1="210" y1="464" x2="210" y2="486" stroke="#475569" stroke-width="1.4" marker-end="url(#arr)"/>
+  <line x1="530" y1="464" x2="530" y2="486" stroke="#475569" stroke-width="1.4" marker-end="url(#arr)"/>
+
+  <!-- ===== External upstream ===== -->
+  <rect x="716" y="230" width="224" height="234" rx="10" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="736" y="258" font-size="14" font-weight="700" fill="#9a3412">LLM 上游（外部）</text>
+  <text x="736" y="282" font-size="11.5" fill="#7c2d12">OpenAI / Anthropic 兼容</text>
+  <text x="736" y="300" font-size="11.5" fill="#7c2d12">BYOK（用户自带 key）</text>
+  <text x="736" y="318" font-size="11.5" fill="#7c2d12">+ 平台免费通道（配额闸）</text>
+  <line x1="736" y1="332" x2="924" y2="332" stroke="#fdba74"/>
+  <text x="736" y="354" font-size="11.5" fill="#9a3412">8 角色路由 routeRole()</text>
+  <text x="736" y="372" font-size="11.5" fill="#9a3412">超时：空闲 120s / 总 180s</text>
+  <text x="736" y="390" font-size="11.5" fill="#9a3412">失败 ⇒ 降级真话，不假成功</text>
+  <text x="736" y="408" font-size="11.5" fill="#9a3412">AI 生成 HTML ⇒ CSP sandbox</text>
+  <text x="736" y="426" font-size="11.5" fill="#9a3412">出图请求 ⇒ SSRF 守卫</text>
+
+  <!-- boundary 3 label on upstream -->
+  <line x1="700" y1="150" x2="700" y2="486" stroke="#dc2626" stroke-width="1.4" stroke-dasharray="7 5"/>
+  <text x="706" y="168" font-size="12" font-weight="700" fill="#dc2626">边界③ 凭据边界</text>
+  <text x="706" y="186" font-size="11" fill="#dc2626">明文 key 只在此侧短暂存在，</text>
+  <text x="706" y="202" font-size="11" fill="#dc2626">永不回给前端、库中恒为密文</text>
+
+  <line x1="680" y1="288" x2="716" y2="288" stroke="#475569" stroke-width="1.4" marker-end="url(#arr)"/>
+  <line x1="716" y1="306" x2="680" y2="306" stroke="#2563eb" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#arrBlue)"/>
+
+  <!-- bottom notes -->
+  <rect x="60" y="600" width="880" height="40" rx="8" fill="#f1f5f9" stroke="#e2e8f0"/>
+  <text x="76" y="625" font-size="11.5" fill="#334155">阅读路径：想看可靠性细节 → docs/INTERVIEW.md §3（四道难题）；想看协议形状 → @sb/shared 的 sse-events.ts 与 quiz 协议；想看归属 → docs/TENANCY-SPEC.md。</text>
+</svg>

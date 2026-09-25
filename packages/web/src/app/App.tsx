@@ -25,8 +25,6 @@ import { QuizBankPage } from '../features/quiz/QuizBankPage';
 import { NotesPage } from '../features/notes/NotesPage';
 import { TermsPage } from '../features/terms/TermsPage';
 import { DailySummaryPage } from '../features/summary/DailySummaryPage';
-import { FlowPage } from '../features/study-flow/FlowPage';
-import { KnowledgeGraphPage } from '../features/study-flow/KnowledgeGraphPage';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
 import { CoachDock } from '../features/coach/CoachDock';
 import { TrialNotice } from '../components/TrialNotice';
@@ -50,7 +48,7 @@ export function App() {
   const [historyOpen, setHistoryOpen] = useState(true);
   /** 笔记页的套题过滤（题库页「本套笔记」入口带入；从导航点「笔记」时清除） */
   const [notesQuizId, setNotesQuizId] = useState<string | null>(null);
-  /** 词条库的搜索词（知识图页「去词条库看正文」入口带入；从导航点「词条」时清除） */
+  /** 词条库的搜索词（词条卡「打开词条库」入口带入；从导航点「词条」时清除） */
   const [termsKeyword, setTermsKeyword] = useState('');
 
   /** 题库页 → 笔记页的跨页入口：带 quizId 过滤直达本套题的笔记 */
@@ -59,7 +57,7 @@ export function App() {
     setView('notes');
   }, []);
 
-  /** 知识图页 → 词条库的跨页入口：按词条名直达（知识图只存引用快照，正文在词条库） */
+  /** 词条卡 → 词条库的跨页入口：按词条名直达（知识图只存引用快照那套已随功能下线，此入口由对话页词条卡使用） */
   const openTerms = useCallback((keyword: string) => {
     setTermsKeyword(keyword);
     setView('terms');
@@ -91,7 +89,7 @@ export function App() {
 
   /**
    * 「向 AI 追问」（契约 `docs/KNOWLEDGE-FOLLOWUP-SPEC.md` §6）——**全仓唯一实现**：
-   * 词条卡与学习流页的产出词条都调这一条（`FollowUpAction`，见 `lib/api.ts`）。
+   * 对话页的词条卡调这一条（`FollowUpAction`，见 `lib/api.ts`）。
    *
    * 服务端负责建 fork 会话 + 带原对话摘要 + 立刻起流；**App 只做两件事**：切过去、刷列表
    * （新会话得立刻出现在侧栏，否则用户会以为没建成）。
@@ -99,9 +97,7 @@ export function App() {
    * ★ 必须声明在 `reloadSessions` **之后**（依赖它；`const` 不会提升）。
    * ★ `fromSessionId` 省缺 ＝ **当前正看着的那条会话**（`currentId`）：`TermIndexProvider`
    *   只在 `view === 'chat'` 时挂载，而那时 `currentId` 就是用户正看着的那条 ⇒ 没有"传空 id"
-   *   的窗口。学习流页是**另一个视图**（它没有"当前会话"），故显式传 `flow_run.session_id`
-   *   （理由见 `study-flow/ProducedNodes.tsx` 文件头 ①）；兜底报错仍留着——将来若把 Provider
-   *   提到壳外，静默分叉到 `null` 会很难查。
+   *   的窗口；兜底报错仍留着——将来若把 Provider 提到壳外，静默分叉到 `null` 会很难查。
    * ★ **不吞错**：交给控件显示（"点了没反应"是这类跨页动作最糟的形态）。
    */
   const followUp = useCallback(
@@ -236,10 +232,6 @@ export function App() {
             />
           </TermIndexProvider>
         )}
-        {/* 学习流页也挂「向 AI 追问」（契约 KNOWLEDGE-FOLLOWUP-SPEC §6）：入口在
-            `RunPanel` → `ProducedNodes`（本次运行产出的词条），父会话由它带 `flow_run.session_id`。 */}
-        {view === 'flow' && <FlowPage onGoGraph={() => setView('graph')} onFollowUp={followUp} />}
-        {view === 'graph' && <KnowledgeGraphPage onOpenTerms={openTerms} />}
         {view === 'quiz' && <QuizBankPage onOpenNotes={openNotes} />}
         {view === 'notes' && (
           <NotesPage quizId={notesQuizId} onClearQuiz={() => setNotesQuizId(null)} />

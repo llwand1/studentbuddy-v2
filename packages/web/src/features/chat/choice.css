@@ -244,3 +244,20 @@
 .confirm-btn.ok:hover:not(:disabled) { background: var(--sb-primary); opacity: 0.9; }
 .confirm-btn.bad { color: var(--sb-danger); }
 .confirm-btn.bad:hover:not(:disabled) { border-color: var(--sb-danger); background: var(--sb-bg); }
+
+/* ── 对战邀请卡（§16，PkInviteCard.tsx）：同样复用卡壳基元，只补主题行与回执链接的差异 ── */
+
+/* 主题 + 那句「为什么现在值得打一局」上下排，中间留一档间距 */
+.pk-invite .choice-q { display: grid; gap: var(--sb-sp-1); }
+.pk-invite-topic {
+  font-size: var(--sb-fs-md);
+  font-weight: 600;
+  color: var(--sb-ink);
+}
+.pk-invite-reason {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+  line-height: 1.5;
+}
+/* 「进入对局」是链接（回执态），复用「收起」的盒子形状，不能带默认下划线 */
+a.choice-dismiss { text-decoration: none; display: inline-block; }

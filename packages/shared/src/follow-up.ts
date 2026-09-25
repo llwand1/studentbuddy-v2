@@ -1,9 +1,9 @@
 /**
  * follow-up —— 「向 AI 追问」的出入参契约（契约 `docs/KNOWLEDGE-FOLLOWUP-SPEC.md`）。
  *
- * 这条链路做三件事：**开一个 fork 会话**（`sessions.forked_from_id` + `forked_term`）、
- * **把原对话摘要带过去**、回答落库后**自动与源词条连边**（`knowledge_edge.origin='ai'`）。
- * 前两件属于本文件（请求/响应形状），第三件在服务端 `learning/follow-up-links.ts`。
+ * 这条链路做两件事：**开一个 fork 会话**（`sessions.forked_from_id` + `forked_term`）、
+ * **把原对话摘要带过去**。请求/响应形状属于本文件。
+ * （原第三件事「回答落库后自动与源词条连边」已于 2026-09-25 随知识图功能下线删除，批次 K。）
  *
  * ★ 三条与别处**看起来不一致、实则有意**的口径（都被契约 §5.1 记过账）：
  *  1. `term` 超长**拒绝**（400），不截断；而 `question` 超长**截断**。

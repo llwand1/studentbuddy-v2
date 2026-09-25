@@ -43,6 +43,8 @@
 | `choice-asked` | sessionId / request | **2026-09-14 登记（方案选择框，契约 `docs/ASK-CHOICE-SPEC.md`）**：AI 调 `ask_choice` 工具请求学习者拍板，UI 在输入框上方弹浮层。`request` 为 `AskChoiceRecord`（唯一事实源 `shared/choice.ts`）。前端按 `request.id` 幂等——断线重连会回放同一帧，覆盖而非二次入队。归 `sessionId` 频道，**不经** `pk:` 前缀隔离 |
 | `choice-replied` | sessionId / requestId / reply | 答复已落库（本端点的答复、别的客户端的答复都走这条路——服务端是唯一事实源）。前端切已选态但**不出队**：首 token 常有延迟，卡片凭空消失会让人以为没点成功 |
 | `choice-cancelled` | sessionId / requestId / reason | 提问作废（逃生口：停止生成 / 删会话 / 进程重启清理，见 SPEC §5）。前端切作废态如实告知，不静默消失 |
+| `pk-invite-asked` | sessionId / **invite**（整行 `PkInviteRecord`） | **2026-09-25 登记（AI 主动发起对战，契约 `docs/PK-SPEC.md` §16.5，✅ 已实现）**：模型调 `offer_pk_battle` 落库一行邀请后广播，UI 在输入框上方浮出一张可接受/可拒绝的卡。★ **归 `sessionId` 频道而不用 `pk:` 前缀**——发邀请那一刻**房间还不存在**，`pk:<roomId>` 无从算起（房间是用户点接受之后才建的）；这条与 §2.1 的「字段名不同才防串台」不矛盾：本组帧带的确实是 `sessionId`。★ **按 `invite.id` 幂等**：断线重连回放同一帧 ⇒ 覆盖而非二次浮出（与 `choice-asked` 同法）。★ 载荷**只有** `id/sessionId/ownerId/topic/reason/status/roomId/createdAt`，**类型层面就没有题面、答案与评分点那些格**（⚠️ 本批**未**为其写运行时断言，口径见 PK-SPEC §16.13 末条） |
+| `pk-invite-decided` | sessionId / inviteId / status / **`roomId: string \| null`** | 邀请收口（本端或**另一端**点的都走这一帧——服务端是唯一事实源）。★ `roomId` **两支同名字段不换形状**：accepted＝刚建好的那间，rejected **恒 `null`**；带它的原因是「另一端点掉接受时，本端那张回执卡要靠它给出『进入对局』的链接」，没有它前端只能读点之前那份 `invite.roomId`（那时恒 null）⇒ 卡永久点不动。**前端见帧切终态**：拒绝**不做乐观翻转**、409 `INVITE_NOT_PENDING` 也不本地改态，一律交回本帧收口（PK-SPEC §16.9） |
 | `chat-error` | message | 本轮失败（用户中止为「已停止」） |
 | `done` | usage? / thinkingMs? | 本轮收口；usage.source=provider/estimated。**2026-09-19 P1 扩展**：`thinkingMs`＝服务端实测的**本轮思考耗时**（起点＝首个 reasoning 分片发出，终点＝首个正文分片发出，无正文则收口时刻；未出过思考分片则不带该字段）。落库先于本帧发布 ⇒ done 携带的是**已入库的同一事实**（`messages.thinking_ms`），前端收口直接用、不本地掐表（口径依据 `TOOL-ECOSYSTEM-SPEC.md` §4.7，反面教材＝LobeChat 断线重连丢起点） |
 | `round-start` | startedAt | **2026-09-19 登记（P0.5 热修，B-009）**：`flow.ts` 在 `startNewRound` 后发布的首帧，`startedAt`＝服务端 `Date.now()`。前端「思考中」已用时的**唯一基准**——组件挂载时刻 ≠ 轮开始时刻，切会话/重挂靠回放本帧续表、不从头起（服务只绑 127.0.0.1，同机时钟直减成立）。已知边界：缓冲 60s TTL 回收后无帧可回放，计时退回重挂时刻起算（与回放超时同口径）；督促/PK 频道**不发**该帧 |
@@ -92,6 +94,7 @@
 | `step` | `toolCallId`＝终态配对唯一键（**并发下 `tool` 名不唯一**）；`durationMs`＝服务端实测耗时（与库行同源）；每卡有且只有一个终态 | 禁止「name + 倒扫最近 running」配对——**配不上另起一条、绝不回退猜测**（宁可多一张卡，不可盖错卡）（→ B-010）；禁止本地掐表 |
 | `tasks` | `items` 恒为**服务端合并后的完整清单** | 禁止本地合并增量——只整表替换 |
 | `choice-*` | `requestId` 生命周期配对；断线回放幂等（同帧覆盖、不二次入队）；`choice-replied` 切已选态但**不出队** | 禁止本地判「首 token 没来＝没点成功」而删卡 |
+| `pk-invite-*` | `invite.id`＝卡唯一键（**一屏恒一张**由服务端闸门保证，故前端用单值不用队列）；频道＝`sessionId`（发邀请时房间还不存在）；终态由 `pk-invite-decided` 携带，**`roomId` 两支同形**（accepted 有值／rejected 恒 `null`）；★ **本组帧不阻塞任何一轮**——卡只是浮层，与 `choice-*`「挂起工具执行」刻意相反 | 禁止乐观翻转状态（拒绝/409 都不本地改态，等帧）；禁止把「没收到 asked 帧」当成「模型没发邀请」（卡丢了 ≠ 事件丢了，刷新时 `GET /api/pk/invites/pending` 才是捞回路子——**没有可回放帧承载卡的状态 ⇒ 靠可 REST 的 pending 补，这是 §2.3.2 第 3 问在本批的答案**）；禁止用 `?code=` 解析器去认 `?roomId=`（两个 hash 参数互不交叉读，PK-SPEC §16.9） |
 | `done` | `thinkingMs`＝服务端实测思考耗时（落库先于发布，与 `messages.thinking_ms` 同源）；`done` 判重＝历史尾条与流式文本同字不再追加 | 禁止本地掐表（→ B-009 同族）；禁止在 `/messages` 晚于落库返回时追加第二份气泡 |
 | `pk-*` | `roomId` 频道（`pkChannel()`）；载荷**类型层面无 `answer`** | 判分权只在服务端——任何帧都不得为「前端展示方便」捎带正确答案 |
 | `coach-card` | `card`＝结构化数据（非 SVG 字符串）；失败/不足时**不发**（安静 ≠ 报错） | 禁止前端自行判断「该不该出卡」 |
@@ -160,13 +163,24 @@
 | GET | `/api/pk/rooms/:id/state` | 房间快照（断线重连对齐用）；不存在或已被 TTL 回收 → 404 |
 | GET | `/api/pk/stream?roomId=&userId=&since=` | 房间 SSE 频道，语义见 §2.1 |
 
+**AI 主动发起对战的三个口（2026-09-25 登记，契约 `docs/PK-SPEC.md` §16.5，✅ 已实现；前缀 `/api/pk/invites`，`routes/pk-invite.ts`）**
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/pk/invites/pending?sessionId=` | 未答复**且未过旧**（> `PK_ROOM_TTL_MS` 不浮出）的邀请 → `PkInviteRecord[]`（前端刷新/重连捞回卡片）。★ 空/缺 `sessionId`、会话不归本主 → **404 `INVITE_NOT_FOUND`，不伪装成「200 空数组」**（后者等于把「这会话没邀请」与「这会话不是你的」合成同一个答案给没权限的人） |
+| POST | `/api/pk/invites/:id/accept` | 服务端建房＋开局 → `{ invite, state }`（前端据 `state.roomId` 跳 `#/pk?roomId=`）。**幂等**：同一张卡重复点返回**第一次那间房**（不是 409）；★ 成功后**路由层负责点火 1s ticker**（`ensureTicker()`，同 `/rooms/:id/start`——本路径不经那个端点，漏点不报错而对局永不动）；无登录态 401／别人的卡或不存在的 id 404 同码／已拒绝 409 `INVITE_NOT_PENDING`／内存房没了 404 `INVITE_ROOM_GONE` |
+| POST | `/api/pk/invites/:id/reject` | 置终态、**不删行**（行留着给 §16.7 的闸门数「本会话刚发过」）→ `PkInviteRecord`；重复拒绝 409 不静默成功 |
+
+- ★ **没有「创建邀请」的 POST 口**：邀请只能由模型的工具 `offer_pk_battle` 发出（走 §16.7 三条 SQL 闸门）。人自己想开对战仍用 `/api/pk/rooms`——**两条入口不混**，否则「AI 主动」变成任何人可刷的开放写口。
 - **错误体统一**：域层抛错误码，薄路由映射状态码与文案，响应为 `{ error, code }`（如 `code: 'ROOM_FULL'`）。
   域错误码 → 状态：`ROOM_NOT_FOUND` 404／`ROOM_FULL`·`ROOM_NOT_WAITING`·`ROOM_NOT_READY` 409／`NOT_ROOM_OWNER` 403／
-  `ROOM_CODE_EXHAUSTED` 500。映射表只此一处（`routes/pk.ts`），域层不碰 HTTP。
+  `ROOM_CODE_EXHAUSTED` 500。域层不碰 HTTP。⚠️ **09-25 订正**：原文说「映射表只此一处（`routes/pk.ts`）」已不成立——
+  邀请那五个码在 `routes/pk-invite.ts:28` 自己那两份穷尽 `Record` 里（`PkInviteError` 与 `PkRoomError` **刻意不并联合**：
+  `routes/pk.ts` 当时 388/400 行，并进去就要在同一文件写满六行、把一版功能顶到门禁红线；理由与逐码语义见 PK-SPEC §16.5）。
 - **P0 存储是全内存**（契约 §4）：无落库、无 schema 改动，进程重启即丢局；房间 TTL 惰性回收
   （waiting 30 分钟 / finished 10 分钟 / active 取「对局时钟 + 保留期」）。
 
-**已注册工具（单轨 function-calling，注册表目录 `chat/tools/`——P2 批 v0.2.68 由单文件 `chat/tools.ts` 拆出）**：`search_web`（多路 provider 聚合语义见 `search/index.ts`——Exa/Tavily/智谱按 key 并行，三家全无 key → Bing 免 key 兜底（cn.bing.com，RSS 主 + HTML 兜底））、`tidy_terms`（AI 整理词条库）、词条一族三工具 `lookup_terms` / `upsert_term` / `delete_terms`（增删改分口：`delete_terms` 是**唯一删除口**且经确认门两阶段写，`upsert_term` 走 plan/apply 免阈直落，语义见 `docs/TOOL-ECOSYSTEM-SPEC.md` §5.1；★ 原第四工具 `manage_terms` 已随 P3 落码退役，拍板⑭）、`ask_choice`（**方案选择框**，契约 `docs/ASK-CHOICE-SPEC.md`）。★ `ask_choice` 是**长等待工具**：它在 `flow.ts` 的 `runToolCalls` 里登记进 `noTimeout`，豁免 30s 默认工具超时——它等的是「人点一下」，挂 timer 会把等待本身掐死（见 `chat/tool-exec.ts` 的 `noTimeout` 注释）。`delete_terms` 挂确认门时同样吃 60s 等待余量，但那在门里（confirm 层），不在 exec 超时档。
+**已注册工具（单轨 function-calling，注册表目录 `chat/tools/`——P2 批 v0.2.68 由单文件 `chat/tools.ts` 拆出）**：`search_web`（多路 provider 聚合语义见 `search/index.ts`——Exa/Tavily/智谱按 key 并行，三家全无 key → Bing 免 key 兜底（**`www.bing.com/search`，RSS 主 + HTML 兜底，通道本体 2026-09-25 起在 `search/bing-channel.ts`**））、`tidy_terms`（AI 整理词条库）、词条一族三工具 `lookup_terms` / `upsert_term` / `delete_terms`（增删改分口：`delete_terms` 是**唯一删除口**且经确认门两阶段写，`upsert_term` 走 plan/apply 免阈直落，语义见 `docs/TOOL-ECOSYSTEM-SPEC.md` §5.1；★ 原第四工具 `manage_terms` 已随 P3 落码退役，拍板⑭）、`ask_choice`（**方案选择框**，契约 `docs/ASK-CHOICE-SPEC.md`）。★ `ask_choice` 是**长等待工具**：它在 `flow.ts` 的 `runToolCalls` 里登记进 `noTimeout`，豁免 30s 默认工具超时——它等的是「人点一下」，挂 timer 会把等待本身掐死（见 `chat/tool-exec.ts` 的 `noTimeout` 注释）。`delete_terms` 挂确认门时同样吃 60s 等待余量，但那在门里（confirm 层），不在 exec 超时档。
 
 **安全语义**：写操作（POST/PUT/DELETE）强制 Origin 校验（无 Origin / 恶意 Origin → 403）；请求体上限 2MB；服务仅绑 127.0.0.1。
 
@@ -176,6 +190,7 @@
 
 | 日期 | 变更 |
 |------|------|
+| 2026-09-25 | **AI 主动发起对战登记（契约 `docs/PK-SPEC.md` §16，✅ 同批已实现，⚠️ 未发版）**：新增 2 个 SSE 事件 `pk-invite-asked` / `pk-invite-decided`（★ 归 **`sessionId`** 频道而非 `pk:`——发邀请时房间还不存在；`decided` 带 `roomId: string \| null`，accepted 有值、rejected 恒 null＝**同名字段不换形状**，否则另一端的回执卡永久点不动）；新增 3 个端点（`GET /api/pk/invites/pending` ＋ `POST /:id/accept` ＋ `/:id/reject`，★ **无创建口**＝只能由模型工具发）；§2.3.1 加一行「本组帧不阻塞任何一轮」的事实边界（与 `choice-*` 挂起工具执行**刻意相反**），并把 §2.3.2 第 3 问「可恢复性」在本批的答案记成**可 REST 的 pending**（没有可回放帧承载卡的状态）；⚠️ **订正一处过期正文**——§3.2 原写「错误码映射表只此一处（`routes/pk.ts`）」，现在邀请那五码在 `routes/pk-invite.ts:28` 自己的穷尽 `Record` 里，`PkInviteError` 与 `PkRoomError` 刻意不并联合（那文件 388/400，并码＝把一版功能顶到门禁红线）。★ 另记一条**本批「没锁」的口径**：「邀请载荷不带题面/答案」是 `PkInviteRecord` 的**类型层**保证，**不是**运行时断言（逐字见 PK-SPEC §16.13 末条）。 |
 | 2026-09-20 | **新增 §2.3 事件事实清单（健康检查批·方案 A）**：把 bug-ledger B-007/009/010「前端猜服务端事实」同族教训固化为契约——§2.3.1 逐事件登记「携带的事实（唯一键/基准/口径）」与「前端禁止的推断」两列；§2.3.2 立新增 SSE 消费者/事件的**过闸七问**（频道键函数化／配对键并发唯一／可回放帧承载软状态／acceptSeq 换轮语义／计时吃服务端字段／裁决权在服务端／负向清单永不进帧）。新增事件自此先过 §2.3.1 登记再实现（与「先登记再实现」纪律同向）。纯文档批，零代码改动 |
 | 2026-09-19 | **P3 确认门契约登记（先登记再实现，契约 `TOOL-ECOSYSTEM-SPEC.md` v1.4 §4.6/§6.4）**：新增 SSE 事件 `tool-confirm-request` / `tool-confirm-resolved`（归 `sessionId` 频道，与 choice 家族同形：请求→配对收口，超时裁决在服务端）；`step` 帧补可选字段 `source:'builtin'|'mcp'`（P3 恒 builtin，S3 消费，老前端忽略即兼容）；新端点 `POST /api/chat/tool-confirm`（不设 GET，理由见 §3 该行）与 `POST /api/terms/undo-delete`（§3.1 terms 行）。载荷类型唯一事实源 `shared/tool-ecosystem.ts`（`ToolConfirmRequest`/`ToolConfirmDecision`/`DEFAULT_CONFIRM_THRESHOLD=5`/`CONFIRM_TIMEOUT_MS=60_000`）。★ 同批修一处 §0.11 漂移：已注册工具段的 `chat/tools.ts` 路径改指 `chat/tools/` 目录（P2 批已拆，工具清单本身待 P3 落码批更新——`manage_terms` 届时退役）。**订正注（2026-09-19 P3 收口批）**：该待办已兑现——上方 §3 工具清单已按在册实况更新（词条三工具接替、`manage_terms` 退役），本行原文不回改 |
 | 2026-09-19 | **P1 计时呈现批**：`done` 帧扩展 `thinkingMs`（服务端实测本轮思考耗时，落库先于发布 ⇒ 线上值与库内值同源，见 §2 该行）；`step` 帧 2026-09-18 登记的 `toolCallId`/`durationMs`/`errorText` 三字段**由登记转已落码**（tool-exec 调度器统一发射，flow/grill 两消费面自动透传；`preliminary` 仍留 P4）。落库面：`messages` 加 `thinking_ms`（assistant 行）与 `duration_ms`（tool 行）两列（迁移 v32，`ADD COLUMN` 型）——§4.7 判据「刷新/切会话后耗时数字不变」的事实源从流帧换成库行 |

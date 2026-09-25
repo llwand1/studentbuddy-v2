@@ -29,6 +29,7 @@ function mockFetch(handler: (url: string) => Fake) {
       return {
         ok: status < 400,
         status,
+        url, // 真实 fetch 会把最终地址挂在 Response.url 上（形状异常时靠它报「落在哪」）
         headers: { get: () => null },
         json: async () => r.json ?? {},
         text: async () => r.text ?? '',
@@ -81,6 +82,20 @@ describe('search 聚合', () => {
     expect(r.results).toEqual([]);
     expect(r.failed.join()).toContain('rss: Bing RSS 599');
     expect(r.failed.join()).toContain('html: Bing HTML 500');
+  });
+
+  // ── B-019（issue #11）：通道形状与主机名的具体锁在 `bing-channel.test.ts`；
+  // 这里只锁**拆分没有改路由**——index 仍是聚合面的唯一入口（re-export 接线不破）。
+
+  it('聚合面仍从 index.js 出门：0 key → bing，且 htmlToText/combineSignals 照旧可取', async () => {
+    const mod = await import('./index.js');
+    expect(typeof mod.htmlToText).toBe('function');
+    expect(typeof mod.combineSignals).toBe('function');
+    expect(typeof mod.bingSearch).toBe('function'); // 拆到 bing-channel.ts 后由 index re-export
+    mockFetch((url) => (url.includes('format=rss') ? { text: BING_RSS } : { text: BING_HTML }));
+    const r = await searchWeb('split-routing', null);
+    expect(r.providers).toEqual(['bing']);
+    expect(r.failed).toEqual([]);
   });
 
   it('配了 Exa key → 只发 Exa 请求并解析结果', async () => {

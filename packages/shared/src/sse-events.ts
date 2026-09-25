@@ -7,7 +7,7 @@
  *   （B-007/009/010「前端猜服务端事实」同族教训固化）；新增事件先过 §2.3.2 过闸七问再实现。
  */
 import type { TaskItem } from './task-list.js';
-import type { PkQuestion, PkRoomState } from './pk.js';
+import type { PkInviteRecord, PkInviteStatus, PkQuestion, PkRoomState } from './pk.js';
 import type { AskChoiceRecord, AskChoiceReply } from './choice.js';
 import type { CoachTrendCard } from './coach.js';
 import type { ToolConfirmDecision } from './tool-ecosystem.js';
@@ -113,6 +113,24 @@ export type SseEvent =
   | { type: 'choice-asked'; seq: number; sessionId: string; request: AskChoiceRecord }
   | { type: 'choice-replied'; seq: number; sessionId: string; requestId: string; reply: AskChoiceReply }
   | { type: 'choice-cancelled'; seq: number; sessionId: string; requestId: string; reason: string }
+  // ── AI 主动发起对战（PK-SPEC §16，2026-09-24 老板点单）──────────────────────
+  // ★ 归 `sessionId` 空间（与 `choice-*` 同频道）而**不是 `pk:` 频道**：发出邀请那一刻房间
+  //   还不存在，`pk:<roomId>` 无从算起（契约 §16.5）。房间是用户点「接受」之后才建的。
+  // ★ 载荷只有 topic / reason / status，**不含任何题目与答案** ⇒ 与「正确答案永不下发」（§1
+  //   决策⑫）无冲突：那条管的是判分与答案，「有人想跟你打」是双方都该看到的公开事实。
+  // ★ `pk-invite-decided` 带 `roomId`（accepted 时是刚建好的那间，rejected 恒 null）：
+  //   另一端点掉「接受」时，本端的卡要能变成「进入对局」的入口而不是一句「已开始」——
+  //   没有这个字段，回执卡上的链接无处可取（邀请帧里那份 `invite` 在点之前 roomId 还是 null）。
+  // ★ 卡片**不落 `messages`** ⇒ 刷新/重连要靠 `GET /api/pk/invites/pending` 捞回（同 `ask_choices`）。
+  | { type: 'pk-invite-asked'; seq: number; sessionId: string; invite: PkInviteRecord }
+  | {
+      type: 'pk-invite-decided';
+      seq: number;
+      sessionId: string;
+      inviteId: string;
+      status: PkInviteStatus;
+      roomId: string | null;
+    }
   // ── 督促趋势卡（记忆联动 P4，契约 docs/MEMORY-TREND-SPEC.md §4.4）──────────────
   // ★ 服务端定时生成一张趋势卡后**主动推**给前端，前端据此在胶囊旁冒一个小气泡
   //   （「你的近期学习趋势生成了！」）。★ 复用既有 `coach:<owner>` 频道、**不新造通道**，

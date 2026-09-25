@@ -24,6 +24,15 @@ export type DomainEvent =
   | { type: 'quiz_generated'; quizId: string; ownerId: string | null }
   | { type: 'quiz_answered'; quizId: string; correct: boolean; ownerId: string | null }
   | { type: 'term_added'; count: number; ownerId: string | null }
+  /**
+   * 复习打卡（契约 `GAMIFIED-AGENT-SPEC` §8.1，2026-09-25 新增）。
+   *
+   * ★ 为什么必须有它：改前 `POST /api/terms/:id/review` **只写 `term_review_log`、不发活动事件**，
+   *   于是「认真复习一周、没聊天没出题」的账号在 `daily_activity` 里一行都没有——连签数字可以是 0。
+   *   两本 streak 账收口成一本（§8.3）之后，复习必须进同一本活动账，否则「连签」仍然只数了一半行为。
+   * ★ 同日重复打卡也会各发一笔（与答题同口径：XP 按次累加，连签只看当日有没有行，重复不额外拉长连签）。
+   */
+  | { type: 'review_completed'; termId: string; ownerId: string | null }
   /** 深度理解升级（DEEP-UNDERSTANDING-SPEC §9.2）；XP 订阅在任务 10 接入 */
   | { type: 'evolution_levelup'; termId: string; term: string; from: number; to: number }
   /** 可观测（可观测与数据飞轮方案）；订阅方 storage/obs.ts，发布方 search/flow/quiz/点踩 */

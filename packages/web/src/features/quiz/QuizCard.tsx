@@ -17,8 +17,8 @@ export function QuizCard({
   title: string;
   questions: QuizQuestion[];
   quizId?: string;
-  /** answer：作答快照（选择=下标数组、填空=文本），随 stats/record 落进刷题笔记（QUIZ-NOTES-SPEC）；essay 无快照 */
-  onAnswer?: (index: number, correct: boolean, answer?: number[] | string) => void;
+  /** 判分结果上报（`POST /api/quiz/stats/record` 只记对错；作答内容不再落库——随刷题笔记于 2026-09-25 下线） */
+  onAnswer?: (index: number, correct: boolean) => void;
   /**
    * 逐题剔除（契约 docs/QUIZ-BLEND-SPEC.md §8 对冲④）：D1「真题自动进组」没有人工确认闸门，
    * 错题要能事后剔除。**可选**——题库页传入；聊天流等调用点不传则整列按钮不渲染（纯加法）。
@@ -43,7 +43,7 @@ function QuestionItem({
 }: {
   index: number;
   q: QuizQuestion;
-  onAnswer?: (i: number, c: boolean, answer?: number[] | string) => void;
+  onAnswer?: (i: number, c: boolean) => void;
   onRemove?: (index: number) => void;
 }) {
   const [picked, setPicked] = useState<number[]>([]);
@@ -61,17 +61,14 @@ function QuestionItem({
   const submit = () => {
     setRevealed(true);
     let correct = false;
-    let answer: number[] | string | undefined;
     if (q.type === 'single' || q.type === 'multiple') {
       const ans = answerArr.map(Number).sort();
       correct = picked.length === ans.length && picked.every((p) => ans.includes(p));
-      answer = picked;
     } else if (q.type === 'fill') {
       const expects = answerArr.map(String);
       correct = expects.length > 0 && expects.some((e) => fillText.trim().includes(e.slice(0, Math.max(4, e.length - 2))));
-      answer = fillText.trim();
     }
-    onAnswer?.(index, correct, answer);
+    onAnswer?.(index, correct);
   };
 
   return (

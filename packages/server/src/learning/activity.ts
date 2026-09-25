@@ -1,13 +1,15 @@
 /**
  * learning/activity — 反馈环服务：事件订阅者（演进②收口）。
- * XP/等级/连签/每日计数；每日总结（summarizer 角色生成，失败降级统计文本 ADR-4）。
+ * XP/等级/连签/每日计数。
  *
- * ★ M2d（2026-09-18，契约 docs/TENANCY-SPEC.md §8.2）：本文件的**三张表全部归主**——
- *   `daily_activity`（PK 由 `(day,type)` 改 `(owner_id,day,type)`）、`daily_summaries`
- *   （PK 由 `day` 改 `(owner_id,day)`）、`user_stats`（PK 由 `key` 改 `(owner_id,key)`）。
- *   改之前它们**全是全局表**：A、B 同一天聊天直接撞主键；`user_stats` 里存的是 `xp`
- *   ⇒ **A 和 B 的 XP 是同一个数**、等级与连签同理；`daily_summaries` 的 `PK(day)`
- *   更直接 ⇒ **B 读到 A 的今日总结**（改前那行注释已把这条记为"已知缺口"）。
+ * ★ M2d（2026-09-18，契约 docs/TENANCY-SPEC.md §8.2）：本文件的**两张表全部归主**——
+ *   `daily_activity`（PK 由 `(day,type)` 改 `(owner_id,day,type)`）、`user_stats`（PK 由
+ *   `key` 改 `(owner_id,key)`）。改之前它们**全是全局表**：A、B 同一天聊天直接撞主键；
+ *   `user_stats` 里存的是 `xp` ⇒ **A 和 B 的 XP 是同一个数**、等级与连签同理。
+ *
+ * ★ 「今日总结」已于 2026-09-25 整族下线（老板判决：无人使用），`daily_summaries` 表与
+ *   `todaySummary()` 一并移除——注意那是**共用了同一个页面的另一本账**，XP/等级/连签
+ *   的台账（本文件）不受影响，仍是督促小窗的数据来源。
  *
  * ★ `ownerId` 一律**必填**（`string | null`），不给缺省值——理由见 `recordActivity` 的注释：
  *   漏传的表现是「记到无主行上」，用户自己的 XP 静默少算，测试不会红。
@@ -15,7 +17,6 @@
  */
 import { getDb } from '../storage/db.js';
 import { subscribeEvents } from '../events/bus.js';
-import { routeRole } from '../llm/router.js';
 import { ownerForWrite } from '../auth/ownership.js';
 import { addDays, localDayKey } from '@sb/shared';
 
@@ -167,49 +168,6 @@ export function last7Days(ownerId: string | null): Array<{ day: string; count: n
     out.push({ day: k, count: r.c });
   }
   return out;
-}
-
-/**
- * 今日总结：有缓存用缓存；无则走 summarizer 角色生成（失败降级为统计文本）。
- * ★ M2c：`ownerId` 是 LLM 调用的归属（契约 §8.1.4）。
- * ★ M2d：**缓存键也含 owner 了**——改前 `daily_summaries` 是 `PK(day)` 的全局表，
- *   「有缓存用缓存」那句的后果是 **B 直接读到 A 的今日总结**（当时已在注释里记为已知缺口，
- *   本批修掉）。现在 `(owner_id, day)` 各自一份，且总结里引用的统计数也全是本人的。
- */
-export async function todaySummary(ownerId: string | null): Promise<string> {
-  const day = today();
-  const owner = ownerForWrite(ownerId);
-  const cached = getDb()
-    .prepare('SELECT content FROM daily_summaries WHERE owner_id = ? AND day = ?')
-    .get(owner, day) as { content: string } | undefined;
-  if (cached) return cached.content;
-  const st = todayStats(ownerId);
-  const acts = st.activities.map((a) => `${a.type}×${a.count}`).join('、') || '暂无活动';
-  const fallback = `今日（${day}）：${acts}。XP ${st.xp}（Lv.${st.level}），连签 ${st.streak} 天。`;
-  const target = routeRole('summarizer', undefined, ownerId);
-  if (!target || !target.model) return fallback;
-  try {
-    let acc = '';
-    for await (const chunk of target.adapter.chat({
-      model: target.model,
-      apiKey: target.apiKey,
-      baseUrl: target.baseUrl,
-      messages: [{ role: 'user', content: `用两三句鼓励的话总结今天的学习情况，数据：${fallback}。只输出总结文字。` }],
-    })) {
-      acc += chunk.content;
-      if (chunk.done) break;
-    }
-    const content = acc.trim() || fallback;
-    getDb()
-      .prepare(
-        `INSERT INTO daily_summaries (owner_id, day, content) VALUES (?, ?, ?)
-         ON CONFLICT(owner_id, day) DO UPDATE SET content = excluded.content`,
-      )
-      .run(owner, day, content);
-    return content;
-  } catch {
-    return fallback; // 降级不崩（ADR-4）
-  }
 }
 
 /**

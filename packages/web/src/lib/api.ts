@@ -4,8 +4,6 @@
 import type {
   StatusResponse,
   Session,
-  QuizNote,
-  QuizNoteSummary,
   PkIdentity,
   PkRoomState,
   PkJudgeAdvice,
@@ -263,25 +261,6 @@ export const api = {
   providers: providersApi,
 
   settings: settingsApi,
-
-  /** 刷题笔记（契约 docs/QUIZ-NOTES-SPEC.md）：草稿由 stats/record 自动落，这里只读/写心得/删 */
-  notes: {
-    list: (params?: { quizId?: string; wrong?: boolean }) => {
-      const q = new URLSearchParams();
-      if (params?.quizId) q.set('quizId', params.quizId);
-      if (params?.wrong) q.set('wrong', '1');
-      const qs = q.toString();
-      return request<QuizNoteSummary[]>(`/api/notes${qs ? `?${qs}` : ''}`);
-    },
-    get: (id: string) => request<QuizNote>(`/api/notes/${encodeURIComponent(id)}`),
-    saveBody: (id: string, body: string) =>
-      request<{ ok: boolean }>(`/api/notes/${encodeURIComponent(id)}`, {
-        method: 'PUT',
-        body: JSON.stringify({ body }),
-      }),
-    remove: (id: string) =>
-      request<{ ok: boolean }>(`/api/notes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  },
 
   terms: {
     list: (domain?: string, keyword?: string) => {

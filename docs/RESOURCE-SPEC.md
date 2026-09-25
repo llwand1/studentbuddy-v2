@@ -31,7 +31,7 @@
   → ③ 摘取：模型从页面正文【逐字摘录】题目   [routeRole('quiz-generator')]
   → ④ 校验：verbatim 锚点检查——题干必须能在原文命中，命不中即拒（防"以搜代编"）
   → ⑤ 预览：两段式 preview/commit，逐题带来源链接 + 逐题拒绝真因（ADR-5）
-  → ⑥ 入库：saveQuiz(quiz, 'collect')，quiz_stats/笔记/判分全链路自动接住
+  → ⑥ 入库：saveQuiz(quiz, 'collect')，quiz_stats/判分全链路自动接住（★ 原清单里的「笔记」一环随刷题笔记功能于 2026-09-25 下线，issue #21）
 ```
 
 **「摘录不是创作」是本契约与 QUIZ-SEARCH 的分界线**：QUIZ-SEARCH 用检索结果**启发 AI 出题**；

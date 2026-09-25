@@ -3,8 +3,8 @@
  *
  * 定位：它是侧栏搜索框的**第二路**结果。第一路是 App.tsx 里那行纯前端 `title.includes` 过滤
  * （**保留不动**）——两者并存：前者答"哪个会话标题里有这几个字"，本面板答
- * "哪条消息 / 哪个词条 / 哪道错题里有这几个字"。这也是它不复用会话列表容器的原因：
- * 结果不是会话，是**跨三类数据的命中**。
+ * "哪条消息 / 哪个词条里有这几个字"。这也是它不复用会话列表容器的原因：
+ * 结果不是会话，是**跨两类数据的命中**。
  *
  * ★ 为什么单独成组件而不是写进 App.tsx：`App.tsx` 当时 **294/300 行**（web 组件红线），
  *   再塞一个带分区渲染的面板必破线。抽出来后 App 只加两行接线（一行 import、一行 JSX）。
@@ -67,19 +67,17 @@ export interface GlobalSearchProps {
   onOpenSession: (sessionId: string) => void;
   /** 点词条结果：按词条名打开词条库（复用既有 `openTerms`） */
   onOpenTerm: (name: string) => void;
-  /** 点错题结果：带 quizId 打开笔记页（复用既有 `openNotes`） */
-  onOpenNotes: (quizId: string) => void;
 }
 
-export function GlobalSearch({ query, onOpenSession, onOpenTerm, onOpenNotes }: GlobalSearchProps) {
+export function GlobalSearch({ query, onOpenSession, onOpenTerm }: GlobalSearchProps) {
   const { groups, loading, active } = useGlobalSearch(query);
   if (!active) return null;
-  const total = groups.message.length + groups.term.length + groups.note.length;
+  const total = groups.message.length + groups.term.length;
   return (
     <div className="sb-gs" aria-label="全站搜索结果">
       {/* 加载中且暂无结果才提示：已有上一轮结果时不闪「搜索中」，避免结果区跳动 */}
       {loading && total === 0 && <div className="sb-gs-hint">搜索中…</div>}
-      {!loading && total === 0 && <div className="sb-gs-hint">没有匹配的消息 / 词条 / 错题</div>}
+      {!loading && total === 0 && <div className="sb-gs-hint">没有匹配的消息 / 词条</div>}
       <Group
         label="词条"
         hits={groups.term}
@@ -92,14 +90,6 @@ export function GlobalSearch({ query, onOpenSession, onOpenTerm, onOpenNotes }: 
         query={query}
         onPick={(h) => {
           if (h.parentId) onOpenSession(h.parentId);
-        }}
-      />
-      <Group
-        label="错题"
-        hits={groups.note}
-        query={query}
-        onPick={(h) => {
-          if (h.parentId) onOpenNotes(h.parentId);
         }}
       />
     </div>

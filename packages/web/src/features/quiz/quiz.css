@@ -226,3 +226,6 @@
 .collect-item .src { font-size: var(--sb-fs-xs); color: var(--sb-primary); white-space: nowrap; }
 .collect-foot { display: flex; gap: var(--sb-sp-3); align-items: center; margin-top: var(--sb-sp-3); }
 .collect-foot .m { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); }
+
+/* 练习视图的动作行（原先寄住在 notes.css 里，笔记页随功能下线后搬回本家） */
+.quiz-practice-actions { display: flex; gap: var(--sb-sp-2); margin: var(--sb-sp-3) 0; }

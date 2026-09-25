@@ -50,7 +50,7 @@ export function CardsIcon(props: IconProps) {
   );
 }
 
-/** 今日总结（反馈环） */
+/** 反馈环（欢迎卡「看看进度」）——★ 2026-09-25 原「今日总结」页下线后它只剩这一个用处，图标本身留着 */
 export function StatsIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
@@ -65,16 +65,6 @@ export function DocIcon(props: IconProps) {
     <svg {...base(props.size, props)}>
       <path d="M6 3h8l4 4v14H6z" />
       <path d="M14 3v4h4M9 12h6M9 16h5" />
-    </svg>
-  );
-}
-
-/** 刷题笔记（练环沉淀） */
-export function NoteIcon(props: IconProps) {
-  return (
-    <svg {...base(props.size, props)}>
-      <rect x="5" y="4" width="14" height="16" rx="2" />
-      <path d="M9 4v16M12.5 9.5h3.5M12.5 13h3.5" />
     </svg>
   );
 }

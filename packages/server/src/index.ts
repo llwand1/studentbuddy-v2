@@ -10,7 +10,6 @@ import { chatRouter } from './routes/chat.js';
 import { choiceRouter } from './routes/choice.js';
 import { sweepStaleChoices } from './chat/choice.js';
 import { quizRouter } from './routes/quiz.js';
-import { notesRouter } from './routes/notes.js';
 import { termsRouter } from './routes/terms.js';
 import { memoryRouter } from './routes/memory.js';
 import { documentRouter } from './routes/document.js';
@@ -105,7 +104,7 @@ app.use('/api', attachUser);
  * 可选强制鉴权（契约 docs/AUTH-SPEC.md §3）。
  *
  * ★ 默认**关**（`SB_REQUIRE_AUTH` 未设）——只有账号、没有数据隔离时贸然强制鉴权，
- *   会让「所有登录用户互相看到全部数据」（现有 sessions/messages/题库/笔记全是全局表）。
+ *   会让「所有登录用户互相看到全部数据」（现有 sessions/messages/题库全是全局表）。
  *   等 M2 把 `user_id` 隔离做完，两者**同一批打开**。
  * ★ 豁免是「必须公开」的白名单：登录端点自身不能要求登录；status/health 是探活。
  * ★ **`/api/growth/counters` 也在名单里＝一个决策，不是配置**（渠道台账 C4，GROWTH-SPEC §3）：
@@ -141,7 +140,6 @@ app.use('/api/sessions', sessionsRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/providers', providersRouter);
 app.use('/api/quiz', quizRouter);
-app.use('/api/notes', notesRouter);
 app.use('/api/terms', termsRouter);
 app.use('/api/memory', memoryRouter);
 app.use('/api/doc', documentRouter);

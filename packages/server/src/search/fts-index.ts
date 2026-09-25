@@ -32,7 +32,7 @@
  *    `claim-legacy.mjs`）。这正是留全量重建函数（`rebuildSearchIndex`）的原因。
  */
 import type { FtsHit, FtsKind } from '@sb/shared';
-import { buildFtsMatch, FTS_SNIPPET_CHARS, FTS_TOP_K, tokenizeForFts } from '@sb/shared';
+import { buildFtsMatch, FTS_KINDS, FTS_SNIPPET_CHARS, FTS_TOP_K, tokenizeForFts } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 // ★ 索引内容口径（每种 kind 索引哪些字段）与摘要算法已拆到 `fts-source.ts`——见该文件头注
 //   的拆分理由（本文件收齐写点接线与查询后涨到 410 行，触 server 400 行红线）。
@@ -140,8 +140,6 @@ export function rebuildSearchIndex(): number {
     for (const r of msgIds) put('message', r.id);
     const termIds = db.prepare('SELECT id FROM term_library').all() as Array<{ id: string }>;
     for (const r of termIds) put('term', r.id);
-    const noteIds = db.prepare('SELECT id FROM quiz_notes').all() as Array<{ id: string }>;
-    for (const r of noteIds) put('note', r.id);
   });
   tx();
   return n;
@@ -172,7 +170,7 @@ export function ensureSearchIndex(): number {
  *     `NULL`/`''`、也可能是某个用户 id**（过渡期库里两者并存）。若统一按 `owner = ''`
  *     过滤，未登录用户会**搜不到自己以前聊过的内容**——「本地单人模式行为不变」当场破。
  *     故 message 在未登录时**不过滤**（等价于今天 `sessions` 列表的 `ownerFilter(null)`）。
- *   · `term` / `note` 的 owner 是 `ownerForWrite` 写的（`''` = 无主），
+ *   · `term` 的 owner 是 `ownerForWrite` 写的（`''` = 无主），
  *     未登录模式下**全部数据本来就是无主行** ⇒ 按 `owner = ''` 过滤即"看到自己的全部"，
  *     同时天然挡住过渡期里别的用户写入的行（那正是 M2d 系列表要防的跨用户泄露）。
  *   ⇒ 两档合起来写成一条 SQL：`kind = 'message' OR owner = ?`。
@@ -190,7 +188,7 @@ export function searchAll(
   const match = buildFtsMatch(tokenizeForFts(q));
   if (!match) return [];
   const limit = Math.min(Math.max(1, Math.floor(opts.limit ?? FTS_TOP_K)), FTS_TOP_K);
-  const kinds = opts.kinds && opts.kinds.length > 0 ? opts.kinds : (['message', 'term', 'note'] as FtsKind[]);
+  const kinds = opts.kinds && opts.kinds.length > 0 ? opts.kinds : ([...FTS_KINDS] as FtsKind[]);
   const placeholders = kinds.map(() => '?').join(', ');
   const db = getDb();
   const sql =
@@ -216,9 +214,8 @@ export function searchAll(
     score: number;
   }>;
   // 命中处的 snippet 在**查询期**现算（写侧不知道将来谁会来搜什么），
-  // 并顺带补上跳转定位信息（message 要跳会话、note 要跳套题）。
+  // 并顺带补上跳转定位信息（message 要跳会话）。
   const sessionOf = db.prepare('SELECT session_id FROM messages WHERE id = ?');
-  const quizOf = db.prepare('SELECT quiz_id FROM quiz_notes WHERE id = ?');
   return rows.map((r) => {
     const kind = r.kind as FtsKind;
     // ★★ snippet **必须在查询期用查询词现算**，不能直接用索引里那一列：
@@ -239,9 +236,6 @@ export function searchAll(
     if (kind === 'message') {
       const s = sessionOf.get(r.ref_id) as { session_id: string } | undefined;
       if (s) hit.parentId = s.session_id;
-    } else if (kind === 'note') {
-      const n = quizOf.get(r.ref_id) as { quiz_id: string } | undefined;
-      if (n) hit.parentId = n.quiz_id;
     }
     return hit;
   });

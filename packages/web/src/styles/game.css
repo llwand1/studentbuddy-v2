@@ -65,15 +65,33 @@
   --gm-ink-dim: var(--sb-ink-secondary);
   --gm-line: var(--sb-line);
 
-  /* 稀有度四档（键名与 `@sb/shared` 的 `CardRarity` 严格一致，改一侧必须改另一侧） */
+  /* 稀有度四档（键名与 `@sb/shared` 的 `CardRarity` 严格一致，改一侧必须改另一侧）。
+     ★ 2026-09-25 老板拍板「档 B：稀有度**整块饱和**」（B-020 ⑤：4px 描边在亮卡 ~120px 上
+       几乎不可见），于是每档从"一对值"变成"两对值"：`-dark` 画厚边，`-ink`/`-dim` 管卡内
+       标题与小字。**为什么非要自带文字色**：整块饱和之后，四档里三档只吃深色同色系才过
+       AA 小字 4.5，而 R 档正好卡在中间亮度带上——所以它的底换了色，见下面那条。
+     ⚠️ R 的 `#0068d9` 是品牌蓝**下压一档**，不是 `--gm-blue` 本身：`#007aff` 整块做底时
+       白字 4.02、深字 3.63，两头都不达标，加大字号也救不了（AA 小字门槛按 18.66px 粗体划）。
+       ★ 这里改的是 `--gm-r-r` 一个字，**不许**顺手改 `--gm-blue`——按钮、`.cv-h2` 图标、
+         `.gm-track.gm-blue` 全跟着它，动一处等于给全仓换主色。
+     ⚠️ 曾考虑 `#1cb0f6`（多邻国亮蓝）配深字，实测能过（4.90），但那个值与 `--gm-dom-1`
+       领域色**同一个 hex**，领域小圆点会在 R 卡上融掉；且与品牌蓝分家。老板 09-25 否掉。 */
   --gm-r-n: #9aa1b0;
-  --gm-r-n-dark: #7d8494;
-  --gm-r-r: var(--gm-blue);
-  --gm-r-r-dark: var(--gm-blue-dark);
+  --gm-r-n-dark: #6f747f;
+  --gm-r-n-ink: #232936;    /* on #9aa1b0 = 5.62 */
+  --gm-r-n-dim: #2c3340;    /* 4.89 */
+  --gm-r-r: #0068d9;
+  --gm-r-r-dark: #004b9c;
+  --gm-r-r-ink: #ffffff;    /* on #0068d9 = 5.27 */
+  --gm-r-r-dim: #e6f0fb;    /* 4.58 */
   --gm-r-sr: #ce82ff;
-  --gm-r-sr-dark: #a568cc;
+  --gm-r-sr-dark: #945eb8;
+  --gm-r-sr-ink: #3a1052;   /* 6.00 */
+  --gm-r-sr-dim: #4a1b62;   /* 5.09 */
   --gm-r-ssr: var(--gm-yellow);
-  --gm-r-ssr-dark: var(--gm-yellow-dark);
+  --gm-r-ssr-dark: #b89000;
+  --gm-r-ssr-ink: #4a3600;  /* 7.43 */
+  --gm-r-ssr-dim: #5a4200;  /* 6.10 */
 
   /* ★ 领域色环（5 支 + 1 支中性溢出档）。**不是哈希取模**：
        demo 实测「学习科学」与「心理学」同落一档 ⇒ 同领域同色这条可读性判据当场失效。
@@ -88,6 +106,8 @@
   /* 立体感与动效常数 */
   --gm-lift: 4px;                          /* 硬底厚度＝按钮下沉距离，两处必须同源 */
   --gm-radius: 14px;
+  --gm-radius-card: 18px;                  /* 只有卡牌更圆一档：整块饱和之后圆角是"糖果感"的主要来源，
+                                              ★ 不并到 --gm-radius：那会把按钮/输入框一起变圆 */
   --gm-radius-pill: 999px;
   --gm-ease-out: cubic-bezier(0.165, 0.84, 0.44, 1);
   --gm-ease-inout: cubic-bezier(0.645, 0.045, 0.355, 1);
@@ -228,14 +248,20 @@
   flex-direction: column;
   gap: var(--sb-sp-2);
   padding: var(--sb-sp-3);
-  border-radius: var(--gm-radius);
-  background: var(--gm-surface);
-  /* ⚠️ 底边这条在实现时改判过（原注释写"一行代码同时给出领域与卡牌两条信息"，做不到）：
+  border-radius: var(--gm-radius-card);
+  /* ★ 兜底一对**文字色**变量：没有 `data-r` 的行（孤儿数据）留在白底黑字上，
+     不会掉进未定义变量。四档在下面 `[data-r]` 里各自改写这两个。 */
+  --gm-on: var(--gm-ink);
+  --gm-on-dim: var(--gm-ink-dim);
+  background: var(--gm-cf, var(--gm-surface));
+  /* ⚠️ 底边这条 2026-09-25 定判（原注释写"一行代码同时给出领域与卡牌两条信息"，做不到）：
        一条 `border-bottom-color` 只有一个值，而**稀有度是收集玩法的主信号**（N/R/SR/SSR 决定
        这张值不值得留），领域只是归类。所以底边归稀有度（下面的 `[data-r]` 选择器），
-       领域色挪到卡内的 `.gm-card-dom` 小圆点——两个信号都在，各占各的位置。 */
-  border: 2px solid var(--gm-line);
-  border-bottom: 4px solid var(--gm-dom, var(--gm-line));
+       领域色挪到卡内的 `.gm-card-dom` 小圆点——两个信号都在，各占各的位置。
+     ★ 同一批改判：底边从 4px 加厚到 7px。整块饱和之后 4px 那层和卡底同色相邻、读不出"厚"，
+       加厚是这版**唯一**还留着的立体感表达（仓内规矩：实心第二层色，不用模糊阴影）。 */
+  border: 2px solid var(--gm-cfd, var(--gm-line));
+  border-bottom: 7px solid var(--gm-cfd, var(--gm-line));
   overflow: hidden;
   isolation: isolate;
   transition: transform 140ms var(--gm-ease-out);
@@ -257,17 +283,19 @@
 .gm-card.gm-d4 { --gm-dom: var(--gm-dom-4); }
 .gm-card.gm-d5 { --gm-dom: var(--gm-dom-5); }
 
-/* 稀有度入档：`data-r` 的取值与 `@sb/shared` 的 CardRarity 一字不差 */
-.gm-card[data-r="N"] { --gm-cf: var(--gm-r-n); --gm-cfd: var(--gm-r-n-dark); }
-.gm-card[data-r="R"] { --gm-cf: var(--gm-r-r); --gm-cfd: var(--gm-r-r-dark); }
-.gm-card[data-r="SR"] { --gm-cf: var(--gm-r-sr); --gm-cfd: var(--gm-r-sr-dark); }
-.gm-card[data-r="SSR"] { --gm-cf: var(--gm-r-ssr); --gm-cfd: var(--gm-r-ssr-dark); }
-.gm-card[data-r] { border-bottom-color: var(--gm-cfd); }
+/* 稀有度入档：`data-r` 的取值与 `@sb/shared` 的 CardRarity 一字不差。
+   ★ 四行必须**成套**改写：底（`--gm-cf`）／厚边与符号（`--gm-cfd`）／标题（`--gm-on`）／
+     小字（`--gm-on-dim`）。少改一个就出现"黄底黄字"那类自伤（`.gm-card-count` 曾经直接吃
+     `--gm-cf`，这一版起 `--gm-cf` 是**背景**，跟着走就成了隐形字）。 */
+.gm-card[data-r="N"] { --gm-cf: var(--gm-r-n); --gm-cfd: var(--gm-r-n-dark); --gm-on: var(--gm-r-n-ink); --gm-on-dim: var(--gm-r-n-dim); }
+.gm-card[data-r="R"] { --gm-cf: var(--gm-r-r); --gm-cfd: var(--gm-r-r-dark); --gm-on: var(--gm-r-r-ink); --gm-on-dim: var(--gm-r-r-dim); }
+.gm-card[data-r="SR"] { --gm-cf: var(--gm-r-sr); --gm-cfd: var(--gm-r-sr-dark); --gm-on: var(--gm-r-sr-ink); --gm-on-dim: var(--gm-r-sr-dim); }
+.gm-card[data-r="SSR"] { --gm-cf: var(--gm-r-ssr); --gm-cfd: var(--gm-r-ssr-dark); --gm-on: var(--gm-r-ssr-ink); --gm-on-dim: var(--gm-r-ssr-dim); }
 
 .gm-card-name {
   font-size: var(--sb-fs-md);
   font-weight: 800;
-  color: var(--gm-ink);
+  color: var(--gm-on);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -275,7 +303,7 @@
 .gm-card-def {
   font-size: var(--sb-fs-xs);
   line-height: 1.5;
-  color: var(--gm-ink-dim);
+  color: var(--gm-on-dim);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -292,18 +320,34 @@
 .gm-card-count {
   font-size: var(--sb-fs-xs);
   font-weight: 800;
-  color: var(--gm-cf, var(--gm-ink-dim));
+  color: var(--gm-on);
   font-variant-numeric: tabular-nums;
 }
 
 /* 领域小圆点：吃掉上面那个 `--gm-dom`（同领域同色的唯一表达位）。
-   ★ 刻意不给文字上色——浅底上五支饱和色的正文对比度都过不了 AA，点位 8px 实心才站得住。 */
+   ★ 2026-09-25 换饱和底之后这条**必须**加一颗药丸底，而且这颗药丸**必须是实心白**：
+     ① 领域名是文字，落在 R 档 `#0068d9` 卡底上直接就是 2.94，只有白底能把它抬到 15.5；
+     ② 上一版这里写的是 `rgba(255,255,255,.72)`——半透明层的实际颜色**要合成才知道**，
+       写出来谁也量不准（我第一次量就被它骗了，报出来的"药丸底"其实是卡底）。
+       实心白 ⇒ 点色/字色与底的比值恒定，五支领域色在白上一眼分得出。
+   ★ 点位再加一圈 1px 深描边：领域色里有三支本身偏亮（黄绿/紫/青在白底上只有 1.5～2.6），
+     实心圆点靠描边才有个"边"。
+   ⚠️ 「同领域同色」这条判据不在本文件、也不受本次改动影响：取色键是服务端算的在册序号
+     （`learning/domains.ts:domainOrdinals`），锁它的测试在 `routes/cards.test.ts`。 */
 .gm-card-dom {
   display: inline-flex;
   align-items: center;
+  /* ★ `align-self: flex-start` 不是可有可无的：`.gm-card` 是 flex **column** 且没写
+       `align-items`，子项默认 `stretch` ⇒ 这颗药丸会被拉成一条**通栏白条**（真截图 08 号
+       上就是这个样子，一张卡上横着一条空白带，比原来的灰字还难看）。 */
+  align-self: flex-start;
   gap: 5px;
   font-size: var(--sb-fs-xs);
-  color: var(--gm-ink-dim);
+  color: var(--gm-ink);
+  background: var(--gm-surface);
+  border-radius: var(--gm-radius-pill);
+  padding: 1px 7px 1px 5px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -315,13 +359,14 @@
   height: 8px;
   border-radius: 50%;
   background: var(--gm-dom, var(--gm-line));
+  box-shadow: 0 0 0 1px rgba(30, 36, 51, 0.18);
 }
 
 /* 「还差几张」这行是 T1 预算的落地点（契约 §8）：升星**不播动画**，只把这句话改掉。
    卡墙上 500 张卡每次聊天都重绘，任何常驻动画都会变成幻灯片。 */
 .gm-card-next {
   font-size: var(--sb-fs-xs);
-  color: var(--gm-ink-dim);
+  color: var(--gm-on-dim);
   font-variant-numeric: tabular-nums;
 }
 
@@ -342,19 +387,26 @@
   100% { transform: translateX(60%); opacity: 0; }
 }
 
-/* ── 星位（★0..★8）── */
+/* ── 星位（★0..★8）──
+   ★ 只在 burst 帧挂满 8 格（`CardWall.tsx:57-68`），常驻是一行「★n」文字（`.cv-starline`）。
+   2026-09-25 换饱和底之后这两个槽必须改写：原来是" sunk 浅灰槽 + 黄软底黄深字"，落到 SSR 的
+   `#ffc800` 卡上等于三块黄叠在一起，点亮与未点亮分不出来。现在统一走**白槽**：
+   未点亮＝30% 白（只表示"有位子"），点亮＝实心白底 + 本档深色符号（`--gm-cfd`）——
+   符号色跟着稀有度走，四档上都拉得开，且不再依赖任何一支黄。
+   ⚠️ 原 `:352` 引用过 `--gm-ink-tertiary`，那是个**本文件从未定义**的变量（全仓只有
+     `--sb-ink-tertiary`），槽内符号一直吃的是继承色。随本批一起了结。 */
 .gm-stars { display: inline-flex; align-items: center; gap: 2px; }
 .gm-stars > i {
   width: 12px;
   height: 12px;
   border-radius: 3px;
-  background: var(--gm-surface-sunk);
-  color: var(--gm-ink-tertiary);
+  background: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.55);
   display: grid;
   place-items: center;
   overflow: hidden;
 }
-.gm-stars > i.on { background: var(--gm-yellow-soft); color: var(--gm-yellow-dark); }
+.gm-stars > i.on { background: #fff; color: var(--gm-cfd, var(--gm-r-ssr-dark)); }
 .gm-stars > i svg { display: block; }
 
 /* ══════════════════════ 6. 反馈横幅（特征 5）══════════════════════════════ */
@@ -439,64 +491,89 @@
 
 /* 屏震：作用在**一个只包住卡墙/卡片的包裹层**上，绝不作用在 body——
    给 body 加 transform 会让所有 `position: fixed`（遮罩、toast）跟着抖，那是另一类事故 */
-.gm-shake { animation: gmShake 320ms var(--gm-ease-inout) both; }
+/* 屏震：作用在**一个只包住卡墙/卡片的包裹层**上，绝不作用在 body——
+   给 body 加 transform 会让所有 `position: fixed`（遮罩、toast）跟着抖，那是另一类事故。
+   ★ 2026-09-25 幅度 ±3px → ±6px、时长 320ms → 400ms（B-020 ⑥：真截图上 ±3px 在 1× 下
+     根本量不出来，"震了一下"这件事没有被看见）。 */
+.gm-shake { animation: gmShake 400ms var(--gm-ease-inout) both; }
 @keyframes gmShake {
   0%, 100% { transform: translate3d(0, 0, 0); }
-  18% { transform: translate3d(-3px, 1px, 0); }
-  36% { transform: translate3d(3px, -2px, 0); }
-  56% { transform: translate3d(-2px, 0, 0); }
-  78% { transform: translate3d(1px, 1px, 0); }
+  18% { transform: translate3d(-6px, 2px, 0); }
+  36% { transform: translate3d(6px, -4px, 0); }
+  56% { transform: translate3d(-4px, 0, 0); }
+  78% { transform: translate3d(2px, 2px, 0); }
 }
 
 /* 冲击环：★ 用独立元素的 scale + opacity，**不要** animating box-shadow
-   （阴影动画每帧都要重绘模糊，是本仓踩过的那类性能坑） */
+   （阴影动画每帧都要重绘模糊，是本仓踩过的那类性能坑）
+   ★★ 居中**必须**走 `left/top: 50%` ＋ keyframes 里带 `translate(-50%,-50%)`，
+      不能写 `inset: 0; margin: auto`。这不是风格问题，是实测出来的事故：
+      `cards-view.css` 的 `.cv-card > * { margin: 0 }`（给正文子项清外边距的）与 `.gm-ring`
+      **同特异度**、且加载更晚（`CardWall.tsx` 先 import game.css 再 import cards-view.css），
+      于是 `margin: auto` 被吃掉 ⇒ 环与粒子全部贴在卡片**左上角**。
+      首版就带着这条（40px 的环偏得更狠），只是当时没量中心差，截图上看着"有个圈"就放过了。
+      ⇒ 现在完全不依赖 margin，keyframes 自己负责回中。 */
 .gm-ring {
   position: absolute;
-  inset: 0;
-  margin: auto;
-  width: 40px; height: 40px;
+  left: 50%; top: 50%;
+  width: 56px; height: 56px;
   border-radius: 50%;
-  border: 3px solid var(--gm-cf, var(--gm-yellow));
+  border: 4px solid var(--gm-on, var(--gm-yellow));
   opacity: 0;
   pointer-events: none;
 }
-.gm-burst .gm-ring { animation: gmRing 420ms var(--gm-ease-out) both; }
+.gm-burst .gm-ring { animation: gmRing 560ms var(--gm-ease-out) both; }
 @keyframes gmRing {
-  from { opacity: 0.9; transform: scale(0.4); }
-  to { opacity: 0; transform: scale(2.6); }
+  /* ★ 透明度必须**先站住再掉**：整条曲线交给 ease-out 的话，一帧下去就没了半条命
+     （实测 150ms 处只剩 0.25、450ms 归零，而动画名义上有 560ms）。 */
+  from { opacity: 0.95; transform: translate(-50%, -50%) scale(0.4); }
+  35% { opacity: 0.6; }
+  to { opacity: 0; transform: translate(-50%, -50%) scale(3); }
 }
 
-/* 粒子：12 颗，位移与透明度都在合成层上；错帧同上（nth-child，非内联） */
+/* 粒子：16 颗、9px、54/38px 两圈交替（一圈等半径读起来像"饼"，错开才像"炸"）。
+   ★ 数量在 `CardWall.tsx` 的 `SPARKS` 里，**两处必须同改**；错帧延迟写在 CSS 里（非内联）。
+   ★ 寿命 520ms → 600ms：B-020 ⑥ 的根因就是"粒子还没看清就没了"。末颗 330ms 起步 + 600ms
+     ＝ 930ms，落在 `BURST_MS = 940`（`CardWall.tsx:26`）之内——**帧没被卸载掉**。
+   ★ 用 `--gm-on`（本档文字色）而不是 `--gm-cf`：整块饱和之后粒子与卡底同色等于隐形。 */
 .gm-spark {
   position: absolute;
-  inset: 0;
-  margin: auto;
-  width: 6px; height: 6px;
-  border-radius: 2px;
-  background: var(--gm-cf, var(--gm-yellow));
+  left: 50%; top: 50%;
+  width: 9px; height: 9px;
+  border-radius: 3px;
+  background: var(--gm-on, var(--gm-yellow));
   opacity: 0;
   pointer-events: none;
 }
-.gm-burst .gm-spark { animation: gmSpark 520ms var(--gm-ease-out) both; }
-.gm-burst .gm-spark:nth-child(1) { --gm-dx: 0px;    --gm-dy: -34px; }
-.gm-burst .gm-spark:nth-child(2) { --gm-dx: 17px;   --gm-dy: -30px; animation-delay: 18ms; }
-.gm-burst .gm-spark:nth-child(3) { --gm-dx: 30px;   --gm-dy: -17px; animation-delay: 36ms; }
-.gm-burst .gm-spark:nth-child(4) { --gm-dx: 34px;   --gm-dy: 0px;   animation-delay: 54ms; }
-.gm-burst .gm-spark:nth-child(5) { --gm-dx: 30px;   --gm-dy: 17px;  animation-delay: 72ms; }
-.gm-burst .gm-spark:nth-child(6) { --gm-dx: 17px;   --gm-dy: 30px;  animation-delay: 90ms; }
-.gm-burst .gm-spark:nth-child(7) { --gm-dx: 0px;    --gm-dy: 34px;  animation-delay: 108ms; }
-.gm-burst .gm-spark:nth-child(8) { --gm-dx: -17px;  --gm-dy: 30px;  animation-delay: 126ms; }
-.gm-burst .gm-spark:nth-child(9) { --gm-dx: -30px;  --gm-dy: 17px;  animation-delay: 144ms; }
-.gm-burst .gm-spark:nth-child(10) { --gm-dx: -34px; --gm-dy: 0px;   animation-delay: 162ms; }
-.gm-burst .gm-spark:nth-child(11) { --gm-dx: -17px; --gm-dy: -30px; animation-delay: 180ms; }
-.gm-burst .gm-spark:nth-child(12) { --gm-dx: 0px;   --gm-dy: -22px; animation-delay: 198ms; }
+.gm-burst .gm-spark { animation: gmSpark 600ms var(--gm-ease-out) both; }
+.gm-burst .gm-spark:nth-child(1) { --gm-dx: 0px; --gm-dy: -54px; }
+.gm-burst .gm-spark:nth-child(2) { --gm-dx: 15px; --gm-dy: -35px; animation-delay: 22ms; }
+.gm-burst .gm-spark:nth-child(3) { --gm-dx: 38px; --gm-dy: -38px; animation-delay: 44ms; }
+.gm-burst .gm-spark:nth-child(4) { --gm-dx: 35px; --gm-dy: -15px; animation-delay: 66ms; }
+.gm-burst .gm-spark:nth-child(5) { --gm-dx: 54px; --gm-dy: 0px; animation-delay: 88ms; }
+.gm-burst .gm-spark:nth-child(6) { --gm-dx: 35px; --gm-dy: 15px; animation-delay: 110ms; }
+.gm-burst .gm-spark:nth-child(7) { --gm-dx: 38px; --gm-dy: 38px; animation-delay: 132ms; }
+.gm-burst .gm-spark:nth-child(8) { --gm-dx: 15px; --gm-dy: 35px; animation-delay: 154ms; }
+.gm-burst .gm-spark:nth-child(9) { --gm-dx: 0px; --gm-dy: 54px; animation-delay: 176ms; }
+.gm-burst .gm-spark:nth-child(10) { --gm-dx: -15px; --gm-dy: 35px; animation-delay: 198ms; }
+.gm-burst .gm-spark:nth-child(11) { --gm-dx: -38px; --gm-dy: 38px; animation-delay: 220ms; }
+.gm-burst .gm-spark:nth-child(12) { --gm-dx: -35px; --gm-dy: 15px; animation-delay: 242ms; }
+.gm-burst .gm-spark:nth-child(13) { --gm-dx: -54px; --gm-dy: 0px; animation-delay: 264ms; }
+.gm-burst .gm-spark:nth-child(14) { --gm-dx: -35px; --gm-dy: -15px; animation-delay: 286ms; }
+.gm-burst .gm-spark:nth-child(15) { --gm-dx: -38px; --gm-dy: -38px; animation-delay: 308ms; }
+.gm-burst .gm-spark:nth-child(16) { --gm-dx: -15px; --gm-dy: -35px; animation-delay: 330ms; }
 @keyframes gmSpark {
-  from { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-  to { opacity: 0; transform: translate3d(var(--gm-dx, 0), var(--gm-dy, 0), 0) scale(0.4); }
+  /* ★ 两段 `translate` 各有职责：`translate(-50%,-50%)` 是**回中**（顶掉 margin 那条坑），
+       后面那段才是**飞散**。少第一段，16 颗粒子会从卡片左上角往外炸。
+     ★ 55% 之前不降透明度：粒子要"先看清一圈、再一起淡出"，
+       整条交给 ease-out 的话实测 380ms 就只剩 2 颗了（＝B-020 ⑥ 的原始症状）。 */
+  from { opacity: 1; transform: translate(-50%, -50%) translate3d(0, 0, 0) scale(1); }
+  55% { opacity: 1; }
+  to { opacity: 0; transform: translate(-50%, -50%) translate3d(var(--gm-dx, 0), var(--gm-dy, 0), 0) scale(0.4); }
 }
 
 /* 星位逐个点亮：延迟同样写在选择器里（★ 不是内联 style） */
-.gm-burst .gm-stars > i.on { animation: gmStarPop 260ms var(--gm-ease-pop) both; }
+.gm-burst .gm-stars > i.on { animation: gmStarPop 300ms var(--gm-ease-pop) both; }
 .gm-burst .gm-stars > i.on:nth-child(1) { animation-delay: 40ms; }
 .gm-burst .gm-stars > i.on:nth-child(2) { animation-delay: 80ms; }
 .gm-burst .gm-stars > i.on:nth-child(3) { animation-delay: 120ms; }
@@ -507,7 +584,7 @@
 @keyframes gmStarPop {
   /* ★ 从 .6 起步而不是 0：从零缩放的东西像"凭空蹦出来"，没有物体感 */
   from { opacity: 0; transform: scale(0.6); }
-  60% { transform: scale(1.18); }
+  60% { transform: scale(1.3); }
   to { opacity: 1; transform: none; }
 }
 

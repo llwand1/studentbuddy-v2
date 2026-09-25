@@ -11,10 +11,18 @@
  *   `--gm-*` 变量或 `data-*` 属性。
  */
 
+/* ③ B-020：导语原本贴上沿（顶栏一行高都没有）。② 的底部留白是给右下角那颗
+   `position: fixed` 的督促舱让位（`coach.css:10-28`）——**只解决"最后一行能不能滚出来"**。
+   ★ 说清楚这条没解决的：滚动途中舱体仍会压在卡片上，那是任何 fixed HUD 的固有代价，
+   聊天页一直如此，本轮不动它（要把"卡牌页收起浮标"做成产品决定才谈得上）。
+   ⚠️ 这里用 padding 而不是给 `.gm-wall` 加 margin：底部留白必须落在**滚动内容**这一侧
+   才有效，且不能挤到 gap 上（`.cv-page` 的 `gap: --sb-sp-5` 是屏内节奏，不该被局部改动）。 */
 .cv-page {
   display: flex;
   flex-direction: column;
   gap: var(--sb-sp-5);
+  padding-top: var(--sb-sp-4);
+  padding-bottom: 96px;
 }
 
 .cv-h2 {
@@ -139,20 +147,22 @@
   margin: 0;
 }
 
-/* 非 burst 时的紧凑星位：一个图标 + 数字。8 个槽只在升星那一刻画出来（见 `CardWall.tsx` 的 ⚠️） */
+/* 非 burst 时的紧凑星位：一个图标 + 数字。8 个槽只在升星那一刻画出来（见 `CardWall.tsx` 的 ⚠️）
+   ★ 2026-09-25 跟卡面换色：原来是 `--gm-yellow-dark`，那是在**白卡**上量的。整块饱和之后
+     它在 R 的深蓝底上直接融掉。现在吃 `--gm-on`（本档文字色），星数跟着标题走。 */
 .cv-starline {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   font-size: var(--sb-fs-xs);
   font-weight: 800;
-  color: var(--gm-yellow-dark);
+  color: var(--gm-on, var(--gm-yellow-dark));
   font-variant-numeric: tabular-nums;
 }
 
 /* 粒子容器：`display: contents` ⇒ 自己不进 flex 布局（否则会白占一个 gap），
-   而 12 颗粒子仍以 `.gm-card`（relative）为定位父级。**为什么要有这个容器**：
-   `game.css` 的 12 条错帧键在 `.gm-burst .gm-spark:nth-child(1..12)` 上，
+   而 16 颗粒子仍以 `.gm-card`（relative）为定位父级。**为什么要有这个容器**：
+   `game.css` 的 16 条错帧键在 `.gm-burst .gm-spark:nth-child(1..16)` 上，
    冲击环和粒子做兄弟的话粒子会从 `nth-child(2)` 起算——整圈延迟错一位。 */
 .cv-sparks {
   display: contents;

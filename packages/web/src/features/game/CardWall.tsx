@@ -22,8 +22,14 @@ import { StarIcon, SparkleIcon, MascotIcon } from '../../components/game-icons';
 import '../../styles/game.css';
 import './cards-view.css';
 
-/** T2 爆发的总时长：粒子轨道最长 520ms + 最大延迟 198ms，取整到 800ms 后摘掉 burst 类 */
-const BURST_MS = 800;
+/** T2 爆发的总时长：粒子轨道 600ms + 末颗延迟 330ms ＝ 930ms，取 940ms 后摘掉 burst 类。
+ *  ★ 这个数字与 `game.css` §8 的粒子时长/最大延迟**是一对**：改了那边不改这里，
+ *    最后几颗粒子会被卸载掉（用户看到的就是"炸到一半突然没了"）。见 B-020 ⑥。 */
+const BURST_MS = 940;
+
+/** 粒子颗数：与 `game.css` 的 16 条 `.gm-spark:nth-child(1..16)` 一一对应，**两处必须同改**。
+ *  写成常量是为了这条耦合可 grep——上一版它是个裸 `12`，改 CSS 的人根本找不到另一头。 */
+const SPARKS = 16;
 
 /** 底边/圆点的领域档：`domIndex` 越界或未登记（null）都走中性 `gm-d0`（色环只有 5 支彩） */
 function domClass(domIndex: number | null): string {
@@ -89,16 +95,16 @@ function Card({ row, bursting }: { row: CardWallRow; bursting: boolean }) {
       <span className="gm-card-next">
         {c.progress.needed === null ? '已满星' : `差 ${c.progress.needed} 张到 ★${c.progress.nextStar}`}
       </span>
-      {/* 粒子与冲击环只在 burst 帧挂载：常驻的话就是 500 张 × 13 个合成层元素。
-          ★ 粒子必须在**自己的容器**里数 `nth-child`：`game.css` 的 12 条错帧键在
-            `.gm-burst .gm-spark:nth-child(1..12)` 上，环和粒子做兄弟的话粒子会从
+      {/* 粒子与冲击环只在 burst 帧挂载：常驻的话就是 500 张 × 17 个合成层元素。
+          ★ 粒子必须在**自己的容器**里数 `nth-child`：`game.css` 的 16 条错帧键在
+            `.gm-burst .gm-spark:nth-child(1..16)` 上，环和粒子做兄弟的话粒子会从
             `nth-child(2)` 起算——整圈延迟错一位，几何看着没坏但节奏是歪的。
             容器用 `display: contents`，不占 flex 槽、不挤 gap。 */}
       {bursting && (
         <>
           <i className="gm-ring" aria-hidden="true" />
           <span className="cv-sparks gm-burst" aria-hidden="true">
-            {Array.from({ length: 12 }, (_, i) => (
+            {Array.from({ length: SPARKS }, (_, i) => (
               <i key={i} className="gm-spark" />
             ))}
           </span>
@@ -135,8 +141,11 @@ export function CardWall({ rows, logSince }: { rows: CardWallRow[]; logSince: st
       <div className="cv-wall-head">
         <div className="cv-wall-title">
           <span className="gm-eyebrow">Card Wall</span>
+          {/* ① B-020：这里的数**不是**张数，是墙上的格数（每格是一条词条、背后一叠卡）。
+              原来写「卡墙 N 张」，而顶栏 `StatsBar` 的「张卡」是 Σ卡数（`CardsView.tsx:41`），
+              两个「张」口径不同、还都在同一屏里 ⇒ 读起来像算错了。量词换成「条」。 */}
           <h2 className="cv-h2">
-            <SparkleIcon size={20} /> 卡墙 {rows.length} 张
+            <SparkleIcon size={20} /> 卡墙 {rows.length} 条
           </h2>
           {/* 契约 §7.4：口径 1（`usage_count` 含建表前的历史）必然让"提及 20 次、卡数 8 张"成为
               正常现象。这句话不是装饰——不说，用户读到的是"少算了 12 张"。 */}

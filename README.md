@@ -28,20 +28,20 @@
 > `node tools/metrics.mjs --check` 会在数字与代码漂移时退出码 1。测试基线的**逐文件不变量**仍在
 > `docs/dev/test-plan.md` §3、上线阶梯在 `docs/dev/launch-plan.md` §2——那两份讲「为什么」，本文件讲「有多少」。
 
-## 给面试官：一条 30 秒到 15 分钟的阅读路径
+## 该怎么看本项目：一条 30 秒到 15 分钟的阅读路径
 
 | 时间 | 建议路径 | 从这里进 |
 |---|---|---|
 | **30 秒** | 一句话定位 ＋ 打开线上站点点一次「免注册直接体验」 | 上方定位块 · **[11wand.com](https://11wand.com)** |
 | **2 分钟** | 为什么这个 AI 产品在工程上值得看：四类难题各一句话 ＋ 可当场复验的证据 | [§为什么技术上值得看](#为什么技术上值得看) |
 | **5 分钟** | 挑三道最难的讲透（Problem→Design→Test→Trade-off）＋ 单页架构图 | [§三道最难的工程问题](#三道最难的工程问题) · [§架构](#架构) |
-| **10 分钟** | 亲手复验，不信文档信机器：一条 `npm run check` ＋ 一条 `npm run demo:e2e` ＋ 按图索骥读码 | [§工程证明](#工程证明) · [`docs/INTERVIEW.md`](docs/INTERVIEW.md) |
-| **15 分钟** | 深挖某一条链：SSE 协议 / 归属改造 / 契约漂移锁 / 真机探针 | [`docs/INTERVIEW.md`](docs/INTERVIEW.md) §3 与 §5 代码地图 · 下方各 `*-SPEC.md` |
+| **10 分钟** | 亲手复验，不信文档信机器：一条 `npm run check` ＋ 一条 `npm run demo:e2e` ＋ 按图索骥读码 | [§工程证明](#工程证明) · [`docs/PROJECT-GUIDE.md`](docs/PROJECT-GUIDE.md) |
+| **15 分钟** | 深挖某一条链：SSE 协议 / 归属改造 / 契约漂移锁 / 真机探针 | [`docs/PROJECT-GUIDE.md`](docs/PROJECT-GUIDE.md) §3 与 §5 代码地图 · 下方各 `*-SPEC.md` |
 
 ## 目录
 
 - [这是什么](#这是什么)
-- [给面试官：一条 30 秒到 15 分钟的阅读路径](#给面试官一条-30-秒到-15-分钟的阅读路径)
+- [该怎么看本项目：一条 30 秒到 15 分钟的阅读路径](#该怎么看本项目一条-30-秒到-15-分钟的阅读路径)
 - [在线体验与演示](#在线体验与演示)
 - [界面预览](#界面预览)
 - [当前状态](#当前状态)
@@ -142,7 +142,7 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 
 ## 三道最难的工程问题
 
-> 每道只留「问题一句话 / 解法一句话 / 怎么复验」；完整版（Problem→Design→Implementation→Test→Trade-off，含被否掉的方案和代价）在 [`docs/INTERVIEW.md`](docs/INTERVIEW.md) §3。
+> 每道只留「问题一句话 / 解法一句话 / 怎么复验」；完整版（Problem→Design→Implementation→Test→Trade-off，含被否掉的方案和代价）在 [`docs/PROJECT-GUIDE.md`](docs/PROJECT-GUIDE.md) §3。
 
 **① 模型输出不可靠，但学生不能拿不到题（难题 A）**
 - **问题**：`[QUIZ]` 协议要求模型一次产出结构化题组，但它会少括号、坏转义、SVG 不闭合、把解析塞进题干——批量生成里这是常态不是异常。
@@ -159,7 +159,7 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 - **解法**：读写按形状分两把锁（`ownerFilter` / `ownerForWrite`）＋ 跨用户访问一律 **404 不回 403**（403 等于承认「这个 id 存在」）＋ 成本归属 `providers.owner_id IS NULL`＝平台通道、业务表 `''`＝无主——**两种「没有主人」可见性刻意相反**，因为语义本来就相反。
 - **复验**：每批隔离锁都配「故意改坏必红」取证（[`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) §8）；`npm run demo:e2e` 第 6 幕现场演示 B 读 A 撞 404。
 
-（第四类难题 D——**AI 产出内容的安全**：模型写的 ```html 在 `CSP: sandbox`＋iframe 双层沙箱里跑、页面源为 `null`；SVG 净化剥 `<image>` 外链防信标泄露 IP；外部搜集结果逐字锚点锁＋两段确认才入库。证据见 [§安全与隐私设计](#安全与隐私设计) 与 [`docs/INTERVIEW.md`](docs/INTERVIEW.md) §3-D。）
+（第四类难题 D——**AI 产出内容的安全**：模型写的 ```html 在 `CSP: sandbox`＋iframe 双层沙箱里跑、页面源为 `null`；SVG 净化剥 `<image>` 外链防信标泄露 IP；外部搜集结果逐字锚点锁＋两段确认才入库。证据见 [§安全与隐私设计](#安全与隐私设计) 与 [`docs/PROJECT-GUIDE.md`](docs/PROJECT-GUIDE.md) §3-D。）
 
 ## 为什么技术上值得看
 
@@ -340,7 +340,7 @@ tools/probes    — 真机探针 15 个（CDP 真点 10 + 能力/隔离量测 5�
 
 ## 工程证明
 
-> 这一节的立场：**文档说的任何话都可以不信，下面四条命令的输出可以当场信。** 面试场景下它们全部可跑（② 连 API key 都不需要）。
+> 这一节的立场：**文档说的任何话都可以不信，下面四条命令的输出可以当场信。** 它们在本地全部可跑（② 连 API key 都不需要）。
 
 | # | 复验动作 | 证明什么 | 耗时量级 |
 |---|---|---|---|
@@ -349,7 +349,7 @@ tools/probes    — 真机探针 15 个（CDP 真点 10 + 能力/隔离量测 5�
 | ③ | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 收尾同款一步——README 不许手抄） | 十秒级 |
 | ④ | `node tools/guard-audit.mjs` | **每条守门逐个改坏、证明它真的会红**（含审计器自证 `--selftest`），全程在隔离副本里跑、不碰工作树 | 分钟级 |
 
-**读码入口**（13 行「想看 X 打开这里」的代码地图在 [`docs/INTERVIEW.md`](docs/INTERVIEW.md) §5）：SSE 协议看 `shared/src/sse-events.ts`，出题阶梯看 `server/learning/quiz/`，归属两把锁看 `server/auth/ownership.ts`，安全中间件看 `server/security.ts`。
+**读码入口**（13 行「想看 X 打开这里」的代码地图在 [`docs/PROJECT-GUIDE.md`](docs/PROJECT-GUIDE.md) §5）：SSE 协议看 `shared/src/sse-events.ts`，出题阶梯看 `server/learning/quiz/`，归属两把锁看 `server/auth/ownership.ts`，安全中间件看 `server/security.ts`。
 
 **真机探针层**（15 个，`tools/probes/`）：jsdom 测逻辑、CDP 真机验观感，两层互补；代表探针与前置条件见 [§开发指南](#开发指南) 探针表。
 
@@ -411,7 +411,7 @@ tools/
 ├─ probes/                 真机探针 15 个（CDP 真点 10 + 能力/隔离量测 5）
 ├─ e2e/                    确定性全栈演示（demo-e2e.mjs ＋假 LLM 上游 fake-provider.mjs，零 key 零真实外呼）
 └─ migrate-from-v1/        v1→v2 数据迁移
-docs/                      契约与研发台账（现读：31 份契约文档（30 个 `*-SPEC.md` + `SSE-CONTRACT.md`）＋ `dev/` 五份台账 ＋ `INTERVIEW.md` ＋ 增长面四份（GROWTH-SPEC / GROWTH-CHANNELS / GROWTH-COMMUNITY-PACK / GROWTH-SUBMISSION-PACK）＋ SEO/运营面五份（SEO-SPEC / GITHUB-OPS-SPEC / metrics / metrics-product / project-growth））
+docs/                      契约与研发台账（现读：31 份契约文档（30 个 `*-SPEC.md` + `SSE-CONTRACT.md`）＋ `dev/` 五份台账 ＋ `PROJECT-GUIDE.md` ＋ 增长面四份（GROWTH-SPEC / GROWTH-CHANNELS / GROWTH-COMMUNITY-PACK / GROWTH-SUBMISSION-PACK）＋ SEO/运营面五份（SEO-SPEC / GITHUB-OPS-SPEC / metrics / metrics-product / project-growth））
 DEPLOY.md                  部署手册：服务器 / systemd / 五条部署 env / TLS / 备份 / 回滚
 CHANGELOG.md               项目改动登记册（代码/文档/测试同批登记）
 AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决策记录
@@ -539,11 +539,11 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 
 ## 文档索引
 
-`docs/` 是本仓的**权威技术文档面**。分两类：`*SPEC*.md` 是行为契约（改行为先改契约），`dev/` 是研发台账。另有三份**对外面**文档（面试导览 / 产品度量 / 增长快照）列在最前。
+`docs/` 是本仓的**权威技术文档面**。分两类：`*SPEC*.md` 是行为契约（改行为先改契约），`dev/` 是研发台账。另有三份**对外面**文档（项目导览 / 产品度量 / 增长快照）列在最前。
 
 | 文档 | 内容 |
 |------|------|
-| [`INTERVIEW.md`](docs/INTERVIEW.md) | **面试导览**：90 秒陈述稿 / 5 分钟架构导览跳表 / 四难题 Problem→Design→Implementation→Test→Trade-off / 诚实取舍表 / 代码地图 |
+| [`PROJECT-GUIDE.md`](docs/PROJECT-GUIDE.md) | **项目导览（该怎么看本项目）**：90 秒陈述稿 / 5 分钟架构导览跳表 / 四难题 Problem→Design→Implementation→Test→Trade-off / 诚实取舍表 / 代码地图 |
 | [`metrics-product.md`](docs/metrics-product.md) | **产品度量台账**：三条红线（不虚构·每数带取证命令／不夸大／分母<30 不出百分比）＋ 线上库第一笔真账与缺口登记 |
 | [`project-growth.md`](docs/project-growth.md) | **增长台账**：GitHub 流量按快照记账（14 天窗口）＋「clone≠用户」口径总则与禁止表述清单＋污染源清单 |
 | [`SSE-CONTRACT.md`](docs/SSE-CONTRACT.md) | SSE 事件与 HTTP 接口契约（前端对接核心） |

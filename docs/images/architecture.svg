@@ -100,5 +100,5 @@
 
   <!-- bottom notes -->
   <rect x="60" y="600" width="880" height="40" rx="8" fill="#f1f5f9" stroke="#e2e8f0"/>
-  <text x="76" y="625" font-size="11.5" fill="#334155">阅读路径：想看可靠性细节 → docs/INTERVIEW.md §3（四道难题）；想看协议形状 → @sb/shared 的 sse-events.ts 与 quiz 协议；想看归属 → docs/TENANCY-SPEC.md。</text>
+  <text x="76" y="625" font-size="11.5" fill="#334155">阅读路径：想看可靠性细节 → docs/PROJECT-GUIDE.md §3（四道难题）；想看协议形状 → @sb/shared 的 sse-events.ts 与 quiz 协议；想看归属 → docs/TENANCY-SPEC.md。</text>
 </svg>

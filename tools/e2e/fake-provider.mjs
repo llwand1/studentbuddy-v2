@@ -7,7 +7,7 @@
  * 解析不出协议的杂文本不会打断主轮（post-turn 抽词等旁路调用走的就是这条路）。
  *
  * 与 _probe/fake-provider.mjs 的分工：那份按 gitignore 存世、专用于并发故障复现
- * （带延迟与 in-flight 日志）；这份随仓分发、面向面试官一条命令，输出恒定。
+ * （带延迟与 in-flight 日志）；这份随仓分发、面向第一次接触本仓的人，一条命令、输出恒定。
  */
 import http from 'node:http';
 

@@ -12,7 +12,7 @@ export const CATALOG_PATH = '/terms/index.html';
  * 英文词条目录页。★ 与中文目录页同一条规矩：**必须带 `.html`**（线上 Caddy 没有目录索引，
  * `/terms/en/` 会被兜成 SPA 壳）。
  * ★ 它嵌在 `/terms/` 下面不是偶然：`robots.txt` 那扇 `Allow: /terms/` 是**前缀**放行，
- *   英文侧因此自动公开——由 `public-hygiene.test.ts` 现验前缀盖得住，不靠「我记得覆盖了」。
+ *   英文侧因此自动公开——★ 而「前缀被改窄就静默下线」这件事由 `robots-coverage.test.ts` 逐条 loc 现验（issue #4 的锁：把 `Allow: /terms/` 改窄 ⇒ CI 直接红），不靠「我记得覆盖了」。
  */
 export const CATALOG_PATH_EN = '/terms/en/index.html';
 

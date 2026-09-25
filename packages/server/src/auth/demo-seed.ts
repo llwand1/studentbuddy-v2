@@ -90,7 +90,9 @@ function seedReviewDaysAgo(item: DemoSeedTerm, i: number): number {
 /** 推进到 `item.stage`，并把每次复习与末次间隔摆到该在的那天。 */
 function scheduleSeedReview(termId: string, item: DemoSeedTerm): void {
   for (let i = 1; i <= item.stage; i += 1) {
-    markReviewed(termId, true, DEMO_USER_ID);
+    // ★ `silent`＝不发 `review_completed` 事件（契约 `GAMIFIED-AGENT-SPEC` §8.1 的学习日由真用户动作算）：
+    //   种子是「让时间过去」的等价物，不是「有人今天复习了」，否则体验号一进来就自带连签与 XP。
+    markReviewed(termId, true, DEMO_USER_ID, { silent: true });
     backdateLastReview(termId, seedReviewDaysAgo(item, i));
   }
 }

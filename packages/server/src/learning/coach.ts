@@ -15,7 +15,8 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
 import { routeRole } from '../llm/router.js';
-import { reviewOverview, markReviewed, reviewStreak } from './term-review.js';
+import { reviewOverview, markReviewed } from './term-review.js';
+import { computeStreak } from './activity.js';
 // ★ v1.2：队列的构建搬到 `review-queue.ts`（三段补位，契约 EBBINGHAUS-SPEC §10.3）。
 //   督促小窗用 `listDueQueue`（**只真账**）——它回答的是"你还欠多少"，与用户设的
 //   "今天想背多少"是两件事：设了日目标不该让教练去催"提前背"的词条（那等于把提醒变成任务）。
@@ -80,7 +81,9 @@ export function coachSnapshot(ownerId: string | null): CoachSnapshot {
     todayDone: o.todayDone,
     mastered: o.mastered,
     maxOverdueDays: o.maxOverdueDays,
-    streak: reviewStreak(ownerId),
+    // ★ 一本账（契约 `GAMIFIED-AGENT-SPEC` §8.3）：这里读的是**全行为**连签，不再是只数复习的
+    //   `reviewStreak`（已退役）⇒ 提示词与面板上「连续 N 天」的语义＝「连续学习 N 天」。
+    streak: computeStreak(ownerId),
     top,
   };
 }

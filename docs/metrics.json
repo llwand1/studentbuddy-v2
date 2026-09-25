@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-25T03:21:27.426Z",
+  "generatedAt": "2026-09-25T06:42:09.998Z",
   "code": {
     "rows": [
       {
@@ -12,22 +12,22 @@
       {
         "pkg": "server",
         "srcFiles": 166,
-        "testFiles": 119,
-        "srcLines": 25829,
-        "testLines": 25943
+        "testFiles": 120,
+        "srcLines": 25881,
+        "testLines": 26140
       },
       {
         "pkg": "web",
         "srcFiles": 185,
         "testFiles": 69,
-        "srcLines": 23631,
+        "srcLines": 23642,
         "testLines": 9973
       }
     ],
     "srcFiles": 379,
-    "testFiles": 206,
-    "srcLines": 53587,
-    "testLines": 38167,
+    "testFiles": 207,
+    "srcLines": 53650,
+    "testLines": 38364,
     "tsxTestFiles": 23
   },
   "routes": {
@@ -80,33 +80,33 @@
     ]
   },
   "docs": {
-    "specs": 30,
-    "all": 43,
+    "specs": 31,
+    "all": 44,
     "dev": 5,
     "probes": 14
   },
   "repo": {
-    "head": "1b40c66",
+    "head": "594597e",
     "headDate": "2026-09-25",
-    "commitsLast14d": 192,
+    "commitsLast14d": 199,
     "branch": "main",
-    "dirtyFiles": 84
+    "dirtyFiles": 12
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 30.3,
+    "wallSec": 26,
     "staleDays": 0,
-    "files": 206,
-    "cases": 2799,
-    "passed": 2798,
+    "files": 207,
+    "cases": 2810,
+    "passed": 2809,
     "skipped": 1,
     "failed": 0,
     "success": true
   },
   "coverage": {
     "available": true,
-    "staleDays": 4,
+    "staleDays": 5,
     "perPkg": {
       "shared": {
         "lines": 99.3,
@@ -144,14 +144,14 @@
     {
       "label": "badge 测试文件",
       "claimed": "206",
-      "measured": "206",
-      "ok": true
+      "measured": "207",
+      "ok": false
     },
     {
       "label": "badge 测试用例",
       "claimed": "2799",
-      "measured": "2799",
-      "ok": true
+      "measured": "2810",
+      "ok": false
     },
     {
       "label": "badge REST 路由",
@@ -185,33 +185,33 @@
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.118",
-      "measured": "v0.2.118",
+      "claimed": "v0.2.125",
+      "measured": "v0.2.125",
       "ok": true
     },
     {
       "label": "正文 passed 口径",
       "claimed": "2798 passed + 1 skipped + 0 failed",
-      "measured": "2798 passed + 1 skipped + 0 failed",
-      "ok": true
+      "measured": "2809 passed + 1 skipped + 0 failed",
+      "ok": false
     },
     {
       "label": "正文 passed 口径",
       "claimed": "2798 passed + 1 skipped + 0 failed",
-      "measured": "2798 passed + 1 skipped + 0 failed",
-      "ok": true
+      "measured": "2809 passed + 1 skipped + 0 failed",
+      "ok": false
     },
     {
       "label": "正文基线句",
       "claimed": "206 文件 / 2799 例",
-      "measured": "206 文件 / 2799 例",
-      "ok": true
+      "measured": "207 文件 / 2810 例",
+      "ok": false
     },
     {
       "label": "正文基线句",
       "claimed": "206 文件 / 2799 例",
-      "measured": "206 文件 / 2799 例",
-      "ok": true
+      "measured": "207 文件 / 2810 例",
+      "ok": false
     }
   ],
   "landingDrift": []

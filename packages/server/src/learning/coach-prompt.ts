@@ -37,7 +37,7 @@ export function buildCoachSnapshotBlock(s: CoachSnapshot): string {
   const lines = [
     '【复习快照】（此段为系统数据，非用户发言）',
     `词条总数 ${s.total}；今天该复习 ${s.due} 条（其中逾期 ${s.overdue} 条，最久一笔欠了 ${s.maxOverdueDays} 天）；`,
-    `从未复习过 ${s.fresh} 条；今日已完成 ${s.todayDone} 条；已入长期记忆 ${s.mastered} 条；连续复习 ${s.streak} 天。`,
+    `从未复习过 ${s.fresh} 条；今日已完成 ${s.todayDone} 条；已入长期记忆 ${s.mastered} 条；连续学习 ${s.streak} 天。`,
   ];
   if (s.top.length > 0) {
     lines.push('最该复习的几条（按欠得最久排，格式：词条名 · 多久没碰 · 记忆保持率 · 逾期天数）：');

@@ -189,6 +189,8 @@ term_review_log(id, term_id, stage, remembered, reviewed_at, reviewed_day)  -- �
 `todayDone` / `recent` / `reviewStreak` 也 JOIN 回 `term_library` 判范围——
 否则"移出复习范围"的词条其历史打卡仍被计入，数字与上方统计不同源。
 
+★ **2026-09-25（S1-a）追加，本节历史叙述不回改**：上面点名的 `reviewStreak` **已退役**——两本连签账收成一本地（契约 `GAMIFIED-AGENT-SPEC` §8.3），连签改由 `learning/activity.ts` 的 `computeStreak` 按**全行为学习日**数。⇒ 这条「统计口径一致」对连签**不再成立**：范围外的词条被手动打卡同样算「今天学了」，是老板 2026-09-25 明确拍下的取舍（连签数的是学习行为，不是队列归属），代价登记在 §8.3，别把它当回归修回去。
+
 ### 9.3 写口语义（`PUT /api/terms/review/scope`）
 
 **`enabled` 是"目标有效值"（这条以后复不复习），不是"往列里写什么"。** 写 `NULL` 还是写显式 0/1

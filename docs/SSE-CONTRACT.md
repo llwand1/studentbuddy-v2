@@ -180,7 +180,7 @@
 - **P0 存储是全内存**（契约 §4）：无落库、无 schema 改动，进程重启即丢局；房间 TTL 惰性回收
   （waiting 30 分钟 / finished 10 分钟 / active 取「对局时钟 + 保留期」）。
 
-**已注册工具（单轨 function-calling，注册表目录 `chat/tools/`——P2 批 v0.2.68 由单文件 `chat/tools.ts` 拆出）**：`search_web`（多路 provider 聚合语义见 `search/index.ts`——Exa/Tavily/智谱按 key 并行，三家全无 key → Bing 免 key 兜底（cn.bing.com，RSS 主 + HTML 兜底））、`tidy_terms`（AI 整理词条库）、词条一族三工具 `lookup_terms` / `upsert_term` / `delete_terms`（增删改分口：`delete_terms` 是**唯一删除口**且经确认门两阶段写，`upsert_term` 走 plan/apply 免阈直落，语义见 `docs/TOOL-ECOSYSTEM-SPEC.md` §5.1；★ 原第四工具 `manage_terms` 已随 P3 落码退役，拍板⑭）、`ask_choice`（**方案选择框**，契约 `docs/ASK-CHOICE-SPEC.md`）。★ `ask_choice` 是**长等待工具**：它在 `flow.ts` 的 `runToolCalls` 里登记进 `noTimeout`，豁免 30s 默认工具超时——它等的是「人点一下」，挂 timer 会把等待本身掐死（见 `chat/tool-exec.ts` 的 `noTimeout` 注释）。`delete_terms` 挂确认门时同样吃 60s 等待余量，但那在门里（confirm 层），不在 exec 超时档。
+**已注册工具（单轨 function-calling，注册表目录 `chat/tools/`——P2 批 v0.2.68 由单文件 `chat/tools.ts` 拆出）**：`search_web`（多路 provider 聚合语义见 `search/index.ts`——Exa/Tavily/智谱按 key 并行，三家全无 key → Bing 免 key 兜底（**`www.bing.com/search`，RSS 主 + HTML 兜底，通道本体 2026-09-25 起在 `search/bing-channel.ts`**））、`tidy_terms`（AI 整理词条库）、词条一族三工具 `lookup_terms` / `upsert_term` / `delete_terms`（增删改分口：`delete_terms` 是**唯一删除口**且经确认门两阶段写，`upsert_term` 走 plan/apply 免阈直落，语义见 `docs/TOOL-ECOSYSTEM-SPEC.md` §5.1；★ 原第四工具 `manage_terms` 已随 P3 落码退役，拍板⑭）、`ask_choice`（**方案选择框**，契约 `docs/ASK-CHOICE-SPEC.md`）。★ `ask_choice` 是**长等待工具**：它在 `flow.ts` 的 `runToolCalls` 里登记进 `noTimeout`，豁免 30s 默认工具超时——它等的是「人点一下」，挂 timer 会把等待本身掐死（见 `chat/tool-exec.ts` 的 `noTimeout` 注释）。`delete_terms` 挂确认门时同样吃 60s 等待余量，但那在门里（confirm 层），不在 exec 超时档。
 
 **安全语义**：写操作（POST/PUT/DELETE）强制 Origin 校验（无 Origin / 恶意 Origin → 403）；请求体上限 2MB；服务仅绑 127.0.0.1。
 

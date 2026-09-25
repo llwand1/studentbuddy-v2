@@ -1,0 +1,670 @@
+/**
+ * styles/game.css — 游戏风基元层（2026-09-25 新建，契约 `docs/TERM-CARDS-SPEC.md` §8，
+ * 画风参照老板点名的**多邻国 / Quizlet**）。
+ *
+ * ★★ 这一层**盖在 `tokens.css` 之上、不替换它**，且全部走 `--gm-*` 独立命名空间。
+ *   理由不是洁癖：`tokens.css` 是全仓 123 个组件的唯一事实源，直接改它的圆角/阴影/间距
+ *   ＝同时给聊天、设置、PK、题库换皮，而这几屏从没为游戏风设计过。老板 2026-09-25 拍的顺序是
+ *   「先游戏化三块，满意后再扇 tokens 扫全仓」⇒ 本文件是那块"先"，将来扇全仓的动作是
+ *   **把 `--gm-*` 的值并进 `--sb-*`**，而不是让全仓去 import 本文件。
+ *
+ * ★ 基础值一律向 `--sb-*` 要（字体、字号、间距、ink、line），只有游戏风**必须偏离**的那几项
+ *   才自带常数：饱和色板、硬底投影、更粗的字重。这样两套皮不会在"字号"这种无关的事上分叉。
+ *
+ * ── 画风从参照物里取了哪五件事（逐条可回看，不是"感觉像"）──────────────────────────
+ *  1. **立体硬底按钮**（多邻国最响的一个特征）：`box-shadow: 0 4px 0 <同色深档>`，
+ *     按下时整块下沉 4px、阴影消失。不是模糊投影——是**实心**的第二层色。见 `.gm-btn`。
+ *  2. **粗字重 + 大字距的标题**：`800 / 0.2em` 的大写标签（`.gm-eyebrow`）。
+ *  3. **药丸进度条**：16px 高、内嵌一层浅色轨（`.gm-track` / `.gm-fill`），
+ *     填充宽度走 CSS 变量 `--gm-w`（禁内联 style，见下方 ★ 处）。
+ *  4. **卡片列表的 2px 底边**（Quizlet 的 list item）：`border-bottom: 2px solid`，
+ *     hover 时整块上浮 2px。见 `.gm-row`。
+ *  5. **反馈横幅**（答对/答错那一整块彩色面板，不是 toast）：`.gm-banner`，
+ *     成功绿／失败红，带图标与加粗结论句。本仓现有 `.term-msg` 是底部小 toast，
+ *     游戏风要求"结果占一块地"，故新写一条、不动老的（避免把复习打卡的反馈一起改坏）。
+ *
+ * ★ **禁 emoji 作图标**（`terms.css:614`／`:906` 两处明写，且 `components/icons.tsx` 头注是
+ *   同一条规矩）⇒ 本文件里所有"图标"位都配 `components/game-icons.tsx` 的**手绘 SVG**用，
+ *   本文件自己不含任何字形。
+ * ★ **禁内联 style**（CI gates 拦）⇒ 数据驱动的值（进度宽度、错帧延迟、领域色）一律
+ *   通过 `--gm-*` 变量传入，调用点必须带 `gates:style-ok` 注释（仓内既有 3 处先例）。
+ * ★ 动效只动 `transform` / `opacity`（会触发 layout/paint 的一律不用）；
+ *   `prefers-reduced-motion` 在文件末尾**逐条**降级——去位移、保透明度，不是整片关掉。
+ */
+
+/* ══════════════════════ 1. 色板 ══════════════════════════════════════════════ */
+
+:root {
+  /* 品牌蓝：向 --sb-primary 要，两皮同源 */
+  --gm-blue: var(--sb-primary);
+  --gm-blue-dark: #0063cc;   /* 硬底投影用的深一档（= 主色下压 ~18% 明度） */
+  --gm-blue-soft: #e0f0ff;
+
+  /* 多邻国那几支饱和色：绿＝成功/掌握，黄＝连签/钥匙，红＝欠账/危险，紫＝SR，橙＝进度提示 */
+  --gm-green: #58cc02;
+  --gm-green-dark: #46a302;
+  --gm-green-soft: #d9f2c7;
+
+  --gm-yellow: #ffc800;
+  --gm-yellow-dark: #d4a300;
+  --gm-yellow-soft: #fff4cc;
+
+  --gm-red: #ff4b4b;
+  --gm-red-dark: #d33131;
+  --gm-red-soft: #ffdede;
+
+  --gm-orange: #ff9600;
+  --gm-orange-dark: #d97706;
+
+  /* ★ 表面色也各配一个"深一档"：立体感全靠**同色加深**，不靠模糊阴影。
+       这一档缺失时最容易顺手拿 rgba(0,0,0,.3) 代替——那会得到灰扑扑的按钮，
+       游戏感当场没掉一半。 */
+  --gm-surface: var(--sb-surface);
+  --gm-surface-sunk: var(--sb-sidebar);
+  --gm-ink: var(--sb-ink);
+  --gm-ink-dim: var(--sb-ink-secondary);
+  --gm-line: var(--sb-line);
+
+  /* 稀有度四档（键名与 `@sb/shared` 的 `CardRarity` 严格一致，改一侧必须改另一侧） */
+  --gm-r-n: #9aa1b0;
+  --gm-r-n-dark: #7d8494;
+  --gm-r-r: var(--gm-blue);
+  --gm-r-r-dark: var(--gm-blue-dark);
+  --gm-r-sr: #ce82ff;
+  --gm-r-sr-dark: #a568cc;
+  --gm-r-ssr: var(--gm-yellow);
+  --gm-r-ssr-dark: var(--gm-yellow-dark);
+
+  /* ★ 领域色环（5 支 + 1 支中性溢出档）。**不是哈希取模**：
+       demo 实测「学习科学」与「心理学」同落一档 ⇒ 同领域同色这条可读性判据当场失效。
+       真实现的取色键＝`term_domain` 的**在册序号**（第几个登记的领域），超出 5 个走 --gm-dom-0。 */
+  --gm-dom-1: #1cb0f6;
+  --gm-dom-2: #ce82ff;
+  --gm-dom-3: #58cc02;
+  --gm-dom-4: #ff9600;
+  --gm-dom-5: #ff4b4b;
+  --gm-dom-0: #9aa1b0;
+
+  /* 立体感与动效常数 */
+  --gm-lift: 4px;                          /* 硬底厚度＝按钮下沉距离，两处必须同源 */
+  --gm-radius: 14px;
+  --gm-radius-pill: 999px;
+  --gm-ease-out: cubic-bezier(0.165, 0.84, 0.44, 1);
+  --gm-ease-inout: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --gm-ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1); /* 唯一允许"过冲"的一档，只给 T2/T3 */
+}
+
+/* ══════════════════════ 2. 立体按钮（多邻国特征 1）══════════════════════════ */
+
+.gm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sb-sp-2);
+  min-height: 44px;            /* 触控热区下限（WCAG/Apple 同一数），不是审美值 */
+  padding: 0 var(--sb-sp-4);
+  border: none;
+  border-radius: var(--gm-radius);
+  background: var(--gm-blue);
+  color: #fff;
+  font: inherit;
+  font-size: var(--sb-fs-md);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: none;        /* 中文不做 uppercase；拉丁后缀由 .gm-eyebrow 单独管 */
+  cursor: pointer;
+  /* ★ 阴影是**实色第二层**，不是模糊投影：这是那个"厚按钮"的全部来源 */
+  box-shadow: 0 var(--gm-lift) 0 var(--gm-blue-dark);
+  /* ★ 只 transform 参与过渡。阴影**必须**是瞬变的：按钮下沉 4px 的同一帧阴影消失，
+       读起来才是"压到底"；给阴影也加过渡就会变成"浮起来一块果冻"。 */
+  transition: transform 90ms var(--gm-ease-out);
+  will-change: transform;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gm-btn:active:not(:disabled) {
+  transform: translateY(var(--gm-lift));
+  box-shadow: 0 0 0 var(--gm-blue-dark);
+}
+
+.gm-btn:disabled {
+  background: var(--gm-surface-sunk);
+  color: var(--gm-ink-dim);
+  box-shadow: 0 var(--gm-lift) 0 rgba(30, 40, 60, 0.10);
+  cursor: not-allowed;
+}
+
+/* 语义变体：只换色，几何与按压手感完全一致（成对元素同同时长同缓动） */
+.gm-btn.gm-ok { background: var(--gm-green); box-shadow: 0 var(--gm-lift) 0 var(--gm-green-dark); }
+.gm-btn.gm-ok:active:not(:disabled) { box-shadow: 0 0 0 var(--gm-green-dark); }
+.gm-btn.gm-warn { background: var(--gm-yellow); color: #4a3a00; box-shadow: 0 var(--gm-lift) 0 var(--gm-yellow-dark); }
+.gm-btn.gm-warn:active:not(:disabled) { box-shadow: 0 0 0 var(--gm-yellow-dark); }
+.gm-btn.gm-danger { background: var(--gm-red); box-shadow: 0 var(--gm-lift) 0 var(--gm-red-dark); }
+.gm-btn.gm-danger:active:not(:disabled) { box-shadow: 0 0 0 var(--gm-red-dark); }
+
+/* 次级钮：白底描边＋白底硬底，多邻国的 "SKIP" 那一颗 */
+.gm-btn.gm-ghost {
+  background: var(--gm-surface);
+  color: var(--gm-blue);
+  box-shadow: 0 var(--gm-lift) 0 var(--gm-line);
+  border: 2px solid var(--gm-line);
+}
+.gm-btn.gm-ghost:active:not(:disabled) { box-shadow: 0 0 0 var(--gm-line); }
+
+.gm-btn.gm-sm { min-height: 34px; font-size: var(--sb-fs-sm); border-radius: 11px; --gm-lift: 3px; }
+.gm-btn.gm-block { width: 100%; }
+
+/* ══════════════════════ 3. 标题眉签与统计（特征 2）══════════════════════════ */
+
+.gm-eyebrow {
+  font-size: var(--sb-fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gm-ink-dim);
+}
+
+.gm-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--gm-radius-pill);
+  background: var(--gm-surface);
+  border: 2px solid var(--gm-line);
+  font-weight: 800;
+  font-size: var(--sb-fs-sm);
+  color: var(--gm-ink);
+}
+.gm-stat.gm-flame { color: var(--gm-orange); border-color: var(--gm-yellow-soft); background: var(--gm-yellow-soft); }
+.gm-stat.gm-key { color: #8a6d00; border-color: var(--gm-yellow-soft); background: var(--gm-yellow-soft); }
+.gm-stat small { font-weight: 700; color: var(--gm-ink-dim); font-size: var(--sb-fs-xs); }
+
+/* ══════════════════════ 4. 药丸进度条（特征 3）══════════════════════════════ */
+
+.gm-track {
+  position: relative;
+  height: 16px;
+  border-radius: var(--gm-radius-pill);
+  background: var(--gm-surface-sunk);
+  overflow: hidden;
+  /* 内描边：浅色底上纯填充会"糊成一片"，多邻国的轨都有一圈内线 */
+  box-shadow: inset 0 0 0 2px rgba(30, 40, 60, 0.05);
+}
+.gm-track > i {
+  display: block;
+  height: 100%;
+  /* ★ 数据驱动宽度：`--gm-w` 由调用点以 `gates:style-ok` 传入（禁内联 style 的合规写法） */
+  width: var(--gm-w, 0%);
+  border-radius: var(--gm-radius-pill);
+  background: var(--gm-green);
+  /* 进度用 ease-in-out（屏内位移），不用 ease-out——后者会让"走得快"这件事失真 */
+  transition: width 260ms var(--gm-ease-inout);
+}
+.gm-track.gm-blue > i { background: var(--gm-blue); }
+.gm-track.gm-rare > i { background: var(--gm-r-sr); }
+.gm-track.gm-epic > i { background: linear-gradient(90deg, var(--gm-orange), var(--gm-yellow)); }
+/* 高光条：让填充看起来是"凸"的，纯装饰，reduced-motion 时不失效也无所谓（无位移） */
+.gm-track.gm-gloss > i::after {
+  content: "";
+  position: absolute;
+  inset: 2px 0 auto 0;
+  height: 4px;
+  border-radius: var(--gm-radius-pill);
+  background: rgba(255, 255, 255, 0.42);
+}
+
+/* ══════════════════════ 5. 词条行 / 卡墙（特征 4）══════════════════════════ */
+
+.gm-wall {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: var(--sb-sp-3);
+}
+
+.gm-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+  padding: var(--sb-sp-3);
+  border-radius: var(--gm-radius);
+  background: var(--gm-surface);
+  /* ⚠️ 底边这条在实现时改判过（原注释写"一行代码同时给出领域与卡牌两条信息"，做不到）：
+       一条 `border-bottom-color` 只有一个值，而**稀有度是收集玩法的主信号**（N/R/SR/SSR 决定
+       这张值不值得留），领域只是归类。所以底边归稀有度（下面的 `[data-r]` 选择器），
+       领域色挪到卡内的 `.gm-card-dom` 小圆点——两个信号都在，各占各的位置。 */
+  border: 2px solid var(--gm-line);
+  border-bottom: 4px solid var(--gm-dom, var(--gm-line));
+  overflow: hidden;
+  isolation: isolate;
+  transition: transform 140ms var(--gm-ease-out);
+  will-change: transform;
+}
+@media (hover: hover) and (pointer: fine) {
+  .gm-card:hover { transform: translateY(-2px); }
+}
+
+/* 领域取色入档：类名后缀 = `CardWallRow.domIndex + 1`（**在册序号**，服务端算，见
+   `learning/domains.ts:domainOrdinals`；+1 是给 `gm-d0` 中性档留出位子，见 `CardWall.tsx:domClass`）。
+   ★ 前端不许按领域名排序取色：现成的领域列表 `domainStats` 行序是 `count DESC`，那个数每天在变，
+     跟着它上色＝「昨天蓝色的领域今天变红」，装饰值反过来破坏了"同领域同色"这条可读性判据。
+   ⚠️ `domIndex` 为 null（域名未登记在册的孤儿行）与 ≥5（彩环只有 `gm-d1`～`gm-d5` 五支）都走 `gm-d0` 中性档。 */
+.gm-card.gm-d0 { --gm-dom: var(--gm-dom-0); }
+.gm-card.gm-d1 { --gm-dom: var(--gm-dom-1); }
+.gm-card.gm-d2 { --gm-dom: var(--gm-dom-2); }
+.gm-card.gm-d3 { --gm-dom: var(--gm-dom-3); }
+.gm-card.gm-d4 { --gm-dom: var(--gm-dom-4); }
+.gm-card.gm-d5 { --gm-dom: var(--gm-dom-5); }
+
+/* 稀有度入档：`data-r` 的取值与 `@sb/shared` 的 CardRarity 一字不差 */
+.gm-card[data-r="N"] { --gm-cf: var(--gm-r-n); --gm-cfd: var(--gm-r-n-dark); }
+.gm-card[data-r="R"] { --gm-cf: var(--gm-r-r); --gm-cfd: var(--gm-r-r-dark); }
+.gm-card[data-r="SR"] { --gm-cf: var(--gm-r-sr); --gm-cfd: var(--gm-r-sr-dark); }
+.gm-card[data-r="SSR"] { --gm-cf: var(--gm-r-ssr); --gm-cfd: var(--gm-r-ssr-dark); }
+.gm-card[data-r] { border-bottom-color: var(--gm-cfd); }
+
+.gm-card-name {
+  font-size: var(--sb-fs-md);
+  font-weight: 800;
+  color: var(--gm-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gm-card-def {
+  font-size: var(--sb-fs-xs);
+  line-height: 1.5;
+  color: var(--gm-ink-dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.9em;
+}
+.gm-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sb-sp-2);
+  margin-top: auto;
+}
+.gm-card-count {
+  font-size: var(--sb-fs-xs);
+  font-weight: 800;
+  color: var(--gm-cf, var(--gm-ink-dim));
+  font-variant-numeric: tabular-nums;
+}
+
+/* 领域小圆点：吃掉上面那个 `--gm-dom`（同领域同色的唯一表达位）。
+   ★ 刻意不给文字上色——浅底上五支饱和色的正文对比度都过不了 AA，点位 8px 实心才站得住。 */
+.gm-card-dom {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--sb-fs-xs);
+  color: var(--gm-ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gm-card-dom::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gm-dom, var(--gm-line));
+}
+
+/* 「还差几张」这行是 T1 预算的落地点（契约 §8）：升星**不播动画**，只把这句话改掉。
+   卡墙上 500 张卡每次聊天都重绘，任何常驻动画都会变成幻灯片。 */
+.gm-card-next {
+  font-size: var(--sb-fs-xs);
+  color: var(--gm-ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 全息角标：只给 SSR。★ 用伪元素做**位移**扫光，不 animating box-shadow / filter */
+.gm-card[data-r="SSR"]::after {
+  content: "";
+  position: absolute;
+  inset: -60% -20%;
+  background: linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, 0.7) 50%, transparent 58%);
+  transform: translateX(-60%);
+  animation: gmSheen 4.2s var(--gm-ease-inout) infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+@keyframes gmSheen {
+  0%, 62% { transform: translateX(-60%); opacity: 0; }
+  70% { opacity: 1; }
+  100% { transform: translateX(60%); opacity: 0; }
+}
+
+/* ── 星位（★0..★8）── */
+.gm-stars { display: inline-flex; align-items: center; gap: 2px; }
+.gm-stars > i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--gm-surface-sunk);
+  color: var(--gm-ink-tertiary);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.gm-stars > i.on { background: var(--gm-yellow-soft); color: var(--gm-yellow-dark); }
+.gm-stars > i svg { display: block; }
+
+/* ══════════════════════ 6. 反馈横幅（特征 5）══════════════════════════════ */
+
+.gm-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sb-sp-3);
+  padding: var(--sb-sp-3) var(--sb-sp-4);
+  border-radius: var(--gm-radius);
+  border: 2px solid transparent;
+  background: var(--gm-green-soft);
+  border-color: rgba(88, 204, 2, 0.35);
+  color: #2f6d01;
+  animation: gmRise 200ms var(--gm-ease-out) both;
+}
+.gm-banner.gm-bad { background: var(--gm-red-soft); border-color: rgba(255, 75, 75, 0.35); color: #a12020; }
+.gm-banner.gm-info { background: var(--gm-blue-soft); border-color: rgba(0, 122, 255, 0.28); color: #0a5ba8; }
+.gm-banner b { display: block; font-size: var(--sb-fs-md); font-weight: 800; }
+.gm-banner span { font-size: var(--sb-fs-sm); line-height: 1.5; }
+@keyframes gmRise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ══════════════════════ 7. 学习清单（原「学习督促」）════════════════════════ */
+
+.gm-task {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sb-sp-3);
+  padding: var(--sb-sp-3);
+  border-radius: var(--gm-radius);
+  background: var(--gm-surface);
+  border: 2px solid var(--gm-line);
+  border-bottom: 4px solid var(--gm-line);
+  transition: transform 140ms var(--gm-ease-out);
+}
+.gm-task.gm-open { border-bottom-color: var(--gm-blue); }
+.gm-task.gm-done { opacity: 0.62; border-bottom-color: var(--gm-green); }
+.gm-task.gm-done .gm-task-title { text-decoration: line-through; }
+.gm-task-title { font-size: var(--sb-fs-md); font-weight: 800; }
+.gm-task-why { font-size: var(--sb-fs-xs); color: var(--gm-ink-dim); line-height: 1.5; margin-top: 2px; }
+.gm-task-live {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--gm-green);
+  /* ★ 全文件只允许两处常驻循环：这盏"上次派单"呼吸灯，和上面的 SSR 扫光。
+       两处都只动 opacity（不走合成层的属性只有它和 opacity 还便宜）。 */
+  animation: gmBreath 2.6s var(--gm-ease-inout) infinite;
+}
+@keyframes gmBreath { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+/* 新单入列的错帧：延迟写在 CSS 里（nth-child），**不是**内联 style。
+   ★ 错帧步长 45ms、最多 4 帧 ⇒ 整段 <300ms，再长就变成"等动画播完" */
+.gm-task.entering { animation: gmTaskIn 200ms var(--gm-ease-out) both; }
+.gm-task.entering:nth-child(2) { animation-delay: 45ms; }
+.gm-task.entering:nth-child(3) { animation-delay: 90ms; }
+.gm-task.entering:nth-child(4) { animation-delay: 135ms; }
+@keyframes gmTaskIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* 三态勾选框：**纯 CSS 画的**（仓内 `terms.css:906` 那条"禁 emoji／图标字体"的规矩） */
+.gm-check {
+  flex: 0 0 auto;
+  width: 24px; height: 24px;
+  margin-top: 1px;
+  border: 2px solid var(--gm-line);
+  border-radius: 7px;
+  background: var(--gm-surface);
+  display: grid; place-items: center;
+  color: #fff;
+  transition: transform 90ms var(--gm-ease-out);
+}
+.gm-check:active { transform: scale(0.92); }
+.gm-task.gm-done .gm-check { background: var(--gm-green); border-color: var(--gm-green-dark); }
+.gm-check svg { display: block; opacity: 0; transform: scale(0.6); transition: opacity 120ms var(--gm-ease-out), transform 160ms var(--gm-ease-pop); }
+.gm-task.gm-done .gm-check svg { opacity: 1; transform: none; }
+
+/* ══════════════════════ 8. T2 · 升星爆发 ══════════════════════════════════ */
+
+/* 屏震：作用在**一个只包住卡墙/卡片的包裹层**上，绝不作用在 body——
+   给 body 加 transform 会让所有 `position: fixed`（遮罩、toast）跟着抖，那是另一类事故 */
+.gm-shake { animation: gmShake 320ms var(--gm-ease-inout) both; }
+@keyframes gmShake {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  18% { transform: translate3d(-3px, 1px, 0); }
+  36% { transform: translate3d(3px, -2px, 0); }
+  56% { transform: translate3d(-2px, 0, 0); }
+  78% { transform: translate3d(1px, 1px, 0); }
+}
+
+/* 冲击环：★ 用独立元素的 scale + opacity，**不要** animating box-shadow
+   （阴影动画每帧都要重绘模糊，是本仓踩过的那类性能坑） */
+.gm-ring {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 3px solid var(--gm-cf, var(--gm-yellow));
+  opacity: 0;
+  pointer-events: none;
+}
+.gm-burst .gm-ring { animation: gmRing 420ms var(--gm-ease-out) both; }
+@keyframes gmRing {
+  from { opacity: 0.9; transform: scale(0.4); }
+  to { opacity: 0; transform: scale(2.6); }
+}
+
+/* 粒子：12 颗，位移与透明度都在合成层上；错帧同上（nth-child，非内联） */
+.gm-spark {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 6px; height: 6px;
+  border-radius: 2px;
+  background: var(--gm-cf, var(--gm-yellow));
+  opacity: 0;
+  pointer-events: none;
+}
+.gm-burst .gm-spark { animation: gmSpark 520ms var(--gm-ease-out) both; }
+.gm-burst .gm-spark:nth-child(1) { --gm-dx: 0px;    --gm-dy: -34px; }
+.gm-burst .gm-spark:nth-child(2) { --gm-dx: 17px;   --gm-dy: -30px; animation-delay: 18ms; }
+.gm-burst .gm-spark:nth-child(3) { --gm-dx: 30px;   --gm-dy: -17px; animation-delay: 36ms; }
+.gm-burst .gm-spark:nth-child(4) { --gm-dx: 34px;   --gm-dy: 0px;   animation-delay: 54ms; }
+.gm-burst .gm-spark:nth-child(5) { --gm-dx: 30px;   --gm-dy: 17px;  animation-delay: 72ms; }
+.gm-burst .gm-spark:nth-child(6) { --gm-dx: 17px;   --gm-dy: 30px;  animation-delay: 90ms; }
+.gm-burst .gm-spark:nth-child(7) { --gm-dx: 0px;    --gm-dy: 34px;  animation-delay: 108ms; }
+.gm-burst .gm-spark:nth-child(8) { --gm-dx: -17px;  --gm-dy: 30px;  animation-delay: 126ms; }
+.gm-burst .gm-spark:nth-child(9) { --gm-dx: -30px;  --gm-dy: 17px;  animation-delay: 144ms; }
+.gm-burst .gm-spark:nth-child(10) { --gm-dx: -34px; --gm-dy: 0px;   animation-delay: 162ms; }
+.gm-burst .gm-spark:nth-child(11) { --gm-dx: -17px; --gm-dy: -30px; animation-delay: 180ms; }
+.gm-burst .gm-spark:nth-child(12) { --gm-dx: 0px;   --gm-dy: -22px; animation-delay: 198ms; }
+@keyframes gmSpark {
+  from { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  to { opacity: 0; transform: translate3d(var(--gm-dx, 0), var(--gm-dy, 0), 0) scale(0.4); }
+}
+
+/* 星位逐个点亮：延迟同样写在选择器里（★ 不是内联 style） */
+.gm-burst .gm-stars > i.on { animation: gmStarPop 260ms var(--gm-ease-pop) both; }
+.gm-burst .gm-stars > i.on:nth-child(1) { animation-delay: 40ms; }
+.gm-burst .gm-stars > i.on:nth-child(2) { animation-delay: 80ms; }
+.gm-burst .gm-stars > i.on:nth-child(3) { animation-delay: 120ms; }
+.gm-burst .gm-stars > i.on:nth-child(4) { animation-delay: 160ms; }
+.gm-burst .gm-stars > i.on:nth-child(5) { animation-delay: 200ms; }
+.gm-burst .gm-stars > i.on:nth-child(6) { animation-delay: 240ms; }
+.gm-burst .gm-stars > i.on:nth-child(n+7) { animation-delay: 280ms; }
+@keyframes gmStarPop {
+  /* ★ 从 .6 起步而不是 0：从零缩放的东西像"凭空蹦出来"，没有物体感 */
+  from { opacity: 0; transform: scale(0.6); }
+  60% { transform: scale(1.18); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ══════════════════════ 9. T3 · 开盒仪式（独立整屏面板）══════════════════ */
+
+.gm-ov {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--sb-sp-4);
+  background: rgba(20, 24, 38, 0.55);
+  animation: gmFade 200ms var(--gm-ease-out) both;
+}
+@keyframes gmFade { from { opacity: 0; } to { opacity: 1; } }
+
+.gm-ritual {
+  position: relative;
+  width: min(420px, 100%);
+  padding: var(--sb-sp-6) var(--sb-sp-5) var(--sb-sp-5);
+  border-radius: var(--sb-radius-lg);
+  background: var(--gm-surface);
+  border-bottom: 6px solid var(--gm-line);
+  text-align: center;
+  overflow: hidden;
+  isolation: isolate;
+  /* 与遮罩成对：同缓动同时长（遮罩 200ms ease-out，这里也用 200ms ease-out） */
+  animation: gmRitualIn 220ms var(--gm-ease-out) both;
+}
+@keyframes gmRitualIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: none; }
+}
+
+/* 光轮：唯一的 linear 常驻转，**且只在开盒那 1.2s 存在**（不是无限循环的装饰） */
+.gm-rays {
+  position: absolute;
+  left: 50%; top: 38%;
+  width: 620px; height: 620px;
+  margin: -310px 0 0 -310px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    var(--gm-yellow) 0 6deg, transparent 6deg 30deg,
+    var(--gm-yellow) 30deg 36deg, transparent 36deg 60deg,
+    var(--gm-yellow) 60deg 66deg, transparent 66deg 90deg,
+    var(--gm-yellow) 90deg 96deg, transparent 96deg 120deg,
+    var(--gm-yellow) 120deg 126deg, transparent 126deg 150deg,
+    var(--gm-yellow) 150deg 156deg, transparent 156deg 180deg,
+    var(--gm-yellow) 180deg 186deg, transparent 186deg 210deg,
+    var(--gm-yellow) 210deg 216deg, transparent 216deg 240deg,
+    var(--gm-yellow) 240deg 246deg, transparent 246deg 270deg,
+    var(--gm-yellow) 270deg 276deg, transparent 276deg 300deg,
+    var(--gm-yellow) 300deg 306deg, transparent 306deg 330deg,
+    var(--gm-yellow) 330deg 336deg, transparent 336deg 360deg
+  );
+  opacity: 0.16;
+  z-index: -1;
+  pointer-events: none;
+  animation: gmSpin 9s linear 1.2s both;
+}
+@keyframes gmSpin { from { transform: rotate(0deg); } to { transform: rotate(30deg); } }
+
+/* 3D 翻卡：正面=宝箱封缄，背面=抽到的词条。★ rotateY 是 transform，合规 */
+.gm-flip {
+  position: relative;
+  width: 168px; height: 216px;
+  margin: 0 auto var(--sb-sp-4);
+  perspective: 900px;
+}
+.gm-flip-in { animation: gmFlip 620ms var(--gm-ease-inout) both; transform-style: preserve-3d; }
+@keyframes gmFlip {
+  from { opacity: 0; transform: rotateY(84deg) translateZ(-40px); }
+  to { opacity: 1; transform: rotateY(0deg) translateZ(0); }
+}
+.gm-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: var(--sb-sp-2);
+  border-radius: var(--gm-radius);
+  border: 2px solid var(--gm-cfd, var(--gm-line));
+  border-bottom-width: 6px;
+  background: var(--gm-surface);
+  padding: var(--sb-sp-3);
+  backface-visibility: hidden;
+}
+.gm-face b { font-size: var(--sb-fs-lg); font-weight: 800; line-height: 1.3; }
+.gm-face span { font-size: var(--sb-fs-xs); color: var(--gm-ink-dim); line-height: 1.5; }
+/* SSR 封缄给一层很淡的呼吸金边（只动 opacity） */
+.gm-flip[data-r="SSR"] .gm-face { border-color: var(--gm-r-ssr-dark); }
+.gm-flip[data-r="SSR"] .gm-face::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: var(--gm-radius);
+  box-shadow: 0 0 0 3px rgba(255, 200, 0, 0.5);
+  animation: gmBreath 3.4s var(--gm-ease-inout) infinite;
+  pointer-events: none;
+}
+
+.gm-ritual-actions { display: flex; gap: var(--sb-sp-3); margin-top: var(--sb-sp-4); }
+.gm-ritual-actions .gm-btn { flex: 1 1 0; }
+
+/* 金柱（开盖那一束光）：从盒口长出来，scaleY 是 transform */
+.gm-beam {
+  position: absolute;
+  left: 50%; top: 12%;
+  width: 92px; height: 260px;
+  margin-left: -46px;
+  background: linear-gradient(to top, rgba(255, 200, 0, 0.85), rgba(255, 200, 0, 0));
+  filter: blur(6px);              /* ★ 6px，远低于 20px 的红线；Safari 上更贵 */
+  transform-origin: bottom center;
+  animation: gmBeam 700ms var(--gm-ease-out) both;
+  pointer-events: none;
+  z-index: -1;
+}
+@keyframes gmBeam {
+  from { opacity: 0; transform: scaleY(0.1); }
+  40% { opacity: 1; }
+  to { opacity: 0; transform: scaleY(1); }
+}
+
+/* 飞卡归位（卡墙里那张卡"落进去"）：★ T1 不做——见契约 §8 的频次判据。
+   这里只留 T2/T3 用的位移轨道，位置由 --gm-fx/--gm-fy 传入（非内联动画值）。 */
+.gm-fly {
+  position: fixed;
+  z-index: 70;
+  pointer-events: none;
+  animation: gmFly 460ms var(--gm-ease-inout) both;
+}
+@keyframes gmFly {
+  from { opacity: 0; transform: translate3d(0, 0, 0) scale(0.9); }
+  35% { opacity: 1; }
+  to { opacity: 0; transform: translate3d(var(--gm-fx, 0), var(--gm-fy, 0), 0) scale(0.5); }
+}
+
+/* ══════════════════════ 10. reduced-motion：逐条降级，不整片关 ═════════════ */
+/* ★ "reduced motion ≠ no motion"：位移/缩放/粒子/旋转全部去掉，
+     **透明度与颜色保留**——它们承担着"刚才变的是哪一张"这层信息职责，
+     整片关掉（`animation-duration: .01ms !important`）会把这条信息一起抹掉。 */
+@media (prefers-reduced-motion: reduce) {
+  .gm-btn, .gm-card, .gm-task { transition: none; }
+  .gm-card[data-r="SSR"]::after { animation: none; opacity: 0; }
+  .gm-shake { animation: none; }
+  .gm-burst .gm-spark,
+  .gm-burst .gm-ring { animation: none; opacity: 0; }
+  .gm-beam { animation: none; opacity: 0; }
+  .gm-rays { animation: none; opacity: 0.1; }
+  .gm-flip-in { animation: gmFade 200ms var(--gm-ease-out) both; }
+  .gm-burst .gm-stars > i.on { animation: gmFade 160ms var(--gm-ease-out) both; }
+  .gm-task.entering,
+  .gm-task.entering:nth-child(n) { animation: gmFade 160ms var(--gm-ease-out) both; }
+  .gm-banner { animation: gmFade 160ms var(--gm-ease-out) both; }
+  .gm-ov { animation: gmFade 140ms var(--gm-ease-out) both; }
+  .gm-fly { animation: gmFade 160ms var(--gm-ease-out) both; }
+  .gm-track > i { transition: none; }
+}

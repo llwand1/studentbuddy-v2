@@ -24,6 +24,7 @@ import { SettingsView } from '../features/settings/SettingsView';
 import { QuizBankPage } from '../features/quiz/QuizBankPage';
 import { NotesPage } from '../features/notes/NotesPage';
 import { TermsPage } from '../features/terms/TermsPage';
+import { CardsView } from '../features/game/CardsView';
 import { DailySummaryPage } from '../features/summary/DailySummaryPage';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
 import { CoachDock } from '../features/coach/CoachDock';
@@ -238,6 +239,10 @@ export function App() {
         )}
         {/* key 变化时重挂：从知识图带词进来要重新初始化搜索框（同「笔记」页的 quizId 手法） */}
         {view === 'terms' && <TermsPage key={termsKeyword} initialKeyword={termsKeyword} />}
+        {/* 卡牌页（契约 TERM-CARDS-SPEC §7）：卡墙 + 每日宝箱 + 任务清单三屏合一。
+            它自带一条 `/api/cards/stream` 订阅，所以**只在挂着时收推送**——切走即断，
+            回来靠第一次 `/state` 补齐（见 `use-cards-state.ts` 文件头 ⚠️）。 */}
+        {view === 'cards' && <CardsView />}
         {view === 'summary' && <DailySummaryPage />}
         {view === 'settings' && <SettingsView />}
       </main>

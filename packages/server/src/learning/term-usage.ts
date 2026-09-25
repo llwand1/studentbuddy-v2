@@ -19,6 +19,7 @@
 import { textHitsKey } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
+import { announceCards } from './card-announce.js';
 import { recordMentions } from './mention.js';
 import { parseAliases, type TermRow } from './terms.js';
 
@@ -66,5 +67,8 @@ export function countUsage(
     );
   });
   tx();
+  // ★ 事务**之后**推一帧卡数（契约 `TERM-CARDS-SPEC` §7.2 的 T1）：事务内推会让"帧已发出、
+  //   流水回滚"成为可能，而这条帧的全部用途就是让卡墙对上库里的数。
+  announceCards(ownerId, hits.map((r) => r.id));
   return hits.length;
 }

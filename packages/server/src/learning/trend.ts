@@ -25,6 +25,7 @@ import { publish } from '../chat/sse-bus.js';
 import { refreshTermDigest } from '../chat/memory-digest.js';
 import { MENTION_WINDOW_DAYS, mentionTrend, shortDayLabel, type MentionTrend } from './mention.js';
 import { appendCard, lastTrendDayKey, resolveCoachTarget } from './coach.js';
+import { runGameTick } from './game-tick.js';
 import type { ChatMessage } from '../llm/types.js';
 
 /** 趋势窗口（天）。与流水窗口同源——两个数一旦各写一份，图上标的天数就会跟曲线对不上 */
@@ -257,6 +258,16 @@ export function startTrendScheduler(opts: { intervalMs?: number } = {}): ReturnT
         /* 吞掉：见上 */
       }
       void generateTrendCard({ ownerId }).catch(() => undefined);
+    }
+    // ★ 卡牌侧的三件主动事（派单／对账／提醒开箱）挂在**同一个 tick** 上：契约
+    //   `TERM-CARDS-SPEC` §5 点名"不新建调度器"。★ 放在 owner 循环**外面**是有意的——
+    //   `runGameTick` 自己按 `term_library` 遍历 owner，那一份 owner 名单与这里的
+    //   `trendOwners()`（按提及流水）**不是同一批人**：只存了词、还没聊过天的新用户在这里，
+    //   循环里那个 list 会把他漏掉（契约 §0 的立项理由正是"新用户从没被产品主动找过"）。
+    try {
+      runGameTick();
+    } catch {
+      /* 吞掉：与本文件那两条同判据——一条链坏不该连坐其余链 */
     }
   };
   tick();

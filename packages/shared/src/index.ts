@@ -22,6 +22,8 @@ export * from './ebbinghaus.js';
 export * from './review-goal.js';
 export * from './term-highlight.js';
 export * from './coach.js';
+export * from './term-cards.js';
+export * from './chest-pool.js';
 export * from './tool-ecosystem.js';
 export * from './fts.js';
 export * from './chat-limits.js';

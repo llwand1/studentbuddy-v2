@@ -12,8 +12,9 @@ import {
   StatsIcon,
   SettingsIcon,
 } from '../components/icons';
+import { SparkleIcon } from '../components/game-icons';
 
-export type View = 'chat' | 'quiz' | 'notes' | 'terms' | 'summary' | 'settings';
+export type View = 'chat' | 'quiz' | 'notes' | 'terms' | 'cards' | 'summary' | 'settings';
 
 /**
  * 侧栏功能列表（顺序 = 用户的主线动线）。
@@ -23,6 +24,13 @@ export type View = 'chat' | 'quiz' | 'notes' | 'terms' | 'summary' | 'settings';
  *
  * 为什么要有这一项（2026-09-13 老板实测）：「对战出题」原先只有 `#/pk` 这个手输地址，
  * 前端任何地方都点不到——功能在、入口不在，等于用户以为它不存在。
+ *
+ * ★ 2026-09-25 新增「卡牌」（`cards`，契约 TERM-CARDS-SPEC §7）：卡墙／每日宝箱／任务清单
+ *   三屏合一的入口，紧挨「词条」放——那两屏看的是**同一批词条**，一个按领域列表、一个按卡牌陈列。
+ *   图标取游戏集的 `SparkleIcon`（`game-icons.tsx` 文件头的分工：产品分区归 `icons.tsx`、
+ *   游戏物件归这里）。
+ * ⚠️ 这一项**不挂待办数徽标**：清单读数住在 `CardsView` 自己的那条 SSE 订阅里，页没挂载就没有数。
+ *   要在侧栏常显得先把 `/api/cards/state` 提到全局壳——那是另一件事，写在这里是为了别把它当坏了。
  */
 export type NavKey = View | 'pk';
 
@@ -31,6 +39,7 @@ export const NAV: Array<{ key: NavKey; label: string; icon: typeof QuizIcon }> =
   { key: 'pk', label: '对战', icon: VsIcon },
   { key: 'notes', label: '笔记', icon: NoteIcon },
   { key: 'terms', label: '词条', icon: CardsIcon },
+  { key: 'cards', label: '卡牌', icon: SparkleIcon },
   { key: 'summary', label: '今日总结', icon: StatsIcon },
   { key: 'settings', label: '设置', icon: SettingsIcon },
 ];

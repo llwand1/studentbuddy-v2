@@ -15,36 +15,10 @@
  *     「看到的就是自己全部历史」没有被破坏（契约 §9 第 5 条）。
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { AUTH_COOKIE_NAME } from '@sb/shared';
+import { boot } from '../testing/http.js';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-routes-quiz-tcy-'));
-const { app } = await import('../index.js');
-const { getDb, closeDb } = await import('../storage/db.js');
-const { createUser } = await import('../auth/users.js');
-const { createSession: issueSession } = await import('../auth/session.js');
+const { getDb, closeDb, signUp, req } = await boot('routes-quiz-tcy');
 const { saveQuiz } = await import('../learning/quiz.js');
-const request = (await import('supertest')).default;
-
-const origin = 'http://localhost:5173';
-
-async function signUp(email: string): Promise<{ cookie: string; id: string }> {
-  const user = await createUser(email, 'good-password-1', undefined);
-  const { token } = issueSession(user.id);
-  return { cookie: `${AUTH_COOKIE_NAME}=${token}`, id: user.id };
-}
-
-const req = {
-  get: (url: string, cookie = '') => {
-    const r = request(app).get(url).set('Origin', origin);
-    return cookie ? r.set('Cookie', cookie) : r;
-  },
-  post: (url: string, cookie: string, body: unknown) =>
-    request(app).post(url).set('Origin', origin).set('Cookie', cookie).send(body as object),
-  delete: (url: string, cookie: string) => request(app).delete(url).set('Origin', origin).set('Cookie', cookie),
-};
 
 const { cookie: cookieA, id: idA } = await signUp('qa@example.com');
 const { cookie: cookieB } = await signUp('qb@example.com');

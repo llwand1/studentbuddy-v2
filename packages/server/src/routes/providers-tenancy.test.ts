@@ -12,29 +12,17 @@
  *   免费通道上；但**不可改**，否则回到"能改所有人的"。这两句的边界正是本文件的重点。
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { AUTH_COOKIE_NAME } from '@sb/shared';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-routes-providers-'));
-const { app } = await import('../index.js');
-const { getDb, closeDb } = await import('../storage/db.js');
+const { app, request, getDb, closeDb, signUp } = await boot('routes-providers');
 const { resetRateLimits } = await import('../auth/rate-limit.js');
-const { resetAuthCaches, createUser } = await import('../auth/users.js');
-const { createSession: issueSession } = await import('../auth/session.js');
+const { resetAuthCaches } = await import('../auth/users.js');
 const { seedIfEmpty } = await import('../llm/router.js');
 const { MODEL_ROLES, roleReady } = await import('../llm/router.js');
-const request = (await import('supertest')).default;
 
-const origin = 'http://localhost:5173';
+const origin = TEST_ORIGIN;
 const PLATFORM_PROVIDER = 'openai-default'; // 种子平台 provider（owner_id = NULL）
-
-async function signUp(email: string): Promise<string> {
-  const user = await createUser(email, 'good-password-1', undefined);
-  const { token } = issueSession(user.id);
-  return `${AUTH_COOKIE_NAME}=${token}`;
-}
 
 /** 用某个账号建一个自有 provider，返回 id。 */
 async function addProvider(cookie: string, name: string): Promise<string> {
@@ -80,8 +68,8 @@ beforeEach(() => {
   seedIfEmpty(); // 平台 provider + 各角色的平台绑定（幂等）
 });
 
-cookieA = await signUp('alice@example.com');
-cookieB = await signUp('bob@example.com');
+cookieA = (await signUp('alice@example.com')).cookie;
+cookieB = (await signUp('bob@example.com')).cookie;
 
 afterAll(() => {
   closeDb();

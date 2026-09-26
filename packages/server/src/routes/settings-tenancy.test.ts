@@ -19,50 +19,24 @@
  *      豁免过滤会返回**任意一行**（静默串台）——见 `auth/ownership.ts#ownerForWrite` 的推演。
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { AUTH_COOKIE_NAME, DEFAULT_QUIZ_MIX, DEFAULT_ANSWER_STYLE, localDayKey } from '@sb/shared';
+import { DEFAULT_QUIZ_MIX, DEFAULT_ANSWER_STYLE, localDayKey } from '@sb/shared';
+import { boot } from '../testing/http.js';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-routes-settings-'));
-const { app } = await import('../index.js');
-const { getDb, closeDb } = await import('../storage/db.js');
+const { getDb, closeDb, signUp, req } = await boot('routes-settings');
 const { resetRateLimits } = await import('../auth/rate-limit.js');
-const { resetAuthCaches, createUser } = await import('../auth/users.js');
-const { createSession: issueSession } = await import('../auth/session.js');
+const { resetAuthCaches } = await import('../auth/users.js');
 const { wireActivityEvents } = await import('../learning/activity.js');
 const { publishEvent } = await import('../events/bus.js');
-const request = (await import('supertest')).default;
 
 // ★ 事件订阅只在"直接运行 index.ts"时自动接线（见 index.ts 末尾的 `process.argv[1]` 判断）
 //   ⇒ 测试里必须自己接一次。`wireActivityEvents` 是模块单例、幂等，重复调用无害。
 wireActivityEvents();
 
-const origin = 'http://localhost:5173';
-
-async function signUp(email: string): Promise<string> {
-  const user = await createUser(email, 'good-password-1', undefined);
-  const { token } = issueSession(user.id);
-  return `${AUTH_COOKIE_NAME}=${token}`;
-}
-
-/** 三个薄助手（不写成 `req(method, …)`：动态取方法会让 TS 丢掉 `Test` 类型，`.body` 就没法断言了） */
-const req = {
-  get: (url: string, cookie = '') => {
-    const r = request(app).get(url).set('Origin', origin);
-    return cookie ? r.set('Cookie', cookie) : r;
-  },
-  put: (url: string, cookie: string, body: unknown) =>
-    request(app).put(url).set('Origin', origin).set('Cookie', cookie).send(body as object),
-  delete: (url: string, cookie: string) =>
-    request(app).delete(url).set('Origin', origin).set('Cookie', cookie),
-};
-
 // ★ 两个账号只在**模块加载时**建一次：`users` 表不在 `beforeEach` 的清理范围内（清了会连带
 //   清掉会话），若每个用例都重新 `createUser` 同一个邮箱，第二次起就撞 `EMAIL_TAKEN`
 //   ——那会把 9 个用例一起变成"没跑起来"，红得毫无信息量。
-const cookieA = await signUp('a@example.com');
-const cookieB = await signUp('b@example.com');
+const { cookie: cookieA } = await signUp('a@example.com');
+const { cookie: cookieB } = await signUp('b@example.com');
 
 beforeEach(() => {
   resetRateLimits();

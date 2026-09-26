@@ -18,44 +18,17 @@
  *      而**删域迁 general 只迁自己那份**——迁到别人的 `general` 比不迁更糟（数据串台）。
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { AUTH_COOKIE_NAME } from '@sb/shared';
+import { boot } from '../testing/http.js';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-routes-terms-'));
-const { app } = await import('../index.js');
-const { getDb, closeDb } = await import('../storage/db.js');
+const { getDb, closeDb, signUp, req } = await boot('routes-terms');
 const { resetRateLimits } = await import('../auth/rate-limit.js');
-const { resetAuthCaches, createUser } = await import('../auth/users.js');
-const { createSession: issueSession } = await import('../auth/session.js');
-const request = (await import('supertest')).default;
-
-const origin = 'http://localhost:5173';
-
-async function signUp(email: string): Promise<string> {
-  const user = await createUser(email, 'good-password-1', undefined);
-  const { token } = issueSession(user.id);
-  return `${AUTH_COOKIE_NAME}=${token}`;
-}
-
-const req = {
-  get: (url: string, cookie = '') => {
-    const r = request(app).get(url).set('Origin', origin);
-    return cookie ? r.set('Cookie', cookie) : r;
-  },
-  post: (url: string, cookie: string, body: unknown) =>
-    request(app).post(url).set('Origin', origin).set('Cookie', cookie).send(body as object),
-  put: (url: string, cookie: string, body: unknown) =>
-    request(app).put(url).set('Origin', origin).set('Cookie', cookie).send(body as object),
-  delete: (url: string, cookie: string) =>
-    request(app).delete(url).set('Origin', origin).set('Cookie', cookie),
-};
+const { resetAuthCaches } = await import('../auth/users.js');
 
 // ★ 两个账号只在**模块加载时**建一次（同 settings-tenancy 的理由：`users` 表不在清理范围内，
 //   每个用例重跑 `createUser` 同一邮箱会撞 `EMAIL_TAKEN`，把全部用例变成"没跑起来"）。
-const cookieA = await signUp('ta@example.com');
-const cookieB = await signUp('tb@example.com');
+const { cookie: cookieA } = await signUp('ta@example.com');
+const { cookie: cookieB } = await signUp('tb@example.com');
+
 let idA = '';
 let idB = '';
 {

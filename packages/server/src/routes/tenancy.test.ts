@@ -12,40 +12,19 @@
  *  · 未登录请求维持本地单人旧行为（不加过滤），不回归老板平时的本地用法。
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { AUTH_COOKIE_NAME } from '@sb/shared';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-routes-tenancy-'));
-const { app } = await import('../index.js');
-const { getDb, closeDb } = await import('../storage/db.js');
+const { app, request, getDb, closeDb, signUp } = await boot('routes-tenancy');
 const { resetRateLimits } = await import('../auth/rate-limit.js');
-const { resetAuthCaches, createUser } = await import('../auth/users.js');
-const { createSession: issueSession } = await import('../auth/session.js');
+const { resetAuthCaches } = await import('../auth/users.js');
 const { upsertMemoryItems } = await import('../chat/memory.js');
 const { wireObsEvents } = await import('../storage/obs.js');
 const { publishEvent } = await import('../events/bus.js');
-const request = (await import('supertest')).default;
 
-const origin = 'http://localhost:5173';
+const origin = TEST_ORIGIN;
 
-/**
- * 建一个账号并取出会话 cookie（`register` 直接下发登录态，见 AUTH-SPEC §2）。
- *
- * ★ 本文件**不借道注册端点**（`POST /api/auth/register` 自 2026-09-22 起免验证码，契约 §2.7 作废；
- *   但那条路仍要吃 `register-limit.ts` 的 5/小时 IP 名额）。本文件主体是**数据归属隔离**、
- *   不是注册流程 ⇒ 夹具直接落在**账号 + 会话**这两层。两条理由：
- *     ① 省掉一次发信打桩（登录码只能从邮件里拿）；
- *     ② **不吃注册的限流名额**——上限只有 5/小时，而测试全走同一个出口 IP，
- *        借道注册会让「注册阈值一改，本文件跟着红」。
- *   注册端点本身的端到端覆盖在 `routes/auth.test.ts`。
- */
-async function signUp(email: string): Promise<string> {
-  const user = await createUser(email, 'good-password-1', undefined);
-  const { token } = issueSession(user.id);
-  return `${AUTH_COOKIE_NAME}=${token}`;
-}
+// ★ 本文件**不借道注册端点**（`POST /api/auth/register` 仍吃 5/小时 IP 名额，而测试全走同一个
+//   出口 IP）——这条夹具口径连同推演已随 `signUp` 移到 `testing/http.ts` 头注第 4 条。
 
 /** 建一个属于自己的会话，返回 id。 */
 async function createSession(cookie: string): Promise<string> {
@@ -67,8 +46,8 @@ beforeEach(async () => {
 });
 
 // 两个账号只需建一次（注册有按邮箱 UNIQUE 限制，重复注册会 409）
-cookieA = await signUp('alice@example.com');
-cookieB = await signUp('bob@example.com');
+cookieA = (await signUp('alice@example.com')).cookie;
+cookieB = (await signUp('bob@example.com')).cookie;
 sessA = await createSession(cookieA);
 
 // 画像归属要用真实的 users.id 落库，故先取一次（A 的 cookie 全程复用）

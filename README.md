@@ -117,12 +117,12 @@ node tools/metrics.mjs --tests --check
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-213%20files%20%2F%202864%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-213%20files%20%2F%202887%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-129-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-133%20types-8a63f6)
+![contracts](https://img.shields.io/badge/shared%20contracts-136%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 
-测试基线：**213 文件 / 2864 例**（2863 passed + 1 skipped + 0 failed）。指标由 `tools/metrics.mjs` 核对，详情见[工程指标](docs/metrics.md)与[测试计划](docs/dev/test-plan.md)。
+测试基线：**213 文件 / 2887 例**（2886 passed + 1 skipped + 0 failed）。指标由 `tools/metrics.mjs` 核对，详情见[工程指标](docs/metrics.md)与[测试计划](docs/dev/test-plan.md)。
 
 `v0.2.x` 表示对外发布的构建版本；`package.json` 中的 `2.0.0-alpha.0` 表示 v2 产品开发线。查看线上变化请以公开更新记录和 GitHub Releases 为准。
 

@@ -20,12 +20,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, type ChestDraw, type ChestState } from '../../lib/api';
 import { asChestOpenFailure } from '../../lib/api-cards';
 import { DAILY_OPEN_CAP, FREE_OPENS_PER_DAY, rarityOf, starOf } from '@sb/shared';
-import { ChestIcon, KeyIcon, LockIcon, StarIcon } from '../../components/game-icons';
+import { ChestIcon, KeyIcon, LockIcon } from '../../components/game-icons';
 import '../../styles/game.css';
 import './cards-view.css';
 
 /** 开盖 → 翻卡的分镜：光束 700ms、翻卡 620ms，取"光起大半再翻"这一档 */
 const REVEAL_MS = 520;
+
+/** 亮卡那一刻的像素养份颗数：与 `game.css` 的 `.gm-confetti > i:nth-child(1..16)` 一一对应，
+ *  ★ **两处必须同改**（同 `CardWall.tsx` 的 `SPARKS` 那条耦合，锁见 `card-motion.test.ts`）。
+ *  16 是上限而不是起点——它们只在 T3 这一屏同时存在，且**放一次就不播**（不是循环），
+ *  所以这条屏的合成层峰值是 16，不是"墙上每张卡各来一条"。 */
+const CONFETTI = 16;
 
 /**
  * 收下之后这张卡的**真实**读数：1 张建卡 + 1 张宝箱收下 = 2 张 ⇒ ★1、R 档
@@ -65,7 +71,7 @@ function RitualOverlay({
         {phase === 'lid' ? (
           <div className="gm-flip">
             <div className="gm-flip-in gm-face">
-              <ChestIcon size={44} />
+              <ChestIcon size={48} />
               <b>开盖中</b>
               <span>先别眨眼</span>
             </div>
@@ -78,13 +84,19 @@ function RitualOverlay({
               <span>{draw.definition}</span>
               <span className="gm-stars" aria-label={`收下后 ${star} 星`}>
                 {Array.from({ length: star }, (_, i) => (
-                  <i key={i} className="on">
-                    <StarIcon size={9} fill="currentColor" />
-                  </i>
+                  <i key={i} className="on" />
                 ))}
               </span>
             </div>
           </div>
+        )}
+
+        {phase === 'reveal' && (
+          <span className="gm-confetti" aria-hidden="true">
+            {Array.from({ length: CONFETTI }, (_, i) => (
+              <i key={i} />
+            ))}
+          </span>
         )}
 
         {phase === 'reveal' && (
@@ -202,7 +214,7 @@ export function ChestPanel({
         </div>
         <div className="cv-chest-actions">
           <span className="gm-stat gm-key">
-            <KeyIcon size={15} /> {chest.earnedKeys}
+            <KeyIcon size={16} /> {chest.earnedKeys}
           </span>
           {pendingAgain ? (
             <button type="button" className="gm-btn gm-warn" onClick={() => setDraw(chest.pending)}>

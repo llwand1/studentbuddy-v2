@@ -1,54 +1,54 @@
 {
-  "generatedAt": "2026-09-25T06:42:09.998Z",
+  "generatedAt": "2026-09-26T06:19:05.314Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
-        "srcFiles": 28,
-        "testFiles": 18,
-        "srcLines": 4127,
-        "testLines": 2251
+        "srcFiles": 30,
+        "testFiles": 19,
+        "srcLines": 4483,
+        "testLines": 2425
       },
       {
         "pkg": "server",
-        "srcFiles": 166,
-        "testFiles": 120,
-        "srcLines": 25881,
-        "testLines": 26140
+        "srcFiles": 177,
+        "testFiles": 128,
+        "srcLines": 27465,
+        "testLines": 27568
       },
       {
         "pkg": "web",
-        "srcFiles": 185,
-        "testFiles": 69,
-        "srcLines": 23642,
-        "testLines": 9973
+        "srcFiles": 193,
+        "testFiles": 72,
+        "srcLines": 25204,
+        "testLines": 10657
       }
     ],
-    "srcFiles": 379,
-    "testFiles": 207,
-    "srcLines": 53650,
-    "testLines": 38364,
+    "srcFiles": 400,
+    "testFiles": 219,
+    "srcLines": 57152,
+    "testLines": 40650,
     "tsxTestFiles": 23
   },
   "routes": {
-    "total": 134,
+    "total": 142,
     "byMethod": {
-      "get": 58,
-      "post": 48,
+      "get": 62,
+      "post": 52,
       "delete": 13,
       "put": 14,
       "patch": 1
     },
-    "apiMounts": 27
+    "apiMounts": 28
   },
   "contracts": {
-    "iface": 86,
-    "type": 47,
-    "total": 133
+    "iface": 88,
+    "type": 48,
+    "total": 136
   },
   "migrations": {
-    "count": 44,
-    "max": 44,
+    "count": 45,
+    "max": 45,
     "gaps": 0
   },
   "deps": {
@@ -80,89 +80,56 @@
     ]
   },
   "docs": {
-    "specs": 31,
-    "all": 44,
+    "specs": 32,
+    "all": 45,
     "dev": 5,
-    "probes": 14
+    "probes": 16
   },
   "repo": {
-    "head": "594597e",
+    "head": "f503469",
     "headDate": "2026-09-25",
-    "commitsLast14d": 199,
-    "branch": "main",
+    "commitsLast14d": 218,
+    "branch": "feat/term-cards-game",
     "dirtyFiles": 12
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 26,
+    "wallSec": 56.2,
     "staleDays": 0,
-    "files": 207,
-    "cases": 2810,
-    "passed": 2809,
+    "files": 219,
+    "cases": 2944,
+    "passed": 2941,
     "skipped": 1,
-    "failed": 0,
-    "success": true
+    "failed": 2,
+    "success": false
   },
   "coverage": {
-    "available": true,
-    "staleDays": 5,
-    "perPkg": {
-      "shared": {
-        "lines": 99.3,
-        "branches": 91.2,
-        "stmts": 99.3,
-        "funcs": 100
-      },
-      "server": {
-        "lines": 88.9,
-        "branches": 83,
-        "stmts": 88.9,
-        "funcs": 93.1
-      },
-      "web": {
-        "lines": 43.9,
-        "branches": 83.7,
-        "stmts": 43.9,
-        "funcs": 60.2
-      }
-    },
-    "allPackages": {
-      "lines": 67.7,
-      "branches": 83.8,
-      "stmts": 67.7,
-      "funcs": 78.7
-    },
-    "repoTotal": {
-      "lines": 53.9,
-      "branches": 83.4,
-      "stmts": 53.9,
-      "funcs": 76.7
-    }
+    "available": false
   },
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "206",
-      "measured": "207",
+      "claimed": "218",
+      "measured": "219",
       "ok": false
     },
     {
       "label": "badge 测试用例",
-      "claimed": "2799",
-      "measured": "2810",
+      "claimed": "2933",
+      "measured": "2944",
       "ok": false
     },
     {
       "label": "badge REST 路由",
-      "claimed": "134",
-      "measured": "134",
+      "claimed": "142",
+      "measured": "142",
       "ok": true
     },
     {
       "label": "badge 契约类型",
-      "claimed": "133",
-      "measured": "133",
+      "claimed": "136",
+      "measured": "136",
       "ok": true
     },
     {
@@ -191,26 +158,26 @@
     },
     {
       "label": "正文 passed 口径",
-      "claimed": "2798 passed + 1 skipped + 0 failed",
-      "measured": "2809 passed + 1 skipped + 0 failed",
+      "claimed": "2932 passed + 1 skipped + 0 failed",
+      "measured": "2941 passed + 1 skipped + 2 failed",
       "ok": false
     },
     {
       "label": "正文 passed 口径",
-      "claimed": "2798 passed + 1 skipped + 0 failed",
-      "measured": "2809 passed + 1 skipped + 0 failed",
+      "claimed": "2932 passed + 1 skipped + 0 failed",
+      "measured": "2941 passed + 1 skipped + 2 failed",
       "ok": false
     },
     {
       "label": "正文基线句",
-      "claimed": "206 文件 / 2799 例",
-      "measured": "207 文件 / 2810 例",
+      "claimed": "218 文件 / 2933 例",
+      "measured": "219 文件 / 2944 例",
       "ok": false
     },
     {
       "label": "正文基线句",
-      "claimed": "206 文件 / 2799 例",
-      "measured": "207 文件 / 2810 例",
+      "claimed": "218 文件 / 2933 例",
+      "measured": "219 文件 / 2944 例",
       "ok": false
     }
   ],

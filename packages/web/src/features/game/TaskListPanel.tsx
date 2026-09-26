@@ -99,7 +99,7 @@ export function TaskListPanel({
         <div className="cv-wall-title">
           <span className="gm-eyebrow">Quests</span>
           <h2 className="cv-h2">
-            <TaskIcon size={20} /> 任务清单 {open.length} 单待办
+            <TaskIcon size={24} /> 任务清单 {open.length} 单待办
           </h2>
         </div>
         {done.length > 0 && (
@@ -111,7 +111,7 @@ export function TaskListPanel({
 
       {banner && (
         <div className={`gm-banner${banner.kind === 'bad' ? ' gm-bad' : banner.kind === 'info' ? ' gm-info' : ''}`} role="status">
-          <SparkleIcon size={20} />
+          <SparkleIcon size={24} />
           <div>
             <b>{banner.title}</b>
             <span>{banner.body}</span>
@@ -121,7 +121,7 @@ export function TaskListPanel({
 
       {open.length === 0 && (
         <p className="cv-empty">
-          <TaskIcon size={20} /> 现在没有待办单。清单每几小时自动重排一次——进度够了、有词凉下来了、或宝箱快空了，都会派新单进来。
+          <TaskIcon size={24} /> 现在没有待办单。清单每几小时自动重排一次——进度够了、有词凉下来了、或宝箱快空了，都会派新单进来。
         </p>
       )}
 
@@ -173,7 +173,7 @@ export function TaskListPanel({
                 {c.aliases.length > 0 ? ` · 别名 ${c.aliases.length} 个` : ''}
               </p>
               <span className="cv-cand-flag">
-                <SparkleIcon size={13} /> AI 生成，待人工校对
+                <SparkleIcon size={16} /> AI 生成，待人工校对
               </span>
             </div>
             <div className="cv-task-actions">

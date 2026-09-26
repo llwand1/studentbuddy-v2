@@ -19,6 +19,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CardWallRow } from '../../lib/api-cards';
 import { StarIcon, SparkleIcon, MascotIcon } from '../../components/game-icons';
+import { useInViewIds } from './use-in-view';
 import '../../styles/game.css';
 import './cards-view.css';
 
@@ -65,20 +66,27 @@ function Stars({ n }: { n: number }) {
     <span className="gm-stars" aria-label={`${n} 星`}>
       {Array.from({ length: n }, (_, i) => (
         // key 用序号：这一串是纯装饰的槽位，不随数据增删重排（升星时整串重画，不需要稳定身份）
-        <i key={i} className="on">
-          <StarIcon size={9} fill="currentColor" />
-        </i>
+        // ★ 槽内**不放图标**：像素星最小可读尺寸是 16px（8 格 × 2 物理像素），而这一排八颗
+        //   和「N 张」共用 `.gm-card-foot` 那一条 140px 内宽——塞得下就没有像素感，塞不下就被
+        //   `.gm-card` 的 `overflow: hidden` 裁掉。宝石形状改由 CSS 的 4px 阶梯 `clip-path` 画。
+        <i key={i} className="on" />
       ))}
     </span>
   );
 }
 
-function Card({ row, bursting }: { row: CardWallRow; bursting: boolean }) {
+/** 进度轨的档位色：轨道本身只表示"这一段走了几成"，颜色跟着稀有度走（`game.css` §4） */
+function trackClass(rarity: CardWallRow['card']['rarity']): string {
+  return rarity === 'SSR' ? 'gm-epic' : rarity === 'SR' ? 'gm-rare' : rarity === 'R' ? 'gm-blue' : '';
+}
+
+function Card({ row, bursting, seen }: { row: CardWallRow; bursting: boolean; seen: boolean }) {
   const c = row.card;
   return (
     <article
-      className={`cv-card gm-card ${domClass(row.domIndex)}${bursting ? ' gm-burst' : ''}`}
+      className={`cv-card gm-card ${domClass(row.domIndex)}${bursting ? ' gm-burst' : ''}${seen ? ' gm-seen' : ''}`}
       data-r={c.rarity}
+      data-tid={row.termId}
     >
       <h3 className="gm-card-name" title={row.term}>
         {row.term}
@@ -89,20 +97,33 @@ function Card({ row, bursting }: { row: CardWallRow; bursting: boolean }) {
       </span>
       <div className="gm-card-foot">
         <span className="gm-card-count">{c.cards} 张</span>
-        {bursting ? <Stars n={c.star} /> : <span className="cv-starline"><StarIcon size={12} fill="currentColor" />{c.star}</span>}
+        {bursting ? <Stars n={c.star} /> : <span className="cv-starline"><StarIcon size={16} fill="currentColor" />{c.star}</span>}
       </div>
       {/* T1 的落点：升星之外的一切变化就是这一行字换个数，不动画 */}
       <span className="gm-card-next">
         {c.progress.needed === null ? '已满星' : `差 ${c.progress.needed} 张到 ★${c.progress.nextStar}`}
       </span>
+      {/* ★ 像素进度轨：`pct` 是**服务端**算的"当前星→下一星这一段已完成比例"（0～1，
+          `shared/term-cards.ts:nextStarProgress`），这里只做单位换算、不再算一遍——
+          自己算一份就是"面板说走完 80%、卡墙说差 2 张"的开端。
+          ⚠️ `.gm-track` 这条样式在 2026-09-25 首版是**写了没有调用点**的死规则（本批现查
+          全仓 `*.tsx` 命中 0 处），接上它才第一次真的被画出来；见 `bug-ledger.md`。 */}
+      <i className={`gm-track gm-px ${trackClass(c.rarity)}`} aria-hidden="true">
+        {/* gates:style-ok 数据驱动宽度走 CSS 变量（非硬编码样式） */}
+        <i style={{ ['--gm-w' as string]: `${Math.round(c.progress.pct * 100)}%` }} />
+      </i>
       {/* 粒子与冲击环只在 burst 帧挂载：常驻的话就是 500 张 × 17 个合成层元素。
           ★ 粒子必须在**自己的容器**里数 `nth-child`：`game.css` 的 16 条错帧键在
             `.gm-burst .gm-spark:nth-child(1..16)` 上，环和粒子做兄弟的话粒子会从
             `nth-child(2)` 起算——整圈延迟错一位，几何看着没坏但节奏是歪的。
-            容器用 `display: contents`，不占 flex 槽、不挤 gap。 */}
+            容器用 `display: contents`，不占 flex 槽、不挤 gap。
+          ★ 二段环与卡面白闪也是**独立元素**，不占伪元素：`::before` 已经给了 SR 的像素扫描线，
+            `::after` 给了 SSR 的柔扫光，再挤一处三种档位在一张卡上互相覆盖。 */}
       {bursting && (
         <>
           <i className="gm-ring" aria-hidden="true" />
+          <i className="gm-ring gm-ring-2" aria-hidden="true" />
+          <i className="gm-flash" aria-hidden="true" />
           <span className="cv-sparks gm-burst" aria-hidden="true">
             {Array.from({ length: SPARKS }, (_, i) => (
               <i key={i} className="gm-spark" />
@@ -136,6 +157,16 @@ export function CardWall({ rows, logSince }: { rows: CardWallRow[]; logSince: st
     );
   }, [rows, domain, kw, sortBy]);
 
+  // ★ 扫描线只给 SR／SSR，且只给**此刻看得见的那几张**：SR 门槛是 8 张卡，一个用满两周的库里
+  //   几十张 SR 很常见，常驻动画＝几十条合成层同时跑（`use-in-view.ts` 文件头那条红线）。
+  //   观察器只登记这几张，N／R 不进集合，所以滚动时的回调量与墙上总张数无关。
+  const wallRef = useRef<HTMLDivElement | null>(null);
+  const highIds = useMemo(
+    () => shown.filter((r) => r.card.rarity === 'SR' || r.card.rarity === 'SSR').map((r) => r.termId),
+    [shown],
+  );
+  const seenIds = useInViewIds(wallRef, highIds);
+
   return (
     <section className="cv-wall">
       <div className="cv-wall-head">
@@ -145,7 +176,7 @@ export function CardWall({ rows, logSince }: { rows: CardWallRow[]; logSince: st
               原来写「卡墙 N 张」，而顶栏 `StatsBar` 的「张卡」是 Σ卡数（`CardsView.tsx:41`），
               两个「张」口径不同、还都在同一屏里 ⇒ 读起来像算错了。量词换成「条」。 */}
           <h2 className="cv-h2">
-            <SparkleIcon size={20} /> 卡墙 {rows.length} 条
+            <SparkleIcon size={24} /> 卡墙 {rows.length} 条
           </h2>
           {/* 契约 §7.4：口径 1（`usage_count` 含建表前的历史）必然让"提及 20 次、卡数 8 张"成为
               正常现象。这句话不是装饰——不说，用户读到的是"少算了 12 张"。 */}
@@ -193,15 +224,15 @@ export function CardWall({ rows, logSince }: { rows: CardWallRow[]; logSince: st
 
       {shown.length === 0 ? (
         <p className="cv-empty">
-          <MascotIcon size={22} /> {rows.length === 0 ? '库里还没有词条——先去对话或词条库收几个词。' : '这个筛选条件下没有词条。'}
+          <MascotIcon size={24} /> {rows.length === 0 ? '库里还没有词条——先去对话或词条库收几个词。' : '这个筛选条件下没有词条。'}
         </p>
       ) : (
         // ★ `gm-shake` 挂在这个**只包住墙**的包裹层上，绝不挂 body：给 body 加 transform
         //   会让所有 `position: fixed`（开盒遮罩、toast）跟着抖，那是另一类事故。
-        <div className={`cv-wall-shift${bursting.length ? ' gm-shake' : ''}`}>
+        <div ref={wallRef} className={`cv-wall-shift${bursting.length ? ' gm-shake' : ''}`}>
           <div className="gm-wall">
             {shown.map((r) => (
-              <Card key={r.termId} row={r} bursting={burstSet.has(r.termId)} />
+              <Card key={r.termId} row={r} bursting={burstSet.has(r.termId)} seen={seenIds.has(r.termId)} />
             ))}
           </div>
         </div>

@@ -9,8 +9,7 @@
  * ⚠️ `data === null` 与「读到了但库里空着」是两件事，各画一屏（前者是"没读到"，要给了重试；
  *   后者才是真的空态）——把失败画成空态，用户会以为自己的数据没了。
  */
-import { SparkleIcon, MascotIcon, StarIcon, TaskIcon, KeyIcon } from '../../components/game-icons';
-import { CardsIcon } from '../../components/icons';
+import { SparkleIcon, MascotIcon, StarIcon, TaskIcon, KeyIcon, DeckIcon } from '../../components/game-icons';
 import { useCardsState } from './use-cards-state';
 import { CardWall } from './CardWall';
 import { TaskListPanel } from './TaskListPanel';
@@ -35,19 +34,19 @@ function StatsBar({
   return (
     <div className="cv-stats">
       <span className="gm-stat">
-        <CardsIcon size={15} /> {totalTerms} <small>条词条</small>
+        <DeckIcon size={16} /> {totalTerms} <small>条词条</small>
       </span>
       <span className="gm-stat">
-        <StarIcon size={15} /> {totalCards} <small>张卡</small>
+        <StarIcon size={16} /> {totalCards} <small>张卡</small>
       </span>
       <span className="gm-stat">
-        <SparkleIcon size={15} /> {ssr} <small>SSR</small>
+        <SparkleIcon size={16} /> {ssr} <small>SSR</small>
       </span>
       <span className="gm-stat">
-        <TaskIcon size={15} /> {almostThere} <small>临门一脚</small>
+        <TaskIcon size={16} /> {almostThere} <small>临门一脚</small>
       </span>
       <span className="gm-stat gm-key">
-        <KeyIcon size={15} /> {earnedKeys} <small>把钥匙</small>
+        <KeyIcon size={16} /> {earnedKeys} <small>把钥匙</small>
       </span>
     </div>
   );
@@ -60,7 +59,7 @@ export function CardsView() {
     return (
       <section className="cv-page">
         <div className="cv-lede">
-          <MascotIcon size={22} />
+          <MascotIcon size={24} />
           {s.error ? (
             <>
               <span>卡牌数据没读到：{s.error}</span>
@@ -81,7 +80,7 @@ export function CardsView() {
   return (
     <section className="cv-page">
       <div className="cv-lede">
-        <MascotIcon size={26} />
+        <MascotIcon size={24} />
         <span>
           每一次提及、每一个复习日、每一次收下，都是一张卡。<b>攒够 2 张升 ★1，之后每颗星要翻倍</b>
           （★3 要 8 张、★8 要 256 张）。
@@ -99,7 +98,7 @@ export function CardsView() {
       {/* 失败时**不清空已读到的那一版**（旧读数 + 一句"这次没刷新成功"，比整页消失有用） */}
       {s.error && (
         <div className="gm-banner gm-bad" role="alert">
-          <SparkleIcon size={20} />
+          <SparkleIcon size={24} />
           <div>
             <b>这次没刷新成功</b>
             <span>

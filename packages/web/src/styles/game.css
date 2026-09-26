@@ -15,10 +15,13 @@
  *  1. **立体硬底按钮**（多邻国最响的一个特征）：`box-shadow: 0 4px 0 <同色深档>`，
  *     按下时整块下沉 4px、阴影消失。不是模糊投影——是**实心**的第二层色。见 `.gm-btn`。
  *  2. **粗字重 + 大字距的标题**：`800 / 0.2em` 的大写标签（`.gm-eyebrow`）。
- *  3. **药丸进度条**：16px 高、内嵌一层浅色轨（`.gm-track` / `.gm-fill`），
+ *  3. **药丸进度条**：16px 高、浅色轨 `.gm-track` ＋内层 `> i` 当填充
+ *     （⚠️ 本注释首版把填充那层写成 `.gm-fill`，**这个名字在文件里从来没有规则**——
+ *      登记见 B-021；轨本体首版也是死样式，2026-09-26 像素批才在卡墙接上真调用点）。
  *     填充宽度走 CSS 变量 `--gm-w`（禁内联 style，见下方 ★ 处）。
- *  4. **卡片列表的 2px 底边**（Quizlet 的 list item）：`border-bottom: 2px solid`，
- *     hover 时整块上浮 2px。见 `.gm-row`。
+ *  4. **列表项的厚底边 + hover 上浮**（Quizlet 的 list item）：底边那条现在是 `.gm-task`
+ *     的 `border-bottom: 4px`（★ 不是注释首版说的 2px，也不是 `.gm-row`——那同样没有规则，
+ *     见 B-021）；上浮 2px 实际挂在 `.gm-card` 上（§4 的 `@media (hover: hover)` 里）。
  *  5. **反馈横幅**（答对/答错那一整块彩色面板，不是 toast）：`.gm-banner`，
  *     成功绿／失败红，带图标与加粗结论句。本仓现有 `.term-msg` 是底部小 toast，
  *     游戏风要求"结果占一块地"，故新写一条、不动老的（避免把复习打卡的反馈一起改坏）。
@@ -109,9 +112,19 @@
   --gm-radius-card: 18px;                  /* 只有卡牌更圆一档：整块饱和之后圆角是"糖果感"的主要来源，
                                               ★ 不并到 --gm-radius：那会把按钮/输入框一起变圆 */
   --gm-radius-pill: 999px;
+  /* ★ 像素单元（2026-09-26 老板定档「数值层像素化」）：硬边元素的所有尺寸都取它的整数倍，
+     阶梯角／分段／倒角共用这一格，免得各处各写一个 2px 慢慢漂成对不齐。
+     ⚠️ 只管**图形**，不管文字——文字照老板那条「一律不动」，仍是 `--sb-font` 系统栈。 */
+  --gm-px: 2px;
+  --gm-px-row: 8px;                        /* 像素进度轨的高度＝4 格 */
+  --gm-px-notch: 3px;                      /* 8-bit 阶梯角的切深（角标／宝石槽共用） */
   --gm-ease-out: cubic-bezier(0.165, 0.84, 0.44, 1);
   --gm-ease-inout: cubic-bezier(0.645, 0.045, 0.355, 1);
   --gm-ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1); /* 唯一允许"过冲"的一档，只给 T2/T3 */
+  /* ★ 台阶缓动＝像素风的"一格一格"。只给** sprite 类**动效（T2 粒子飞散），
+     不给按钮/卡片位移——位移用 steps 会变成"卡顿"，那是 bug 不是风格。
+     ⚠️ 彩带**不在**这一档里：它的位移是"撒出去"，属于 UI 位移，走 ease-out。 */
+  --gm-steps: steps(6, end);
 }
 
 /* ══════════════════════ 2. 立体按钮（多邻国特征 1）══════════════════════════ */
@@ -200,8 +213,10 @@
 .gm-stat.gm-key { color: #8a6d00; border-color: var(--gm-yellow-soft); background: var(--gm-yellow-soft); }
 .gm-stat small { font-weight: 700; color: var(--gm-ink-dim); font-size: var(--sb-fs-xs); }
 
-/* ══════════════════════ 4. 药丸进度条（特征 3）══════════════════════════════ */
-
+/* ══════════════════════ 4. 进度条（特征 3）════════════════════════════════ */
+/* ★ 2026-09-26 改判：这一节首版写的是"药丸进度条"，而**全仓没有任何调用点**（现查 `*.tsx`
+   命中 0 处）——它是 B-021 那条"死样式"事故的现场。本批把它接进卡墙每张卡的底部，
+   并按老板定的档（数值层像素化）改成**硬边分段轨**。轨上不许有循环动画：一条轨一天看上百次。 */
 .gm-track {
   position: relative;
   height: 16px;
@@ -233,6 +248,36 @@
   border-radius: var(--gm-radius-pill);
   background: rgba(255, 255, 255, 0.42);
 }
+
+/* ── 像素档 `.gm-px`：卡墙每张卡底部那一条用这个 ──
+   ★ 分段靠 `repeating-linear-gradient`（8px 一格、2px 留白），**不是** JS 拼方块：
+     一百张卡各挂 8 个 `<i>` 就是八百个节点，而这一条要常驻。
+   ★ 高度 8px = 一个像素单元（`--gm-px`）的两格，边框 2px = 一格 ⇒ 全部落在 2px 网格上。
+   ★ 端点硬边（`border-radius: 0`）：药丸端在 8px 高的轨上和圆角卡底挨着，两种语言会互相拆台。 */
+.gm-track.gm-px {
+  height: var(--gm-px-row);
+  border-radius: 0;
+  background: rgba(20, 24, 38, 0.14);
+  box-shadow: inset 0 0 0 2px rgba(20, 24, 38, 0.22);
+}
+.gm-track.gm-px > i {
+  border-radius: 0;
+  background-image: repeating-linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.34) 0 6px,
+    rgba(255, 255, 255, 0) 6px 8px
+  );
+}
+/* ★ 三档填充色都取**比卡体深一档**的 token：轨是画在卡体上的，同色＝看不见（本文件
+   §2 那条"立体感全靠同色加深"在这儿同样成立）。分段遮罩三档共用，谁都不许关。 */
+.gm-track.gm-px.gm-blue > i { background-color: var(--gm-blue); }
+.gm-track.gm-px.gm-rare > i { background-color: var(--gm-r-sr-dark); }
+/* ⚠️ 2026-09-26 真截图自检逮到：这一档首版写的是 `background-color: var(--gm-yellow)`
+   ＋`background-image: none`，而 SSR 卡的**卡体就是同一个黄** ⇒ 填充与底同色、又亲手把
+   白色分段遮罩关掉，进度轨在 SSR 卡上**完全看不出来**（截图 `01-wall-top.png` 顶排六张）。
+   改法：色走 `--gm-orange`（非像素档 `.gm-epic` 的渐变本来就以它为起点，同一条语言），
+   遮罩留回来。锁见 `card-motion.test.ts`「轨填充色不许等于卡体色」。 */
+.gm-track.gm-px.gm-epic > i { background-color: var(--gm-orange); }
 
 /* ══════════════════════ 5. 词条行 / 卡墙（特征 4）══════════════════════════ */
 
@@ -317,11 +362,33 @@
   gap: var(--sb-sp-2);
   margin-top: auto;
 }
+/* 「N 张」角标：数值层，所以本批吃像素档（硬边 2px 框 ＋ 3px 阶梯角）。
+   ★ 老板那条「文字一律不动」在这里的落法＝**只改框不改字**：字仍是 `--sb-font` 系统栈、
+     仍吃本档 `--gm-on`，底仍是卡底 `--gm-cf`（框是 `--gm-cfd`，卡底之内不新增底色）
+     ⇒ 对比度和改前逐位相同，第 6 例那条 AA 锁不受影响。
+   ⚠️ `clip-path` 会把四角切掉，所以这圈框**不能**再靠 `border-radius` 收圆角。 */
 .gm-card-count {
   font-size: var(--sb-fs-xs);
   font-weight: 800;
   color: var(--gm-on);
   font-variant-numeric: tabular-nums;
+  border: var(--gm-px) solid var(--gm-cfd, var(--gm-line));
+  border-radius: 0;
+  padding: 0 4px;
+  clip-path: polygon(
+    0 var(--gm-px-notch),
+    var(--gm-px-notch) var(--gm-px-notch),
+    var(--gm-px-notch) 0,
+    calc(100% - var(--gm-px-notch)) 0,
+    calc(100% - var(--gm-px-notch)) var(--gm-px-notch),
+    100% var(--gm-px-notch),
+    100% calc(100% - var(--gm-px-notch)),
+    calc(100% - var(--gm-px-notch)) calc(100% - var(--gm-px-notch)),
+    calc(100% - var(--gm-px-notch)) 100%,
+    var(--gm-px-notch) 100%,
+    var(--gm-px-notch) calc(100% - var(--gm-px-notch)),
+    0 calc(100% - var(--gm-px-notch))
+  );
 }
 
 /* 领域小圆点：吃掉上面那个 `--gm-dom`（同领域同色的唯一表达位）。
@@ -370,44 +437,87 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 全息角标：只给 SSR。★ 用伪元素做**位移**扫光，不 animating box-shadow / filter */
+/* 高稀有卡的全息层：**只在看得见的那几张上跑**（`.gm-seen` 由 `use-in-view.ts` 挂）。
+   ★★ 但"看得见的那几张"**不等于**"没几条"——2026-09-26 无头 Edge 1360×900 实测一屏铺下
+     17 张 SR/SSR、`document.getAnimations()` 数到 17 条常驻循环同时在跑（记入 B-022）。
+     真正的上限是 `MAX_HOLO_LAYERS = 6`（按墙上行序取前 6 张），**不是这道视口闸**。
+   ★ SSR＝柔扫光（渐变带，`ease-in-out`，4.2s）；SR＝像素扫描线（硬边窄带，走自己的
+     `steps(14)`，一格一格跳过去）。分两档是因为"最稀有"和"挺稀有"本来就该不是一回事，
+     也因为柔扫光在 8px 硬边语言里会读成"没做完的过渡"。
+   ⚠️ 周期 ≥ 3s 是**闸门要求的**：视口闸只有 120px 提前量（`use-in-view.ts` 现值——⚠️ 本注释
+      首版写的是 320px，与代码不符，2026-09-26 现查改回），
+      短周期的话在屏外就播完一轮，进屏看到的是半截带子（比没有更难看）。 */
 .gm-card[data-r="SSR"]::after {
   content: "";
   position: absolute;
   inset: -60% -20%;
   background: linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, 0.7) 50%, transparent 58%);
   transform: translateX(-60%);
-  animation: gmSheen 4.2s var(--gm-ease-inout) infinite;
+  opacity: 0;
   pointer-events: none;
   z-index: 1;
+}
+.gm-card[data-r="SSR"].gm-seen::after {
+  animation: gmSheen 4.2s var(--gm-ease-inout) infinite;
 }
 @keyframes gmSheen {
   0%, 62% { transform: translateX(-60%); opacity: 0; }
   70% { opacity: 1; }
   100% { transform: translateX(60%); opacity: 0; }
 }
+.gm-card[data-r="SR"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 -30%;
+  background: linear-gradient(100deg, transparent 46%, rgba(255, 255, 255, 0.5) 47% 53%, transparent 54%);
+  /* 静息位＝整条带子已经在画面外（`.gm-card` 有 `overflow: hidden` 兜着）：
+     没进视口／被 reduced-motion 降级时它不该留下任何一道白痕。 */
+  transform: translateX(-72%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.gm-card[data-r="SR"].gm-seen::before {
+  opacity: 0.9;
+  animation: gmScan 3.6s steps(14, end) infinite;
+}
+/* ★★ `@keyframes` 里**只有** transform，一个 opacity 帧都不插。
+   这不是排版偏好：缓动函数是**按关键帧区间**生效的，中途插一帧 opacity 就把整条位移
+   切成两段不等长的台阶（实测：0→46% 走六格、46→100% 再走八格，"一格一格"变成"几下抽搐"）。
+   要台阶均匀，就得让 transform 从头到尾只占一个区间——亮灭交给带子自身的透明边和
+   `overflow: hidden`，它本来就在画面外起收。 */
+@keyframes gmScan {
+  from { transform: translateX(-72%); }
+  to { transform: translateX(72%); }
+}
 
 /* ── 星位（★0..★8）──
-   ★ 只在 burst 帧挂满 8 格（`CardWall.tsx:57-68`），常驻是一行「★n」文字（`.cv-starline`）。
-   2026-09-25 换饱和底之后这两个槽必须改写：原来是" sunk 浅灰槽 + 黄软底黄深字"，落到 SSR 的
-   `#ffc800` 卡上等于三块黄叠在一起，点亮与未点亮分不出来。现在统一走**白槽**：
-   未点亮＝30% 白（只表示"有位子"），点亮＝实心白底 + 本档深色符号（`--gm-cfd`）——
-   符号色跟着稀有度走，四档上都拉得开，且不再依赖任何一支黄。
-   ⚠️ 原 `:352` 引用过 `--gm-ink-tertiary`，那是个**本文件从未定义**的变量（全仓只有
-     `--sb-ink-tertiary`），槽内符号一直吃的是继承色。随本批一起了结。 */
-.gm-stars { display: inline-flex; align-items: center; gap: 2px; }
+   ★ 只在 burst 帧挂满 8 格（`CardWall.tsx` 的 `Stars`），常驻是一行「像素星 + 数字」（`.cv-starline`）。
+   ★★ 2026-09-26 像素风改判：这一排**槽画成实心方块、槽里不放图标**，是被算术逼出来的，不是偷懒：
+     `.gm-wall` 是 `minmax(168px, 1fr)`，扣掉 `.gm-card` 的 2px 边框×2 与 `--sb-sp-3` 内边距×2
+     ⇒ 内容宽最小 **140px**；而八颗 16px 像素星本身就要 8×(16+2)−2 ＝ **142px**，还没算同一行
+     里「N 张」角标（≈36px）与 `--sb-sp-2` 间距（8px）⇒ **放不下**，且 `.gm-card` 有
+     `overflow: hidden`，溢出部分是**静默裁掉**（B-020 ④「仪式光芒被白框裁」同一类病）。
+     原先那种 12px 框里塞 9px 线稿星也放不进像素星——它一格只有 1.1 物理像素，`crispEdges`
+     会吸成忽粗忽细的糊线。
+     ⇒ 八颗并排＝8px 硬边方块（一格 2px、共四格，整排 78px），像素星只出现在常驻的单星位读数。
+     ⚠️ 这条算术**要用真截图复核**（本批的 CDP 探针在 1360×900 下量 `.gm-card-foot` 的
+     `scrollWidth` 与 `clientWidth`，静帧里八颗被裁成几颗一目了然）；像素感好不好看归
+     `docs/TERM-CARDS-SPEC.md` §8 的像素落位表与老板那一票。
+   ★ 未点亮＝30% 白、点亮＝实心白＋2px 硬倒角（`box-shadow` 是**静态**的，本文件禁的是
+     animating box-shadow）。四档都靠"实心／半透明"分点亮态，不再依赖任何一支黄。 */
+.gm-stars { display: inline-flex; align-items: center; gap: var(--gm-px); }
 .gm-stars > i {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
+  width: var(--gm-px-row);
+  height: var(--gm-px-row);
+  border-radius: 0;
   background: rgba(255, 255, 255, 0.3);
-  color: rgba(255, 255, 255, 0.55);
-  display: grid;
-  place-items: center;
-  overflow: hidden;
+  flex: 0 0 auto;
 }
-.gm-stars > i.on { background: #fff; color: var(--gm-cfd, var(--gm-r-ssr-dark)); }
-.gm-stars > i svg { display: block; }
+.gm-stars > i.on {
+  background: #fff;
+  box-shadow: inset calc(var(--gm-px) * -1) calc(var(--gm-px) * -1) 0 rgba(20, 24, 38, 0.24);
+}
 
 /* ══════════════════════ 6. 反馈横幅（特征 5）══════════════════════════════ */
 
@@ -453,8 +563,17 @@
 .gm-task-live {
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--gm-green);
-  /* ★ 全文件只允许两处常驻循环：这盏"上次派单"呼吸灯，和上面的 SSR 扫光。
-       两处都只动 opacity（不走合成层的属性只有它和 opacity 还便宜）。 */
+  /* ★ `gmBreath` 一共三处消费者，但**只有两处真的在屏上**：
+       ① 这里 `.gm-task-live`——⚠️ 本批现查：全仓 tsx **零调用点**。同一次现查在本文件里抓到
+         **6 个零调用点的名字**：4 条**真有规则**（`.gm-gloss`／`.gm-btn.gm-danger`／`.gm-fly`／
+         这一条）＋ 2 条**只在注释里被点名、根本没有规则**（`.gm-row`／`.gm-fill`，见 §1 头注），
+         另有 5 条假阳性（`.gm-d1..5` 由 `CardWall.tsx` 的 `domClass()` 动态拼出）。
+         登记不删，等老板裁；4 条的名单已冻进 `card-motion.test.ts` 的棘轮锁——第 5 条会红。
+       ② `cards-view.css` 的 `.cv-live`＝宝箱按钮上那盏**真的在呼吸的灯**（屏上的"上次派单"其实是它）；
+       ③ §9 SSR 仪式卡的金边。
+     ★ 三处**都只动 opacity**（本文件禁的是 animating box-shadow／位移类常驻循环）。
+     ⚠️ "常驻循环有几条"由 `card-motion.test.ts` 数着，但那条锁**只扫 game.css**——
+       跨文件的消费者（②）不在它的口径里。加第四条常驻时别以为它一定会响。 */
   animation: gmBreath 2.6s var(--gm-ease-inout) infinite;
 }
 @keyframes gmBreath { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
@@ -531,21 +650,52 @@
   to { opacity: 0; transform: translate(-50%, -50%) scale(3); }
 }
 
-/* 粒子：16 颗、9px、54/38px 两圈交替（一圈等半径读起来像"饼"，错开才像"炸"）。
+/* 二段冲击环（`.gm-ring-2`）：同一套 `gmRing`，晚 180ms、慢一档、**方形**。
+   ★ 圆形 + 方形各来一趟是 8-bit 游戏里"爆两下"的常规做法，也是本批把像素语言引进
+     T2 之后顺手能拿到的差异——两颗圆环只差延迟，读起来只是重影。
+   ★ 时长 620ms + 延迟 180ms ＝ 800ms，仍落在 `BURST_MS = 940`（`CardWall.tsx:26`）之内；
+     再长就会被类名摘掉，"炸到一半消失"比不炸更难看。 */
+.gm-burst .gm-ring-2 {
+  border-radius: 0;
+  border-width: var(--gm-px);
+  animation: gmRing 620ms var(--gm-ease-out) 180ms both;
+}
+
+/* 白闪：整张卡"过曝"一帧，是"升上去了"这件事最直接的读数。
+   ★ 只动 opacity、260ms 一次性、不循环——卡墙 500 张里任何常驻的东西都会变成幻灯片。 */
+.gm-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.gm-burst .gm-flash { animation: gmFlash 260ms var(--gm-ease-out) both; }
+@keyframes gmFlash {
+  /* ★ 起帧就满、往回掉：这是"闪"，不是"渐显"。渐显的那一层已经由环和粒子负责了。 */
+  from { opacity: 0.78; }
+  to { opacity: 0; }
+}
+
+/* 粒子：16 颗、8px 硬边方块、54/38px 两圈交替（一圈等半径读起来像"饼"，错开才像"炸"）。
    ★ 数量在 `CardWall.tsx` 的 `SPARKS` 里，**两处必须同改**；错帧延迟写在 CSS 里（非内联）。
+   ★ 尺寸/倒角全部落在 `--gm-px` 网格上（8px＝四格、`border-radius: 0`）：9px 圆角是
+     上一版线稿留下的，圆角一半会被 2px 网格切成"看着糊一档"。
    ★ 寿命 520ms → 600ms：B-020 ⑥ 的根因就是"粒子还没看清就没了"。末颗 330ms 起步 + 600ms
      ＝ 930ms，落在 `BURST_MS = 940`（`CardWall.tsx:26`）之内——**帧没被卸载掉**。
    ★ 用 `--gm-on`（本档文字色）而不是 `--gm-cf`：整块饱和之后粒子与卡底同色等于隐形。 */
 .gm-spark {
   position: absolute;
   left: 50%; top: 50%;
-  width: 9px; height: 9px;
-  border-radius: 3px;
+  width: var(--gm-px-row);
+  height: var(--gm-px-row);
+  border-radius: 0;
   background: var(--gm-on, var(--gm-yellow));
   opacity: 0;
   pointer-events: none;
 }
-.gm-burst .gm-spark { animation: gmSpark 600ms var(--gm-ease-out) both; }
+.gm-burst .gm-spark { animation: gmSpark 600ms var(--gm-steps) both; }
 .gm-burst .gm-spark:nth-child(1) { --gm-dx: 0px; --gm-dy: -54px; }
 .gm-burst .gm-spark:nth-child(2) { --gm-dx: 15px; --gm-dy: -35px; animation-delay: 22ms; }
 .gm-burst .gm-spark:nth-child(3) { --gm-dx: 38px; --gm-dy: -38px; animation-delay: 44ms; }
@@ -565,11 +715,15 @@
 @keyframes gmSpark {
   /* ★ 两段 `translate` 各有职责：`translate(-50%,-50%)` 是**回中**（顶掉 margin 那条坑），
        后面那段才是**飞散**。少第一段，16 颗粒子会从卡片左上角往外炸。
-     ★ 55% 之前不降透明度：粒子要"先看清一圈、再一起淡出"，
+   ★★ 55% 处**把终点位移也写全**（不只是 opacity）：这一格之后粒子已经到位，只剩淡出和
+       一档缩小。理由和 `gmScan` 那条同——缓动是按区间生效的，只写 opacity 的话
+       `steps(6)` 会被切成"六格走 55% 距离、再六格走剩下 45%"，两段步长不等，
+       像素感就散了。现在六格均匀铺满整条飞行轨道（每格 55ms），到点才谈Fade。
+   ★ 55% 之前不降透明度：粒子要"先看清一圈、再一起淡出"，
        整条交给 ease-out 的话实测 380ms 就只剩 2 颗了（＝B-020 ⑥ 的原始症状）。 */
   from { opacity: 1; transform: translate(-50%, -50%) translate3d(0, 0, 0) scale(1); }
-  55% { opacity: 1; }
-  to { opacity: 0; transform: translate(-50%, -50%) translate3d(var(--gm-dx, 0), var(--gm-dy, 0), 0) scale(0.4); }
+  55% { opacity: 1; transform: translate(-50%, -50%) translate3d(var(--gm-dx, 0), var(--gm-dy, 0), 0) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -50%) translate3d(var(--gm-dx, 0), var(--gm-dy, 0), 0) scale(0.45); }
 }
 
 /* 星位逐个点亮：延迟同样写在选择器里（★ 不是内联 style） */
@@ -710,6 +864,65 @@
   to { opacity: 0; transform: scaleY(1); }
 }
 
+/* ── T3 · 彩带（2026-09-26 老板点名的那一项）──────────────────────────────
+   ★ 16 片的颗数在 `ChestPanel.tsx` 的 `CONFETTI` 里，与下面 16 条 nth-child
+     **两处必须同改**（同 `SPARKS` 那条规矩，锁在 `card-motion.test.ts`）。
+   ★ 只在 `phase === 'reveal'` 那一帧挂载 ⇒ **一次开盒放一遍，不循环**。
+   ★ 位移是"抛出去、落下来"＝UI 位移，走 ease-out，**不吃 steps**（§1 那条口径：
+     steps 只给 sprite；给彩带用台阶会变成"一抽一抽地往下掉"）。
+   ★ 硬边小方片（`border-radius: 0`、6px＝三格）：这是本批"像素风只进数值层与特效层、
+     不进文字"的第三条落点——彩带属于特效层，所以它是方的。
+   ⚠️ 轨道端点全部落在面板内（最大 |cx| 193px、峰高 150px），因为 `.gm-ritual` 有
+     `overflow: hidden`：出了边界的片是**被裁掉**而不是淡掉，半路消失比不外飞更难看。 */
+.gm-confetti {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+.gm-confetti > i {
+  position: absolute;
+  left: 50%; top: 44%;
+  width: 6px; height: 6px;
+  border-radius: 0;
+  opacity: 0;
+  animation: gmConfetti 900ms var(--gm-ease-out) both;
+}
+/* 四色轮转：全部取 §1 已有的那四支，**不新增 hex**（多一支颜色就多一处要复核的东西） */
+.gm-confetti > i:nth-child(4n+1) { background: var(--gm-yellow); }
+.gm-confetti > i:nth-child(4n+2) { background: var(--gm-green); }
+.gm-confetti > i:nth-child(4n+3) { background: var(--gm-blue); }
+.gm-confetti > i:nth-child(4n)   { background: var(--gm-red); }
+/* 轨道：--gm-cx 横向落点、--gm-cy 峰高（一律为负＝先往上）、--gm-cr 翻转角度。
+   延迟最大 110ms + 900ms ＝ 1010ms，`REVEAL_MS = 520` 之后一共 1.53s，
+   而这一屏是"等用户按键"的常驻屏，不会被卸载。 */
+.gm-confetti > i:nth-child(1)  { --gm-cx: -168px; --gm-cy: -64px;  --gm-cr: -220deg; animation-delay: 0ms; }
+.gm-confetti > i:nth-child(2)  { --gm-cx: -120px; --gm-cy: -118px; --gm-cr: 180deg;  animation-delay: 20ms; }
+.gm-confetti > i:nth-child(3)  { --gm-cx: -84px;  --gm-cy: -140px; --gm-cr: -140deg; animation-delay: 40ms; }
+.gm-confetti > i:nth-child(4)  { --gm-cx: -44px;  --gm-cy: -150px; --gm-cr: 200deg;  animation-delay: 10ms; }
+.gm-confetti > i:nth-child(5)  { --gm-cx: -16px;  --gm-cy: -146px; --gm-cr: -180deg; animation-delay: 60ms; }
+.gm-confetti > i:nth-child(6)  { --gm-cx: 16px;   --gm-cy: -150px; --gm-cr: 160deg;  animation-delay: 30ms; }
+.gm-confetti > i:nth-child(7)  { --gm-cx: 44px;   --gm-cy: -140px; --gm-cr: -200deg; animation-delay: 80ms; }
+.gm-confetti > i:nth-child(8)  { --gm-cx: 84px;   --gm-cy: -124px; --gm-cr: 140deg;  animation-delay: 50ms; }
+.gm-confetti > i:nth-child(9)  { --gm-cx: 120px;  --gm-cy: -104px; --gm-cr: -160deg; animation-delay: 110ms; }
+.gm-confetti > i:nth-child(10) { --gm-cx: 168px;  --gm-cy: -60px;  --gm-cr: 220deg;  animation-delay: 70ms; }
+.gm-confetti > i:nth-child(11) { --gm-cx: -152px; --gm-cy: -88px;  --gm-cr: -180deg; animation-delay: 90ms; }
+.gm-confetti > i:nth-child(12) { --gm-cx: 152px;  --gm-cy: -86px;  --gm-cr: 180deg;  animation-delay: 25ms; }
+.gm-confetti > i:nth-child(13) { --gm-cx: -60px;  --gm-cy: -108px; --gm-cr: -120deg; animation-delay: 100ms; }
+.gm-confetti > i:nth-child(14) { --gm-cx: 60px;   --gm-cy: -114px; --gm-cr: 120deg;  animation-delay: 15ms; }
+.gm-confetti > i:nth-child(15) { --gm-cx: -100px; --gm-cy: -72px;  --gm-cr: -200deg; animation-delay: 105ms; }
+.gm-confetti > i:nth-child(16) { --gm-cx: 100px;  --gm-cy: -78px;  --gm-cr: 200deg;  animation-delay: 45ms; }
+@keyframes gmConfetti {
+  /* ★ 两个 translate：第一段回中（`.gm-ritual` 没有 `.cv-card > * { margin: 0 }` 那条坑，
+       但 `left/top` 配 `translate(-50%,-50%)` 是这里唯一不依赖面板内边距的居中写法）。
+     ★ 尾段 x 再走 1.15 倍、y 取峰高的 -0.8 倍——**一个 var 出一条抛物线**：
+       峰在上、落点在峰的水平外侧并掉回原点下方，读起来才是"抛出去再落下"。
+       两条 var 各写一份的话，十六片要填四十八个数，改一处忘一处的概率比这高得多。 */
+  from { opacity: 1; transform: translate(-50%, -50%) translate3d(0, 0, 0) rotate(0deg) scale(0.7); }
+  55% { opacity: 1; transform: translate(-50%, -50%) translate3d(var(--gm-cx, 0), var(--gm-cy, 0), 0) rotate(calc(var(--gm-cr, 0deg) * 0.5)) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -50%) translate3d(calc(var(--gm-cx, 0) * 1.15), calc(var(--gm-cy, 0) * -0.8), 0) rotate(var(--gm-cr, 0deg)) scale(0.92); }
+}
+
 /* 飞卡归位（卡墙里那张卡"落进去"）：★ T1 不做——见契约 §8 的频次判据。
    这里只留 T2/T3 用的位移轨道，位置由 --gm-fx/--gm-fy 传入（非内联动画值）。 */
 .gm-fly {
@@ -727,16 +940,31 @@
 /* ══════════════════════ 10. reduced-motion：逐条降级，不整片关 ═════════════ */
 /* ★ "reduced motion ≠ no motion"：位移/缩放/粒子/旋转全部去掉，
      **透明度与颜色保留**——它们承担着"刚才变的是哪一张"这层信息职责，
-     整片关掉（`animation-duration: .01ms !important`）会把这条信息一起抹掉。 */
+     整片关掉（`animation-duration: .01ms !important`）会把这条信息一起抹掉。
+   ★★ 每条降级选择器必须和**开启动画的那条同特异度**，否则等于没写。
+     本批新增的两条就是这个坑：全息层的动画挂在 `.gm-card[data-r="SSR"].gm-seen::after`
+     （三 class/属性）上，降级只写 `.gm-card[data-r="SSR"]::after`（两个）的话
+     媒体查询里那条**永远输给外面那条**——开关无效、晕动症用户照样吃一遍扫光。
+     所以这里两条都带 `.gm-seen`，一个字符都不省。 */
 @media (prefers-reduced-motion: reduce) {
   .gm-btn, .gm-card, .gm-task { transition: none; }
-  .gm-card[data-r="SSR"]::after { animation: none; opacity: 0; }
+  /* 勾上的对勾原本是"缩放上浮 0.6→1"——那是位移，去掉；状态本身靠"实心绿＋字上划线"表达，
+     信息不丢。（这条是 2026-09-26 新加的降级锁**当场逮到的存量漏项**，见本批 CHANGELOG） */
+  .gm-check, .gm-check svg { transition: none; }
+  /* 全息两层：位移是它全部的表达，关掉后连透明度一起归零（留半条带子比没有更怪） */
+  .gm-card[data-r="SSR"].gm-seen::after { animation: none; opacity: 0; }
+  .gm-card[data-r="SR"].gm-seen::before { animation: none; opacity: 0; }
   .gm-shake { animation: none; }
   .gm-burst .gm-spark,
-  .gm-burst .gm-ring { animation: none; opacity: 0; }
+  .gm-burst .gm-flash,
+  .gm-burst .gm-ring,
+  .gm-burst .gm-ring-2 { animation: none; opacity: 0; }
+  .gm-confetti > i { animation: none; opacity: 0; }
   .gm-beam { animation: none; opacity: 0; }
   .gm-rays { animation: none; opacity: 0.1; }
   .gm-flip-in { animation: gmFade 200ms var(--gm-ease-out) both; }
+  /* 面板与遮罩成对：两条都是 200ms ease-out 的纯淡入（同缓动同时长，见 §9 那条配对规矩） */
+  .gm-ritual { animation: gmFade 200ms var(--gm-ease-out) both; }
   .gm-burst .gm-stars > i.on { animation: gmFade 160ms var(--gm-ease-out) both; }
   .gm-task.entering,
   .gm-task.entering:nth-child(n) { animation: gmFade 160ms var(--gm-ease-out) both; }

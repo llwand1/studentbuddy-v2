@@ -12,13 +12,19 @@
  *     跨文件一致性是本仓一贯的锁形（同族：`og-card.test.ts` 拿 `tokens.css` 现值对配色）。
  * ★ 另锁一条**可计算**的：稀有度整块饱和之后卡内小字与卡底的 WCAG 对比度成了新闸门；
  *   改色不改字号（11～14px 一律按小字算 4.5）必须红，不能等人眼事后发现。
+ * ★ 2026-09-26 像素批的锁不在这个文件里：加进来会撞 gates 的 web `.ts` ≤400 行（现查 427），
+ *   所以拆成同目录的 `card-pixel.test.ts`，两本各留一份 helper。这里只留 B-021 的死样式棘轮。
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const css = readFileSync(new URL('../../styles/game.css', import.meta.url), 'utf8');
 const wall = readFileSync(new URL('./CardWall.tsx', import.meta.url), 'utf8');
 const cardsCss = readFileSync(new URL('./cards-view.css', import.meta.url), 'utf8');
+// ⚠️ 像素图标／GAME_SCREENS／rules()／reduce 分段这几份 helper 跟着像素批的锁一起搬到了
+//    `card-pixel.test.ts`（本文件用不到它们了）。留着就是 B-021 说的那种"定义了但没人用"。
 
 /** 一个规则块的正文（本仓样式块不嵌套，取到最近的 `}` 即可） */
 function block(selector: string, src: string = css): string {
@@ -38,6 +44,13 @@ function keyframes(name: string): string {
 
 const SPARK_OFFSET_RE = /\.gm-burst \.gm-spark:nth-child\((\d+)\)/g;
 const SPARK_DELAY_RE = /\.gm-burst \.gm-spark:nth-child\(\d+\)\s*\{[^}]*animation-delay:\s*(\d+)ms/g;
+
+/** 注释里那些 `animation:`／选择器不是代码，锁之前一律先剥掉。
+   ★ 顺带把 CRLF 归一：本仓样式表与这两个测试文件都是 CRLF，不归一的话任何带 `^` 的
+     多行正则会先被 `\r` 撞掉，锁会**假失败**（假失败比假通过更烦人）。 */
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\r\n/g, '\n');
+}
 
 // ── 自定义属性表：跟 `var()` 间接引用追到字面量 ──────────────────────────────
 const VARS = new Map<string, string>();
@@ -137,12 +150,66 @@ describe('卡墙 · 稀有度整块饱和后的可读性', () => {
   it('★ 卡面角标「N 张」不许拿卡底色当字色（整块饱和之后那样等于隐身）', () => {
     const body = block('.gm-card-count {');
     expect(body).toContain('var(--gm-on)');
-    expect(body).not.toMatch(/--gm-cf/);
+    /* ⚠️ 2026-09-26 像素批把这条的**判定位置**收紧了：原来写的是 `not.toMatch(/--gm-cf/)`，
+         而角标换硬边框之后合法地用了 `--gm-cfd`（厚边那档深色），`--gm-cf` 是它的**前缀**
+         ⇒ 旧正则被自己的前缀撞了。不变量从来只是「字色不许吃卡底」，那就只查 `color:` 这一条声明。 */
+    expect(body, '角标字色不许吃卡底（`--gm-cf` 是背景，不是文字）').not.toMatch(/color:\s*var\(--gm-cf/);
   });
 
   it('★ 领域小标签要是不透明底、且不许被 flex 列拉成整条白底', () => {
     const body = block('.gm-card-dom {');
     expect(body, '半透明层无法脱离背景单独量对比度').toMatch(/background:\s*var\(--gm-surface\)/);
     expect(body, 'flex 列里 stretch 会把小标签拉成整条').toMatch(/align-self:\s*flex-start/);
+  });
+});
+
+/* ═══════════════════ B-021 · 死样式棘轮 ═══════════════════
+   本批现查的来路：首版 `game.css` 写了整节 `.gm-track`，全仓**一个调用点都没有**（编译／单测／gates
+   全绿，画面上就是没这条轨）。像素批把它接进卡墙之后重扫，还剩 4 条同样零调用点的规则。
+   ★ 这条锁**不禁止死样式**——它禁止**第 5 条**：名单是冻结的，新写一条没人挂的样式要么接上调用点，
+     要么从名单里删掉（删的同时就得在台账里交代）。 */
+describe('B-021 · game.css 里「定义了但屏上没有」的样式不许继续长', () => {
+  /** 冻结名单（2026-09-26 现查：规则里 `.gm-*` 名字 59 个、扫过 128 个 tsx）。
+      值只写**这条规则画的是什么**，不猜"为什么没人用"。 */
+  const DEAD: Record<string, string> = {
+    'gm-gloss': '进度轨的高光层（`> i::after`，纯装饰）',
+    'gm-danger': '`.gm-btn` 的红色档',
+    'gm-fly': '飞卡归位的位移轨道（`position: fixed` ＋ `--gm-fx/--gm-fy`）',
+    'gm-task-live': '任务列表那盏呼吸灯（屏上实际在呼吸的是 `cards-view.css` 的 `.cv-live`）',
+  };
+  /** 假阳性：类名由 `CardWall.tsx` 的 `domClass()` 动态拼出，静态扫文本扫不到 */
+  const DYNAMIC = ['gm-d1', 'gm-d2', 'gm-d3', 'gm-d4', 'gm-d5'];
+
+  const tsxSources = (() => {
+    const out: string[] = [];
+    const walk = (dir: string): void => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (e.name.endsWith('.tsx')) out.push(readFileSync(p, 'utf8'));
+      }
+    };
+    walk(fileURLToPath(new URL('../../', import.meta.url)));
+    return out;
+  })();
+
+  /** 只认**规则选择器**里的名字：注释里点名而根本没有规则的（`.gm-row`／`.gm-fill`）不算样式，
+      那两条是另一件事，写在 B-021 的"注释撒谎"那一格。 */
+  const defined = new Set<string>();
+  for (const m of stripComments(css).matchAll(/([^{}]+)\{[^{}]*\}/g)) {
+    for (const n of (m[1] ?? '').matchAll(/\.gm-[a-z0-9-]+/g)) defined.add(n[0].slice(1));
+  }
+  /** 按整词匹配，不吃前缀：`gm-card` 不能因为源码里有 `gm-card-count` 就算被调用 */
+  const calledSomewhere = (name: string): boolean =>
+    tsxSources.some((s) => new RegExp(`(?<![-\\w])${name}(?![-\\w])`).test(s));
+
+  it('★ 零调用点的规则必须等于冻结名单（新写一条没人用的样式＝红）', () => {
+    expect(defined.size, '一个 .gm-* 都没解析出来＝正则漂了，本锁失效').toBeGreaterThanOrEqual(50);
+    expect(tsxSources.length, '没扫到 tsx 调用面，本锁失效').toBeGreaterThanOrEqual(100);
+    expect(wall, '`.gm-d*` 的拼法变了（现为 `gm-d${domIndex + 1}`），DYNAMIC 名单要跟着重算')
+      .toMatch(/`gm-d\$\{domIndex \+ 1\}`/);
+    const dead = [...defined].filter((n) => !calledSomewhere(n)).sort();
+    expect(dead, `名单外出现新的死样式，或缺少名单内的条目：${dead.join(' / ')}`)
+      .toEqual([...Object.keys(DEAD), ...DYNAMIC].sort());
   });
 });

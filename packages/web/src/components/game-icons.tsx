@@ -1,5 +1,5 @@
 /**
- * 游戏化图标集 — 手绘 SVG 线稿，画风对齐 `styles/game.css`（多邻国 / Quizlet 那一挂）。
+ * 游戏化图标集 — **整数网格点阵精灵**（2026-09-26 老板点名的像素风，落位在"数值层"）。
  *
  * ★ **为什么不加进 `icons.tsx`**：那个文件已经 260 行，且它是「学环／练环／忆环／反馈环」
  *   的导航图标，语义是**产品分区**；本文件全是**游戏物件**（宝箱／钥匙／星／火焰／吉祥物）。
@@ -7,117 +7,222 @@
  *   改一个要读另一个。
  * ★ **禁 emoji 作图标**（`icons.tsx` 头注 + `terms.css:614`／`:906` 三处同规）⇒ 游戏风最容易
  *   破功的地方就是"宝箱用 🎁 凑一下"。本文件是游戏化所有图标位的唯一来源。
- * 约定与 `icons.tsx` 完全一致：24×24 viewBox、1.6 描边、round 端点、`stroke: currentColor`
- *   ——所以同一套图标在浅底／彩底／强调色下都能靠 `color` 自适应，不需要按皮肤各画一份。
  *
- * 尺寸口径：导航位 18px（默认）；卡墙／开箱面板的装饰位 22–28px，走 `size` 传，
- *   **不要**为大图重画一份路径——线稿在 28px 下发虚是 `stroke-width` 的问题，
- *   需要时按调用点传 `strokeWidth={1.3}`，别在图标里写死。
+ * ══ 画风改判（★ 这一版起不再是线稿）══
+ * 2026-09-25 那版是"多邻国圆钝线稿"（24×24、1.6 描边、round 端点）。老板 09-26 定档
+ * 「数值层像素化，卡体保持圆钝饱和」⇒ 本文件**八支图标全部改成点阵精灵**：8×8 网格、
+ * 实心格吃 `currentColor`、`shape-rendering="crispEdges"` 关掉抗锯齿。
+ * ★ **为什么连钥匙／火焰／任务卡也一起换**：它们和星位、宝箱同屏（顶栏四枚读数、开盒面板），
+ *   半套像素半套线稿＝一张屏上两种画风互相拆台，比"不够像素"更糟。
+ * ★ **同一批改判掉的两条老注释**：⑴ 「任务卡＝卡＋勾」做不到——勾在这种 knockout 里在 8×8 上
+ *   会读成一团，改成「卡＋三道文字线」；⑵ 吉祥物头顶那两根触角闪光去掉了，8 格里它只争
+ *   一张脸两条腿，多一笔就变成噪音。
+ *
+ * ★★ **尺寸这条硬约束**：调用点传的 `size` 必须是 `PIXEL_GRID`（8）的**整数倍**。
+ *   9px 里塞 8 格＝一格摊到 1.1 物理像素，`crispEdges` 会把它吸附成忽粗忽细的线——
+ *   那不叫像素风，叫糊。这条不是口头规矩，`card-motion.test.ts` 里逐个调用点算过。
+ *   ⚠️ 顺带一条被量出来的矛盾：卡墙上**八颗并排的像素星放不下**——`.gm-wall` 是
+ *   `minmax(168px, 1fr)`，扣掉 `.gm-card` 左右 padding 各 12px 与 2px 边框，内宽最小 **140px**，
+ *   而 8×(16px 星＋2px 间隙)＝142px，再加上与「N 张」角标并排的那 8px 间距就溢出、且被
+ *   `.gm-card` 的 `overflow: hidden` 裁掉（★ 这条和 B-020 ④「仪式光芒被白框裁」是同一类病）。
+ *   ⇒ **burst 那一排改用实心方块槽**，像素星只出现在常驻的单星位读数（`.cv-starline`、开盒面板那一颗）。
+ * ★ 下面九支包装函数一律写成 `<PixelIcon {...props} name="…" />`（spread 在前）：
+ *   `SVGProps` 自带一个宽类型的 `name?: string`，`name="chest"` 放在前面会被它覆盖成 `string`
+ *   ⇒ `tsc -p packages/web` 直接红。反过来写既修类型，也顺手堵掉"调用点传个 name 进来"。
  */
 import type { SVGProps } from 'react';
 
 type IconProps = SVGProps<SVGSVGElement> & { size?: number };
 
-function base(size: number | undefined, props: IconProps) {
-  const { size: _s, ...rest } = props;
-  return {
-    width: size ?? 18,
-    height: size ?? 18,
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: 1.6,
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-    ...rest,
-  };
+/** 点阵边长（8×8）。★ 调用点 `size` 必须是它的整数倍，见文件头那条硬约束。 */
+export const PIXEL_GRID = 8;
+
+/** 精灵表：每行一个**等长**字符串，`#`＝实心格、`.`＝空。行序＝从上到下。 */
+const SPRITE = {
+  star: [
+    '...##...',
+    '..####..',
+    '########',
+    '########',
+    '.######.',
+    '..####..',
+    '.##..##.',
+    '#......#',
+  ],
+  chest: [
+    '.######.',
+    '########',
+    '........',
+    '########',
+    '#..##..#',
+    '#..##..#',
+    '########',
+    '########',
+  ],
+  key: [
+    '.####...',
+    '.#..#...',
+    '.####...',
+    '..##....',
+    '..##.##.',
+    '..######',
+    '..##....',
+    '..##....',
+  ],
+  flame: [
+    '....#...',
+    '...##...',
+    '..####..',
+    '.######.',
+    '#######.',
+    '#######.',
+    '.#####..',
+    '..#.#...',
+  ],
+  task: [
+    '########',
+    '#......#',
+    '#.####.#',
+    '#......#',
+    '#.###..#',
+    '#......#',
+    '#.####.#',
+    '########',
+  ],
+  sparkle: [
+    '...#....',
+    '...#....',
+    '#.###.#.',
+    '#######.',
+    '#.###.#.',
+    '...#....',
+    '...#..##',
+    '......##',
+  ],
+  mascot: [
+    '########',
+    '#......#',
+    '#.#..#.#',
+    '#......#',
+    '#.####.#',
+    '#......#',
+    '########',
+    '.##..##.',
+  ],
+  lock: [
+    '..####..',
+    '.#....#.',
+    '.#....#.',
+    '########',
+    '########',
+    '###..###',
+    '###..###',
+    '########',
+  ],
+  /** 「条词条」那枚读数原先吃的是 `icons.tsx` 的线稿 `CardsIcon`——它和同屏另外四枚像素读数
+   *  撞画风（顶栏五枚并排），所以在这里补一支点阵牌面，★ 不动 `icons.tsx`（那是产品分区导航，
+   *  导航位跟着改会波及全仓）。 */
+  deck: [
+    '.######.',
+    '.#....#.',
+    '.#.##.#.',
+    '.#....#.',
+    '.####.#.',
+    '.#....#.',
+    '.#.##.#.',
+    '.######.',
+  ],
+} as const;
+
+type SpriteName = keyof typeof SPRITE;
+
+/** 把点阵按"同一行里连续实心格"合并成一条 `<rect>`：8×8 满铺最多 64 个节点，合并后 ≤16。
+ *  ★ 只在模块加载时算一次（`RUNS` 缓存），不在 render 里跑循环——卡墙上这个图标可能出现上百次。 */
+const RUNS = new Map<string, ReadonlyArray<readonly [number, number, number]>>();
+
+function runs(name: SpriteName): ReadonlyArray<readonly [number, number, number]> {
+  const cached = RUNS.get(name);
+  if (cached) return cached;
+  const out: [number, number, number][] = [];
+  SPRITE[name].forEach((row, y) => {
+    let x = 0;
+    while (x < row.length) {
+      if (row[x] !== '#') {
+        x += 1;
+        continue;
+      }
+      let w = 1;
+      while (x + w < row.length && row[x + w] === '#') w += 1;
+      out.push([x, y, w]);
+      x += w;
+    }
+  });
+  const frozen = Object.freeze(out);
+  RUNS.set(name, frozen);
+  return frozen;
 }
 
-/** 宝箱 —— 每日开箱入口 / T3 仪式面板主体。盖与身共用一条沿口线，锁扣压在沿口上 */
+function PixelIcon({ name, size, ...rest }: IconProps & { name: SpriteName }) {
+  return (
+    <svg
+      width={size ?? 16}
+      height={size ?? 16}
+      viewBox={`0 0 ${PIXEL_GRID} ${PIXEL_GRID}`}
+      fill="currentColor"
+      shapeRendering="crispEdges"
+      aria-hidden="true"
+      {...rest}
+    >
+      {runs(name).map(([x, y, w]) => (
+        <rect key={`${x}-${y}-${w}`} x={x} y={y} width={w} height={1} />
+      ))}
+    </svg>
+  );
+}
+
+/** 宝箱 —— 每日开箱入口 / T3 仪式面板主体。第 3 行整行留空＝盖与身之间那道沿口缝 */
 export function ChestIcon(props: IconProps) {
-  return (
-    <svg {...base(props.size, props)}>
-      <path d="M5 9.5V7.2A2.2 2.2 0 0 1 7.2 5h9.6A2.2 2.2 0 0 1 19 7.2v2.3" />
-      <path d="M3.5 9.5h17v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
-      <rect x="10.3" y="8" width="3.4" height="5" rx="1.2" />
-    </svg>
-  );
+  return <PixelIcon {...props} name="chest" />;
 }
 
-/** 钥匙 —— 开宝箱的额度（`.gm-stat.gm-key`）。齿沿 45° 轴垂直岔出，不在 18px 下糊成一团 */
+/** 钥匙 —— 开宝箱的额度（`.gm-stat.gm-key`）。弓里有 2×2 的孔，齿朝右两档 */
 export function KeyIcon(props: IconProps) {
-  return (
-    <svg {...base(props.size, props)}>
-      <circle cx="8" cy="8" r="4.2" />
-      <path d="M11.1 11.1 20 20" />
-      <path d="M15.8 15.8 18 13.6M18.4 18.4 20.6 16.2" />
-    </svg>
-  );
+  return <PixelIcon {...props} name="key" />;
 }
 
-/** 星 —— 卡牌星级。点亮位由调用点给 `fill="currentColor"`，形状两份共用 */
+/** 星 —— 卡牌星级。★ 单颗读数用它；卡墙上并排的八颗用方块槽（见文件头那条 144px 实测） */
 export function StarIcon(props: IconProps) {
-  return (
-    <svg {...base(props.size, props)}>
-      <path d="m12 3 2.7 5.5 6 .9-4.35 4.2 1.03 5.95L12 16.7l-5.38 2.85L7.65 13.6 3.3 9.4l6-.9z" />
-    </svg>
-  );
+  return <PixelIcon {...props} name="star" />;
 }
 
-/** 火焰 —— 连续天数（`.gm-stat.gm-flame`）。内焰那条折线是它区别于「水滴」的关键 */
+/** 火焰 —— 连续天数（`.gm-stat.gm-flame`）。底下一行分开两舌是它区别于「水滴」的关键 */
 export function FlameIcon(props: IconProps) {
-  return (
-    <svg {...base(props.size, props)}>
-      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.4-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5" />
-    </svg>
-  );
+  return <PixelIcon {...props} name="flame" />;
 }
 
-/** 任务卡 —— 自动派发的学习任务（`study_task`）。刻意用「卡 + 勾」而不是剪贴板：
- *  夹子在 18px 下会遮住卡的上圆角，两条线混成一块黑 */
+/** 任务卡 —— 自动派发的学习任务（`study_task`）。卡框 + 三道文字线（勾在 8×8 上 knockout 不出来） */
 export function TaskIcon(props: IconProps) {
-  return (
-    <svg {...base(props.size, props)}>
-      <rect x="4.5" y="4.5" width="15" height="15" rx="3" />
-      <path d="m8.6 12 2.4 2.4 4.6-4.8" />
-      <path d="M8.6 16.8h4" />
-    </svg>
-  );
+  return <PixelIcon {...props} name="task" />;
 }
 
-/** 闪光 —— 全息闪卡 / 升星粒子。一大一小错开，单颗会读成"加号" */
+/** 闪光 —— 全息闪卡标题位。一大一小错开，单颗会读成"加号" */
 export function SparkleIcon(props: IconProps) {
-  return (
-    <svg {...base(props.size, props)}>
-      <path d="M10.6 3c.9 3.9 2.3 5.3 6.2 6.2-3.9.9-5.3 2.3-6.2 6.2-.9-3.9-2.3-5.3-6.2-6.2C8.3 8.3 9.7 6.9 10.6 3z" />
-      <path d="M17.6 14.2c.42 1.75 1.03 2.36 2.78 2.78-1.75.42-2.36 1.03-2.78 2.78-.42-1.75-1.03-2.36-2.78-2.78 1.75-.42 2.36-1.03 2.78-2.78z" />
-    </svg>
-  );
+  return <PixelIcon {...props} name="sparkle" />;
 }
 
 /** 小吉祥物「卡灵」—— 引导气泡与空态用。
  *  ★ 刻意**不画猫头鹰**：多邻国是我们的画风参照，不是形象参照，画猫头鹰等于蹭商标。
  *    它长成"一张活过来的词条卡"，正好就是本功能的主角，比借来的动物站得住。 */
 export function MascotIcon(props: IconProps) {
-  return (
-    <svg {...base(props.size, props)}>
-      <rect x="3.6" y="6" width="14.4" height="12.6" rx="3.4" />
-      <circle cx="8.3" cy="11.4" r="0.95" fill="currentColor" stroke="none" />
-      <circle cx="13.4" cy="11.4" r="0.95" fill="currentColor" stroke="none" />
-      <path d="M8.5 14.6a3 3 0 0 0 4.7 0" />
-      <path d="M7.4 18.6v2M14.2 18.6v2" />
-      <path d="M20.4 2.8v3.4M18.7 4.5h3.4" />
-    </svg>
-  );
+  return <PixelIcon {...props} name="mascot" />;
 }
 
-/** 锁 —— 额度用完的宝箱（T3 面板上"今天开完了"那一格）。开口朝下＝关着 */
+/** 锁 —— 额度用完的宝箱（T3 面板上"今天开完了"那一格）。梁闭合＝锁着，孔是 knockout 出来的 */
 export function LockIcon(props: IconProps) {
-  return (
-    <svg {...base(props.size, props)}>
-      <rect x="5" y="10.5" width="14" height="9.5" rx="2.4" />
-      <path d="M8.4 10.5V8a3.6 3.6 0 0 1 7.2 0v2.5" />
-      <path d="M12 14.2v2.4" />
-    </svg>
-  );
+  return <PixelIcon {...props} name="lock" />;
+}
+
+/** 牌堆 —— 顶栏「条词条」那枚读数（替掉原先借用的线稿 `CardsIcon`，见 `SPRITE.deck` 那条注释） */
+export function DeckIcon(props: IconProps) {
+  return <PixelIcon {...props} name="deck" />;
 }

@@ -5,12 +5,13 @@
  * 题型配比：设置页把「单选/多选/填空/解答各几道」存 app_settings，出题时拼进提示词；
  * 模型多出的裁掉、少出的如实报（ADR-4 降级不崩 + ADR-5 三态反馈），绝不静默改配比。
  *
- * ★ 2026-09-26 题库整族下线：本文件**只剩引擎**。三个调用方都在，谁也不能省——
- *   `pk/match.ts:18`、`pk/judge.ts:20`、`pk/ai-bot.ts:16`（对战出题/裁判/机器人）＋
- *   `learning/quiz-blend.ts`（AI 侧，出题工具与 REST 共用）＋ `learning/collect.ts`（真题侧摘题复用它那道 normalize 闸门）。
+ * ★ 2026-09-26 题库整族下线：本文件**只剩引擎**。调用方一个都不能省（行号现查于本批）：
+ *   `generateQuiz` 四处——`pk/match.ts:18`、`pk/judge.ts:20`、`pk/ai-bot.ts:16`（对战三味）＋
+ *   `learning/quiz-blend.ts:43`（聊天与 REST 出题共用）；`normalizeQuiz`/`parseQuizBlock` 一处——
+ *   `learning/collect.ts:24`（真题侧复用这道校验闸门）；配比与配图的读写三处——
+ *   `routes/quiz.ts`、`routes/settings.ts`、`chat/tools/generate-quiz.ts`。
  *   「练+析」两环（题库表读写、逐题统计、薄弱点分析、逐题剔除）随页面与路由一起断线，表留 DROP 另批。
  */
-import { randomUUID } from 'node:crypto';
 import type { QuizPayload, QuizQuestion, QuizMix, QuizType, QuizMixReport, QuizImageReport, AnswerStyle } from '@sb/shared';
 import {
   QUIZ_TYPES,

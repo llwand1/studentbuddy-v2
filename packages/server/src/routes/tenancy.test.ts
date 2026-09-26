@@ -244,7 +244,7 @@ describe('文档 / 情景题 / 可观测：归属补丁（2026-09-21）', () => 
     expect(mine.body.doc).toEqual({ name: '甲.md', chars: body.length, truncated: false });
   });
 
-  it('scenario：B 取不到 A 的 demoId 与 demo 页；删 A 的套题也删不掉 A 的 demo', async () => {
+  it('scenario：B 取不到 A 的 demo 页，A 自己照常（归属判在 demo→quiz_bank 的 JOIN 上）', async () => {
     const html = '<!doctype html><html><body><button id="t1">t1</button></body></html>';
     const seeded = await request(app)
       .post('/api/scenario/seed')
@@ -256,17 +256,14 @@ describe('文档 / 情景题 / 可观测：归属补丁（2026-09-21）', () => 
         tasks: [{ id: 't1', prompt: '任务一', criteria: { kind: 'choice', answer: [1] } }],
       })
       .expect(200);
-    const { quizId, demoId } = seeded.body as { quizId: string; demoId: string };
+    const { demoId } = seeded.body as { demoId: string };
 
-    await request(app).get(`/api/scenario/by-quiz/${quizId}`).set('Origin', origin).set('Cookie', cookieB).expect(404);
     await request(app).get(`/api/scenario/demo/${demoId}`).set('Origin', origin).set('Cookie', cookieB).expect(404);
-    await request(app).get(`/api/scenario/by-quiz/${quizId}`).set('Origin', origin).set('Cookie', cookieA).expect(200);
-
-    // ★ 破坏性一条：响应恒 {ok:true} 证不了，判据只能是 A 回读自己的 demo
-    await request(app).delete(`/api/quiz/bank/${quizId}`).set('Origin', origin).set('Cookie', cookieB).expect(200);
-    const after = await request(app).get(`/api/scenario/by-quiz/${quizId}`).set('Origin', origin).set('Cookie', cookieA);
-    expect(after.status).toBe(200);
-    expect(after.body.demoId).toBe(demoId);
+    await request(app).get(`/api/scenario/demo/${demoId}`).set('Origin', origin).set('Cookie', cookieA).expect(200);
+    // ★ 2026-09-26 本例少一半：原先还钉「B 调 `DELETE /api/quiz/bank/:id` 删不动 A 的套题行、
+    //   也删不掉 A 的 demo 行」（闸门 #2 那条子查询）。DELETE 与 by-quiz 两条路由都随题库整族
+    //   下线 ⇒ 删除动作本身没了（情景题失去删除通道，代价登记在 `learning/scenario.ts`），
+    //   子查询归属判定仍在 demo 页这条路上，就是上面那对 404/200。
   });
 
   it('obs：A 自己会话里的观测事件，B 一条都读不到', async () => {

@@ -5,8 +5,8 @@
  * ★ 用 `mk()` 造 fixture 而非手写全字段：契约加字段（如 `refs`）时本文件不必逐条补。
  */
 import { describe, it, expect } from 'vitest';
-import type { QuizBlendReport, QuizQuestion, QuizSearchReport } from '@sb/shared';
-import { searchNote, refsList, scenarioMixNote, blendNote } from './mix-report';
+import type { QuizBlendReport, QuizMix, QuizQuestion, QuizSearchReport, QuizSourceMix } from '@sb/shared';
+import { mixTipText, searchNote, refsList, scenarioMixNote, blendNote } from './mix-report';
 
 /** 只写关心的字段，其余走零值 */
 const mk = (p: Partial<QuizSearchReport>): QuizSearchReport => ({
@@ -221,6 +221,25 @@ describe('blendNote — 真题合流文案（QUIZ-BLEND-SPEC §3.4，2026-09-20 
     expect(note).toBe('真题：单选题 2/2（共 2 道）。');
     const empty = blendNote(blend({ requested: { single: 2 }, actual: { single: 0 }, noCollect: true }));
     expect(empty).toBe('真题：本次一道都没摘到（原因见下方逐页报告），题目全部由 AI 出。');
+  });
+});
+
+/**
+ * ★ 2026-09-26 从 `bank-view.test.ts` 搬来（那张文件随题库页下线，但 `mixTipText` 还活着——
+ *   对话页 composer 的那一行配比摘要读的就是它）。用例逐字保留，只换了归属地。
+ */
+describe('mixTipText — 配比摘要一行（QUIZ-BLEND-SPEC §3.5/§8.3）', () => {
+  const ai: QuizMix = { single: 2, multiple: 0, fill: 1, essay: 1, judge: 0, scenario: 0 };
+  const realZero: QuizSourceMix = { single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 };
+
+  it('真题 0 → 与旧摘要逐字一致（老用户看到的字不变）', () => {
+    expect(mixTipText(ai, realZero)).toBe('单选题 2 · 填空题 1 · 解答题 1');
+  });
+
+  it('真题配了 → 并进同一行并预告「会慢」（collect 首版同步无进度条，提示必须如实）', () => {
+    const tip = mixTipText(ai, { ...realZero, single: 2 });
+    expect(tip).toContain('真题 2 题');
+    expect(tip).toContain('可能更久');
   });
 });
 

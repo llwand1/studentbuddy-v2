@@ -1,50 +1,50 @@
 {
-  "generatedAt": "2026-09-25T11:41:10.645Z",
+  "generatedAt": "2026-09-26T03:27:42.839Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
-        "srcFiles": 28,
-        "testFiles": 18,
-        "srcLines": 4099,
-        "testLines": 2251
+        "srcFiles": 27,
+        "testFiles": 16,
+        "srcLines": 3918,
+        "testLines": 2076
       },
       {
         "pkg": "server",
-        "srcFiles": 167,
-        "testFiles": 120,
-        "srcLines": 25604,
-        "testLines": 25986
+        "srcFiles": 163,
+        "testFiles": 114,
+        "srcLines": 24874,
+        "testLines": 25123
       },
       {
         "pkg": "web",
-        "srcFiles": 182,
-        "testFiles": 69,
-        "srcLines": 23308,
-        "testLines": 10137
+        "srcFiles": 176,
+        "testFiles": 66,
+        "srcLines": 22664,
+        "testLines": 9961
       }
     ],
-    "srcFiles": 377,
-    "testFiles": 207,
-    "srcLines": 53011,
-    "testLines": 38374,
+    "srcFiles": 366,
+    "testFiles": 196,
+    "srcLines": 51456,
+    "testLines": 37160,
     "tsxTestFiles": 23
   },
   "routes": {
-    "total": 129,
+    "total": 120,
     "byMethod": {
-      "get": 55,
-      "post": 48,
-      "delete": 12,
+      "get": 51,
+      "post": 45,
+      "delete": 10,
       "put": 13,
       "patch": 1
     },
     "apiMounts": 26
   },
   "contracts": {
-    "iface": 84,
-    "type": 47,
-    "total": 131
+    "iface": 78,
+    "type": 46,
+    "total": 124
   },
   "migrations": {
     "count": 44,
@@ -83,23 +83,23 @@
     "specs": 31,
     "all": 44,
     "dev": 5,
-    "probes": 15
+    "probes": 13
   },
   "repo": {
-    "head": "f219199",
-    "headDate": "2026-09-25",
-    "commitsLast14d": 215,
-    "branch": "feat/remove-daily-summary-notes",
-    "dirtyFiles": 56
+    "head": "c397f2a",
+    "headDate": "2026-09-26",
+    "commitsLast14d": 243,
+    "branch": "chore/remove-quiz-bank",
+    "dirtyFiles": 10
   },
   "tests": {
     "available": true,
-    "ranNow": true,
-    "wallSec": 44.3,
+    "ranNow": false,
+    "wallSec": 0,
     "staleDays": 0,
-    "files": 207,
-    "cases": 2801,
-    "passed": 2800,
+    "files": 196,
+    "cases": 2692,
+    "passed": 2691,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -110,26 +110,26 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "207",
-      "measured": "207",
+      "claimed": "196",
+      "measured": "196",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "2801",
-      "measured": "2801",
+      "claimed": "2692",
+      "measured": "2692",
       "ok": true
     },
     {
       "label": "badge REST 路由",
-      "claimed": "129",
-      "measured": "129",
+      "claimed": "120",
+      "measured": "120",
       "ok": true
     },
     {
       "label": "badge 契约类型",
-      "claimed": "131",
-      "measured": "131",
+      "claimed": "124",
+      "measured": "124",
       "ok": true
     },
     {
@@ -152,32 +152,32 @@
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.125",
-      "measured": "v0.2.125",
+      "claimed": "v0.2.132",
+      "measured": "v0.2.132",
       "ok": true
     },
     {
       "label": "正文 passed 口径",
-      "claimed": "2800 passed + 1 skipped + 0 failed",
-      "measured": "2800 passed + 1 skipped + 0 failed",
+      "claimed": "2691 passed + 1 skipped + 0 failed",
+      "measured": "2691 passed + 1 skipped + 0 failed",
       "ok": true
     },
     {
       "label": "正文 passed 口径",
-      "claimed": "2800 passed + 1 skipped + 0 failed",
-      "measured": "2800 passed + 1 skipped + 0 failed",
+      "claimed": "2691 passed + 1 skipped + 0 failed",
+      "measured": "2691 passed + 1 skipped + 0 failed",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "207 文件 / 2801 例",
-      "measured": "207 文件 / 2801 例",
+      "claimed": "196 文件 / 2692 例",
+      "measured": "196 文件 / 2692 例",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "207 文件 / 2801 例",
-      "measured": "207 文件 / 2801 例",
+      "claimed": "196 文件 / 2692 例",
+      "measured": "196 文件 / 2692 例",
       "ok": true
     }
   ],

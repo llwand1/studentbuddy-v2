@@ -23,28 +23,28 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-09-25 19:41:55（本机时区）｜ 基准 `f219199` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-09-26 11:27:43（本机时区）｜ 基准 `c397f2a` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
-| shared | 28 | 4,099 | 18 | 2,251 | 55% |
-| server | 167 | 25,604 | 120 | 25,986 | 101% |
-| web | 182 | 23,308 | 69 | 10,137 | 43% |
-| **合计** | **377** | **53,011** | **207** | **38,374** | **72%** |
+| shared | 27 | 3,918 | 16 | 2,076 | 53% |
+| server | 163 | 24,874 | 114 | 25,123 | 101% |
+| web | 176 | 22,664 | 66 | 9,961 | 44% |
+| **合计** | **366** | **51,456** | **196** | **37,160** | **72%** |
 
 ## 接口与契约
 
-- REST 路由注册：**129**（get 55 / post 48 / delete 12 / put 13 / patch 1）· 另 /api 挂载点 26 个
-- shared 契约类型：**131**（export interface 84 + export type 47）
+- REST 路由注册：**120**（get 51 / post 45 / delete 10 / put 13 / patch 1）· 另 /api 挂载点 26 个
+- shared 契约类型：**124**（export interface 78 + export type 46）
 - 外部运行时依赖：**6** 个 —— better-sqlite3, cors, express, pino, react, react-dom
 - 迁移水位：代码侧 **v44**（44 个 version 条目，非连续号 0 处）
 
 ## 测试基线（vitest 实跑）
 
-- **207 文件 / 2801 例**（2800 passed + 1 skipped + 0 failed）⇒ 全绿
-- 本次本机实跑（Node v22.23.2）全量耗时 44.3s
+- **196 文件 / 2692 例**（2691 passed + 1 skipped + 0 failed）⇒ 全绿
+- ⚠️ 本次未重跑 vitest，读的是 今日的 test-results 产物——要新鲜数字加 `--tests`
 - jsdom 交互测试文件（`.test.tsx`）23 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
@@ -52,8 +52,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 - ⬜ 无覆盖率产物（跑 `node tools/metrics.mjs --tests --coverage` 生成，**不编数**）
 
 ## 文档与仓库
-- docs/：SPEC 契约 31 份 · md 共 44 份（dev/ 5）· 真机探针 15 个
-- git：feat/remove-daily-summary-notes @ `f219199`（2026-09-25）· 近 14 天 215 commits · 工作区未提交 56 文件
+- docs/：SPEC 契约 31 份 · md 共 44 份（dev/ 5）· 真机探针 13 个
+- git：chore/remove-quiz-bank @ `c397f2a`（2026-09-26）· 近 14 天 243 commits · 工作区未提交 10 文件
 
 <!-- metrics:end -->
 

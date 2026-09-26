@@ -350,7 +350,7 @@ tools/probes    — 真机探针 14 个脚本文件（.mjs 13 ＋ .mts 1：CDP �
 
 **读码入口**（13 行「想看 X 打开这里」的代码地图在 [`docs/INTERVIEW.md`](docs/INTERVIEW.md) §5）：SSE 协议看 `shared/src/sse-events.ts`，出题阶梯看 `server/learning/quiz/`，归属两把锁看 `server/auth/ownership.ts`，安全中间件看 `server/security.ts`。
 
-**真机探针层**（15 个，`tools/probes/`）：jsdom 测逻辑、CDP 真机验观感，两层互补；代表探针与前置条件见 [§开发指南](#开发指南) 探针表。
+**真机探针层**（14 个脚本文件＝`*.mjs` 13 ＋ `*.mts` 1，`tools/probes/`；★ 2026-09-26 题库整族下线批删两件专属探针后现查改正；同文件另两格「15 个」（目录树／两层互补表）同批对齐）：jsdom 测逻辑、CDP 真机验观感，两层互补；代表探针与前置条件见 [§开发指南](#开发指南) 探针表。
 
 ## 快速开始
 
@@ -407,7 +407,7 @@ tools/
 ├─ gates/check.mjs         行数 / 内联样式 / any / 测试登记 四项门禁
 ├─ metrics.mjs             **量化唯一产出器**：源码/测试/路由/契约/覆盖率/迁移水位 + README 漂移对账
 ├─ guard-audit.mjs         **守门判别力审计**：逐条改坏证明每条守门真的会红（`--selftest` 自证）
-├─ probes/                 真机探针 15 个（CDP 真点 10 + 能力/隔离量测 5）
+├─ probes/                 真机探针 14 个（CDP 真点 8 + 能力/隔离量测 6；★ 2026-09-26 题库断线批删两件专属探针，原抄 15 个系删前口径）
 ├─ e2e/                    确定性全栈演示（demo-e2e.mjs ＋假 LLM 上游 fake-provider.mjs，零 key 零真实外呼）
 └─ migrate-from-v1/        v1→v2 数据迁移
 docs/                      契约与研发台账（现读：31 份契约文档（30 个 `*-SPEC.md` + `SSE-CONTRACT.md`）＋ `dev/` 五份台账 ＋ `INTERVIEW.md` ＋ 增长面四份（GROWTH-SPEC / GROWTH-CHANNELS / GROWTH-COMMUNITY-PACK / GROWTH-SUBMISSION-PACK）＋ SEO/运营面五份（SEO-SPEC / GITHUB-OPS-SPEC / metrics / metrics-product / project-growth））
@@ -434,8 +434,8 @@ AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决�
 
 | 层 | 覆盖什么 | 覆盖不到什么 |
 |---|---|---|
-| **`.test.tsx`（jsdom，21 个）** | 交互**逻辑**：点了之后状态对不对、调没调接口、条件渲染出现没有 | 真 CSS 布局、真实浏览器 API（`DOMParser` / `getBBox` / `elementFromPoint`）——jsdom 里这些要么没有、要么是桩 |
-| **`tools/probes/*.mjs`（真机，15 个）** | 真浏览器里的**观感与布局**：CSS 断点、SVG 几何、点击链路、在途三态 | 组件内部逻辑分支的穷举（探针不驱动 React 状态） |
+| **`.test.tsx`（jsdom，23 个）**（★ 2026-09-26 现查改正，原 21 系既存旧抄、非本批引入）| 交互**逻辑**：点了之后状态对不对、调没调接口、条件渲染出现没有 | 真 CSS 布局、真实浏览器 API（`DOMParser` / `getBBox` / `elementFromPoint`）——jsdom 里这些要么没有、要么是桩 |
+| **`tools/probes/*.mjs`（真机，13 个 ＋ 1 件 `.mts`）** | 真浏览器里的**观感与布局**：CSS 断点、SVG 几何、点击链路、在途三态 | 组件内部逻辑分支的穷举（探针不驱动 React 状态） |
 
 `.tsx` 的 jsdom **按文件 pragma 启用**（全局 environment 仍是 `node`），改交互时两层都要跑：
 
@@ -530,7 +530,7 @@ node tools/migrate-from-v1/migrate.mjs --run       # 备份 v2 库后执行
 - **行内公式不渲染**：`$…$` 按原文显示（未引 katex，保持 `@sb/web` 零第三方依赖）；`mermaid` / `echarts` 围栏降级代码块（刻意不引库，数据图由自绘 ```chart 覆盖）
 - **预览页只活内存**：服务重启即失效，无分享链接（内置面板无地址栏、宽度不可拖拽，是定档边界不是缺陷）
 - **文档模式：词法检索，不是语义检索**：≤ 60k 字整篇直塞；> 60k 才切块 + BM25 取段落。**没有 embedding 向量／跨会话资料库／持久化索引／pdf-docx 解析／可点击溯源**。已知天花板：用户**不用资料里的原词**改写提问时，70 万字规模下召回收敛在 **8/13 ≈ 62%**（词法路线的性质，只能靠向量路线突破）；且**不靠分数阈值判「资料没写」**——两种阈值方案都被实测否掉（真命中区间与干扰项区间重叠），识别不到的权力交给模型如实说（契约 `DOC-RAG-SPEC.md` §3.3）
-- **渲染层覆盖仍不完整**：**21 个** `.test.tsx` 覆盖了最高频的几页（对话主视图 / 词条库 / 落地页 / PK / 输入区 / 确认卡 / 设置页 / 复习目标卡等），**其余页面仍无 jsdom 测试**；且 jsdom 里没有真 CSS、也没有 `DOMParser` / `getBBox` / `elementFromPoint` 这类真实浏览器 API ⇒ 布局与观感类症状仍只能靠真机探针 + 人工目检，覆盖率数字对交互层不适用
+- **渲染层覆盖仍不完整**：**23 个** `.test.tsx`（★ 现查 `git ls-files "packages/**/*.test.tsx"`＝23，原写 21 系既存旧抄） 覆盖了最高频的几页（对话主视图 / 词条库 / 落地页 / PK / 输入区 / 确认卡 / 设置页 / 复习目标卡等），**其余页面仍无 jsdom 测试**；且 jsdom 里没有真 CSS、也没有 `DOMParser` / `getBBox` / `elementFromPoint` 这类真实浏览器 API ⇒ 布局与观感类症状仍只能靠真机探针 + 人工目检，覆盖率数字对交互层不适用
 - **全站并发值 N 仍是占位值 8**：待业务值确定后调整，沿用上线会收到「当前免费通道繁忙」
 
 ★ 工程量化（源码/测试/路由/契约/覆盖率）由 `node tools/metrics.mjs` 产出，落地在 [`docs/metrics.md`](docs/metrics.md) 的标记区；**同一份文件的 §线上运行态快照**还记着那台 VPS 的实测（内存、进程构成、可用性留痕、库实况）。

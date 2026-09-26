@@ -415,29 +415,52 @@
 .continent-qtag.match { background: #d98cff; }
 .continent-qtag.scene { background: #ff9a6b; }
 
-/* 宝箱 / 抽卡 / 稀有度：显式空桩（SPEC §4.2 零新表）——只说明"未开放 + 落地条件" */
-.continent-chest {
+/* 走位被挡 / 够不着时，提示行换成警示色（ADR-5 禁静默：走不动必须说出来） */
+.continent-map-hint.warn {
+  color: #ffb4b4;
+}
+
+/* ── 走位 D-pad（键盘之外的第二个走位入口：触屏/鼠标玩家不该为了走一步去挂键盘）── */
+.continent-dpad {
   display: flex;
-  align-items: flex-start;
-  gap: var(--sb-sp-2);
-  border-top: 1px solid var(--sb-line);
-  padding-top: var(--sb-sp-3);
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--sb-sp-3);
+  flex-shrink: 0;
+}
+
+.continent-dpad .continent-btn {
+  min-width: 38px;
+  padding: 6px 0;
+  text-align: center;
+}
+
+.continent-dpad-queue {
+  margin-left: var(--sb-sp-2);
   font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+/* 情景题的「情境框」：题干前面的一层场景，与题干分开读（照抄 demo 的 SCENE_FRAME 用法） */
+.continent-q-frame {
+  font-size: var(--sb-fs-sm);
+  line-height: var(--sb-lh);
+  color: var(--sb-ink-secondary);
+  background: var(--sb-sidebar);
+  border-left: 3px solid var(--sb-primary);
+  border-radius: var(--sb-radius-sm);
+  padding: 8px 10px;
+}
+
+/* 宝箱弹窗里的账目说明行（与 `.continent-banner` 同族的浅色说明，但不占版面宽度） */
+.continent-hint-line {
+  font-size: var(--sb-fs-sm);
+  line-height: var(--sb-lh);
   color: var(--sb-ink-secondary);
 }
 
-.continent-chest-icon {
-  flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--sb-radius-sm);
-  background: var(--sb-surface);
-  border: 1px solid var(--sb-line);
-  font-size: var(--sb-fs-xs);
-  color: var(--sb-ink-tertiary);
+.continent-chest-card {
+  max-width: 420px;
 }
 
 /* ── 普通地块详情卡（已收复 / 未纳入复习范围）──────────────────── */

@@ -1,16 +1,18 @@
 /**
- * shared/continent — 知识大陆（S6 游戏化）的**唯一事实源**：地图铺格 / 怪种派生 / 本地出题 / 图鉴计数。
+ * shared/continent — 知识大陆（S6 游戏化）的**唯一事实源**：地图铺格 / 怪种派生 / 领地扩散 /
+ * 本地出题 / 图鉴计数。
  *
- * 为什么放 shared：铺格顺序、怪种、题数必须**前端算得和服务端存的一致**。本仓已有先例
+ * 为什么放 shared：铺格顺序、怪种、题数、领地范围必须**前端算得和服务端存的一致**。本仓已有先例
  * （`ebbinghaus.ts` 头注）——判定逻辑双写就会出现「页面说这条有怪、点进去却没有题」。
  * 故本文件只放**纯函数**：不碰 IO、不读时钟、不含随机（见下条），server 与 web 都只调用。
  *
- * ── 三条硬口径（改码前必读）────────────────────────────────────────────────────
+ * ── 四条硬口径（改码前必读）────────────────────────────────────────────────────
  *
  * 1. **零随机、零新表、数值全派生**（SPEC §4.2 / 老板拍板）：铺格按 `created_at` 升序从中心
- *    确定性螺旋展开；怪种由词条 id 的 **FNV-1a 稳定哈希**决定；等级由 `review_stage` 派生。
- *    同一份数据任何时候算出同一张地图——否则用户每次刷新都会看到大陆「重排」，那不是地图，
- *    是噪声。（故本文件**不许出现 `Math.random`/`Date.now`**，需要注入的一律由调用方传参。）
+ *    确定性螺旋展开；怪种由词条 id 的 **FNV-1a 稳定哈希**决定；等级由 `review_stage` 派生；
+ *    **领地格数由 `overdueDays` 派生**（见下述第 4 条）。同一份数据任何时候算出同一张地图——
+ *    否则用户每次刷新都会看到大陆「重排」，那不是地图，是噪声。
+ *    （故本文件**不许出现 `Math.random`/`Date.now`**，需要注入的一律由调用方传参。）
  *
  * 2. **怪 = 逾期词条本身**：某格有怪 ⟺ 该格词条 `review.status ∈ {due, overdue}` 且**在复习范围内**。
  *    ⇒ 「点击复习对应词条解除占领」是**自然结果**：答对 → `mark(id,true)` 推进阶段 →
@@ -20,13 +22,30 @@
  *    故范围外的词条只铺成**普通地块**（可查看、不冒怪）。
  *
  * 3. **题型词汇表与 `QuizQuestion.type` 不同源**（`content-blocks.ts`）：那边有 `single/multiple/
- *    essay`、**没有「连线」**；大陆要的是 judge/choice/fill/match 四型 + 情景题（桩）。
+ *    essay`、**没有「连线」**；大陆要的是 judge/choice/fill/match 四型 + 情景题。
  *    两套词汇表刻意不合并——合并任一侧都会改对方的出题/判分链路。
+ *    ★ 2026-09-26 更新：`scene`（情景题）**已落地**，不再是桩。它是「情境框 + 选择题干」的
+ *    简化形态（与桌面 demo 的 `q_scene` 同形），四个情境框写死在 `CONTINENT_SCENE_FRAMES`，
+ *    由稳定哈希选一个——**不用随机**，所以同一只怪每次进都是同一道题。
  *
- * ── 图鉴槽位为什么是「派生的」而不是常数 84 ─────────────────────────────────────
+ * 4. ★ **领地是派生量，不是存储量**（2026-09-26 新增，与口径 1 同源）：一只怪占几格由
+ *    它的 `overdueDays` 决定（`landCountFor`），吞哪些格由**确定性贪心**决定（`spreadLands`）。
+ *    ⇒ 「怪扩张领地」这件在 demo 里靠定时器做的事，在这里**只靠时间本身**——用户隔几天回来，
+ *    数字变了，领地就大了。**没有定时器、没有存档、没有新表。**
+ *    ★ 先占先得 + 词条格优先（照抄 demo `monster_spread` 的 `termN.length ? termN : emptyN`），
+ *    且**逐个怪串行**：两只怪不可能吞到同一格。调用方只需按地图的确定性次序把怪传进来。
+ *
+ * ── 图鉴槽位为什么是「派生的」而不是常数 ─────────────────────────────────────────
  * 槽位数 = Σ |可用题型|^L (L=1..3)，某槽「已发现」⟺ 有词条映射到该怪种且该词条有复习记录。
- * 于是情景题落地时**只需**把 `scene` 加进 `CONTINENT_PLAYABLE_QTYPES`，图鉴自动扩到 155
- * （= 5+25+125），**不用改任何计数代码**。这也是老板「5 种类型排列组合作为图鉴依据」的直译。
+ * 五型（含 scene）可用时 = 5+25+125 = **155**。这就是老板「5 种类型排列组合作为图鉴依据」的直译。
+ * ★ 代价如实写着：把 `scene` 加进 `CONTINENT_PLAYABLE_QTYPES` 会**同时改变已有怪的题型序列**
+ *   （模数 4→5，`speciesTypes` 的结果整体重算）。这是口径本身决定的，不是 bug；图鉴进度
+ *   是**派生视图**，没有任何用户数据因此丢失（`review_stage` 与复习流水一字未动）。
+ *
+ * ── 宝箱（2026-09-26 更新）──────────────────────────────────────────────────────
+ * 地图宝箱**不做独立随机稀有度、不建新账本**。它是既有「每日宝箱」账本的**第二个入口**：
+ * 有可开次数时才在地图上出现，点开走 `POST /api/cards/chest/open`，稀有度一律读 `rarityOf`。
+ * ⇒ 本文件**不再提供** `CONTINENT_CHEST_ENABLED`/`CONTINENT_CHEST_NOTICE` 那对空桩常量。
  */
 import type { ReviewStatus } from './ebbinghaus.js';
 
@@ -42,12 +61,13 @@ export const CONTINENT_MAX_LEVEL = 3;
 export type ContinentQType = 'judge' | 'choice' | 'fill' | 'match' | 'scene';
 
 /**
- * **出怪/出题的可用集**——只有这四种能本地造题。`scene`（情景题）登记在案但暂不参与：
- * 本地造题器对它返回 `null`（**显式空桩**，SPEC §4.2），故它不进这个数组。
+ * **出怪/出题的可用集**——这五种都能本地造题（`scene` 于 2026-09-26 落地）。
+ * ★ 这个数组既决定怪的题型序列（`speciesTypes`），也决定图鉴槽总数（`CONTINENT_CODEX_SLOTS`）：
+ *   往这里加一个类型，图鉴会**自动**扩容，计数代码一行都不用改。
  */
-export const CONTINENT_PLAYABLE_QTYPES: readonly ContinentQType[] = ['judge', 'choice', 'fill', 'match'];
+export const CONTINENT_PLAYABLE_QTYPES: readonly ContinentQType[] = ['judge', 'choice', 'fill', 'match', 'scene'];
 
-/** 全题型表（含桩）——标签/配色按它取，将来 scene 落地时只挪一个类型，不动配色 */
+/** 全题型表——标签/配色按它取（当前与可用集相同；保留这个别名是为了将来「登记但未开放」的题型） */
 export const CONTINENT_QTYPES: readonly ContinentQType[] = ['judge', 'choice', 'fill', 'match', 'scene'];
 
 export const CONTINENT_QLABEL: Record<ContinentQType, string> = {
@@ -75,17 +95,6 @@ export const CONTINENT_QCOLOR: Record<ContinentQType, string> = {
   match: '#d98cff',
   scene: '#ff9a6b',
 };
-
-/**
- * 宝箱 / 抽卡 / 稀有度：**显式空桩**（SPEC §4.2 硬约束）。
- * ★ 禁建表、禁复制 `rarityOf`（唯一实现在未合分支 `feat/term-cards-game` 的 `shared/src/term-cards.ts`）、
- *   禁复制 v45 四表（`chest_keys`/`chest_open`/`study_task`/`term_pool_candidate`）。
- *   落地条件：该分支合入 main 后，在**订阅侧**接上（游戏化层不得反向依赖学习内核）。
- */
-export const CONTINENT_CHEST_ENABLED = false;
-
-/** 空桩的统一文案（UI 只读这一个常量，免得三处各写一句） */
-export const CONTINENT_CHEST_NOTICE = '地图宝箱掉落尚未接入；后续复用卡牌奖励规则与账本。';
 
 /** 铺格/出题只要求这几个字段（`ReviewTerm` 与 `ContinentMapTerm` 都满足） */
 export interface ContinentTermLike {
@@ -120,6 +129,11 @@ export function continentHash(text: string): number {
     h = Math.imul(h, 0x01000193) >>> 0;
   }
   return h >>> 0;
+}
+
+/** 格子的稳定 key（领地/可通行判定共用，避免两处各拼一次字符串拼法不一致） */
+export function cellKey(row: number, col: number): string {
+  return `${row},${col}`;
 }
 
 /**
@@ -189,7 +203,7 @@ export function speciesKey(types: readonly ContinentQType[]): string {
   return types.join('+');
 }
 
-/** 图鉴槽总数 = Σ |可用题型|^L (L=1..3) = 4+16+64 = 84（scene 落地后自动变 155） */
+/** 图鉴槽总数 = Σ |可用题型|^L (L=1..3) = 5+25+125 = 155（五型全部可用时） */
 export const CONTINENT_CODEX_SLOTS = Array.from({ length: CONTINENT_MAX_LEVEL }, (_, i) =>
   Math.pow(CONTINENT_PLAYABLE_QTYPES.length, i + 1),
 ).reduce((a, b) => a + b, 0);
@@ -262,10 +276,148 @@ export function codexDiscovered(terms: readonly ContinentCodexTerm[]): Set<numbe
   return found;
 }
 
+// ── 领地扩散（口径 4）──────────────────────────────────────────────────────────
+// ★ 这一段的全部意义：把 demo 里「靠定时器 + 随机」的扩张，换成「靠已逾期天数 + 确定性贪心」。
+//   于是它零存储、零定时器、跨端一致，且用户隔几天回来会看到领地真的变大了。
+
+/** 单只怪的领地上限（含本体）。★ 照抄 demo 的 `MAX_LANDS = 6`——不封顶 4 只怪就能吃光 14×10 */
+export const CONTINENT_MAX_LANDS = 6;
+
+/** 每逾期几天多占一格（demo：22s 扩张一次 / 12s 一天 ⇒ 约两天一格） */
+export const CONTINENT_LAND_DAY_STEP = 2;
+
+/** 逾期天数 → 领地格数（含本体），`clamp(1 + floor(days/2), 1, 6)` */
+export function landCountFor(overdueDays: number): number {
+  const d = Math.max(0, Math.trunc(overdueDays) || 0);
+  return Math.min(1 + Math.floor(d / CONTINENT_LAND_DAY_STEP), CONTINENT_MAX_LANDS);
+}
+
+/** 扩散的输入：只需要「本体在哪 + 逾期几天」 */
+export interface ContinentLandSource {
+  id: string;
+  row: number;
+  col: number;
+  overdueDays: number;
+}
+
+/** 扩散的结果 */
+export interface ContinentLands {
+  /** 本体格 key → 怪 id */
+  bodies: Map<string, string>;
+  /** 领地格 key → 怪 id（**不含**本体那一格） */
+  lands: Map<string, string>;
+  /** 怪 id → 实际领地格数（含本体）；`landCountFor` 是「想要」，这是「拿到」 */
+  countOf: Map<string, number>;
+}
+
+const LAND_DIRS: ReadonlyArray<readonly [number, number]> = [
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+];
+
+export interface SpreadLandsOptions {
+  cols?: number;
+  rows?: number;
+  /**
+   * 谁都吞不了的格（**用英雄脚下的格**：怪不该把玩家站的地方占掉）。
+   * ★ 这是「英雄位置」这个纯前端状态进入纯函数的**唯一**入口——函数本身仍然无状态。
+   */
+  blocked?: ReadonlySet<string>;
+  /**
+   * 「词条格」集合（地图上真实有词条的格）。给定时按 demo 口径**词条格优先、荒地次之**；
+   * 不给则所有格等价。★ 不给也不会错，只是视觉上会去啃没铺过的荒地。
+   */
+  termCells?: ReadonlySet<string>;
+}
+
+/**
+ * 确定性领地扩散：**先占先得**（按 `sources` 的次序串行处理），词条格优先，逐格哈希定序。
+ * ★ `sources` 的次序必须稳定（调用方按地图铺格序传），否则「两只怪抢同一格」的归属会漂。
+ * ★ 同一格被两只怪的本体要求时**只认第一只**（正常数据不会发生：一格一条词条）。
+ */
+export function spreadLands(
+  sources: readonly ContinentLandSource[],
+  opts: SpreadLandsOptions = {},
+): ContinentLands {
+  const cols = opts.cols ?? CONTINENT_COLS;
+  const rows = opts.rows ?? CONTINENT_ROWS;
+  const blocked = opts.blocked ?? new Set<string>();
+  const termCells = opts.termCells;
+  const bodies = new Map<string, string>();
+  const lands = new Map<string, string>();
+  const countOf = new Map<string, number>();
+  const taken = new Set<string>();
+
+  // 1) 本体先全部落位：领地只能从「已被确认的本体」往外长
+  for (const s of sources) {
+    const key = cellKey(s.row, s.col);
+    if (taken.has(key)) continue;
+    bodies.set(key, s.id);
+    taken.add(key);
+  }
+
+  // 2) 逐只怪按需吞格（串行 ⇒ 不会互抢）
+  for (const s of sources) {
+    const own = cellKey(s.row, s.col);
+    if (bodies.get(own) !== s.id) continue; // 本体被前一格占了的那只：不当扩张源
+    const want = landCountFor(s.overdueDays);
+    const owned = new Set<string>([own]);
+    let got = 1;
+    // ★ **一圈一圈地长**（每次只吞一格，吞完再重新看边界），而不是只在第一圈里挑：
+    //   本体只有 4 个正相邻格 ⇒ 只挑一圈的话领地永远超不过 5 格，`CONTINENT_MAX_LANDS = 6`
+    //   就成了永远够不到的常数。逐格外扩才让"逾期越久、地越大"真的看得出来。
+    while (got < want) {
+      const cands: Array<{ key: string; pri: number; rank: number }> = [];
+      for (const key of owned) {
+        const [br = 0, bc = 0] = key.split(',').map(Number);
+        for (const [dr, dc] of LAND_DIRS) {
+          const row = br + dr;
+          const col = bc + dc;
+          if (row < 0 || row >= rows || col < 0 || col >= cols) continue;
+          const nk = cellKey(row, col);
+          if (taken.has(nk) || blocked.has(nk) || owned.has(nk)) continue;
+          if (cands.some((c) => c.key === nk)) continue; // 同一格被两个已有格邻到：只算一次
+          cands.push({
+            key: nk,
+            pri: termCells && !termCells.has(nk) ? 1 : 0,
+            rank: continentHash(`${s.id}#land|${nk}`),
+          });
+        }
+      }
+      if (!cands.length) break; // 被本体/其他怪/边界围死：拿到多少算多少
+      cands.sort((a, b) => a.pri - b.pri || a.rank - b.rank || (a.key < b.key ? -1 : 1));
+      const next = cands[0];
+      if (!next) break;
+      lands.set(next.key, s.id);
+      owned.add(next.key);
+      taken.add(next.key);
+      got += 1;
+    }
+    countOf.set(s.id, got);
+  }
+
+  return { bodies, lands, countOf };
+}
+
 // ── 本地出题器（零 AI / 零成本 / 离线可用）─────────────────────────────────────
 // 老板裁定①：大陆自带出题器，`term` + `definition` 本地造题。故本段**不依赖任何模型**。
 
-/** 一道大陆题（四型联合；`scene` 无实现，故不在联合里——桩由调用方处理） */
+/** 情景题的四个情境框（照抄桌面 demo 的 `SCENE_FRAME`，一字未改口径） */
+export const CONTINENT_SCENE_FRAMES: readonly string[] = [
+  '情境：你在给同学讲这一节，被追问到这个词条——',
+  '情境：项目答辩现场，老师顺着这个词条继续往下问——',
+  '情境：同伴在群里提问，你想用一个判断回答他——',
+  '情境：你在睡前自测，给自己出了一道题——',
+];
+
+/**
+ * 一道大陆题（五型联合）。
+ * ★ `scene`（情景题）是**「情境框 + 选择题干」的简化形态**（与 demo 的 `q_scene` 同形：
+ *   demo 里它也是包一道 choice 再挂个 `frame`）。真机若要做「长情境 + 多轮追问」，
+ *   动的应该是这一条的分支，而不是再加一种题型——图鉴槽位与题型序列都按 `ContinentQType` 走。
+ */
 export type ContinentQuestion =
   | { type: 'judge'; prompt: string; statement: string; answer: boolean }
   | { type: 'choice'; prompt: string; options: string[]; answerIndex: number }
@@ -274,7 +426,8 @@ export type ContinentQuestion =
    * 连线题：`left` 固定序（题面），`right` 乱序（选项）；`answer[i]` = `left[i]` 应当连到的 `right` 下标。
    * 判分**要求全部连对**（连线题的语义就是「整张图连对」，允许部分对等于给了半分，用户会觉得赚了）。
    */
-  | { type: 'match'; prompt: string; left: string[]; right: string[]; answer: number[] };
+  | { type: 'match'; prompt: string; left: string[]; right: string[]; answer: number[] }
+  | { type: 'scene'; frame: string; prompt: string; options: string[]; answerIndex: number };
 
 /** 用户的作答（形状随题型；判分统一走 `gradeAnswer`，UI 不自己比） */
 export type ContinentAnswer = boolean | number | string | number[];
@@ -308,9 +461,22 @@ function stableOrder<T>(items: readonly T[], key: (item: T) => string): T[] {
   return [...items].sort((a, b) => continentHash(key(a)) - continentHash(key(b)));
 }
 
+/** 选择题干与选项（`choice` / `scene` 共用；两者的差别只有「有没有情境框」） */
+function buildChoices(
+  term: ContinentTermLike,
+  pool: readonly ContinentTermLike[],
+  seed: string,
+  tag: string,
+): { options: string[]; answerIndex: number } {
+  const wrongs = pickOthers(pool, term.id, `${seed}|${tag}`, 3).map((t) => t.definition);
+  const options = stableOrder([term.definition, ...wrongs], (d) => `${seed}|${tag}opt|${d}`);
+  return { options, answerIndex: options.indexOf(term.definition) };
+}
+
 /**
- * 造一道题。**桩**：`scene`（或未知题型）返回 `null`——调用方负责退到 `fill` 兜底
- * （见 `buildMonsterQuestions`），从而「血条数 = 题数」这条永远成立。
+ * 造一道题。五型全部有实现（`scene` 见头注 3 的简化形态）。
+ * ★ 仍然可能返回 `null`（选项池太小、连线池不足）——调用方负责退到 `fill` 兜底
+ *   （见 `buildMonsterQuestions`），从而「血条数 = 题数」这条永远成立。
  */
 export function buildQuestion(
   type: ContinentQType,
@@ -329,14 +495,7 @@ export function buildQuestion(
       return { type: 'judge', prompt: '判断下面这句话对不对', statement, answer: makeTrue };
     }
     case 'choice': {
-      const wrongs = pickOthers(pool, term.id, `${seed}|choice`, 3).map((t) => t.definition);
-      const options = stableOrder([term.definition, ...wrongs], (d) => `${seed}|opt|${d}`);
-      return {
-        type: 'choice',
-        prompt: `「${term.term}」的意思是？`,
-        options,
-        answerIndex: options.indexOf(term.definition),
-      };
+      return { type: 'choice', prompt: `「${term.term}」的意思是？`, ...buildChoices(term, pool, seed, 'choice') };
     }
     case 'fill': {
       // 释义里含词条名 ⇒ 挖空它（考「名 → 还原」）；不含 ⇒ 反过来由释义写出词条名
@@ -358,15 +517,28 @@ export function buildQuestion(
         answer: pairs.map((p) => right.indexOf(p.definition)),
       };
     }
+    case 'scene': {
+      // ★ 情境框由稳定哈希选（同 `speciesTypes` 的判据），不用随机 ⇒ 同一只怪每次进都是同一道题
+      const frame =
+        CONTINENT_SCENE_FRAMES[continentHash(`${seed}|frame`) % CONTINENT_SCENE_FRAMES.length] ??
+        CONTINENT_SCENE_FRAMES[0] ??
+        '';
+      return {
+        type: 'scene',
+        frame,
+        prompt: `有人这样问你：「${term.term}」到底指什么？`,
+        ...buildChoices(term, pool, seed, 'scene'),
+      };
+    }
     default:
-      // scene：显式空桩（SPEC §4.2）。返回 null 而不是造一道假题——假题会污染血条口径。
+      // 词汇表之外的类型（将来登记了新题型但没实现时）：返回 null，由调用方退到 fill 兜底
       return null;
   }
 }
 
 /**
  * 一只怪的完整题组：**一型一道，题数 = 等级 = 血量**。
- * ★ `scene`/`match` 建不出时退到 `fill`（后者只依赖词条自己，永远建得出）。
+ * ★ 某型建不出时退到 `fill`（它只依赖词条自己，永远建得出）。
  */
 export function buildMonsterQuestions(
   term: ContinentTermLike,
@@ -393,6 +565,7 @@ export function gradeAnswer(q: ContinentQuestion, answer: ContinentAnswer): bool
     case 'judge':
       return typeof answer === 'boolean' && answer === q.answer;
     case 'choice':
+    case 'scene':
       return typeof answer === 'number' && answer === q.answerIndex;
     case 'fill':
       return typeof answer === 'string' && normText(answer) !== '' && normText(answer) === normText(q.answer);

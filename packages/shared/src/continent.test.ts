@@ -12,11 +12,15 @@ import {
   CONTINENT_CELLS,
   CONTINENT_CODEX_SLOTS,
   CONTINENT_COLS,
+  CONTINENT_LAND_DAY_STEP,
+  CONTINENT_MAX_LANDS,
   CONTINENT_MAX_LEVEL,
   CONTINENT_PLAYABLE_QTYPES,
   CONTINENT_ROWS,
+  CONTINENT_SCENE_FRAMES,
   buildMonsterQuestions,
   buildQuestion,
+  cellKey,
   codexDiscovered,
   codexSlot,
   codexSlotTypes,
@@ -24,6 +28,7 @@ import {
   continentHash,
   gradeAnswer,
   isDiscovered,
+  landCountFor,
   layoutTiles,
   monsterLevel,
   monsterOccupies,
@@ -31,6 +36,7 @@ import {
   speciesKey,
   speciesTypes,
   spiralCells,
+  spreadLands,
 } from './continent.js';
 
 interface T {
@@ -130,7 +136,7 @@ describe('continent / 图鉴', () => {
       .map((l) => Math.pow(CONTINENT_PLAYABLE_QTYPES.length, l))
       .reduce((a, b) => a + b, 0);
     expect(CONTINENT_CODEX_SLOTS).toBe(expected);
-    expect(CONTINENT_CODEX_SLOTS).toBe(84); // 四型可用时；scene 落地后应为 155
+    expect(CONTINENT_CODEX_SLOTS).toBe(155); // 五型齐备（含 scene）5+25+125；四型时代是 84
   });
 
   it('codexSlot 与 codexSlotTypes 互为逆（全槽遍历）', () => {
@@ -167,6 +173,74 @@ describe('continent / 图鉴', () => {
       { ...term(2), review_stage: 0, last_reviewed_at: '2026-09-25 01:00:00' },
     ]);
     expect(found.size).toBe(1);
+  });
+});
+
+describe('continent / 领地扩散（派生量，不是存储量）', () => {
+  it('逾期天数 → 领地格数：clamp(1 + floor(days/2), 1, 6)，未逾期只占本体', () => {
+    expect(CONTINENT_LAND_DAY_STEP).toBe(2);
+    expect([0, 1, 2, 3, 4, 5, 10, 99].map(landCountFor)).toEqual([1, 1, 2, 2, 3, 3, 6, 6]);
+    expect(landCountFor(-3)).toBe(1); // 脏值不外溢
+  });
+
+  it('未逾期 ⇒ 零领地格，只认得自己的本体（countOf 仍为 1）', () => {
+    const r = spreadLands([{ id: 'a', row: 5, col: 7, overdueDays: 0 }]);
+    expect(r.bodies.get(cellKey(5, 7))).toBe('a');
+    expect(r.lands.size).toBe(0);
+    expect(r.countOf.get('a')).toBe(1);
+  });
+
+  it('逾期越久吞得越多，且**封顶 6 格**、本体那一格不算领地', () => {
+    const long = spreadLands([{ id: 'a', row: 5, col: 7, overdueDays: 30 }]);
+    expect(long.countOf.get('a')).toBe(CONTINENT_MAX_LANDS);
+    expect(long.lands.size).toBe(CONTINENT_MAX_LANDS - 1);
+    expect(long.lands.has(cellKey(5, 7))).toBe(false);
+  });
+
+  it('★ 确定性：同一份输入必得同一片地（否则每次刷新大陆都在重排）', () => {
+    const src = [{ id: 'a', row: 5, col: 7, overdueDays: 6 }];
+    expect(spreadLands(src)).toEqual(spreadLands(src));
+  });
+
+  it('先占先得：两只怪相邻时不会吞到同一格（每格只有一个主人）', () => {
+    const r = spreadLands([
+      { id: 'a', row: 5, col: 7, overdueDays: 30 },
+      { id: 'b', row: 5, col: 8, overdueDays: 30 },
+    ]);
+    const owned = (id: string): number => [...r.lands.values()].filter((v) => v === id).length;
+    // 领地格数 = 本体 1 + 实际吞到的格（相邻格可能被另一只的**本体**占掉，所以不保证等于 landCountFor）
+    expect(r.countOf.get('a')).toBe(1 + owned('a'));
+    expect(r.countOf.get('b')).toBe(1 + owned('b'));
+    expect(new Set(r.lands.values())).toEqual(new Set(['a', 'b']));
+    for (const key of r.lands.keys()) {
+      expect(r.bodies.has(key)).toBe(false); // 领地永不覆盖本体
+    }
+  });
+
+  it('blocked 格吞不动（英雄脚下：怪不该把玩家站的地方占掉）', () => {
+    const r = spreadLands([{ id: 'a', row: 5, col: 7, overdueDays: 30 }], {
+      blocked: new Set([cellKey(5, 8), cellKey(4, 7)]),
+    });
+    expect(r.lands.has(cellKey(5, 8))).toBe(false);
+    expect(r.lands.has(cellKey(4, 7))).toBe(false);
+  });
+
+  it('词条格优先（照抄 demo 的 `termN.length ? termN : emptyN`）：有真词条的格先被吞', () => {
+    const r = spreadLands([{ id: 'a', row: 0, col: 0, overdueDays: 2 }], {
+      termCells: new Set([cellKey(0, 1)]),
+    });
+    expect(r.lands.get(cellKey(0, 1))).toBe('a');
+    expect(r.lands.has(cellKey(1, 0))).toBe(false);
+  });
+
+  it('越界不吞（贴着边界长出来的地不会绕到另一侧）', () => {
+    for (const key of spreadLands([{ id: 'a', row: 0, col: 0, overdueDays: 30 }]).lands.keys()) {
+      const [row, col] = key.split(',').map(Number);
+      expect(row).toBeGreaterThanOrEqual(0);
+      expect(row).toBeLessThan(CONTINENT_ROWS);
+      expect(col).toBeGreaterThanOrEqual(0);
+      expect(col).toBeLessThan(CONTINENT_COLS);
+    }
   });
 });
 
@@ -220,8 +294,20 @@ describe('continent / 出题与判分', () => {
     expect(gradeAnswer(q, halfRight)).toBe(false);
   });
 
-  it('情景题是**显式空桩**：造题返回 null（不造假题污染血条）', () => {
-    expect(buildQuestion('scene', term(1), pool, 'seed')).toBeNull();
+  it('情景题：情境框来自固定四句 + 选择题干；同一只怪每次得同一道题（哈希定框，不用随机）', () => {
+    const q = buildQuestion('scene', term(1), pool, 'seed');
+    if (q === null || q.type !== 'scene') throw new Error('期望情景题');
+    expect(CONTINENT_SCENE_FRAMES).toContain(q.frame);
+    expect(q.options[q.answerIndex]).toBe(term(1).definition);
+    expect(buildQuestion('scene', term(1), pool, 'seed')).toEqual(q);
+    expect(gradeAnswer(q, q.answerIndex)).toBe(true);
+    expect(gradeAnswer(q, (q.answerIndex + 1) % q.options.length)).toBe(false);
+  });
+
+  it('五型都能本地建题（题数 = 等级 = 血量 ⇒ 任何一型都不能是空桩）', () => {
+    for (const t of CONTINENT_PLAYABLE_QTYPES) {
+      expect(buildQuestion(t, term(1), pool, 'seed')).not.toBeNull();
+    }
   });
 
   it('monsterOccupies：只有「范围内 + 到期/逾期」才冒怪', () => {

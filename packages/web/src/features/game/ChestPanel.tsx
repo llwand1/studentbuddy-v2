@@ -43,7 +43,14 @@ const ACCEPTED_CARDS = 2;
 
 type Phase = 'lid' | 'reveal';
 
-function RitualOverlay({
+/**
+ * 开盒仪式（整屏遮罩 + 光束 + 翻卡 + 像素养份）。
+ * ★ **导出**是给知识大陆的地图宝箱用的（`features/continent/ContinentChest.tsx`）：那是同一个
+ *   每日宝箱账本的**第二个入口**，仪式必须同一份——自己再画一套，两边的规则就会开始漂移，
+ *   而漂移的形态是「地图上开盒和卡牌页不一样」，用户会当场发现。本组件不含任何请求逻辑，
+ *   所以复用它是纯展示层的复用（写口仍在各自调用方的 `api.cards.*`）。
+ */
+export function RitualOverlay({
   draw,
   busy,
   onAccept,

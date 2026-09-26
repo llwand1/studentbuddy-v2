@@ -203,23 +203,23 @@ const CARD_CSS = `
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { width: ${OG_CARD_W}px; height: ${OG_CARD_H}px; overflow: hidden; }
 body { font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
-  color: #1e2433; background: #ffffff; -webkit-font-smoothing: antialiased; }
+  color: #302b3d; background: #fffdf7; -webkit-font-smoothing: antialiased; }
 .frame { width: ${OG_CARD_W}px; height: ${OG_CARD_H}px; padding: 64px 72px;
-  display: flex; flex-direction: column; background: #ffffff; position: relative; }
+  display: flex; flex-direction: column; background: #fffdf7; position: relative; }
 .frame::after { content: ""; position: absolute; left: 0; top: 0;
-  width: 10px; height: ${OG_CARD_H}px; background: #007aff; }
+  width: 10px; height: ${OG_CARD_H}px; background: #6c4bb8; }
 .brand { display: flex; align-items: center; gap: 14px; }
-.chip { width: 40px; height: 40px; border-radius: 10px; background: #007aff; color: #ffffff;
+.chip { width: 40px; height: 40px; border-radius: 0; background: #6c4bb8; color: #fffdf7;
   font-size: 24px; font-weight: 700; display: grid; place-items: center; }
 .bname { font-size: 22px; font-weight: 600; letter-spacing: .01em; }
-.bkicker { font-size: 19px; color: #9aa1b0; padding-left: 14px; border-left: 1px solid rgba(30, 40, 60, 0.10); }
+.bkicker { font-size: 19px; color: #81798b; padding-left: 14px; border-left: 1px solid #d5cfde; }
 h1 { font-size: 104px; line-height: 1.12; font-weight: 700; letter-spacing: .01em; margin-top: 44px; }
-.alias { font-size: 26px; color: #6b7385; margin-top: 14px; }
-.lead { font-size: 31px; line-height: 1.62; color: #1e2433; margin-top: 34px;
-  border-left: 5px solid #007aff; padding: 6px 0 6px 26px; max-width: 1000px; }
+.alias { font-size: 26px; color: #696374; margin-top: 14px; }
+.lead { font-size: 31px; line-height: 1.62; color: #302b3d; margin-top: 34px;
+  border-left: 5px solid #6c4bb8; padding: 6px 0 6px 26px; max-width: 1000px; }
 .foot { margin-top: auto; display: flex; align-items: baseline; justify-content: space-between; gap: 24px; }
-.items { font-size: 21px; color: #6b7385; }
-.url { font-size: 21px; color: #9aa1b0; letter-spacing: .02em; }
+.items { font-size: 21px; color: #696374; }
+.url { font-size: 21px; color: #81798b; letter-spacing: .02em; }
 /** 拉丁版式：CJK 每字约 1em 宽、拉丁约 0.55em，104px 那一档给英文标题必顶出画框，故另开一档 */
 .frame--latin h1 { font-size: 72px; letter-spacing: -.01em; }
 .frame--latin .lead { font-size: 28px; padding-left: 22px; }

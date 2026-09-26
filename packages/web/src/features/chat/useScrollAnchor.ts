@@ -11,32 +11,41 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { shouldAutoScroll } from './chat-meta';
 
-export function useScrollAnchor(signal: readonly unknown[]) {
+export function useScrollAnchor(signal: readonly unknown[], hasConversation = true) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const stickRef = useRef(true);
   const [showJump, setShowJump] = useState(false);
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
-    if (!el) return;
+    if (!el || !hasConversation) return;
     stickRef.current = shouldAutoScroll(el.scrollHeight - el.scrollTop - el.clientHeight);
     setShowJump(!stickRef.current);
-  }, []);
+  }, [hasConversation]);
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || !stickRef.current) return;
+    if (!el) return;
+    // Empty welcome scenes start at the top even on short screens; reading them must not unpin a new chat.
+    if (!hasConversation) {
+      el.scrollTop = 0;
+      stickRef.current = true;
+      setShowJump(false);
+      return;
+    }
+    if (!stickRef.current) return;
     // 贴底时用 scrollTop 直接赋值而不是 smooth：每帧一次 smooth 会互相打断，反而抖
     el.scrollTop = el.scrollHeight;
     // signal 是调用方给的变化信号（消息数/流式文本/步骤）
-  }, signal);
+  }, [...signal, hasConversation]);
 
   const jumpToBottom = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     stickRef.current = true;
     setShowJump(false);
-    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    el.scrollTo({ top: el.scrollHeight, behavior: reduced ? 'auto' : 'smooth' });
   }, []);
 
   return { scrollRef, showJump, onScroll, jumpToBottom };

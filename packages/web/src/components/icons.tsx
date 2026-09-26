@@ -1,6 +1,6 @@
 /**
- * SVG line-icon 基座 — 自绘矢量图标（G5：禁 emoji，currentColor 浅/暗自适应）。
- * 约定：24×24 viewBox、1.6 描边、round 端点；新图标加一个组件即可。
+ * SVG 像素图标基座 — 24×24 整数网格、方形端点与阶梯轮廓。
+ * currentColor 随主题变色；保留既有组件 API 与可访问性属性。
  */
 import type { SVGProps } from 'react';
 
@@ -14,9 +14,10 @@ function base(size: number | undefined, props: IconProps) {
     viewBox: '0 0 24 24',
     fill: 'none',
     stroke: 'currentColor',
-    strokeWidth: 1.6,
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
+    strokeWidth: 2,
+    strokeLinecap: 'square' as const,
+    strokeLinejoin: 'miter' as const,
+    shapeRendering: 'crispEdges',
     ...rest,
   };
 }
@@ -25,7 +26,7 @@ function base(size: number | undefined, props: IconProps) {
 export function ChatIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-4 4v-4H6a2 2 0 0 1-2-2z" />
+      <path d="M4 4h16v12H10v2H8v2H6v-4H4zM8 8h8M8 12h4" />
     </svg>
   );
 }
@@ -34,8 +35,8 @@ export function ChatIcon(props: IconProps) {
 export function QuizIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <path d="M5 4h14v16l-7-3-7 3z" />
-      <path d="M9.5 9.5 12 12l4.5-4.5" />
+      <path d="M6 4h12v16h-4v-2h-4v2H6z" />
+      <path d="M9 10v2h3v-2h2V8h2" />
     </svg>
   );
 }
@@ -44,17 +45,17 @@ export function QuizIcon(props: IconProps) {
 export function CardsIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <rect x="4" y="7" width="12" height="13" rx="2" />
-      <path d="M8 7V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-3" />
+      <rect x="4" y="8" width="12" height="12" />
+      <path d="M8 8V4h12v12h-4M8 12h4M8 16h2" />
     </svg>
   );
 }
 
-/** 反馈环（欢迎卡「看看进度」）——★ 2026-09-25 原「今日总结」页下线后它只剩这一个用处，图标本身留着 */
+/** 反馈环（欢迎卡「看看进度」） */
 export function StatsIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <path d="M5 20V10M12 20V4M19 20v-7" />
+      <path d="M4 20h16M5 18v-6h2v6M11 18V4h2v14M17 18v-8h2v8" />
     </svg>
   );
 }
@@ -63,8 +64,8 @@ export function StatsIcon(props: IconProps) {
 export function DocIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <path d="M6 3h8l4 4v14H6z" />
-      <path d="M14 3v4h4M9 12h6M9 16h5" />
+      <path d="M6 4h8v2h2v2h2v12H6z" />
+      <path d="M14 4v4h4M10 12h4M10 16h4" />
     </svg>
   );
 }
@@ -73,8 +74,7 @@ export function DocIcon(props: IconProps) {
 export function FlaskIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <path d="M9.5 3h5M10.5 3v5.2L4.8 17.6A2.2 2.2 0 0 0 6.8 21h10.4a2.2 2.2 0 0 0 2-3.4L13.5 8.2V3" />
-      <path d="M7.2 15.5h9.6" />
+      <path d="M8 4h8M10 4v6H8v4H6v6h12v-6h-2v-4h-2V4M6 16h12" />
     </svg>
   );
 }
@@ -83,8 +83,8 @@ export function FlaskIcon(props: IconProps) {
 export function SettingsIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" />
+      <path d="M8 4h8v4h4v8h-4v4H8v-4H4V8h4z" />
+      <rect x="10" y="10" width="4" height="4" />
     </svg>
   );
 }
@@ -120,7 +120,7 @@ export function FitIcon(props: IconProps) {
 export function CheckIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <path d="M5 12.5l4.5 4.5L19 7" />
+      <path d="M4 12h2v2h2v2h4v-4h2v-2h2V8h2V6h2" />
     </svg>
   );
 }
@@ -129,10 +129,7 @@ export function CheckIcon(props: IconProps) {
 export function VsIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <circle cx="7" cy="7" r="2.6" />
-      <path d="M2.6 19.4c0-2.4 2-4.4 4.4-4.4s4.4 2 4.4 4.4" />
-      <circle cx="17" cy="7" r="2.6" />
-      <path d="M12.6 19.4c0-2.4 2-4.4 4.4-4.4s4.4 2 4.4 4.4" />
+      <path d="M4 4h4v6H4zM16 4h4v6h-4zM2 20v-6h8v6M14 20v-6h8v6" />
     </svg>
   );
 }
@@ -141,7 +138,7 @@ export function VsIcon(props: IconProps) {
 export function SendIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <path d="M12 19V5M5 12l7-7 7 7" />
+      <path d="M12 20V4M6 10h2V8h2V6h4v2h2v2h2" />
     </svg>
   );
 }
@@ -150,7 +147,7 @@ export function SendIcon(props: IconProps) {
 export function StopIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" stroke="none" />
+      <rect x="6" y="6" width="12" height="12" fill="currentColor" stroke="none" />
     </svg>
   );
 }
@@ -159,8 +156,7 @@ export function StopIcon(props: IconProps) {
 export function SearchIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <circle cx="11" cy="11" r="6" />
-      <path d="M15.5 15.5 20 20" />
+      <path d="M6 4h8v2h2v8h-2v2H6v-2H4V6h2zM16 16h2v2h2v2" />
     </svg>
   );
 }
@@ -169,7 +165,7 @@ export function SearchIcon(props: IconProps) {
 export function DownloadIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <path d="M12 4v11M7 10l5 5 5-5M5 19h14" />
+      <path d="M12 4v12M6 10h2v2h2v2h4v-2h2v-2h2M4 18v2h16v-2" />
     </svg>
   );
 }
@@ -178,7 +174,7 @@ export function DownloadIcon(props: IconProps) {
 export function PinIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <path d="M9 4h6l-1 6 4 3v2h-5v5l-1 1-1-1v-5H6v-2l4-3z" />
+      <path d="M8 4h8M10 4v6H8v2H6v2h12v-2h-2v-2h-2V4M12 14v6" />
     </svg>
   );
 }
@@ -187,7 +183,7 @@ export function PinIcon(props: IconProps) {
 export function ChevronDownIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <path d="m6 9 6 6 6-6" />
+      <path d="M6 8v2h2v2h2v2h4v-2h2v-2h2V8" />
     </svg>
   );
 }
@@ -196,8 +192,7 @@ export function ChevronDownIcon(props: IconProps) {
 export function ClockIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 2" />
+      <path d="M8 2h8v2h4v4h2v8h-2v4h-4v2H8v-2H4v-4H2V8h2V4h4zM12 6v6h4" />
     </svg>
   );
 }
@@ -206,8 +201,7 @@ export function ClockIcon(props: IconProps) {
 export function UserIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" />
+      <path d="M8 4h8v8H8zM4 20v-4h4v-2h8v2h4v4" />
     </svg>
   );
 }
@@ -216,10 +210,9 @@ export function UserIcon(props: IconProps) {
 export function FlowIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <rect x="3" y="4" width="9" height="6" rx="1.5" />
-      <rect x="12" y="14" width="9" height="6" rx="1.5" />
-      <path d="M12 7h1.5a2 2 0 0 1 2 2v5" />
-      <path d="M7.5 10v4a2 2 0 0 0 2 2H12" />
+      <rect x="4" y="4" width="8" height="6" />
+      <rect x="12" y="14" width="8" height="6" />
+      <path d="M12 6h4v8M8 10v6h4" />
     </svg>
   );
 }
@@ -228,13 +221,7 @@ export function FlowIcon(props: IconProps) {
 export function GraphIcon(props: IconProps) {
   return (
     <svg {...base(props.size, props)}>
-      <circle cx="12" cy="12" r="3" />
-      <circle cx="12" cy="4" r="2" />
-      <circle cx="5" cy="18.5" r="2" />
-      <circle cx="19" cy="18.5" r="2" />
-      <path d="M12 6.5v2.5" />
-      <path d="M9.8 14.2 6.6 16.8" />
-      <path d="M14.2 14.2l3.2 2.6" />
+      <path d="M10 2h4v4h-4zM8 10h8v4H8zM2 18h4v4H2zM18 18h4v4h-4zM12 6v4M8 14v4H6M16 14v4h2" />
     </svg>
   );
 }

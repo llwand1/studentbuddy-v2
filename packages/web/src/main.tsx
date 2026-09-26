@@ -17,6 +17,9 @@ import { api } from './lib/api';
 import { sanitizeReturnTo } from './features/pk/pk-view';
 import type { AuthUser, DeployForm } from '@sb/shared';
 import './styles/tokens.css';
+import './styles/pixel-ui.css';
+import './styles/pixel-shell.css';
+import './styles/pixel-scene.css';
 
 /** §14.3 returnTo 的 sessionStorage 键（与 PkApp 的 goLogin 约定同一处） */
 const RETURN_TO_KEY = 'sb_return_to';

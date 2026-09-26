@@ -102,13 +102,14 @@ export function ChatView({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   /** 滚动锚定：贴底才跟随流式输出；离底时不打断用户上翻，改显示「回到底部」。
       来源清单也算锚：它随本轮落屏，贴底时该被带进视野 */
+  const isEmpty = messages.length === 0 && steps.length === 0 && tasks.length === 0 && !streamingText;
   const { scrollRef, showJump, onScroll, jumpToBottom } = useScrollAnchor([
     messages.length,
     steps.length,
     tasks.length,
     streamingText,
     quiz.quizRefs.length,
-  ]);
+  ], !isEmpty);
   /** 输入框随内容自增高：高度写进 CSS 变量 --ta-h（chat.css），上限 200px 后内滚 */
   useAutoResize(inputRef, input);
 
@@ -126,7 +127,6 @@ export function ChatView({
   }, [sessionId]);
 
   const blocked = ready !== 'open' || busy;
-  const isEmpty = messages.length === 0 && steps.length === 0 && tasks.length === 0 && !streamingText;
   /** 轮次元信息只在收口后显示：生成过程中显示「已用 x tokens」会随流式跳动，且中途的数没有意义 */
   const roundMeta = busy ? '' : formatRoundMeta(usage, elapsedMs);
   /** 「重新生成」只给最后一条回答：对中间某条重生成的语义是分叉，本版不做（会牵扯历史改写） */

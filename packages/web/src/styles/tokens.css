@@ -1,20 +1,31 @@
 /**
- * studentbuddy v2 设计 token — 浅色豆包风（G5，唯一事实源）。
+ * studentbuddy v2 设计 token — 像素学习营地（唯一事实源）。
  * 全部视觉决策走变量；组件禁内联 style（CI gates 拦截）；暗色主题 v2 不做。
  */
 :root {
-  /* 色板 · 极简浅色 */
-  --sb-bg: #fafafa;          /* 应用底色 */
-  --sb-surface: #ffffff;     /* 卡片/面板 */
-  --sb-sidebar: #f5f5f7;     /* 侧栏 */
-  --sb-primary: #007aff;     /* 品牌蓝（唯一强调色） */
-  --sb-primary-weak: rgba(0, 122, 255, 0.08);
-  --sb-ink: #1e2433;         /* 主文字 */
-  --sb-ink-secondary: #6b7385; /* 次文字 */
-  --sb-ink-tertiary: #9aa1b0;  /* 占位/禁用 */
-  --sb-line: rgba(30, 40, 60, 0.10); /* 分隔线 */
-  --sb-success: #22c55e;
-  --sb-danger: #ef4444;
+  /* 暖纸底、莓紫主色、草绿与麦金点缀。正文维持正常抗锯齿与可读性。 */
+  --sb-bg: #f6f3eb;
+  --sb-surface: #fffdf7;
+  --sb-sidebar: #eeeadf;
+  --sb-primary: #6c4bb8;
+  --sb-primary-weak: #eee7fa;
+  --sb-ink: #302b3d;
+  --sb-ink-secondary: #696374;
+  --sb-ink-tertiary: #81798b;
+  --sb-line: #d5cfde;
+  --sb-success: #3f7c54;
+  --sb-danger: #b94752;
+  --sb-pixel-edge: #51445f;
+  --sb-pixel-shadow: #c5bad5;
+  --sb-pixel-green: #e3efd8;
+  --sb-pixel-gold: #f5e3b1;
+  --sb-pixel-sky: #e8e5f5;
+  --sb-pixel-grid: #e8e3da;
+  --sb-font-display: "Courier New", "Microsoft YaHei", monospace;
+  /* 旧门面变量归一到同一色板，避免 fallback 继续使用旧蓝白色。 */
+  --sb-border: var(--sb-line);
+  --sb-text: var(--sb-ink);
+  --sb-text-secondary: var(--sb-ink-secondary);
 
   /* 排版 */
   --sb-font: "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
@@ -34,14 +45,14 @@
   --sb-sp-6: 32px;
 
   /* 圆角 / 阴影 */
-  --sb-radius-sm: 8px;
-  --sb-radius-md: 12px;
-  --sb-radius-lg: 16px;
-  --sb-shadow-1: 0 1px 4px rgba(30, 40, 80, 0.06);
-  --sb-shadow-2: 0 6px 20px rgba(30, 40, 80, 0.10);
+  --sb-radius-sm: 0px;
+  --sb-radius-md: 0px;
+  --sb-radius-lg: 0px;
+  --sb-shadow-1: 3px 3px 0 var(--sb-pixel-shadow);
+  --sb-shadow-2: 5px 5px 0 var(--sb-pixel-shadow);
 
   /* 布局 */
-  --sb-sidebar-w: 180px;
+  --sb-sidebar-w: 216px;
   --sb-browser-w: 560px;
   --sb-composer-max: 760px;
 }

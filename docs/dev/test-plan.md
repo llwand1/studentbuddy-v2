@@ -1,4 +1,12 @@
 # studentbuddy v2 · 测试方案（test-plan）
+
+> 2026-09-26 像素 UI：本批以 `origin/main @ 60dacb2` 为基线，开工 build/check 实测 204 文件、2765 passed＋1 skipped。仅加入前端视觉与交互回归，不改游戏数值、数据库、服务端测试结构；本批最终 build/check 实测 207 文件、2774 passed＋1 skipped（2775 例），tsc/eslint/gates 全绿；OG 22 张重建通过；完整指标对账另见 CHANGELOG 对应行。
+
+| 本批测试文件 | 用例 | 不变量 |
+|---|---:|---|
+| `src/components/PixelSidebar.test.tsx` | 4 | 手机导航打开/关闭；Escape 与遮罩关闭后归还焦点；导航点击仍执行；账号与历史输入交互不误关 |
+| `src/features/chat/Welcome.test.tsx` | 2 | 建议卡只把所选草稿交给输入区；营地装饰对辅助技术隐藏且不进入交互顺序 |
+| `src/features/chat/useScrollAnchor.test.tsx` | 3 | 欢迎空态从顶部开始；首条消息贴底；阅读历史不强拉；返回空态复位；减少动态效果时即时跳转 |
 > ★ **2026-09-25 深度理解族断线批（issue #27，拟 v0.2.133）对本表的改动清单**：**删 3 条登记行**＝「src/learning/verdict.test.ts」18 ＋「src/learning/verdict-gate.test.ts」10 ＋「src/domain.test.ts」7（★ 同一批把 §7 里那条 v0.2.29 改名批历史行中的「src/domain.test.ts」降格为不带 `src/` 前缀的短写法——闸门 #4 对 `src/…` 反引号 token **双向查**，历史行的**文字一字未动**，只让它不再被当成本表在册登记）；★ **零摘例、零改断言**（其余 201 个测试文件一行未碰），库面锁「src/storage/db.test.ts」的 v8 那几条**原样保留并通过**（本批只断线，两表与三列仍在库里）。基线句 207/2801 → **204/2766**（**－3 文件／－35 例**；本机**先 build 再测**全量实跑 2765 passed＋1 skipped＋0 failed，逐包闭合 shared 274／17＋server 1697／118＋web 795／69＝**2766／204**，非推算；★ 本批首读同样在 `dist` 不在场的全新 worktree 里取过一次＝2763 passed＋3 skipped，同一现象已写进 §3 标题句，免得下次立案）。
 
 

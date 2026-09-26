@@ -1,9 +1,11 @@
-# ⚠️⚠️ EXPERIMENTAL —— 本 compose 从未实机跑通（诚实声明，2026-09-24 定性）⚠️⚠️
-# 线上真实运行形态是「ssh 直传 + systemd + Caddy」，判据与逐条实测见 DEPLOY.md 与
-# docs/dev/launch-plan.md §3.5。本文件是那条路径的**容器化平移草案**：
-#   - 已知风险点：better-sqlite3 原生模块在 slim 镜像内的编译工具链（Dockerfile 头注）；
-#   - web/dist 目前靠一次性容器拷入共享卷（切换手册 §3），server 尚不托管静态站；
-#   - 想把它当 quick start 用的人：请先读 docs/dev/launch-plan.md §3.5，别从本文件进门。
+# ⚠️ EXPERIMENTAL（定性 2026-09-24）→ ★ **2026-09-27 本机（Windows·Docker Desktop/WSL2）实机跑通**：
+#   build/全栈/注册登录链路/持久卷重起均实测通过（拦路石＝本机镜像拉取源失效，非本文件）。
+#   **线上服务器仍未切容器形态**：服务器 compose 从未跑过，且现网 systemd caddy 占着宿主 80/443，
+#   切换必须先停旧形态（见 tools/docker/部署切换手册.md §4，未执行）。
+# 线上真实运行形态仍是「ssh 直传 + systemd + Caddy」，判据见 DEPLOY.md 与 docs/dev/launch-plan.md §3.5：
+#   - better-sqlite3 风险已排除：v11.10.0 命中 node-v127 prebuilt，未走 gyp 现编（09-27 实测）；
+#   - web/dist 靠一次性容器拷入共享卷，**站点文件放卷根**、主 caddy 挂 /srv 自服务＋SPA 兜底
+#     （09-27 实测修正；切换手册 §3.1 原「拷到 /dst/web/」布局会 404）；server 尚不托管静态站。
 # 修硬伤记录（2026-09-24，与「标 experimental」同批）：
 #   1. caddy 曾挂载仓里**不存在**的 `./Caddyfile` ⇒ 改挂 `deploy/docker/Caddyfile`（本仓现在真有这份示例）；
 #   2. env_file 曾硬编码**生产机私有路径** `/opt/studentbuddy/app/.env` ⇒ 改走 compose 对根 `.env` 的原生插值，仓库不再引用任何机器专属路径；
@@ -48,7 +50,7 @@ services:
     restart: unless-stopped
     command: caddy file-server --root /srv --listen :8080 --access-log
     volumes:
-      - sb-webdist:/srv/web:ro         # 由一次性容器从 server 镜像拷出（见切换手册 §3）
+      - sb-webdist:/srv:ro            # ★站点文件放**卷根**（实测 2026-09-27：配合上行 --root /srv；切换手册 §3.1 的 `cp 到 /dst/web/` 布局会 404，拷平时去掉 /web 一层）
     networks: [sbnet]
 
   caddy:
@@ -59,6 +61,7 @@ services:
       - "${SB_PUB_HTTPS:-443}:443"
     volumes:
       - ./deploy/docker/Caddyfile:/etc/caddy/Caddyfile:ro   # ★ 本仓真实存在的示例（原引用的 ./Caddyfile 不存在）
+      - sb-webdist:/srv:ro              # ★ 主 caddy 直接服务静态站＋SPA 兜底（实测 2026-09-27，见 Caddyfile 内注释）
       - caddy-config:/config
       - caddy-data:/data               # ★ TLS 证书存这里，删卷=重签发（Let's Encrypt 有频控）
     networks: [sbnet]                  # 走桥接：反代目标写服务名 server:18791 / web:8080

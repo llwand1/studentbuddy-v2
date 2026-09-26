@@ -9,8 +9,10 @@
  * 保存顺序铁律：**先存 AI 侧、再存真题侧**——服务端两侧 PUT 各自对**库里的**另一侧做联合钳位
  * （`routes/settings.ts`），先 AI 后真题才能让真题侧按新 AI 配比收口；倒过来会按旧 AI 配比钳。
  *
- * 每账号一份落 app_settings（`quiz_mix` / `quiz_source_mix` 两键）：对话页「出题」、
- * 题库页「一键出题」共用，账号之间互不影响。
+ * 每账号一份落 app_settings（`quiz_mix` / `quiz_source_mix` 两键）：读它的是**对话页的出题**
+ * （输入框「出题」不带 mix 时由服务端回落到这份，聊天工具 `generate-quiz` 同理）。
+ * ★ 对战出题**不吃这份配比**——它按 `PK_QUIZ_MIX` 现算（`pk/match.ts`、`pk/ai-bot.ts`），
+ *   所以这张卡从 2026-09-26 起只服务对话核一处；题库页那处入口同批下线。账号之间互不影响。
  */
 import { useEffect, useState } from 'react';
 import type { QuizMix, QuizMixKind, QuizSourceMix } from '@sb/shared';

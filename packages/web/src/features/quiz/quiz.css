@@ -11,17 +11,6 @@
 
 .quiz-q { margin-bottom: var(--sb-sp-4); }
 .quiz-q-title { margin-bottom: var(--sb-sp-2); line-height: 1.7; }
-/* 逐题剔除（QUIZ-BLEND-SPEC §8 对冲④）：低调灰字，hover 才显眼——是「后悔药」不是主操作 */
-.quiz-q-remove {
-  float: right;
-  border: 1px solid var(--sb-line);
-  border-radius: var(--sb-radius-sm);
-  padding: 0 var(--sb-sp-2);
-  font-size: var(--sb-fs-sm);
-  color: var(--sb-ink-secondary);
-  background: var(--sb-bg);
-}
-.quiz-q-remove:hover { border-color: var(--sb-primary); color: var(--sb-primary); }
 .quiz-q-type {
   display: inline-block;
   font-size: var(--sb-fs-xs);
@@ -106,69 +95,11 @@
 .quiz-explain-body { margin-top: var(--sb-sp-1); color: var(--sb-ink-secondary); }
 .quiz-source { margin-top: var(--sb-sp-1); color: var(--sb-ink-tertiary); font-size: var(--sb-fs-xs); }
 
-/* 题库页 */
-.quiz-bank-page { flex: 1; overflow-y: auto; padding: var(--sb-sp-5) var(--sb-sp-4); max-width: 860px; margin: 0 auto; width: 100%; }
-.quiz-bank-page h2 { margin-bottom: var(--sb-sp-4); }
-.quiz-bank-item {
-  display: flex; align-items: center; gap: var(--sb-sp-3);
-  background: var(--sb-surface); border: 1px solid var(--sb-line);
-  border-radius: var(--sb-radius-md); box-shadow: var(--sb-shadow-1);
-  padding: var(--sb-sp-3) var(--sb-sp-4); margin-bottom: var(--sb-sp-2); cursor: pointer;
-  transition: border-color 0.15s;
-}
-.quiz-bank-item:hover { border-color: var(--sb-primary); }
-.quiz-bank-item .t { flex: 1; font-weight: 600; }
-.quiz-bank-item .m { color: var(--sb-ink-tertiary); font-size: var(--sb-fs-xs); }
-.quiz-bank-del { color: var(--sb-danger); font-size: var(--sb-fs-sm); }
-.quiz-gen-form {
-  display: flex; gap: var(--sb-sp-2); margin-bottom: var(--sb-sp-4);
-  background: var(--sb-surface); border: 1px solid var(--sb-line);
-  border-radius: var(--sb-radius-md); padding: var(--sb-sp-3);
-}
-.quiz-gen-form input { flex: 1; border: 1px solid var(--sb-line); border-radius: var(--sb-radius-sm); padding: var(--sb-sp-1) var(--sb-sp-2); font: inherit; background: var(--sb-bg); }
-.quiz-gen-form input:focus { outline: none; border-color: var(--sb-primary); }
+/* 情景面板的「重开 demo」按钮（`ScenarioPanel`）——同一份版式原先还服务题库页，
+   那套（.quiz-bank-* / .quiz-gen-form / .quiz-mix-tip / .quiz-note / .quiz-explain-mt）
+   已于 2026-09-26 随题库整族下线 */
 .quiz-gen-btn { padding: var(--sb-sp-1) var(--sb-sp-4); border-radius: var(--sb-radius-sm); background: var(--sb-primary); color: #fff; font-weight: 600; font-size: var(--sb-fs-sm); }
 .quiz-gen-btn:disabled { background: var(--sb-ink-tertiary); cursor: not-allowed; }
-
-.quiz-explain-mt { margin-top: 12px; }
-
-/* 出题配比摘要与缺题提示 */
-.quiz-mix-tip { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); margin: -8px 0 var(--sb-sp-4) 2px; }
-.quiz-note {
-  font-size: var(--sb-fs-sm);
-  color: var(--sb-ink-secondary);
-  border: 1px dashed var(--sb-line);
-  border-radius: var(--sb-radius-sm);
-  padding: var(--sb-sp-2) var(--sb-sp-3);
-  margin-bottom: var(--sb-sp-3);
-  line-height: 1.7;
-}
-
-/* 薄弱点分析（契约 QUIZ-WEAK-SPEC §6）：AI 实时生成的多主题聚类卡片。
-   旧版只有一行固定文案，现在是「主题 + 题号 + 错因 + 建议」的列表。 */
-.quiz-weak { margin-top: var(--sb-sp-3); }
-.quiz-weak-head { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); margin-bottom: var(--sb-sp-2); }
-.quiz-weak-item {
-  background: var(--sb-surface);
-  border: 1px solid var(--sb-line);
-  border-left: 3px solid var(--sb-primary);
-  border-radius: var(--sb-radius-sm);
-  padding: var(--sb-sp-2) var(--sb-sp-3);
-  margin-bottom: var(--sb-sp-2);
-  line-height: 1.7;
-}
-.quiz-weak-topic { font-weight: 600; font-size: var(--sb-fs-sm); }
-.quiz-weak-topic .m { font-weight: 400; color: var(--sb-ink-tertiary); font-size: var(--sb-fs-xs); margin-left: var(--sb-sp-2); }
-.quiz-weak-reason { font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary); margin-top: var(--sb-sp-1); }
-.quiz-weak-sug { font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary); margin-top: var(--sb-sp-1); }
-.quiz-weak-fallback {
-  font-size: var(--sb-fs-xs);
-  color: var(--sb-ink-secondary);
-  border: 1px dashed var(--sb-line);
-  border-radius: var(--sb-radius-sm);
-  padding: var(--sb-sp-2) var(--sb-sp-3);
-  line-height: 1.7;
-}
 
 /* 情景题宿主面板（契约 SCENARIO-SPEC §5）：iframe 宿主 + 任务清单 + 服务端判分完成态 */
 .sb-scenario { display: flex; flex-direction: column; gap: var(--sb-sp-2); }
@@ -203,29 +134,3 @@
 .sb-scenario-task.is-correct { border-left: 3px solid var(--sb-success, #2e7d32); }
 .sb-scenario-task.is-wrong { border-left: 3px solid var(--sb-danger, #c62828); }
 .sb-scenario-task-state { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); white-space: nowrap; }
-
-/* ── 现场搜集（契约 RESOURCE-SPEC v0.2）── */
-.quiz-collect-btn { padding: var(--sb-sp-1) var(--sb-sp-4); border-radius: var(--sb-radius-sm); background: transparent; color: var(--sb-primary); border: 1px solid var(--sb-primary); font-weight: 600; font-size: var(--sb-fs-sm); }
-.quiz-collect-btn:disabled { color: var(--sb-ink-tertiary); border-color: var(--sb-ink-tertiary); cursor: not-allowed; }
-.collect-panel { margin-top: var(--sb-sp-3); border: 1px solid var(--sb-line); border-radius: var(--sb-radius-sm); padding: var(--sb-sp-4); background: var(--sb-surface); box-shadow: var(--sb-shadow-1); }
-.collect-row { display: flex; gap: var(--sb-sp-2); align-items: center; }
-.collect-row input[type="text"], .collect-row input:not([type]) { flex: 1; padding: var(--sb-sp-1) var(--sb-sp-3); border: 1px solid var(--sb-line); border-radius: var(--sb-radius-sm); font-size: var(--sb-fs-sm); }
-.collect-close { padding: var(--sb-sp-1) var(--sb-sp-3); border-radius: var(--sb-radius-sm); background: transparent; color: var(--sb-ink-secondary); font-size: var(--sb-fs-sm); }
-.collect-hint { margin-top: var(--sb-sp-2); font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); }
-.collect-note { margin-top: var(--sb-sp-2); font-size: var(--sb-fs-xs); color: var(--sb-ink-secondary); }
-.collect-pages { list-style: none; margin: var(--sb-sp-2) 0 0; padding: 0; font-size: var(--sb-fs-xs); }
-.collect-pages li { display: flex; gap: var(--sb-sp-2); align-items: baseline; }
-.collect-pages .ok { color: var(--sb-success); }
-.collect-pages .bad { color: var(--sb-danger); }
-.collect-pages .why, .collect-item .why { color: var(--sb-ink-tertiary); }
-.collect-item { display: flex; gap: var(--sb-sp-2); align-items: baseline; padding: var(--sb-sp-1) 0; border-bottom: 1px solid var(--sb-line); font-size: var(--sb-fs-sm); }
-.collect-item.rejected { opacity: 0.6; }
-.collect-item .pick { display: inline-flex; gap: var(--sb-sp-2); align-items: baseline; flex: 1; cursor: pointer; }
-.collect-item .tag { color: var(--sb-ink-tertiary); font-size: var(--sb-fs-xs); }
-.collect-item .q { flex: 1; }
-.collect-item .src { font-size: var(--sb-fs-xs); color: var(--sb-primary); white-space: nowrap; }
-.collect-foot { display: flex; gap: var(--sb-sp-3); align-items: center; margin-top: var(--sb-sp-3); }
-.collect-foot .m { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); }
-
-/* 练习视图的动作行（原先寄住在 notes.css 里，笔记页随功能下线后搬回本家） */
-.quiz-practice-actions { display: flex; gap: var(--sb-sp-2); margin: var(--sb-sp-3) 0; }

@@ -3,7 +3,11 @@
  *
  * 职责三件：① saveScenario（quiz_bank + scenario_demo 双写，M1 由 /seed 调，M2 起是出题引擎的落点）；
  * ② buildScenarioDemoPage（出页 + 桥接注入——demoId 占位符在这里替换）；③ reportScenario（回传白名单
- * + judgeTask 服务端判分 + recordAnswer 记账——**每个评分点在 quiz_stats 里就是一道普通题**，契约 §0.1）。
+ * + judgeTask 服务端判分）。
+ * ⚠️ 2026-09-26 题库下线：③ 原先还带 `recordAnswer` 记账（「每个评分点在 quiz_stats 里就是一道普通题」，
+ *   契约 §0.1）——**逐题统计那张账本随题库一起断线**，现在服务端只出现场的对错判定、不再落历史。
+ *   本文件里 `quiz_bank` 的角色也因此变了：它不再是「题库的一项」，而是**情景题套题数据的存放处**
+ *   （`saveScenario` 写、`getScenario` 读、归属看 `owner_id`）。⇒ DROP 这张表前必须先给它找新家。
  *
  * ★ 裁判在服务端（契约 §0.2）：demo 只上报事实（observed），对错由本域 judgeTask 判——demo 是模型写的
  *   不可信侧，它判错了数据就永久错且无法复查。
@@ -22,7 +26,6 @@ import {
 } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
-import { recordAnswer } from './quiz.js';
 import { publish } from '../chat/sse-bus.js';
 import { routeRole } from '../llm/router.js';
 import { QUIZ_TEMPERATURE, getQuizMaxOutputTokens } from '../llm/model-limits.js';
@@ -107,9 +110,10 @@ export function buildScenarioDemoPage(demoId: string, ownerId: string | null): s
 }
 
 /**
- * 回传判分：demoId → 套题 → taskId 白名单（第二道，契约 §2）→ judgeTask → recordAnswer。
- * 判分与记账同事务语义上必须一致：recordAnswer 内部自带 upsert，判完即记，失败抛错由路由兜。
- * observed 原样进 judgeTask、**不落库原文**（M1 边界，契约 §9）。
+ * 回传判分：demoId → 套题 → taskId 白名单（第二道，契约 §2）→ judgeTask。
+ * ★ 2026-09-26 起**只判分不记账**：原先判完跟着 `recordAnswer` 落 `quiz_stats`（契约 §0.1 那句
+ *   「每个评分点在统计层就是一道普通题」），随题库整族断线——本函数现在只出现场对错、不留历史。
+ * observed 原样进 judgeTask、**不落库原文**（M1 边界，契约 §9；这条没变）。
  */
 export function reportScenario(demoId: string, taskId: string, observed: unknown, ownerId: string | null): ScenarioReportResult {
   const db = getDb();
@@ -124,21 +128,14 @@ export function reportScenario(demoId: string, taskId: string, observed: unknown
   const task = payload.tasks[taskIndex];
   if (!task) return { ok: false, reason: 'no-task' };
   const correct = judgeTask(task.criteria, observed);
-  recordAnswer(demo.quiz_id, taskIndex, correct, ownerId);
   return { ok: true, correct, taskIndex };
 }
 
-/**
- * 删套题时连带删 demo 行（routes/quiz.ts 调；无行删零行，幂等）。
- * ★ 归属经子查询回 quiz_bank 判（2026-09-21 闸门 #2）：B 删不动 A 的套题行，但此前能删掉 A 的
- *   demo 行——响应恒 {ok:true} 证不了，表现为「套题还在、情景题突然不可玩」。
- * ★ 调用点必须在 `deleteQuiz` **之前**：bank 行一删，这条子查询就判不出归属（本来该删的也删不掉）。
- */
-export function deleteScenarioDemoByQuiz(quizId: string, ownerId: string | null): void {
-  getDb()
-    .prepare('DELETE FROM scenario_demo WHERE quiz_id IN (SELECT id FROM quiz_bank WHERE id = ? AND owner_id = ?)')
-    .run(quizId, ownerForWrite(ownerId));
-}
+// ── 删套题的连带清理已删除（2026-09-26 题库下线）──
+// 原 `deleteScenarioDemoByQuiz(quizId, ownerId)` 的唯一调用点是 `/api/quiz/bank/:id` 的 DELETE
+// （题库页的删除按钮）。按钮没了它就是零消费者，口径同「深度理解」批。
+// ⚠️ **本批代价**：情景题套题此后**没有任何删除通道**（`scenario_demo` 与 `quiz_bank` 里的套题行只增不减）；
+//   要恢复删除能力得连入口一起做，别只把这两个函数请回来。
 
 /**
  * 把生成好的一套情景题推进某个会话的聊天流（M3 引入；REST 路由是唯一的出题入口——
@@ -146,7 +143,8 @@ export function deleteScenarioDemoByQuiz(quizId: string, ownerId: string | null)
  * ① SSE `block` 事件（blockId=`scenario-<demoId>`，前端 live 出卡片）；
  * ② messages 历史落库：`[SCENARIO]{payload 顶层 + quizId/demoId 登记键}[/SCENARIO]`
  *    （登记键只进聊天消息 content，quiz_bank data 保持纯契约形状）。
- * publish 无订阅者时是安全空转（用户可能没开这个会话页，
+ * publish 无订阅者时是安全空转（用户可能没开这个会话页，SSE 频道没人听），
+ * 所以这里不关心订阅状态：先同步发事件、再落 messages，重开会话由那条登记行回放卡片。
  */
 export function announceScenarioToSession(sessionId: string, gen: ScenarioGenerated): void {
   // publish 无订阅者时是安全空转（见上），所以这里不关心订阅状态、同步发完即落库

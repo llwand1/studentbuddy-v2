@@ -18,7 +18,7 @@ import { TaskPanel } from './TaskPanel';
 import { MessageRow } from './MessageRow';
 import { formatRoundMeta } from './chat-meta';
 import { buildExportMarkdown, downloadText, exportFilename } from './chat-export';
-import { mixTipText } from '../quiz/bank-view';
+import { mixTipText } from '../quiz/mix-report';
 import { useQuizActions } from './use-quiz-actions';
 import { RefList } from '../quiz/RefList';
 
@@ -49,7 +49,7 @@ export function ChatView({
   /** 生成状态上报：App 侧栏在生成中的会话项上显示「回复中」提示 */
   onBusyChange?: (busy: boolean, sessionId: string | null) => void;
 }) {
-  /** v18.4 联网开关：默认开（与题库页同件同默认，契约 QUIZ-SEARCH §3）。对话与出题共用这一份 */
+  /** v18.4 联网开关：默认开（契约 QUIZ-SEARCH §3）。对话与出题共用这一份；入口在 composer 的「+」菜单 */
   const [online, setOnline] = useState(true);
   const {
     messages,

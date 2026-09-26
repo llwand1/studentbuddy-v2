@@ -8,6 +8,7 @@ import type {
   QuizImageReport,
   QuizQuestion,
   QuizSearchReport,
+  QuizSourceMix,
   QuizBlendReport,
   QuizRef,
   ScenarioMixResult,
@@ -18,6 +19,17 @@ import { MIX_KINDS, MIX_KIND_LABELS, QUIZ_TYPES, QUIZ_TYPE_LABELS, mixTotal, sou
 export function mixSummary(mix: QuizMix): string {
   const parts = QUIZ_TYPES.filter((t) => mix[t] > 0).map((t) => `${QUIZ_TYPE_LABELS[t]} ${mix[t]}`);
   return parts.length > 0 ? parts.join(' · ') : '未选题型';
+}
+
+/**
+ * 出题配比摘要一行（对话页 composer 用；2026-09-26 从 `bank-view.ts` 搬来——那份的其余部分
+ * （题库徽标 `bankBadge`）随题库页一起下线，只有这一句还在服务对话核）。
+ * AI 侧摘要照旧；真题配了就并进同一行并预告「会慢」
+ * （契约 QUIZ-BLEND-SPEC §8.3：collect 首版同步无进度条，提示必须如实）。
+ */
+export function mixTipText(ai: QuizMix, real: QuizSourceMix): string {
+  const realTotal = real.single + real.multiple + real.fill + real.essay + real.scenario;
+  return realTotal > 0 ? `${mixSummary(ai)}（真题 ${realTotal} 题；含现场搜集，出题可能更久）` : mixSummary(ai);
 }
 
 /** 出齐了返回 null；没出齐返回一句话（缺哪类、缺几道），UI 据此如实提示，绝不静默 */
@@ -62,7 +74,7 @@ export function searchNote(report?: QuizSearchReport | null): string | null {
 /**
  * 本次参考来源清单（契约 docs/QUIZ-SEARCH-SPEC.md §2.8）：有命中才返非空，供页面渲染可点击来源区。
  * 与 `searchNote` 的分工：**有来源清单时由清单承担告知（可展开、可点），searchNote 只兜「没取到」**——
- * 两句话同时出现会说两遍同件事，故页面层二选一（见 QuizBankPage/ChatView 的 filter 处）。
+ * 两句话同时出现会说两遍同件事，故页面层二选一（见 ChatView 的 filter 处）。
  * URL 由服务端映射，本函数不校验、不补全，只做透传（前端不发明来源）。
  */
 export function refsList(report?: QuizSearchReport | null): QuizRef[] {
@@ -79,7 +91,7 @@ export function scenarioMixNote(results?: ScenarioMixResult[] | null): string | 
   if (!results || results.length === 0) return null;
   const ok = results.filter((r) => r.ok).length;
   const total = results.length;
-  if (ok === total) return `情景题：${total} 套已生成${total > 1 ? '，都在本次对话和题库里' : '，已进本次对话和题库'}。`;
+  if (ok === total) return `情景题：${total} 套已生成${total > 1 ? '，都在本次对话里' : '，已进本次对话'}。`;
   const failures = results.filter((r) => !r.ok);
   const reason = failures.some((f) => f.failure === 'no-model')
     ? '出题模型没绑定，先到设置页给「出题」绑定模型'
@@ -109,7 +121,7 @@ function sourcePages(report: QuizBlendReport, questions?: QuizQuestion[] | null)
  *
  * ★ 「**未用 AI 顶替**」必须写出来（老板拍板 D3「报缺不补」）：否则用户看到"配了 3 道真题只来 1 道"，
  *   只会当成 bug——而事实是我们**故意**不补（补了「真题」这词就失去意义，且题面上根本分辨不出来）。
- * ★ `questions` 是可选第二参，只为算准「来自 N 个网页」；主路径（题库页/对话页）手上都有题，应传全。
+ * ★ `questions` 是可选第二参，只为算准「来自 N 个网页」；主路径（对话页出题）手上都有题，应传全。
  *   省略时退回抓取成功页数（上限口径），**不因此返 null**——不静默优先于不精确。
  */
 export function blendNote(report?: QuizBlendReport | null, questions?: QuizQuestion[] | null): string | null {

@@ -122,10 +122,12 @@ export const WALK: WalkStep[] = [
   {
     no: '03',
     step: { zh: '析', en: 'Analyze' },
-    title: { zh: '薄弱分析', en: 'Weak-spot analysis' },
+    title: { zh: '判分与解析', en: 'Grading & explanations' },
     desc: {
-      zh: '逐题正确率落表，薄弱点自动定位，学习趋势看得见',
-      en: 'Per-question accuracy lands on the table, weak spots get located automatically, and the trend is visible',
+      // ★ 2026-09-26：原先这一步是「薄弱分析」（逐题正确率落表 + 薄弱点定位），随题库整族下线；
+      //   改口成仍在的「题卡即时判分 + 解析 + 来源」。这条文案由施工方代拟，待老板目检。
+      zh: '题卡在对话里直接作答，提交即判分，当场给答案与解析；联网出的题还带可点的来源',
+      en: 'Answer right on the card in the conversation — it grades on submit and reveals the answer, the explanation, and clickable sources for web-sourced questions',
     },
     caps: [
       {

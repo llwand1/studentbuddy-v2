@@ -14,7 +14,6 @@ export * from './api.js';
 export * from './domain.js';
 export * from './pk.js';
 export * from './task-list.js';
-export * from './quiz-weak.js';
 export * from './memory.js';
 export * from './scenario.js';
 export * from './auth.js';

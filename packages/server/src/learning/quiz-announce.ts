@@ -7,11 +7,13 @@
  *   而这三处互相不校验、错了只表现为「刷新后卡片变成一坨 JSON」。
  *   与同族的 `announceScenarioToSession`（`learning/scenario.ts`）逐字同形。
  *
- * ★ `quizId` 从 2026-09-23 起随登记行一起落（`{...quiz, quizId}` 顶层键）：
- *   题卡要判分、要写 `quiz_stats`，前端只能从 `blockId` 反解 quizId——**live 拿得到、历史拿不到**，
- *   所以 `[QUIZ]` 行刷新后即使还原成卡片也是张「答了不记账」的死卡。情景题从第一天就带这两个
+ * ★ `quizId` 从 2026-09-23 起随登记行一起落（`{...quiz, quizId}` 顶层键）。情景题从第一天就带这两个
  *   登记键（`quizId` / `demoId`），quiz 补齐后即与它同构。老行没这键＝还原出的卡片无 quizId，
  *   与改前行为一致（不炸、只是不记账）。
+ * ⚠️ 2026-09-26 题库整族下线：这一段原本的立项理由（「题卡要判分、要写 `quiz_stats`，前端只能从
+ *   `blockId` 反解 quizId ⇒ 历史还原后是张不记账的死卡」）**已随逐题统计一起失效**——
+ *   现在作答只由题卡当场判分，没有任何持久统计可记。键本身保留，理由换成注释里那一条
+ *   （blockId 形状与 `quiz_generated` 事件都带它，删键属 SSE 契约两侧同改，另批走）。
  */
 import type { QuizPayload } from '@sb/shared';
 import { getDb } from '../storage/db.js';

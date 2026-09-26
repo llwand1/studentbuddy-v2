@@ -21,7 +21,6 @@ import { useActiveSessions } from '../features/chat/useActiveSessions';
 import { Mascot } from '../features/chat/Mascot';
 import { BRAND_NAME, BRAND_TAGLINE } from '../lib/brand';
 import { SettingsView } from '../features/settings/SettingsView';
-import { QuizBankPage } from '../features/quiz/QuizBankPage';
 import { TermsPage } from '../features/terms/TermsPage';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
 import { CoachDock } from '../features/coach/CoachDock';
@@ -221,7 +220,6 @@ export function App() {
             />
           </TermIndexProvider>
         )}
-        {view === 'quiz' && <QuizBankPage />}
         {/* key 变化时重挂：从词条卡带词进来要重新初始化搜索框 */}
         {view === 'terms' && <TermsPage key={termsKeyword} initialKeyword={termsKeyword} />}
         {view === 'settings' && <SettingsView />}

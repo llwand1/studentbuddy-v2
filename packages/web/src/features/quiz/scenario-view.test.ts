@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ScenarioPayload } from '@sb/shared';
 import {
-  isScenarioItem,
-  isScenarioPayload,
   progressSummary,
   scenarioProgress,
   validateScenarioReport,
@@ -16,19 +14,8 @@ const payload: ScenarioPayload = {
   ],
 };
 
-describe('scenario-view — 分派与形状判定', () => {
-  it('source 登记值分派情景题；其它 source 不是', () => {
-    expect(isScenarioItem({ source: 'scenario' })).toBe(true);
-    expect(isScenarioItem({ source: 'ai' })).toBe(false);
-  });
-
-  it('data 形状判定：合法套题为真、传统题组与垃圾为假', () => {
-    expect(isScenarioPayload(payload)).toBe(true);
-    expect(isScenarioPayload({ title: 'x', questions: [] })).toBe(false);
-    expect(isScenarioPayload(null)).toBe(false);
-    expect(isScenarioPayload('nope')).toBe(false);
-  });
-});
+// 「分派与形状判定」两个 describe 于 2026-09-26 随 `isScenarioItem`/`isScenarioPayload` 一起删除
+// （唯一调用方 QuizBankPage 下线），删除行同批从 `docs/dev/test-plan.md` 摘除。
 
 describe('scenario-view — validateScenarioReport（宿主白名单）', () => {
   const ids = new Set(['t1', 't2']);

@@ -4,9 +4,9 @@
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-204%20files%20%2F%202766%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-129-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-127%20types-8a63f6)
+![tests](https://img.shields.io/badge/tests-196%20files%20%2F%202692%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-120-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-124%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -171,7 +171,7 @@ studentbuddy 把「学习」做成一条可自动运转的闭环，而不是一�
 | **AI 输出可靠性工程** | 模型不听话不塌系统：出题五级解析阶梯（补括号 → 剥图重试 → 截断逐题回退）、丢图保题、非法转义修复、SSE 屏上文本与库内文本逐字一致；**上游挂起不再让会话永久卡住**——流式空闲超时 120s / 一次性总时长 180s，超时抛可读错误；**并发闸门两层：每用户 2 路 + 全站封顶 N（占位 8）**（两路对话可并行，主链优先、后台让路，超额明确拒绝而非无限排队） | 每个对策都对应一次真实故障的根因登记与回归锁（[`docs/dev/bug-ledger.md`](docs/dev/bug-ledger.md) + CHANGELOG 09-04、09-17 两批） |
 | **模型产出敢真跑** | ```html 围栏产出的网页在 `CSP: sandbox` + iframe 双层沙箱里运行，页面源为 `null`；SVG 净化剥 `<image>` 外链（防外链信标泄露 IP） | 真机实测沙箱页调写接口 / 读数据全被拒；净化有 `web/lib/svg-utils.test.ts` 锁 |
 | **前端零第三方库** | 无 UI 库 · 无 Markdown 库 · 无图表库：Markdown 解析、代码高亮、数据图自绘 SVG、SVG 净化自愈全部自写——供应链攻击面与包体积同时趋零、行为完全可控 | `packages/web/package.json` 运行时依赖只有 `react` / `react-dom` / `@sb/shared` |
-| **测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；交互层是**两层互补**——**23 个 `.test.tsx`**（★ 本批删的三件测试都是 `.ts`，这个 24 是上一批留下的旧抄，按 `find packages -name "*.test.tsx"` 实测改正）（jsdom 按文件 pragma 启用，锁交互逻辑）＋ **15 个真机探针脚本**（`tools/probes/*.mjs`，其中 10 个走 CDP 真点真渲染，锁 CSS 与真实浏览器行为） | 基线 **204 文件 / 2766 例**（2765 passed＋1 skipped＋0 failed，2026-09-25 深度理解族断线批（issue #27）后实测（★ 该批 −3 文件／−35 例：删 `learning/verdict`／`learning/verdict-gate`／`domain` 三件测试，★ **零摘例、零改断言**＝其余 201 个测试文件一行未碰）；上一读数 207/2801＝移除「今日总结」＋「刷题笔记」批（issue #21）（★ 该批 −3 文件／−29 例：删 `learning/notes`／`routes/notes`／`note-format` 三件测试＋四处就地摘例；★ **读数口径＝先 build 再测**：本批首读在全新 worktree 里、`dist` 尚不存在，`src/seo/public-hygiene` 那两例 `it.skipIf(!HAS_DIST)` 当时是跳过的（2798 passed＋3 skipped）；补跑 `npm run build` 后重测＝下面这一读，两个读数**总量恒为 2801**，变的只是 passed/skipped 怎么分）；上一读数 210/2830＝构建产物卫生锁批（issue #8）（★ 先 build 再测：卫生锁里两例要读 `dist` 产物才跑）；上一读数 210/2826＝公开抓取覆盖锁批（issue #4）；上一读数 209/2820＝批次 I（主聊天 AI 图解能力批）随 PR #10 合并入 main；上一读数 208/2817＝搜索通道形状批；上一读数 207/2810＝游戏化 S1-a 批·再上一读数 206/2799＝学习流·知识图下线批·再上一读数 217/3004＝对战邀请批（`offer_pk_battle` → 迁移 v43 `pk_invites` → 聊天内联邀请卡）·上一档＝2026-09-24 归因批（`?ref=` → `X-SB-Ref` → 迁移 v42 `source` → `bySource`）后；★ 线上现况＝**已上线到 v0.2.132**（09-25 21:5x 三批合一＝联网搜索通道修复（bug-ledger B-019／issue #11）＋「今日总结」／「刷题笔记」断线下线（issue #21；★ 只断线、`daily_summaries`／`quiz_notes` 两张表仍在库里，DROP 归 v45 另批逐次点名）＋「连续学习 N 天」换算法（游戏化 S1-a，零迁移）；上一档＝09-25 11:44 三批合一＝渠道归因（迁移 v42）＋聊天内 AI 主动发起对战邀请（迁移 v43 `pk_invites`）＋学习流／知识图整族下线（迁移 v44 DROP 那七张表，按判决不留备份）；上一档 v0.2.118＝09-24 08:48 单批＝公开更新页＋Atom 订阅；**v0.2.113／114／115／116／117 五批** 09-23 23:5x 上线；**v0.2.109／110／111／112 四批**（中英切换／注册免验证码／SEO 静态页／目录页 URL 换正）09-23 09:56 上线。⚠️ 本句的导语在这里此前一直写着 `v0.2.112`——★ 那是上一轮的历史水位不是现况，而紧跟它的两句当场自纠到了 v0.2.118，**等于一句导语和它自己的下文打架**；现由 `node tools/metrics.mjs --check` 的「线上现况版本」一条与公开清洗表 `PUBLIC_RELEASES` 最高版本逐字对账，写旧即红。★ 发版逐次点名授权，本文件不预授权——那句「未发版」在它自己的历史上是对的，只是被今天改写了；线上判据实录见 `docs/SEO-SPEC.md` §6.2／§6.3），`metrics --tests` 实测口径；2765 passed + 1 skipped + 0 failed，全绿）；**逐文件不变量见 §3**（数字由 `node tools/metrics.mjs --tests` 产出，非手抄） |
+| **测试 + 机器强制门禁** | `npm run check` = tsc×3 + eslint + vitest + gates：单文件行数红线（server ≤400 / web ≤300）、禁 `any`、禁内联样式全部由脚本拦截，不靠自觉；交互层是**两层互补**——**23 个 `.test.tsx`**（★ 本批删的三件测试都是 `.ts`，这个 24 是上一批留下的旧抄，按 `find packages -name "*.test.tsx"` 实测改正）（jsdom 按文件 pragma 启用，锁交互逻辑）＋ **13 个真机探针脚本**（`tools/probes/*.mjs`，另有 1 件 `.mts`＝`og-card-cdp.mts`，合计 14 个文件；其中 8 个走 CDP 真点真渲染，锁 CSS 与真实浏览器行为。★ 2026-09-26 题库整族下线批删掉两件**专属**探针——`quiz-e2e-cdp.mjs`（点的是已下线的「题库」nav）、`weak-analysis-cdp.mjs`（打的是已断线的 `GET /api/quiz/analyze/:id`），15→13；先例＝批次 K 同批删 `flow-canvas-zoom-cdp.mjs`） | 基线 **196 文件 / 2692 例**（2691 passed＋1 skipped＋0 failed，2026-09-26 题库整族下线批（issue #32）后实测（★ 该批 −8 文件／−74 例＝删 8 件专属测试 72 例 ＋ 就地摘 4（`routes/scenario` 13→11、`features/quiz/scenario-view` 6→4）－ 搬入 2（`mixTipText` 两例随幸存函数搬进 `mix-report`）；★ 取证判据从「读 `quiz_bank`」搬到「读响应题组逐题 `source.kind` ＋ 会话 `[QUIZ]` 登记行」，另配两条「零落库」回归锁；★ **读数口径＝先 build 再测**）；上一读数 204/2766＝深度理解族断线批（issue #27）后实测（★ 该批 −3 文件／−35 例：删 `learning/verdict`／`learning/verdict-gate`／`domain` 三件测试，★ **零摘例、零改断言**＝其余 201 个测试文件一行未碰）；上一读数 207/2801＝移除「今日总结」＋「刷题笔记」批（issue #21）（★ 该批 −3 文件／−29 例：删 `learning/notes`／`routes/notes`／`note-format` 三件测试＋四处就地摘例；★ **读数口径＝先 build 再测**：本批首读在全新 worktree 里、`dist` 尚不存在，`src/seo/public-hygiene` 那两例 `it.skipIf(!HAS_DIST)` 当时是跳过的（2798 passed＋3 skipped）；补跑 `npm run build` 后重测＝下面这一读，两个读数**总量恒为 2801**，变的只是 passed/skipped 怎么分）；上一读数 210/2830＝构建产物卫生锁批（issue #8）（★ 先 build 再测：卫生锁里两例要读 `dist` 产物才跑）；上一读数 210/2826＝公开抓取覆盖锁批（issue #4）；上一读数 209/2820＝批次 I（主聊天 AI 图解能力批）随 PR #10 合并入 main；上一读数 208/2817＝搜索通道形状批；上一读数 207/2810＝游戏化 S1-a 批·再上一读数 206/2799＝学习流·知识图下线批·再上一读数 217/3004＝对战邀请批（`offer_pk_battle` → 迁移 v43 `pk_invites` → 聊天内联邀请卡）·上一档＝2026-09-24 归因批（`?ref=` → `X-SB-Ref` → 迁移 v42 `source` → `bySource`）后；★ 线上现况＝**已上线到 v0.2.132**（09-25 21:5x 三批合一＝联网搜索通道修复（bug-ledger B-019／issue #11）＋「今日总结」／「刷题笔记」断线下线（issue #21；★ 只断线、`daily_summaries`／`quiz_notes` 两张表仍在库里，DROP 归 v45 另批逐次点名）＋「连续学习 N 天」换算法（游戏化 S1-a，零迁移）；上一档＝09-25 11:44 三批合一＝渠道归因（迁移 v42）＋聊天内 AI 主动发起对战邀请（迁移 v43 `pk_invites`）＋学习流／知识图整族下线（迁移 v44 DROP 那七张表，按判决不留备份）；上一档 v0.2.118＝09-24 08:48 单批＝公开更新页＋Atom 订阅；**v0.2.113／114／115／116／117 五批** 09-23 23:5x 上线；**v0.2.109／110／111／112 四批**（中英切换／注册免验证码／SEO 静态页／目录页 URL 换正）09-23 09:56 上线。⚠️ 本句的导语在这里此前一直写着 `v0.2.112`——★ 那是上一轮的历史水位不是现况，而紧跟它的两句当场自纠到了 v0.2.118，**等于一句导语和它自己的下文打架**；现由 `node tools/metrics.mjs --check` 的「线上现况版本」一条与公开清洗表 `PUBLIC_RELEASES` 最高版本逐字对账，写旧即红。★ 发版逐次点名授权，本文件不预授权——那句「未发版」在它自己的历史上是对的，只是被今天改写了；线上判据实录见 `docs/SEO-SPEC.md` §6.2／§6.3），`metrics --tests` 实测口径；2691 passed + 1 skipped + 0 failed，全绿）；**逐文件不变量见 §3**（数字由 `node tools/metrics.mjs --tests` 产出，非手抄） |
 | **契约先行的可维护性** | `@sb/shared` 是 SSE 事件 / 内容块 / REST / 领域模型的单一事实源，前后端不允许各写一套；先登记再实现 | shared 契约文件头注释即纪律；四条固定扩展模式见 [§开发指南](#开发指南) |
 | **不锁定供应商** | OpenAI 兼容 + Anthropic 双适配；搜索三家按 key 并行聚合 + 免 key 兜底——换模型、换服务商只动设置页 | 适配器有出站请求体断言测试，且当场逮出过真缺陷 B-001（多条 system 在 Anthropic 型上静默丢失） |
 | **多用户归属做得彻底** | 归属不是加个 `WHERE`：`providers.owner_id IS NULL` ＝平台通道（人人可用）、业务表 `owner_id = ''` ＝无主（谁都看不见），两种「没有主人」可见性刻意相反；读写按形状分别走 `ownerFilter` / `ownerForWrite` | 每批都配跨用户隔离锁 + 「故意改坏必红」的非空转取证（[`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) §8 + test-plan §7） |
@@ -393,7 +393,7 @@ packages/
 │  ├─ search/               多路聚合 + 免 key 兜底 + 24h 缓存 + SSRF 护栏
 │  ├─ llm/                  openai / anthropic 双适配 + router(归属) + upstream-gate(两层)
 │  ├─ sse-bus.ts            帧序号 · 回放去重 · 按 owner 分频道
-│  ├─ routes/               REST 分域路由（22 个域文件；全仓 REST 注册 129 条）
+│  ├─ routes/               REST 分域路由（22 个域文件；全仓 REST 注册 120 条，2026-09-26 题库四组路由断线后现数）
 │  ├─ storage/              better-sqlite3 封装 / 逐版本迁移（v1..v44，按区间分文件）
 │  └─ security.ts           Origin 校验（不放行 'null'）
 ├─ web/src/
@@ -424,7 +424,7 @@ AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决�
 - 禁内联 `style={{…}}`（一律走 tokens.css 的 token）；禁 `any`；测试也禁 `!` 非空断言
 - 每个测试文件必须在 `docs/dev/test-plan.md` 成行登记（未登记 = 门禁红）
 
-**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**204 文件 / 2766 例**（2765 passed + 1 skipped + 0 failed，2026-09-25 深度理解族断线批（issue #27）后实测（★ 该批 −3 文件／−35 例＝三份专属测试整体下线、零摘例零改断言）；上一读数 207/2801＝移除「今日总结」＋「刷题笔记」批（issue #21）（★ 该批 −3 文件／−29 例；上一读数 210/2830＝构建产物卫生锁批（issue #8）（★ 先 build 再测：卫生锁里两例要读 `dist` 产物才跑）；上一读数 210/2826＝公开抓取覆盖锁批（issue #4）；上一读数 209/2820＝批次 I（主聊天 AI 图解能力批）随 PR #10 合并入 main；上一读数 208/2817＝搜索通道形状批；上一读数 207/2810＝游戏化 S1-a 批；再上一 206/2799＝学习流·知识图下线批；**逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，本格数字由 `node tools/metrics.mjs --tests` 产出）。
+**`npm run check` = tsc×3（shared/server/web）+ eslint + vitest + gates**，全绿才许提交。当前基线：**196 文件 / 2692 例**（2691 passed + 1 skipped + 0 failed，2026-09-26 题库整族下线批（issue #32）后实测（★ 该批 −8 文件／−74 例＝删 8 件专属测试 72 例＋就地摘 4－搬入 2，明细见 `docs/dev/test-plan.md` §3 顶注）；上一读数 204/2766＝深度理解族断线批（issue #27）（★ 该批 −3 文件／−35 例＝三份专属测试整体下线、零摘例零改断言）；上一读数 207/2801＝移除「今日总结」＋「刷题笔记」批（issue #21）（★ 该批 −3 文件／−29 例；上一读数 210/2830＝构建产物卫生锁批（issue #8）（★ 先 build 再测：卫生锁里两例要读 `dist` 产物才跑）；上一读数 210/2826＝公开抓取覆盖锁批（issue #4）；上一读数 209/2820＝批次 I（主聊天 AI 图解能力批）随 PR #10 合并入 main；上一读数 208/2817＝搜索通道形状批；上一读数 207/2810＝游戏化 S1-a 批；再上一 206/2799＝学习流·知识图下线批；**逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3**，本格数字由 `node tools/metrics.mjs --tests` 产出）。
 
 量化对账：`node tools/metrics.mjs --check` 会把本文的可核对数字与代码实测逐一比对，漂移即退出码 1——**本文任何数字都不许手改，改了就红**。
 
@@ -444,18 +444,17 @@ AGENTS.md                  施工手册：模块地雷图 + 工程红线 + 决�
 | `terms-layout-cdp.mjs` | 词条页布局三态 × 两视口（56 断言）——**改 `terms.css` 任何高度/`flex`/`overflow` 后必须重跑，门禁看不见 CSS** | 零前置（自带静态服务，不碰后端/库） |
 | `coach-trend-cdp.mjs` | 趋势卡折线 + 胶囊旁气泡（33 断言）——**唯一在真浏览器里验 `prepareSvg` 的 DOMParser 路径的仪器** | 仅需 vite |
 | `coach-cdp.mjs` | 督促小窗三态（默认档 38 断言，零 LLM） | 需 `npm run dev`；拷库做隔离时**记得把 `.mk` 一起拷**，否则 `decryptSecret` 解不开 key |
-| `flow-canvas-zoom-cdp.mjs` | 编排画布缩放/平移（31 断言，含「滚轮锚点不漂」） | 需 `npm run dev` |
 | `pk-breakpoint-cdp.mjs` | 对战页 9 档视口断点 | 仅需 vite |
 | `doc-rag-bm25.mjs` | 切块/BM25 召回量测——**改 `shared/doc-rag.ts` 任何常量前必须重跑**，契约 §8 的每个数字出自它 | 零依赖 |
 | `fts-capability.mjs` | 全站搜索方案选型的**实测凭证**（把 FTS-SPEC 三条原本只来自文档推断的结论钉成实测 + trigram 复核） | 零依赖 |
 | `fetch-page-live.mjs` | `fetch_page` 真机抓取凭证（真实站点能否抓到正文、浏览器 UA 会不会被拒——mock 层锁不到的那一段） | 需出网 |
-| `chat-composer-cdp.mjs` | 输入区「+」折叠菜单五项目 + 状态摘要「联网已开」挂没挂在触发器上 + 侧栏入口 | 需后端 18791 + vite 在 **5174**（端口写死） |
-| `quiz-e2e-cdp.mjs` | 出题页「来源」行只在**答后揭晓**才渲染、`RefList` 默认折叠、`searchNote` 与来源清单的二选一 | 需后端 + vite 5174；★ **会真出题落库** ⇒ 必须对隔离实例跑 |
-| `weak-analysis-cdp.mjs` | 薄弱点分析三态（含「后」态按钮复位）+ 多主题卡片全渲染 + 降级提示不冒充 AI | 需 `npm run dev`；**只读**但真花模型额度，不进 CI |
+| `chat-composer-cdp.mjs` | 输入区「+」折叠菜单五项目 + 状态摘要「联网已开」挂没挂在触发器上 + 侧栏入口 | 需后端 18791 + vite 在 **5174**（端口写死）；★ 出题入口（`SB_PROBE_QUIZ=1` 才真跑，会花一次模型额度）现在是**真机唯一能验「菜单条目 → 转发到出题」接线**的手段——纯函数与 tsc 都测不到这条转发 |
 | `db-isolation-check.mjs` | 全量测试**前/后**各跑一次、逐字段比对一致 ⇒ 证明「测试不写真实数据目录」 | 零前置；以 `readonly` 打开库，全程无写 |
 | `landing-demo-cdp.mjs` | 落地页 hero 演示窗**5 帧逐帧**（65 断言）——jsdom 那层没有真 CSS、没有真 SVG 布局，只能真机量；★ 探针须在导航前注入 fetch 覆盖把 `form` 改成 cloud，否则本机（local 形态）根本进不去落地页 | 需 vite 起在 5173；零写入、不烧额度 |
 | `settings-platform-cdp.mjs` | 「一键默认设置 + 模型下拉」的**跨进程链路**（22 断言：真点按钮 → 真落库 → 重新拉取 → 行上真变）——★ v0.2.102 起该按钮是**两段式**（首屏只进确认态、点「确认覆盖」才真动手），探针**跟着走完整确认流程**并额外锁住「**取消必须什么都不做**」这条 | 有 Chrome/Edge ＋ `node_modules`；**会真写隔离库**（`SB_DATA_DIR=mkdtemp`），绝不碰真实库；不调真实模型 |
 | `platform-env-check.mjs` | 零配置平台通道**接线验收**（只读）——回答「三个 `SB_PLATFORM_*` 配齐会不会 8/8 角色就绪」；`--live` **逐路**打真上游 `/models`（不消耗 token，无 key 时正确跳过） | ★ 用 `npx tsx` 跑（它 import 产品的 `.ts` 源码，非 CDP）；需一份库副本（`SB_DATA_DIR` 指向隔离目录） |
+
+> ⚰️ **2026-09-26 题库整族下线批（issue #32）随族删两件专属探针**：`quiz-e2e-cdp.mjs`（真点的是已下线的「题库」nav）、`weak-analysis-cdp.mjs`（打的是已断线的 `GET /api/quiz/analyze/:id`）——**两者的主语已不在**，留着就是能给假绿光的仪器。出题链路的真机核验改由 `chat-composer-cdp.mjs` 承担（`SB_PROBE_QUIZ=1`）。先例＝批次 K 同批删 `flow-canvas-zoom-cdp.mjs`；★ 那张表行是**本批顺手清掉的旧账**——文件 09-25 就随学习流族删了，表行没跟着走（现查 `git grep -n flow-canvas` 只剩历史与墓碑）。
 
 **提交纪律**：
 

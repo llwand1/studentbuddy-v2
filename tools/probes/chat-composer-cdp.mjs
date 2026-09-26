@@ -5,13 +5,14 @@
  * 为什么需要它：纯函数测不到 DOM，而 `.test.tsx`（jsdom，2026-09-20 起）也测不到**真 CSS 与真实浏览器行为**
  * ——jsdom 里没有样式计算、没有 `elementFromPoint`。「+」菜单能不能点开、点开后五项在不在、
  * 状态摘要「联网已开」有没有挂在触发器上、按钮是不是真的从输入框那行消失了，只有真渲染才有答案。
- * 同 `quiz-e2e-cdp.mjs` 的理由。
+ * （这条理由最初由 `quiz-e2e-cdp.mjs` 立，那件已随 2026-09-26 题库整族下线批删除。）
  *
  * 用法（**必须先把服务起起来**）：
  *   node tools/probes/chat-composer-cdp.mjs [场景名]
  *   # 例：node tools/probes/chat-composer-cdp.mjs after
  * 前置：后端在 18791（默认代理目标）＋ 前端 `vite` 在 **5174**（本探针把 5174 写死在 APP 常量，
- *       与 `quiz-e2e-cdp.mjs` 同口径；5173 上跑的是另一个项目）。
+ *       5174 是既定口径（原本与 `quiz-e2e-cdp.mjs` 同端口约定，该探针已随 2026-09-26 题库下线批删除）；
+ *       5173 上跑的是另一个项目）。
  * 截图落在 `SB_SHOT_DIR`（缺省＝系统临时目录），**不入仓**。
  *
  * ★ 数据自清：本探针会用界面上的「新对话」真建一个会话（不建会话则菜单触发器是禁用的、
@@ -19,14 +20,14 @@
  *   绝不给用户的真实库留垃圾（test-plan §7 的硬约定）。
  * ★ 不碰 LLM：默认全程不发出题请求，故不花额度、也不依赖模型 key。
  *   只有 `SB_PROBE_QUIZ=1` 时会**真出一次题**（主题「二重积分」）——为的是验「从新菜单触发」这条新接线
- *   （原来是行内按钮直连，现在要经菜单条目转发，纯函数测不到）；跑完连同题库条目一起自清。
+ *   （原来是行内按钮直连，现在要经菜单条目转发，纯函数测不到）；跑完连同本探针建的会话一起自清。
  */
 import { spawn } from 'node:child_process';
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const PORT = 9334; // 与 quiz-e2e-cdp 的 9333 错开，两个探针可同时跑
+const PORT = 9334; // 原与 quiz-e2e-cdp 的 9333 错开（那件已随 09-26 题库下线批删除），端口沿用
 const APP = 'http://localhost:5174/';
 const OUT = process.env.SB_SHOT_DIR ?? join(process.env.TEMP ?? '/tmp', 'sb-cdp-shots');
 const scene = process.argv[2] ?? 'composer';
@@ -226,9 +227,9 @@ await shot('06-doc-panel');
 // 为什么值得真跑：出题入口换了代码路径（原来是行内按钮直连 `ask.tap()`，现在要经
 // ComposerMenu 的 action 条目转发）。**这条接线纯函数测不到**——菜单点不着或转发丢了，
 // 单测与 tsc 全绿而用户按「出题」没反应。会花一次模型额度，故默认关，用 SB_PROBE_QUIZ=1 打开。
-let bankBefore = [];
 if (process.env.SB_PROBE_QUIZ === '1') {
-  bankBefore = JSON.parse(await evalJs(`fetch('/api/quiz/bank').then(r => r.json()).then(a => JSON.stringify(a.map(b => b.id)))`));
+  // ★ 2026-09-26 题库整族下线：这里原先先抓一份 `/api/quiz/bank` 的 id 快照、跑完再按差集自清；
+  //   出题从此**不落库**（题组只进会话），所以取证面就是下面那条「会话里出现题卡」的断言。
 
   // 收起文档模式面板，免得挡住输入框
   await evalJs(`(() => { const b = [...document.querySelectorAll('.chat-doc-actions button')].find(x => x.textContent.trim() === '收起'); b?.click(); return 'ok'; })()`);
@@ -280,27 +281,21 @@ if (process.env.SB_PROBE_QUIZ === '1') {
   await shot('07-quiz-in-flow');
 }
 
-// ── 7. 数据自清：删掉本探针建的会话（含题卡）与出题顺带写进题库的条目 ──────────
+// ── 7. 数据自清：删掉本探针建的会话（含题卡） ────────────────────────────────
 const cleanup = await evalJs(`(async () => {
   const before = new Set(${JSON.stringify(idsBefore)});
   const all = await (await fetch('/api/sessions')).json();
   const fresh = all.filter(s => !before.has(s.id)).map(s => s.id);
   for (const sid of fresh) await fetch('/api/sessions/' + sid, { method: 'DELETE' });
 
-  const bankBefore = new Set(${JSON.stringify(bankBefore)});
-  const bank = await (await fetch('/api/quiz/bank')).json();
-  const freshBank = bankBefore.size ? bank.filter(b => !bankBefore.has(b.id)).map(b => b.id) : [];
-  for (const bid of freshBank) await fetch('/api/quiz/bank/' + bid, { method: 'DELETE' });
-
   const after = await (await fetch('/api/sessions')).json();
-  const bankAfter = await (await fetch('/api/quiz/bank')).json();
-  return JSON.stringify({ removedSessions: fresh.length, afterCount: after.length, removedBank: freshBank.length, bankAfter: bankAfter.length });
+  return JSON.stringify({ removedSessions: fresh.length, afterCount: after.length });
 })()`);
 console.log('清理 =', cleanup);
 const cl = JSON.parse(cleanup);
 check(`测试会话已自清（${idsBefore.length} 条 → ${cl.afterCount} 条）`, cl.afterCount === idsBefore.length);
-check('出题顺带写进题库的条目已自清', cl.removedBank === 0 || cl.bankAfter === bankBefore.length,
-  `删了 ${cl.removedBank} 条，题库现 ${cl.bankAfter} 条`);
+// ★ 出题链自 2026-09-26 起零落库（`quiz_bank` 只剩情景题在用），本探针不再需要清题库条目；
+//   「真的没写库」这条由 `chat/tools/generate-quiz.test.ts` 的回归锁看住，不在探针里重复。
 
 ws.close();
 chrome.kill();

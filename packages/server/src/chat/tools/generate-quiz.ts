@@ -7,8 +7,10 @@
  *   `chat/tools/` 的注册表里**没有出题**（出题是 `routes/quiz.ts` 那条 REST 引擎），
  *   而 `chat/system-prompt.ts` 只留了一句「给出题时遵循协议」——模型手里没有工具，只能退回文字。
  *   ⇒ 症状：没有题卡、点选不了作答、不进题库、没有正确率与错题回流。
+ *   ⚠️ 2026-09-26 回标：这行里的「不进题库／正确率／错题回流」三项随题库整族下线**不再是目标**
+ *     （历史判决不回改，本行只做现状校正）；本工具留住的判据只剩前半句——**有题卡、能点选作答**。
  *
- * ★ 本工具**不新做引擎**：跑的就是设置页那个「出题」按钮跑的同一道管道
+ * ★ 本工具**不新做引擎**：跑的就是输入框「出题」按钮（`/api/quiz/generate`）同一道管道
  *   （`generateBlendedQuiz` → AI 配比 + 真题合流 + 配图闸门），出卡走同一个门面
  *   （`announceQuizToSession`）。两条入口的差异只在**谁发起**（人点 vs 模型调）。
  *
@@ -23,16 +25,20 @@
  *    拿到的是纯 AI 题（摘要里如实写明，不静默）。
  * 2. **回灌给模型的只有题干清单与统计，不含答案与解析**（老板拍板）：模型要能报菜名、
  *    能针对题干讲评，但不需要重抄一遍判分依据；出题是本仓最贵的调用之一，别再把整份 JSON
- *    第二次塞进上下文。★ 判分归题卡（`/api/quiz/stats/record`），不归模型。
- * 3. `affected` 记 **1**（一个 `quiz_bank` 行），不记题数：确认门 `by_size` 比的是条数，
+ *    第二次塞进上下文。★ 判分归题卡，不归模型：卡片按 `answer` 就地判、提交即显 ✓/✗ 与解析
+ *    （2026-09-26 起连 `/api/quiz/stats/record` 一起下线，对错不再上报、不留痕）。
+ * 3. `affected` 记 **1**，数的是**这次出到会话里的一个题组**（一行登记行），不记题数：确认门 `by_size` 比的是条数，
  *    记成 8 道会让每次出题都弹一张批准卡，而「出题」正是学习者自己开口要的动作。
  *    ★ 更狠的一面：没有会话上下文时写门面是**保守拒绝** ⇒ 记成题数的症状恰好是本批修的那个线上症状。
+ *    ⚠️ 2026-09-26 口径搬家：原来这里写的是「一行 `quiz_bank`」，题库下线后**没有任何落库对象**，
+ *      计数单位改指会话登记行——数值仍是 1，确认门的判定不受影响。
  *
- * kind = `write`（有写库副作用）＋ `planWrite` 两阶段（契约 TOOL-ECOSYSTEM-SPEC §4.2/§4.6）：
- * plan 只生成不落库，apply 才 `saveQuiz` + 出卡。★ 超时必须显式给 `TOOL_LLM_INNER_TIMEOUT_MS`：
+ * kind = `write`（有写库副作用：一行会话消息）＋ `planWrite` 两阶段（契约 TOOL-ECOSYSTEM-SPEC §4.2/§4.6）：
+ * plan 只生成不落卡，apply 才出卡（写会话登记行）。★ 超时必须显式给 `TOOL_LLM_INNER_TIMEOUT_MS`：
  * 本工具内部是一次完整出题模型调用，`KIND_TIMEOUT_MS.write` 的 30s 档会把它掐死，
  * 症状是「AI 说它出了题，屏幕上却没有卡」（同 `tidy_terms` 的 120s 先例）。
  */
+import { randomUUID } from 'node:crypto';
 import type { QuizMix, QuizSourceMix } from '@sb/shared';
 import {
   DEFAULT_QUIZ_SOURCE_MIX,
@@ -43,7 +49,7 @@ import {
   TOOL_LLM_INNER_TIMEOUT_MS,
 } from '@sb/shared';
 import { generateBlendedQuiz } from '../../learning/quiz-blend.js';
-import { loadQuizMix, saveQuiz } from '../../learning/quiz.js';
+import { loadQuizMix } from '../../learning/quiz.js';
 import { loadQuizSourceMix } from '../../learning/quiz-source-mix.js';
 import { announceQuizToSession } from '../../learning/quiz-announce.js';
 import { buildDocMaterial, getSessionDoc } from '../../learning/document.js';
@@ -61,11 +67,13 @@ registerTool('generate_quiz', {
     function: {
       name: 'generate_quiz',
       // description 是写给模型的提示词（同 `web-search.ts` 的 B-006 教训：正面陈述 + 触发场景 + 边界）
+      // ⚠️ 2026-09-26 题库下线：这里原有的「进题库与错题统计」「错题也不回流」**必须跟着改真**——
+      //   description 是说给模型的，模型照着对用户承诺，产品里却没有这一环＝AI 替不存在的行为背书。
       description:
-        '给学习者**出真题**：生成一组可点选作答、自动判分、进题库与错题统计的练习题，题卡直接出现在对话里。' +
+        '给学习者**出真题**：生成一组可点选作答、自动判分的练习题，题卡直接出现在对话里。' +
         '适用：学习者要「出题／考我／来几道练习题／做测试／巩固一下／来套题」，或你判断该让他练一轮时。' +
         '★ **要出题就必须调本工具**——在正文里用文字写题目（哪怕写成 1.2.3. 的练习样子）等于没出：' +
-        '没有题卡、他点选不了、系统不记对错、错题也不回流，而这些都是本产品出题的意义所在。' +
+        '没有题卡、他点选不了、也不会自动判分对错，而这些都是本产品出题的意义所在。' +
         '参数：`topic` 说清出什么主题的题；`count` 只在学习者点名题量时给（省略＝用他在设置页配的题型配比）；' +
         '`material` 可选，把你刚讲过、要针对它出题的要点原文放进来（省略时用本会话载入的资料，都没有就按主题出）；' +
         '`search` 要时效性题目时才开。返回题干清单与统计（**不含答案**），题面不要再抄一遍。',
@@ -138,14 +146,14 @@ registerTool('generate_quiz', {
         }),
       };
     }
-    const hasReal = sourceMixTotal(blended.report.real.actual) > 0;
     return {
-      // 口径 3：affected 数的是**入库对象**（一行 quiz_bank），不是题数
+      // 口径 3：affected 数的是这次出到会话里的**一个题组**（一行登记行），不记题数
       affected: 1,
-      actionSummary: `生成 ${quiz.questions.length} 道练习题并入题库（主题：${topic}）`,
+      actionSummary: `生成 ${quiz.questions.length} 道练习题（主题：${topic}）`,
       items: quiz.questions.map((q) => q.question),
       apply: async () => {
-        const quizId = saveQuiz(quiz, hasReal ? 'blend' : 'ai', owner);
+        // 临时 id：只用于 blockId 与事件，不再有 `quiz_bank` 行（2026-09-26 题库下线）
+        const quizId = randomUUID();
         publishEvent({ type: 'quiz_generated', quizId, ownerId: owner });
         if (ctx.sessionId) announceQuizToSession(ctx.sessionId, quiz, quizId);
         return {

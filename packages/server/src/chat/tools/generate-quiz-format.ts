@@ -99,14 +99,16 @@ export function quizToolSummary(
     `已出题 ${n} 道（${mixText(countByType(quiz))}）` +
       (realGot > 0 ? `，其中真题 ${realGot} 道` : '') +
       (svg > 0 ? `，含配图 ${svg} 道` : '') +
-      '。题卡已经直接展示给学习者了——**他点卡片作答，对错与统计由系统判分**（另有错题本）。',
+      // ⚠️ 2026-09-26 题库下线：原句是「对错与统计由系统判分（另有错题本）」——作答不再落库，
+      //      就没有「统计」与「错题本」可写给模型看。这段文案是说给模型的，它照着对用户承诺。
+      '。题卡已经直接展示给学习者了——**他点卡片作答，对错由题卡即时判分并给出解析**。',
     '★ 不要在正文里重复抄这些题目，也不要自己批改（那等于把刚给的题卡作废）。',
     '要讲评就针对下面的题干讲；学习者作答后你可以解释错因。',
   ].join('\n');
   const notes: string[] = [];
   if (images.droppedSvg > 0) notes.push(`有 ${images.droppedSvg} 张图未通过校验被丢弃（题面保留）`);
   if (images.truncated) notes.push('模型输出撞到长度上限，尾部不完整题已丢弃 ⇒ 题数偏少是这么来的');
-  if (opts.scenarioSkipped) notes.push(`设置里的「${MIX_KIND_LABELS.scenario}」档本次未出——那一档走出题页的独立引擎，聊天里暂不含`);
+  if (opts.scenarioSkipped) notes.push(`设置里的「${MIX_KIND_LABELS.scenario}」档本次未出——那一档走独立引擎，聊天里暂不含`);
   if (opts.realRequested > 0 && realGot === 0) notes.push(`设置里配了 ${opts.realRequested} 道真题，这次一道都没摘到（AI 题不受影响）`);
   return `${head}\n\n题干清单：\n${stemLines(quiz)}${notes.length > 0 ? `\n\n（如实告知学习者：${notes.join('；')}）` : ''}`;
 }

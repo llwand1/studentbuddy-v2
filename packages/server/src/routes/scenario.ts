@@ -8,7 +8,7 @@
  */
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { buildScenarioDemoPage, announceScenarioToSession, generateScenario, getScenarioDemoId, reportScenario, saveScenario } from '../learning/scenario.js';
+import { buildScenarioDemoPage, announceScenarioToSession, generateScenario, reportScenario, saveScenario } from '../learning/scenario.js';
 import { emptyScenarioGenReport } from '../learning/scenario-protocol.js';
 import { roleReady } from '../llm/router.js';
 import { publishEvent } from '../events/bus.js';
@@ -16,15 +16,9 @@ import { ownerIdOf } from '../auth/ownership.js';
 
 export const scenarioRouter = Router();
 
-/** 按套题反查 demoId（题库 JSON 不存 demoId；前端从题库页打开面板前先换 id）。别人的套题 → 404。 */
-scenarioRouter.get('/by-quiz/:quizId', (req: Request, res: Response) => {
-  const demoId = getScenarioDemoId(req.params.quizId ?? '', ownerIdOf(req));
-  if (!demoId) {
-    res.status(404).json({ error: '该套题没有情景 demo（可能不是情景题或已损坏）' });
-    return;
-  }
-  res.json({ demoId });
-});
+// GET /by-quiz/:quizId 已删除（2026-09-26 题库下线）：它存在的唯一理由是「题库 JSON 不存 demoId，
+// 前端从**题库页**打开面板前要先换一次 id」。题库页没了，全仓零调用方（现查 `api/scenario` 只剩
+// generate / report / demo 三处），域层的 `getScenarioDemoId` 仍留给 demo 出页那条链用。
 
 /**
  * 登记一套情景题（M1 手工/测试入口；M2 起出题引擎改走域层 saveScenario，同一条 normalize 闸门）。
@@ -88,7 +82,8 @@ scenarioRouter.get('/demo/:id', (req: Request, res: Response) => {
 });
 
 /**
- * 回传对错：{ demoId, taskId, observed } → 白名单 → 服务端判分 → quiz_stats。
+ * 回传对错：{ demoId, taskId, observed } → 白名单 → 服务端判分（2026-09-26 起**不落 `quiz_stats`**，
+ * 记账那一步随题库整族断线，见 `learning/scenario.ts` 头注）。
  * ★ 判分结果（correct）只在此响应里；宿主面板以它为准更新完成态——demo 内的本地对错反馈不算数。
  */
 scenarioRouter.post('/report', (req: Request, res: Response) => {

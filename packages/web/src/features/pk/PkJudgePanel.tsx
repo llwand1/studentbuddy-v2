@@ -4,7 +4,7 @@
  * 三处共用同一形状：出题跑题后的建议 / 求助道具的结果 / 二次机会的现场解析。
  * 只为标题不同就写三个组件，是让同一份展示逻辑在三个地方各漂移一次。
  *
- * ★ 来源链接一律 `rel="noreferrer noopener"` + `target="_blank"`（与题库来源标注同口径）。
+ * ★ 来源链接一律 `rel="noreferrer noopener"` + `target="_blank"`（与题卡来源标注 `quiz/QuizCard` 同口径）。
  */
 import type { PkJudgeAdvice } from '@sb/shared';
 

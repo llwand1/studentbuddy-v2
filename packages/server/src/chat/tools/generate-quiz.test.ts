@@ -5,7 +5,9 @@
  *   文案好不好看，而是**模型到底拿不拿得到这个工具**、以及**它调了之后到底出不出卡**：
  *   ① 注册＋下发（`toolDefinitions()` 里没有它 = 本批白做，模型根本看不见出题能力）；
  *   ② `system-prompt.ts` 点名了它（模型手里有工具但提示词教它别在正文里打字出题，两边都到位才成立）；
- *   ③ 走完整链路后题库真有一行、会话里真有 `[QUIZ]` 登记行、回灌文本**不含答案**（老板拍板口径 2）；
+ *   ③ 走完整链路后会话里真有 `[QUIZ]` 登记行、回灌文本**不含答案**（老板拍板口径 2）；
+ *      ⚠️ 2026-09-26 题库整族下线：这一条原本还锁「题库真有一行」，现在锁的是**零行**
+ *      （`quiz_bank` 表还在库里等 DROP 另批，所以这条断言今天可查、有牙齿）；
  *   ④ `affected` 记 1 而不是题数（口径 3）：记成题数会让 `by_size` 每次出题都弹批准卡，
  *      而在没有会话的上下文里 gate 是**保守拒绝** ⇒ 症状正好是「AI 说它出了题，屏幕上没有卡」。
  *
@@ -93,7 +95,7 @@ const GOOD_JSON = JSON.stringify({
   ],
 });
 
-/** 造一批题（4 单选 + 2 填空）：题数 > 确认门默认阈值 5，专门用来验「affected 记的是入库对象、不是题数」 */
+/** 造一批题（4 单选 + 2 填空）：题数 > 确认门默认阈值 5，专门用来验「affected 记的是题组、不是题数」 */
 function manyJson(n: number): string {
   const qs = Array.from({ length: n }, (_, i) =>
     i % 3 === 2
@@ -155,10 +157,10 @@ describe('注册与下发（模型拿不到工具 = 本批全部白做）', () =
     const missing = await runTool('generate_quiz', '{}', ctx());
     expect(missing.content).toContain('参数校验失败');
     expect(missing.content).toContain('topic');
-    expect(rows('SELECT id FROM quiz_bank')).toHaveLength(0);
+    expect(rows('SELECT id FROM messages')).toHaveLength(0);
     const tooBig = await runTool('generate_quiz', JSON.stringify({ topic: '词根', count: 99 }), ctx());
     expect(tooBig.content).toContain(`不得大于 ${MAX_QUIZ_TOTAL}`);
-    expect(rows('SELECT id FROM quiz_bank')).toHaveLength(0);
+    expect(rows('SELECT id FROM messages')).toHaveLength(0);
   });
 });
 
@@ -249,26 +251,26 @@ describe('quizToolSummary（回灌给模型的文本，拍板口径 2）', () =>
   });
 });
 
-describe('端到端：runTool → 计划 → 免批准 → 落库 + 出卡 + 回灌', () => {
-  it('★ 一次调用三件产物：题库一行、会话一条 [QUIZ] 登记行、回灌题干清单', async () => {
+describe('端到端：runTool → 计划 → 免批准 → 出卡 + 回灌', () => {
+  it('★ 一次调用两件产物：会话一条 [QUIZ] 登记行、回灌题干清单（外加一条零落库回归锁）', async () => {
     newSession();
     const r = await runTool('generate_quiz', JSON.stringify({ topic: '词根 spect' }), ctx());
     expect(r.content).toContain('已出题 3 道');
     expect(r.meta?.affected).toBe(1);
     expect(r.meta?.confirm).toBeNull();
-    const bank = rows('SELECT id, source, data FROM quiz_bank');
-    expect(bank).toHaveLength(1);
-    expect(bank[0]!.source).toBe('ai');
     const msgs = rows("SELECT content FROM messages WHERE session_id = 'sess-tool-test' AND role = 'assistant'");
     expect(msgs).toHaveLength(1);
     expect(String(msgs[0]!.content).startsWith('[QUIZ]')).toBe(true);
-    // 登记行带得回 quizId（与题库那一行同一个 id）——否则刷新后是张「答了不记账」的死卡
-    expect(String(msgs[0]!.content)).toContain(`"quizId":"${String(bank[0]!.id)}"`);
+    // 登记行带得回 quizId（本次调用的临时 id，36 位 UUID）——SSE blockId 与前端还原都反解它
+    expect(String(msgs[0]!.content)).toMatch(/"quizId":"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"/);
+    // ★ 回归锁：自 2026-09-26 起出题工具**一行库都不写**（表仍在，DROP 另批）。
+    //   有人把它接回 `saveQuiz` 时这条会红——那时要红的是「题库要不要回来」这个决策，不是静默多写一张表。
+    expect(rows('SELECT id FROM quiz_bank')).toHaveLength(0);
   });
 
   it('★ 没有会话上下文也照常出卡：affected=1 走免批准档（affected 若记成题数就会被写门面拒掉）', async () => {
     // 6 道 > 确认门默认阈值 5：这条同时锁住两件事——
-    // ① `affected` 数的是**入库对象**（一行 quiz_bank），不是题数；
+    // ① `affected` 数的是**一个题组**（一行会话登记行），不是题数；
     // ② 没有 sessionId 时 gate 是保守拒绝，所以一旦有人把 affected 改成题数，症状就是
     //    「AI 说它出了题，屏幕上没有卡」——本批最初那个线上症状的复刻。
     quizJson = manyJson(6);
@@ -277,7 +279,9 @@ describe('端到端：runTool → 计划 → 免批准 → 落库 + 出卡 + 回
     expect(r.content).toContain('已出题 6 道');
     expect(r.meta?.affected).toBe(1);
     expect(r.content).not.toContain(CONFIRM_DENY_HINT);
-    expect(rows('SELECT id FROM quiz_bank')).toHaveLength(1);
+    // 没有会话 ⇒ 连登记行都没处落，但**回灌照样带题数**（模型知道自己出了题）；题库表仍是零行
+    expect(rows('SELECT id FROM messages')).toHaveLength(0);
+    expect(rows('SELECT id FROM quiz_bank')).toHaveLength(0);
   });
 
   it('点名 count 时本次不出真题也不出情景：设置里配了也不碰搜集引擎（拍板口径 1）', async () => {
@@ -297,13 +301,12 @@ describe('端到端：runTool → 计划 → 免批准 → 落库 + 出卡 + 回
     expect(collectCalls).toEqual(['词根 spect']);
   });
 
-  it('出题模型没配 ⇒ 一条都不写库，回灌「去设置页绑模型」（重试没有用）', async () => {
+  it('出题模型没配 ⇒ 一条都不写，回灌「去设置页绑模型」（重试没有用）', async () => {
     modelAvailable = false;
     newSession();
     const r = await runTool('generate_quiz', JSON.stringify({ topic: '词根' }), ctx());
     expect(r.content).toContain('出题角色没有可用的模型');
     expect(r.meta?.affected).toBe(0);
-    expect(rows('SELECT id FROM quiz_bank')).toHaveLength(0);
     expect(rows('SELECT id FROM messages')).toHaveLength(0);
   });
 
@@ -313,22 +316,25 @@ describe('端到端：runTool → 计划 → 免批准 → 落库 + 出卡 + 回
     const r = await runTool('generate_quiz', JSON.stringify({ topic: '词根' }), ctx());
     expect(r.content).toContain('没能解析成题目');
     expect(r.content).not.toContain('没有可用的模型');
-    expect(rows('SELECT id FROM quiz_bank')).toHaveLength(0);
+    expect(rows('SELECT id FROM messages')).toHaveLength(0);
   });
 
   it('topic 只有空白 ⇒ 预闸放行（它是字符串）但工具体如实拒，不白跑一次模型调用', async () => {
     newSession();
     const r = await runTool('generate_quiz', JSON.stringify({ topic: '   ' }), ctx());
     expect(r.content).toContain('topic 为空');
-    expect(rows('SELECT id FROM quiz_bank')).toHaveLength(0);
+    expect(rows('SELECT id FROM messages')).toHaveLength(0);
   });
 
   it('出卡与 REST 入口同一个门面：登记行 content 逐字同形（两个入口各写一份就是漂移源）', async () => {
     newSession();
     await runTool('generate_quiz', JSON.stringify({ topic: '词根' }), ctx());
     const stored = String(rows("SELECT content FROM messages WHERE session_id = 'sess-tool-test'")[0]!.content);
-    const bank = rows('SELECT id, title, data FROM quiz_bank')[0]!;
-    const payload = JSON.parse(String(bank.data)) as QuizPayload;
-    expect(stored).toBe(quizRowContent(payload, String(bank.id)));
+    // 从登记行本身反解 payload，再喂回门面：两边同形＝这道门面没被绕过（题库下线后没有第二份数据可比）
+    const m = /^\[QUIZ\]([\s\S]*)\[\/QUIZ\]$/.exec(stored);
+    expect(m).not.toBeNull();
+    const { quizId, ...payload } = JSON.parse(String(m?.[1])) as QuizPayload & { quizId: string };
+    expect(quizId).toBeTruthy();
+    expect(stored).toBe(quizRowContent(payload as QuizPayload, quizId));
   });
 });

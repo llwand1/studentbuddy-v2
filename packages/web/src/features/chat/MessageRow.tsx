@@ -23,7 +23,6 @@ import { Markdown } from './Markdown';
 import { ChevronDownIcon } from '../../components/icons';
 import { QuizCard } from '../quiz/QuizCard';
 import { ScenarioPanel } from '../quiz/ScenarioPanel';
-import { api } from '../../lib/api';
 
 export function MessageRow({
   m,
@@ -51,24 +50,13 @@ export function MessageRow({
   const [procExpanded, setProcExpanded] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
 
+  // 题卡（2026-09-26 起不再上报作答）：`/api/quiz/stats/record` 与题库整族一起下线，
+  // 卡片只做「点选作答 → 当场判分 → 出解析」，对错不留痕。
   if (m.quizBlock) {
     return (
       <QuizCard
         title={m.quizBlock.quiz.title ?? '练习'}
         questions={m.quizBlock.quiz.questions}
-        quizId={m.quizBlock.quizId}
-        onAnswer={(qi, correct) => {
-          if (m.quizBlock?.quizId) {
-            void api.request('/api/quiz/stats/record', {
-              method: 'POST',
-              body: JSON.stringify({
-                quizId: m.quizBlock.quizId,
-                questionIndex: qi,
-                correct,
-              }),
-            });
-          }
-        }}
       />
     );
   }

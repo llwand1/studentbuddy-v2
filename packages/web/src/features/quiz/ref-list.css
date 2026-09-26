@@ -1,4 +1,4 @@
-/* RefList 自带样式（与 online-toggle.css 同例：组件不依赖调用方已加载某个 css） */
+/* RefList 自带样式（与 components/style-chips.css 同例：组件不依赖调用方已加载某个 css） */
 .quiz-refs {
   font-size: var(--sb-fs-sm);
   color: var(--sb-ink-secondary);

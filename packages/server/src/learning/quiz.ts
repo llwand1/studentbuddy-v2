@@ -1,11 +1,17 @@
 /**
- * learning/quiz — 出题引擎 + 题库 + 逐题统计（练+析两环服务）。
- * 协议：[QUIZ] JSON（shared/content-blocks QuizPayload）；normalize 校验后入库；
+ * learning/quiz — 出题引擎（协议解析 + 题型配比 + 降级）。
+ * 协议：[QUIZ] JSON（shared/content-blocks QuizPayload）；normalize 校验后交调用方；
  * 出题走 quiz-generator 角色模型（演进①），失败降级纯文本不崩（ADR-4）。
  * 题型配比：设置页把「单选/多选/填空/解答各几道」存 app_settings，出题时拼进提示词；
  * 模型多出的裁掉、少出的如实报（ADR-4 降级不崩 + ADR-5 三态反馈），绝不静默改配比。
+ *
+ * ★ 2026-09-26 题库整族下线：本文件**只剩引擎**。调用方一个都不能省（行号现查于本批）：
+ *   `generateQuiz` 四处——`pk/match.ts:18`、`pk/judge.ts:20`、`pk/ai-bot.ts:16`（对战三味）＋
+ *   `learning/quiz-blend.ts:43`（聊天与 REST 出题共用）；`normalizeQuiz`/`parseQuizBlock` 一处——
+ *   `learning/collect.ts:24`（真题侧复用这道校验闸门）；配比与配图的读写三处——
+ *   `routes/quiz.ts`、`routes/settings.ts`、`chat/tools/generate-quiz.ts`。
+ *   「练+析」两环（题库表读写、逐题统计、薄弱点分析、逐题剔除）随页面与路由一起断线，表留 DROP 另批。
  */
-import { randomUUID } from 'node:crypto';
 import type { QuizPayload, QuizQuestion, QuizMix, QuizType, QuizMixReport, QuizImageReport, AnswerStyle } from '@sb/shared';
 import {
   QUIZ_TYPES,
@@ -317,57 +323,24 @@ export async function generateQuiz(
   return parsed ? mapQuizSources(parsed, found.refs) : null;
 }
 
-// ── 题库 ──
-// ★ M2d-3（迁移 v33）：quiz_bank 加 owner_id，归属值口径照抄 M2d-1/M2d-2（'' = 无主 = 谁都看不见）。
-//   读写两侧同用 ownerForWrite——listQuiz 虽是"一批行"，但登录用户只许见自己的题库、
-//   未登录只许见无主行，"null 豁免过滤"会把别人的题列进来（契约 §8.2 第 2 条口径）。
-export function saveQuiz(data: QuizPayload, source: string, ownerId: string | null, id?: string): string {
-  const qid = id ?? randomUUID();
-  getDb()
-    .prepare('INSERT OR REPLACE INTO quiz_bank (id, title, source, data, owner_id) VALUES (?, ?, ?, ?, ?)')
-    .run(qid, data.title ?? '练习题', source, JSON.stringify(data), ownerForWrite(ownerId));
-  return qid;
-}
-
-export function listQuiz(ownerId: string | null): Array<{ id: string; title: string; source: string; count: number; created_at: string }> {
-  const rows = getDb()
-    .prepare('SELECT id, title, source, data, created_at FROM quiz_bank WHERE owner_id = ? ORDER BY created_at DESC')
-    .all(ownerForWrite(ownerId)) as Array<{ id: string; title: string; source: string; data: string; created_at: string }>;
-  return rows.map((r) => {
-    let count = 0;
-    try {
-      // 情景题（契约 docs/SCENARIO-SPEC.md）的 data 是 ScenarioPayload：有 tasks 键按任务数计，
-      // 其余仍按传统题组的 questions 计——一份列表两种形状，解析只看键不猜 source。
-      const parsed = JSON.parse(r.data) as QuizPayload & { tasks?: unknown[] };
-      count = Array.isArray(parsed.tasks) ? parsed.tasks.length : (parsed.questions?.length ?? 0);
-    } catch {
-      count = 0;
-    }
-    return { id: r.id, title: r.title, source: r.source, count, created_at: r.created_at };
-  });
-}
-
-export function getQuiz(id: string, ownerId: string | null): QuizPayload | null {
-  const row = getDb()
-    .prepare('SELECT data FROM quiz_bank WHERE id = ? AND owner_id = ?')
-    .get(id, ownerForWrite(ownerId)) as { data: string } | undefined;
-  if (!row) return null;
-  try {
-    return JSON.parse(row.data) as QuizPayload;
-  } catch {
-    return null;
-  }
-}
-
-export function deleteQuiz(id: string, ownerId: string | null): void {
-  getDb().prepare('DELETE FROM quiz_bank WHERE id = ? AND owner_id = ?').run(id, ownerForWrite(ownerId));
-  getDb().prepare('DELETE FROM quiz_stats WHERE quiz_id = ? AND owner_id = ?').run(id, ownerForWrite(ownerId));
-}
+// ── 题库段已整族删除（2026-09-26）──
+// 原先这里四个函数：`saveQuiz` / `listQuiz` / `getQuiz` / `deleteQuiz`，加上 `quiz-record.ts` 的
+// `recordAnswer` 与 `quiz-weak.ts` 的薄弱点分析——它们合起来才是「题库」这件功能，随页面与
+// `/api/quiz/bank*`、`/stats/record`、`/analyze/:id`、`/collect/*` 四条路由同批下线。
+// ★ **本文件从此不碰 `quiz_bank` 一张表**：那张表活着的原因只剩一个——情景题的题组数据
+//   就存在它的 `data` 列里（`learning/scenario.ts` 的 `saveScenario` 写、`getScenario` 读，
+//   归属也靠它的 `owner_id` 判）。⇒ 想在后续迁移里 DROP `quiz_bank`，**前置是给情景题另找存储**，
+//   不是加个 `owner_id` 列就完事（这条账在 CHANGELOG 本批行与 `docs/SCENARIO-SPEC.md`）。
+// ★ `deleteQuiz`/`deleteScenarioDemoByQuiz` 一并删除：唯一调用点是题库页的「删除」按钮，
+//   按钮没了它们就是零消费者（判据同深度理解批）。**代价如实登记**：情景题套题此后没有删除通道，
+//   `quiz_bank` 会随每次情景题生成单调增长，无 UI 可清。
 
 // ── 逐题统计已迁出（2026-09-19 M2d-3）──
-// recordAnswer 移到 `learning/quiz-record.ts`：本文件加归属参数后触 400 行红线，按仓规拆文件不压注释。
-// quiz_stats 的读形状是聚合（薄弱点分析/判分统计），归属口径同 ownerForWrite（见该文件头注）。
-export { recordAnswer } from './quiz-record.js';
+// recordAnswer 原在 `learning/quiz-record.ts`：该文件的唯一调用方是 `/api/quiz/stats/record`，
+// 而它唯一的读数方是 `/api/quiz/bank/:id` 与薄弱点分析——三者同批于 2026-09-26 下线，故本行 re-export 摘除。
+// ⚠️ 同批现查的**在册既有缺口**（不是本批造的）：`quiz_answered` 这个 XP/连签类型在全仓**零发布者**
+//   （只有 `events/bus.ts:25` 的类型声明与 `learning/activity.ts:188` 的消费分支），
+//   即「答过题」从来就不算一个学习日。该账走独立 issue 处理，本批不改 XP 口径。
 
 // ── 薄弱点分析已迁出（2026-09-15）──
 // 旧实现在此：纯本地规则，产出两句硬编码文案（'正确率低于 60% 的题目' / '针对这些题重新练习，并阅读解析'），
@@ -375,5 +348,5 @@ export { recordAnswer } from './quiz-record.js';
 // 现移到 `learning/quiz-weak.ts`（契约 docs/QUIZ-WEAK-SPEC.md）：AI 实时分析为主路径、本地规则为降级。
 // 迁出理由有二：① 本文件当时 383/400 行，触 AGENTS.md「再加任何逻辑前必须先开新文件」红线；
 // ② 分析要接 analyzer 角色调模型，与「出题引擎」是两种生命周期。
-// ★ 刻意**不在本文件 re-export**（`quiz-image.ts` 那套做法在这里会构成循环依赖：
-//   quiz-weak.ts 反过来 import 本文件的 getQuiz）。调用方 routes/quiz.ts 已直接改指新路径。
+// ★ 2026-09-26：`quiz-weak.ts` 已随薄弱点分析整族下线，上面这段沿革留着是为了说明**为什么本文件里没有它**。
+

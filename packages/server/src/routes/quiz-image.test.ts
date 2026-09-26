@@ -1,7 +1,8 @@
 /**
  * routes/quiz-image 端到端（supertest，同 quiz-mix.test.ts 手法）。
  * 钉四件事：默认关；开关读写一致且真落库；非真值一律按关（不静默当开）；写接口吃同一道 Origin 闸门。
- * 另钉「带图题存进题库后回读仍在」——图是存在 JSON 里的，别存得进去读不出来。
+ * 另钉「带图题出得出也读得出」——图随题组 JSON 走；2026-09-26 题库下线后这条落在**会话登记行**上
+ * （原先落在 `quiz_bank` 的 JSON 里，`GET /api/quiz/bank/:id` 回读）。
  */
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import fs from 'node:fs';
@@ -74,17 +75,31 @@ describe('/api/settings/quiz-image（出题配图开关）', () => {
   });
 });
 
-describe('/api/quiz/generate 配图落库与回读', () => {
-  it('带合法 SVG 的题存进题库，回读仍在（图随 JSON 走，别存得进读不出）', async () => {
+describe('/api/quiz/generate 配图回读（★ 2026-09-26 起没有题库：取证面＝响应 + 会话登记行）', () => {
+  it('带合法 SVG 的题原样回到响应，且会话 `[QUIZ]` 登记行里图还在（图随 JSON 走，别出得出读不出）', async () => {
     quizStub.result = { title: 'T', questions: [{ type: 'essay', question: '画个圆', svg: SVG }] };
-    const res = await generate().expect(200);
+    const { getDb } = await import('../storage/db.js');
+    const sid = 'sess-img-' + String(Date.now());
+    getDb().prepare('INSERT INTO sessions (id, title) VALUES (?, ?)').run(sid, '配图回读');
+    const res = await request(app)
+      .post('/api/quiz/generate')
+      .set('Origin', origin)
+      .send({ topic: 't', sessionId: sid })
+      .expect(200);
     expect(res.body.quiz.questions[0].svg).toBe(SVG);
-
-    const bank = await request(app).get(`/api/quiz/bank/${res.body.quizId}`).expect(200);
-    expect(bank.body.quiz.questions[0].svg).toBe(SVG);
+    // 原第二条断言读的是 `GET /api/quiz/bank/:id`（该路由随题库下线）。刷新会话时卡片是从这条
+    // 登记行还原的 ⇒ 「存得进读不出」这个风险换了落点，判据跟着换到这里，不是删掉。
+    const content = String(
+      (getDb().prepare('SELECT content FROM messages WHERE session_id = ?').get(sid) as { content: string }).content,
+    );
+    const row = /^\[QUIZ\]([\s\S]*)\[\/QUIZ\]$/.exec(content);
+    expect(row).not.toBeNull();
+    const restored = JSON.parse(String(row?.[1])) as { questions: Array<{ svg?: string }>; quizId?: string };
+    expect(restored.questions[0]?.svg).toBe(SVG);
+    expect(restored.quizId).toBe(res.body.quizId);
   });
 
-  it('老题库无 svg 字段 → 回读 undefined，不报错（向后兼容，不做数据迁移）', async () => {
+  it('题面没带 svg 字段 → 响应里该字段就是 undefined（不补空串、不做数据迁移）', async () => {
     quizStub.result = { title: '老题', questions: [{ type: 'essay', question: '纯文字题' }] };
     const res = await generate().expect(200);
     expect(res.body.quiz.questions[0].svg).toBeUndefined();
@@ -107,7 +122,7 @@ describe('/api/quiz/generate 配图落库与回读', () => {
     const res = await request(app)
       .post('/api/quiz/generate')
       .set('Origin', origin)
-      .send({ topic: 't', save: false, mix: { single: 0, multiple: 0, fill: 0, essay: 1 } })
+      .send({ topic: 't', mix: { single: 0, multiple: 0, fill: 0, essay: 1 } })
       .expect(200);
     expect(res.body.quiz.questions).toHaveLength(1);
     expect(res.body.images.delivered).toBe(1);
@@ -130,7 +145,7 @@ describe('/api/quiz/generate 失败时把真因分开说（契约 §2.4）', () 
     const res = await request(app)
       .post('/api/quiz/generate')
       .set('Origin', origin)
-      .send({ topic: 't', save: false, mix: { single: 0, multiple: 0, fill: 0, essay: 1 } })
+      .send({ topic: 't', mix: { single: 0, multiple: 0, fill: 0, essay: 1 } })
       .expect(502);
     expect(res.body.error).toContain('配比');
     expect(res.body.error).not.toContain('解析');

@@ -23,7 +23,7 @@ export const settingsApi = {
       method: 'POST',
       body: JSON.stringify({ query }),
     }),
-  /** 出题题型配比：设置页读写，服务端归一回读；对话页/题库页只读这份全局配比 */
+  /** 出题题型配比：设置页读写，服务端归一回读；只有对话页出题读这份全局配比（对战按 PK_QUIZ_MIX 现算） */
   quizMix: () => request<{ mix: QuizMix }>('/api/settings/quiz-mix'),
   saveQuizMix: (mix: QuizMix) =>
     request<{ mix: QuizMix }>('/api/settings/quiz-mix', { method: 'PUT', body: JSON.stringify({ mix }) }),

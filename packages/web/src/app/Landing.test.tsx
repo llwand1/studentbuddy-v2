@@ -88,7 +88,11 @@ describe('Landing — 未登录门面', () => {
     expect(inTerm('.landing-orbit-core')[0]?.textContent).toContain('已用次数');
     // 五环闭环（本批降到词条之后，但内容一条不能少）
     expect(getByText('对话讲解')).toBeTruthy();
-    expect(getByText('薄弱分析')).toBeTruthy();
+    // 03 那一步的名字自 2026-09-26 起是「判分与解析」：原先叫「薄弱分析」，
+    // 它依赖的逐题正确率表随题库整族下线 ⇒ 门面不许再挂一个产品里已经不存在的能力名
+    expect(getByText('判分与解析')).toBeTruthy();
+    // ★ 门面不许替已下线的能力背书：整段文案里不能再出现「薄弱分析」这四个字
+    expect(container.textContent ?? '').not.toContain('薄弱分析');
     // 功能九宫格：本批把「艾宾浩斯复习」换成「词条高亮」
     // （复习已在词条旅程第 4 步讲得更透，此处让位给原先落地页完全没出现的高亮卡交互）
     expect(getByText('学习流编排')).toBeTruthy();

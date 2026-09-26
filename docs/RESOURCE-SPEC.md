@@ -1,5 +1,32 @@
 # 学习资源现场搜集契约（RESOURCE-SPEC）
 
+> ## ⚰️ 状态：**人工入口已下线（墓碑）** — 2026-09-26，本契约的「两段确认入库」那半闭环不再存在
+>
+> ★ **一句话（哪半死、哪半活）**：死的是**闭环⑤⑥**——题库页那块「搜集题目」面板
+>   （`CollectPanel.tsx` + `collect-view.ts`）、两条端点 `POST /api/quiz/collect/{preview,commit}`、
+>   以及 `saveQuiz(quiz,'collect')` 这一步（**搜集产物自此不落库**）。
+>   ★ **活着的是闭环①~④**：`learning/collect.ts` 的 `collectQuiz`（派生搜集词 → 复用 `searchWeb` →
+>   `fetchSafe` 逐页抓 → 模型**逐字摘录** → verbatim 锚点锁）**一行未改**，现在是混合出题
+>   `learning/quiz-blend.ts:147` 的真题侧，有 `learning/collect.test.ts` 钉着。
+>   ⇒ 本契约「**摘录不是创作**」这条分界线与「verbatim 锚点锁：宁漏真题不误收编题」的取舍**仍是现役准绳**；
+>   只有「preview/commit 两段人工确认才入库」不再是事实。⚠️ 文中「题库页『搜集题目』」等 UI 口径同理。
+>
+> **为什么删（老板判决逐字，2026-09-26）**：「studentbuddy的题库功能也去删了,现在只要剩下内核和对战以及词条」；规划轮选档 B「整族断线」。
+>   判据＝这条腿单独没人用它：它服务的是已下线的题库页，而**出题**这条主链走的是另一台引擎。
+>
+> **本批零迁移（判决＝本批不碰表）**：`quiz_bank` 留库等独立的删除型迁移逐次点名（与 `quiz_stats`／`quiz_notes` 并批）。
+>
+> **被这条牵连的资产（同批改）**：
+>  · `components/OnlineToggle.tsx`（+ `.css`）——★ 它其实**早就零消费者**（唯一调用方就是题库页那行），随批删除；
+>  · `normalizeCollectedQuiz`（commit 那步「不信客户端」的复校验）自此**零生产调用方**，只剩测试在钉
+>    ⇒ 本批现查新增的尾巴 ⑤，挂 issue #32 不修；
+>  · `docs/QUIZ-BLEND-SPEC.md` 的「混装**入库**、`quiz_bank.source = 'blend'`」失去落点（合流本身仍在，只是不落库）；
+>  · 专属真机探针 `tools/probes/quiz-e2e-cdp.mjs` 随族删除（真点的是已下线的「题库」nav）。
+>
+> **回收路径**：锚点锁与 preview/commit 两段的实现留在 git 历史
+>   （`git show a087e67^:packages/web/src/features/quiz/CollectPanel.tsx`）；
+>   若将来给「真题库」重做入口，**本契约的六步闭环与四条硬约束可原样复用**，缺的只是 UI 与落库那两步。
+>
 > 版本：**v0.3（批1 已落地 · 批2「出题合流」已另立 `docs/QUIZ-BLEND-SPEC.md`）** | 状态：[契约生效·批1交付待验] | 更新：2026-09-20
 > 定位：**给 studentbuddy 装"现场搜集"这条腿**——用户在学习时，产品自己完成
 > 「检索 → 抓页 → AI 摘题/摘要 → 预览确认 → 入库」的运行时闭环，
@@ -172,7 +199,7 @@ preview 成功 commit 前用户关窗 → 无副作用（这就是两段式的�
   - [ ] 开放题集页面的**正文可达率**未实测（T3 出数前，D1 严格度是假设不是结论）；
   - [x] server 侧 HTML→正文提取件已核——复用 `search/index.ts#htmlToText`（§5 回填）；
   - [ ] 预览表观感与入口位置（判定权在老板，**MT-01 真人测试单已派**，见 `docs/dev/manual-test.md`）；
-  - [ ] 薄弱点分析/深度理解对无 `explanation` 搜集题的行为未实测。
+  - ⚰️ ~~[ ] 薄弱点分析/深度理解对无 `explanation` 搜集题的行为未实测。~~ ★ **2026-09-26 就地作废：这一格永远不会再被测了**——薄弱点分析随题库整族下线（issue #32），深度理解更早（issue #27）。原句留着不删，是为了记「这两件没实测过就死了」。
 
 ## 11 §0.14 三个月删除测试
 

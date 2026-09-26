@@ -8,7 +8,7 @@
  *     高亮 → 首现实线 / 复现虚点线 + 悬浮卡（契约 TERM-HIGHLIGHT-SPEC）
  *     注入 → 加权相关性检索作第二条 system 软注入（同上）
  *     复习 → 七节点遗忘曲线 + 先还旧账 + 先翻牌（迁移 v23 / EBBINGHAUS-SPEC）
- *     沉淀 → 领域为一级实体（迁移 v19）+ 理解链（**仅部分落码**）
+ *     沉淀 → 领域为一级实体（迁移 v19）（★ 此处原写「+ 理解链（仅部分落码）」，2026-09-25 该族断线，见 README 墓碑节）
  *
  * ★ 2026-09-21 按老板拍板的 **B 累积回路** 重写：五步原先是五张静态卡（一段零动画的说明文），
  *   可它讲的就是「流程」——流程该按过程呈现。现在是**环**：令牌沿环走过五站，每转完一圈，
@@ -107,8 +107,8 @@ const STEPS: Step[] = [
     title: { zh: '沉淀', en: 'Consolidation' },
     lead: { zh: '连成领域与知识网', en: 'Settles into domains and a knowledge web' },
     desc: {
-      zh: '领域是一级实体，改名时词条批量随迁；理解程度按 L0 直觉到 L4 迁移分级累积，让「学到哪一层」变成看得见的状态。',
-      en: 'Domains are first-class entities, so renaming one moves its terms in bulk. Understanding accumulates from L0 intuition to L4 transfer, turning "how deep do I have this" into a state you can see.',
+      zh: '领域是一级实体，改名时词条批量随迁；词条都归到领域下，越用越清楚自己在学哪一块。',
+      en: 'Domains are first-class entities, so renaming one moves its terms in bulk. Every term lives under a domain, so the more you use it the clearer your coverage gets.',
     },
     tag: PARTIAL,
     partial: true,

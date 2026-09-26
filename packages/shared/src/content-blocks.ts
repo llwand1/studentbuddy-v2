@@ -7,9 +7,9 @@
  * 现状（2026-08-28）：`quiz` 走 SSE block 事件；`svg` / `chart` / `html` 由前端识别正文里的同名围栏
  * 直接渲染卡片（不占 block 通道；html 不在本应用 DOM 内渲染，只送进右侧沙箱预览面板或新标签页）。
  * 曾登记但无发射器也无渲染器的 markdown / form / code 已摘除（2026-08-28）；`actions` 已登记但尚未实现。
+ * `verdict` 同因摘除（2026-09-25，issue #27）：它有类型登记、无发射器（`POST /api/evolution` 从未落地）也无渲染器。
  */
 
-import type { Verdict } from './domain.js';
 import type { QuizSourceMix } from './quiz-source.js';
 
 export type BlockKind =
@@ -17,14 +17,13 @@ export type BlockKind =
   | 'scenario' // 情景题卡片（payload: ScenarioPayload；blockId=scenario-<demoId>，SCENARIO-SPEC §8 M3）
   | 'chart' // 图表 DSL
   | 'actions' // 动作按钮组（已登记，尚未实现）
-  | 'svg' // 内联 SVG 预览（经净化）
-  | 'verdict'; // 深度理解判定（payload: Verdict；DEEP-UNDERSTANDING-SPEC §9.1，2026-09-06 登记，渲染器随任务 7）
+  | 'svg'; // 内联 SVG 预览（经净化）
 
 export interface ContentBlock<K extends BlockKind = BlockKind> {
   kind: K;
   /** 会话内唯一块 id，流式追加按 blockId 聚合 */
   blockId: string;
-  payload: K extends 'quiz' ? QuizPayload : K extends 'scenario' ? import('./scenario.js').ScenarioPayload : K extends 'verdict' ? Verdict : GenericPayload;
+  payload: K extends 'quiz' ? QuizPayload : K extends 'scenario' ? import('./scenario.js').ScenarioPayload : GenericPayload;
 }
 
 export interface QuizQuestion {

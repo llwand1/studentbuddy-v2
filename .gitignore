@@ -12,7 +12,7 @@ test-results/
 **/_*.tsx
 # 2026-09-13 补：真机复验用的临时探针恰好是 `.mjs`，同一条约定在 mjs 上也得生效
 # （来源标注批的 `tools/probes/_probe-config.mjs` 与 `tools/probes/_e2e/` 就是这么积起来的）。
-# 入库探针的正名不带下划线（如 `quiz-e2e-cdp.mjs`），不冲突。
+# 入库探针的正名不带下划线（如 `coach-trend-cdp.mjs`），不冲突。
 **/_*.mjs
 tools/probes/_e2e/
 

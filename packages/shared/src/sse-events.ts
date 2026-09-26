@@ -138,6 +138,42 @@ export type SseEvent =
   // ★ 只对 `trend` 卡发这个事件：`nudge` 的红点语义已经在胶囊上，两者叠加会让胶囊
   //   同时"报数 + 报消息"，用户分不清哪个更急（契约 §4.4 末条）。
   | { type: 'coach-card'; seq: number; sessionId: string; card: CoachTrendCard }
+  // ── 词条卡牌（2026-09-25 登记，契约 docs/TERM-CARDS-SPEC.md §7.2）────────────────
+  // ★ 三条事件走**独立频道** `cardsChannel(ownerId)`（helper 见 `term-cards.ts`），
+  //   与聊天 `sessionId`、PK 的 `pk:`、督促的 `coach:` 四向隔离。★ 字段名仍叫 `sessionId`
+  //   不是笔误：`chat/sse-bus.ts` 的键是 channel-agnostic 的任意字符串（督促趋势卡同一先例），
+  //   换名要把总线一起改，而总线几年不动一次。
+  // ★ **为什么 `card_granted` 也走推送**：它是 T1（每天上百次），本可以纯靠前端在聊天流里
+  //   顺带显示；但卡牌的账在服务端（两张流水的聚合），前端猜就会出现「聊天说命中 3 个、
+  //   卡墙只加 2 张」——B-007/009/010「前端猜服务端事实」同族病。★ 所以它**只报数、不带动画指令**
+  //   （契约 §8 的 T1 预算：数字跳一下即可，飞卡动画属纯装饰且频次过高）。
+  | {
+      type: 'card_granted';
+      seq: number;
+      sessionId: string;
+      /** 本轮各词条的**绝对卡数**（不是增量）：断线重连后重放一条即可对齐，无需前端累加 */
+      grants: Array<{ termId: string; cards: number; star: number }>;
+      /** 卡数统计起点（首条流水的本地日历日，契约 §7.4——「提及 20 次但只有 8 张卡」要能自解释） */
+      logSince: string | null;
+    }
+  // ★ 派单（T2）：只推「有新单」这一件事，正文让前端回读 `/state`。
+  //   不在事件里塞任务全文——否则重连重放 + 轮询补拉会拿到两份可能不同的文本，
+  //   而按 id 合并的前提是"同一条内容相同"（`coach-cards.test.ts` 三条路径的教训）。
+  | {
+      type: 'task_dispatched';
+      seq: number;
+      sessionId: string;
+      added: number;
+      taskIds: string[];
+    }
+  // ★ 宝箱就绪（T3）：一天一次的事件，值得带内容
+  | {
+      type: 'chest_ready';
+      seq: number;
+      sessionId: string;
+      openedDay: string;
+      left: number;
+    }
   // ── 工具确认门（P3，2026-09-19 登记，契约 TOOL-ECOSYSTEM-SPEC §4.6/§6.4）──────────
   // ★ 归 `sessionId` 空间、与 choice-asked 家族同形：两阶段的写（planWrite 出方案）触到
   //   确认门时服务端发 request，用户回执或服务端 60s 超时（按拒绝，保守档）发 resolved。

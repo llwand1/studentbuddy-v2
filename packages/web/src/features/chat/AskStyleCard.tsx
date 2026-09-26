@@ -2,7 +2,7 @@
  * AskStyleCard — 出题前的「先问一次」选项卡（契约 docs/ANSWER-STYLE-SPEC.md §4）。
  * 内联在按钮上方，不新增 modal 基元、不加遮罩：打断感是这套功能最大的风险。
  * useAskStyle 把「configured 判定 / 勾了记住就顺手 PUT / 单次覆盖」收在一处，
- * 聊天页与题库页共用同一套流程——两页各写一遍必然漂成两种行为（本仓的老账）。
+ * 出题入口共用同一套流程（2026-09-26 起入口只剩聊天页一处，题库页随整族下线）。
  */
 import { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_ANSWER_STYLE, styleSummary } from '@sb/shared';

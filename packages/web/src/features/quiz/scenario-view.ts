@@ -1,23 +1,12 @@
 /**
  * 情景题展示与校验的纯函数层（契约 docs/SCENARIO-SPEC.md §2/§5，2026-09-17 新建）。
  * 本仓 .tsx 无测试环境——判定全在这里，组件只挂（先例 mix-report.ts / doc-name.ts）。
+ * ★ 2026-09-26 题库整族下线：原先挂在这儿的两个「题库行是不是情景题」判定
+ *   （`isScenarioItem` / `isScenarioPayload`）随唯一调用方 `QuizBankPage` 一起删除，
+ *   测试同批摘。聊天流出卡走的是 `chat/chat-blocks.ts` 里那份自己的 payload 校验。
  */
 import type { ScenarioPayload, ScenarioReportMessage } from '@sb/shared';
-import {
-  SCENARIO_REPORT_TYPE,
-  SCENARIO_SOURCE,
-  normalizeScenarioPayload,
-} from '@sb/shared';
-
-/** 题库列表行是不是情景题（按 source 登记值分派练习视图，不猜 data 形状） */
-export function isScenarioItem(item: { source: string }): boolean {
-  return item.source === SCENARIO_SOURCE;
-}
-
-/** 题库详情的 data 是不是情景题套题（有无合法 tasks——与列表行的 source 判定互相独立、双保险） */
-export function isScenarioPayload(data: unknown): data is ScenarioPayload {
-  return normalizeScenarioPayload(data) !== null;
-}
+import { SCENARIO_REPORT_TYPE } from '@sb/shared';
 
 export interface ValidatedReport {
   taskId: string;

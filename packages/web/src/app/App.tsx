@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@sb/shared';
 import { AccountBox } from '../components/AccountBox';
+import { PixelSidebar } from '../components/PixelSidebar';
 import { PlusIcon, ChevronDownIcon, ClockIcon } from '../components/icons';
 import { NAV, PK_HASH, type View } from './nav';
 import { api } from '../lib/api';
@@ -21,8 +22,9 @@ import { useActiveSessions } from '../features/chat/useActiveSessions';
 import { Mascot } from '../features/chat/Mascot';
 import { BRAND_NAME, BRAND_TAGLINE } from '../lib/brand';
 import { SettingsView } from '../features/settings/SettingsView';
-import { QuizBankPage } from '../features/quiz/QuizBankPage';
 import { TermsPage } from '../features/terms/TermsPage';
+import { CardsView } from '../features/game/CardsView';
+import { ContinentPage } from '../features/continent/ContinentPage';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
 import { CoachDock } from '../features/coach/CoachDock';
 import { TrialNotice } from '../components/TrialNotice';
@@ -128,7 +130,7 @@ export function App() {
 
   return (
     <div className="sb-shell">
-      <aside className="sb-sidebar">
+      <PixelSidebar>
         {/* 品牌 logo：吉祥物团子即入口（点击回对话主界面，对话不再占导航项） */}
         <button className="sb-logo" title="studentbuddy" onClick={() => setView('chat')}>
           <Mascot />
@@ -204,7 +206,7 @@ export function App() {
           两套身份刻意不互相冒充，M4 才合并（AUTH-SPEC §0）。
         */}
         <AccountBox onAuthChange={() => void reloadSessions()} /><TrialNotice />
-      </aside>
+      </PixelSidebar>
       <main className="sb-main">
         {view === 'chat' && (
           /* 词条索引 Provider（契约 TERM-HIGHLIGHT-SPEC §5）：正文里的词条高亮与悬浮卡
@@ -221,9 +223,10 @@ export function App() {
             />
           </TermIndexProvider>
         )}
-        {view === 'quiz' && <QuizBankPage />}
         {/* key 变化时重挂：从词条卡带词进来要重新初始化搜索框 */}
         {view === 'terms' && <TermsPage key={termsKeyword} initialKeyword={termsKeyword} />}
+        {view === 'cards' && <CardsView />}
+        {view === 'continent' && <ContinentPage />}
         {view === 'settings' && <SettingsView />}
       </main>
       <PreviewPanel />

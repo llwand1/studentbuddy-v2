@@ -1,0 +1,132 @@
+/* Shared pixel surfaces. Specific selectors keep feature-owned game layouts intact. */
+body {
+  background-image: linear-gradient(var(--sb-pixel-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--sb-pixel-grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  accent-color: var(--sb-primary);
+  scrollbar-color: var(--sb-pixel-shadow) var(--sb-bg);
+  scrollbar-width: thin;
+}
+
+body :is(button, input, select, textarea),
+body :is(button, input, select, textarea)[class] { border-radius: 0; }
+body :is(input, select, textarea) { font-family: inherit; }
+body :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--sb-primary);
+  outline-offset: 4px;
+}
+body button:disabled { cursor: not-allowed; }
+body ::selection { background: var(--sb-pixel-gold); color: var(--sb-ink); }
+
+/* Windows, inventories, dialogs and content panels share an ink outline and a hard shadow. */
+body :is(.quiz-card, .notes-item, .notes-block, .sum-card, .settings-sec,
+  .rv-panel, .term-add, .term-domain-panel, .term-edit, .rv-goal,
+  .sb-pk-card, .sb-pk-mode, .sb-pk-fold, .sb-pk-term-panel,
+  .coach-drawer, .coach-bubble, .coach-qcard, .sb-gs,
+  .term-card, .choice-card, .ask-style, .composer-menu-panel,
+  .landing-auth-card, .landing-intro-card, .landing-eng-card,
+  .landing-feature, .landing-jstep, .landing-loop-card, .landing-walk-step,
+  .landing-pk-screen, .landing-demo, .demo-window) {
+  border: 2px solid var(--sb-pixel-edge);
+  border-radius: 0;
+  background: var(--sb-surface);
+  box-shadow: var(--sb-shadow-1);
+  backdrop-filter: none;
+}
+
+/* Compact chips stay flat so long lists keep their visual hierarchy. */
+body :is(.term-tab, .term-stat, .term-domain, .term-preferred-chip, .rv-badge,
+  .rv-goal-chip, .rv-tri, .rv-stat, .quiz-q-type, .quiz-opt-key, .notes-chip,
+  .notes-mark, .settings-tag, .settings-state, .quiz-mix-chip,
+  .chat-step, .chat-doc-pill, .style-chip, .online-toggle,
+  .sb-login-tag, .sb-history-count, .sb-avatar, .coach-cap,
+  .coach-ai-tag, .coach-tr-chip, .sb-pk-mode-pill, .sb-pk-term-chip,
+  .sb-pk-ai-tag, .sb-pk-hist-badge, .sb-pk-option-letter,
+  .landing-step-num, .landing-jtag, .landing-walk-no, .landing-walk-ring,
+  .landing-walk-cap, .landing-intro-tags span, .landing-orbit-node) {
+  border-radius: 0;
+}
+
+body :is(.sb-new-chat, .chat-send, .term-btn, .rv-btn, .quiz-submit,
+  .notes-save, .settings-add, .sum-gen, .coach-send, .sb-pk-btn,
+  .landing-cta, .landing-ghost, .landing-github-btn) {
+  border: 2px solid var(--sb-pixel-edge);
+  box-shadow: 3px 3px 0 var(--sb-pixel-shadow);
+  transition: transform 100ms steps(2), box-shadow 100ms steps(2), background 120ms;
+}
+@media (hover: hover) {
+  body :is(.sb-new-chat, .chat-send, .term-btn, .rv-btn, .quiz-submit,
+    .notes-save, .settings-add, .sum-gen, .coach-send, .sb-pk-btn,
+    .landing-cta, .landing-ghost, .landing-github-btn):hover:not(:disabled) {
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0 var(--sb-pixel-shadow);
+  }
+}
+body :is(.sb-new-chat, .chat-send, .term-btn, .rv-btn, .quiz-submit,
+  .notes-save, .settings-add, .sum-gen, .coach-send, .sb-pk-btn,
+  .landing-cta, .landing-ghost, .landing-github-btn):active:not(:disabled) {
+  transform: translate(3px, 3px);
+  box-shadow: none;
+}
+
+body :is(.term-search, .term-add input, .term-add textarea, .term-edit input,
+  .term-edit textarea, .settings-form input, .settings-form select,
+  .settings-model-input, .settings-model-select, .notes-body-input,
+  .sb-pk-input, .coach-input, .sb-session-search, .sb-user-form-input) {
+  border: 2px solid var(--sb-line);
+  background: var(--sb-surface);
+  box-shadow: inset 2px 2px 0 var(--sb-bg);
+}
+body :is(.term-item, .rv-item, .notes-item, .sb-pk-hist-row) {
+  border-bottom: 1px dashed var(--sb-line);
+}
+body :is(.term-item, .notes-item):hover { background: var(--sb-primary-weak); }
+body :is(.term-head h2, .notes-page h2, .sum-page h2, .settings-view h2,
+  .quiz-head, .sb-pk-title, .sb-pk-h2, .coach-drawer-title) {
+  font-family: var(--sb-font-display);
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+body :is(.sum-num, .sb-pk-score-num, .sb-pk-result-num, .rv-goal-num) {
+  font-family: var(--sb-font-display);
+  font-weight: 800;
+  color: var(--sb-primary);
+  text-shadow: 2px 2px 0 var(--sb-primary-weak);
+}
+body :is(.sum-bar, .rv-bar, .rv-goal-bar, .rv-goal-fill,
+  .sb-pk-clock, .sb-pk-deadline, .sb-pk-player, .sb-pk-seat) { border-radius: 0; }
+body .sum-bar { background: var(--sb-primary); border-top: 3px solid var(--sb-pixel-gold); }
+body .rv-goal-bar { height: 10px; border: 1px solid var(--sb-pixel-edge); }
+body .rv-goal-fill {
+  background: repeating-linear-gradient(90deg, var(--sb-success) 0 8px, transparent 8px 10px);
+}
+body .settings-table th { background: var(--sb-sidebar); }
+body .settings-sec { padding: 20px; margin-bottom: 24px; }
+body .coach-cap { border: 2px solid var(--sb-pixel-edge); box-shadow: var(--sb-shadow-1); }
+body .coach-drawer-head { border-bottom: 2px solid var(--sb-pixel-edge); background: var(--sb-primary-weak); }
+body .coach-card { border-radius: 0; }
+body .coach-cap-dot { border-radius: 0; }
+body .sb-browser { border-left: 2px solid var(--sb-pixel-edge); }
+body .sb-browser-head { background: var(--sb-primary-weak); border-bottom: 2px solid var(--sb-pixel-edge); }
+body .sb-pk-head { border-bottom: 2px solid var(--sb-pixel-edge); padding-bottom: 12px; }
+body .sb-pk-option { border-width: 2px; box-shadow: 2px 2px 0 var(--sb-line); }
+body .sb-pk-option:not(:disabled):active { transform: translate(2px, 2px); box-shadow: none; }
+body .sb-pk-mode.active { border-color: var(--sb-primary); background: var(--sb-primary-weak); }
+body .term-item { border: 2px solid var(--sb-line); border-left: 4px solid var(--sb-pixel-shadow); }
+body .term-item:hover { border-color: var(--sb-pixel-shadow); }
+body .term-page { width: 100%; margin: 0 auto; }
+body .term-imp i { background: repeating-linear-gradient(90deg, var(--sb-primary) 0 8px, transparent 8px 10px); }
+body .notes-page { width: 100%; padding: 24px; margin: 0 auto; overflow-y: auto; }
+body :is(.settings-view, .term-page, .notes-page, .sum-page, .sb-pk-card) {
+  animation: pixel-panel-in 180ms steps(3) backwards;
+}
+@keyframes pixel-panel-in { from { opacity: 0; transform: translateY(6px); } }
+
+/* All existing app animations also respect the OS preference, including nested SVG sprites. */
+@media (prefers-reduced-motion: reduce) {
+  body *, body *::before, body *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

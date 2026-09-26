@@ -1,7 +1,13 @@
 /**
  * routes/scenario 端到端（supertest，同 notes.test.ts 手法）。
- * M1 验收链（契约 docs/SCENARIO-SPEC.md §8）：seed → demo 页（含桥接）→ report 判对/判错 →
- * quiz_stats 出数 → 题库列表按任务数计 → 删套题连带删 demo。另钉白名单 404 与 400 闸门。
+ * 验收链（契约 docs/SCENARIO-SPEC.md §8）：seed 登记闸门 → demo 页（含桥接注入）→ report 判对/判错
+ * → 白名单 404 与 400 闸门。
+ * ⚠️ 2026-09-26 题库整族下线，本文件少了三件事（是宿主没了，不是漏测）：
+ *   ① `GET /by-quiz/:quizId` 路由删除（唯一调用方是题库页）⇒ 那条 describe 同批摘；
+ *   ② 「判对 → `quiz_stats` 出数 / 题库列表按任务数计」改口为**判分不落账**（现改锁 quiz_stats 恒零行）；
+ *   ③ 「删套题连带删 demo」用例随 `DELETE /api/quiz/bank/:id` 一起删——情景题套题从此**没有删除通道**
+ *     （本批代价，登记在 `learning/scenario.ts` 码旁与 CHANGELOG）。
+ * 原先借 `/api/quiz/bank*` 做的取证一律改成**直查库**（本文件 2026-09-25 那批就有一处先例）。
  */
 import { describe, it, expect, afterAll } from 'vitest';
 import fs from 'node:fs';
@@ -40,8 +46,10 @@ describe('POST /api/scenario/seed（登记闸门）', () => {
   it('评分点无 criteria / tasks 全被丢弃 → 400，且 quiz_bank 零部分落库', async () => {
     await seed({ title: 'x', html: demoHtml, tasks: [{ id: 'a', prompt: '没有标准' }] }).expect(400);
     await seed({ title: 'x', html: demoHtml, tasks: 'nope' }).expect(400);
-    const bank = await request(app).get('/api/quiz/bank').set('Origin', origin).expect(200);
-    expect(bank.body.filter((b: { title: string }) => b.title === 'x')).toHaveLength(0);
+    // 取证口径：原先读 `/api/quiz/bank` 列表，该路由 2026-09-26 随题库下线 ⇒ 改直查库
+    const { getDb } = await import('../storage/db.js');
+    const n = (getDb().prepare('SELECT COUNT(*) AS n FROM quiz_bank WHERE title = ?').get('x') as { n: number }).n;
+    expect(n).toBe(0);
   });
 
   it('html 缺失 / 超限 → 400', async () => {
@@ -67,17 +75,11 @@ describe('GET /api/scenario/demo/:id（出页 + 桥接注入）', () => {
   });
 });
 
-describe('GET /api/scenario/by-quiz/:quizId（套题反查 demoId）', () => {
-  it('情景题回 demoId；不存在的套题 → 404', async () => {
-    const seeded = await seed({ title: '反查', html: demoHtml, tasks }).expect(200);
-    const res = await request(app).get(`/api/scenario/by-quiz/${seeded.body.quizId}`).expect(200);
-    expect(res.body.demoId).toBe(seeded.body.demoId);
-    await request(app).get('/api/scenario/by-quiz/no-such-id').expect(404);
-  });
-});
+// GET /api/scenario/by-quiz/:quizId 的 describe 于 2026-09-26 随路由一起删除：
+// 它存在的唯一理由是「题库 JSON 不存 demoId，前端从题库页打开面板前先换 id」，页面没了就是零调用方。
 
 describe('POST /api/scenario/report（回传 + 服务端判分）', () => {
-  it('判对 → correct:true，quiz_stats 出数；题库列表按任务数计', async () => {
+  it('判对 → correct:true、判错 → correct:false（★ 只判分不落账：quiz_stats 零行）', async () => {
     const seeded = await seed({ title: '判分链', html: demoHtml, tasks }).expect(200);
     const { quizId, demoId } = seeded.body;
     await request(app)
@@ -88,25 +90,22 @@ describe('POST /api/scenario/report（回传 + 服务端判分）', () => {
       .expect((res) => {
         expect(res.body).toMatchObject({ ok: true, correct: true, taskIndex: 0 });
       });
-    // 集合相等与顺序无关；判错同样落账（attempts 累计、correct 不加）
+    // 集合相等与顺序无关；判错同样只出现场对错（2026-09-26 起不再累计 attempts 那张账）
     await request(app)
       .post('/api/scenario/report')
       .set('Origin', origin)
       .send({ demoId, taskId: 't-state', observed: 'off' })
       .expect(200)
       .expect((res) => expect(res.body.correct).toBe(false));
-    const detail = await request(app).get(`/api/quiz/bank/${quizId}`).set('Origin', origin).expect(200);
-    expect(detail.body.stats).toEqual([
-      expect.objectContaining({ question_index: 0, attempts: 1, correct: 1 }),
-      expect.objectContaining({ question_index: 1, attempts: 1, correct: 0 }),
-    ]);
-    const bank = await request(app).get('/api/quiz/bank').set('Origin', origin).expect(200);
-    expect(bank.body.find((b: { id: string }) => b.id === quizId)).toMatchObject({ count: 2, source: 'scenario' });
+    // 回归锁（档 B 口径）：判分链**不该**再往 quiz_stats 写一行——接回去必须先改契约与台账
+    const { getDb } = await import('../storage/db.js');
+    const rows = (getDb().prepare('SELECT COUNT(*) AS n FROM quiz_stats WHERE quiz_id = ?').get(quizId) as { n: number }).n;
+    expect(rows).toBe(0);
   });
 
   it('taskId 不在该套题白名单 → 404；demo 不存在 → 404；缺参 → 400', async () => {
     const seeded = await seed({ title: '白名单', html: demoHtml, tasks }).expect(200);
-    const { quizId, demoId } = seeded.body;
+    const { demoId } = seeded.body;
     await request(app)
       .post('/api/scenario/report')
       .set('Origin', origin)
@@ -118,26 +117,6 @@ describe('POST /api/scenario/report（回传 + 服务端判分）', () => {
       .send({ demoId: 'no-such-demo', taskId: 't-choice', observed: [0] })
       .expect(404);
     await request(app).post('/api/scenario/report').set('Origin', origin).send({ taskId: 't-choice' }).expect(400);
-    // 白名单外的上报不产生任何统计行
-    const detail = await request(app).get(`/api/quiz/bank/${quizId}`).set('Origin', origin).expect(200);
-    expect(detail.body.stats).toHaveLength(0);
-  });
-
-  it('删套题连带删 demo：bank DELETE 后 report → 404、demo 页 → 404、库里的 demo 行真的没了', async () => {
-    const seeded = await seed({ title: '级联删', html: demoHtml, tasks }).expect(200);
-    const { quizId, demoId } = seeded.body;
-    await request(app).delete(`/api/quiz/bank/${quizId}`).set('Origin', origin).expect(200);
-    await request(app)
-      .post('/api/scenario/report')
-      .set('Origin', origin)
-      .send({ demoId, taskId: 't-choice', observed: [0] })
-      .expect(404);
-    await request(app).get(`/api/scenario/demo/${demoId}`).expect(404);
-    // ★ 上面两条 404 证不了级联——bank 行一删，归属 JOIN 就让 demo 页与 report 都 404（哪怕 demo 行还在）。
-    //   级联真删只能看库：不然「删套题留下死 demo 行」会一路静默，孤儿行只增不减。
-    const { getDb } = await import('../storage/db.js');
-    const left = getDb().prepare('SELECT COUNT(*) AS n FROM scenario_demo WHERE id = ?').get(demoId) as { n: number };
-    expect(left.n).toBe(0);
   });
 });
 

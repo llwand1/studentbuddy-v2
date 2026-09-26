@@ -46,7 +46,7 @@ StudentBuddy 是一个以对话为起点的学习伙伴。你可以让 AI 解释
 
 StudentBuddy 正在向像素风学习游戏发展。词条会成为这部分体验的起点：学到一个概念，回来复习，再看到自己的进展。
 
-目前，[统一像素界面与动效](https://github.com/llwand1/studentbuddy-v2/pull/34)正在开发分支中；词条卡牌、奖励和“知识大陆”也在推进。其中，知识大陆及 AI 生成地图仍处于原型阶段，网页版还不能游玩。
+目前，[统一像素界面与动效](https://github.com/llwand1/studentbuddy-v2/pull/34)已在同一开发分支中接入词条卡牌、奖励和知识大陆。知识大陆目前支持词条地图与复习挑战；历史副本和 Boss 对战仍是后续方向。这些改动尚未部署到网页版。
 
 我们希望一次复习也能有“再往前走一点”的期待。地图、卡牌和动画会围绕实际学习内容来做，具体玩法随开发和体验反馈调整。
 
@@ -117,12 +117,12 @@ node tools/metrics.mjs --tests --check
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-204%20files%20%2F%202766%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-213%20files%20%2F%202864%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-129-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-127%20types-8a63f6)
+![contracts](https://img.shields.io/badge/shared%20contracts-133%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 
-测试基线：**204 文件 / 2766 例**（2765 passed + 1 skipped + 0 failed）。指标由 `tools/metrics.mjs` 核对，详情见[工程指标](docs/metrics.md)与[测试计划](docs/dev/test-plan.md)。
+测试基线：**213 文件 / 2864 例**（2863 passed + 1 skipped + 0 failed）。指标由 `tools/metrics.mjs` 核对，详情见[工程指标](docs/metrics.md)与[测试计划](docs/dev/test-plan.md)。
 
 `v0.2.x` 表示对外发布的构建版本；`package.json` 中的 `2.0.0-alpha.0` 表示 v2 产品开发线。查看线上变化请以公开更新记录和 GitHub Releases 为准。
 
@@ -132,6 +132,7 @@ node tools/metrics.mjs --tests --check
 
 | 想了解的内容 | 从这里开始 |
 | --- | --- |
+| 像素界面与交互 | [像素 UI 说明](docs/PIXEL-UI.md) · [知识大陆接入](docs/KNOWLEDGE-CONTINENT-SPEC.md) · [卡牌规则](docs/TERM-CARDS-SPEC.md) |
 | 自己部署、备份与恢复 | [部署手册](DEPLOY.md) |
 | 技术架构与设计取舍 | [工程导览](docs/INTERVIEW.md) |
 | 词条、复习与长期记忆 | [词条整理](docs/TERM-TIDY-SPEC.md) · [词条卡片](docs/TERM-HIGHLIGHT-SPEC.md) · [复习规则](docs/EBBINGHAUS-SPEC.md) · [长期记忆](docs/MEMORY-SPEC.md) |

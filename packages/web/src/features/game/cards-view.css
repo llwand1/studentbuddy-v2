@@ -1,0 +1,328 @@
+/**
+ * game.css 之外的**版式层**：卡牌三屏（卡墙／任务清单／宝箱条）的排布。
+ *
+ * ★ 与 `styles/game.css` 的分工：那边是**基元**（按钮、药丸条、卡片、星位、动效轨道），
+ *   进 anywhere 都能用；这边只放"这一屏怎么排"。分开写是为了下一步——老板 2026-09-25 拍板
+ *   「先游戏化三块，满意后再扇全仓」，扇的时候并的是 `--gm-*` 的值；要是版式和基元混在
+ *   一个文件里，就没有"只并基元"这一步可走。
+ * ★ 类名前缀 `cv-`（cards view）。不复用 `terms.css` 的任何一条：那套是词条库表格的版式，
+ *   改它等于同时改词条页。
+ * ★ 依旧禁 `style={{`（CI gates）⇒ 全部按类选择；数据驱动的值一律走 `game.css` 的
+ *   `--gm-*` 变量或 `data-*` 属性。
+ */
+
+/* ③ B-020：导语原本贴上沿（顶栏一行高都没有）。② 的底部留白是给右下角那颗
+   `position: fixed` 的督促舱让位（`coach.css:10-28`）——**只解决"最后一行能不能滚出来"**。
+   ★ 说清楚这条没解决的：滚动途中舱体仍会压在卡片上，那是任何 fixed HUD 的固有代价，
+   聊天页一直如此，本轮不动它（要把"卡牌页收起浮标"做成产品决定才谈得上）。
+   ⚠️ 这里用 padding 而不是给 `.gm-wall` 加 margin：底部留白必须落在**滚动内容**这一侧
+   才有效，且不能挤到 gap 上（`.cv-page` 的 `gap: --sb-sp-5` 是屏内节奏，不该被局部改动）。 */
+.cv-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-5);
+  padding-top: var(--sb-sp-4);
+  padding-bottom: 96px;
+}
+
+.cv-h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  margin: 2px 0 0;
+  font-size: var(--sb-fs-lg);
+  font-weight: 800;
+  color: var(--gm-ink);
+}
+.cv-h2 svg {
+  color: var(--gm-blue);
+}
+
+.cv-lede {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-3);
+  color: var(--gm-ink-dim);
+  font-size: var(--sb-fs-sm);
+  line-height: 1.6;
+}
+.cv-lede svg {
+  flex: 0 0 auto;
+  color: var(--gm-orange);
+}
+
+/* ── 顶栏统计（多邻国顶部那一排）── */
+.cv-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sb-sp-2);
+}
+
+/* ══════════════════════ 卡墙 ══════════════════════ */
+
+.cv-wall {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+}
+.cv-wall-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sb-sp-4);
+  flex-wrap: wrap;
+}
+.cv-wall-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cv-since {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--sb-fs-xs);
+  line-height: 1.5;
+  color: var(--gm-ink-dim);
+}
+.cv-wall-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+}
+
+.cv-input {
+  min-height: 34px;
+  padding: 0 var(--sb-sp-3);
+  border: 2px solid var(--gm-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--gm-surface);
+  color: var(--gm-ink);
+  font: inherit;
+  font-size: var(--sb-fs-sm);
+}
+.cv-input:focus-visible {
+  outline: none;
+  border-color: var(--gm-blue);
+}
+
+.cv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cv-chip {
+  padding: 5px 11px;
+  border: 2px solid var(--gm-line);
+  border-radius: var(--gm-radius-pill);
+  background: var(--gm-surface);
+  color: var(--gm-ink-dim);
+  font: inherit;
+  font-size: var(--sb-fs-xs);
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 90ms var(--gm-ease-out);
+}
+.cv-chip.on {
+  background: var(--gm-blue-soft);
+  border-color: var(--gm-blue);
+  color: #0a5ba8;
+}
+@media (hover: hover) and (pointer: fine) {
+  .cv-chip:hover {
+    transform: translateY(-1px);
+  }
+}
+
+/* 屏震的包裹层：只框住墙。★ 必须是个**真有盒子**的元素——`display: contents` 的元素没有盒子，
+   transform 动画落在它身上等于没落，屏震会静默失效（"写了但没生效"是最难发现的那类降级）。 */
+.cv-wall-shift {
+  display: block;
+}
+
+.cv-card {
+  min-width: 0;
+}
+.cv-card > * {
+  min-width: 0;
+  margin: 0;
+}
+
+/* 非 burst 时的紧凑星位：一个图标 + 数字。8 个槽只在升星那一刻画出来（见 `CardWall.tsx` 的 ⚠️）
+   ★ 2026-09-25 跟卡面换色：原来是 `--gm-yellow-dark`，那是在**白卡**上量的。整块饱和之后
+     它在 R 的深蓝底上直接融掉。现在吃 `--gm-on`（本档文字色），星数跟着标题走。 */
+.cv-starline {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--sb-fs-xs);
+  font-weight: 800;
+  color: var(--gm-on, var(--gm-yellow-dark));
+  font-variant-numeric: tabular-nums;
+}
+
+/* 粒子容器：`display: contents` ⇒ 自己不进 flex 布局（否则会白占一个 gap），
+   而 16 颗粒子仍以 `.gm-card`（relative）为定位父级。**为什么要有这个容器**：
+   `game.css` 的 16 条错帧键在 `.gm-burst .gm-spark:nth-child(1..16)` 上，
+   冲击环和粒子做兄弟的话粒子会从 `nth-child(2)` 起算——整圈延迟错一位。 */
+.cv-sparks {
+  display: contents;
+}
+
+.cv-empty {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  margin: 0;
+  padding: var(--sb-sp-4);
+  border: 2px dashed var(--gm-line);
+  border-radius: var(--gm-radius);
+  color: var(--gm-ink-dim);
+  font-size: var(--sb-fs-sm);
+  line-height: 1.6;
+}
+
+/* ══════════════════════ 任务清单 ══════════════════════ */
+
+.cv-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+}
+.cv-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+}
+.cv-task-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cv-task-main h3 {
+  margin: 0;
+}
+.cv-task-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--sb-sp-2);
+  align-items: flex-start;
+}
+.cv-task-kind {
+  margin-left: var(--sb-sp-2);
+  padding: 2px 7px;
+  border-radius: var(--gm-radius-pill);
+  background: var(--gm-blue-soft);
+  color: #0a5ba8;
+  font-size: var(--sb-fs-xs);
+  font-weight: 800;
+  vertical-align: 2px;
+}
+/* 勾选框本身是 `game.css` 的 `.gm-check`（纯 CSS 画的），这里只剥掉按钮皮 */
+.cv-check-btn {
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--gm-ink-dim);
+  cursor: pointer;
+}
+.cv-check-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* 待人工校对的词池候选：虚线框 = "还没定论"，与实线的正式任务行区分开 */
+.cv-cand {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sb-sp-3);
+  padding: var(--sb-sp-3);
+  border: 2px dashed var(--gm-line);
+  border-bottom: 4px solid var(--gm-line);
+  border-radius: var(--gm-radius);
+  background: var(--gm-surface);
+}
+.cv-cand-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: var(--sb-fs-xs);
+  font-weight: 800;
+  color: var(--gm-orange-dark);
+}
+.cv-cand-def {
+  margin: 2px 0 0;
+  font-size: var(--sb-fs-xs);
+  line-height: 1.5;
+  color: var(--gm-ink-dim);
+}
+
+/* ══════════════════════ 宝箱条 ══════════════════════ */
+
+.cv-chest {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-4);
+  flex-wrap: wrap;
+  padding: var(--sb-sp-4);
+  border: 2px solid var(--gm-line);
+  border-bottom: 6px solid var(--gm-yellow-dark);
+  border-radius: var(--gm-radius);
+  background: var(--gm-yellow-soft);
+}
+.cv-chest-lead {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.cv-chest-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  font-size: var(--sb-fs-md);
+  font-weight: 800;
+  color: #4a3a00;
+}
+.cv-chest-title svg {
+  color: var(--gm-yellow-dark);
+}
+.cv-chest-why {
+  margin: 4px 0 0;
+  font-size: var(--sb-fs-xs);
+  line-height: 1.6;
+  color: #6b5600;
+}
+.cv-chest-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+}
+
+/* 「今天有宝箱可开」的呼吸灯：只动 opacity（合成层属性），且**不是常驻**——
+   `chest_ready` 推来一帧时挂类，用户点开面板就摘掉。做成永久闪烁就是把提示变成噪音。
+   底色取黄深档而不是 `.gm-task-live` 的绿：绿在本仓已经等于"完成／掌握"。 */
+.cv-live {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--gm-yellow-dark);
+}
+.cv-chest-pulse {
+  animation: gmBreath 2.6s var(--gm-ease-inout) infinite;
+}
+
+/* ══════════════════════ 忙态 ══════════════════════ */
+
+.cv-busy {
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-chip {
+    transition: none;
+  }
+  .cv-chest-pulse {
+    animation: none;
+    opacity: 1;
+  }
+}

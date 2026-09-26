@@ -2,8 +2,10 @@
  * 情景题契约（契约 docs/SCENARIO-SPEC.md v1.0，2026-09-17 新建，前后端共用一份）。
  *
  * 情景题 = AI 生成一个可交互 HTML demo，demo 内嵌评分点（task），用户在 demo 里操作，
- * 「发生了什么」经桥接脚本 → postMessage → 宿主面板 → REST 回传，**对错由服务端按 criteria 判**
- * 后走 recordAnswer 落 quiz_stats——每个评分点在统计层就是一道普通题（契约 §0.1）。
+ * 「发生了什么」经桥接脚本 → postMessage → 宿主面板 → REST 回传，**对错由服务端按 criteria 判**。
+ * ⚠️ 2026-09-26 回标：判完原本还走 `recordAnswer` 落 `quiz_stats`（「每个评分点在统计层就是一道
+ *   普通题」，契约 §0.1）——那道记账随题库整族断线，现在**只出现场对错、不留历史**；
+ *   契约 §0.1 与 SCENARIO-SPEC 的同段口径同批改。
  *
  * 出题方式不固定（demo 爱怎么玩怎么玩），但两条硬规定：
  * ① 每个评分点必须有可机器判定的 criteria（normalize 时缺失即丢弃）；

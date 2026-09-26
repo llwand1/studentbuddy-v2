@@ -2,10 +2,14 @@
  * routes/quiz-blend — 出题来源合流的端到端（supertest，同 quiz-search.test.ts 手法）。
  *
  * 钉四件事（契约 `docs/QUIZ-BLEND-SPEC.md` §7 T3）：
- * ① **向后兼容**：不传 `sourceMix` 且设置里真题全 0 时，行为与改动前逐字一致（不发起搜集、来源仍 `ai`）；
+ * ① **向后兼容**：不传 `sourceMix` 且设置里真题全 0 时，行为与改动前逐字一致（不发起搜集、题组里一道真题都没有）；
  * ② `sourceMix` 透传 → 搜集**带题型配额**发起（不带配额，模型会全摘选择题）；
  * ③ 合流报告原样回响应，缺额如实（报缺不补）；
  * ④ 设置端点的**联合钳位**：AI 侧 + 真题侧 ≤ 20。
+ *
+ * ⚠️ 2026-09-26 题库整族下线：①②里原先那半句「落库来源写 ai / blend」的取证没了——
+ *   `/generate` 不再写 `quiz_bank`（题库徽标随页面下线）。判据改到**响应题组**上：
+ *   题面带 `source.kind === 'collect'` 的题数，就是「这次到底有没有出到真题」。
  *
  * 上游一律打桩（`generateQuiz` / `collectQuiz`），**不碰真模型真网络**；库走临时 `SB_DATA_DIR`。
  */
@@ -68,15 +72,11 @@ const putAiMix = (mix: Record<string, number>) =>
   request(app).put('/api/settings/quiz-mix').set('Origin', origin).send({ mix });
 
 /**
- * 按 quizId 取题库行。
- * ★ 刻意**不用** `bank[0]`：`quiz_bank.created_at` 只到秒（`datetime('now')`），
- *   本文件多个用例在同一秒内落库 ⇒ `ORDER BY created_at DESC` 的并列项**顺序不稳定**，
- *   拿第一条会读到别的用例的行（实测踩到：期望 'blend' 实得 'ai'）。
+ * 题组里带 `collect` 来源的题数——2026-09-26 起这是「这次出没出到真题」的唯一取证面。
+ * （原先读 `quiz_bank.source` 判 ai/blend，那张徽标随题库页一起下线；`/generate` 现在不落库。）
  */
-const bankRowOf = async (quizId: string): Promise<{ id: string; source: string } | undefined> => {
-  const bank = await request(app).get('/api/quiz/bank').set('Origin', origin).expect(200);
-  return (bank.body as Array<{ id: string; source: string }>).find((b) => b.id === quizId);
-};
+const collectCount = (questions: Array<{ source?: { kind?: string } }>): number =>
+  questions.filter((q) => q.source?.kind === 'collect').length;
 
 beforeEach(async () => {
   stub.aiQuiz = AI_QUIZ;
@@ -96,10 +96,9 @@ describe('★ 向后兼容：不配真题时与改动前逐字一致', () => {
     expect(r.body.blend?.collect).toBeUndefined();
   });
 
-  it('落库来源仍是 ai（老行为不变，题库徽标不会无端变成"混合"）', async () => {
+  it('题组里一道 collect 题都没有（老行为不变：不配真题就不混真题进来）', async () => {
     const r = await generate({ topic: 't' }).expect(200);
-    const row = await bankRowOf(r.body.quizId);
-    expect(row?.source).toBe('ai');
+    expect(collectCount(r.body.quiz.questions)).toBe(0);
   });
 
   it('响应仍带 mix（AI 侧报告）——前端既有 shortfallText 零改动', async () => {
@@ -108,7 +107,7 @@ describe('★ 向后兼容：不配真题时与改动前逐字一致', () => {
   });
 });
 
-describe('sourceMix 透传与合流落库（契约 §3.3／§7 T3）', () => {
+describe('sourceMix 透传与合流题组（契约 §3.3／§7 T3）', () => {
   it('传 sourceMix → 搜集发起，且**带题型配额**进提示词参数', async () => {
     stub.candidates = collected(1);
     await generate({ topic: '二次函数', sourceMix: { single: 2 } }).expect(200);
@@ -119,22 +118,20 @@ describe('sourceMix 透传与合流落库（契约 §3.3／§7 T3）', () => {
     expect(stub.collectCalls[0]?.[0]).toBe('二次函数');
   });
 
-  it('真题摘到 → 题组含真题（排在 AI 题之后）且落库来源为 blend', async () => {
+  it('真题摘到 → 题组含真题（排在 AI 题之后），且逐题带 collect 来源', async () => {
     stub.candidates = collected(2);
     const r = await generate({ topic: 't', sourceMix: { single: 2 } }).expect(200);
     expect(r.body.quiz.questions.map((q: { question: string }) => q.question)).toEqual([
       'AI-s0', 'AI-s1', 'AI-f0', 'AI-e0', '真题0', '真题1',
     ]);
-    const row = await bankRowOf(r.body.quizId);
-    expect(row?.source).toBe('blend');
+    expect(collectCount(r.body.quiz.questions)).toBe(2);
   });
 
-  it('★ 配了真题但一道没摘到 → 来源仍写 ai（按**实际内容**判，不让徽标说谎）', async () => {
+  it('★ 配了真题但一道没摘到 → 题组里 collect 题数为 0（按**实际内容**判，题面不说谎）', async () => {
     stub.candidates = [];
     const r = await generate({ topic: 't', sourceMix: { single: 3 } }).expect(200);
     expect(r.body.quiz.questions).toHaveLength(4);
-    const row = await bankRowOf(r.body.quizId);
-    expect(row?.source).toBe('ai');
+    expect(collectCount(r.body.quiz.questions)).toBe(0);
   });
 
   it('★ 缺额如实回响应（报缺不补）：要 3 摘到 1 → missing 记 2', async () => {
@@ -145,7 +142,7 @@ describe('sourceMix 透传与合流落库（契约 §3.3／§7 T3）', () => {
     expect(r.body.blend.real.missing).toEqual([{ type: 'single', want: 3, got: 1, label: '单选题' }]);
   });
 
-  it('设置页存了真题配比时，不传 sourceMix 也会带真题（两条入口共用一份设置）', async () => {
+  it('设置页存了真题配比时，不传 sourceMix 也会带真题（配比是账号级设置，不是本次参数）', async () => {
     await putSourceMix({ single: 1 });
     stub.candidates = collected(1);
     const r = await generate({ topic: 't' }).expect(200);

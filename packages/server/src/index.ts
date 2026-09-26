@@ -25,6 +25,8 @@ import { githubAuthRouter } from './routes/auth-github.js';
 import { growthRouter } from './routes/growth.js';
 import { scenarioRouter } from './routes/scenario.js';
 import { coachRouter } from './routes/coach.js';
+// 词条卡牌／宝箱／任务清单（契约 docs/TERM-CARDS-SPEC.md §7.1）：独立前缀，不挂进 /api/terms
+import { cardsRouter } from './routes/cards.js';
 import { toolsRouter } from './routes/tools.js';
 import { searchRouter } from './routes/search.js';
 import { ensureSearchIndex } from './search/fts-index.js';
@@ -157,6 +159,8 @@ app.use('/api/choices', choiceRouter);
 app.use('/api/scenario', scenarioRouter);
 // v25 复习督促小窗（B+C+E，契约 docs/COACH-SPEC.md）：独立链路，不挂在 /api/chat 上
 app.use('/api/coach', coachRouter);
+// 卡牌玩法出口（§7.1）：`/state` 一次回全 + `/stream` 走 `cardsChannel(owner)` 独立频道
+app.use('/api/cards', cardsRouter);
 // P3 设置页「工具」卡（契约 TOOL-ECOSYSTEM-SPEC §6.3-4/§4.5）：阈值 + 30 天统计；P4 grants 同挂这里
 app.use('/api/tools', toolsRouter);
 // 全站全文搜索（契约 docs/FTS-SPEC.md §3.4）：本地库 fts5 检索。

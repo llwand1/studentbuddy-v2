@@ -124,8 +124,15 @@ describe('storage/db — v44 学习流/知识图七张表下线（第一条删�
     db.close();
   });
 
-  it('⑥ v44 在链尾且全链严格升序（挂错位置＝低号被静默跳过那一族，同 v43 片头的拦路牌）', () => {
-    expect(MIGRATIONS[MIGRATIONS.length - 1]?.version).toBe(44);
+  it('⑥ v44 在链上、全链严格升序（挂错位置＝低号被静默跳过那一族，同 v43 片头的拦路牌）', () => {
+    // ★ **改判记录**（2026-09-25，v45 批）：这一条原来锁的是"`MIGRATIONS` 的**最后一项 === 44**"。
+    //   v45 一追加，那个断言就红了——而它红得**没有意义**：链尾本该永远是"最新那一片"，
+    //   把尾号写进用例等于每加一片就得来改一次别人的文件，那不是锁、是路障
+    //   （本仓在"数最大号"上已有前科：`tools/metrics.mjs` 要靠 grep `version:` 才数得对）。
+    //   ★ 原来真正要挡的东西**一条没丢**：下面那个全链严格升序循环才是承重的那半句——
+    //     它证明 44 之后不可能再塞进一个更小的号（`migrate()` 按 `MAX(version)` 比较，
+    //     低号会被静默跳过）。改完的两半合起来仍然封住"挂错位置"这整个失效模式。
+    expect(MIGRATIONS.some((m) => m.version === 44)).toBe(true);
     const versions = MIGRATIONS.map((m) => m.version);
     for (let i = 1; i < versions.length; i += 1) {
       expect((versions[i] as number) > (versions[i - 1] as number)).toBe(true);

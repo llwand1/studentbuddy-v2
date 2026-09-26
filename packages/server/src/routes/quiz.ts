@@ -1,25 +1,23 @@
 /**
- * routes/quiz — 练+析薄路由。
+ * routes/quiz — 出题薄路由（只剩 `/generate` 一条）。
+ *
+ * ★ 2026-09-26 题库整族下线（老板判决：线上实测无人使用，且它是依附对话核的派生产品线）：
+ *   `/bank*`（列表/读取/删组/逐题剔除）、`/collect/*`（现场搜集两段）、`/analyze/:id`（薄弱点分析）、
+ *   `/stats/record`（逐题统计）四条随页面一起断线，契约面见 `docs/QUIZ-WEAK-SPEC.md` 与
+ *   `docs/RESOURCE-SPEC.md` 的墓碑。**留下的只有「出题」这一个动作**，因为它是聊天内核与
+ *   对战共用的出口（`chat/tools/generate-quiz.ts` 与 `pk/match.ts` 走的是同一台引擎）。
+ * ★ 随之下线的是**落库**，不是题卡：本路由出卡仍走 `announceQuizToSession`（会话里看得见、
+ *   刷新可还原），只是 `quizId` 从 2026-09-26 起是**本次调用的临时 id**，不再有 `quiz_bank` 行。
  */
+import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import {
-  saveQuiz,
-  listQuiz,
-  getQuiz,
-  deleteQuiz,
-  recordAnswer,
-  loadQuizMix,
-} from '../learning/quiz.js';
+import { loadQuizMix } from '../learning/quiz.js';
 import { loadQuizSourceMix } from '../learning/quiz-source-mix.js';
 import { generateBlendedQuiz } from '../learning/quiz-blend.js';
-import { removeQuizQuestion } from '../learning/quiz-edit.js';
-import { analyzeWeakPoints } from '../learning/quiz-weak.js';
-import { collectQuiz, normalizeCollectedQuiz } from '../learning/collect.js';
 import { announceQuizToSession } from '../learning/quiz-announce.js';
 import { announceScenarioToSession, generateScenario } from '../learning/scenario.js';
 import { emptyScenarioGenReport } from '../learning/scenario-protocol.js';
-import { deleteScenarioDemoByQuiz } from '../learning/scenario.js';
 import {
   normalizeQuizMix,
   normalizeQuizSourceMix,
@@ -28,25 +26,24 @@ import {
   sourceMixTotal,
   emptyQuizImageReport,
   countQuizImages,
-  emptyCollectReport,
   type ScenarioMixResult,
 } from '@sb/shared';
 import { roleReady } from '../llm/router.js';
 import { getSessionDoc, buildDocMaterial } from '../learning/document.js';
-import { getDb } from '../storage/db.js';
 import { publishEvent } from '../events/bus.js';
-import { ownerIdOf, ownerForWrite } from '../auth/ownership.js';
+import { ownerIdOf } from '../auth/ownership.js';
 
 export const quizRouter = Router();
 
 /**
- * 一键出题：{ topic, material?, sessionId?, mix?, style?, save? } → 生成→裁剪→（可选）入会话消息流→返回题目。
+ * 一键出题：{ topic, material?, sessionId?, mix?, style? } → 生成→裁剪→（可选）入会话消息流→返回题目。
  * mix 省略 = 用设置页存的全局配比；传了按传的归一化（两处出题共用一套语义）。
  * style 同理：本次显式传了就覆盖库内偏好（L1 选项卡选完那一次出题靠它）。
  * 出不够不静默补题、图没出也不静默：响应带 mix / images 两份报告，UI 如实告知（ADR-5）。
+ * ★ `save` 参数随题库下线一并摘除——它曾是「这次要不要写进题库」的开关，现在没有人能翻题库。
  */
 quizRouter.post('/generate', async (req: Request, res: Response) => {
-  const { topic, material, sessionId, mix, style, search, save = true, sourceMix } = req.body as {
+  const { topic, material, sessionId, mix, style, search, sourceMix } = req.body as {
     topic?: string;
     material?: string;
     sessionId?: string;
@@ -54,7 +51,6 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
     style?: unknown;
     /** 本次是否联网检索（省略＝不联网；两条 UI 入口与 PK 显式传，契约 docs/QUIZ-SEARCH-SPEC.md §2.2） */
     search?: boolean;
-    save?: boolean;
     /**
      * 本次的**真题**配比（省略＝用设置页存的那份；契约 docs/QUIZ-BLEND-SPEC.md §3.1）。
      * 纯加法：省略即旧行为（不出真题）。
@@ -161,12 +157,11 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
     const quiz = blended.quiz;
     // 交付图数在裁剪**后**数：模型画了 3 张、被配比裁剩 1 张带图的题，就只报 1
     images.delivered = countQuizImages(quiz);
-    let quizId: string | undefined;
-    // 落库来源按**实际内容**判（拍板 D5）：真摘到了真题才写 'blend'；配了但一道没摘到，
-    // 这组题实质上仍是纯 AI 题，写成 'blend' 会让题库徽标说谎。
-    const hasReal = sourceMixTotal(blended.report.real.actual) > 0;
-    if (save) quizId = saveQuiz(quiz, hasReal ? 'blend' : 'ai', ownerIdOf(req));
-    if (quizId) publishEvent({ type: 'quiz_generated', quizId, ownerId: ownerIdOf(req) });
+    // ★ 临时 id（2026-09-26 题库下线）：它只用于两处——SSE 的 `blockId` 与 `quiz_generated` 事件，
+    //   不再对应任何 `quiz_bank` 行。留着它的理由不是「以后要查」，是**删键要撞现网在途会话**：
+    //   `quiz-announce.ts` 的 blockId 形状与事件契约都带它，那属 SSE 契约两侧同改，另批走。
+    const quizId = randomUUID();
+    publishEvent({ type: 'quiz_generated', quizId, ownerId: ownerIdOf(req) });
     // 出卡走唯一门面（`learning/quiz-announce.ts`）：聊天侧 `generate_quiz` 工具用的是同一个函数，
     // 两处各写一份就是 blockId / 登记行 content / 前端还原解析三口径漂移的来源（2026-09-23 收口）
     if (sessionId) announceQuizToSession(sessionId, quiz, quizId);
@@ -175,115 +170,6 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
     // `mix` 仍是 AI 侧报告（前端既有 shortfallText 读的就是它，**向后兼容零改动**）；
     // `blend` 是本次新增的合流报告（真题侧要/摘/缺 + 逐页抓取记录），前端读它渲染报缺文案。
     res.json({ quizId, quiz, mix: blended.report.ai, images, blend: blended.report, ...(scenarios ? { scenarios } : {}) });
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
-  }
-});
-
-/**
- * 现场搜集·预览（契约 docs/RESOURCE-SPEC.md §3.5）：跑「检索→抓页→模型摘题→verbatim 锁」全程，
- * **绝不落库**——commit 只发生在人于预览界面勾选确认之后（外部结果永不直接写库，TOOL-ECOSYSTEM 先例）。
- * 报告全程如实带回（搜集词/逐源失败/逐页记账/逐题 verdict），前端只念不判（ADR-5）。
- */
-quizRouter.post('/collect/preview', async (req: Request, res: Response) => {
-  const { topic } = req.body as { topic?: string };
-  if (!topic?.trim()) {
-    res.status(400).json({ error: 'topic 必填——想练什么主题的题，说个主题' });
-    return;
-  }
-  try {
-    const report = emptyCollectReport();
-    const r = await collectQuiz(topic.trim(), report, { ownerId: ownerIdOf(req) });
-    // 「没配模型」与「搜到抓到现场没题」是两条不同行动指引，文案分开（同 /generate 的 failure 口径）
-    if (report.failure === 'no-model') {
-      res.status(502).json({
-        error: `搜集失败：${roleReady('quiz-generator', ownerIdOf(req)).reason || '出题模型没配好'}——请到「设置」→「角色模型绑定」为「出题」绑定模型后再试`,
-      });
-      return;
-    }
-    res.json(r);
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
-  }
-});
-
-/**
- * 现场搜集·入库：用户在预览里确认过的题组 → `saveQuiz(quiz,'collect')`。
- * ★ 不信任客户端的 ok 标记——服务端复跑形状 + 可判分闸门（`normalizeCollectedQuiz`）；
- *   verbatim 不在此重验（页面原文已不在场），预览机验 + 入库人验两道叠加即契约设计。
- */
-quizRouter.post('/collect/commit', (req: Request, res: Response) => {
-  const { title, questions } = req.body as { title?: string; questions?: unknown };
-  const quiz = normalizeCollectedQuiz(title, questions);
-  if (!quiz) {
-    res.status(400).json({ error: '入库失败：没有一道通过服务端复校验（请先预览，再勾选确认的题提交）' });
-    return;
-  }
-  const quizId = saveQuiz(quiz, 'collect', ownerIdOf(req));
-  publishEvent({ type: 'quiz_generated', quizId, ownerId: ownerIdOf(req) });
-  res.json({ quizId, count: quiz.questions.length });
-});
-
-quizRouter.get('/bank', (req: Request, res: Response) => {
-  res.json(listQuiz(ownerIdOf(req)));
-});
-
-quizRouter.get('/bank/:id', (req: Request, res: Response) => {
-  const quiz = getQuiz(req.params.id ?? '', ownerIdOf(req));
-  if (!quiz) {
-    res.status(404).json({ error: '题库不存在' });
-    return;
-  }
-  const stats = getDb()
-    .prepare('SELECT question_index, attempts, correct, streak, best_streak FROM quiz_stats WHERE quiz_id = ? AND owner_id = ?')
-    .all(req.params.id ?? '', ownerForWrite(ownerIdOf(req)));
-  res.json({ quiz, stats });
-});
-
-quizRouter.delete('/bank/:id', (req: Request, res: Response) => {
-  // 情景题连带删 demo 行（quiz_bank 无外键，1:1 关系靠这里维持；普通题删零行幂等）。
-  // ★ 顺序不能反：归属经子查询回 quiz_bank 判，而 deleteQuiz 会把那行删掉——先删 demo 再删题库。
-  deleteScenarioDemoByQuiz(req.params.id ?? '', ownerIdOf(req));
-  deleteQuiz(req.params.id ?? '', ownerIdOf(req));
-  res.json({ ok: true });
-});
-
-// 剔除单题（契约 docs/QUIZ-BLEND-SPEC.md §8 对冲④）：D1「真题自动进组」拆掉了人工确认闸门，
-// verbatim 锚点锁成为唯一防线——漏进来的错题要能事后剔除，而不是只能删整组（AI 题陪葬）。
-quizRouter.delete('/bank/:id/questions/:index', (req: Request, res: Response) => {
-  const r = removeQuizQuestion(req.params.id ?? '', Number(req.params.index), ownerIdOf(req));
-  if (!r.removed) {
-    res.status(404).json({ error: '题组不存在、题目下标越界或该组不支持逐题剔除（如情景题套组）' });
-    return;
-  }
-  res.json({ ok: true, remaining: r.remaining });
-});
-
-quizRouter.post('/stats/record', (req: Request, res: Response) => {
-  const { quizId, questionIndex, correct } = req.body as {
-    quizId?: string;
-    questionIndex?: number;
-    correct?: boolean;
-  };
-  if (!quizId || typeof questionIndex !== 'number' || typeof correct !== 'boolean') {
-    res.status(400).json({ error: 'quizId/questionIndex/correct 必填' });
-    return;
-  }
-  recordAnswer(quizId, questionIndex, correct, ownerIdOf(req));
-  res.json({ ok: true });
-});
-
-/**
- * 薄弱点分析（契约 docs/QUIZ-WEAK-SPEC.md）：**AI 实时生成**，走 analyzer 角色。
- * ★ 必须 try/catch：Express 4 不接管 async 路由的 rejection，漏了会让请求永久挂起
- *   （域层已兜住模型调用，这里兜的是 DB / 未知异常，ADR-4 失败隔离）。
- * ★ 失败真因由域层填（`fallback` / `failure`），本路由只透传、**不反推**——
- *   反推在「角色绑定存在但 provider 被停用」这类边缘态会判错。
- */
-quizRouter.get('/analyze/:id', async (req: Request, res: Response) => {
-  try {
-    // M2c：薄弱点分析要调 analyzer 模型，归属取当前用户
-    res.json(await analyzeWeakPoints(req.params.id ?? '', ownerIdOf(req)));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

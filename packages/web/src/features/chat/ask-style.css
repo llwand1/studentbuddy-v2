@@ -1,6 +1,7 @@
 /**
  * ask-style.css — 出题前选项卡的容器样式（自包含，理由同 components/style-chips.css：
- * 这卡片要在聊天页与题库页两处内联出现，蹭任一页的 css 都会让另一页裸奔）。
+ * 卡片内联在宿主页面里，蹭任一页的 css 都会让另一页裸奔。
+ * 2026-09-26 题库页随整族下线，调用点只剩聊天页一处，独立成文件的口径不变）。
  */
 .ask-style {
   display: grid;
@@ -59,7 +60,7 @@
 }
 .ask-style-btn.primary:hover:not(:disabled) { opacity: 0.88; color: #fff; }
 
-/* 出题按钮上方的一句轻提示（不弹卡，只指路）：聊天页与题库页共用 */
+/* 出题按钮上方的一句轻提示（不弹卡，只指路） */
 .ask-style-hint {
   font-size: var(--sb-fs-xs);
   color: var(--sb-ink-tertiary);

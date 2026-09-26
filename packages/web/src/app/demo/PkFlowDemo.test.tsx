@@ -20,7 +20,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
 import { HELP_PER_MATCH } from '@sb/shared';
 import { PkFlowDemo } from './PkFlowDemo';
-import { LANDING_DEMOS, PK_FLOW, TERM_FLOW, GRAPH_FLOW } from './registry';
+import { LANDING_DEMOS, PK_FLOW, TERM_FLOW } from './registry';
 
 afterEach(cleanup);
 
@@ -112,8 +112,8 @@ describe('PkFlowDemo — 帧 × 内容矩阵', () => {
 });
 
 describe('演示注册表 — 顺序与可扩展性', () => {
-  it('注册表按「机制 → 产物 → 应用」排：词条 → 知识图 → 对战', () => {
-    expect(LANDING_DEMOS.map((d) => d.key)).toEqual([TERM_FLOW.key, GRAPH_FLOW.key, PK_FLOW.key]);
+  it('注册表展示现役词条与对战，不恢复已下线知识图', () => {
+    expect(LANDING_DEMOS.map((d) => d.key)).toEqual([TERM_FLOW.key, PK_FLOW.key]);
   });
 
   it('每个演示的标题非空、帧数 ≥2、每帧都有说明与时长', () => {

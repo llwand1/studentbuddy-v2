@@ -88,11 +88,20 @@ describe('Landing — 未登录门面', () => {
     expect(inTerm('.landing-orbit-core')[0]?.textContent).toContain('已用次数');
     // 五环闭环（本批降到词条之后，但内容一条不能少）
     expect(getByText('对话讲解')).toBeTruthy();
-    expect(getByText('薄弱分析')).toBeTruthy();
+    // 03 那一步的名字自 2026-09-26 起是「判分与解析」：原先叫「薄弱分析」，
+    // 它依赖的逐题正确率表随题库整族下线 ⇒ 门面不许再挂一个产品里已经不存在的能力名
+    expect(getByText('判分与解析')).toBeTruthy();
+    // ★ 门面不许替已下线的能力背书：整段文案里不能再出现「薄弱分析」这四个字
+    expect(container.textContent ?? '').not.toContain('薄弱分析');
     // 功能九宫格：本批把「艾宾浩斯复习」换成「词条高亮」
     // （复习已在词条旅程第 4 步讲得更透，此处让位给原先落地页完全没出现的高亮卡交互）
-    expect(getByText('学习流编排')).toBeTruthy();
-    expect(getByText('知识图谱')).toBeTruthy();
+    expect(getByText('词条卡牌')).toBeTruthy();
+    expect(container.textContent).not.toContain('学习流编排');
+    expect(container.textContent).not.toContain('知识图谱');
+    expect(container.textContent).not.toContain('每日总结');
+    expect(container.textContent).not.toContain('刷题笔记');
+    expect(LANDING_DEMOS.map(d => d.key)).not.toContain('graph-flow');
+    expect(getByText('知识大陆')).toBeTruthy();
     expect(getByText('智能出题')).toBeTruthy();
     expect(getByText('词条高亮')).toBeTruthy();
     expect(getByText('AI 对战')).toBeTruthy();
@@ -212,12 +221,12 @@ describe('Landing — 功能区按步骤讲（2026-09-22 二次点单「功能�
     expect([...container.querySelectorAll('.landing-walk-cap .landing-feature-title')].map((n) => n.textContent)).toEqual([
       '联网检索',
       '文档模式',
-      '学习流编排',
+      '词条卡牌',
       '智能出题',
       'AI 对战',
       '长期记忆',
       '词条高亮',
-      '知识图谱',
+      '知识大陆',
       'AI 主动督促',
     ]);
   });

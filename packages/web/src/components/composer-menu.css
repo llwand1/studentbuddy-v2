@@ -1,4 +1,4 @@
-/* ComposerMenu：输入框的「+」展开菜单。视觉与 .sb-online-pill / .chat-quiz-btn 同一套 token，
+/* ComposerMenu：输入框的「+」展开菜单。视觉与 .chat-quiz-btn 同一套 token，
    不再自造第三套按钮语言（浅色极简，无渐变无阴影堆叠）。 */
 .composer-menu {
   position: relative;

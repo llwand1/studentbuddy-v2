@@ -39,6 +39,8 @@
  *   执行器拦路牌都在那片文件头；等 v41/v42 那片空下来可并片，纯搬运零行为改动）。
  *   **2026-09-25 起落点是 `-v44.ts` 片尾**（同一条理由再沿用一次：`-v43.ts` 是同伴当天落地、
  *   登记簿上仍挂 [WIP] 的文件）。
+ *   **2026-09-25（同日第二跳）本批另开 `-v45.ts` 一片**：`-v44.ts` 也是同伴当天落地、且同仓仍有
+ *   会话在途 ⇒ 同一条理由第三次沿用。并片随时可做（纯搬运、零行为改动）。
  * ⚠️ 回放迁移链的测试必须把**加列**也 DROP 掉（`ALTER TABLE ADD COLUMN` 不幂等，
  *   本仓实测踩过 `duplicate column name: summary` / `: images`，见 `storage/db.test.ts`）。
  */
@@ -52,6 +54,7 @@ import { MIGRATIONS_V40 } from './migrations-list-v40.js';
 import { MIGRATIONS_V41 } from './migrations-list-v41.js';
 import { MIGRATIONS_V43 } from './migrations-list-v43.js';
 import { MIGRATIONS_V44 } from './migrations-list-v44.js';
+import { MIGRATIONS_V45 } from './migrations-list-v45.js';
 
 export const MIGRATIONS: Array<{ version: number; statements: string[] }> = [
   ...MIGRATIONS_V1_9,
@@ -64,4 +67,5 @@ export const MIGRATIONS: Array<{ version: number; statements: string[] }> = [
   ...MIGRATIONS_V41,
   ...MIGRATIONS_V43,
   ...MIGRATIONS_V44,
+  ...MIGRATIONS_V45,
 ];

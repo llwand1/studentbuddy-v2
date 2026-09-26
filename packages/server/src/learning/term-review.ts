@@ -59,6 +59,7 @@ import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
 import { publishEvent } from '../events/bus.js';
 import { ownerForWrite } from '../auth/ownership.js';
+import { announceCards } from './card-announce.js';
 import {
   computeReviewState,
   localDayKey,
@@ -352,6 +353,10 @@ export function markReviewed(
   // ⚠️ 口径变化如实记：这里**不看词条在不在复习范围内**（老 `reviewStreak` 用范围 JOIN 筛过）——
   //   范围外的词条被手动打卡同样算「今天学了」。契约 §8.3 已登记该取舍：连签数的是学习行为，不是队列归属。
   if (!opts.silent) publishEvent({ type: 'review_completed', termId: id, ownerId });
+  // ★ 同一处推卡数帧（契约 `TERM-CARDS-SPEC` §7.2）：跟着 `review_completed` 走同一个
+  //   `!opts.silent` 闸门，**不是顺手加的**——体验号种子走的也是这个函数，若在这儿无条件推，
+  //   首屏种子就会往外发"某人获得了卡牌"的帧，与那里「种子不是有人学习了」那条红线同族。
+  if (!opts.silent) announceCards(ownerId, [id]);
   // ★ **回读库行再算状态**（不拿内存里的 row 拼）：本仓已在 auth 的 `createdAt` 上为
   //   「两个事实源」付过一次学费，库行是唯一事实源。
   const freshRow = db

@@ -24,11 +24,23 @@ import { termsReviewApi } from './api-terms-review.js';
 import { toolsApi, termsUndoApi } from './api-tools.js';
 import { searchApi } from './api-search.js';
 import { pkInviteApi } from './api-pk-invite.js';
+import { cardsApi } from './api-cards.js';
 
 // 领域的类型**转出**给调用方（形状定义在 `api-terms-domain.ts`，那里承担行数红线的解释）。
 export type { DomainRow, DomainsResponse, RenameDomainResult, RemoveDomainResult } from './api-terms-domain.js';
 // 复习的类型同源转出（v23 艾宾浩斯，形状定义在 `api-terms-review.ts`）。
 export type { ReviewTermItem, ReviewQueueItem, ReviewQueueResult, ReviewOverview, ReviewDayStat } from './api-terms-review.js';
+// 卡牌／宝箱／任务清单的类型同源转出（形状定义在 `api-cards.ts`，那里写明它是服务端形状的镜像）。
+export type {
+  CardReading,
+  CardWallRow,
+  CardWallSummary,
+  CardsStateResponse,
+  ChestDraw,
+  ChestState,
+  PoolCandidate,
+  StudyTask,
+} from './api-cards.js';
 
 // `ApiError` 已抽到 api-request.ts（行数红线 + 断环，见该文件头注释）。
 // 此处**转出**以保持既有调用方 `import { api, ApiError } from '../../lib/api'` 零改动。
@@ -52,6 +64,14 @@ export const api = {
 
   /** 全站搜索（契约 docs/FTS-SPEC.md §3.4）：本地库 fts5 检索，与联网搜索的 key 配置无关 */
   search: searchApi,
+
+  /**
+   * 卡牌／宝箱／任务清单（契约 docs/TERM-CARDS-SPEC.md §7）。
+   * ★ 独立前缀 `/api/cards`、**一次 `/state` 读全**：卡墙、钥匙、清单、待审候选之间有等式
+   *   （`summary.totalCards` = 墙上各项之和），分四个请求就会出现"四块来自四个瞬间"（B-007 族）。
+   * ★ 形状与为什么在这里重写一遍，见 `api-cards.ts` 文件头。
+   */
+  cards: cardsApi,
 
   /**
    * 账号（契约 docs/AUTH-SPEC.md §2）。

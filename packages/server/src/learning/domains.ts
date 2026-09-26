@@ -337,3 +337,24 @@ export function domainStats(ownerId: string | null): {
 
   return { total, domains: withMentions, today, preferred };
 }
+
+/**
+ * 领域的**在册序号**（登记顺序：`created_at`，同秒按 `rowid`），下标从 0 起。
+ *
+ * ★ 为什么必须有它、且为什么在服务端算：卡牌底边的领域取色用的就是这个序号
+ *   （`styles/game.css` 的 `--gm-dom-*` 色环注释）。前端的替代取法是
+ *   `domainStats` 的行序，但那个序是 **`count DESC`** ——它随词条增减而变，
+ *   用它取色等于「昨天蓝色的领域今天变红」，一个纯装饰的值反过来污染了可读性。
+ *   在册序号是库里的既有事实（`created_at`），不随读数漂移。
+ * ⚠️ **未登记的领域（孤儿行）不在返回的 Map 里**：`domainStats` 的 UNION ALL 那一支说明
+ *   库里可能存在没登记的域名。调用方据此走中性档，**不要**给它补一个序号——
+ *   补了就等于"多出来的领域会挤掉已有领域的颜色"。
+ */
+export function domainOrdinals(ownerId: string | null): Map<string, number> {
+  const rows = getDb()
+    .prepare('SELECT name FROM term_domain WHERE owner_id = ? ORDER BY created_at ASC, rowid ASC')
+    .all(ownerForWrite(ownerId)) as Array<{ name: string }>;
+  const out = new Map<string, number>();
+  rows.forEach((r, i) => out.set(r.name, i));
+  return out;
+}

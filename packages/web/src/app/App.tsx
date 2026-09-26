@@ -23,6 +23,7 @@ import { Mascot } from '../features/chat/Mascot';
 import { BRAND_NAME, BRAND_TAGLINE } from '../lib/brand';
 import { SettingsView } from '../features/settings/SettingsView';
 import { TermsPage } from '../features/terms/TermsPage';
+import { CardsView } from '../features/game/CardsView';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
 import { CoachDock } from '../features/coach/CoachDock';
 import { TrialNotice } from '../components/TrialNotice';
@@ -223,6 +224,7 @@ export function App() {
         )}
         {/* key 变化时重挂：从词条卡带词进来要重新初始化搜索框 */}
         {view === 'terms' && <TermsPage key={termsKeyword} initialKeyword={termsKeyword} />}
+        {view === 'cards' && <CardsView />}
         {view === 'settings' && <SettingsView />}
       </main>
       <PreviewPanel />

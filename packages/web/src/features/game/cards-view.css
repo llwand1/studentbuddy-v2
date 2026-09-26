@@ -94,7 +94,7 @@
   min-height: 34px;
   padding: 0 var(--sb-sp-3);
   border: 2px solid var(--gm-line);
-  border-radius: 11px;
+  border-radius: var(--sb-radius-sm);
   background: var(--gm-surface);
   color: var(--gm-ink);
   font: inherit;

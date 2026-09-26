@@ -2,11 +2,8 @@
  * styles/game.css — 游戏风基元层（2026-09-25 新建，契约 `docs/TERM-CARDS-SPEC.md` §8，
  * 画风参照老板点名的**多邻国 / Quizlet**）。
  *
- * ★★ 这一层**盖在 `tokens.css` 之上、不替换它**，且全部走 `--gm-*` 独立命名空间。
- *   理由不是洁癖：`tokens.css` 是全仓 123 个组件的唯一事实源，直接改它的圆角/阴影/间距
- *   ＝同时给聊天、设置、PK、题库换皮，而这几屏从没为游戏风设计过。老板 2026-09-25 拍的顺序是
- *   「先游戏化三块，满意后再扇 tokens 扫全仓」⇒ 本文件是那块"先"，将来扇全仓的动作是
- *   **把 `--gm-*` 的值并进 `--sb-*`**，而不是让全仓去 import 本文件。
+ * 2026-09-26：以全局像素 UI 为统一底稿。`--gm-*` 保留卡牌的语义色与反馈动效，
+ * 几何、字体和表面色统一取 `--sb-*`，覆盖此前分区试验的画风优先级。
  *
  * ★ 基础值一律向 `--sb-*` 要（字体、字号、间距、ink、line），只有游戏风**必须偏离**的那几项
  *   才自带常数：饱和色板、硬底投影、更粗的字重。这样两套皮不会在"字号"这种无关的事上分叉。
@@ -108,10 +105,9 @@
 
   /* 立体感与动效常数 */
   --gm-lift: 4px;                          /* 硬底厚度＝按钮下沉距离，两处必须同源 */
-  --gm-radius: 14px;
-  --gm-radius-card: 18px;                  /* 只有卡牌更圆一档：整块饱和之后圆角是"糖果感"的主要来源，
-                                              ★ 不并到 --gm-radius：那会把按钮/输入框一起变圆 */
-  --gm-radius-pill: 999px;
+  --gm-radius: var(--sb-radius-md);
+  --gm-radius-card: var(--sb-radius-md);
+  --gm-radius-pill: var(--sb-radius-sm);
   /* ★ 像素单元（2026-09-26 老板定档「数值层像素化」）：硬边元素的所有尺寸都取它的整数倍，
      阶梯角／分段／倒角共用这一格，免得各处各写一个 2px 慢慢漂成对不齐。
      ⚠️ 只管**图形**，不管文字——文字照老板那条「一律不动」，仍是 `--sb-font` 系统栈。 */
@@ -184,7 +180,7 @@
 }
 .gm-btn.gm-ghost:active:not(:disabled) { box-shadow: 0 0 0 var(--gm-line); }
 
-.gm-btn.gm-sm { min-height: 34px; font-size: var(--sb-fs-sm); border-radius: 11px; --gm-lift: 3px; }
+.gm-btn.gm-sm { min-height: 34px; font-size: var(--sb-fs-sm); border-radius: var(--sb-radius-sm); --gm-lift: 3px; }
 .gm-btn.gm-block { width: 100%; }
 
 /* ══════════════════════ 3. 标题眉签与统计（特征 2）══════════════════════════ */

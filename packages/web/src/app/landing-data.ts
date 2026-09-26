@@ -84,10 +84,10 @@ export const WALK: WalkStep[] = [
       },
       {
         icon: 'flow',
-        title: { zh: '学习流编排', en: 'Study-flow builder' },
+        title: { zh: '词条卡牌', en: 'Term cards' },
         desc: {
-          zh: '把「讲解 → 出题 → 判分 → 复盘」拖成一条自己的学习流水线，预制模板开箱即用',
-          en: 'Drag explain → quiz → grade → review into your own pipeline; ready-made templates included',
+          zh: '把对话里留下的词条收进卡墙，查看收藏与复习进度',
+          en: 'Collect terms from your conversations and see your collection and review progress',
         },
       },
     ],
@@ -159,10 +159,10 @@ export const WALK: WalkStep[] = [
       },
       {
         icon: 'graph',
-        title: { zh: '知识图谱', en: 'Knowledge graph' },
+        title: { zh: '知识大陆', en: 'Knowledge continent' },
         desc: {
-          zh: '学过的概念自动连成图，点任一节点看它的邻里关系，薄弱环节一眼可见',
-          en: 'Learned concepts auto-link into a graph; click any node for its neighborhood and see weak spots at a glance',
+          zh: '词条铺成地块，到期的复习化作怪物；答题收复地块，逐步点亮图鉴',
+          en: 'Your terms become tiles; due reviews become monsters. Answer to reclaim tiles and discover the codex',
         },
       },
     ],
@@ -311,8 +311,8 @@ export const INTRO_THREE: Array<{ q: Bi; title: Bi; desc: Bi }> = [
     q: { zh: '它是什么', en: 'What it is' },
     title: { zh: '一条自己往下跑的闭环', en: 'A loop that keeps itself running' },
     desc: {
-      zh: '讲解、出题、判分、复习排期、每日总结各自都是一级功能，不是聊天框里的几个技巧。',
-      en: 'Explaining, quiz-making, grading, review scheduling and daily summaries are each first-class features — not chatbot parlor tricks.',
+      zh: '从对话里学懂概念，留下自己的学习记录，再通过复习挑战和对战检验掌握情况。',
+      en: 'Understand concepts in conversation, keep your learning record, and check what you remember through review challenges and duels.',
     },
   },
   {

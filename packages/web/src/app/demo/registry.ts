@@ -110,7 +110,7 @@ export const PK_FLOW: DemoDefinition = {
  *
  * 顺序 = 落地页里的展示顺序。
  */
-export const LANDING_DEMOS: DemoDefinition[] = [TERM_FLOW, GRAPH_FLOW, PK_FLOW];
+export const LANDING_DEMOS: DemoDefinition[] = [TERM_FLOW, PK_FLOW];
 
 /** 注册表为空的兜底（理论不可达）——用来避开 hook 前的条件返回与 `!` 断言 */
 export const EMPTY_DEMO: DemoDefinition = {

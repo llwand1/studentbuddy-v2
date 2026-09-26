@@ -3,16 +3,11 @@
  * 钉三件事：写操作照样过跨源闸门；接口永不回显正文；会话绑定语义（不存在即 404）。
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-doc-route-test-'));
-const { app } = await import('../index.js');
-const { getDb, closeDb } = await import('../storage/db.js');
-const request = (await import('supertest')).default;
+const { app, request, getDb, closeDb } = await boot('doc-route-test');
+const origin = TEST_ORIGIN;
 
-const origin = 'http://localhost:5173';
 let sid = '';
 
 // 出题/抽词的回退路径只关心「什么文本送到了域函数手里」，故桩掉两个学习域

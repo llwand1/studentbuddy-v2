@@ -10,21 +10,17 @@
  *   但三个内存桶（growth／demo-login／register）会跨用例串 ⇒ 每例前全清。
  */
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import { DEMO_USER_ID } from '@sb/shared';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-growth-routes-'));
-const { app } = await import('../index.js');
-const { getDb, closeDb } = await import('../storage/db.js');
+const { app, request, getDb, closeDb } = await boot('growth-routes');
+const origin = TEST_ORIGIN;
+
 const { resetGrowthRateLimits, GROWTH_MAX_PER_IP_HOUR } = await import('../routes/growth.js');
 const { resetDemoLoginLimits } = await import('../auth/demo.js');
 const { resetRegisterLimits } = await import('../auth/register-limit.js');
 const { resetRateLimits } = await import('../auth/rate-limit.js');
-const request = (await import('supertest')).default;
 
-const origin = 'http://localhost:5173';
 const get = (url: string) => request(app).get(url).set('Origin', origin);
 const post = (url: string) => request(app).post(url).set('Origin', origin);
 const PROBE = { 'User-Agent': 'studentbuddy-probe/1.0 (growth-test)', 'X-SB-Probe': 'growth-test' };

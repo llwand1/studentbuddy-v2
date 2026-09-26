@@ -12,9 +12,7 @@
  * ⚠️ 限流是**进程内内存计数**，跨用例会串 ⇒ beforeEach 重置（同 `auth.test.ts` 的处置）。
  */
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import {
   AUTH_COOKIE_NAME,
   DEMO_LOGIN_MAX_PER_IP_HOUR,
@@ -22,14 +20,12 @@ import {
   DEMO_USER_NICKNAME,
 } from '@sb/shared';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-auth-demo-test-'));
-const { app } = await import('../index.js');
-const { getDb, closeDb } = await import('../storage/db.js');
+const { app, request, getDb, closeDb } = await boot('auth-demo-test');
+const origin = TEST_ORIGIN;
+
 const { resetDemoLoginLimits } = await import('../auth/demo.js');
 const { resetRateLimits } = await import('../auth/rate-limit.js');
-const request = (await import('supertest')).default;
 
-const origin = 'http://localhost:5173';
 const post = (url: string) => request(app).post(url).set('Origin', origin);
 
 function demoRowCount(): number {

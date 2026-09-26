@@ -13,11 +13,7 @@
  * ④ 两个会话同时生成时**两个都在**（这正是 bug 的核心：不是「当前会话」而是「全部在跑的」）。
  */
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-chat-active-test-'));
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 
 /** 只桩「本轮生成」这一段：本批验的是登记与摘除的时机，不验模型调用 */
 const flowStub = vi.hoisted(() => ({
@@ -34,11 +30,8 @@ vi.mock('../chat/flow.js', () => ({
     }),
 }));
 
-const { app } = await import('../index.js');
-const { closeDb } = await import('../storage/db.js');
-const request = (await import('supertest')).default;
-
-const origin = 'http://localhost:5173';
+const { app, request, closeDb } = await boot('chat-active-test');
+const origin = TEST_ORIGIN;
 
 /** 当前「生成中」的会话 id；`/active` 是 GET，不受写操作 Origin 闸门约束 */
 const active = async (): Promise<string[]> =>

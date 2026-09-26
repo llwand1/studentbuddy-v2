@@ -18,22 +18,18 @@
  *     全走同一个出口 IP ⇒ 不重置的话第 6 个用例起必吃 429。
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import { AUTH_COOKIE_NAME, AUTH_MAX_LOGIN_FAILURES, AUTH_REGISTER_MAX_PER_IP_HOUR } from '@sb/shared';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-routes-auth-test-'));
-const { app } = await import('../index.js');
-const { getDb, closeDb } = await import('../storage/db.js');
+const { app, request, getDb, closeDb } = await boot('routes-auth-test');
+const origin = TEST_ORIGIN;
+
 const { resetRateLimits } = await import('../auth/rate-limit.js');
 const { resetCodeLimits } = await import('../auth/code-limit.js');
 const { resetRegisterLimits } = await import('../auth/register-limit.js');
 const { resetAuthCaches } = await import('../auth/users.js');
 const { setMailSender } = await import('../mail/send.js');
-const request = (await import('supertest')).default;
 
-const origin = 'http://localhost:5173';
 const post = (url: string) => request(app).post(url).set('Origin', origin);
 const get = (url: string) => request(app).get(url).set('Origin', origin);
 

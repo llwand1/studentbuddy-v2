@@ -4,17 +4,14 @@
  * 另钉「带图题存进题库后回读仍在」——图是存在 JSON 里的，别存得进去读不出来。
  */
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import type { QuizPayload, QuizQuestion } from '@sb/shared';
 import { DEFAULT_QUIZ_IMAGE } from '@sb/shared';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-quiz-image-test-'));
-const { app } = await import('../index.js');
-const { closeDb } = await import('../storage/db.js');
+const { app, request, closeDb } = await boot('quiz-image-test');
+const origin = TEST_ORIGIN;
+
 const { loadQuizImage } = await import('../learning/quiz.js');
-const request = (await import('supertest')).default;
 
 // 只桩「模型出题」这一段：开关读写、落库、回读全用真实现，端到端才有意义
 const quizStub = vi.hoisted(() => ({ result: null as QuizPayload | null }));
@@ -24,7 +21,6 @@ vi.mock('../learning/quiz.js', async (importOriginal) => ({
   generateQuiz: async () => quizStub.result,
 }));
 
-const origin = 'http://localhost:5173';
 const SVG = '<svg viewBox="0 0 100 60"><circle cx="50" cy="30" r="20" fill="none" stroke="#333"/></svg>';
 
 const put = (body: Record<string, unknown>) =>

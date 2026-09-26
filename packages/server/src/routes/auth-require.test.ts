@@ -12,24 +12,19 @@
  *   与 §0.15 收敛计数那族「写错不报错」同型）。
  */
 import { describe, it, expect, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import { AUTH_COOKIE_NAME } from '@sb/shared';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-auth-require-'));
-process.env.SB_REQUIRE_AUTH = '1';
 process.env.SB_COOKIE_SECURE = '1';
 process.env.SB_TRUST_PROXY = '1';
 process.env.SB_ALLOWED_ORIGINS = 'https://sb.example.com';
 
-const { app } = await import('../index.js');
-const { closeDb } = await import('../storage/db.js');
+const { app, request, closeDb } = await boot('auth-require', { requireAuth: true });
+const origin = TEST_ORIGIN;
+
 const { createUser } = await import('../auth/users.js');
 const { createSession } = await import('../auth/session.js');
-const request = (await import('supertest')).default;
 
-const origin = 'http://localhost:5173';
 const depOrigin = 'https://sb.example.com';
 
 afterAll(() => {

@@ -8,32 +8,17 @@
  * ④ 越权 sessionId → 404 同形（TENANCY-SPEC §5：不存在的与不可达的一律一个样子）。
  */
 import { describe, it, expect, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { AUTH_COOKIE_NAME } from '@sb/shared';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-tools-route-test-'));
+const { app, request, closeDb, cookieFor } = await boot('tools-route-test');
+const origin = TEST_ORIGIN;
 
-const { app } = await import('../index.js');
-const { closeDb } = await import('../storage/db.js');
 const { publishEvent } = await import('../events/bus.js');
 const { wireToolStats } = await import('../storage/tool-stats.js');
-const { createUser } = await import('../auth/users.js');
-const { createSession: issueSession } = await import('../auth/session.js');
-const request = (await import('supertest')).default;
 
 // 订阅器只在服务启动流程 `start()` 里接线，测试导入 app 不触发——这里补接一次，
 // 本文件恰好也就锁住了「事件 → tool_stats → 路由」这条真链路（聚合口径在 storage 测）。
 wireToolStats();
-
-const origin = 'http://localhost:5173';
-
-async function signUp(email: string): Promise<string> {
-  const user = await createUser(email, 'good-password-1', undefined);
-  const { token } = issueSession(user.id);
-  return `${AUTH_COOKIE_NAME}=${token}`;
-}
 
 const getJson = (url: string) => request(app).get(url).set('Origin', origin);
 const putJson = (url: string, body: Record<string, unknown>) =>
@@ -113,7 +98,7 @@ describe('GET /api/tools/stats', () => {
 
   it('登录后拿别人的/不存在的 sessionId → 404 同形；自己的 → 200 且看不到无主行数据', async () => {
     // 未登录（ownerId null）下 canAccessSession 按 TENANCY-SPEC 放行一切，404 只能从登录态测
-    const cookie = await signUp('tools-route@example.com');
+    const cookie = await cookieFor('tools-route@example.com');
     const ghost = request(app)
       .get('/api/tools/stats?sessionId=00000000-0000-4000-8000-000000000000')
       .set('Origin', origin)

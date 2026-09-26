@@ -10,16 +10,10 @@
  *   范围本身的默认值由 `describe('复习范围')` 单独钉，不靠改这个 helper 表达。
  */
 import { describe, it, expect, afterAll, afterEach } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-term-review-test-'));
-const { app } = await import('../index.js');
-const { getDb, closeDb } = await import('../storage/db.js');
-const request = (await import('supertest')).default;
-
-const origin = 'http://localhost:5173';
+const { app, request, getDb, closeDb } = await boot('term-review-test');
+const origin = TEST_ORIGIN;
 
 interface ReviewBody {
   id: string;

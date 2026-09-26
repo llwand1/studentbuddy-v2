@@ -20,20 +20,16 @@
  * ★ 发信一律打桩（`setMailSender`）：绝不真发信——会烧 Resend 额度、还会给真人发邮件。
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import { AUTH_CODE_MAX_PER_IP_HOUR, AUTH_CODE_RESEND_INTERVAL_MS, AUTH_CODE_WINDOW_MS, AUTH_COOKIE_NAME } from '@sb/shared';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-routes-auth-code-test-'));
-const { app } = await import('../index.js');
-const { getDb } = await import('../storage/db.js');
+const { app, request, getDb } = await boot('routes-auth-code-test');
+const origin = TEST_ORIGIN;
+
 const { resetCodeLimits } = await import('../auth/code-limit.js');
 const { setMailSender } = await import('../mail/send.js');
 const { createUser, resetAuthCaches } = await import('../auth/users.js');
-const request = (await import('supertest')).default;
 
-const origin = 'http://localhost:5173';
 const post = (url: string) => request(app).post(url).set('Origin', origin);
 
 const sent: Array<{ to: string; subject: string; text: string }> = [];

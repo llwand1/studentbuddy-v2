@@ -4,16 +4,11 @@
  * quiz_stats 出数 → 题库列表按任务数计 → 删套题连带删 demo。另钉白名单 404 与 400 闸门。
  */
 import { describe, it, expect, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-scenario-route-test-'));
-const { app } = await import('../index.js');
-const { closeDb } = await import('../storage/db.js');
-const request = (await import('supertest')).default;
+const { app, request, closeDb } = await boot('scenario-route-test');
+const origin = TEST_ORIGIN;
 
-const origin = 'http://localhost:5173';
 const seed = (body: Record<string, unknown>) =>
   request(app).post('/api/scenario/seed').set('Origin', origin).send(body);
 

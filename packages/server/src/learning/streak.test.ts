@@ -11,24 +11,19 @@
  *   （`vitest.config.ts` 已把 `TZ` 钉在 Asia/Shanghai，故 `new Date(y, m, d)` 的本地日键唯一。）
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import { addDays, AUTH_COOKIE_NAME, localDayKey } from '@sb/shared';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-streak-test-'));
+const { app, request, getDb, closeDb } = await boot('streak-test');
+const origin = TEST_ORIGIN;
 
-const { app } = await import('../index.js');
-const { getDb, closeDb } = await import('../storage/db.js');
 const { createUser } = await import('../auth/users.js');
 const { createSession: issueSession } = await import('../auth/session.js');
 const { computeStreak, wireActivityEvents } = await import('../learning/activity.js');
-const request = (await import('supertest')).default;
 
 // 事件订阅只在"直接跑 index.ts"时自动接线 ⇒ 走真链路（复习打卡 → 活动账）的锁必须自己接一次
 wireActivityEvents();
 
-const origin = 'http://localhost:5173';
 const NOW = new Date(2026, 8, 25); // 2026-09-25 周五
 /** `NOW` 所在周的周一 */
 const WEEK_MONDAY = (() => {

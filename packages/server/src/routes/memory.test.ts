@@ -4,17 +4,12 @@
  * 会话摘要的查询与清空逃生口（ADR-5 不静默——自动写入的东西必须看得见、改得掉）。
  */
 import { describe, it, expect, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-memory-route-test-'));
-const { app } = await import('../index.js');
-const { closeDb, getDb } = await import('../storage/db.js');
+const { app, request, getDb, closeDb } = await boot('memory-route-test');
+const origin = TEST_ORIGIN;
+
 const { loadMemoryItems, upsertMemoryItems } = await import('../chat/memory.js');
-const request = (await import('supertest')).default;
-
-const origin = 'http://localhost:5173';
 
 afterAll(() => closeDb());
 

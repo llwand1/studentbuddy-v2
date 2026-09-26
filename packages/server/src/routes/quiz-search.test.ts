@@ -5,15 +5,11 @@
  *   ——「没配模型」指路设置页，「解析不出来」才说可重试（契约 QUIZ-SEARCH-SPEC §3 / §5）。
  */
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import type { QuizPayload, QuizRef } from '@sb/shared';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-quiz-search-test-'));
-const { app } = await import('../index.js');
-const { closeDb } = await import('../storage/db.js');
-const request = (await import('supertest')).default;
+const { app, request, closeDb } = await boot('quiz-search-test');
+const origin = TEST_ORIGIN;
 
 // 只桩「模型出题」这一段：本批要验的是路由与引擎之间的接线，故连 report 回填都自己模拟
 const quizStub = vi.hoisted(() => ({
@@ -38,7 +34,6 @@ vi.mock('../learning/quiz.js', async (importOriginal) => ({
   },
 }));
 
-const origin = 'http://localhost:5173';
 const OK_QUIZ: QuizPayload = { title: 'T', questions: [{ type: 'essay', question: 'Q' }] };
 
 const generate = (body: Record<string, unknown>) =>

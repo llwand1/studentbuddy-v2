@@ -11,16 +11,10 @@
  *   或日后有人把它改成默认值，会话标题就会变成半截 prompt —— 而那**不会报任何错**。
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-fork-test-'));
-const { app } = await import('../index.js');
-const { closeDb, getDb } = await import('../storage/db.js');
-const request = (await import('supertest')).default;
-
-const origin = 'http://localhost:5173';
+const { app, request, getDb, closeDb } = await boot('fork-test');
+const origin = TEST_ORIGIN;
 
 const createSession = async (): Promise<string> => {
   const res = await request(app).post('/api/sessions').set('Origin', origin).send({});

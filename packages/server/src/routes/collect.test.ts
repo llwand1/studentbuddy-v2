@@ -5,17 +5,11 @@
  * 手法同 document.test.ts：临时 SB_DATA_DIR + supertest + 只桩 collectQuiz（normalizeCollectedQuiz 用真实现）。
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import type { CollectReport } from '@sb/shared';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-collect-route-test-'));
-const { app } = await import('../index.js');
-const { getDb, closeDb } = await import('../storage/db.js');
-const request = (await import('supertest')).default;
-
-const origin = 'http://localhost:5173';
+const { app, request, getDb, closeDb } = await boot('collect-route-test');
+const origin = TEST_ORIGIN;
 
 const stub = vi.hoisted(() => ({
   calls: [] as string[],

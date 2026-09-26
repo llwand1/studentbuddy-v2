@@ -9,12 +9,8 @@
  *   桩的是 `routeRole` 这一层，所以 `/send` 走的是**真**路由、真库、真 SSE 总线。
  */
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import { AUTH_COOKIE_NAME } from '@sb/shared';
-
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-coach-test-'));
 
 /** 可控假模型：`fail` 非空则抛错（验"模型挂了也要有交代"那一支） */
 const llm = vi.hoisted(() => ({ chunks: ['先背「闭包」', '，它欠得最久。'] as string[], fail: '' }));
@@ -42,13 +38,11 @@ vi.mock('../llm/router.js', async (importOriginal) => {
   };
 });
 
-const { app } = await import('../index.js');
-const { getDb, closeDb } = await import('../storage/db.js');
+const { app, request, getDb, closeDb } = await boot('coach-test');
+const origin = TEST_ORIGIN;
+
 const { createUser } = await import('../auth/users.js');
 const { createSession: issueSession } = await import('../auth/session.js');
-const request = (await import('supertest')).default;
-
-const origin = 'http://localhost:5173';
 
 const addTerm = async (term: string): Promise<string> => {
   const res = await request(app)

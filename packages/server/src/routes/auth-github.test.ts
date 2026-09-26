@@ -23,15 +23,10 @@
  *   验证码限流，让用例互不牵连。
  */
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot } from '../testing/http.js';
 import { AUTH_COOKIE_NAME, AUTH_GITHUB_STATE_COOKIE } from '@sb/shared';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-routes-gh-test-'));
-const { app } = await import('../index.js');
-const { getDb, closeDb } = await import('../storage/db.js');
-const request = (await import('supertest')).default;
+const { app, request, getDb, closeDb } = await boot('routes-gh-test');
 
 const CLIENT_ID = 'test-client-id';
 

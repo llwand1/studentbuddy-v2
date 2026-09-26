@@ -72,6 +72,22 @@ export async function boot(tag: string, opts: { requireAuth?: boolean } = {}) {
     return { cookie: `${AUTH_COOKIE_NAME}=${token}`, id: user.id, nickname: user.nickname };
   }
 
+  /**
+   * `signUp(...).cookie` 的简写。**绝大多数路由测试只关心"是谁"，不关心 user.id**，
+   * 而各文件原来那个本地 `signUp` 返回的就是裸 cookie 字符串 —— 有了这一格，
+   * 迁移时正文只需把 `signUp(` 换成 `cookieFor(`，比对迁移前后正文逐字相同的概率高得多。
+   *
+   * ★ 名字为什么不叫 `cookie`：09-26 现查 server 侧测试文件，18 个文件里出现了名叫
+   *   `cookie` 的量（多在参数位）、4 个在模块作用域直接 `const cookie = …`
+   *   ⇒ 公共件也叫 `cookie` 就会和它们撞成重声明，或者更阴的一种：被局部量静默遮蔽，
+   *   拿到字符串当函数调。
+   *   （★ 教训：块注释里别写 glob —— 那个「星号紧跟斜杠」的组合会把注释就地关掉。
+   *   本文件 09-26 真实踩过，靠 `tsc --noEmit` 逮到，报的是六条看不懂的语法错。）
+   */
+  async function cookieFor(email: string, nickname?: string): Promise<string> {
+    return (await signUp(email, nickname)).cookie;
+  }
+
   /** 带 Origin 的薄助具；cookie 省略即"不登录"（匿名请求要能表达）。 */
   const req = {
     get: (url: string, cookie?: string) => {
@@ -99,5 +115,5 @@ export async function boot(tag: string, opts: { requireAuth?: boolean } = {}) {
     },
   };
 
-  return { app, request, getDb, closeDb, signUp, req };
+  return { app, request, getDb, closeDb, signUp, cookieFor, req };
 }

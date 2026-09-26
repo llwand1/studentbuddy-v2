@@ -13,9 +13,7 @@
  * ★ B1（§14.1，2026-09-20）改写：HTTP 层身份换成统一账号 cookie 会话；域函数与 AI 链路不变。
  */
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import {
   AI_FIRST_QUIZ_DELAY_MS,
   AI_RETRY_DELAY_MS,
@@ -37,19 +35,16 @@ vi.mock('../llm/router.js', async (importOriginal) => ({
   routeRole: vi.fn(),
 }));
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-pk-pve-test-'));
-process.env.SB_REQUIRE_AUTH = '1';
-const { app } = await import('../index.js');
-const { closeDb } = await import('../storage/db.js');
+const { app, request, closeDb } = await boot('pk-pve-test', { requireAuth: true });
+const origin = TEST_ORIGIN;
+
 const { resetRooms, requireRoomInternal } = await import('../pk/room.js');
 const { resetMatchState, submitQuiz, tickMatches } = await import('../pk/match.js');
 const { PK_QUIZ_MIX } = await import('@sb/shared');
 const { generateQuiz } = await import('../learning/quiz.js');
 const { routeRole } = await import('../llm/router.js');
 const { snapshot } = await import('../chat/sse-bus.js');
-const request = (await import('supertest')).default;
 
-const origin = 'http://localhost:5173';
 const post = (url: string, cookie?: string) => {
   const r = request(app).post(url).set('Origin', origin);
   return cookie ? r.set('Cookie', cookie) : r;

@@ -4,16 +4,13 @@
  * 模型不数数时（多出/少出）如实反映在响应里，绝不静默补题。
  */
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import type { QuizMix, QuizPayload, QuizQuestion } from '@sb/shared';
 import { DEFAULT_QUIZ_MIX, MAX_QUIZ_TOTAL } from '@sb/shared';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-quiz-mix-test-'));
-const { app } = await import('../index.js');
-const { closeDb } = await import('../storage/db.js');
-const request = (await import('supertest')).default;
+const { app, request, closeDb } = await boot('quiz-mix-test');
+const origin = TEST_ORIGIN;
+
 
 // 只桩「模型出题」这一段：配比读写、裁剪、落库全用真实现，端到端才有意义
 const quizStub = vi.hoisted(() => ({
@@ -41,7 +38,6 @@ vi.mock('../learning/scenario.js', async (importOriginal) => ({
   },
 }));
 
-const origin = 'http://localhost:5173';
 
 const payload = (...types: Array<QuizQuestion['type']>): QuizPayload => ({
   title: 'T',

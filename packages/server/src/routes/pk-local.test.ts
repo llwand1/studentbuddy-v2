@@ -8,19 +8,15 @@
  *   本地形态本来就不支撑两个不同玩家——要真对战请登录，走 cloud 形态）。
  */
 import { describe, it, expect, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import { PK_LOCAL_IDENTITY } from '@sb/shared';
 
 delete process.env.SB_REQUIRE_AUTH;
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-pk-local-test-'));
-const { app } = await import('../index.js');
-const { closeDb } = await import('../storage/db.js');
-const { resetRooms } = await import('../pk/room.js');
-const request = (await import('supertest')).default;
+const { app, request, closeDb } = await boot('pk-local-test');
+const origin = TEST_ORIGIN;
 
-const origin = 'http://localhost:5173';
+const { resetRooms } = await import('../pk/room.js');
+
 const post = (url: string) => request(app).post(url).set('Origin', origin);
 const get = (url: string) => request(app).get(url).set('Origin', origin);
 

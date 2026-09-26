@@ -17,9 +17,7 @@
  * HTTP 层只负责用户侧的三个动作。
  */
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import { AUTH_COOKIE_NAME, PK_INVITE_SESSION_COOLDOWN_MS, type PkRoomState } from '@sb/shared';
 
 // ticker 只换掉点火语句本身（其余导出原样）：既能让 ③ 可断言，也让测试进程不留真定时器
@@ -28,18 +26,15 @@ vi.mock('../pk/match.js', async (importOriginal) => ({
   ensureTicker: vi.fn(),
 }));
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-pk-invite-test-'));
 // 线上形态：身份一律走会话 cookie（同 pk-match.test.ts），401 分支才测得到
-process.env.SB_REQUIRE_AUTH = '1';
-const { app } = await import('../index.js');
-const { closeDb, getDb } = await import('../storage/db.js');
+const { app, request, getDb, closeDb } = await boot('pk-invite-test', { requireAuth: true });
+const origin = TEST_ORIGIN;
+
 const { resetRooms } = await import('../pk/room.js');
 const { ensureTicker } = await import('../pk/match.js');
 const { offerPkInvite } = await import('../pk/invite.js');
-const request = (await import('supertest')).default;
 
 // 写操作过跨源闸门：模拟合法前端源（同 pk-match.test.ts）
-const origin = 'http://localhost:5173';
 const post = (url: string, cookie?: string) => {
   const r = request(app).post(url).set('Origin', origin);
   return cookie ? r.set('Cookie', cookie) : r;

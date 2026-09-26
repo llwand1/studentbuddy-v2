@@ -10,15 +10,11 @@
  * 上游一律打桩（`generateQuiz` / `collectQuiz`），**不碰真模型真网络**；库走临时 `SB_DATA_DIR`。
  */
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import type { CollectCandidate, CollectReport, QuizPayload, QuizSourceMix } from '@sb/shared';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-quiz-blend-test-'));
-const { app } = await import('../index.js');
-const { closeDb } = await import('../storage/db.js');
-const request = (await import('supertest')).default;
+const { app, request, closeDb } = await boot('quiz-blend-test');
+const origin = TEST_ORIGIN;
 
 const stub = vi.hoisted(() => ({
   aiQuiz: null as QuizPayload | null,
@@ -38,7 +34,6 @@ vi.mock('../learning/collect.js', () => ({
   },
 }));
 
-const origin = 'http://localhost:5173';
 const AI_QUIZ: QuizPayload = {
   title: 'AI 题组',
   questions: [

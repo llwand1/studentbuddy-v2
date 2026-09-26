@@ -12,18 +12,12 @@
  *   · 库里是坏 JSON 时读回默认（数据容错），且**不抛错**。
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import { DEFAULT_SPEECH_SETTINGS, SETTING_KEY_SPEECH } from '@sb/shared';
 import type { SpeechSettings } from '@sb/shared';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-speech-test-'));
-const { app } = await import('../index.js');
-const { closeDb, getDb } = await import('../storage/db.js');
-const request = (await import('supertest')).default;
-
-const origin = 'http://localhost:5173';
+const { app, request, getDb, closeDb } = await boot('speech-test');
+const origin = TEST_ORIGIN;
 
 const get = () => request(app).get('/api/settings/speech');
 const put = (body: Record<string, unknown>) =>

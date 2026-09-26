@@ -5,18 +5,12 @@
  * ★ 另钉「库里脏 JSON 时 configured 仍为 true」——键在就是配过，不能因脏数据把用户重新问一遍。
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { boot, TEST_ORIGIN } from '../testing/http.js';
 import { DEFAULT_ANSWER_STYLE, SETTING_KEY_ANSWER_STYLE } from '@sb/shared';
 import type { AnswerStyle } from '@sb/shared';
 
-process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-answer-style-test-'));
-const { app } = await import('../index.js');
-const { closeDb, getDb } = await import('../storage/db.js');
-const request = (await import('supertest')).default;
-
-const origin = 'http://localhost:5173';
+const { app, request, getDb, closeDb } = await boot('answer-style-test');
+const origin = TEST_ORIGIN;
 
 const get = () => request(app).get('/api/settings/answer-style');
 const put = (body: Record<string, unknown>) =>

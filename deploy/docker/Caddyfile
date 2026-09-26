@@ -16,7 +16,12 @@
 	}
 
 	handle {
-		reverse_proxy web:8080
+		# ★ SPA 深链兜底（实测 2026-09-27）：静态文件由主 caddy 自己服务（卷挂 /srv）——
+		#   `try_files + reverse_proxy web` 的组合试过且**不通**：try_files 查的是主 caddy 自己的 FS，
+		#   代理后端的存在性它查不到，深链仍 404。web 服务保留作过渡托底，接线待「server 静态托管」落地后一并删。
+		root * /srv
+		try_files {path} /index.html
+		file_server
 	}
 }
 

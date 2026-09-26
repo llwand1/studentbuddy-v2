@@ -38,6 +38,7 @@ function correctText(q: ContinentQuestion): string {
     case 'judge':
       return `正确答案：${q.answer ? '对' : '错'}`;
     case 'choice':
+    case 'scene':
       return `正确答案：${q.options[q.answerIndex] ?? ''}`;
     case 'fill':
       return `正确答案：${q.answer}`;
@@ -130,6 +131,9 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
         {current && (
           <div className="continent-q">
             <p className="continent-q-type">{CONTINENT_QLABEL[current.type]}</p>
+            {/* 情景题多一层"情境框"（照抄 demo 的 `SCENE_FRAME`）：它把题干放进一个场景里，
+                其余作答手势与选择题完全一致——所以下面 options 与 choice 共用一段渲染 */}
+            {current.type === 'scene' && <p className="continent-q-frame">{current.frame}</p>}
             <p className="continent-q-prompt">{current.type === 'judge' ? current.statement : current.prompt}</p>
 
             {current.type === 'judge' && (
@@ -143,7 +147,7 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
               </div>
             )}
 
-            {current.type === 'choice' && (
+            {(current.type === 'choice' || current.type === 'scene') && (
               <div className="continent-opts">
                 {current.options.map((opt, i) => (
                   <button
@@ -221,6 +225,7 @@ function buildAnswer(
     case 'judge':
       return judge ?? false;
     case 'choice':
+    case 'scene':
       return choice ?? -1;
     case 'fill':
       return fillText;

@@ -447,6 +447,75 @@ log('k 值扫描（700k 字规模，chunk=800 overlap=120）：');
   }
 }
 
+// ── 查询扩展档（2026-09-27 深度批）：学生原话先让模型扩出"教材原词"，再走同一个 BM25 ──
+// 扩展词来自 `doc-rag-rewrites.json`（金样本：`agnes-3.0-flash` 一次性生成 13 条，temp 0.3）。
+// ★ 为什么这一档要单独量：上面 k 扫描已经证明 PARA 召回**在 k=12 之后饱和**（多给块救不回来），
+//   所以再调 k 是死路；本档量的是"换一条查询"能不能破这个饱和面。
+// 三档对照全跑在 716k 规模、chunk=800 overlap=120、**现役 k=12**：
+//   ①para   只拿学生原话检索＝今天的行为（基线）
+//   ②appended  原话 + 扩展词拼成**一条**查询（只多一次检索都不用，实现最省）
+//   ③union  原话 / 拼查询 / 纯扩展词 三变体各取前 2k，按"任一变体最高分"合并回前 k
+// ★ **回退必须同表报出来**：合并会把原本已命中的块挤出前 k，只报增益等于骗人。
+log('\n' + '='.repeat(70));
+log('查询扩展档（716k 字规模，chunk=800 overlap=120，k=12）：');
+{
+  const rwPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'doc-rag-rewrites.json');
+  if (!fs.existsSync(rwPath)) {
+    log('  (跳过：缺 doc-rag-rewrites.json，扩展词金样本未入库)');
+  } else {
+    const K = 12;
+    const RW = JSON.parse(fs.readFileSync(rwPath, 'utf8')).rewrites;
+    const chunks = chunkDoc(SCALE, 800, 120);
+    const idx = buildIndex(chunks);
+    const mergeTop = (variants) => {
+      const best = new Map();
+      for (const v of variants) {
+        for (const r of search(idx, v).slice(0, K * 2)) {
+          if (!best.has(r.i) || (best.get(r.i) ?? 0) < r.s) best.set(r.i, r.s);
+        }
+      }
+      return [...best].map(([i, s]) => ({ i, s })).sort((a, b) => b.s - a.s).slice(0, K);
+    };
+    let baseHit = 0;
+    let appHit = 0;
+    let uniHit = 0;
+    let withRw = 0;
+    const gain = [];
+    const regress = [];
+    const stillMiss = [];
+    for (const q of QUERIES) {
+      const ci = chunks.findIndex((c) => c.text.includes(FACTS[q.want - 1]));
+      const inBase = search(idx, q.para).slice(0, K).some((r) => r.i === ci);
+      if (inBase) baseHit++;
+      const rw = RW[q.para];
+      if (!rw?.terms) {
+        if (inBase) {
+          appHit++;
+          uniHit++;
+        }
+        continue;
+      }
+      withRw++;
+      const joined = `${q.para} ${rw.terms}`;
+      const inApp = search(idx, joined).slice(0, K).some((r) => r.i === ci);
+      const inUni = mergeTop([q.para, joined, rw.terms]).some((r) => r.i === ci);
+      if (inApp) appHit++;
+      if (inUni) uniHit++;
+      const tag = `第${q.want}章`;
+      if (!inBase && (inApp || inUni)) gain.push(`${tag}${inApp && inUni ? '(两档都救回)' : inApp ? '(仅拼查询)' : '(仅合并)'}`);
+      if (inBase && (!inApp || !inUni)) regress.push(`${tag}(app=${inApp ? 'Y' : 'N'} uni=${inUni ? 'Y' : 'N'})`);
+      if (!inApp && !inUni) stillMiss.push(tag);
+    }
+    log(`  有扩展词的题数=${withRw}/13`);
+    log(`  PARA recall：基线(原话)=${baseHit}/13 → 拼查询=${appHit}/13 → 三变体合并=${uniHit}/13`);
+    log(`  救回：${gain.length ? gain.join('、') : '（无）'}`);
+    log(`  ★ 回退（原本命中、加扩展后反而出局）：${regress.length ? regress.join('、') : '（无）'}`);
+    log(`  残余漏接（扩展后仍进不了前 ${K}）：${stillMiss.length ? stillMiss.join('、') : '（无）'}`);
+    log(`  → 与上面 k 扫描对照：k 从 12 加到 24 仍是 8/13（饱和），所以本档若仍≈8/13，说明瓶颈**不在词法召回**，`);
+    log(`     而在"答案块根本没被这批词元命中"——那是 embedding 的地盘，不是调参的地盘。`);
+  }
+}
+
 // ── 内存占用：索引结构存不存得起（本地长驻服务会缓存多会话）────────
 log('\n' + '='.repeat(70));
 log('内存占用（chunk=800 overlap=120）：');

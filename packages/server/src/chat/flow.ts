@@ -18,6 +18,7 @@ import { cancelChoicesBySession } from './choice.js';
 import { assembleContextMessages, collectContextSegments } from './context-segments.js';
 import { TASKS_TOOL, type TaskItem } from './task-list.js';
 import { countUsage } from '../learning/terms.js';
+import { expandDocQuery } from '../learning/doc-expand.js';
 import { afterTurn } from './post-turn.js';
 import type { ChatMessage, ToolCall } from '../llm/types.js';
 import { contentToText } from '../llm/types.js';
@@ -104,6 +105,9 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   // definition 拼进列表、执行走 exec 注入。★ 必须在预算前声明：tools JSON 现计入 systemPromptTokens（契约 §4.4 第 1 条）。
   const tools = [...toolDefinitions(), TASKS_TOOL.definition];
 
+  // 长资料检索词扩展（契约 §10，实测改写型召回 8/13→12/13）：无长资料时零调用、原样返回。
+  const docQuery = await expandDocQuery(userText, target, sessionId, opts.ownerId ?? null, { signal: opts.signal });
+
   // 组装上下文。附加 system 段（摘要/词条/资料/偏好/画像/触发增强）的**构造、落位与预算核算**
   // 全在 chat/context-segments.ts —— 此前这三件事在本文件里各写一遍（同一份清单写两遍），
   // 加一段要改三处且漏一处不报错、只静默漂，故收成一份清单（理由见该文件头注释）。
@@ -113,6 +117,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     // 检索词用 userText 而非 opts.text：发图时若只拿「这个怎么推导」去检索词条/资料，
     // 画面里的信息完全用不上（无图时两者恒等，老行为不变）
     text: userText,
+    docQuery,
     ownerId: opts.ownerId ?? null,
   });
   // 顺序不可换：截断要用段清单算出的预算，装配要用截断后的历史（截断含工具轮对齐）

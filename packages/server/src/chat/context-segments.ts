@@ -68,6 +68,13 @@ export interface ContextInputs {
   sessionId: string;
   /** 本轮提问：词条检索、文档检索、触发增强三处都用它 */
   text: string;
+  /**
+   * 文档检索**专用**查询（契约 DOC-RAG-SPEC §10）：会话挂了超长资料时，这里传的是
+   * `expandDocQuery` 扩过教材术语的串。★ 只喂 `doc` 那一段——`terms` 检索与触发增强仍吃
+   * `text` 原话（本批只在文档一路量过增益，拿没量过的结论改另一路是白写的形状）。
+   * 不传＝逐字等价旧行为。
+   */
+  docQuery?: string | null;
   /** 归属用户 id：长期画像**按人隔离**（契约 docs/TENANCY-SPEC.md §7）。缺省 null＝本地单人模式 */
   ownerId?: string | null;
 }
@@ -88,7 +95,7 @@ export interface CollectedContext {
  * 与「组装」是同一件事的两面——分开放就又成了双真相源。
  */
 export function collectContextSegments(inputs: ContextInputs): CollectedContext {
-  const { history, sessionId, text, ownerId } = inputs;
+  const { history, sessionId, text, ownerId, docQuery } = inputs;
 
   // 长期记忆（契约 docs/MEMORY-SPEC.md）：摘要段（本会话早前内容的浓缩）+ 画像段
   // （跨会话的学习者事实）+ 已被摘要覆盖的历史。两段都进 system 位、都占窗口。
@@ -109,7 +116,7 @@ export function collectContextSegments(inputs: ContextInputs): CollectedContext 
   // 下面量的就是最终要上屏的那段字，不管它是全文还是 12 个段落。
   // ★ 归属：会话归属上游已断言，但资料出口本身也按人过滤（同 `getRelevantTerms` 的口径）
   const doc = getSessionDoc(sessionId, ownerId ?? null);
-  const docBlock = doc ? buildDocBlock(doc, text) : '';
+  const docBlock = doc ? buildDocBlock(doc, docQuery ?? text) : '';
 
   const segments: ContextSegment[] = [
     // 日期段（2026-09-17）：模型没有时钟，不喂它就不知道今天几号（问「距考试还有几天」

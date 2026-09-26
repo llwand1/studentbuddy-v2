@@ -604,7 +604,10 @@ describe('文档模式注入（契约 5.0 §5.1-2/3）', () => {
   });
 
   // 契约 DOC-RAG-SPEC §6 T7：长文档分支的检索词来自本轮提问，flow 漏传则文档模式退化回直塞
-  it('本轮提问会作为检索词传给 buildDocBlock', async () => {
+  // ★ 2026-09-27 契约 §10 起，喂给检索的是**扩过教材术语的那一串**——所以原判据从"逐字等于原话"
+  //   改成"**以原话打头**"（漏传时 `docQuery ?? text` 仍等于原话，这条锁不因此变松），
+  //   并另加一条"扩展串确实到了检索口"的正向锁。
+  it('本轮提问会作为检索词传给 buildDocBlock（长资料：前缀＝原话，后缀＝扩展术语）', async () => {
     const sid = newSession();
     documentStub.doc = docOf(80_000);
     stub.turns = [[{ content: '答。', done: true }]];
@@ -612,6 +615,19 @@ describe('文档模式注入（契约 5.0 §5.1-2/3）', () => {
     await handleMessage({ sessionId: sid, text: '半衰期受不受温度影响' });
 
     expect(documentStub.queries.length).toBeGreaterThan(0); // 一调都没调 = 资料段根本没注入
+    for (const q of documentStub.queries) expect(q.startsWith('半衰期受不受温度影响')).toBe(true);
+    // ★ 桩里每一轮模型都回 '答。' ⇒ 长资料档下它同时是扩展词的来源；q 严格长于原话＝扩展串真接上了
+    expect(documentStub.queries.some((q) => q.length > '半衰期受不受温度影响'.length)).toBe(true);
+  });
+
+  it('★ 短资料档：检索词逐字＝原话（§10 成本保底——不够长就不该多花那次扩展调用）', async () => {
+    const sid = newSession();
+    documentStub.doc = docOf(50);
+    stub.turns = [[{ content: '答。', done: true }]];
+
+    await handleMessage({ sessionId: sid, text: '半衰期受不受温度影响' });
+
+    expect(documentStub.queries.length).toBeGreaterThan(0);
     for (const q of documentStub.queries) expect(q).toBe('半衰期受不受温度影响');
   });
 });

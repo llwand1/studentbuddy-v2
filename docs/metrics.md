@@ -23,7 +23,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-09-26 22:42:55（本机时区）｜ 基准 `9b04631` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-09-26 22:57:28（本机时区）｜ 基准 `c22e5af` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
@@ -31,8 +31,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 |---|---|---|---|---|---|
 | shared | 30 | 4,679 | 18 | 2,488 | 53% |
 | server | 172 | 26,451 | 121 | 26,500 | 100% |
-| web | 192 | 25,065 | 74 | 10,976 | 44% |
-| **合计** | **394** | **56,195** | **213** | **39,964** | **71%** |
+| web | 192 | 25,078 | 74 | 10,976 | 44% |
+| **合计** | **394** | **56,208** | **213** | **39,964** | **71%** |
 
 ## 接口与契约
 
@@ -43,8 +43,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 测试基线（vitest 实跑）
 
-- **213 文件 / 2864 例**（2863 passed + 1 skipped + 0 failed）⇒ 全绿
-- ⚠️ 本次未重跑 vitest，读的是 今日的 test-results 产物——要新鲜数字加 `--tests`
+- ⬜ 无 vitest 产物（跑 `node tools/metrics.mjs --tests` 生成，**不编数**）
 - jsdom 交互测试文件（`.test.tsx`）28 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
@@ -53,7 +52,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 33 份 · md 共 47 份（dev/ 5）· 真机探针 14 个
-- git：feat/pixel-ui @ `9b04631`（2026-09-26）· 近 14 天 256 commits · 工作区未提交 32 文件
+- git：chore/release-pixel @ `c22e5af`（2026-09-26）· 近 14 天 260 commits · 工作区未提交 3 文件
 
 <!-- metrics:end -->
 

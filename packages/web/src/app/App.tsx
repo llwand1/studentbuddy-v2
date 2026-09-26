@@ -23,6 +23,8 @@ import { BRAND_NAME, BRAND_TAGLINE } from '../lib/brand';
 import { SettingsView } from '../features/settings/SettingsView';
 import { QuizBankPage } from '../features/quiz/QuizBankPage';
 import { TermsPage } from '../features/terms/TermsPage';
+// ★ S6：知识大陆（游戏化地图）独立页
+import { ContinentPage } from '../features/continent/ContinentPage';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
 import { CoachDock } from '../features/coach/CoachDock';
 import { TrialNotice } from '../components/TrialNotice';
@@ -224,6 +226,8 @@ export function App() {
         {view === 'quiz' && <QuizBankPage />}
         {/* key 变化时重挂：从词条卡带词进来要重新初始化搜索框 */}
         {view === 'terms' && <TermsPage key={termsKeyword} initialKeyword={termsKeyword} />}
+        {/* 知识大陆（S6 游戏化地图）：独立页 + 侧栏一级入口；数据全靠只读地图端点 */}
+        {view === 'continent' && <ContinentPage />}
         {view === 'settings' && <SettingsView />}
       </main>
       <PreviewPanel />

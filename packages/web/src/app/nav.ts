@@ -4,9 +4,9 @@
  * 先例＝`routes/chat.ts` 从 `routes.ts` 切出）。`View` 随 NAV 一起搬来并导回 App。
  * 以下注释是 App.tsx 原文搬运，一字未改。
  */
-import { QuizIcon, VsIcon, CardsIcon, SettingsIcon } from '../components/icons';
+import { QuizIcon, VsIcon, CardsIcon, SettingsIcon, GraphIcon } from '../components/icons';
 
-export type View = 'chat' | 'quiz' | 'terms' | 'settings';
+export type View = 'chat' | 'quiz' | 'terms' | 'continent' | 'settings';
 
 /**
  * 侧栏功能列表（顺序 = 用户的主线动线）。
@@ -25,6 +25,9 @@ export const NAV: Array<{ key: NavKey; label: string; icon: typeof QuizIcon }> =
   { key: 'quiz', label: '题库', icon: QuizIcon },
   { key: 'pk', label: '对战', icon: VsIcon },
   { key: 'terms', label: '词条', icon: CardsIcon },
+  // ★ S6：知识大陆（游戏化地图，老板点单）——独立页 + 一级入口；图标复用现成的 GraphIcon
+  //   （原「知识图」功能已下线，图标留着正是为此）
+  { key: 'continent', label: '知识大陆', icon: GraphIcon },
   { key: 'settings', label: '设置', icon: SettingsIcon },
 ];
 

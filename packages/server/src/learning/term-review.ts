@@ -158,8 +158,13 @@ export interface TermReviewRow {
   last_reviewed_at: string | null;
 }
 
-/** ⚠️ 列名一律带 `t.` 前缀：`term_domain` 也有 `created_at`/`updated_at`，JOIN 后不加前缀会 ambiguous */
-const SELECT_REVIEW_COLS = `t.id, t.term, t.definition, t.domain, t.importance, t.usage_count,
+/**
+ * ⚠️ 列名一律带 `t.` 前缀：`term_domain` 也有 `created_at`/`updated_at`，JOIN 后不加前缀会 ambiguous
+ * ★ S6 起**导出**：`learning/continent.ts` 取「本用户全部词条」时复用同一份列清单——
+ *   若那边自己抄一份列名，将来本表加列（或改名）就会只改一处，而漏改的那处
+ *   正是"大陆上少显示一个状态"这种静默错。
+ */
+export const SELECT_REVIEW_COLS = `t.id, t.term, t.definition, t.domain, t.importance, t.usage_count,
   t.created_at, t.updated_at, t.review_stage, t.last_reviewed_at`;
 
 /**

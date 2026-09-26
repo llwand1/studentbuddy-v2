@@ -21,6 +21,8 @@ import { providersApi } from './api-providers.js';
 import { authApi } from './api-auth.js';
 import { termsDomainApi } from './api-terms-domain.js';
 import { termsReviewApi } from './api-terms-review.js';
+// ★ S6：知识大陆（游戏化地图）——地图取数在 api-terms-continent.ts，此处只挂引用
+import { termsContinentApi } from './api-terms-continent.js';
 import { toolsApi, termsUndoApi } from './api-tools.js';
 import { searchApi } from './api-search.js';
 import { pkInviteApi } from './api-pk-invite.js';
@@ -288,6 +290,10 @@ export const api = {
     // ── 复习（v23 艾宾浩斯遗忘曲线）──
     // 概览 / 队列 / 打卡，整体在 `api-terms-review.ts`（同上的行数红线），此处只挂引用。
     ...termsReviewApi,
+
+    // ── 知识大陆（S6 游戏化：地图取数，只读）──
+    // 整体在 `api-terms-continent.ts`（同上行数红线），此处只挂引用。
+    ...termsContinentApi,
 
     // ── 删除撤销（契约 §4.5；拍板⑯：AI 删除与 UI 手滑都进快照表）──
     ...termsUndoApi,

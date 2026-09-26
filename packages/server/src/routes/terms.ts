@@ -22,6 +22,8 @@ import type { Request, Response } from 'express';
 import { listTerms, saveOneTerm, saveTerms, extractTerms, removeTerm, updateTerm } from '../learning/terms.js';
 import { ownerIdOf } from '../auth/ownership.js';
 import { reviewOverview, markReviewed } from '../learning/term-review.js';
+// ★ S6：知识大陆地图取数（「全部词条」而不是「复习范围内」，见该文件头注）
+import { continentMap } from '../learning/continent.js';
 // ★ v1.2：队列的构建在三段补位模块（契约 EBBINGHAUS-SPEC §10.3），目标读写单独一模块（§10.2）
 import { reviewQueue } from '../learning/review-queue.js';
 import { loadReviewGoal, saveReviewGoal } from '../learning/review-goal.js';
@@ -189,6 +191,16 @@ termsRouter.post('/:id/review', (req: Request, res: Response) => {
 termsRouter.get('/review/overview', (req: Request, res: Response) => {
   const domain = typeof req.query.domain === 'string' ? req.query.domain : undefined;
   res.json(reviewOverview(domain, ownerIdOf(req)));
+});
+
+/**
+ * 知识大陆地图（S6 游戏化）：本用户**全部**词条的复习状态（不只复习范围内的）。
+ * ★ 只读端点，**不写任何东西**——地图上的怪、"解锁"都是派生：答对走既有
+ *   `POST /api/terms/:id/review` 推进阶段，怪自然消失（见 `shared/continent.ts` 头注 2）。
+ * ★ 放在 `/:id` 之前（同 `/review/overview`）——否则 `/review/map` 会被 `/:id` 吞成 id='review'。
+ */
+termsRouter.get('/review/map', (req: Request, res: Response) => {
+  res.json({ terms: continentMap(ownerIdOf(req)) });
 });
 
 /**

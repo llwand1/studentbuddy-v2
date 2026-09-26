@@ -1,0 +1,465 @@
+/* continent.css — 知识大陆（S6 游戏化地图：Canvas 地图 + DOM 弹窗/图鉴）
+   视觉约定：**页面是浅色豆包风，地图是一块深色「大陆」面板**（照抄桌面 demo 的像素地图，
+   不改 demo 配色，故 canvas 的底色由 ContinentMap.tsx 直接画 #0a0a0f，这里只负责包住它）。
+   全部颜色走 tokens.css 的 `--sb-*`；题型标签色与 shared/continent.ts 的 CONTINENT_QCOLOR 对齐。 */
+
+/* 页面：占满 .sb-main 高做局部滚动（与 terms.css 同一套路，避免整屏滚） */
+.continent-page {
+  max-width: 980px;
+  padding: var(--sb-sp-5) var(--sb-sp-5) var(--sb-sp-5);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.continent-head {
+  flex-shrink: 0;
+}
+
+.continent-head h1 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.continent-head h1 small {
+  font-size: var(--sb-fs-sm);
+  font-weight: 400;
+  color: var(--sb-ink-secondary);
+}
+
+/* 顶部统计条：数字 + 两个动作按钮（看图鉴 / 刷新） */
+.continent-stats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sb-sp-2);
+  margin: var(--sb-sp-3) 0;
+}
+
+.continent-stats > span {
+  background: var(--sb-sidebar);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: 6px 12px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+
+.continent-stats > span b {
+  font-size: var(--sb-fs-lg);
+  color: var(--sb-primary);
+  margin-left: 3px;
+}
+
+/* 有怪待收复时把这项顶出来（不敢用红——"待复习"不是错误，是提醒） */
+.continent-stat-warn b {
+  color: var(--sb-danger);
+}
+
+.continent-btn {
+  border: 1px solid var(--sb-line);
+  background: var(--sb-surface);
+  border-radius: var(--sb-radius-sm);
+  padding: 6px 14px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink);
+  box-shadow: var(--sb-shadow-1);
+  transition: background 0.15s, color 0.15s;
+}
+
+.continent-btn:hover {
+  background: var(--sb-primary-weak);
+  color: var(--sb-primary);
+}
+
+.continent-btn.ghost {
+  box-shadow: none;
+  background: transparent;
+  color: var(--sb-ink-secondary);
+}
+
+.continent-btn.primary {
+  background: var(--sb-primary);
+  border-color: var(--sb-primary);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.continent-btn.primary:hover {
+  background: #0069db;
+  color: #ffffff;
+}
+
+.continent-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 页面级横幅：notice 是「刚发生了什么」，dim 是「为什么没冒怪」这类解释，warn 才是错误 */
+.continent-banner {
+  flex-shrink: 0;
+  margin: 0 0 var(--sb-sp-2);
+  padding: 8px 12px;
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-primary-weak);
+  border: 1px solid var(--sb-line);
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink);
+}
+
+.continent-banner.dim {
+  background: var(--sb-sidebar);
+  color: var(--sb-ink-secondary);
+}
+
+.continent-banner.warn {
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--sb-danger);
+}
+
+/* 地图 + 图鉴并排；窄屏自动落到上下 */
+.continent-body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sb-sp-4);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.continent-body.with-codex .continent-map-wrap {
+  flex: 1 1 520px;
+  min-width: 0;
+}
+
+/* 地图容器：深色底 + 内边距，让 canvas 像镶在页面上的一块「大陆」 */
+.continent-map-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: #0a0a0f;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  padding: var(--sb-sp-3);
+  box-shadow: var(--sb-shadow-2);
+}
+
+.continent-map {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--sb-radius-sm);
+  cursor: pointer;
+  /* 老板口径：2D 像素风 —— 缩放时不做平滑，保住像素颗粒感 */
+  image-rendering: pixelated;
+}
+
+.continent-map-hint {
+  margin-top: var(--sb-sp-2);
+  font-size: var(--sb-fs-xs);
+  color: rgba(255, 255, 255, 0.62);
+  min-height: 18px;
+}
+
+/* ── 答题弹窗（DOM）───────────────────────────────────────────── */
+.continent-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sb-sp-5);
+  background: rgba(10, 10, 15, 0.42);
+}
+
+.continent-modal-card {
+  width: 100%;
+  max-width: 460px;
+  max-height: 86vh;
+  overflow: auto;
+  background: var(--sb-surface);
+  border-radius: var(--sb-radius-lg);
+  box-shadow: var(--sb-shadow-2);
+  padding: var(--sb-sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+}
+
+.continent-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sb-sp-2);
+}
+
+.continent-modal-title {
+  font-size: var(--sb-fs-lg);
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.continent-modal-title small {
+  font-size: var(--sb-fs-xs);
+  font-weight: 400;
+  color: var(--sb-ink-secondary);
+}
+
+/* 血条：一颗点 = 一道题 = 一滴血（题数 = 等级 = 血量） */
+.continent-hp {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.continent-hp-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(30, 40, 60, 0.16);
+}
+
+.continent-hp-dot.on {
+  background: var(--sb-danger);
+}
+
+.continent-hp em {
+  margin-left: var(--sb-sp-2);
+  font-style: normal;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.continent-q {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+}
+
+.continent-q-type {
+  align-self: flex-start;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.continent-q-prompt {
+  font-size: var(--sb-fs-md);
+  line-height: var(--sb-lh);
+  color: var(--sb-ink);
+}
+
+.continent-opts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+}
+
+.continent-opt {
+  text-align: left;
+  border: 1px solid var(--sb-line);
+  background: var(--sb-surface);
+  border-radius: var(--sb-radius-sm);
+  padding: 9px 12px;
+  font-size: var(--sb-fs-md);
+  color: var(--sb-ink);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.continent-opt:hover {
+  border-color: var(--sb-primary);
+}
+
+.continent-opt.on {
+  border-color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+  color: var(--sb-primary);
+  font-weight: 600;
+}
+
+.continent-input {
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: 9px 12px;
+  font-family: inherit;
+  font-size: var(--sb-fs-md);
+  color: var(--sb-ink);
+  background: var(--sb-surface);
+}
+
+.continent-input:focus {
+  outline: none;
+  border-color: var(--sb-primary);
+}
+
+/* 连线题：左词条 + 右侧释义下拉 */
+.continent-match {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+}
+
+.continent-match li {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+}
+
+.continent-match li > span {
+  flex: 0 0 34%;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink);
+}
+
+.continent-match select {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink);
+  background: var(--sb-surface);
+}
+
+.continent-note {
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-danger);
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: var(--sb-radius-sm);
+  padding: 8px 12px;
+}
+
+.continent-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ── 图鉴 ──────────────────────────────────────────────────── */
+.continent-codex {
+  flex: 0 1 340px;
+  min-width: 280px;
+  background: var(--sb-sidebar);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  padding: var(--sb-sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+  max-height: 620px;
+  overflow: auto;
+}
+
+.continent-codex-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sb-sp-2);
+}
+
+.continent-codex-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 6px;
+}
+
+/* 一格 = 一个题型序列；未发现时整格压暗（收集欲全靠这个对比） */
+.continent-codex-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 30px;
+  border: 1px dashed var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+  opacity: 0.42;
+  filter: grayscale(1);
+}
+
+.continent-codex-cell.on {
+  border-style: solid;
+  border-color: var(--sb-primary);
+  background: var(--sb-surface);
+  opacity: 1;
+  filter: none;
+  box-shadow: var(--sb-shadow-1);
+}
+
+/* 题型标签（颜色对齐 shared/continent.ts 的 CONTINENT_QCOLOR） */
+.continent-qtag {
+  font-style: normal;
+  font-size: var(--sb-fs-xs);
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 5px;
+  color: #10131a;
+  background: var(--sb-line);
+}
+
+.continent-qtag.judge { background: #6fb3ff; }
+.continent-qtag.choice { background: #7ee08f; }
+.continent-qtag.fill { background: #f2c14e; }
+.continent-qtag.match { background: #d98cff; }
+.continent-qtag.scene { background: #ff9a6b; }
+
+/* 宝箱 / 抽卡 / 稀有度：显式空桩（SPEC §4.2 零新表）——只说明"未开放 + 落地条件" */
+.continent-chest {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sb-sp-2);
+  border-top: 1px solid var(--sb-line);
+  padding-top: var(--sb-sp-3);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+}
+
+.continent-chest-icon {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+/* ── 普通地块详情卡（已收复 / 未纳入复习范围）──────────────────── */
+.continent-detail {
+  margin-top: var(--sb-sp-3);
+  flex-shrink: 0;
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  padding: var(--sb-sp-3) var(--sb-sp-4);
+  box-shadow: var(--sb-shadow-1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+}
+
+.continent-detail-def {
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+  line-height: var(--sb-lh);
+}
+
+.continent-detail .continent-btn {
+  align-self: flex-start;
+}

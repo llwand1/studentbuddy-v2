@@ -25,7 +25,10 @@ function prefersCalm(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-export function LandingHero({ children }: { children: ReactNode }) {
+/** `encounter`：知识大陆章节里的遭遇战——跳过序章、只打指定一波、胜利后回调转场回大陆 */
+export type Encounter = { wave: number; onDone: () => void };
+
+export function LandingHero({ children, encounter }: { children?: ReactNode; encounter?: Encounter }) {
   const { lang } = useLandingLang();
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -37,6 +40,9 @@ export function LandingHero({ children }: { children: ReactNode }) {
   const [impact, setImpact] = useState('');
   const [calm] = useState(prefersCalm);
   const popId = useRef(0);
+  const seen = useRef(false);
+  const order = encounter ? [encounter.wave] : undefined;
+  const orderKey = order?.join(',') ?? '';
 
   // 画布引擎：挂载即起，卸载即停；视口外停帧
   useEffect(() => {
@@ -56,7 +62,7 @@ export function LandingHero({ children }: { children: ReactNode }) {
           setImpact(`lh-fx-${k}`);
           window.setTimeout(() => setImpact(''), 380);
         },
-      }, calm);
+      }, calm, !!encounter);
     } catch {
       return; // 无 2D 上下文：只留 DOM 层
     }
@@ -68,25 +74,26 @@ export function LandingHero({ children }: { children: ReactNode }) {
     let running = false;
     const io = typeof IntersectionObserver === 'function'
       ? new IntersectionObserver(([e]) => {
+          seen.current = !!e?.isIntersecting;
           if (e?.isIntersecting && !running) { engine.start(); running = true; }
           else if (!e?.isIntersecting && running) { engine.stop(); running = false; }
         })
       : null;
     if (io) io.observe(stage);
-    else { engine.start(); running = true; }
+    else { engine.start(); running = true; seen.current = true; }
     return () => { ro?.disconnect(); io?.disconnect(); engine.stop(); engineRef.current = null; };
   }, [calm]);
 
   const begin = useCallback(() => {
     setLine(PROLOGUE.length);
-    engineRef.current?.begin();
+    engineRef.current?.begin(orderKey ? orderKey.split(',').map(Number) : undefined);
     setSnap((s) => (engineRef.current ? s : { ...s, phase: 'fight', ready: true, busy: false }));
-  }, []);
+  }, [orderKey]);
 
   // 序章字幕打字机；减少动态效果时直接开战
   useEffect(() => {
     if (snap.phase !== 'intro') return;
-    if (calm) { begin(); return; }
+    if (calm || encounter) { begin(); return; }
     if (line >= PROLOGUE.length) return;
     const full = PROLOGUE[line]![lang];
     if (typed.length < full.length) {
@@ -98,7 +105,15 @@ export function LandingHero({ children }: { children: ReactNode }) {
       else { setLine(line + 1); setTyped(''); }
     }, 1200);
     return () => window.clearTimeout(id);
-  }, [snap.phase, line, typed, lang, calm, begin]);
+  }, [snap.phase, line, typed, lang, calm, begin, encounter]);
+
+  // 遭遇战胜利 → 稍作停顿后交还给大陆
+  const onDone = encounter?.onDone;
+  useEffect(() => {
+    if (snap.phase !== 'victory' || !onDone) return;
+    const id = window.setTimeout(onDone, calm ? 300 : 1500);
+    return () => window.clearTimeout(id);
+  }, [snap.phase, onDone, calm]);
 
   const play = useCallback((i: number) => { engineRef.current?.play(i); }, []);
 
@@ -108,6 +123,7 @@ export function LandingHero({ children }: { children: ReactNode }) {
     const onKey = (e: KeyboardEvent) => {
       const el = document.activeElement;
       if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      if (engineRef.current && !seen.current) return; // 不在视口的那一幕不抢键
       const n = Number(e.key);
       if (n >= 1 && n <= CARDS.length) play(n - 1);
     };
@@ -118,10 +134,10 @@ export function LandingHero({ children }: { children: ReactNode }) {
   const replay = () => { setPops([]); engineRef.current?.begin(); };
   const wave = WAVES[snap.wave]!;
   const fighting = snap.phase === 'fight';
-  const cls = ['lh-stage', `lh-phase-${snap.phase}`, impact, calm ? 'lh-calm' : ''].filter(Boolean).join(' ');
+  const cls = ['lh-stage', `lh-phase-${snap.phase}`, impact, calm ? 'lh-calm' : '', encounter ? 'lh-encounter' : ''].filter(Boolean).join(' ');
 
   return (
-    <section className="landing-hero lh">
+    <section className={encounter ? 'lh lh-framed' : 'landing-hero lh'}>
       <div
         ref={stageRef}
         className={cls}
@@ -139,7 +155,7 @@ export function LandingHero({ children }: { children: ReactNode }) {
         <div className="lh-bar lh-bar-top" aria-hidden="true" />
         <div className="lh-bar lh-bar-bottom" aria-hidden="true" />
 
-        {snap.phase === 'intro' && (
+        {snap.phase === 'intro' && !encounter && (
           <div className="lh-prologue">
             <p className="lh-subtitle" aria-live="polite">
               {typed}
@@ -188,19 +204,23 @@ export function LandingHero({ children }: { children: ReactNode }) {
         {snap.phase === 'victory' && (
           <div className="lh-victory" role="status">
             <strong>{HERO_UI.victoryTitle[lang]}</strong>
-            <p>{HERO_UI.victoryText[lang]}</p>
-            <button type="button" className="lh-replay" onClick={replay}>
-              {HERO_UI.replay[lang]}
-            </button>
+            {!encounter && <p>{HERO_UI.victoryText[lang]}</p>}
+            {!encounter && (
+              <button type="button" className="lh-replay" onClick={replay}>
+                {HERO_UI.replay[lang]}
+              </button>
+            )}
           </div>
         )}
 
         </div>
 
-        <div className="lh-copy">
-          <p className="lh-kicker">{HERO_UI.chapter[lang]}</p>
-          {children}
-        </div>
+        {!encounter && (
+          <div className="lh-copy">
+            <p className="lh-kicker">{HERO_UI.chapter[lang]}</p>
+            {children}
+          </div>
+        )}
 
         <div className="lh-hand" role="toolbar" aria-label={HERO_UI.handAria[lang]}>
           {fighting && <span className="lh-hand-hint">{HERO_UI.handHint[lang]}</span>}
@@ -218,7 +238,7 @@ export function LandingHero({ children }: { children: ReactNode }) {
             </button>
           ))}
         </div>
-        <p className="lh-note">{HERO_UI.note[lang]}</p>
+        {!encounter && <p className="lh-note">{HERO_UI.note[lang]}</p>}
       </div>
     </section>
   );

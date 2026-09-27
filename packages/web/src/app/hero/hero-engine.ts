@@ -55,8 +55,11 @@ export class HeroEngine {
   private pointer = 0;
   private pan = 40;
   private wide = true;
+  private order: number[] = WAVES.map((_, i) => i);
+  private step_ = 0;
 
-  constructor(private canvas: HTMLCanvasElement, private emit: HeroEmit, private calm: boolean) {
+  /** `framed`：嵌在章节窗里的遭遇战（勇者不再给左侧文案让位） */
+  constructor(private canvas: HTMLCanvasElement, private emit: HeroEmit, private calm: boolean, private framed = false) {
     const c = canvas.getContext('2d');
     if (!c) throw new Error('no-2d');
     this.ctx = c;
@@ -68,7 +71,7 @@ export class HeroEngine {
   resize(cssW: number, cssH: number): void {
     const aspect = cssW / Math.max(1, cssH);
     this.W = Math.max(200, Math.min(520, Math.round(this.H * aspect)));
-    this.wide = cssW >= 880;
+    this.wide = cssW >= 880 && !this.framed;
     this.canvas.width = this.W;
     this.canvas.height = this.H;
     this.scene.resize(this.W, this.H);
@@ -94,9 +97,13 @@ export class HeroEngine {
   stop(): void { cancelAnimationFrame(this.raf); }
 
   /** 序章字幕播完（或被跳过）→ 开战 */
-  begin(): void {
+  begin(order?: number[]): void {
+    if (order?.length) this.order = order;
+    this.step_ = 0;
+    this.wave = this.order[0]!;
+    this.shots = [];
+    this.pending = [];
     this.phase = 'fight';
-    this.wave = 0;
     this.kills = 0;
     this.pan = 0;
     this.spawn();
@@ -166,7 +173,7 @@ export class HeroEngine {
       this.later(0.9, () => this.emit.pop('loot', this.heroX() / this.W, 0.35));
       this.later(1.9, () => {
         this.mon = null;
-        if (this.wave + 1 < WAVES.length) { this.wave++; this.spawn(); }
+        if (this.step_ + 1 < this.order.length) { this.step_++; this.wave = this.order[this.step_]!; this.spawn(); }
         else { this.phase = 'victory'; this.report(); }
       });
     } else if (!correct) {

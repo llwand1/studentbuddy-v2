@@ -1,40 +1,17 @@
 /**
- * app/Landing — 未登录的**产品落地页**（2026-09-19 上线；09-20 重构；09-21 双屏；2026-09-22 重排；2026-09-22 中英切换）。
+ * app/Landing — 未登录的产品落地页（2026-09-19 上线 … 2026-09-28 冒险录大改）。
  *
- * ★ 本次重排只解决一件事：**「雷点是先搞了功能介绍，而不是产品介绍」**。
- *   做法是按 T3「演示开道」版式（Linear/Vercel 一路：hero 轻量 + 演示窗说主话），
- *   并在 hero 之后**立刻**补一整段产品整体介绍（`LandingIntro`），然后才许进功能区（`LandingFeatures`）。
+ * ★ 2026-09-28 版式：整页是一本「冒险录」——
+ *   序章（首屏，可交互横版战斗 `hero/LandingHero`）→ 第一章 知识大陆如何生长（俯视大陆 ⇄ 横版讨伐）
+ *   → 第二章 词条（只留一段演示动画）→ 第三章 AI 学习伙伴 → 第四章 卡牌 → 第五章 Boss 战＝对战 → 终章。
+ *   游戏化之前的功能清单、工程讲解、隐私长文全部下线：门面只做**游戏化玩法演示**。
+ *   各章文案与事实口径见 `world/world-copy.ts` 头注。
  *
- *   ★★★ **本文件唯一的硬顺序约束**（改任何别的都可以，这条不许松）：
- *   **`LandingIntro` 必须排在 `LandingFeatures` 之前，且中间不许夹别的 section。**
- *   它由 `Landing.test.tsx` 的「介绍段排在功能区之前」机器锁住——因为这条顺序塌回去时
- *   **没有任何东西会报错**：文案不红、只测「文本在不在」的用例全绿、只有读者会觉得这页在自说自话。
- *   2026-09-22 之前的版本正是如此：hero 一格讲完全部介绍（而且那一格还塞了 4 个 feature 从句），
- *   从第 3 屏往下全是功能。
- *
- * ★ 「词条是主体」落到两个地方，缺一不可（2026-09-22 二次调整后重排）：
- *   ① hero 的标题本身就是讲词条（「学过的词，会自己留下来」）；
- *   ② `LandingIntro` 的**第二段**整段专讲「一切都以词条为主体」。
- *   ★ 它**不出现在第一段的定义句里**：定义句只负责回答"这属于哪一类东西"，
- *     机制留给紧随其后的词条段——读者还没搞清这是什么时先听一个内部概念，等于没讲。
- *   ★ 功能区也随之从「并列九宫格」改成**一条编了号的动线**（01 学 → 05 反馈）：
- *     要求是「接下来的功能一步步讲」。
- *
- * ★ 2026-09-22 中英切换：文案全部出本文件（`landing-copy.ts` / `landing-data.ts`，
- *   均为 `Bi={zh,en}` 成对），语言态由 `LandingLangProvider` 罩住整棵树，页眉 `LangToggle` 切换。
- *   **只罩落地页**——登录后应用壳仍是中文（范围决策见 `landing-lang.tsx` 头注）。
- *
- * ★ 定位不变：门面，不是功能页。已登录用户直接进应用壳，**永远看不到本页**。
- *
- * ★ 注册/登录表单复用侧栏的 `AccountBox`（standalone 模式），不在本页复制一份表单逻辑：
- *   两处各写一遍必然漂成两种行为（同 RefList / ReviewPanel 的先例）。两条 CTA 通过 `key` 重挂
- *   切换初始模式——AccountBox 的模式是内部状态，重挂是最直白的传达。
- *   ★ 表单**本体**（AccountBox 的字段/按钮）不在本次双语范围内——它是登录后的同一块牌子。
- *
- * ★ 视觉纪律（`docs/ENGINEERING.md`）：禁 emoji，图标用 `components/icons.tsx` 的自绘 line-icon；
- *   配色只取 tokens.css 既有 token（#007aff 主色 / #fafafa 底），不另起色板；禁内联 style。
+ * ★ 定位不变：门面，不是功能页。已登录用户直接进应用壳，永远看不到本页。
+ * ★ 注册/登录表单复用侧栏的 `AccountBox`（standalone 模式），不在本页复制一份表单逻辑。
+ * ★ 视觉纪律：禁 emoji；动效只用 steps()；禁内联 style（数据驱动处带 gates:style-ok）。
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AuthUser } from '@sb/shared';
 import { api } from '../lib/api';
 import { AccountBox } from '../components/AccountBox';
@@ -42,13 +19,19 @@ import { DemoLoginButton } from '../components/DemoLoginButton';
 import { GithubLoginButton } from '../components/GithubLoginButton';
 import { LandingBrand } from './LandingBrand';
 import { LandingHero } from './hero/LandingHero';
-import { LandingIntro } from './LandingIntro';
-import { LandingFeatures } from './LandingFeatures';
-import { PRIVACY_ITEMS } from './landing-data';
-import { AUTH, FOOT, FOOT_CHANGELOG, FOOT_TERMS, GITHUB_BAND, HERO, PRIVACY, HERO_TAGS, STEPS, TOP } from './landing-copy';
+import { ChapterContinent } from './world/ChapterContinent';
+import { ChapterTerm } from './world/ChapterTerm';
+import { ChapterNpc } from './world/ChapterNpc';
+import { ChapterCards } from './world/ChapterCards';
+import { ChapterBoss } from './world/ChapterBoss';
+import { ChapterFinale } from './world/ChapterFinale';
+import { AUTH, FOOT, FOOT_CHANGELOG, FOOT_TERMS, HERO, HERO_TAGS, TOP } from './landing-copy';
 import { LangToggle, LandingLangProvider, useLandingLang } from './landing-lang';
 import { CATALOG_PATH, CHANGELOG_PATH } from '../seo/paths';
+import { useLandingAtmos } from './useLandingAtmos';
 import './landing.css';
+import './landing-dark.css';
+import './world/world.css';
 
 type AuthCard = 'closed' | 'register' | 'login';
 
@@ -63,6 +46,8 @@ export function Landing(props: { onAuthed: (u: AuthUser) => void }) {
 function LandingPage({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
   const { lang } = useLandingLang();
   const [card, setCard] = useState<AuthCard>('closed');
+  const rootRef = useRef<HTMLDivElement>(null);
+  useLandingAtmos(rootRef);
   // GitHub 登录入口是否可用（契约 AUTH-SPEC §2.8）：服务端没配凭据就不画按钮，
   // 请求失败（非 2xx / 网络）按「不可用」处理——宁少一个入口，不给用户一个点了报错的按钮。
   // ★ `demo`（§2.10 公用体验账号）同口径：开关在上游。两者共用**一次** providers 请求，
@@ -87,7 +72,7 @@ function LandingPage({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
   }, []);
 
   return (
-    <div className="landing">
+    <div className="landing" ref={rootRef} lang={lang === 'zh' ? 'zh-CN' : 'en'}>
       <header className="landing-top">
         <LandingBrand />
         <div className="landing-top-right">
@@ -151,75 +136,18 @@ function LandingPage({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
           </div>
         )}
 
-        {/* ③ 产品整体介绍 —— 必须紧跟 hero、且在功能区之前（见文件头注的硬顺序约束） */}
-        <LandingIntro />
-
-        {/* ④ 功能介绍 */}
-        <LandingFeatures />
-
-        {/* GitHub 横幅 —— ★ 2026-09-22 重排：它原先排在 hero 之后第二位，正好插在
-            「这是什么」和「它演示了什么」中间，把介绍节奏拦腰砍断。此处移到功能区之后、
-            隐私之前：那时读者已经看完产品，正是「去哪拿源码」这个念头冒出来的时候。 */}
-        <section className="landing-github" aria-label={GITHUB_BAND.aria[lang]}>
-          <div className="landing-github-main">
-            <span className="landing-github-title">{GITHUB_BAND.title[lang]}</span>
-            <a
-              className="landing-github-link"
-              href="https://github.com/llwand1/studentbuddy-v2"
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              github.com/llwand1/studentbuddy-v2
-            </a>
-          </div>
-          {/* ★ 锚点 `#快速开始` 两语同值：README 只有中文标题，EN 侧跟着跳同一节（已知代价） */}
-          <a
-            className="landing-github-note"
-            href="https://github.com/llwand1/studentbuddy-v2#快速开始"
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            {GITHUB_BAND.notePre[lang]}
-            <b>{GITHUB_BAND.noteMid[lang]}</b>
-            {GITHUB_BAND.noteTail[lang]}
-          </a>
-        </section>
-
-        <section className="landing-section landing-privacy" aria-label={PRIVACY.aria[lang]}>
-          <div>
-            <h2 className="landing-h2">
-              {PRIVACY.h2Pre[lang]}
-              <span className="landing-accent">{PRIVACY.h2Mid[lang]}</span>
-            </h2>
-            <ul className="landing-privacy-list">
-              {PRIVACY_ITEMS.map((t) => (
-                <li key={t.en}>{t[lang]}</li>
-              ))}
-            </ul>
-          </div>
-          <div className="landing-privacy-cta">
-            <p className="landing-privacy-title">{PRIVACY.ctaTitle[lang]}</p>
-            <button
-              type="button"
-              className="landing-cta"
-              onClick={() => {
-                setCard('register');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            >
-              {PRIVACY.cta[lang]}
-            </button>
-          </div>
-        </section>
-
-        <section className="landing-steps" aria-label={STEPS.aria[lang]}>
-          {STEPS.items.map((s, i) => (
-            <div className="landing-step" key={s.en}>
-              <span className="landing-step-num">{i + 1}</span>
-              {s[lang]}
-            </div>
-          ))}
-        </section>
+        {/* ③ 冒险录各章：只讲游戏化玩法 */}
+        <ChapterContinent />
+        <ChapterTerm />
+        <ChapterNpc />
+        <ChapterCards />
+        <ChapterBoss />
+        <ChapterFinale
+          onCta={() => {
+            setCard('register');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
       </main>
 
       <footer className="landing-foot">

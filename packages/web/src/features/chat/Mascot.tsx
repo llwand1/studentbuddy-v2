@@ -1,27 +1,27 @@
 /**
- * Mascot — 欢迎页的像素团子：16×16 手工点阵 → 横跑合并成 <rect>，零图片资源。
+ * Mascot — 像素吉祥物「见习法师团子」（2026-09-28 换装：尖顶法师帽 + 帽尖星光，契合剑与魔法世界观）：16×16 手工点阵 → 横跑合并成 <rect>，零图片资源。
  * 只在 4× 整数倍（64px）下放大，配 shape-rendering=crispEdges 才不会糊成灰边。
  * 配色全在 chat.css 由 --sb-primary 派生；跳动/眨眼的时序也在 CSS（门禁禁内联 style）。
  */
 
 /** 图例：'.' 空 · o 轮廓墨 · L 亮面 · B 本体 · S 暗面 · W 眼神光 · E 眼 · M 嘴 */
 export const SPRITE = [
-  '................',
-  '........oL......',
-  '........o.......',
-  '.....oooooo.....',
-  '....oLLLLLLo....',
-  '...oBBBBBBBBo...',
+  '........oo......',
+  '.......oSSo.....',
+  '......oBSSo.....',
+  '.....oLBWSo.....',
+  '....oLBBBSSo....',
+  '.ooooooooooooooo',
   '..oLBBBBBBBBBo..',
   '.oBBWEBBBBWEBBo.',
   '.oBBEEBBBBEEBBo.',
   '.oLBBBBBBBBBBBo.',
-  '.oBBBBBBBBBBBBo.',
   '.oBBBBBMMBBBBBo.',
   '..oBBBBBSSSSSo..',
-  '...oBBSSSSSSo...',
-  '....oSSSSSSo....',
-  '.....oooooo.....',
+  '...oBSSSSSSSo...',
+  '....oooooooo....',
+  '...oo......oo...',
+  '................',
 ];
 
 /** 睁眼帧的顶行；合帧与校验都以它为准，挪眼位只需改这一处 */

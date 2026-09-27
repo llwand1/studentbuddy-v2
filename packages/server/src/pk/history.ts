@@ -16,7 +16,6 @@
  *   少一层依赖就少一个成环的机会（PK_QUIZ_MIX 那次的教训）。
  */
 import { randomUUID } from 'node:crypto';
-import type Database from 'better-sqlite3';
 import {
   PK_HISTORY_KEEP,
   PK_HISTORY_LIMIT,
@@ -28,7 +27,7 @@ import {
   type PkOutcome,
   type PkRoomState,
 } from '@sb/shared';
-import { getDb } from '../storage/db.js';
+import { getDb, type Db } from '../storage/db.js';
 
 /** 库里的行形状（snake_case 只活在本文件；对外一律经 `toRecord` 折算成契约类型） */
 interface Row {
@@ -64,7 +63,7 @@ function toReason(raw: string): PkEndReason {
 }
 
 /** 每人只留最新 `PK_HISTORY_KEEP` 条（超出删最旧）：房间有 TTL 防内存无界增长，历史同理 */
-function pruneOldest(d: Database.Database, userId: string): void {
+function pruneOldest(d: Db, userId: string): void {
   d.prepare(
     `DELETE FROM pk_matches WHERE id IN (
        SELECT id FROM pk_matches WHERE user_id = ?

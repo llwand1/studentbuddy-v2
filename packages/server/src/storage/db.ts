@@ -14,6 +14,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { migrate } from './migrations.js';
 
+/** storage 层唯一对外暴露的连接类型：db.ts 之外的模块只准 import 这个别名，不许直连 better-sqlite3 */
+export type Db = Database.Database;
+
 /**
  * 数据目录解析（ADR-6：不碰用户数据，且**不能静默落到错误位置**）。
  *

@@ -1,3 +1,9 @@
+> 2026-09-27 像素转场与壳层微交互（分支 `feat/pixel-scene-transitions`，零迁移、零服务端改动、零游戏数值）：新增 `components/SceneTransition.tsx`（场景幕布转场，接在 `App.tsx` 五视图切换与 `main.tsx` 三根场景换根）、`components/BootScreen.tsx`（鉴权空窗的延迟现身启动画面）、`styles/pixel-motion.css`（共享关键帧）与 tokens.css 三档动效时长；导航/会话/抽屉/用户消息的微交互只加 CSS。新增 1 文件 7 例；jsdom 看不见 CSS，锁的是**结构与时机**（幕布何时在场、是否纯装饰、内容是否同步换、减少动态效果下是否根本不渲染）。★ 测试里必须在 react-dom 加载前补 `AnimationEvent`：jsdom 没有它，react-dom 会改听 `webkitAnimationEnd`，`fireEvent.animationEnd` 就永远打不到 `onAnimationEnd`——补上才是让 jsdom 走真机同一条路。
+
+| 本批测试文件 | 用例 | 不变量 |
+|---|---:|---|
+| `src/components/SceneTransition.test.tsx` | 7 | ① 首次挂载**不铺幕布**（打开应用不该先看见一块布）；② `scene` 变化时内容**同一帧同步换掉**（旧场景已卸载、新场景已在屏上）且恰好一块幕布，幕布 `aria-hidden` ＋ 零可交互后代 ＋ 默认不 `is-full`；③ 同 scene 重渲染不铺布，`animationend` 后幕布自行卸载；④ 连续快速切换幕布**替换不叠加**（恒 ≤1 块）；⑤ `prefers-reduced-motion` 命中时内容照换、幕布节点**根本不渲染**；⑥ `full` 模式舞台与幕布都带 `is-full`（根层换根盖整个视口）；⑦ `BootScreen` 是 `role=status` 活动区、含品牌名与「正在进入营地」，团子与读取条对辅助技术隐藏、零可交互元素 |
+
 > 2026-09-27 对话练习图文复盘：新增4文件25例，覆盖五类作答、情景首判、图文协议/取消/重试/归属/并发。与出题评测合流后基线由 metrics 实跑记录。
 
 | 本批测试文件 | 用例 | 不变量 |

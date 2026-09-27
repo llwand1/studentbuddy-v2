@@ -121,6 +121,33 @@ body .landing-walk-no { border: 2px solid var(--sb-pixel-edge); background: var(
 body .landing-privacy { border: 2px dashed var(--sb-pixel-shadow); background: var(--sb-surface); }
 body .landing-foot { border-top: 2px solid var(--sb-pixel-edge); background: var(--sb-sidebar); }
 
+/* ===== 壳层微交互（2026-09-27）：关键帧在 pixel-motion.css，时长只认 tokens 三档 =====
+   全部是 transform / opacity 级别的反馈，不改尺寸不触发布局；减少动态效果由 pixel-ui.css 末尾统一关掉。 */
+/* 导航项：悬停时图标向右顶一格、按下沉 1px（与像素按钮同手感）、被激活那一下弹一跳 */
+body .sb-nav-item {
+  transition: background var(--sb-motion-fast), border-color var(--sb-motion-fast),
+    color var(--sb-motion-fast), transform var(--sb-motion-fast) steps(2);
+}
+body .sb-nav-item svg { transition: transform var(--sb-motion-fast) steps(2); }
+body .sb-nav-item:active { transform: translate(1px, 1px); }
+body .sb-nav-item.active { animation: sb-pop var(--sb-motion-base) steps(3, end); }
+/* 品牌团子与「新对话」的加号：悬停时团子抬头、加号转成叉——只在真有指针的设备上 */
+body .sb-logo .welcome-mascot svg { transition: transform var(--sb-motion-fast) steps(2); }
+body .sb-new-chat svg { transition: transform var(--sb-motion-fast) steps(2); }
+/* 历史会话行：悬停右移一格；当前项左侧标记与底色跳变而非渐变 */
+body .sb-session { transition: background var(--sb-motion-fast), transform var(--sb-motion-fast) steps(2); }
+@media (hover: hover) {
+  body .sb-nav-item:hover svg { transform: translateX(2px); }
+  body .sb-logo:hover .welcome-mascot svg { transform: translateY(-2px); }
+  body .sb-new-chat:hover:not(:disabled) svg { transform: rotate(90deg); }
+  body .sb-session:hover { transform: translateX(2px); }
+}
+/* 自己发出的消息浮入一格（发送有落点感）。★ 只挂 user 行：助手那条从「流式气泡」换成「落成消息」是两个
+   不同节点的替换，若也挂入场动画会在收尾那一刻闪一下——流式正文本身有光标，不需要再加入场。 */
+body .chat-row.user { animation: sb-rise-in var(--sb-motion-base) steps(4, end) backwards; }
+/* 内置浏览器面板：入场改阶梯计时，与全站同一手感（位移与时长照旧，见 features/preview/panel.css） */
+body .sb-browser { animation-timing-function: steps(4, end); }
+
 @media (max-width: 700px) {
   body .sb-shell { flex-direction: column; }
   body .sb-sidebar { width: 100%; padding: 10px 16px; border-right: 0; border-bottom: 2px solid var(--sb-pixel-edge); position: relative; z-index: 45; }
@@ -132,8 +159,13 @@ body .landing-foot { border-top: 2px solid var(--sb-pixel-edge); background: var
     width: min(320px, calc(100vw - 24px)); height: calc(100dvh - 62px);
     padding: 16px; overflow-y: auto; background: var(--sb-sidebar);
     border-right: 2px solid var(--sb-pixel-edge); box-shadow: 5px 0 0 var(--sb-pixel-shadow);
+    /* 抽屉从左侧阶梯滑入、遮罩跳变现身（display 从 none 翻到 flex 时新盒子会从头播动画） */
+    animation: sb-drawer-in var(--sb-motion-base) steps(5, end) backwards;
   }
-  .sb-sidebar.is-open .sb-mobile-backdrop { display: block; position: fixed; inset: 62px 0 0; background: #302b3d66; cursor: default; }
+  .sb-sidebar.is-open .sb-mobile-backdrop {
+    display: block; position: fixed; inset: 62px 0 0; background: #302b3d66; cursor: default;
+    animation: sb-fade-in var(--sb-motion-fast) steps(3, end) backwards;
+  }
   body .sb-session-list { min-height: 100px; }
   body .welcome { padding-top: 0; }
   body .welcome-card { padding: 12px; min-height: 136px; }

@@ -1,0 +1,100 @@
+/**
+ * 像素动效层（2026-09-27）：场景转场 ＋ 壳层微交互 ＋ 启动画面。
+ *
+ * 四条口径（改这里任何一条动效前先对一遍）：
+ *   ① 只用 `steps()`——像素世界里没有缓动曲线，帧数少而硬，与 pixel-ui.css 既有的按钮按压反馈同一手感；
+ *   ② 只动 transform / opacity / clip-path，不碰触发布局的属性
+ *      （唯一例外＝幕布锯齿沿那条 12px 高伪元素的 `top`：一个元素、8 帧、320ms，代价可忽略）；
+ *   ③ ★ 默认态即终态：每一层在「没有动画」时都必须是不可见 / 不遮挡的——
+ *      `prefers-reduced-motion` 下 pixel-ui.css 会把全站 animation 关掉，靠这一条保证不留下一块幕布盖住页面；
+ *   ④ 纯装饰：不改 DOM 顺序、不占焦点、`pointer-events: none`；`aria-hidden` 由组件（SceneTransition）负责。
+ *
+ * 时长只认 tokens.css 的三档：--sb-motion-fast / --sb-motion-base / --sb-motion-scene。
+ */
+
+/* ===== 共享关键帧 ===== */
+@keyframes sb-rise-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes sb-fade-in { from { opacity: 0; } }
+@keyframes sb-drawer-in { from { opacity: 0; transform: translateX(-16px); } }
+@keyframes sb-pop { 0% { transform: scale(0.94); } 60% { transform: scale(1.04); } 100% { transform: scale(1); } }
+
+/* ===== 场景舞台（components/SceneTransition.tsx）=====
+   舞台只是一层定位锚点：根层（#root 下）保持 block、嵌在应用壳 <main>（column flex）里时照搬
+   .sb-main 的盒模型；场景层 `display: contents` 不产生盒子——页面各自的 flex:1 / height:100% /
+   min-height:100vh 一律照旧成立，不用改任何页面 CSS，也不给 position:fixed 的子孙换包含块。 */
+.sb-scene-stage { position: relative; height: 100%; }
+.sb-main > .sb-scene-stage { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+.sb-scene { display: contents; }
+/* 新场景的根节点阶梯式浮入（场景层按 scene 换 key ⇒ 每次切换都重挂、动画都重播） */
+body .sb-scene > * { animation: sb-rise-in var(--sb-motion-base) steps(4, end) backwards; }
+
+/* 幕布：切换场景时盖住舞台，再从上到下按 8 格「掀开」露出新场景。
+   默认 clip 成零高（不可见），动画从「整块盖住」跑回默认 ⇒ 减少动态效果时它根本不出现。 */
+.sb-scene-wipe {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  overflow: hidden;
+  clip-path: inset(100% 0 0 0);
+  background:
+    linear-gradient(var(--sb-pixel-grid) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, var(--sb-pixel-grid) 1px, transparent 1px) 0 0 / 24px 24px,
+    var(--sb-primary-weak);
+  animation: sb-scene-wipe var(--sb-motion-scene) steps(8, end);
+}
+/* 幕布上沿的锯齿：上半是 8px 见方的齿、下半是实线，跟着裁切线一起往下走 */
+.sb-scene-wipe::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 12px;
+  background:
+    repeating-linear-gradient(90deg, var(--sb-primary) 0 8px, transparent 8px 16px) 0 0 / 16px 6px repeat-x,
+    linear-gradient(var(--sb-primary), var(--sb-primary)) 0 100% / 100% 6px no-repeat;
+  animation: sb-scene-wipe-edge var(--sb-motion-scene) steps(8, end);
+}
+/* 根层转场（落地页 ↔ 应用 ↔ 对战页）：幕布盖整个视口，压在所有悬浮件之上（全仓 z-index 最高 70） */
+.sb-scene-wipe.is-full { position: fixed; z-index: 80; }
+@keyframes sb-scene-wipe { from { clip-path: inset(0); } to { clip-path: inset(100% 0 0 0); } }
+@keyframes sb-scene-wipe-edge { from { top: 0; } to { top: 100%; } }
+
+/* ===== 启动画面（components/BootScreen.tsx）=====
+   鉴权请求未回时的占位。默认透明、400ms 后才现身：快路径（本地 / 缓存命中）一帧都不闪，
+   慢路径（冷启动 / 弱网）不再是一屏空白。减少动态效果时保持透明＝退回原先的空白行为。 */
+.sb-boot {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  color: var(--sb-ink);
+  background: var(--sb-bg);
+  opacity: 0;
+  animation: sb-boot-in 1ms 400ms steps(1, end) forwards;
+}
+.sb-boot .welcome-mascot { margin: 0; animation: none; }
+.sb-boot .welcome-mascot svg { width: 48px; height: 48px; animation: none; }
+.sb-boot-name { font: 800 15px var(--sb-font-display); letter-spacing: 2px; }
+.sb-boot-bar {
+  width: 96px;
+  height: 10px;
+  border: 2px solid var(--sb-pixel-edge);
+  background: var(--sb-surface);
+  box-shadow: 2px 2px 0 var(--sb-pixel-shadow);
+  overflow: hidden;
+}
+.sb-boot-bar::after {
+  content: '';
+  display: block;
+  width: 25%;
+  height: 100%;
+  background: var(--sb-primary);
+  animation: sb-boot-scan 900ms steps(6, end) infinite;
+}
+.sb-boot-text { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); letter-spacing: 1px; }
+@keyframes sb-boot-in { to { opacity: 1; } }
+@keyframes sb-boot-scan { from { transform: translateX(-100%); } to { transform: translateX(400%); } }

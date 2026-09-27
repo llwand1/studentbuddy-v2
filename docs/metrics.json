@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-27T14:08:56.459Z",
+  "generatedAt": "2026-09-27T15:26:53.972Z",
   "code": {
     "rows": [
       {
@@ -18,17 +18,17 @@
       },
       {
         "pkg": "web",
-        "srcFiles": 205,
-        "testFiles": 78,
-        "srcLines": 27229,
-        "testLines": 11766
+        "srcFiles": 207,
+        "testFiles": 79,
+        "srcLines": 27335,
+        "testLines": 11921
       }
     ],
-    "srcFiles": 422,
-    "testFiles": 227,
-    "srcLines": 60935,
-    "testLines": 42818,
-    "tsxTestFiles": 32
+    "srcFiles": 424,
+    "testFiles": 228,
+    "srcLines": 61041,
+    "testLines": 42973,
+    "tsxTestFiles": 33
   },
   "routes": {
     "total": 136,
@@ -85,20 +85,20 @@
     "probes": 15
   },
   "repo": {
-    "head": "8f65b36",
+    "head": "ab017fa",
     "headDate": "2026-09-27",
-    "commitsLast14d": 3,
-    "branch": "feat/hero-quiz-review-public",
-    "dirtyFiles": 14
+    "commitsLast14d": 7,
+    "branch": "feat/pixel-scene-transitions",
+    "dirtyFiles": 11
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 30.4,
+    "wallSec": 137.7,
     "staleDays": 0,
-    "files": 227,
-    "cases": 3048,
-    "passed": 3047,
+    "files": 228,
+    "cases": 3055,
+    "passed": 3054,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -109,14 +109,14 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "227",
-      "measured": "227",
+      "claimed": "228",
+      "measured": "228",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "3048",
-      "measured": "3048",
+      "claimed": "3055",
+      "measured": "3055",
       "ok": true
     },
     {
@@ -157,8 +157,8 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "227 文件 / 3048 例",
-      "measured": "227 文件 / 3048 例",
+      "claimed": "228 文件 / 3055 例",
+      "measured": "228 文件 / 3055 例",
       "ok": true
     }
   ],

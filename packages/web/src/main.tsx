@@ -5,13 +5,17 @@
  * ★ 加**落地页分层**（产品不该直接怼进应用，要先有介绍再「开始使用」）：
  *   启动先问 `/api/auth/me`（与 AccountBox 同一事实源——登录态不自持，httpOnly cookie 前端读不到，
  *   只能问服务端）⇒ 已登录直接进 `App`，未登录进 `app/Landing.tsx`，登录成功回调换根。
- *   `user === undefined` 是「查询中」：此刻渲染 null（~一次请求的空窗，不闪落地页再跳应用）。
+ *   `user === undefined` 是「查询中」：此刻只渲染 `BootScreen`（默认透明、400ms 后才现身的启动画面——
+ *   ~一次请求的空窗，不闪落地页再跳应用；快路径与原先的 null 无异）。
+ * ★ 三个根场景之间的换根走 `SceneTransition`（像素幕布转场），首次挂载不铺布。
  */
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
 import { entryFor } from './app/entry';
 import { Landing } from './app/Landing';
+import { BootScreen } from './components/BootScreen';
+import { SceneTransition } from './components/SceneTransition';
 import { PkApp } from './features/pk/PkApp';
 import { api } from './lib/api';
 import { sanitizeReturnTo } from './features/pk/pk-view';
@@ -20,6 +24,7 @@ import './styles/tokens.css';
 import './styles/pixel-ui.css';
 import './styles/pixel-shell.css';
 import './styles/pixel-scene.css';
+import './styles/pixel-motion.css';
 
 /** §14.3 returnTo 的 sessionStorage 键（与 PkApp 的 goLogin 约定同一处） */
 const RETURN_TO_KEY = 'sb_return_to';
@@ -90,10 +95,21 @@ function Root() {
     const ret = sanitizeReturnTo(raw);
     if (ret && window.location.hash !== ret) window.location.hash = ret;
   }, [user]);
-  if (pk) return <PkApp />;
-  if (user === undefined) return null; // 登录态查询中的空窗，避免「落地页闪一下又进应用」
-  if (user) return <App />;
-  return entryFor(user, form) === 'app' ? <App /> : <Landing onAuthed={(u) => setUser(u)} />;
+  // 登录态查询中的空窗：不渲染落地页（避免「闪一下又进应用」），只放一块默认透明、400ms 后才现身的启动画面
+  if (!pk && user === undefined) return <BootScreen />;
+  /**
+   * 三个根场景（对战页 / 应用壳 / 落地页）之间的切换走像素幕布转场（`SceneTransition`，full＝盖整个视口）：
+   * 侧栏点「对战」、对战页点「← 学习助手」、落地页登录成功进应用，都是整屏换根，值得一块布。
+   * ★ 首次挂载不铺布（组件自身的规则），所以冷启动进应用不多一拍。
+   */
+  const scene = pk ? 'pk' : entryFor(user ?? null, form); // entryFor：已登录恒 'app'，未登录按形态分叉
+  return (
+    <SceneTransition scene={scene} full>
+      {scene === 'pk' && <PkApp />}
+      {scene === 'app' && <App />}
+      {scene === 'landing' && <Landing onAuthed={(u) => setUser(u)} />}
+    </SceneTransition>
+  );
 }
 
 createRoot(document.getElementById('root')!).render(

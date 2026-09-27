@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@sb/shared';
 import { AccountBox } from '../components/AccountBox';
 import { PixelSidebar } from '../components/PixelSidebar';
+import { SceneTransition } from '../components/SceneTransition';
 import { PlusIcon, ChevronDownIcon, ClockIcon } from '../components/icons';
 import { NAV, PK_HASH, type View } from './nav';
 import { api } from '../lib/api';
@@ -208,27 +209,31 @@ export function App() {
         <AccountBox onAuthChange={() => void reloadSessions()} /><TrialNotice />
       </PixelSidebar>
       <main className="sb-main">
-        {view === 'chat' && (
-          /* 词条索引 Provider（契约 TERM-HIGHLIGHT-SPEC §5）：正文里的词条高亮与悬浮卡
-             都从这里取索引。两个跨页动作也从这里注入——`openTerms`＝卡片「打开词条库」，
-             `followUp`＝卡片「向 AI 追问」（契约 KNOWLEDGE-FOLLOWUP-SPEC §6）。
-             挂在这里而不是 ChatView 内部，是为了让 ChatView 零 props 改动。 */
-          <TermIndexProvider onOpenTerms={openTerms} onFollowUp={followUp}>
-            <ChatView
-              sessionId={currentId}
-              sessionTitle={sessions.find((s) => s.id === currentId)?.title}
-              onNewSession={() => void newSession()}
-              onRoundDone={() => void reloadSessions()}
-              onBusyChange={handleBusyChange}
-            />
-          </TermIndexProvider>
-        )}
-        {/* key 变化时重挂：从词条卡带词进来要重新初始化搜索框 */}
-        {view === 'terms' && <TermsPage key={termsKeyword} initialKeyword={termsKeyword} />}
-        {/* `onGoContinent`：任务清单那条"伙伴名额"要把人送到知识大陆（创建伙伴的落点在那边） */}
-        {view === 'cards' && <CardsView onGoContinent={() => setView('continent')} />}
-        {view === 'continent' && <ContinentPage />}
-        {view === 'settings' && <SettingsView />}
+        {/* 五个视图之间的切换走像素幕布转场（components/SceneTransition）：内容同步换、幕布盖在上面掀开；
+            场景层不产生盒子，下面各页的 flex/height 口径与直接挂在 .sb-main 下时一字不差 */}
+        <SceneTransition scene={view}>
+          {view === 'chat' && (
+            /* 词条索引 Provider（契约 TERM-HIGHLIGHT-SPEC §5）：正文里的词条高亮与悬浮卡
+               都从这里取索引。两个跨页动作也从这里注入——`openTerms`＝卡片「打开词条库」，
+               `followUp`＝卡片「向 AI 追问」（契约 KNOWLEDGE-FOLLOWUP-SPEC §6）。
+               挂在这里而不是 ChatView 内部，是为了让 ChatView 零 props 改动。 */
+            <TermIndexProvider onOpenTerms={openTerms} onFollowUp={followUp}>
+              <ChatView
+                sessionId={currentId}
+                sessionTitle={sessions.find((s) => s.id === currentId)?.title}
+                onNewSession={() => void newSession()}
+                onRoundDone={() => void reloadSessions()}
+                onBusyChange={handleBusyChange}
+              />
+            </TermIndexProvider>
+          )}
+          {/* key 变化时重挂：从词条卡带词进来要重新初始化搜索框 */}
+          {view === 'terms' && <TermsPage key={termsKeyword} initialKeyword={termsKeyword} />}
+          {/* `onGoContinent`：任务清单那条"伙伴名额"要把人送到知识大陆（创建伙伴的落点在那边） */}
+          {view === 'cards' && <CardsView onGoContinent={() => setView('continent')} />}
+          {view === 'continent' && <ContinentPage />}
+          {view === 'settings' && <SettingsView />}
+        </SceneTransition>
       </main>
       <PreviewPanel />
       {/*

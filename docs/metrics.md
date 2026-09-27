@@ -23,7 +23,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-09-27 22:09:27（本机时区）｜ 基准 `8f65b36` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-09-27 15:29:11（本机时区）｜ 基准 `ab017fa` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
@@ -31,8 +31,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 |---|---|---|---|---|---|
 | shared | 32 | 5,262 | 19 | 2,785 | 53% |
 | server | 185 | 28,444 | 130 | 28,267 | 99% |
-| web | 205 | 27,229 | 78 | 11,766 | 43% |
-| **合计** | **422** | **60,935** | **227** | **42,818** | **70%** |
+| web | 207 | 27,335 | 79 | 11,921 | 44% |
+| **合计** | **424** | **61,041** | **228** | **42,973** | **70%** |
 
 ## 接口与契约
 
@@ -43,9 +43,9 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 测试基线（vitest 实跑）
 
-- **227 文件 / 3048 例**（3047 passed + 1 skipped + 0 failed）⇒ 全绿
-- 本次本机实跑（Node v22.23.2）全量耗时 30.4s
-- jsdom 交互测试文件（`.test.tsx`）32 个
+- **228 文件 / 3055 例**（3054 passed + 1 skipped + 0 failed）⇒ 全绿
+- 本次本机实跑（Node v22.22.2）全量耗时 137.7s
+- jsdom 交互测试文件（`.test.tsx`）33 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
 
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 36 份 · md 共 48 份 · 真机探针 15 个
-- git：feat/hero-quiz-review-public @ `8f65b36`（2026-09-27）· 近 14 天 3 commits · 工作区未提交 14 文件
+- git：feat/pixel-scene-transitions @ `ab017fa`（2026-09-27）· 近 14 天 7 commits · 工作区未提交 11 文件
 
 <!-- metrics:end -->
 

@@ -13,3 +13,4 @@ test-results/
 **/_*.mjs
 tools/probes/_e2e/
 _probe/
+_sb_write_probe.txt

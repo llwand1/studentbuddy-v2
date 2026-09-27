@@ -4,9 +4,9 @@
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-223%20files%20%2F%203023%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-135-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-141%20types-8a63f6)
+![tests](https://img.shields.io/badge/tests-227%20files%20%2F%203048%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-136-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-145%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -23,7 +23,7 @@
 
 **适合这些人**：想利用碎片化时间学一点的人、喜欢游戏化学习方式的人、长期啃一块硬知识的人、考前要系统复盘的人、不想把学习记录托付给第三方的人。
 
-- **在线体验**：<https://11wand.com>（**已上线到 v0.2.141**）。首页点「免注册，直接体验」直连公用体验账号，免邮箱（开关在服务端）；⚠️ 公用池**全站共享、访客彼此可见**，别放个人信息或私密内容（应用内同一句警示，两语都写）。要长期留自己的词条再走邮箱注册，一分钟。
+- **在线体验**：<https://11wand.com>（**已上线到 v0.2.142**）。首页点「免注册，直接体验」直连公用体验账号，免邮箱（开关在服务端）；⚠️ 公用池**全站共享、访客彼此可见**，别放个人信息或私密内容（应用内同一句警示，两语都写）。要长期留自己的词条再走邮箱注册，一分钟。
 - **不想点网页？** clone 后 `npm run demo:e2e` 一条命令跑完**确定性全栈演示**（用户 → API → 假 LLM → SSE → 落库 → 杀进程重启后逐字仍在；零 API key、零真实外呼）。
 - v2 是全新重写仓（v1 [`llwand1/studentbuddy`](https://github.com/llwand1/studentbuddy) 已冻结）。
 
@@ -166,7 +166,7 @@ flowchart TD
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼；对已下线路由（`/bank/:id` 等）有**墓碑锁**（断言 404，防止功能悄悄复活没人知道） |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **223 文件 / 3023 例**，全绿；passed/skipped 明细随平台略有差异（skipped 数分平台不同），**不进本文手抄**——实跑明细由 `node tools/metrics.mjs --tests` 当场产出。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3。
+当前测试基线 **227 文件 / 3048 例**，全绿；passed/skipped 明细随平台略有差异（skipped 数分平台不同），**不进本文手抄**——实跑明细由 `node tools/metrics.mjs --tests` 当场产出。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3。
 
 **四项门禁由 CI 强制**：server 单文件 ≤400 行、web 组件 ≤300 行（逼着功能拆文件，`flow.ts` 贴线开新文件就是常态）；全仓禁 `any`；web 禁内联 `style={{`（一律走 tokens.css token）；每个测试文件必须在测试清单登记。`metrics.mjs` 负责另一类腐烂：数字由脚本产出落 `docs/metrics.md` 标记区，README 徽章、正文基线、线上版本号与首屏统计全部进 `--check` 对账——手抄的数字必然腐烂，这一课在本文自己的历史里发生过不止一次。
 
@@ -270,4 +270,4 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | [`DEPLOY.md`](DEPLOY.md) | **部署手册**：服务器 / systemd / 五条部署 env / TLS / 备份 / 回滚 |
 | [`CHANGELOG.md`](CHANGELOG.md) | 已发布版本的对外更新记录 |
 
-★ 完整契约清单（35 份 SPEC）直接看 `docs/` 目录。仓内以 `docs/` 与代码为准；文档与实现冲突时**以代码 + 测试为准**。
+★ 完整契约清单（36 份 SPEC）直接看 `docs/` 目录。仓内以 `docs/` 与代码为准；文档与实现冲突时**以代码 + 测试为准**。

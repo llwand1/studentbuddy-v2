@@ -1,3 +1,12 @@
+> 2026-09-27 对话练习图文复盘：新增4文件25例，覆盖五类作答、情景首判、图文协议/取消/重试/归属/并发。与出题评测合流后基线由 metrics 实跑记录。
+
+| 本批测试文件 | 用例 | 不变量 |
+|---|---:|---|
+| `src/learning/quiz-explanation.test.ts` | 11 | 输入有界、逐题覆盖、必有图文、安全格式、模型角色/归属/重试/取消 |
+| `src/routes/quiz-explanation.test.ts` | 5 | 会话存在与归属、Origin、异常释放、同用户并发闸 |
+| `src/features/quiz/QuizCard.test.tsx` | 6 | 五类题闭环、真实错答、重复点击、失败重试、取消与迟到结果、无图拒绝 |
+| `src/features/quiz/ScenarioPanel.test.tsx` | 3 | iframe来源、首判、真实操作、失败重试、空任务不解锁 |
+
 > 2026-09-27 出题功能评测批次 A：功能级评测的**评分口径**落进 `packages/server/src/learning/quiz-eval-metrics.ts`（纯函数、不发请求不读库），运行侧在 `tools/eval/`（录制代理＋离线重算，运行产物 gitignore）。首轮 108 题读数与五条缺陷见 `docs/eval/quiz.md`。只登记口径单测——`tools/` 不在 vitest include 也不在 tsconfig 覆盖内。
 >
 > 同日并入 **model-bench 模型横评**(`tools/eval/model-bench/`,`npm run eval:models`):跨模型裸输出四套件(出题/复刻相似度/联网引用命中/词条 F1,110 样本),与评测台分工见其 README;评分器自检 35 条断言走 `--selftest`(零 key 零网络),同样只在 tools/ 运行侧、不进 vitest。essay 缺 explanation 的口径已与本批次对齐(观察不判据)。
@@ -797,6 +806,3 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | 2026-09-03 | v0.3.0 | 出题配比编辑态钳位改动：基线 163 → **175 例**（新 `shared/src/quiz-mix.test.ts` 12，shared 首次建测试章节）。规则从 `QuizMixCard` 组件内抽到 `shared/stepQuizMix`（§7「判定逻辑留在组件内就测不到」的又一次兑现）；修「配到 40 题保存后被服务端从后往前悄悄削掉」的闪变——前端编辑期即钳住，服务端 `normalizeQuizMix` 退为兜底；对话页「出题」补当前配比摘要（原本只有题库页有、点下去不知道会出什么）。测试写的过程中踩了 helper 部分覆盖的坑（`mix({single:10,multiple:10})` 实际是 22 题，默认档位没清零），已在用例内注释留痕 |
 | 2026-09-02 | v0.2.0 | 文档模式回写：基线 107 → **144 例**（新 `llm/anthropic.test.ts` 10／`learning/document.test.ts` 11／`routes/document.test.ts` 13，`flow.test.ts` 8→11）；该行改成已修并附**反向验证证据**（退回旧版 2 例红、失败文案逐字入表）；§6 清账：文档模式 P1 已清偿，新挂 `openai.ts` 出站体与 `DocModeControl` 交互两行；§7 新立「改适配器须先证实回归测试会红」约定 |
 | 2026-09-02 | v0.1.0 | 建立本表（测试登记载体补齐）：登记基线 14 文件/107 例逐文件不变量、`npx` 残 shim 与 stderr 退出码两处本机坑、技术栈对账（Playwright/promptfoo 仓库内 0 引用）、（anthropic 丢 system）与「LLM 适配器出站体零断言」缺口 |
-
-
-

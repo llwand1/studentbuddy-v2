@@ -33,3 +33,14 @@ jobs:
       - run: npm run check
       # README/docs 里的定量数字必须与代码实测一致（漂移即红）——数字不许手抄，见 docs/metrics.md
       - run: node tools/metrics.mjs --tests --check
+      # ★ 2026-09-27 加：守门判别力审计（docs/ENGINEERING.md §2 的第 ④ 条复验命令）。
+      #   加它的直接理由是一起**实测事故**：首屏对外数字的守门**静默停摆过两轮**——它按
+      #   `Landing.tsx` 里的 `<span>…</span>` 取字，而首屏文案先挪进 `app/landing-copy.ts` 的
+      #   `STATS`（`<span key=…>` 带属性 ⇒ 正则 0 条），后又整表换成 `HERO_TAGS` ⇒ 两轮都是
+      #   **claims 恒为空 ⇒ 恒打「✓ 首屏可核对数字与实测一致」**。第一轮停摆期间，首屏对每位
+      #   访客挂着 `150 个 REST 接口`（实测 135）与 `2600+ 自动化测试`（实测 2997，已越档）。
+      #   `guard-audit` 当时就能指出来（首屏 4 条 label 全「已静默消失」），但它只在人想起来时
+      #   手动跑 —— **一条没人跑的复验命令，和不存在没有区别**。⇒ 交给 CI。
+      #   ★ 必须排在上一步**之后**：本脚本要读 `test-results/metrics-vitest.json`（`--tests` 的产物），
+      #     缺了它，依赖实测例数的那几条 claim 不入列，审计会把"产物没生成"误报成"守门消失"。
+      - run: node tools/guard-audit.mjs

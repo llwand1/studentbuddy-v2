@@ -326,28 +326,104 @@ function readmeDrift(m) {
   return claims.filter((c) => c.claimed !== null);
 }
 
+const LANDING_TSX = 'packages/web/src/app/Landing.tsx';
+const LANDING_COPY = 'packages/web/src/app/landing-copy.ts';
 /**
- * `Landing.tsx` 首屏那四个统计数字 vs 实测：漂移即报。
+ * 首屏那一屏的文案表。**按名字列、少一张不算错、一张都找不到才算错**——
+ * 首屏改版会换表名（`STATS` → `HERO_TAGS` 就是一次），写死一张表等于给守门定了个保质期。
+ */
+const LANDING_COPY_BLOCKS = ['HERO', 'HERO_TAGS', 'STATS'];
+/** 行内豁免：确属「不是对外指标」的数字（版本号、年份、纯修辞），在该行写上它 —— 同 gates 的 `gates:style-ok` */
+const NO_CLAIM_MARK = 'metrics:no-claim';
+
+/** 取首屏文案表；`error` 非空＝取不到（调用方必须按红处理，不许静默放过） */
+function landingCopyBlocks() {
+  const p = path.join(ROOT, LANDING_COPY);
+  if (!fs.existsSync(p)) return { found: [], error: `${LANDING_COPY} 不存在` };
+  const src = fs.readFileSync(p, 'utf8');
+  const found = [];
+  for (const name of LANDING_COPY_BLOCKS) {
+    const m = new RegExp(`export const ${name}\\s*:[^=]*=\\s*[[{]([\\s\\S]*?)\\n[\\]}]\\s*;`).exec(src);
+    if (m) found.push({ name, body: m[1] });
+  }
+  if (!found.length) {
+    return { found: [], error: `${LANDING_COPY} 里 ${LANDING_COPY_BLOCKS.join(' / ')} 一张都找不到（首屏文案改版了？守门要跟着改，见本函数注释）` };
+  }
+  return { found, error: null };
+}
+
+/**
+ * 把首屏文案里**每一处带阿拉伯数字的说法**收集出来，还原成访客眼里那句话。
+ * 两种写法都吃：`{ n: '135', label: { zh: '个 REST 接口' } }` 这种数字与量词分家的，
+ * 以及 `{ zh: '150 个接口' }` 这种整句写死的。带 `metrics:no-claim` 的那一行跳过。
+ */
+function landingNumberClaims(found) {
+  const out = [];
+  for (const b of found) {
+    for (const g of b.body.matchAll(/\{\s*n:\s*'([^']+)'\s*,\s*label:\s*\{\s*zh:\s*'([^']+)'/g)) {
+      const line = b.body.slice(0, g.index).split('\n').pop() + b.body.slice(g.index).split('\n')[0];
+      if (!line.includes(NO_CLAIM_MARK)) out.push({ block: b.name, text: `${g[1]} ${g[2]}` });
+    }
+    for (const g of b.body.matchAll(/zh:\s*'([^']*\d[^']*)'/g)) {
+      const line = b.body.slice(0, g.index).split('\n').pop() + b.body.slice(g.index).split('\n')[0];
+      if (!line.includes(NO_CLAIM_MARK)) out.push({ block: b.name, text: g[1] });
+    }
+  }
+  return out;
+}
+
+/**
+ * 首屏文案里的数字 vs 实测：**认得出口径的逐个比，认不出口径的一律红。**
  *
  * 为什么单列一条：README 徽章与正文有 `readmeDrift` 守着，而**首屏数字此前没有任何东西守着**
- * （`Landing.tsx` 自己的注释就写着「这里没有」）—— 它已经漂移过一次
- * （`2300+ 自动化测试` / `140 个 REST 接口` → `2600+` / `149`）。
+ * —— 它已经漂移过一次（`2300+ 自动化测试` / `140 个 REST 接口` → `2600+` / `149`）。
  * **精确的旧值比模糊表述更危险**：它看起来像真的，而首屏是访客第一眼看到的地方。
  *
+ * ★★ 2026-09-27 重做。旧实现按 `Landing.tsx` 里的 `<span>…</span>` 取字面量，**已经被首屏改版
+ *   打哑两次，两次都无声**：
+ *     ① 统计文案挪进 `landing-copy.ts` 的 `STATS`、改由 `STATS.map(...)` 渲染（`<span key=…>`
+ *        带了属性）⇒ 正则匹配 0 条。停摆期间首屏对每位访客挂着 `150 个 REST 接口`（实测 135）
+ *        与 `2600+ 自动化测试`（实测 2997，已越档），一条都没报红。
+ *     ② 首屏改版把 `STATS` 整张表换成 `HERO_TAGS`（纯玩法标签、不带数字）⇒ 这段成了死代码。
+ *   两次的共同点是 **`claims` 为空数组 ⇒ 下游打印「✓ 首屏可核对数字与实测一致」**——
+ *   一个会静默变 ✓ 的守门比没有守门更坏，它替后面每个人背书。
+ *
+ * ⇒ 换了判据：不再认「那几个 span / 那张表」，改认**规则**——
+ *   **首屏文案里出现的任何数字，要么能对上一条实测口径，要么就是红的**（确实无需对账的，
+ *   在那一行写 `metrics:no-claim` 显式豁免）。首屏眼下不挂数字，这条就是一张空白名单，
+ *   但它**每次都会打印一行**（`首屏 数字白名单`），所以"守门还在不在"这件事本身是可观测的，
+ *   而且哪天有人往首屏加回一个数字，它当场接住，不用等谁想起来。
+ *
  * 两条口径不同，别混：
- *   - **精确档**（`6 个运行时依赖` / `149 个 REST 接口` / `0 个第三方 UI 库`）：与实测**逐字相等**。
- *   - **模糊档**（`2600+ 自动化测试`）：语义是「**至少** N」⇒ 只要求实测落在 `[N, N+100)`；
+ *   - **精确档**（`6 个运行时依赖` / `135 个 REST 接口` / `0 个第三方 UI 库`）：与实测**逐字相等**。
+ *   - **模糊档**（`2900+ 自动化测试`）：语义是「**至少** N」⇒ 只要求实测落在 `[N, N+100)`；
  *     涨到下一档就该更新文案，掉下来则说明这个数字吹了。
  */
 function landingDrift(m) {
-  const p = path.join(ROOT, 'packages/web/src/app/Landing.tsx');
-  if (!fs.existsSync(p)) return [];
-  const block = /<div className="landing-stats"[^>]*>([\s\S]*?)<\/div>/.exec(fs.readFileSync(p, 'utf8'));
-  if (!block) return [{ label: '首屏统计块', claimed: 'landing-stats', measured: '(未找到)', ok: false }];
   const claims = [];
-  for (const span of [...block[1].matchAll(/<span>([^<]+)<\/span>/g)].map((x) => x[1].trim())) {
+  const { found, error } = landingCopyBlocks();
+  if (error) {
+    claims.push({ label: '首屏文案源', claimed: error, measured: '(取不到 ⇒ 按红处理，不当作通过)', ok: false });
+    return claims;
+  }
+  // 存在性断言：文案表还在、首屏却一张都不引用 —— 那这一节又变回空气了
+  const tsx = path.join(ROOT, LANDING_TSX);
+  const tsxSrc = fs.existsSync(tsx) ? fs.readFileSync(tsx, 'utf8') : '';
+  const used = found.filter((b) => new RegExp(`\\b${b.name}\\b`).test(tsxSrc));
+  if (!used.length) {
+    claims.push({
+      label: '首屏文案源',
+      claimed: `${LANDING_TSX} 一张文案表都不引用（${found.map((b) => b.name).join(' / ')}）`,
+      measured: '(首屏已不用这些表，守门跟丢了)',
+      ok: false,
+    });
+    return claims;
+  }
+  const numbers = landingNumberClaims(used);
+  let unrecognized = 0;
+  for (const { text } of numbers) {
     let g;
-    if ((g = /^(\d+)\+ 自动化测试$/.exec(span))) {
+    if ((g = /^(\d+)\+ 自动化测试$/.exec(text))) {
       const low = Number(g[1]);
       claims.push({
         label: '首屏 自动化测试（模糊档）',
@@ -355,18 +431,31 @@ function landingDrift(m) {
         measured: m.tests.available ? String(m.tests.cases) : '(未测)',
         ok: m.tests.available && m.tests.cases >= low && m.tests.cases < low + 100,
       });
-    } else if ((g = /^(\d+) 个运行时依赖$/.exec(span))) {
+    } else if ((g = /^(\d+) 个运行时依赖$/.exec(text))) {
       claims.push({ label: '首屏 运行时依赖', claimed: g[1], measured: String(m.deps.externalRuntime.length), ok: g[1] === String(m.deps.externalRuntime.length) });
-    } else if ((g = /^(\d+) 个 REST 接口$/.exec(span))) {
+    } else if ((g = /^(\d+) 个 REST 接口$/.exec(text))) {
       claims.push({ label: '首屏 REST 接口', claimed: g[1], measured: String(m.routes.total), ok: g[1] === String(m.routes.total) });
-    } else if ((g = /^(\d+) 个第三方 UI 库$/.exec(span))) {
+    } else if ((g = /^(\d+) 个第三方 UI 库$/.exec(text))) {
       const wdeps = JSON.parse(fs.readFileSync(path.join(ROOT, 'packages/web/package.json'), 'utf8')).dependencies ?? {};
       const thirdPartyUi = Object.keys(wdeps).filter((d) => d !== 'react' && d !== 'react-dom' && !d.startsWith('@sb/')).length;
       claims.push({ label: '首屏 第三方 UI 库', claimed: g[1], measured: String(thirdPartyUi), ok: g[1] === String(thirdPartyUi) });
     } else {
-      claims.push({ label: '首屏 未识别项', claimed: span, measured: '(无对应实测口径)', ok: false });
+      unrecognized++;
+      claims.push({
+        label: '首屏 未对账数字',
+        claimed: text,
+        measured: `(无对应实测口径；真不是指标就在那行写 ${NO_CLAIM_MARK})`,
+        ok: false,
+      });
     }
   }
+  // ★ 这一行**无论首屏有没有数字都会打印**：守门的存活本身要可观测，否则它哪天死了又是无声的。
+  claims.push({
+    label: '首屏 数字白名单',
+    claimed: `${used.map((b) => b.name).join('/')} 共 ${numbers.length} 处数字说法`,
+    measured: unrecognized ? `${unrecognized} 处对不上任何实测口径` : '全部可对账',
+    ok: unrecognized === 0,
+  });
   return claims;
 }
 
@@ -476,10 +565,10 @@ if (m.readmeDrift.length) {
 if (drift.length) console.log(`\n✗ README 有 ${drift.length} 处数字与实测不符`);
 else console.log('\n✓ README 可核对数字与实测一致');
 
-// ★ 首屏（Landing.tsx）那四个数字：此前没有任何东西守着，它已经漂移过一次
+// ★ 首屏数字：此前没有任何东西守着，漂移过一次；2026-09-27 起改为「文案里任何数字都必须可对账」
 const landingBad = m.landingDrift.filter((c) => !c.ok);
 if (m.landingDrift.length) {
-  console.log('\n## 首屏（Landing.tsx）统计数字对账');
+  console.log('\n## 首屏（app/landing-copy.ts 文案表）数字对账');
   for (const c of m.landingDrift) {
     console.log(`| ${c.ok ? '✅' : '❌'} | ${c.label} | 首屏: ${c.claimed} | 实测: ${c.measured} |`);
   }

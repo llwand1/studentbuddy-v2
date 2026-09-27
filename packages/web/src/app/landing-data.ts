@@ -97,8 +97,8 @@ export const WALK: WalkStep[] = [
     step: { zh: '练', en: 'Practice' },
     title: { zh: '出题练习', en: 'Quiz practice' },
     desc: {
-      zh: '围绕刚学的词现出一套题，四题型配比可调，判分与解析自动给',
-      en: 'Fresh question sets built around what you just learned; mix of four question types is tunable; grading and explanations come free',
+      zh: '围绕刚学的知识生成练习，支持五类题型和交互情景。先自己想，再对照答案与图文讲解。',
+      en: 'Practice what you just learned with five question types and interactive scenarios. Think first, then compare your answer and explore visual explanations.',
     },
     caps: [
       {
@@ -266,8 +266,8 @@ export const TERM_SPINE: Array<{ icon: LandingIconKey; title: Bi; desc: Bi }> = 
     icon: 'quiz',
     title: { zh: '驱动出题', en: 'Drives quizzes' },
     desc: {
-      zh: '围绕这个词现出题，四题型配比可调；判完的分回到这个词身上',
-      en: 'Questions generated around the term, four-type mix tunable; every graded point credits back to the term',
+      zh: '围绕词条生成练习，五类题型配比可调；做完再用图文讲解理清思路',
+      en: 'Generate practice around a term with a five-type mix, then revisit the reasoning with illustrated explanations',
     },
   },
   {
@@ -280,10 +280,10 @@ export const TERM_SPINE: Array<{ icon: LandingIconKey; title: Bi; desc: Bi }> = 
   },
   {
     icon: 'graph',
-    title: { zh: '连成图谱', en: 'Weaves the graph' },
+    title: { zh: '铺成大陆', en: 'Builds your continent' },
     desc: {
-      zh: '追问里抽出的新词自动连回它：一个词长出一个星，越问越密',
-      en: 'New terms from follow-ups auto-link back: one term grows a star, denser with every question',
+      zh: '词条成为知识地块，到期复习以怪物出现。走近挑战、答题收复，让地图留下你理解的痕迹。',
+      en: 'Terms become tiles and due reviews appear as monsters. Walk up, answer a challenge and reclaim the land.',
     },
   },
   {
@@ -309,7 +309,7 @@ export const TERM_SPINE: Array<{ icon: LandingIconKey; title: Bi; desc: Bi }> = 
 export const INTRO_THREE: Array<{ q: Bi; title: Bi; desc: Bi }> = [
   {
     q: { zh: '它是什么', en: 'What it is' },
-    title: { zh: '一条自己往下跑的闭环', en: 'A loop that keeps itself running' },
+    title: { zh: '可以探索的学习过程', en: 'Learning you can explore' },
     desc: {
       zh: '从对话里学懂概念，留下自己的学习记录，再通过复习挑战和对战检验掌握情况。',
       en: 'Understand concepts in conversation, keep your learning record, and check what you remember through review challenges and duels.',
@@ -325,10 +325,10 @@ export const INTRO_THREE: Array<{ q: Bi; title: Bi; desc: Bi }> = [
   },
   {
     q: { zh: '和普通 AI 聊天的区别', en: 'How it differs from plain AI chat' },
-    title: { zh: '它记得住你', en: 'It actually remembers you' },
+    title: { zh: '聊过之后，还有下一步', en: 'There is a next step after the chat' },
     desc: {
-      zh: '通用聊天每轮从零开始；它有跨会话长期记忆，会主动回到你没吃透的地方。',
-      en: 'Generic chat restarts from zero every session; this one keeps cross-session memory and circles back to what you haven’t mastered.',
+      zh: '学到的内容会成为词条、练习与大陆上的地块。带着自己的卡牌和伙伴，在复习与对战中继续检验理解。',
+      en: 'What you learn becomes terms, practice and land on your map. Keep testing your understanding through reviews and battles, with cards and partners of your own.',
     },
   },
 ];
@@ -347,5 +347,5 @@ export const INTRO_TAGS: Bi[] = [
   { zh: 'SQLite 单文件', en: 'Single SQLite file' },
   { zh: '零第三方 UI 库', en: 'Zero UI libraries' },
   { zh: '2600+ 自动化测试', en: '2600+ automated tests' },
-  { zh: '150 个 REST 接口', en: '150 REST endpoints' },
+  { zh: '像素知识大陆', en: 'Pixel knowledge continent' },
 ];

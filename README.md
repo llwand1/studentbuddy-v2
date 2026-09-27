@@ -187,12 +187,12 @@ node tools/metrics.mjs --tests --check
 <details>
 <summary>工程指标与代码地图</summary>
 
-![tests](https://img.shields.io/badge/tests-213%20files%20%2F%202887%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-217%20files%20%2F%202928%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-129-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-136%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 
-测试基线：**213 文件 / 2887 例**（2886 passed + 1 skipped + 0 failed）。指标由 `tools/metrics.mjs` 产出，详情见[工程指标](docs/metrics.md)与[测试计划](docs/dev/test-plan.md)。
+测试基线：**217 文件 / 2928 例**（2925 passed + 3 skipped + 0 failed）。指标由 `tools/metrics.mjs` 产出，详情见[工程指标](docs/metrics.md)与[测试计划](docs/dev/test-plan.md)。
 
 `v0.2.x` 是对外发布的构建版本，`package.json` 里的 `2.0.0-alpha.0` 是 v2 产品开发线。看线上变化请以公开更新记录和 GitHub Releases 为准。
 
@@ -230,7 +230,7 @@ node tools/metrics.mjs --tests --check
 <summary>更多设计文档与历史记录</summary>
 
 - 学习辅助：[记忆联动](docs/MEMORY-TREND-SPEC.md)、[学习督促](docs/COACH-SPEC.md)、[场景卡](docs/SCENARIO-SPEC.md)。
-- 练习设计：[出题配图](docs/QUIZ-IMAGE-SPEC.md)、[出题检索](docs/QUIZ-SEARCH-SPEC.md)、[薄弱点分析](docs/QUIZ-WEAK-SPEC.md)、[学习素材搜集](docs/RESOURCE-SPEC.md)。
+- 练习设计：[聊天生图](docs/IMAGE-GEN-SPEC.md)、[出题配图](docs/QUIZ-IMAGE-SPEC.md)、[出题检索](docs/QUIZ-SEARCH-SPEC.md)、[薄弱点分析](docs/QUIZ-WEAK-SPEC.md)、[学习素材搜集](docs/RESOURCE-SPEC.md)。
 - 工程与发布：[工具扩展](docs/TOOL-ECOSYSTEM-SPEC.md)、[SEO](docs/SEO-SPEC.md)、[GitHub 维护](docs/GITHUB-OPS-SPEC.md)、[上线记录](docs/dev/launch-plan.md)。
 - 产品记录：[产品度量](docs/metrics-product.md)、[项目增长](docs/project-growth.md)。
 - 已移除功能的设计存档：[学习流与知识图](docs/STUDY-FLOW-SPEC.md)、[深度理解](docs/DEEP-UNDERSTANDING-SPEC.md)、[刷题笔记](docs/QUIZ-NOTES-SPEC.md)、[题库与薄弱点](docs/QUIZ-WEAK-SPEC.md)。这些文档保留历史设计，不代表当前功能。

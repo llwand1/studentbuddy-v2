@@ -11,7 +11,7 @@
  *
  * ── 2026-09-21 本批的两件事（老板原话：「配置设置哪里可不可以改得更加方便一点…并且搞一个
  *    「一键默认设置」按钮，按了之后就一键全部配完，使用服务默认的 agnes-2.5-flash 的免费限额」）
- *   ① `POST /roles/default` —— 一键默认设置：把请求者的 8 个角色全部绑到**平台通道**。
+ *   ① `POST /roles/default` —— 一键默认设置：把请求者的全部角色（MODEL_ROLES 数组驱动，v0.2.139 起含生图）绑到**平台通道**。
  *   ② `GET /quota` —— 免费额度剩余次数（前端显示"还剩 N 次"）。
  *   外加一处必要修复：`GET /:id/models` 对平台行要注入 env 凭据，否则模型列表**永远拉不到**
  *   （v39 起平台行的 `api_key` 恒为空，而 `listModels` 拿不到 key 只会静默返回 `[]`）。
@@ -159,7 +159,7 @@ providersRouter.get('/roles', (req: Request, res: Response) => {
 /**
  * **一键默认设置**（2026-09-21 老板拍板）。
  *
- * 把**请求者自己的** 8 个角色全部绑到平台通道，`model` 一律写**空串**。
+ * 把**请求者自己的**全部角色（数组驱动，随 MODEL_ROLES 走）绑到平台通道，`model` 一律写**空串**。
  *
  * ── 为什么是"每个用户各点各的"，不是"改全站平台绑定" ─────────────────────────
  * 老板原话：「这个一键配置是给用户使用的，也就是我说的 250 次/5 小时的免费额度使用的就是
@@ -233,10 +233,17 @@ providersRouter.put('/roles/:role', (req: Request, res: Response) => {
   //   也能写进自己的绑定行——虽然 `routeRole` 的归属断言会让它取不到（不会泄露 key），
   //   但用户看到的是"绑定成功了、用起来却没生效"，一个自己造出来的幽灵。
   const visible = getDb()
-    .prepare('SELECT id FROM providers WHERE id = ? AND (owner_id IS NULL OR owner_id IS ?)')
-    .get(providerId, owner) as { id: string } | undefined;
+    .prepare('SELECT id, type FROM providers WHERE id = ? AND (owner_id IS NULL OR owner_id IS ?)')
+    .get(providerId, owner) as { id: string; type: string } | undefined;
   if (!visible) {
     res.status(400).json({ error: 'provider 不存在或不属于你' });
+    return;
+  }
+  // ★ 生图角色（v0.2.139）只能绑 OpenAI 兼容服务商：anthropic 原生协议没有 /images/generations，
+  //   放进库里的表现是"绑定成功、每次必挂"——在写口挡住并说人话，比让它出去撞 404 强。
+  //   `image-gen.ts` 里还有一道运行时同判（读 RoutedTarget.type），双闸防"绕过写口的旧绑定"。
+  if (req.params.role === 'image' && visible.type !== 'openai') {
+    res.status(400).json({ error: '生图（画图）只能绑定 OpenAI 兼容的服务商' });
     return;
   }
   // ★ 两条写路径、两个冲突目标，**不能合并**：见 `POST /roles/default` 的同段注释。

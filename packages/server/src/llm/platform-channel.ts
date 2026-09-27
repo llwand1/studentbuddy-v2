@@ -95,6 +95,22 @@ export function platformDefaultModel(): string {
 }
 
 /**
+ * 生图角色（`image`）的平台默认模型（**env > 常量**）。
+ *
+ * ★ 与 `platformDefaultModel()` **刻意分家，不许合并**：生图模型与聊天模型不同池——
+ *   聊天默认是 `agnes-2.5-flash`（文本），拿它打 `/images/generations` 必 404/400。
+ *   若共用一个兜底，`image` 角色在「绑定行 model 为空」时（一键默认设置正是这个态）
+ *   会被静默填成聊天模型，症状是「零配置下生图必挂且报错里全是上游英文」。
+ * ★ env `SB_IMAGE_MODEL` 是部署默认值（换生图模型改 env + 重启即可，不必碰数据）；
+ *   常量兜底取老板聚合通道现役的生图模型。
+ */
+export const DEFAULT_IMAGE_MODEL = 'agnes-image-2.5-flash';
+
+export function imagePlatformDefaultModel(): string {
+  return (process.env.SB_IMAGE_MODEL ?? '').trim() || DEFAULT_IMAGE_MODEL;
+}
+
+/**
  * 该 provider 行**实际会用**的凭据（`env > 库`，且 env 只对平台行生效）。
  *
  * ★ 抽出来的理由：**"用哪把 key、打哪个地址"这条规则全仓只能有一份**。`routeRole` 发请求时

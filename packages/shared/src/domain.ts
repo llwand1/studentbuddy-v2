@@ -35,8 +35,10 @@ export interface ToolCall {
 
 /** 学习角色（演进①）：各环节独立绑定 provider+model，未配置落默认。
  * v17 新增 'vision'：纯文本主模型借它「读图」（图→视觉模型→文字描述→塞回主模型上下文）
- * v25 新增 'coach'：复习督促小窗的陪练人格（未单独绑定时回退 explain，见 learning/coach.ts） */
-export type ModelRole = 'explain' | 'quiz-generator' | 'solver' | 'analyzer' | 'summarizer' | 'judge' | 'vision' | 'coach';
+ * v25 新增 'coach'：复习督促小窗的陪练人格（未单独绑定时回退 explain，见 learning/coach.ts）
+ * v0.2.139 新增 'image'：生图（画图）——文生图工具 generate_image 的落点，
+ * 仅可绑 OpenAI 兼容服务商（打 /images/generations），见 docs/IMAGE-GEN-SPEC.md §2 */
+export type ModelRole = 'explain' | 'quiz-generator' | 'solver' | 'analyzer' | 'summarizer' | 'judge' | 'vision' | 'coach' | 'image';
 
 export interface RoleBinding {
   role: ModelRole;

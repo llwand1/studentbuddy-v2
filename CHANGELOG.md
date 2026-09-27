@@ -13,6 +13,14 @@
 
 ## 未发布
 
+### 2026-09-27 · 聊天内生图接入批 · 拟 v0.2.139
+
+按老板点单「让 studentbuddy 真正的接入生图模型」落地（范围四项拍板：聊天内画图／复用 BYOK-平台双通道／平台通道每日每用户限额／先契约再落码）。**零迁移、零 web 改动、前端渲染零改动**——生图产物落既有 `image-cache`、走既有 `GET /api/images/:name` 出口与正文 Markdown 渲染，历史回放天然可看。四件事：
+
+① **新工具 `generate_image`**（`chat/tools/generate-image.ts`）：文生图单张；`idempotent: false` 是**钱的声明**（每次调用真金白银出新图，挡掉 network 档的免费重试资格）；回灌口径同 `fetch_image`（站内地址 + `![说明](地址)` 用法示范 + 失败不许编造）。② **新角色 `image`**（`shared/domain.ts` + `llm/router.ts` 数组驱动，设置页/一键默认全自动）：仅 OpenAI 兼容服务商可绑（`PUT /roles/:role` 写口断言 + `RoutedTarget.type` 运行时二判，双闸）；**默认模型与聊天分家**——`defaultModelFor('image')` → env `SB_IMAGE_MODEL` > 常量 `agnes-image-2.5-flash`，绝不回落聊天默认（聊天名打生图端点必 404）。③ **平台张数闸**（`llm/image-quota.ts`）：每用户每日 N 张（env `SB_IMAGE_DAILY_LIMIT` 默认 15，0=关闭，非法值回落默认不拆闸）；计次落 `tool_stats`（event_log 无 owner 列），只数本人/今日/ok=1；日界按本地日历日（`localDayStartUtc`）；并发坑位每用户 1（封 check-then-act 竞态）；到顶**不发起上游请求**；本地单人模式不计（与 LLM 侧 meteredOwner 口径一致）；已知保守偏置＝混合通道时 BYOK 用量也占平台额度（宁紧勿松）。生图调用同时受 LLM 侧两层并发闸与 250 次/5h 次数表约束。④ **错误翻译器**（`llm/image-error.ts`，对齐 vision-error 口径）：七分支按「最具体的排前面」（内容拒绝在状态码前判），每条附上游原文（压平截 240），两条反向锁钉住。另：`chat/system-prompt.ts` 同批补「【生图有专用工具 generate_image】」引导段（B-006 纪律：漏写引导＝能力对模型不存在），含与 ```svg 的分工（结构示意用 svg 快、真实画面感用生图）。
+
+**实现期逮到的真坑（已修并锁死）**：`Number('') === 0`——`SB_IMAGE_DAILY_LIMIT` 未配时被当成 0（平台生图整体关闭），零配置部署一行没跑就全灭；`normalizeImportance` 同族坑，`imageDailyLimit` 先拦空串。**新契约** `docs/IMAGE-GEN-SPEC.md` v1.0。验证：新增 4 测试文件 41 例全绿；`npm run check`（tsc×3+eslint+vitest+gates）**exit 0**；基线 **213 文件/2887 例 → 217 文件/2928 例（2925 passed + 3 skipped + 0 failed）**，README 徽章与 `metrics --tests --check` 同步 ✅；⚠️ **真机端到端（真 key 打真上游）未跑**，首张真机图出来前按「未真机验收」对待；施工在独立工作树 `feat/image-generation` 分支，主工作树零写入。
+
 ### 2026-09-27 · demo:e2e 题库断言跟上下线批（墓碑锁）
 
 修掉 README 记录的那笔脚本技术债：`tools/e2e/demo-e2e.mjs` 步骤 6/7/9 仍在断言随题库整族下线的 `GET /api/quiz/bank/:id` 与 `POST /api/quiz/stats/record`（本机实跑 28 通过 / 8 失败，2026-09-26 记录在案）。改写为对准**新持久化边界**：① 出题纵切改带 `sessionId`，断言 `[QUIZ]…[/QUIZ]` 登记行进会话消息（同一 quizId、4 题齐全）——这是「重开会话可还原」的真实载体（messages 表），顺带删掉路由已不读的 `save` 死参数；② 逐题统计步骤改为断言「答案随题下发」（题卡当场判分的前提）；③ 为两条下线路由加**墓碑锁**（断言 404——功能若被悄悄复活，脚本立即报警，而非无人知晓）；④ 重启存活改断登记行仍在会话里。验证：`npm run demo:e2e` 实跑 **34 通过 / 0 失败（9.6s）**，全程零真实外呼；README 两处「28/8 脚本债」过期表述同步改写（「还没做的」「快速开始」）。纯脚本与文档改动，零产品代码；未发版。

@@ -3,7 +3,8 @@
  *
  * ★ 2026-09-28 版式：整页是一本「冒险录」——
  *   序章（首屏，可交互横版战斗 `hero/LandingHero`）→ 第一章 知识大陆如何生长（俯视大陆 ⇄ 横版讨伐）
- *   → 第二章 词条（只留一段演示动画）→ 第三章 AI 学习伙伴 → 第四章 卡牌 → 第五章 Boss 战＝对战 → 终章。
+ *   → 第二章 异火（意外发现）→ 第三章 副本（未来玩法预告）→ 第四章 词条（只留一段演示动画）
+ *   → 第五章 AI 学习伙伴 → 第六章 卡牌 → 第七章 Boss 战＝对战 → 终章。
  *   游戏化之前的功能清单、工程讲解、隐私长文全部下线：门面只做**游戏化玩法演示**。
  *   各章文案与事实口径见 `world/world-copy.ts` 头注。
  *
@@ -21,6 +22,8 @@ import { LandingBrand } from './LandingBrand';
 import { LandingHero } from './hero/LandingHero';
 import { ChapterContinent } from './world/ChapterContinent';
 import { ChapterTerm } from './world/ChapterTerm';
+import { ChapterDiscover } from './world/ChapterDiscover';
+import { ChapterDungeon } from './world/ChapterDungeon';
 import { ChapterNpc } from './world/ChapterNpc';
 import { ChapterCards } from './world/ChapterCards';
 import { ChapterBoss } from './world/ChapterBoss';
@@ -138,6 +141,8 @@ function LandingPage({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
 
         {/* ③ 冒险录各章：只讲游戏化玩法 */}
         <ChapterContinent />
+        <ChapterDiscover />
+        <ChapterDungeon />
         <ChapterTerm />
         <ChapterNpc />
         <ChapterCards />

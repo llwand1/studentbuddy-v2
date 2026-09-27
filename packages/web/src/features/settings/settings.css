@@ -109,7 +109,7 @@
   border-radius: var(--sb-radius-sm);
   margin-bottom: var(--sb-sp-3);
 }
-.settings-msg.ok { background: rgba(34, 197, 94, 0.08); color: #15803d; }
+.settings-msg.ok { background: rgba(34, 197, 94, 0.08); color: #86c56e; }
 .settings-msg.err { background: rgba(239, 68, 68, 0.08); color: var(--sb-danger); }
 
 /* 联网搜索 key */
@@ -132,7 +132,7 @@
 }
 .settings-key-row input:focus { outline: none; border-color: var(--sb-primary); }
 .settings-state { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); white-space: nowrap; }
-.settings-state.on { color: #15803d; }
+.settings-state.on { color: #86c56e; }
 /* flex-wrap：免费通道那张卡的额度文案较长（"本窗口已用 12 / 250 次…"），
    不换行会把按钮挤到卡片外。加上它对既有卡片无影响（它们的文案都短，不会触发换行）。 */
 .settings-actions { display: flex; gap: var(--sb-sp-2); align-items: center; flex-wrap: wrap; }

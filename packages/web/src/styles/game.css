@@ -37,21 +37,21 @@
 :root {
   /* 品牌蓝：向 --sb-primary 要，两皮同源 */
   --gm-blue: var(--sb-primary);
-  --gm-blue-dark: #0063cc;   /* 硬底投影用的深一档（= 主色下压 ~18% 明度） */
-  --gm-blue-soft: #e0f0ff;
+  --gm-blue-dark: #7a1a24;   /* 硬底投影用的深一档（= 主色下压 ~18% 明度） */
+  --gm-blue-soft: #2a1116;
 
   /* 多邻国那几支饱和色：绿＝成功/掌握，黄＝连签/钥匙，红＝欠账/危险，紫＝SR，橙＝进度提示 */
   --gm-green: #58cc02;
   --gm-green-dark: #46a302;
-  --gm-green-soft: #d9f2c7;
+  --gm-green-soft: #16241a;
 
   --gm-yellow: #ffc800;
   --gm-yellow-dark: #d4a300;
-  --gm-yellow-soft: #fff4cc;
+  --gm-yellow-soft: #2e2210;
 
   --gm-red: #ff4b4b;
   --gm-red-dark: #d33131;
-  --gm-red-soft: #ffdede;
+  --gm-red-soft: #2a1116;
 
   --gm-orange: #ff9600;
   --gm-orange-dark: #d97706;
@@ -206,7 +206,7 @@
   color: var(--gm-ink);
 }
 .gm-stat.gm-flame { color: var(--gm-orange); border-color: var(--gm-yellow-soft); background: var(--gm-yellow-soft); }
-.gm-stat.gm-key { color: #8a6d00; border-color: var(--gm-yellow-soft); background: var(--gm-yellow-soft); }
+.gm-stat.gm-key { color: #ffd27a; border-color: var(--gm-yellow-soft); background: var(--gm-yellow-soft); }
 .gm-stat small { font-weight: 700; color: var(--gm-ink-dim); font-size: var(--sb-fs-xs); }
 
 /* ══════════════════════ 4. 进度条（特征 3）════════════════════════════════ */
@@ -511,7 +511,7 @@
   flex: 0 0 auto;
 }
 .gm-stars > i.on {
-  background: #fff;
+  background: var(--sb-surface);
   box-shadow: inset calc(var(--gm-px) * -1) calc(var(--gm-px) * -1) 0 rgba(20, 24, 38, 0.24);
 }
 
@@ -526,11 +526,11 @@
   border: 2px solid transparent;
   background: var(--gm-green-soft);
   border-color: rgba(88, 204, 2, 0.35);
-  color: #2f6d01;
+  color: #86c56e;
   animation: gmRise 200ms var(--gm-ease-out) both;
 }
-.gm-banner.gm-bad { background: var(--gm-red-soft); border-color: rgba(255, 75, 75, 0.35); color: #a12020; }
-.gm-banner.gm-info { background: var(--gm-blue-soft); border-color: rgba(0, 122, 255, 0.28); color: #0a5ba8; }
+.gm-banner.gm-bad { background: var(--gm-red-soft); border-color: rgba(255, 75, 75, 0.35); color: #ff8a8a; }
+.gm-banner.gm-info { background: var(--gm-blue-soft); border-color: rgba(0, 122, 255, 0.28); color: #f0c0a0; }
 .gm-banner b { display: block; font-size: var(--sb-fs-md); font-weight: 800; }
 .gm-banner span { font-size: var(--sb-fs-sm); line-height: 1.5; }
 @keyframes gmRise {
@@ -662,7 +662,7 @@
 .gm-flash {
   position: absolute;
   inset: 0;
-  background: #fff;
+  background: var(--sb-surface);
   opacity: 0;
   pointer-events: none;
   z-index: 2;

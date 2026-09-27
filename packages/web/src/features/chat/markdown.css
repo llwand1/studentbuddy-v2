@@ -166,19 +166,19 @@
 .md-pre-toggle:hover { color: var(--sb-primary); }
 
 /* 高亮配色 = GitHub Light（与浅色极简调性一致）；x 类是普通文本不上色 */
-.hl-kw { color: #cf222e; font-weight: 600; }
-.hl-str { color: #0a3069; }
-.hl-com { color: #6e7781; font-style: italic; }
-.hl-num { color: #0550ae; }
-.hl-fn { color: #8250df; }
-.hl-key { color: #0550ae; }
-.hl-tag { color: #116329; }
-.hl-var { color: #953800; }
+.hl-kw { color: #ff7b72; font-weight: 600; }
+.hl-str { color: #a5d6ff; }
+.hl-com { color: #8b949e; font-style: italic; }
+.hl-num { color: #79c0ff; }
+.hl-fn { color: #d2a8ff; }
+.hl-key { color: #79c0ff; }
+.hl-tag { color: #7ee787; }
+.hl-var { color: #ffa657; }
 /* diff 三态：增行绿 / 删行红 / 定位头灰。只改字色，与上面 9 类保持同一套调性，
    不做整行底色——span 级背景只覆盖文字宽度，反而截断成色块，不如纯字色干净。 */
-.hl-add { color: #116329; }
-.hl-del { color: #cf222e; }
-.hl-hunk { color: #6e7781; font-weight: 600; }
+.hl-add { color: #7ee787; }
+.hl-del { color: #ff7b72; }
+.hl-hunk { color: #8b949e; font-weight: 600; }
 
 .md-pre code {
   font-family: ui-monospace, Consolas, Menlo, monospace;

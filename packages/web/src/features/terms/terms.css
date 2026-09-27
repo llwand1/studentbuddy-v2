@@ -161,7 +161,7 @@
   border-radius: 8px;
   padding: 5px 10px;
   color: var(--sb-ink-secondary);
-  background: #fff;
+  background: var(--sb-surface);
 }
 
 .term-search input {
@@ -351,7 +351,7 @@
   font-size: 12.5px;
   outline: none;
   font-family: inherit;
-  background: #fff;
+  background: var(--sb-surface);
   color: var(--sb-ink);
 }
 
@@ -467,7 +467,7 @@
   padding: 10px;
   border: 1px solid var(--sb-line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--sb-surface);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
 }
 
@@ -488,7 +488,7 @@
   padding: 4px 8px;
   border: 1px solid var(--sb-line);
   border-radius: 7px;
-  background: #fff;
+  background: var(--sb-surface);
   color: var(--sb-ink);
   outline: none;
 }

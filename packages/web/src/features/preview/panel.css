@@ -89,5 +89,5 @@
   width: 100%;
   min-height: 0;
   border: none;
-  background: #fff;
+  background: var(--sb-surface);
 }

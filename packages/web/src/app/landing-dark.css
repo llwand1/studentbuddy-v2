@@ -97,16 +97,20 @@ body .landing :is(.landing-sub, .landing-section-sub, .landing-intro-def, .landi
   background: var(--lx-blood); box-shadow: 0 0 0 2px #000, 0 0 12px rgba(224, 80, 91, .6);
 }
 .wf-ch-continent::before { content: '第一章 · 大陆的生长'; }
-.wf-ch-term::before { content: '第二章 · 力量之源'; }
-.wf-ch-npc::before { content: '第三章 · 同行者'; }
-.wf-ch-cards::before { content: '第四章 · 卡牌圣匣'; }
-.wf-ch-boss::before { content: '第五章 · 领主之战'; }
+.wf-ch-discover::before { content: '第二章 · 异火'; }
+.wf-ch-dungeon::before { content: '第三章 · 副本（未启）'; }
+.wf-ch-term::before { content: '第四章 · 力量之源'; }
+.wf-ch-npc::before { content: '第五章 · 同行者'; }
+.wf-ch-cards::before { content: '第六章 · 卡牌圣匣'; }
+.wf-ch-boss::before { content: '第七章 · 领主之战'; }
 .wf-ch-finale::before { content: '终章 · 启程'; }
 .landing:lang(en) .wf-ch-continent::before { content: 'CHAPTER I · THE GROWING CONTINENT'; }
-.landing:lang(en) .wf-ch-term::before { content: 'CHAPTER II · THE SOURCE OF POWER'; }
-.landing:lang(en) .wf-ch-npc::before { content: 'CHAPTER III · COMPANIONS'; }
-.landing:lang(en) .wf-ch-cards::before { content: 'CHAPTER IV · THE CARD RELIQUARY'; }
-.landing:lang(en) .wf-ch-boss::before { content: 'CHAPTER V · THE LORD FIGHT'; }
+.landing:lang(en) .wf-ch-discover::before { content: 'CHAPTER II · THE STRANGE FIRE'; }
+.landing:lang(en) .wf-ch-dungeon::before { content: 'CHAPTER III · THE UNOPENED DUNGEON'; }
+.landing:lang(en) .wf-ch-term::before { content: 'CHAPTER IV · THE SOURCE OF POWER'; }
+.landing:lang(en) .wf-ch-npc::before { content: 'CHAPTER V · COMPANIONS'; }
+.landing:lang(en) .wf-ch-cards::before { content: 'CHAPTER VI · THE CARD RELIQUARY'; }
+.landing:lang(en) .wf-ch-boss::before { content: 'CHAPTER VII · THE LORD FIGHT'; }
 .landing:lang(en) .wf-ch-finale::before { content: 'FINALE · SET OUT'; }
 
 /* ── 面板：黑石浮雕（内描边 + 顶光 + 硬黑投影） ── */

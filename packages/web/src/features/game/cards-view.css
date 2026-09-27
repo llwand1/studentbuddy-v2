@@ -125,7 +125,7 @@
 .cv-chip.on {
   background: var(--gm-blue-soft);
   border-color: var(--gm-blue);
-  color: #0a5ba8;
+  color: #f0c0a0;
 }
 @media (hover: hover) and (pointer: fine) {
   .cv-chip:hover {
@@ -211,7 +211,7 @@
   padding: 2px 7px;
   border-radius: var(--gm-radius-pill);
   background: var(--gm-blue-soft);
-  color: #0a5ba8;
+  color: #f0c0a0;
   font-size: var(--sb-fs-xs);
   font-weight: 800;
   vertical-align: 2px;

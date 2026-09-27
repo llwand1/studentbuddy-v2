@@ -40,6 +40,12 @@
 | ③ | `node tools/metrics.mjs --tests --check` | README 与首屏的每个可核对数字对代码实测对账，漂移即退出码 1 | 十秒级 |
 | ④ | `node tools/guard-audit.mjs` | **每条守门逐个改坏、证明它真的会红**（含审计器自证 `--selftest`），全程在隔离副本里跑、不碰工作树 | 分钟级 |
 
+> ★ 2026-09-27 起 ④ **也在 CI 里跑**（排在 ③ 之后，它要吃 `--tests` 产出的 `test-results/metrics-vitest.json`）。
+> 起因：首屏对外数字的守门静默停摆过两轮——它读的是渲染结果（`Landing.tsx` 里的 `<span>`），
+> 而首屏文案先挪进 `app/landing-copy.ts`、后又整表换成玩法标签，两轮都让它匹配 0 条 ⇒ 恒打 ✓；
+> 第一轮停摆期间首屏挂着 `150 个 REST 接口`（实测 135）。④ 当时就看得出来，只是**没人跑**——
+> 一条写在文档里、却不进 CI 的复验命令，指望的是人的记性，而记性正是本仓一切门禁想替换掉的东西。
+
 ## 3. 三道最难的工程问题
 
 > 每道只留「问题一句话 / 解法一句话 / 怎么复验」；完整版（Problem → Design → Implementation → Test → Trade-off，含被否掉的方案与代价）见 [`INTERVIEW.md`](INTERVIEW.md) §3。

@@ -55,6 +55,12 @@ const SKIP_DIRS = new Set(['node_modules', 'dist', '.git']);
 const copyFilter = (src) => !SKIP_DIRS.has(path.basename(src));
 
 // ── 断言用的字面量（与两个被测脚本里的 label / 违规前缀对齐；基线会逐条校验它们都在）──
+// ★ 2026-09-27 订正四处（全是「审计器落后于被审对象」——它自己也会腐烂）：
+//   ① 补 `线上现况版本`：2026-09-24 就加进 metrics 了，却一直没登记 ⇒ 那条守门若静默消失，本脚本也不吭声；
+//   ② `正文基线句` 现在 README 里只剩 **1 处**（另一处随 README 重写没了）⇒ 去掉「出现 2 次」的注；
+//   ③ 首屏那四条**按口径计费**：首屏改版后已不挂数字（`STATS` → `HERO_TAGS`），它们本就该缺席。
+//      改登记 `首屏 数字白名单` —— 那一行**无论首屏有没有数字都会打印**，正好当「守门还活着」的探针；
+//   ④ 行数不再手写：**每条 label 恰好一行** ⇒ 由清单长度推导，清单一改它自己跟上。
 const METRICS_LABELS = [
   'badge 测试文件',
   'badge 测试用例',
@@ -63,13 +69,11 @@ const METRICS_LABELS = [
   'badge 外部运行时依赖',
   'badge Node 下限',
   'badge 版本',
-  '正文基线句', // 出现 2 次
-  '首屏 自动化测试（模糊档）',
-  '首屏 运行时依赖',
-  '首屏 REST 接口',
-  '首屏 第三方 UI 库',
+  '线上现况版本',
+  '正文基线句',
+  '首屏 数字白名单',
 ];
-const METRICS_ROW_TOTAL = 13;
+const METRICS_ROW_TOTAL = METRICS_LABELS.length;
 
 // ── 工具函数 ──────────────────────────────────────────────────────────────────
 const rmrf = (p) => fs.rmSync(p, { recursive: true, force: true });
@@ -84,24 +88,39 @@ function replaceNth(text, re, nth, fn) {
 /** 把 `N` 挪成 `N+delta`（字符串形态，保留原样） */
 const shift = (n, delta) => String(Number(n) + delta);
 
+/** 首屏文案源（与 `tools/metrics.mjs#landingCopyBlocks` 同一份） */
+const LANDING_COPY = 'packages/web/src/app/landing-copy.ts';
+const LANDING_TSX = 'packages/web/src/app/Landing.tsx';
+/** 改坏时往里塞条目的那张表（首屏标签表；改版换过名，故单独留一个常量） */
+const HERO_TAGS_BLOCK = 'HERO_TAGS';
+
 /**
- * ★★ 只在 `landing-stats` 块**内部**改坏（2026-09-21 踩过的坑）。
+ * ★★ 只在首屏文案表**内部**改坏（2026-09-21 踩过的坑）。
  *
- * 首屏那四个数字被两处文字提到：① 真正被守门读的 `<span>`；② `Landing.tsx` 里的**注释**
+ * 首屏那些说法在文件里往往被提到两次：① 真正被守门读的表条目；② 表上方的**注释**
  * （写着「此前 2300+ 自动化测试 / 140 个 REST 接口」这类历史值）。
- * 用 `/(\d+)\+ 自动化测试/` 这种"全文件第一个匹配"去改坏，会**改到注释**上 ——
- * 文件确实变了（`after !== before` 也成立），但**守门读的那块没动** ⇒ 检查照样 EXIT=0，
- * 于是**误判「这条守门没判别力」**。教训：**改坏必须落在守门真正读的那段文本上**。
+ * 用"全文件第一个匹配"去改坏，会**改到注释**上 —— 文件确实变了（`after !== before` 也成立），
+ * 但**守门读的那块没动** ⇒ 检查照样 EXIT=0，于是**误判「这条守门没判别力」**。
+ * 教训：**改坏必须落在守门真正读的那段文本上**。
  * ⇒ 先取出块，块内改坏，再拼回；并断言**块内确实变了**（不是文件变了就算数）。
+ *
+ * ★ 2026-09-27 改落点：`Landing.tsx` 的 `<div className="landing-stats">` → `landing-copy.ts`
+ *   的文案表。首屏数字先后住过 `<span>` 字面量、`STATS` 表、（现在）没有数字的 `HERO_TAGS`，
+ *   而 metrics 与本脚本都还盯着最早那个位置：metrics 那边找不到就静默返回空（恒 ✓），
+ *   本脚本这边则是 6 个场景齐刷刷「改坏失败」。**两个症状同时在的那段时间里，首屏数字是无人区。**
  */
-function mutateInLandingBlock(text, fn) {
-  const re = /(<div className="landing-stats"[^>]*>)([\s\S]*?)(<\/div>)/;
+function mutateInBlock(text, blockName, fn) {
+  const re = new RegExp(`(export const ${blockName}\\s*:[^=]*=\\s*[[{])([\\s\\S]*?)(\\n[\\]}]\\s*;)`);
   const m = re.exec(text);
-  if (!m) throw new Error('找不到 landing-stats 块');
+  if (!m) throw new Error(`找不到 ${LANDING_COPY} 里的 ${blockName} 表`);
   const mutated = fn(m[2]);
   if (mutated === m[2]) throw new Error('块内改坏未生效（正则没匹配到块里的内容）');
   return text.slice(0, m.index) + m[1] + mutated + m[3] + text.slice(m.index + m[0].length);
 }
+
+/** 往首屏标签表里插一条文案（模拟"有人给首屏加了个数字"） */
+const injectHeroTag = (zh, en) => (t) =>
+  mutateInBlock(t, HERO_TAGS_BLOCK, (b) => `\n  { zh: '${zh}', en: '${en}' },${b}`);
 
 // ── 用例定义 ──────────────────────────────────────────────────────────────────
 // 每条：{ group, name, label（期望报红的 claim label 或违规前缀）, file, mutate(text) -> text }
@@ -156,10 +175,16 @@ const METRICS_CASES = [
     mutate: (t) => replaceNth(t, /(\d+) 文件 \/ (\d+) 例/g, 0, (m, a, b) => `${shift(a, -1)} 文件 / ${b} 例`),
   },
   {
-    name: '正文基线句 #2（第 2 处的例数 −1）',
+    // ★ 2026-09-27：README 重写后「N 文件 / M 例」只剩 1 处，写死「第 2 处」必然改坏失败
+    //   （表格里那行 ⚠️ 看着像守门坏了，其实是本脚本落后于 README）⇒ 改成「最后一处」现算。
+    name: '正文基线句（末处的例数 −1）',
     label: '正文基线句',
     file: 'README.md',
-    mutate: (t) => replaceNth(t, /(\d+) 文件 \/ (\d+) 例/g, 1, (m, a, b) => `${a} 文件 / ${shift(b, -1)} 例`),
+    mutate: (t) => {
+      const n = [...t.matchAll(/(\d+) 文件 \/ (\d+) 例/g)].length;
+      if (!n) throw new Error('README 里没有「N 文件 / M 例」基线句');
+      return replaceNth(t, /(\d+) 文件 \/ (\d+) 例/g, n - 1, (m, a, b) => `${a} 文件 / ${shift(b, -1)} 例`);
+    },
   },
   {
     name: '★ 防静默消失：删掉 node 徽章（整行只剩图片语法壳）',
@@ -168,40 +193,39 @@ const METRICS_CASES = [
     mutate: (t) => t.replace(/!\[node\]\([^)]*\)/, '![node]()'),
   },
   {
-    name: '首屏 自动化测试（模糊档下越界：−1000）',
-    label: '首屏 自动化测试（模糊档）',
-    file: 'packages/web/src/app/Landing.tsx',
-    mutate: (t) => mutateInLandingBlock(t, (b) => b.replace(/(\d+)\+ 自动化测试/, (m, n) => `${shift(n, -1000)}+ 自动化测试`)),
-  },
-  {
-    name: '首屏 自动化测试（模糊档上越界：+100）',
-    label: '首屏 自动化测试（模糊档）',
-    file: 'packages/web/src/app/Landing.tsx',
-    mutate: (t) => mutateInLandingBlock(t, (b) => b.replace(/(\d+)\+ 自动化测试/, (m, n) => `${shift(n, 100)}+ 自动化测试`)),
-  },
-  {
-    name: '首屏 运行时依赖（+1）',
-    label: '首屏 运行时依赖',
-    file: 'packages/web/src/app/Landing.tsx',
-    mutate: (t) => mutateInLandingBlock(t, (b) => b.replace(/(\d+) 个运行时依赖/, (m, n) => `${shift(n, 1)} 个运行时依赖`)),
-  },
-  {
-    name: '首屏 REST 接口（−1）',
+    // ★ 认得出口径、但数值错 —— 首屏眼下不挂数字，这一枪证明"数字一回来就有人守"
+    name: '首屏加一个数字：REST 接口写错（实测值 ±1）',
     label: '首屏 REST 接口',
-    file: 'packages/web/src/app/Landing.tsx',
-    mutate: (t) => mutateInLandingBlock(t, (b) => b.replace(/(\d+) 个 REST 接口/, (m, n) => `${shift(n, -1)} 个 REST 接口`)),
+    file: LANDING_COPY,
+    mutate: injectHeroTag('999 个 REST 接口', '999 REST endpoints'),
   },
   {
-    name: '首屏 第三方 UI 库（+1）',
-    label: '首屏 第三方 UI 库',
-    file: 'packages/web/src/app/Landing.tsx',
-    mutate: (t) => mutateInLandingBlock(t, (b) => b.replace(/(\d+) 个第三方 UI 库/, (m, n) => `${shift(n, 1)} 个第三方 UI 库`)),
+    // ★ 认不出口径 —— 新规则的要害：首屏冒出来的数字若对不上任何实测口径，一律红
+    name: '首屏加一个数字：口径不认识（未对账数字）',
+    label: '首屏 未对账数字',
+    file: LANDING_COPY,
+    mutate: injectHeroTag('42 万名学习者', '420k learners'),
   },
   {
-    name: '首屏 未识别项（span 改成无法解析的文案）',
-    label: '首屏 未识别项',
-    file: 'packages/web/src/app/Landing.tsx',
-    mutate: (t) => mutateInLandingBlock(t, (b) => b.replace(/<span>\d+ 个运行时依赖<\/span>/, '<span>六个依赖</span>')),
+    // ★★ 本次（2026-09-27）事故的**定点复发枪**之一：首屏不再引用文案表，守门跟丢
+    name: '★ 防静默消失：首屏不再引用任何文案表',
+    label: '首屏文案源',
+    file: LANDING_TSX,
+    mutate: (t) => {
+      if (!/\bHERO_TAGS\b/.test(t) || !/\bHERO\b/.test(t)) throw new Error('Landing.tsx 里本来就不引用 HERO/HERO_TAGS');
+      return t.replace(/\bHERO_TAGS\b/g, 'HERO_TAGS_X').replace(/\bHERO\b/g, 'HERO_X');
+    },
+  },
+  {
+    // ★★ 另一半：文案表自己改名/搬走。旧实现在这种情况下 `return []` ⇒ 恒 ✓（正是事故成因）；
+    //   现在是「取不到＝红」。
+    name: '★ 防静默消失：文案表整体改名（守门取不到数据源）',
+    label: '首屏文案源',
+    file: LANDING_COPY,
+    mutate: (t) => {
+      if (!t.includes('export const HERO:')) throw new Error('landing-copy.ts 里找不到 `export const HERO:`');
+      return t.replace('export const HERO:', 'export const HERO_MOVED:').replace('export const HERO_TAGS:', 'export const HERO_TAGS_MOVED:');
+    },
   },
 ];
 
@@ -289,7 +313,7 @@ const parseRows = (out) => out.split(/\r?\n/)
 
 // ── --list ────────────────────────────────────────────────────────────────────
 if (argv.has('--list')) {
-  console.log(`metrics --check：${METRICS_LABELS.length} 类 label（含「正文基线句」出现 2 次）⇒ 基线应 ${METRICS_ROW_TOTAL} 行`);
+  console.log(`metrics --check：${METRICS_LABELS.length} 类 label（每类恰好 1 行）⇒ 基线应 ${METRICS_ROW_TOTAL} 行`);
   for (const c of METRICS_CASES) console.log(`  · [metrics] ${c.name}`);
   console.log(`gates/check.mjs：4 条红线`);
   for (const c of GATES_CASES) console.log(`  · [gates]   ${c.name}`);
@@ -334,16 +358,19 @@ if (argv.has('--selftest')) {
       expectName: 'badge REST 路由',
     },
     {
-      name: '把首屏「REST 接口」label 改名（★ 这一类**没有**存在性断言保护）',
+      // ★ 2026-09-27 换枪口：原来打「首屏 REST 接口」，理由是"首屏那四条没有存在性断言保护"。
+      //   首屏现在不挂数字，那四条本就缺席（按口径计费）⇒ 改打**接替它们当探针的那一行**：
+      //   `首屏 数字白名单` 每次必打印，且 metrics 没有针对它的存在性断言 ⇒ 正好验本脚本的 label 契约。
+      name: '把「首屏 数字白名单」label 改名（★ 这一条**没有**存在性断言保护）',
       file: 'tools/metrics.mjs',
-      from: "label: '首屏 REST 接口'",
-      to: "label: '首屏 REST 接口X'",
+      from: "label: '首屏 数字白名单'",
+      to: "label: '首屏 数字白名单X'",
       args: ['--metrics'],
       // ★ 这一枪专门验「label 契约」检查**自己**有没有判别力：上一枪被 metrics 自己的
-      //   存在性断言接住了（遮蔽），而首屏这四条没有那层保护 ⇒ 只能靠本脚本的契约检查。
+      //   存在性断言接住了（遮蔽）⇒ 只能靠本脚本的契约检查。
       //   不补这一枪，契约检查就正好是「从未被检查过的检查」。
       expect: '找不到 label',
-      expectName: '首屏 REST 接口',
+      expectName: '首屏 数字白名单',
     },
   ];
 

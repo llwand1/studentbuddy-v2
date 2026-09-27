@@ -66,7 +66,7 @@ describe('Landing — 未登录门面', () => {
     // ★ 用 container 读整串而不是 getByText：标题里嵌了 <span class="landing-accent">，
     //   而 getByText 只拼元素的**直接文本子节点**（不含后代），跨 span 的整串它匹配不到
     //   （实测踩过：报 unable to find an element with the text）。
-    expect(container.querySelector('.landing-title')?.textContent).toBe('学过的词，会自己留下来');
+    expect(container.querySelector('.landing-title')?.textContent).toBe('从一个问题出发，探索你的知识大陆');
     expect(getByText('开始使用')).toBeTruthy();
     // 词条旅程五步（2026-09-21 B 回路改锁）：五步现在**各出现两次**——环上药丸 + 右侧清单，
     // `getByText` 遇到多个即抛。改成锁结构，而且这比原来**更强**：
@@ -101,7 +101,7 @@ describe('Landing — 未登录门面', () => {
     expect(container.textContent).not.toContain('每日总结');
     expect(container.textContent).not.toContain('刷题笔记');
     expect(LANDING_DEMOS.map(d => d.key)).not.toContain('graph-flow');
-    expect(getByText('知识大陆')).toBeTruthy();
+    expect(container.querySelector('.landing-hero .landing-continent')?.textContent).toContain('知识大陆');
     expect(getByText('智能出题')).toBeTruthy();
     expect(getByText('词条高亮')).toBeTruthy();
     expect(getByText('AI 对战')).toBeTruthy();
@@ -175,8 +175,8 @@ describe('Landing — 介绍顺序：它是什么 → 词条 → 功能（2026-0
     // ★ 这是二次调整的真正落点。上一版定义句第一句就是「把概念抽成词条」——
     //   读者还没搞清这是个什么东西，先被塞了一个内部概念。
     //   ★ 文本类的锁守不住它：「词条」在页面别处本来就该有，只有「这一段里没有」才守得住。
-    expect(what?.textContent).not.toContain('词条');
-    expect(what?.textContent).toContain('自动运转');
+    expect(what?.querySelector('.landing-intro-def')?.textContent).not.toContain('词条');
+    expect(what?.textContent).toContain('游戏化知识学习');
     // 而紧随其后的词条段必须讲，且讲的就是这五个去向
     expect(container.querySelector('.landing-intro-term')?.textContent).toContain('一切都以词条为主体');
   });
@@ -185,12 +185,12 @@ describe('Landing — 介绍顺序：它是什么 → 词条 → 功能（2026-0
     const { container } = render(<Landing onAuthed={() => undefined} />);
     // hero 副标瘦身为一句自我介绍：原先那句塞了 4 个 feature 从句的副标已下放介绍段/功能区
     expect(container.querySelector('.landing-sub')?.textContent).toBe(
-      '自托管的 AI 学习助手。用你自己的模型 Key，数据在你自己的服务器。',
+      '一个游戏化知识学习 Agent。和 AI 把问题聊明白，让知识变成地图上的地块；遇见复习怪物，就用理解收复它。',
     );
     expect(container.querySelector('.landing-intro-h3')?.textContent).toBe('一切都以词条为主体');
     expect(
       [...container.querySelectorAll('.landing-spine-item .landing-feature-title')].map((n) => n.textContent),
-    ).toEqual(['驱动出题', '决定复习', '连成图谱', '拿去对战']);
+    ).toEqual(['驱动出题', '决定复习', '铺成大陆', '拿去对战']);
     expect(container.querySelectorAll('.landing-intro-three .landing-intro-card').length).toBe(3);
   });
 });

@@ -79,6 +79,7 @@
 |---|---|
 | 一轮对话的完整编排 | [`chat/flow.ts`](../packages/server/src/chat/flow.ts) ＋ [`chat/context-segments.ts`](../packages/server/src/chat/context-segments.ts) |
 | SSE 帧序与断线恢复 | [`chat/sse-bus.ts`](../packages/server/src/chat/sse-bus.ts) |
+| 完成练习后的图文讲解 | [`QUIZ-REVIEW-SPEC.md`](QUIZ-REVIEW-SPEC.md) |
 | 出题的可靠性阶梯 | [`learning/quiz.ts`](../packages/server/src/learning/quiz.ts) |
 | LLM 供应商抽象与并发闸门 | [`llm/router.ts`](../packages/server/src/llm/router.ts) ＋ [`llm/upstream-gate.ts`](../packages/server/src/llm/upstream-gate.ts) |
 | 账户与归属隔离 | [`server/src/auth/`](../packages/server/src/auth) ＋ [`routes/tenancy.test.ts`](../packages/server/src/routes/tenancy.test.ts) |

@@ -26,6 +26,7 @@ import { ScenarioPanel } from '../quiz/ScenarioPanel';
 
 export function MessageRow({
   m,
+  sessionId,
   canRegen,
   regenDisabled,
   onRegen,
@@ -34,6 +35,7 @@ export function MessageRow({
   onEdit,
 }: {
   m: StreamMessage;
+  sessionId?: string | null;
   /** 是不是最后一条回答（只有它给「重新生成」按钮） */
   canRegen: boolean;
   regenDisabled: boolean;
@@ -55,6 +57,7 @@ export function MessageRow({
   if (m.quizBlock) {
     return (
       <QuizCard
+        sessionId={sessionId}
         title={m.quizBlock.quiz.title ?? '练习'}
         questions={m.quizBlock.quiz.questions}
       />
@@ -66,6 +69,7 @@ export function MessageRow({
   if (m.scenarioBlock) {
     return (
       <ScenarioPanel
+        sessionId={sessionId}
         quizId={m.scenarioBlock.quizId ?? ''}
         payload={m.scenarioBlock.payload}
         demoId={m.scenarioBlock.demoId}

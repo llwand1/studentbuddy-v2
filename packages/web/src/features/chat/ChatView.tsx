@@ -199,8 +199,9 @@ export function ChatView({
         {isEmpty && <Welcome onPick={pick} />}
         {messages.map((m, i) => (
           <MessageRow
-            key={i}
+            key={`${sessionId}-${i}`}
             m={m}
+            sessionId={sessionId}
             canRegen={m.role === 'assistant' && i === lastAssistantIdx}
             regenDisabled={busy}
             onRegen={() => void doRegen()}

@@ -12,4 +12,4 @@
 export const BRAND_NAME = 'studentbuddy';
 
 /** 产品自己的那一句副标题（侧栏 logo 里就挂在名字下面） */
-export const BRAND_TAGLINE = '你的专属学习助手';
+export const BRAND_TAGLINE = '游戏化知识学习 Agent';

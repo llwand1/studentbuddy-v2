@@ -31,6 +31,15 @@ export const RELEASE_SCOPE = {
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
   {
+    version: 'v0.2.141',
+    date: '2026-09-27',
+    headline: '首页「给谁用」补上两类人；界面里几处说法换得更直白',
+    items: [
+      '首页「给谁用」那一问补上了两类人：想利用碎片化时间学一点的人、喜欢游戏化学习方式的人。',
+      '界面里几处说法换得更直白：确认卡的等待提示、任务面板的动作名、撤销删除的提示语都不再用绕的词。',
+    ],
+  },
+  {
     version: 'v0.2.140',
     date: '2026-09-27',
     headline: '知识大陆开了眼：地图比屏幕大，还多了陪你学的学习伙伴',

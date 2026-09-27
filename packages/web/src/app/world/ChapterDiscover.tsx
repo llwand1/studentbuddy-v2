@@ -1,8 +1,13 @@
 /**
  * world/ChapterDiscover — 冒险录「荒野里的异火」：俯视小地图上随机出现一簇异色篝火，
  * 走到相邻格即揭开一张其他玩家留下的词条笺（带留笺人名字）。纯示意，不连服务器。
+ * ★ 画面与第一章同一套像素美术（`continent-art`：带厚度的地砖、饥荒式竖立道具、红披风小勇者），
+ *   canvas 逻辑分辨率很小、CSS 硬边放大；视野外压一层夜色迷雾。
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { drawSprite } from '../hero/hero-sprites';
+import { CHIBI_MAP, CHIBI_PAL, TILE_PAL, drawProp, drawTile } from './continent-art';
+import type { Domain } from './world-copy';
 import { useLandingLang } from '../landing-lang';
 import { CH_DISCOVER as D, EMBER_NOTES } from './lore-copy';
 import { Chapter } from './Chapter';
@@ -10,6 +15,14 @@ import { Chapter } from './Chapter';
 const W = 11;
 const H = 7;
 const START = { x: 1, y: 3 };
+const T = 14;
+const TH = Math.round(T * 0.75);
+const PAD = 8;
+const CW = W * T + PAD * 2;
+const CH = H * TH + PAD * 2 + 10;
+const HUE: Record<string, [string, string]> = { cyan: ['#7ff0ff', '#1aa3c2'], violet: ['#d6a8ff', '#7a3cc9'], gold: ['#ffe08a', '#c98a1a'], green: ['#a8ffb0', '#2f9e48'] };
+/** 地形：左半草原、右半岩地，中间一道学习法沙带 */
+const domainAt = (x: number, y: number): Domain => (x < 4 ? 'bio' : x === 4 || (x === 5 && y % 3 === 0) ? 'learn' : (x + y) % 5 === 0 ? 'chem' : 'phy');
 /** 固定的装饰：树与石（不可站） */
 const ROCKS = new Set(['3,1', '4,1', '7,5', '8,5', '6,2', '2,5', '9,1']);
 
@@ -63,19 +76,87 @@ export function ChapterDiscover() {
     if (d) { e.preventDefault(); step(d[0], d[1]); }
   };
 
-  const tiles = [];
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const k = `${x},${y}`;
-      let cls = 'wd-tile';
-      if ((x * 7 + y * 3) % 5 === 0) cls += ' wd-grass2';
-      let inner = null;
-      if (ROCKS.has(k)) inner = <i className={(x + y) % 2 ? 'wd-tree' : 'wd-rock'} />;
-      if (fire.x === x && fire.y === y) inner = <i className={`wd-ember wd-hue-${note.hue}${near ? ' wd-ember-near' : ''}`} />;
-      if (me.x === x && me.y === y) inner = <i className="wd-me" />;
-      tiles.push(<button key={k} type="button" tabIndex={-1} className={cls} onClick={() => walkTo(x, y)} aria-hidden="true">{inner}</button>);
-    }
-  }
+  const cv = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const c = cv.current?.getContext('2d');
+    if (!c) return;
+    const calm = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const [h1, h2] = HUE[note.hue] ?? HUE.cyan!;
+    let raf = 0;
+    const draw = (now: number) => {
+      const t = calm ? 0 : now / 1000;
+      c.imageSmoothingEnabled = false;
+      c.globalAlpha = 1;
+      c.fillStyle = '#07050a';
+      c.fillRect(0, 0, CW, CH);
+      const px = (x: number, y: number) => ({ X: PAD + x * T, Y: PAD + y * TH + 6 });
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const { X, Y } = px(x, y);
+        drawTile(c, X, Y, T, TILE_PAL[domainAt(x, y)], y * W + x + 3, 0);
+      }
+      // 竖立物按 y 排序后画：道具 / 异火 / 勇者
+      const items: Array<{ y: number; draw: () => void }> = [];
+      for (const k of ROCKS) {
+        const [x, y] = k.split(',').map(Number) as [number, number];
+        const { X, Y } = px(x, y);
+        const seed = (x + y) % 2 ? 7 : 2; // 7→树、2→石（drawProp 按 seed%7 取形）
+        items.push({ y: Y + TH, draw: () => drawProp(c, X, Y + TH - 2, seed, domainAt(x, y), t) });
+      }
+      {
+        const { X, Y } = px(fire.x, fire.y);
+        const f = Math.floor(t * 8) % 2;
+        items.push({ y: Y + TH, draw: () => {
+          const glow = near ? 0.5 : 0.3 + 0.1 * f;
+          c.globalAlpha = glow;
+          c.fillStyle = h2;
+          c.fillRect(X - 6, Y - 4, T + 12, TH + 8);
+          c.globalAlpha = 1;
+          c.fillStyle = '#3b2616';
+          c.fillRect(X + 2, Y + TH - 3, T - 4, 2);
+          c.fillStyle = h2;
+          c.fillRect(X + 4, Y - 1 - f, 6, TH - 1 + f);
+          c.fillRect(X + 3, Y + 3, 8, TH - 5);
+          c.fillStyle = h1;
+          c.fillRect(X + 5 + f, Y + 2 - f, 3, TH - 4);
+          c.fillStyle = '#ffffff';
+          c.fillRect(X + 6, Y + TH - 5, 2, 2);
+          c.fillStyle = h1;
+          c.fillRect(X + 3 + ((f * 5) % 8), Y - 6 - ((Math.floor(t * 4)) % 4), 1, 1);
+        } });
+      }
+      {
+        const { X, Y } = px(me.x, me.y);
+        const bob = calm ? 0 : Math.floor(t * 2) % 2;
+        items.push({ y: Y + TH + 1, draw: () => drawSprite(c, CHIBI_MAP, CHIBI_PAL, X + 3, Y - 4 - bob, {}) });
+      }
+      items.sort((p, q) => p.y - q.y).forEach((i) => i.draw());
+      c.globalAlpha = 1;
+      // 夜色迷雾：以勇者为圆心的视野
+      const { X, Y } = px(me.x, me.y);
+      const g = c.createRadialGradient(X + T / 2, Y + TH / 2, 10, X + T / 2, Y + TH / 2, 70);
+      g.addColorStop(0, 'rgba(7,5,10,0)');
+      g.addColorStop(0.55, 'rgba(7,5,10,0.55)');
+      g.addColorStop(1, 'rgba(7,5,10,0.85)');
+      c.fillStyle = g;
+      c.fillRect(0, 0, CW, CH);
+      // 异火穿透迷雾：再点一次它的芯
+      const fp = px(fire.x, fire.y);
+      c.fillStyle = h1;
+      c.globalAlpha = 0.9;
+      c.fillRect(fp.X + 5, fp.Y + 2, 3, TH - 4);
+      c.globalAlpha = 1;
+      if (!calm) raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, [me, fire, near, note.hue]);
+
+  const onCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const lx = ((e.clientX - r.left) / r.width) * CW;
+    const ly = ((e.clientY - r.top) / r.height) * CH;
+    walkTo(Math.floor((lx - PAD) / T), Math.floor((ly - PAD - 6) / TH));
+  };
 
   const color = D.colors[lang]![note.hue]!;
 
@@ -83,12 +164,7 @@ export function ChapterDiscover() {
     <Chapter id="discover" title={D.title[lang]} accent={D.accent[lang]} lead={D.lead[lang]}>
       <div className="wd-grid" role="group" aria-label={D.aria[lang]}>
         <div className="wf-frame wd-map-wrap">
-          {/* gates:style-ok */}
-          <div className="wd-map" tabIndex={0} onKeyDown={onKey} style={{ gridTemplateColumns: `repeat(${W}, 1fr)` }}>
-            {tiles}
-            {/* gates:style-ok */}
-            <div className="wd-fog" aria-hidden="true" style={{ '--fx': `${((me.x + 0.5) / W) * 100}%`, '--fy': `${((me.y + 0.5) / H) * 100}%` } as React.CSSProperties} />
-          </div>
+                    <canvas ref={cv} className="wd-map" width={CW} height={CH} tabIndex={0} onKeyDown={onKey} onClick={onCanvasClick} aria-hidden="true" />
           <div className="wd-pad" aria-label={D.move[lang]}>
             <button type="button" className="wf-btn" onClick={() => step(0, -1)} aria-label="↑">↑</button>
             <button type="button" className="wf-btn" onClick={() => step(-1, 0)} aria-label="←">←</button>

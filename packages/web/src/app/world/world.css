@@ -215,32 +215,12 @@
 /* ── 荒野里的异火（意外发现）：俯视小地图 + 迷雾视野 + 异色篝火 + 余烬笺 ── */
 .wd-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 22px; max-width: 1040px; margin: 0 auto; }
 .wd-map-wrap { padding: 14px; }
-.wd-map { position: relative; display: grid; gap: 0; aspect-ratio: 11 / 7; outline: none; background: #1a2a16; image-rendering: pixelated; overflow: hidden; }
+.wd-map { display: block; width: 100%; height: auto; image-rendering: pixelated; cursor: pointer; outline: none; background: #07050a; }
 .wd-map:focus-visible { box-shadow: 0 0 0 2px var(--lx-gold); }
-.wd-tile { position: relative; padding: 0; border: 0; cursor: pointer; background: #22361c; box-shadow: inset -1px -1px 0 rgba(0, 0, 0, .25); }
-.wd-grass2 { background: #2a4122; }
-.wd-tile:hover { background: #33502a; }
-.wd-tile > i { position: absolute; inset: 14%; display: block; }
-.wd-rock { background: #4b4550; box-shadow: inset -4px -4px 0 #2c2830, inset 3px 3px 0 #6e6878, 3px 4px 0 rgba(0, 0, 0, .45); }
-.wd-tree { inset: 4% 18% 10% !important; background: linear-gradient(#1f4d24 0 68%, #4a2e1a 68% 100%); clip-path: polygon(50% 0, 100% 68%, 62% 68%, 62% 100%, 38% 100%, 38% 68%, 0 68%); filter: drop-shadow(3px 3px 0 rgba(0,0,0,.5)); }
-.wd-me { inset: 10% 22% !important; background:
-  linear-gradient(#f1d3a8, #f1d3a8) 30% 18% / 40% 26% no-repeat,
-  linear-gradient(#8a1c22, #8a1c22) 50% 0 / 70% 20% no-repeat,
-  linear-gradient(#2a2f5a, #2a2f5a) 50% 80% / 70% 46% no-repeat;
-  filter: drop-shadow(2px 3px 0 rgba(0,0,0,.55)); animation: wd-bob 1s steps(2) infinite; z-index: 3; }
-.wd-ember { --h1: #7ff0ff; --h2: #1aa3c2; inset: 8% 20% !important; z-index: 3;
-  background: radial-gradient(circle at 50% 70%, #fff 0 12%, var(--h1) 13% 40%, var(--h2) 41% 62%, transparent 63%);
-  clip-path: polygon(50% 0, 70% 30%, 85% 55%, 80% 90%, 20% 90%, 15% 55%, 32% 32%);
-  filter: drop-shadow(0 0 6px var(--h1)); animation: wd-flick .4s steps(2) infinite; }
-.wd-ember::after { content: ''; position: absolute; inset: -120%; background: radial-gradient(circle, color-mix(in srgb, var(--h1) 35%, transparent), transparent 60%); animation: wd-pulse 1.4s steps(3) infinite; }
-.wd-ember-near { filter: drop-shadow(0 0 14px var(--h1)); }
 .wd-hue-cyan { --h1: #7ff0ff; --h2: #1aa3c2; }
 .wd-hue-violet { --h1: #d6a8ff; --h2: #7a3cc9; }
 .wd-hue-gold { --h1: #ffe08a; --h2: #c98a1a; }
 .wd-hue-green { --h1: #a8ffb0; --h2: #2f9e48; }
-.wd-fog { position: absolute; inset: 0; pointer-events: none; z-index: 4;
-  background: radial-gradient(circle at var(--fx) var(--fy), transparent 0 16%, rgba(6, 4, 8, .55) 30%, rgba(6, 4, 8, .82) 55%);
-  transition: background .25s steps(3); }
 .wd-pad { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; align-items: center; }
 .wd-pad .wf-btn { min-width: 38px; padding: 6px 10px; }
 .wd-night { margin-left: auto; }
@@ -318,6 +298,6 @@
   .wg-node + .wg-node::before { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .wd-me, .wd-ember, .wd-ember::after, .wd-scroll, .wg-cursor, .wg-foe-art, .wg-room, .wg-no { animation: none !important; }
+  .wd-scroll, .wg-cursor, .wg-foe-art, .wg-room, .wg-no { animation: none !important; }
   .wg-foe-down { animation: none; opacity: .15; }
 }

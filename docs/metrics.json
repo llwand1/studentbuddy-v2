@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-27T14:02:18.315Z",
+  "generatedAt": "2026-09-27T14:08:56.459Z",
   "code": {
     "rows": [
       {
@@ -11,10 +11,10 @@
       },
       {
         "pkg": "server",
-        "srcFiles": 184,
-        "testFiles": 129,
-        "srcLines": 28045,
-        "testLines": 27992
+        "srcFiles": 185,
+        "testFiles": 130,
+        "srcLines": 28444,
+        "testLines": 28267
       },
       {
         "pkg": "web",
@@ -24,10 +24,10 @@
         "testLines": 11766
       }
     ],
-    "srcFiles": 421,
-    "testFiles": 226,
-    "srcLines": 60536,
-    "testLines": 42543,
+    "srcFiles": 422,
+    "testFiles": 227,
+    "srcLines": 60935,
+    "testLines": 42818,
     "tsxTestFiles": 32
   },
   "routes": {
@@ -81,24 +81,24 @@
   },
   "docs": {
     "specs": 36,
-    "all": 47,
+    "all": 48,
     "probes": 15
   },
   "repo": {
-    "head": "57074bd",
+    "head": "8f65b36",
     "headDate": "2026-09-27",
-    "commitsLast14d": 2,
+    "commitsLast14d": 3,
     "branch": "feat/hero-quiz-review-public",
-    "dirtyFiles": 36
+    "dirtyFiles": 14
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 41.4,
+    "wallSec": 30.4,
     "staleDays": 0,
-    "files": 226,
-    "cases": 3022,
-    "passed": 3021,
+    "files": 227,
+    "cases": 3048,
+    "passed": 3047,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -109,14 +109,14 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "226",
-      "measured": "226",
+      "claimed": "227",
+      "measured": "227",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "3022",
-      "measured": "3022",
+      "claimed": "3048",
+      "measured": "3048",
       "ok": true
     },
     {
@@ -157,8 +157,8 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "226 文件 / 3022 例",
-      "measured": "226 文件 / 3022 例",
+      "claimed": "227 文件 / 3048 例",
+      "measured": "227 文件 / 3048 例",
       "ok": true
     }
   ],

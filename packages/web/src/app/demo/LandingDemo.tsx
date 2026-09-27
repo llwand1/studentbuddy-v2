@@ -10,19 +10,21 @@
  */
 import { useState } from 'react';
 import { EMPTY_DEMO, LANDING_DEMOS } from './registry';
+import type { DemoDefinition } from './registry';
 import { useDemoPlayer } from './useDemoPlayer';
 import { DEMO_WINDOW } from '../landing-copy';
 import { useLandingLang } from '../landing-lang';
 import './demo.css';
 
-export function LandingDemo() {
+/** `demos`：只放映其中几个（冒险录「词条」章只要词条那一个） */
+export function LandingDemo({ demos = LANDING_DEMOS }: { demos?: DemoDefinition[] } = {}) {
   const { lang } = useLandingLang();
   const [pick, setPick] = useState(0);
-  const demo = LANDING_DEMOS[pick] ?? LANDING_DEMOS[0] ?? EMPTY_DEMO;
+  const demo = demos[pick] ?? demos[0] ?? EMPTY_DEMO;
   const { stage, replay, still } = useDemoPlayer(demo.stages);
   const View = demo.View;
   const cur = demo.stages[stage];
-  const many = LANDING_DEMOS.length > 1;
+  const many = demos.length > 1;
 
   return (
     <div className="ld-window">
@@ -40,7 +42,7 @@ export function LandingDemo() {
 
       {many && (
         <div className="ld-tabs">
-          {LANDING_DEMOS.map((d, i) => (
+          {demos.map((d, i) => (
             <button
               key={d.key}
               type="button"

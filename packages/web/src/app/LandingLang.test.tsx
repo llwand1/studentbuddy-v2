@@ -16,14 +16,12 @@
  */
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, cleanup, fireEvent, act, screen } from '@testing-library/react';
-import { HELP_PER_MATCH } from '@sb/shared';
 import { LANDING_LANG_KEY, LandingLangProvider, LangToggle, initialLandingLang } from './landing-lang';
 import { BRAND_TAGLINE, DEMO_BTN, FOOT_CHANGELOG, FOOT_TERMS, HERO } from './landing-copy';
 import { CATALOG_PATH, CHANGELOG_PATH } from '../seo/paths';
 import { Landing } from './Landing';
 import { LandingBrand, totalTicks } from './LandingBrand';
 import { GraphDemo } from './demo/GraphDemo';
-import { PkJourney } from './PkJourney';
 import { ASK, LEAD, SEG1, SEG2, SPEED, TAIL, TERMS } from './demo/TermFlowDemo';
 import { TERM_FLOW } from './demo/registry';
 import {
@@ -35,8 +33,6 @@ import {
   NODE_TEXTS,
   nodeText,
 } from './demo/graph-demo';
-import { PK_FRAMES } from './pk-frames';
-import { T } from './pk-copy';
 import type { LandingLang } from './landing-lang';
 
 const LANGS: LandingLang[] = ['zh', 'en'];
@@ -219,40 +215,16 @@ describe('落地页双语 — 两语都得在产品事实之内', () => {
   });
 });
 
-describe('落地页双语 — 两块屏的屏态与语言无关', () => {
-  it('EN 口径下仍恰好两块屏、五步说明、主题归属各说一遍', () => {
+describe('落地页双语 — 冒险录各章跟着换语言', () => {
+  it('EN 侧：知识大陆与伙伴章的标题、按钮都是英文；切回中文后换成中文', () => {
     store('en');
-    const { container } = render(
-      <LandingLangProvider>
-        <PkJourney />
-      </LandingLangProvider>,
-    );
-    const boards = Array.from(container.querySelectorAll('.landing-pk-screen'));
-    expect(boards.length).toBe(2);
-    expect(container.querySelectorAll('.landing-pk-steps .landing-jstep').length).toBe(PK_FRAMES.length);
-    const owners = boards.map((el) => el.querySelector('.sb-pk-topic-owner')?.textContent);
-    expect(owners.filter((s) => s === T.yourTopic.en).length).toBe(1); // ★ 不是两块屏同一个词＝上帝视角
-    expect(owners.filter((s) => s === T.rivalTopic.en).length).toBe(1);
-    const topics = boards.map((el) => el.querySelector('.sb-pk-topic-name')?.textContent);
-    expect(topics[0]).toBe(topics[1]); // 主题本身是公开快照的一部分，两侧同值
-  });
-
-  it('★ 屏上每个数在英文侧同样要「产品里可能出现」：求助数 ≤ 每局道具上限', () => {
-    // 与 `PkJourney.test.tsx` 同一条不变量，换到英文读数上再跑一遍——那条锁的读法是中文的
-    // （`求助 N`），英文侧写作 `N help`。早先翻出「求助 2」的就是这条口径。
-    store('en');
-    const { container } = render(
-      <LandingLangProvider>
-        <PkJourney />
-      </LandingLangProvider>,
-    );
-    const subs = Array.from(container.querySelectorAll('.landing-pk-screen .sb-pk-sub')).map((n) => n.textContent ?? '');
-    expect(subs.length).toBe(2);
-    for (const text of subs) {
-      const m = /(\d+)\s*help/.exec(text);
-      if (!m?.[1]) throw new Error(`英文侧屏态小字里没有「N help」了：${text} ⇒ 本锁随之失效，按新读法重写`);
-      expect(Number(m[1])).toBeLessThanOrEqual(HELP_PER_MATCH);
-    }
+    const { container, getByText } = render(<Landing onAuthed={() => undefined} />);
+    expect(container.querySelector('.wf-ch-continent .wf-h2')?.textContent).toBe('The continent grows one term at a time');
+    expect(getByText('Learn a new term')).toBeTruthy();
+    expect(container.querySelector('.wf-ch-npc .wf-h2')?.textContent).toBe('Recruit your AI companions');
+    fireEvent.click(screen.getByRole('button', { name: '中文' }));
+    expect(container.querySelector('.wf-ch-continent .wf-h2')?.textContent).toBe('知识大陆，是你一块块学出来的');
+    expect(getByText('学会一个新词条')).toBeTruthy();
   });
 });
 

@@ -59,80 +59,76 @@ vi.mock('../lib/api', () => ({
 
 afterEach(cleanup);
 
-describe('Landing — 未登录门面', () => {
-  it('渲染 hero 标题与演示窗、词条旅程五步、功能九宫格与三步引导；默认不出登录卡', () => {
+describe('Landing — 未登录门面（2026-09-28 冒险录版式）', () => {
+  it('首屏序章：标题、副标、CTA、HUD「知识大陆」与四张词条卡齐备；默认不出登录卡', () => {
     const { getByText, queryByPlaceholderText, container } = render(<Landing onAuthed={() => undefined} />);
-    // hero 叙事（2026-09-20）：标题换成「词条留下来」的核心主张。
-    // ★ 用 container 读整串而不是 getByText：标题里嵌了 <span class="landing-accent">，
-    //   而 getByText 只拼元素的**直接文本子节点**（不含后代），跨 span 的整串它匹配不到
-    //   （实测踩过：报 unable to find an element with the text）。
+    // ★ 标题里嵌了 <span class="landing-accent">，getByText 拼不出跨 span 的整串，改读 textContent
     expect(container.querySelector('.landing-title')?.textContent).toBe('把词条化为力量，向遗忘的怪物宣战');
+    expect(container.querySelector('.landing-sub')?.textContent).toBe(
+      '一个游戏化知识学习 Agent。你是能把知识词条化为力量的勇者：和 AI 把问题聊明白，词条就成了你的武器；遗忘化作怪物侵占大陆，用理解击败它们、收复地块、收集卡牌。',
+    );
     expect(getByText('开始使用')).toBeTruthy();
-    // 词条旅程五步（2026-09-21 B 回路改锁）：五步现在**各出现两次**——环上药丸 + 右侧清单，
-    // `getByText` 遇到多个即抛。改成锁结构，而且这比原来**更强**：
-    // 原来只保证「这几个字在页面某处」，现在保证「环与清单各成一套、且顺序一致」。
-    // ★ 2026-09-21：`PkJourney` **故意复用**了 `.landing-jsteps` / `.landing-jstep`
-    //   / `.landing-feature-title` 这套清单类（同一种列表样式不该抄两份），于是页面上一条
-    //   `querySelectorAll('.landing-jsteps …')` 会数到 10 项。故这几把锁一律**限定在词条段内**
-    //   ——限定不是削弱：那段自己的结构由 `PkJourney.test.tsx` 锁，两边各锁各的。
-    const JOURNEY = ['抽词', '高亮', '注入', '复习', '沉淀'];
-    const term = 'section[aria-label="词条的完整旅程"]';
-    const inTerm = (sel: string) => [...container.querySelectorAll(`${term} ${sel}`)];
-    expect(inTerm('.landing-orbit-node').map((n) => n.textContent)).toEqual(JOURNEY);
-    expect(inTerm('.landing-jsteps .landing-feature-title').map((n) => n.textContent)).toEqual(JOURNEY);
-    // 环与清单必须**同步**（本次的设计就是一个时钟派生两侧；两条独立时钟一定会漂）
-    expect(inTerm('.landing-orbit-node.hot').length).toBe(1);
-    expect(inTerm('.landing-jstep.hot').length).toBe(1);
-    // 诚实标注那一行不许删：它写明转速是压缩过的，删掉就等于让演示冒充真实节奏
-    expect(inTerm('.landing-jnote')[0]?.textContent).toContain('2.6 秒转一圈');
-    expect(inTerm('.landing-orbit-core')[0]?.textContent).toContain('已用次数');
-    // 五环闭环（本次降到词条之后，但内容一条不能少）
-    expect(getByText('对话讲解')).toBeTruthy();
-    // 03 那一步的名字自 2026-09-26 起是「判分与解析」：原先叫「薄弱分析」，
-    // 它依赖的逐题正确率表随题库整族下线 ⇒ 门面不许再挂一个产品里已经不存在的能力名
-    expect(getByText('判分与解析')).toBeTruthy();
-    // ★ 门面不许替已下线的能力背书：整段文案里不能再出现「薄弱分析」这四个字
-    expect(container.textContent ?? '').not.toContain('薄弱分析');
-    // 功能九宫格：本次把「艾宾浩斯复习」换成「词条高亮」
-    // （复习已在词条旅程第 4 步讲得更透，此处让位给原先落地页完全没出现的高亮卡交互）
-    expect(getByText('词条卡牌')).toBeTruthy();
-    expect(container.textContent).not.toContain('学习流编排');
-    expect(container.textContent).not.toContain('知识图谱');
-    expect(container.textContent).not.toContain('每日总结');
-    expect(container.textContent).not.toContain('刷题笔记');
-    expect(LANDING_DEMOS.map(d => d.key)).not.toContain('graph-flow');
-    // 2026-09-28：首屏换成可交互序章，HUD 仍标明「知识大陆」，手牌四张词条卡齐备
     expect(container.querySelector('.landing-hero .lh-hud')?.textContent).toContain('知识大陆');
     expect(container.querySelectorAll('.landing-hero .lh-card').length).toBe(4);
-    expect(getByText('智能出题')).toBeTruthy();
-    expect(getByText('词条高亮')).toBeTruthy();
-    expect(getByText('AI 对战')).toBeTruthy();
-    expect(getByText('AI 主动督促')).toBeTruthy();
-    // 工程较真/隐私自持两段齐备，默认也全渲染（门面一次讲完）
-    expect(getByText('AI 输出可靠性工程')).toBeTruthy();
-    expect(getByText('不锁定供应商')).toBeTruthy();
-    expect(getByText('免费注册')).toBeTruthy(); // 隐私段的 CTA（标题跨 span 拆分，不整串匹配）
-    // GitHub 横幅（显眼位）与本地安装包版引导
-    expect(getByText('本项目完全开源')).toBeTruthy();
-    expect(getByText('github.com/llwand1/studentbuddy-v2')).toBeTruthy();
-    expect(getByText('本地安装包版')).toBeTruthy(); // 引导句被 <b> 拆分，锚定粗体词
-    expect(getByText('邮箱注册账号')).toBeTruthy();
-    expect(queryByPlaceholderText('邮箱')).toBeNull(); // 默认收起：介绍在前，表单不抢镜
+    expect(queryByPlaceholderText('邮箱')).toBeNull(); // 默认收起：表单不抢镜
   });
 
-  it('演示窗从第 0 帧起：标题在、首帧说明在、阶段点数与该演示的帧数一致', () => {
-    const { getByText, container } = render(<Landing onAuthed={() => undefined} />);
-    // ★ 2026-09-20 起，`TERM_FLOW.title` 在页面上出现**两次**了——
-    //   窗口标题栏（当前演示）+ 切换 Tab（两个演示各一个）。故不能用 getByText（遇多即抛），
-    //   改断 `.ld-bar-title`；顺便把"默认停在第一个演示"也锁住（Tab 一多，默认选中项选错很难发现）。
-    expect(container.querySelector('.ld-bar-title')?.textContent).toBe(TERM_FLOW.title.zh);
-    expect(container.querySelectorAll('.ld-tab').length).toBe(LANDING_DEMOS.length);
-    expect(container.querySelector('.ld-tab.ld-tab-on')?.textContent).toBe(TERM_FLOW.title.zh);
-    expect(getByText('对话进行中：词条库里已有的词自动标出来')).toBeTruthy();
-    expect(container.querySelectorAll('.ld-pip').length).toBe(TERM_FLOW.stages.length);
-    // 第 0 帧：只有 1 个点处于选中态（错位就会让「现在演到哪」失去意义）
-    expect(container.querySelectorAll('.ld-pip-on').length).toBe(1);
-    expect(getByText('重播')).toBeTruthy();
+  it('冒险录章节顺序固定：大陆 → 词条 → 伙伴 → 卡牌 → Boss 战 → 终章，且紧跟首屏', () => {
+    const { container } = render(<Landing onAuthed={() => undefined} />);
+    const blocks = [...container.querySelectorAll('.landing-body > section')];
+    expect(blocks[0]?.classList.contains('landing-hero')).toBe(true);
+    const ids = blocks.slice(1).map((n) => [...n.classList].find((c) => c.startsWith('wf-ch-')));
+    expect(ids).toEqual(['wf-ch-continent', 'wf-ch-term', 'wf-ch-npc', 'wf-ch-cards', 'wf-ch-boss', 'wf-ch-finale']);
+  });
+
+  it('★ 门面只讲游戏化玩法：下线的旧功能与工程讲解不再出现', () => {
+    const { container } = render(<Landing onAuthed={() => undefined} />);
+    const text = container.textContent ?? '';
+    for (const gone of ['薄弱分析', '学习流编排', '知识图谱', '每日总结', '刷题笔记', 'AI 输出可靠性工程', '联网检索', '文档模式']) {
+      expect(text).not.toContain(gone);
+    }
+    expect(LANDING_DEMOS.map((d) => d.key)).not.toContain('graph-flow');
+  });
+
+  it('知识大陆章：五条规则讲清「词条＝地砖 / 只增不减 / 遗忘＝怪物 / 讨伐＝转场 / 收复＝奖励」，三个操作按钮在', () => {
+    const { container, getByText } = render(<Landing onAuthed={() => undefined} />);
+    const ch = container.querySelector('.wf-ch-continent');
+    expect([...(ch?.querySelectorAll('.cw-rules strong') ?? [])].map((n) => n.textContent)).toEqual([
+      '词条 = 地砖', '世界只增不减', '遗忘 = 怪物', '讨伐 = 转场', '收复 = 奖励',
+    ]);
+    expect(getByText('学会一个新词条')).toBeTruthy();
+    expect(getByText('让时间流逝')).toBeTruthy();
+    // 没有怪之前「出发讨伐」必须是灰的——点了没反应的按钮不如不给点
+    expect((getByText('出发讨伐') as HTMLButtonElement).disabled).toBe(true);
+    // 两种镜头都要被点名：俯视平面与横版讨伐
+    expect(ch?.textContent).toContain('俯视 · 大陆平面');
+    expect(ch?.textContent).toContain('横版 · 讨伐战');
+  });
+
+  it('词条章只放映词条那一段演示（不再挂切换 Tab）', () => {
+    const { container } = render(<Landing onAuthed={() => undefined} />);
+    const ch = container.querySelector('.wf-ch-term');
+    expect(ch?.querySelector('.ld-bar-title')?.textContent).toBe(TERM_FLOW.title.zh);
+    expect(ch?.querySelectorAll('.ld-tab').length).toBe(0);
+    expect(ch?.querySelectorAll('.ld-pip').length).toBe(TERM_FLOW.stages.length);
+  });
+
+  it('伙伴章：换职业/性格即换立绘名与台词；三个动作对应对话 / 求救单 / 交换卡牌', () => {
+    const { container, getByText } = render(<Landing onAuthed={() => undefined} />);
+    const ch = container.querySelector('.wf-ch-npc')!;
+    expect(ch.querySelector('.wn-plate strong')?.textContent).toBe('洛雅');
+    fireEvent.click(getByText('骑士'));
+    expect(ch.querySelector('.wn-plate strong')?.textContent).toBe('伽隆');
+    expect([...ch.querySelectorAll('.wn-act')].map((n) => n.textContent)).toEqual(['对话', '求救单', '交换卡牌']);
+    expect(ch.textContent).toContain('6～24');
+  });
+
+  it('卡牌章四档稀有度；Boss 战章写明由「对战」实现、对手可选 AI 或好友', () => {
+    const { container } = render(<Landing onAuthed={() => undefined} />);
+    expect([...container.querySelectorAll('.wk-fan .wk-r')].map((n) => n.textContent)).toEqual(['N', 'R', 'SR', 'SSR']);
+    const boss = container.querySelector('.wf-ch-boss')!;
+    expect(boss.querySelector('.wf-h2')?.textContent).toBe('Boss 战，就是对战');
+    expect([...boss.querySelectorAll('.wb-foe')].map((n) => n.textContent)).toEqual(['AI 出题师', '好友（邀请链接）']);
   });
 
   it('点「开始使用」→ 展开注册卡（提交按钮是「注册并登录」）；再点一次收起', () => {
@@ -144,103 +140,18 @@ describe('Landing — 未登录门面', () => {
     expect(queryByPlaceholderText('邮箱')).toBeNull();
   });
 
+  it('终章「踏上大陆」也能展开注册卡', () => {
+    const { getByText, queryByPlaceholderText } = render(<Landing onAuthed={() => undefined} />);
+    window.scrollTo = () => undefined;
+    fireEvent.click(getByText('踏上大陆'));
+    expect(queryByPlaceholderText('邮箱')).toBeTruthy();
+  });
+
   it('点「登录」→ 展开登录卡（提交按钮是「登录」，不是注册）', () => {
     const { getAllByText, getByPlaceholderText, queryByText } = render(<Landing onAuthed={() => undefined} />);
-    fireEvent.click(getAllByText('登录')[0]!); // 顶栏 ghost 按钮（表单展开后提交按钮也叫「登录」，故取第一个）
+    fireEvent.click(getAllByText('登录')[0]!);
     expect(getByPlaceholderText('邮箱')).toBeTruthy();
     expect(queryByText('注册并登录')).toBeNull();
-  });
-});
-
-describe('Landing — 介绍顺序：它是什么 → 词条 → 功能（2026-09-22 二次调整）', () => {
-  // ★ 核心雷点是「先搞了功能介绍，而不是产品介绍」；另有一条更细的：
-  //   「它是什么要在最前面，讲完之后才是词条」。这两条顺序**没有任何"文案在不在"式的断言
-  //   替我们守住**：那种用例在把介绍挪到功能之后时照样全绿——文本一个没少，读者却先读了功能。
-  //   故这里锁的是 **DOM 顺序本身**：它就是「先介绍后功能」这条决策的唯一载体。
-  it('「它是什么」→「词条是主体」→ 功能区，三者顺序不乱、中间不夹任何区块', () => {
-    const { container } = render(<Landing onAuthed={() => undefined} />);
-    const blocks = [...container.querySelectorAll('.landing-body > *')];
-    const at = (cls: string) => blocks.findIndex((n) => n.classList.contains(cls));
-    const whatAt = at('landing-intro-what');
-    const termAt = at('landing-intro-term');
-    const zoneAt = at('landing-zone');
-    expect(whatAt).toBeGreaterThanOrEqual(0);
-    expect(termAt).toBeGreaterThan(whatAt);
-    expect(zoneAt).toBeGreaterThan(termAt);
-    // 词条段与功能区之间夹了东西（哪怕是 GitHub 横幅）就等于又把介绍拦腰斩了——09-22 之前的样子
-    expect(blocks.slice(termAt + 1, zoneAt).length).toBe(0);
-  });
-
-  it('「它是什么」段不许出现「词条」：定义句只讲类别与形态，机制由紧随其后的整段专讲', () => {
-    const { container } = render(<Landing onAuthed={() => undefined} />);
-    const what = container.querySelector('.landing-intro-what');
-    // ★ 这是二次调整的真正落点。上一版定义句第一句就是「把概念抽成词条」——
-    //   读者还没搞清这是个什么东西，先被塞了一个内部概念。
-    //   ★ 文本类的锁守不住它：「词条」在页面别处本来就该有，只有「这一段里没有」才守得住。
-    expect(what?.querySelector('.landing-intro-def')?.textContent).not.toContain('词条');
-    expect(what?.textContent).toContain('游戏化知识学习');
-    // 而紧随其后的词条段必须讲，且讲的就是这五个去向
-    expect(container.querySelector('.landing-intro-term')?.textContent).toContain('一切都以词条为主体');
-  });
-
-  it('介绍段本体：三句话说清 + 「词条是主体」四个去向齐备 + hero 副标仍是一句', () => {
-    const { container } = render(<Landing onAuthed={() => undefined} />);
-    // hero 副标瘦身为一句自我介绍：原先那句塞了 4 个 feature 从句的副标已下放介绍段/功能区
-    expect(container.querySelector('.landing-sub')?.textContent).toBe(
-      '一个游戏化知识学习 Agent。你是能把知识词条化为力量的勇者：和 AI 把问题聊明白，词条就成了你的武器；遗忘化作怪物侵占大陆，用理解击败它们、收复地块、收集卡牌。',
-    );
-    expect(container.querySelector('.landing-intro-h3')?.textContent).toBe('一切都以词条为主体');
-    expect(
-      [...container.querySelectorAll('.landing-spine-item .landing-feature-title')].map((n) => n.textContent),
-    ).toEqual(['驱动出题', '决定复习', '铺成大陆', '拿去对战']);
-    expect(container.querySelectorAll('.landing-intro-three .landing-intro-card').length).toBe(3);
-  });
-});
-
-describe('Landing — 功能区按步骤讲（2026-09-22 二次调整「功能一步步讲」）', () => {
-  it('五步动线：编号 01–05、环名顺序固定、九个入口各挂在自己那一步下', () => {
-    const { container } = render(<Landing onAuthed={() => undefined} />);
-    expect([...container.querySelectorAll('.landing-walk-no')].map((n) => n.textContent)).toEqual([
-      '01',
-      '02',
-      '03',
-      '04',
-      '05',
-    ]);
-    expect([...container.querySelectorAll('.landing-walk-ring')].map((n) => n.textContent)).toEqual([
-      '学',
-      '练',
-      '析',
-      '忆',
-      '反馈',
-    ]);
-    // 每一步底下至少挂一个入口——空一步等于那一步只是个装饰环
-    const steps = [...container.querySelectorAll('.landing-walk-step')];
-    expect(steps.length).toBe(5);
-    steps.forEach((s) => expect(s.querySelectorAll('.landing-walk-cap').length).toBeGreaterThan(0));
-    // 原九宫格的九个一级入口合并进动线后一个都不能少（限在 .landing-walk-cap 内取：
-    // 演示段也复用 `.landing-feature-title`，不限制会数到演示清单上去）
-    expect([...container.querySelectorAll('.landing-walk-cap .landing-feature-title')].map((n) => n.textContent)).toEqual([
-      '联网检索',
-      '文档模式',
-      '词条卡牌',
-      '智能出题',
-      'AI 对战',
-      '长期记忆',
-      '词条高亮',
-      '知识大陆',
-      'AI 主动督促',
-    ]);
-  });
-
-  it('动线排在两屏演示之前：先给骨架，再给例子', () => {
-    const { container } = render(<Landing onAuthed={() => undefined} />);
-    const kids = [...container.querySelectorAll('.landing-zone > *')];
-    const walkAt = kids.findIndex((n) => n.classList.contains('landing-walk'));
-    const demoAt = kids.findIndex((n) => n.getAttribute('aria-label') === '词条的完整旅程');
-    expect(walkAt).toBeGreaterThanOrEqual(0);
-    // 演示放最前面时，读者看完只记得有个动画，不知道它在第几步——这正是本次要改掉的
-    expect(demoAt).toBeGreaterThan(walkAt);
   });
 });
 

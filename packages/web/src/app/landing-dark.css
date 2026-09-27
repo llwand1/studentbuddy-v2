@@ -96,18 +96,18 @@ body .landing :is(.landing-sub, .landing-section-sub, .landing-intro-def, .landi
   content: ''; position: absolute; top: 50px; left: 50%; width: 8px; height: 8px; transform: translateX(-50%) rotate(45deg);
   background: var(--lx-blood); box-shadow: 0 0 0 2px #000, 0 0 12px rgba(224, 80, 91, .6);
 }
-.landing-intro-what::before { content: '第一章 · 旅人，你手中的是什么'; }
-.landing-intro-term::before { content: '第二章 · 力量之源：词条'; }
-.landing-zone::before { content: '第三章 · 勇者的五段试炼'; }
-.landing-github::before { content: '第四章 · 铁匠铺：源码与锻造'; }
-.landing-privacy::before { content: '第五章 · 你的领地，你做主'; }
-.landing-steps::before { content: '终章 · 启程'; }
-.landing:lang(en) .landing-intro-what::before { content: 'CHAPTER I · WHAT YOU CARRY'; }
-.landing:lang(en) .landing-intro-term::before { content: 'CHAPTER II · THE SOURCE OF POWER'; }
-.landing:lang(en) .landing-zone::before { content: 'CHAPTER III · THE FIVE TRIALS'; }
-.landing:lang(en) .landing-github::before { content: 'CHAPTER IV · THE FORGE'; }
-.landing:lang(en) .landing-privacy::before { content: 'CHAPTER V · YOUR DOMAIN'; }
-.landing:lang(en) .landing-steps::before { content: 'FINALE · SET OUT'; }
+.wf-ch-continent::before { content: '第一章 · 大陆的生长'; }
+.wf-ch-term::before { content: '第二章 · 力量之源'; }
+.wf-ch-npc::before { content: '第三章 · 同行者'; }
+.wf-ch-cards::before { content: '第四章 · 卡牌圣匣'; }
+.wf-ch-boss::before { content: '第五章 · 领主之战'; }
+.wf-ch-finale::before { content: '终章 · 启程'; }
+.landing:lang(en) .wf-ch-continent::before { content: 'CHAPTER I · THE GROWING CONTINENT'; }
+.landing:lang(en) .wf-ch-term::before { content: 'CHAPTER II · THE SOURCE OF POWER'; }
+.landing:lang(en) .wf-ch-npc::before { content: 'CHAPTER III · COMPANIONS'; }
+.landing:lang(en) .wf-ch-cards::before { content: 'CHAPTER IV · THE CARD RELIQUARY'; }
+.landing:lang(en) .wf-ch-boss::before { content: 'CHAPTER V · THE LORD FIGHT'; }
+.landing:lang(en) .wf-ch-finale::before { content: 'FINALE · SET OUT'; }
 
 /* ── 面板：黑石浮雕（内描边 + 顶光 + 硬黑投影） ── */
 body .landing :is(.landing-intro-card, .landing-eng-card, .landing-feature, .landing-jstep, .landing-loop-card,

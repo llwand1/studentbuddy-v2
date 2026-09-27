@@ -167,3 +167,18 @@
 
 /* 序章字幕期间手牌隐去，字幕独占底部黑边 */
 .lh-phase-intro .lh-hand { opacity: 0; pointer-events: none; }
+
+/* ── 章节内嵌遭遇战（知识大陆「讨伐」转场进来的横版一幕） ── */
+.lh.lh-framed { width: 100%; height: 100%; margin: 0; }
+.lh-framed .lh-stage { height: 100%; border-bottom: 0; }
+.lh-framed .lh-hud { display: none; }
+.lh-framed .lh-boss, .lh-framed .lh-victory { top: 6%; right: 3%; width: min(340px, 50%); }
+.lh-framed .lh-hand { left: 3%; right: 3%; width: auto; bottom: 4%; }
+.lh-framed .lh-card { min-height: 70px; padding-top: 18px; }
+.lh-framed .lh-bar { height: 7%; }
+@media (max-width: 879px) {
+  .lh-framed .lh-stage { display: block; padding: 0; }
+  .lh-framed .lh-screen { position: absolute; inset: 0 0 170px; height: auto; }
+  .lh-framed .lh-hand { position: absolute; left: 8px; right: 8px; bottom: 8px; margin: 0; }
+  .lh-framed .lh-boss, .lh-framed .lh-victory { left: 8px; right: 8px; width: auto; top: 8px; }
+}

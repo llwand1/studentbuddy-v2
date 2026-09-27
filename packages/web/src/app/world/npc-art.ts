@@ -1,0 +1,86 @@
+/**
+ * npc-art — 伙伴招募演示的四种职业立绘（12 宽字符画，歧路旅人式的站姿小人）。
+ * 共享字母：k 轮廓 · s 肤 · e 眼 · 其余按职业定色。
+ */
+import type { Palette, SpriteMap } from '../hero/hero-sprites';
+
+export const NPC_ART: Record<string, { map: SpriteMap; pal: Palette }> = {
+  mage: {
+    map: [
+      '.....kk.....',
+      '....kHHk....',
+      '...kHhhHk...',
+      '..kHhhWhHk..',
+      '.kkkkkkkkkk.',
+      '...kssssk...',
+      '...kseesk...',
+      '...kssssk...',
+      '..kRRRRRRk.t',
+      '.kRrRRRRrRkt',
+      '.kRrRGRRrRkt',
+      '.kRRRGRRRRkt',
+      '..kRRRRRRk.t',
+      '..kRRkkRRk.t',
+      '..kkk..kkk..',
+    ],
+    pal: { k: '#07050a', H: '#3b2a6a', h: '#5a44a0', W: '#ffe39a', s: '#e8c9a8', e: '#2a1a14', R: '#3b2a6a', r: '#5a44a0', G: '#ffd27a', t: '#8a6a3a' },
+  },
+  knight: {
+    map: [
+      '....kkkk....',
+      '...kAAAAk...',
+      '..kAaaaaAk..',
+      '..kAkkkkAk..',
+      '..kAkeekAk..',
+      '..kAaaaaAk..',
+      '.kkkAAAAkkk.',
+      'kCkAaAAaAkSk',
+      'kCkAAGGAAkSk',
+      'kCkAaAAaAkSk',
+      'kCkAAAAAAkSk',
+      '.k.kAAAAk.k.',
+      '...kAkkAk...',
+      '...kAk.kAk..',
+      '...kk...kk..',
+    ],
+    pal: { k: '#07050a', A: '#8a879a', a: '#c0bdd0', e: '#ffd27a', C: '#9b1f2c', G: '#ffd27a', S: '#d0d4e0' },
+  },
+  ranger: {
+    map: [
+      '....kkkk....',
+      '...kFFFFk...',
+      '..kFffffFk..',
+      '..kFssssFk..',
+      '..kFseesFk..',
+      '...kssssk...',
+      '..kFFFFFFk.b',
+      '.kFfFLLFfFkb',
+      '.kFfFLLFfFkb',
+      '.kFFFFFFFFkb',
+      '..kLLLLLLk.b',
+      '..kFFkkFFk..',
+      '..kLLk.kLLk.',
+      '..kkk...kkk.',
+    ],
+    pal: { k: '#07050a', F: '#2e5a2a', f: '#4a8040', s: '#e8c9a8', e: '#2a1a14', L: '#6a4a2a', b: '#b89a5a' },
+  },
+  bard: {
+    map: [
+      '..P.kkkk....',
+      '..Pkyyyyk...',
+      '...kYYYYYk..',
+      '..kkkkkkkkk.',
+      '...kssssk...',
+      '...kseesk...',
+      '...kssmsk...',
+      '..kVVVVVVk..',
+      '.kVvVVVVvVk.',
+      '.kVvLLLLvVk.',
+      '.kVVLllLVVk.',
+      '..kVLLLLVk..',
+      '..kVVkkVVk..',
+      '..kkk..kkk..',
+    ],
+    pal: { k: '#07050a', P: '#e0505b', y: '#b8262f', Y: '#8f1d24', s: '#e8c9a8', e: '#2a1a14', m: '#b8262f', V: '#6a2a5a', v: '#9a4a8a', L: '#a8743a', l: '#3a2410' },
+  },
+};

@@ -1,0 +1,22 @@
+.landing-continent { margin: 0; border: 3px solid var(--sb-pixel-edge, #766c83); background: var(--sb-surface); box-shadow: 7px 7px 0 var(--sb-pixel-shadow, #d7d0e0); overflow: hidden; }
+.lc-window { display: flex; align-items: center; gap: 10px; padding: 13px 18px; color: var(--sb-ink); border-bottom: 2px solid var(--sb-line); font-size: 14px; }
+.lc-window > span:first-child { color: var(--sb-primary); }
+.lc-window-tag { margin-left: auto; font: 10px monospace; letter-spacing: .08em; color: var(--sb-ink-secondary); }
+.lc-map { display: block; width: 100%; height: auto; }
+.landing-continent figcaption { text-align: center; padding: 9px 12px; color: var(--sb-ink-secondary); background: var(--sb-bg); font-size: 11px; line-height: 1.6; border-bottom: 1px dashed var(--sb-line); }
+.lc-steps { list-style: none; padding: 16px 20px 18px; margin: 0; display: grid; gap: 14px; }
+.lc-steps li { display: flex; gap: 13px; }
+.lc-steps li > span { font: 12px monospace; color: var(--sb-primary); padding-top: 3px; }
+.lc-steps strong { font-size: 14px; color: var(--sb-ink); }
+.lc-steps p { margin: 4px 0 0; color: var(--sb-ink-secondary); line-height: 1.6; font-size: 12px; }
+.lc-hero-marker { animation: lc-arrive .5s steps(5, end) both; }
+.lc-monster { animation: lc-arrive .5s .15s steps(5, end) both; }
+.landing-hero .landing-title { font-size: clamp(32px, 3.7vw, 52px); line-height: 1.32; letter-spacing: -.035em; }
+.landing-hero .landing-sub { max-width: 29em; line-height: 1.9; }
+.landing-demo-follow { margin: 32px 0; }
+@keyframes lc-arrive { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 600px) { .lc-window { padding: 12px; }.lc-window-tag { font-size: 9px; }.lc-steps { padding: 16px; }.landing-hero .landing-title { font-size: 34px; } }
+@media (prefers-reduced-motion: reduce) { .lc-hero-marker, .lc-monster { animation: none; } }
+
+@media (max-width: 600px) { .landing-top { flex-wrap: wrap; gap: 12px; }.landing-top-right { width: 100%; justify-content: flex-end; }.landing-brand, .landing-brand-text { min-width: 0; }.landing-brand-tag { letter-spacing: 0; font-size: 11px; } }
+.landing-hero .landing-accent { display: block; }

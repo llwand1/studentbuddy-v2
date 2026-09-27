@@ -32,8 +32,10 @@ import { roleReady } from '../llm/router.js';
 import { getSessionDoc, buildDocMaterial } from '../learning/document.js';
 import { publishEvent } from '../events/bus.js';
 import { ownerIdOf } from '../auth/ownership.js';
+import { quizExplanationRouter } from './quiz-explanation.js';
 
 export const quizRouter = Router();
+quizRouter.use(quizExplanationRouter);
 
 /**
  * 一键出题：{ topic, material?, sessionId?, mix?, style? } → 生成→裁剪→（可选）入会话消息流→返回题目。

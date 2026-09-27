@@ -41,11 +41,11 @@ import { AccountBox } from '../components/AccountBox';
 import { DemoLoginButton } from '../components/DemoLoginButton';
 import { GithubLoginButton } from '../components/GithubLoginButton';
 import { LandingBrand } from './LandingBrand';
-import { LandingDemo } from './demo/LandingDemo';
+import { LandingContinent } from './LandingContinent';
 import { LandingIntro } from './LandingIntro';
 import { LandingFeatures } from './LandingFeatures';
 import { PRIVACY_ITEMS } from './landing-data';
-import { AUTH, FOOT, FOOT_CHANGELOG, FOOT_TERMS, GITHUB_BAND, HERO, PRIVACY, STATS, STEPS, TOP } from './landing-copy';
+import { AUTH, FOOT, FOOT_CHANGELOG, FOOT_TERMS, GITHUB_BAND, HERO, PRIVACY, HERO_TAGS, STEPS, TOP } from './landing-copy';
 import { LangToggle, LandingLangProvider, useLandingLang } from './landing-lang';
 import { CATALOG_PATH, CHANGELOG_PATH } from '../seo/paths';
 import './landing.css';
@@ -125,21 +125,16 @@ function LandingPage({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
                 <DemoLoginButton onAuthed={onAuthed} />
               </div>
             )}
-            {/* 首屏数据：★ 数字必须与实测一致——`node tools/metrics.mjs` 是唯一事实源。
-                2026-09-22 重排把「数据条」降级为 hero 底部的信任信号，不再是介绍正文
-                （介绍改由 `LandingIntro` 承担，详见该文件头注）。
-                ★ 精确的旧值比模糊表述更危险——它看起来像真的，而首屏是访客第一眼看到的地方
-                （README 徽章有 metrics --check 守着，这里没有）。★ 双语：两列同数，换语言不换账。 */}
             <div className="landing-stats" aria-label={HERO.statsAria[lang]}>
-              {STATS.map((s) => (
-                <span key={s.label.en}>
-                  {s.n} {s.label[lang]}
+              {HERO_TAGS.map((s) => (
+                <span key={s.en}>
+                  {s[lang]}
                 </span>
               ))}
             </div>
           </div>
           <div className="landing-hero-demo">
-            <LandingDemo />
+            <LandingContinent />
           </div>
         </section>
 

@@ -33,6 +33,7 @@ import { menuStatus } from './composer-status';
 import { GrillPill } from './GrillPill';
 import { AttachmentTray } from './AttachmentTray';
 import type { DocMode } from './useDocMode';
+import { QuizGenerating } from '../quiz/QuizGenerating';
 
 /** 选项卡的 props（`busy` 由本组件按出题态统一给，故排除掉） */
 type AskCardProps = Omit<ComponentProps<typeof AskStyleCard>, 'busy'>;
@@ -201,6 +202,7 @@ export function ChatComposer({
         </button>
       )}
       {statusHint && <div className="chat-conn-hint">{statusHint}</div>}
+      {(quizzing || scenarioing) && <QuizGenerating scenario={scenarioing} />}
       {mixTip && sessionId && (
         <div className="chat-quiz-mix">
           出题配比：{mixTip}

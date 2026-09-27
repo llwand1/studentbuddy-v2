@@ -17,7 +17,7 @@ import { BRAND_TAGLINE as BRAND_TAGLINE_ZH } from '../lib/brand';
  * 品牌副标：中文侧**仍是 `lib/brand` 那一个常量**（与产品侧栏逐字一致，单一事实源不动）；
  * EN 是落地页修辞，不进产品——登录后侧栏还是中文那句（范围决策，见 landing-lang 头注）。
  */
-export const BRAND_TAGLINE: Bi = { zh: BRAND_TAGLINE_ZH, en: 'Your personal study copilot' };
+export const BRAND_TAGLINE: Bi = { zh: BRAND_TAGLINE_ZH, en: 'A gamified knowledge learning agent' };
 
 export const TOP: { langTip: Bi; login: Bi; ghLogin: Bi } = {
   langTip: { zh: '切换语言', en: 'Switch language' },
@@ -34,23 +34,22 @@ export const HERO: {
   ctaNote: Bi;
   statsAria: Bi;
 } = {
-  titlePre: { zh: '学过的词，会', en: 'What you learn' },
-  titleAccent: { zh: '自己留下来', en: 'stays on its own' },
+  titlePre: { zh: '从一个问题出发，', en: 'Start with a question. ' },
+  titleAccent: { zh: '探索你的知识大陆', en: 'Explore a world of knowledge.' },
   sub: {
-    zh: '自托管的 AI 学习助手。用你自己的模型 Key，数据在你自己的服务器。',
-    en: 'A self-hosted AI study copilot. Bring your own model key — your data lives on your own server.',
+    zh: '一个游戏化知识学习 Agent。和 AI 把问题聊明白，让知识变成地图上的地块；遇见复习怪物，就用理解收复它。',
+    en: 'A gamified knowledge learning agent. Work through questions with AI, see concepts become land, and reclaim tiles by answering review challenges.',
   },
   cta: { zh: '开始使用', en: 'Get started' },
-  ctaNote: { zh: '邮箱注册，一分钟开始', en: 'Email sign-up, about a minute' },
-  statsAria: { zh: '项目数据', en: 'Project stats' },
+  ctaNote: { zh: '从你感兴趣的一个问题开始', en: 'Bring a question you care about' },
+  statsAria: { zh: '探索方式', en: 'Ways to explore' },
 };
 
-/** ★ 数字与 `tools/metrics.mjs` 实测对账的纪律不变，两种语言同一组数（模板串按语言给） */
-export const STATS: Array<{ n: string; label: Bi }> = [
-  { n: '2600+', label: { zh: '自动化测试', en: 'automated tests' } },
-  { n: '6', label: { zh: '个运行时依赖', en: 'runtime deps' } },
-  { n: '150', label: { zh: '个 REST 接口', en: 'REST endpoints' } },
-  { n: '0', label: { zh: '个第三方 UI 库', en: 'third-party UI libs' } },
+/** 首屏用玩法标签说明体验，工程指标留在仓库的自动对账页。 */
+export const HERO_TAGS: Bi[] = [
+  { zh: '像素世界', en: 'Pixel world' },
+  { zh: '知识大陆', en: 'Knowledge continent' },
+  { zh: '图文复盘', en: 'Visual explanations' },
 ];
 
 export const AUTH: { or: Bi; ghBtn: Bi; ghHint: Bi } = {
@@ -88,11 +87,11 @@ export const INTRO: {
 } = {
   eyebrowWhat: { zh: '它是什么', en: 'What it is' },
   h2Pre: { zh: '一个', en: 'A ' },
-  h2Mid: { zh: '自托管', en: 'self-hosted' },
-  h2Tail: { zh: '的 AI 学习助手', en: ' AI study copilot' },
+  h2Mid: { zh: '游戏化知识学习', en: 'gamified knowledge learning' },
+  h2Tail: { zh: ' Agent', en: ' agent' },
   def: {
-    zh: '它把「学 → 练 → 析 → 忆 → 反馈」做成一条自动运转的闭环：你只管提问，讲解、出题、判分、复习排期自己往下走。用你自己的模型 Key，数据在你自己的服务器。',
-    en: 'It runs the loop for you — learn → practice → analyze → remember → feedback. Just ask questions; explaining, quiz-making, grading and review scheduling keep going on their own. Bring your own model key; your data stays on your server.',
+    zh: '好奇心是起点，知识大陆是你反复回来的地方。AI 帮你查资料、讲原理、出练习；你在像素世界里探索、复习，把一次次理解留下来。可以在线体验，也可以自带模型 Key，在本地或自己的服务器运行。',
+    en: 'Curiosity is the starting point; your knowledge continent is a place to return to. AI helps research, explain and create practice. Explore and revisit ideas in a pixel world. Try it online, or bring your own model key and run it locally or on your server.',
   },
   eyebrowCore: { zh: '核心机制', en: 'Core mechanic' },
   h3TermAria: { zh: '词条是主体', en: 'Terms take center stage' },
@@ -100,8 +99,8 @@ export const INTRO: {
   h3Strong: { zh: '词条', en: 'terms' },
   h3Tail: { zh: '为主体', en: '' },
   lead: {
-    zh: '上面那条闭环靠什么转起来？靠一份你自己的词条库——对话里学到的概念自动入库。一个词进了库，下面五件事会自己转起来：',
-    en: 'What drives that loop? Your own term library — concepts learned in chat are filed automatically. Once a term is in, these five things start moving:',
+    zh: '大陆上的知识来自你的学习。对话中留下的概念成为词条，词条再连接地块、复习与对战。探索有了内容，答题也有了来处。',
+    en: 'Your learning supplies the world. Concepts from conversations become terms that connect map tiles, review and battles. Exploration has substance, and every challenge has a starting point.',
   },
 };
 
@@ -111,8 +110,8 @@ export const FEATURES: { aria: Bi; h2Pre: Bi; h2Mid: Bi; h2Tail: Bi; sub: Bi; bo
   h2Mid: { zh: '怎么运转', en: 'actually runs' },
   h2Tail: { zh: '的', en: '' },
   sub: {
-    zh: '到这里你已经知道它是什么了。这一节按你上手后真实的先后顺序，一步一步走一遍——每一步底下挂的，是这一步里的一级功能入口。',
-    en: 'Now you know what it is. This section walks it through in the real order you’ll meet it — each step lists the top-level features that live in it.',
+    zh: '提一个问题，弄懂一个概念，再到大陆上检验理解。对话、练习、词条和对战，围绕同一份知识接着往下走。',
+    en: 'Ask a question, understand an idea, then test it on the continent. Chat, practice, terms and battles build on the same knowledge.',
   },
   boards: { zh: '动线是骨架，下面两屏是它跑起来的样子 ——', en: 'The route is the skeleton — below are two screens of it actually running —' },
   engAria: { zh: '工程品质', en: 'Engineering quality' },

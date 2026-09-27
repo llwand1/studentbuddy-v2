@@ -22,6 +22,7 @@ import { FEATURES } from './landing-copy';
 import { useLandingLang } from './landing-lang';
 import { TermJourney } from './TermJourney';
 import { PkJourney } from './PkJourney';
+import { LandingDemo } from './demo/LandingDemo';
 
 export function LandingFeatures() {
   const { lang } = useLandingLang();
@@ -69,6 +70,7 @@ export function LandingFeatures() {
 
       {/* ② 动线讲完，再放两屏真实界面的回放：先看一个词走完一整趟，再看同一份快照在两块屏上的读法 */}
       <p className="landing-section-sub landing-zone-lead">{FEATURES.boards[lang]}</p>
+      <div className="landing-demo-follow"><LandingDemo /></div>
       <TermJourney />
       <PkJourney />
 

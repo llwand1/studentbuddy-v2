@@ -1,3 +1,9 @@
+> 2026-09-27 出题功能评测批次 A：功能级评测的**评分口径**落进 `packages/server/src/learning/quiz-eval-metrics.ts`（纯函数、不发请求不读库），运行侧在 `tools/eval/`（录制代理＋离线重算，运行产物 gitignore）。首轮 108 题读数与五条缺陷见 `docs/eval/quiz.md`。只登记口径单测——`tools/` 不在 vitest include 也不在 tsconfig 覆盖内。
+
+| 本批测试文件 | 用例 | 不变量 |
+|---|---:|---|
+| `src/learning/quiz-eval-metrics.test.ts` | 26 | ① 一次出组四档 `strict/repaired/rescued/failed` 互斥穷尽，且 `repaired` 只认两处真修复形状（options 漏收尾 `]`、LaTeX 漏第二根斜杠）——截断残缺必须落 `rescued`，因为修复器刻意不猜末尾；② 坏答案判据四条（下标越界／单选判断多填／填空无答案／解答无要点），判断题 `options` 恒 `['正确','错误']`；③ `svgInRaw` 解不出 JSON 时记 `null` 并**退出留图率分母**，不得当 0；④ 同一份指标里混了配图开与关的组 ⇒ 必抛（两 arm 的数永不合并）；⑤ 传输层失败与「模型答得差」分开计数；⑥ 108 题真机逼出的两条口径修正各带正锁＋反向锁——解答题有 `answer` 或 `solution` 其一即判得下去（选择题没答案仍须判坏，不许被宽松口径带过去）、essay 缺 `explanation` 只记观察值不进判据（跟产品协议示例对齐，其余题型反向锁住） |
+
 > 2026-09-27 生图接入改动（v0.2.139，ZCode）：聊天内生图——`generate_image` 工具 + `image` 角色 + 平台日张数闸 + `image-error` 翻译器。零迁移、零 web 改动、前端渲染零改动。完整实跑基线 217 文件 / 2932 例（2929 passed + 3 skipped + 0 failed），README 徽章与 `metrics --tests --check` 已同步。⚠️ 真机端到端（真 key 打真上游）未跑，如实登记为欠账。
 
 | 本次测试文件 | 用例 | 不变量 |

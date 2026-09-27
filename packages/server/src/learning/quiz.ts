@@ -94,6 +94,22 @@ function salvageTruncatedQuiz(json: string): string | null {
 }
 
 /**
+ * 从模型输出里取出**候选 JSON 文本**：`[QUIZ]` 标记 → 无标记但含 `"questions"` 时整段兜底 →
+ * 剥围栏 → 取首个完整 JSON 对象。返回 null＝这段输出里没有可解析的 JSON 形状。
+ * ★ 单独导出是给评测台（`tools/eval/runners/quiz.mts`）复用：**抽取规则全仓只能有一份**。
+ *   评测若自己抄一遍正则，「一次成型率」量的就是评测台而不是产品——隔壁检索评测台建台时
+ *   登记过一次真漂移（复刻的切块器少 3 块，同一查询名次从 10 变 19），这条坑不重复踩。
+ */
+export function extractQuizJson(text: string): string | null {
+  const m = text.match(/\[QUIZ\]([\s\S]*?)\[\/QUIZ\]/);
+  let raw = m ? m[1] : '';
+  if (!raw && text.includes('"questions"')) raw = text;
+  if (!raw) return null;
+  const cleaned = raw.replace(/```json|```/g, '').trim();
+  return cleaned.match(/\{[\s\S]*\}/)?.[0] ?? null;
+}
+
+/**
  * 解析模型输出中的 [QUIZ] JSON（容错：多行/围栏/前后杂质；失败返回 null 走降级）。
  * 进阶梯前先补模型漏写的 `]`（真机复验抓到的第四种失败，见 quiz-json-repair.ts）——那条无损，不必占一次尝试。
  * **四次尝试，代价从低到高**：原样 → 剥 svg 值 → 截断逐题回退 → 回退后再剥 svg。
@@ -106,16 +122,10 @@ function salvageTruncatedQuiz(json: string): string | null {
  * 不算上去就会漏报「模型画了坏图」——恰好是最该说的一种损失。
  */
 export function parseQuizBlock(text: string, report?: QuizImageReport, allowSvg = true): QuizPayload | null {
-  const m = text.match(/\[QUIZ\]([\s\S]*?)\[\/QUIZ\]/);
-  let raw = m ? m[1] : '';
-  if (!raw && text.includes('"questions"')) raw = text;
-  if (!raw) return null;
-  // 容错：剥离围栏后仍可能有前后杂质——提取首个完整 JSON 对象
-  const cleaned = raw.replace(/```json|```/g, '').trim();
-  const objMatch = cleaned.match(/\{[\s\S]*\}/);
-  if (!objMatch) return null;
+  const obj = extractQuizJson(text);
+  if (!obj) return null;
   // 两道修复在合法 JSON 上永不触发，故直接当所有尝试的基底（转义先修，不修好它括号扫描连串边界都错）
-  const json = repairJsonBrackets(repairJsonEscapes(objMatch[0]).text).text;
+  const json = repairJsonBrackets(repairJsonEscapes(obj).text).text;
   const attempts = [{ body: json, rescued: false, stripped: 0 }];
   // 超过上限的畸形输出不做救援：几 MB 的垃圾不值得赌一次回溯
   if (json.length <= MAX_RESCUE_CHARS) {

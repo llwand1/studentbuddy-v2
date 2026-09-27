@@ -10,11 +10,18 @@
 
 # studentbuddy v2 · 测试方案（test-plan）
 
-> 2026-09-26 像素统一合流：保存失败重试新增 `src/features/continent/MonsterDialog.test.tsx` 1 例；Landing、PK 演示登记与大陆图鉴已有用例更新，锁住已下线功能不再宣传、地图宝箱不冒称联动。完整实跑基线 213 文件 / 2887 例（2026-09-26 知识大陆优化批后复跑），验证记录与 README 由实测指标核对。
+> 2026-09-27 学习伙伴（NPC）批：新增 4 个测试文件 **39 例**（`src/npc.test.ts` 13／`src/learning/npc.test.ts` 15／`src/routes/npc.test.ts` 9／`src/features/continent/NpcDialog.test.tsx` 2）；`ContinentPage.test.tsx` 因页面取数改成「地图 + 卡墙 + 伙伴」三个只读口并发，同步补了另外两个口的桩（不补则每个用例都只看到错误横幅，红得指向错误方向）。
+> 2026-09-27 玩家创建制（NPC 批 12）：「npc 不要那么多，由玩家来创建比较好」⇒ 伙伴从「按词条数自动派生」改成「**玩家在地图上点格创建**」（花名册落 `app_settings.npc_party`，门票＝已完成任务数 + 锚定词条熟度）。**新增 1 个测试文件 7 例**（`src/features/continent/continent-partners.test.tsx`），另外四处**改写为主**：`src/npc.test.ts` 13→**17**、`src/learning/npc.test.ts` 15→**24**、`src/routes/npc.test.ts` 9→**12**、`src/features/continent/NpcDialog.test.tsx` 2→**3**；`ContinentPage.test.tsx` 9（只改伙伴桩的形状，用例数不变）。★ 改写的根因是一处**新踩到的坑**：世界坐标已是有符号固定中心（批 11），测试里再写死 `(5,7)` 就会造出"伙伴离怪十万八千里"的假局面——现在一律用 `tileOf(termId)` 从铺格现取。
+> 2026-09-27 开放世界批：**不改文件数**（用例改写为主）——`src/continent.test.ts` 33→**34**（新增「**螺旋前缀稳定**：半径只增时前 k 格逐格相同」「半径只增不减且容量恒够」两条，把旧的"140 格截断"改写掉）、`src/npc.test.ts` 13（上限改 `npcCapFor` 后本机数字 327 条 ⇒ **9 位**）、`src/features/continent/continent-view.test.ts` 23（旧截断用例改为世界半径/格数派生）、`ContinentPage.test.tsx` 9（点击坐标改走"世界 → 视口"换算，新增 `viewportOf`／`clickWorld` 两个 helper）。完整实跑基线 **217 文件 / 2927 例**（2926 通过 + 1 跳过），验证记录与 README 由实测指标核对。
 
 | 像素合流新增回归 | 用例 | 不变量 |
 |---|---:|---|
 | `src/features/continent/MonsterDialog.test.tsx` | 2 | ① 最后一题保存失败后允许重试、保存中禁止重复提交；② 情景题渲染出情境框与题型标签、答对即收复（2026-09-26 优化批 **1→2**） |
+| `src/npc.test.ts` | 17 | **伙伴跨端口径（批 12 改写）**：① `npcCapFor` 界限（下限 6／本机 327 条 ⇒ 9／封顶 24；脏输入落 6）；② `npcTasksRequiredFor` 门票（第 1 位 0／第 2 位 3／第 N 位 3×(N-1)；脏输入落"第 1 位"，不把门锁死）；③ `parseNpcParty` 容错解析（坏 JSON／缺字段／坐标非有限数／id 与坐标重复逐条跳过、缺 id 补 `npc:<termId>`、条数封顶 24）；④ 名字与人设归一化 + 本地兜底（码点截断、名字池确定性、兜底人设不编进度）；⑤ `npcDistress` 含**距离 0**（怪正好压在他那一格）；⑥ 求救单去重键不含会变的数、每日余额夹取、降级台词永不空回 |
+| `src/learning/npc.test.ts` | 24 | **服务端伙伴域（批 12 改写）**：① 自愈迁移（旧库那一位就地固化＝旧口径哈希第 0 位／空库固化**空册**／已有名册原样读回／锚定词条被删自动出册）；② 创建与门票（首位无条件、第 2 位需 3 单＋锚定词条 ★1、逐格三拒绝"荒地／怪占着／已有伙伴"、名额上限跟世界涨）；③ 改名（空串 400／未知 404／码点截断）与解散（**真删**、未知 404、词条与流水不动）；④ 处境（遇险＝`npcDistress` 同源、距离 0 遇险、可落位格＝候选格减去已占格与已守词条）；⑤ 求救单（置首幂等／脱险翻 done 发钥匙／怪在时 `not_yet`／**解散即完成**）；⑥ 交换两道闸门与落既有 `chest_open`（不花钥匙、跨日恢复、信物不被消耗、归属隔离） |
+| `src/routes/npc.test.ts` | 12 | **伙伴 HTTP（批 12 改写，supertest）**：① `GET /api/npc` 一次读全（`quota`/`spots`/`tradesLeft`/`npcs[].bio`）；② 空库固化空册且加词条也不凭空冒人；③ `POST /api/npc` 首位无条件创建（回整份新状态 + `memberId` + `source`）、逐格 409、非整数 400、第 2 位门票 409；④ `PUT /:id` 改名（成功/空串 400/未知 404）；⑤ `DELETE /:id` 真删且位置与名额都空出来；⑥ `talk` 无 key ⇒ 200+`fallback`；⑦ `trade` 未知 404／缺参 400／★0 409；⑧ 归属隔离（B 拿到空、改不到 A） |
+| `src/features/continent/NpcDialog.test.tsx` | 3 | 伙伴对话面板（批 12）：① `source='fallback'` 时显示「靠固定台词应答」并给设置指引；② 无 `cards>=2` 的词条时交换按钮禁用且文案说明门槛；③ 人设显示在标题旁；「让他回家」**两段式**（第一下只上膛不调服务端、第二下才真送走） |
+| `src/features/continent/continent-partners.test.tsx` | 7 | **伙伴取数与写口（批 12 新增）**：① 两个只读口并发读一次、信物只留 `cards>=2`；② 不能创建 ⇒ 只说 `blockedBy`、**不进**选位态；③ 能创建 ⇒ 进选位态并把 `spots` 交给地图；④ 创建成功 ⇒ 退出选位态 + 换上新状态 + `fallback` 时补一句"名字是本地起的"；⑤ 名字是 AI 起的时不多嘴；⑥ 失败**留在选位态**并原样说服务端那句（不许换成"创建失败"）；⑦ 改名与解散换上整份新状态 |
 
 > 2026-09-26 像素 UI：本批以 `origin/main @ 60dacb2` 为基线，开工 build/check 实测 204 文件、2765 passed＋1 skipped。仅加入前端视觉与交互回归，不改游戏数值、数据库、服务端测试结构；本批最终 build/check 实测 207 文件、2774 passed＋1 skipped（2775 例），tsc/eslint/gates 全绿；OG 22 张重建通过；完整指标对账另见 CHANGELOG 对应行。
 

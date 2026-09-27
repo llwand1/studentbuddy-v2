@@ -463,6 +463,54 @@
   max-width: 420px;
 }
 
+/* ── 学习伙伴对话面板（2026-09-27 NPC 批）──────────────────────── */
+.continent-npc-card {
+  max-width: 480px;
+}
+
+/* 一行控件（输入框 + 按钮）：窄屏自动换行，不挤成一坨 */
+.continent-npc-line {
+  display: flex;
+  gap: var(--sb-sp-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.continent-npc-line .continent-input {
+  flex: 1 1 180px;
+}
+
+/* 伙伴说的话：与"账目说明行"不同的待遇——它是**内容**，得有个框装住 */
+.continent-npc-say {
+  background: var(--sb-surface-sunken, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+}
+
+.continent-npc-say p {
+  font-size: var(--sb-fs-sm);
+  line-height: var(--sb-lh);
+  color: var(--sb-ink);
+}
+
+/* 交换区：与对话区拉开一层（它是**另一件事**，不是又一轮聊天） */
+.continent-npc-trade {
+  border-top: 1px dashed var(--sb-line);
+  padding-top: var(--sb-sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+}
+
+/* 选举报行（伙伴遇险）：与 `.continent-banner.warn` 同色，但不占整幅版面 */
+.continent-hint-line.warn {
+  color: var(--sb-danger);
+}
+
 /* ── 普通地块详情卡（已收复 / 未纳入复习范围）──────────────────── */
 .continent-detail {
   margin-top: var(--sb-sp-3);

@@ -28,8 +28,13 @@ import { announceCards } from './card-announce.js';
 import { saveOneTerm } from './terms.js';
 import { termCards, type TermCards } from './term-cards.js';
 
-/** 池子来源两值，落 `chest_open.source_kind`（ASCII 词，同 `study_task.kind` 的判据） */
-export type PoolSource = 'seed' | 'candidate';
+/**
+ * 池子来源三值，落 `chest_open.source_kind`（ASCII 词，同 `study_task.kind` 的判据）。
+ * ★ 2026-09-27 加 `'npc'`：与地图伙伴交换来的那一行。它**不是第四个词池**——条目仍从
+ *   `drawablePool` 的 seed/candidate 里挑，只是"付账方式"不同（不花钥匙，花每日交换额度）
+ *   ⇒ `poolSlug()` 永远只被 seed/candidate 调用，别把 'npc' 传进去（会拼出 `cand:` 前缀的错误 slug）。
+ */
+export type PoolSource = 'seed' | 'candidate' | 'npc';
 
 /** 一次开盒的结果 */
 export interface ChestDraw {
@@ -131,7 +136,8 @@ function toDraw(r: OpenRow, cost: ChestDraw['cost']): ChestDraw {
     term: r.pool_term,
     domain: r.pool_domain,
     definition: r.pool_definition,
-    source: r.source_kind === 'candidate' ? 'candidate' : 'seed',
+    // 三值直读：`source_kind` 是本表自己的列、不是外部输入，只有老行才需要回落到 seed
+    source: r.source_kind === 'candidate' ? 'candidate' : r.source_kind === 'npc' ? 'npc' : 'seed',
     cost,
   };
 }
@@ -149,7 +155,7 @@ function toDraw(r: OpenRow, cost: ChestDraw['cost']): ChestDraw {
  *   候选侧的重复由下面的 `taken` 按名收敛（同名时底座优先，slug 稳定不漂移）。
  */
 /** 池子里的一条可抽项：条目本体 + 它的去重键 + 来源（★ 三者一起返回，见 `openChest` 的注释） */
-interface PoolItem {
+export interface PoolItem {
   entry: ChestPoolEntry;
   slug: string;
   source: PoolSource;
@@ -304,6 +310,10 @@ export function openChest(ownerId: string | null, now = new Date()): OpenResult 
   return { ok: true, draw, state: chestState(ownerId, now) };
 }
 
+// ★ `chest_open` 上还有**第二种写规则**（NPC 交换：不扣钥匙）：它住在 `learning/npc.ts` 的
+//   `grantTradeDraw`。放在那边而不是这里，是因为那份文件要守 400 行红线，而这一处的归属也更贴切
+//   ——"扣钥匙开盒"与"拿信物交换"是两件事，只是共用同一张流水表。表的形状（`PoolItem`/`PoolSource`）
+//   仍只在本文件定义。
 export type AcceptResult =
   | { ok: true; termId: string; cards: TermCards | null; inScope: boolean }
   | { ok: false; error: string; status: number };

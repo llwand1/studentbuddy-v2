@@ -15,7 +15,8 @@
  */
 import { useState } from 'react';
 import { api, type PoolCandidate, type StudyTask } from '../../lib/api';
-import { TaskIcon, SparkleIcon } from '../../components/game-icons';
+import type { NpcQuota } from '../../lib/api-npc';
+import { TaskIcon, SparkleIcon, MascotIcon } from '../../components/game-icons';
 // 勾是**通用符号**，`icons.tsx` 已有一份 ⇒ 复用，不在游戏集里重画第二条（两份同形状＝双写，
 // 改一个的另一份就露馅）。`game-icons.tsx` 收的是宝箱／钥匙／星这类**游戏物件**。
 import { CheckIcon } from '../../components/icons';
@@ -26,6 +27,10 @@ const KIND_LABEL: Record<StudyTask['kind'], string> = {
   advance: '推进',
   unstall: '破停滞',
   review_pool: '补池',
+  // 2026-09-27 NPC 批：伙伴被怪堵住时的求救单（`docs/NPC-PARTNER-SPEC.md` §5）。
+  // ★ 这是四值联合类型带来的**必须同步的一处**：漏了它 TS 当场报"属性缺失"——
+  //   这正是把 kind 写成联合类型而不是 string 的价值（新增 kind 时不会静默显示成别的标签）。
+  npc_rescue: '救伙伴',
 };
 
 interface Banner {
@@ -38,11 +43,17 @@ export function TaskListPanel({
   tasks,
   candidates,
   freshTaskIds,
+  npcQuota,
+  onGoContinent,
   onChanged,
 }: {
   tasks: StudyTask[];
   candidates: PoolCandidate[];
   freshTaskIds: string[];
+  /** 伙伴名额与门票（= `GET /api/cards/state` 的 `npc`；★ 与 `tasks` 同一瞬间，不另取一次） */
+  npcQuota: NpcQuota;
+  /** 「去地图上安置」：创建伙伴的落点在知识大陆（"点哪一格"的交互在那边） */
+  onGoContinent: () => void;
   onChanged: () => void;
 }) {
   const [busyId, setBusyId] = useState('');
@@ -107,6 +118,30 @@ export function TaskListPanel({
             {hideDone ? `已完成 ${done.length}` : '收起已完成'}
           </button>
         )}
+      </div>
+
+      {/*
+        ★ 2026-09-27 批 12（老板点名"任务列表功能也要优化"）：把**伙伴名额的进度**摆到清单顶上。
+          它回答的是"我还差几单才能再创建一位伙伴"——做任务因此有了一个看得见的下一站。
+        ★ 不新增第 5 种 task kind：那会让"任务"这个词同时指两件事（要做的单 / 能不能建伙伴），
+          而 `kind` 是四值联合类型，多一个值就要连带动 `KIND_LABEL` 与求救单那套判据。
+        ★ 文案里的数与理由**都来自同一个 `npcQuota`**（服务端算好的 `blockedBy`），这里不自己编。
+      */}
+      <div className="gm-banner gm-info" role="status">
+        <MascotIcon size={24} />
+        <div>
+          <b>
+            AI 学习伙伴 · 已有 {npcQuota.count} 位（最多 {npcQuota.max} 位）
+          </b>
+          <span>
+            {npcQuota.canCreate
+              ? `已完成 ${npcQuota.doneTasks} 单任务——现在就能去地图上再安置一位。`
+              : npcQuota.blockedBy}
+          </span>
+        </div>
+        <button type="button" className="gm-btn gm-ghost gm-sm" onClick={onGoContinent}>
+          去地图上安置
+        </button>
       </div>
 
       {banner && (

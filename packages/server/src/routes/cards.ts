@@ -29,6 +29,8 @@ import { cardsByTerm, cardsLogSince, summarizeCards, type CardWallSummary, type 
 import { acceptDraw, chestState, openChest, type ChestState } from '../learning/chest.js';
 import { domainOrdinals } from '../learning/domains.js';
 import { completeTask, listTasks, type StudyTask } from '../learning/tasks.js';
+// ★ 数额小、口径便宜（两条 COUNT + 一次 `app_settings` 读，不铺图）⇒ 与 `tasks` 同一次响应给出去
+import { npcQuota, type NpcQuota } from '../learning/npc-party.js';
 import { decideCandidate, listCandidates, type PoolCandidate } from '../learning/pool-candidates.js';
 
 export const cardsRouter = Router();
@@ -58,6 +60,13 @@ export interface CardsStateResponse {
   tasks: StudyTask[];
   /** 待人工校对的候选（补池单就地裁决用）。★ 只列 `pending`——已定论的不是待办 */
   candidates: PoolCandidate[];
+  /**
+   * 学习伙伴的名额与门票（契约 `docs/NPC-PARTNER-SPEC.md` §2.3）。
+   * ★ 为什么混进"卡牌读数"里：它答的是"我还差几单任务才能再创建一位伙伴"，而 `doneTasks` 就是
+   *   `tasks` 里 `done` 的行数——与清单**同一个瞬间**读出来，才不会出现"清单说做完了 3 单、
+   *   进度却说还差 3 单"这种互相打脸（本项目最贵的一类 bug）。
+   */
+  npc: NpcQuota;
 }
 
 cardsRouter.get('/state', (req: Request, res: Response) => {
@@ -91,6 +100,7 @@ cardsRouter.get('/state', (req: Request, res: Response) => {
     chest: chestState(ownerId),
     tasks: listTasks(ownerId),
     candidates: listCandidates(ownerId, 'pending'),
+    npc: npcQuota(ownerId),
   } satisfies CardsStateResponse);
 });
 

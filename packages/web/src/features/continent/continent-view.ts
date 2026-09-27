@@ -21,6 +21,7 @@ import {
   monsterOccupies,
   speciesTypes,
   spreadLands,
+  worldRadiusFor,
   type ContinentLandSource,
   type ContinentQType,
   type ReviewStatus,
@@ -71,7 +72,7 @@ export interface ContinentView {
   tiles: ContinentTileView[];
   /**
    * **荒地上的**领地格（本体不在此格、且此格没有词条）。
-   * ★ 为什么必须单列：`tiles` 只装真词条（超出 140 格还会截断），而怪吞地时优先啃**荒地**
+   * ★ 为什么必须单列：`tiles` 只装真词条（超出**世界容量**才截断，正常量级不会），而怪吞地时优先啃**荒地**
    *   ——那些格不在 `tiles` 里。不单列一份，canvas 就画不出一整片占领区，点击也会落空
    *   （用户看到的形态是"图上明明有红地，点它没反应"，正是本仓最忌的静默死路）。
    */
@@ -83,8 +84,12 @@ export interface ContinentView {
   inScopeCount: number;
   /** 词条总数 */
   total: number;
-  /** 超格被截断的词条数（140 格以外不进地图） */
-  truncated: number;
+  /**
+   * **世界半径**（开放世界批，2026-09-27）：世界为 `[-radius, radius]²`，共 `worldCells(radius)` 格；
+   * 视口只有 `CONTINENT_VIEW_COLS × CONTINENT_VIEW_ROWS` ⇒ 屏幕只是视野。
+   * ★ UI 用它说"大陆多大"（`worldCells(radius)`）与算相机边界，**不自己重推**（先例同 `landCount`）。
+   */
+  radius: number;
   /** 图鉴**已发现**的槽集合（UI 用 `has(slot)`）/ 总槽数 */
   codexFound: Set<number>;
   codexTotal: number;
@@ -107,6 +112,41 @@ export interface ContinentLandCell {
   ownerTerm: string | null;
   /** 领主当前占几格（含本体） */
   count: number;
+}
+
+/** 地上的一只宝箱（打怪掉落；**只有位置与词条名，没有账**——开箱走既有每日宝箱账本） */
+export interface ContinentChestDrop {
+  row: number;
+  col: number;
+  term: string;
+}
+
+/** 一个格子（世界坐标，可为负；可能是真词条格、荒地上的领地格，或还没铺词条的空地） */
+export interface ContinentCell {
+  row: number;
+  col: number;
+}
+
+/**
+ * 「不在选位态」的空可落位格（契约 `docs/NPC-PARTNER-SPEC.md` §7）。
+ * ★ 必须是**稳定引用**：`ContinentMap` 的绘制 effect 以它作默认值，每次渲染新建一个 `[]`
+ *   会让 effect 每帧重跑（"长出来"的铺格动画反复重播，且白烧一格 CPU）。
+ * ★ 放这里而不是 `ContinentMap.tsx`：那份文件贴 `.tsx ≤300` 红线，一个常量挤在那里不值当。
+ */
+export const NO_SPOTS: readonly ContinentCell[] = [];
+
+/**
+ * 地图上的一位学习伙伴（★ 只有位置与名字，**遇险是服务端结论**）。
+ * ★ 不让渲染层自己算"他危不危险"：那要重算铺格 + 领地 + 曼哈顿距离，即第二份口径
+ *   （图上画着遇险、清单里没有那单）；结论由 `GET /api/npc` 给，这里只是读数。
+ * ★ 批 12 从 `ContinentMap.tsx` 搬来这里：与 `ContinentTileView` 同族，都属"地图的视图形状"。
+ */
+export interface ContinentNpcMark {
+  id: string;
+  name: string;
+  row: number;
+  col: number;
+  distressed: boolean;
 }
 
 export interface ContinentViewOptions {
@@ -140,7 +180,10 @@ export function buildContinentView(
     }
   }
   // ★ 领地只从**本体格**往外长（demo 口径），且跳过英雄脚下那一格
+  // ★ 世界半径与 `layoutTiles` 同源（都是 `worldRadiusFor(词条数)`）⇒ 领地边界不可能与铺格范围打架
+  const radius = worldRadiusFor(terms.length);
   const spread = spreadLands(bodySources, {
+    radius,
     termCells,
     blocked: opts.hero ? new Set([cellKey(opts.hero.row, opts.hero.col)]) : undefined,
   });
@@ -198,12 +241,39 @@ export function buildContinentView(
     monsterCount,
     inScopeCount,
     total: terms.length,
-    truncated: Math.max(terms.length - tiles.length, 0),
+    radius,
     codexFound: codexDiscovered(terms),
     codexTotal: CONTINENT_CODEX_SLOTS,
     dueOutOfScope,
     landCount: spread.lands.size,
   };
+}
+
+/**
+ * 某一格的**悬停文案**（唯一文案源，2026-09-27 开放世界批从 `ContinentMap.tsx` 下沉到这里）。
+ *
+ * ★ 为什么下沉：① 组件要守 `.tsx ≤300 行` 红线；② 它本来就是**文案口径**——与 `tileHint` 同族，
+ *   放这里才能被单测，也不会出现"组件里一套、提示里另一套"。
+ * ★ **伙伴优先于地块**：他站在格子上，鼠标停上去该说的是"这是谁"，不是"这格什么状态"。
+ * ★ 世界比视口大之后，落在视野里的空格也可能是**世界内但没铺词条**的格，故最后那句要说清
+ *   "走不过去"而不是含糊的"空"。
+ */
+export function cellHint(
+  cell: { row: number; col: number } | null,
+  ctx: {
+    tiles: readonly ContinentTileView[];
+    wildLands: readonly ContinentLandCell[];
+    npcs: readonly { row: number; col: number; name: string; distressed: boolean }[];
+  },
+): string | null {
+  if (!cell) return null;
+  const n = ctx.npcs.find((x) => x.row === cell.row && x.col === cell.col);
+  if (n) return `「${n.name}」你的学习伙伴${n.distressed ? '· 被怪堵住了，点他看看' : '· 点他跟他说句话'}`;
+  const t = ctx.tiles.find((x) => x.row === cell.row && x.col === cell.col);
+  if (t) return tileHint(t);
+  const w = ctx.wildLands.find((x) => x.row === cell.row && x.col === cell.col);
+  if (w) return `「${w.ownerTerm ?? ''}」怪的领地（荒地）· 领主共占 ${w.count} 格 · 点它复习领主`;
+  return '这一格还没铺上词条（走不过去）· 去「词条」页多存几条，它会从中心长出来';
 }
 
 /**

@@ -225,7 +225,8 @@ export function App() {
         )}
         {/* key 变化时重挂：从词条卡带词进来要重新初始化搜索框 */}
         {view === 'terms' && <TermsPage key={termsKeyword} initialKeyword={termsKeyword} />}
-        {view === 'cards' && <CardsView />}
+        {/* `onGoContinent`：任务清单那条"伙伴名额"要把人送到知识大陆（创建伙伴的落点在那边） */}
+        {view === 'cards' && <CardsView onGoContinent={() => setView('continent')} />}
         {view === 'continent' && <ContinentPage />}
         {view === 'settings' && <SettingsView />}
       </main>

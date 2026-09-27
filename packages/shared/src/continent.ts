@@ -49,10 +49,46 @@
  */
 import type { ReviewStatus } from './ebbinghaus.js';
 
-/** 大陆网格：14 列 × 10 行 = 140 格（与桌面 demo 同尺寸，逐格对齐过视觉） */
-export const CONTINENT_COLS = 14;
-export const CONTINENT_ROWS = 10;
-export const CONTINENT_CELLS = CONTINENT_COLS * CONTINENT_ROWS;
+/**
+ * **视口**格数：14 列 × 10 行 ＝ 140 格（672×480 像素，与桌面 demo 同尺寸、逐格对齐过视觉）。
+ *
+ * ★★ 2026-09-27（开放世界批）起，「视口」与「世界」是**两件事**：
+ *   · 视口 ＝ 屏幕看得见的那一块（就是这三个常量，canvas 像素尺寸与命中换算用它）；
+ *   · 世界 ＝ 有符号坐标 `(row, col)`、中心 `(0,0)`、半径 `radius`（`worldRadiusFor` 派生，只增不减）。
+ *   ⇒ 旧名 `CONTINENT_COLS/ROWS/CELLS` **已删**：它们此前被当成"世界尺寸"用，留着就是名字骗人。
+ *   详见 `docs/KNOWLEDGE-CONTINENT-SPEC.md`「开放世界与视口」段。
+ */
+export const CONTINENT_VIEW_COLS = 14;
+export const CONTINENT_VIEW_ROWS = 10;
+export const CONTINENT_VIEW_CELLS = CONTINENT_VIEW_COLS * CONTINENT_VIEW_ROWS;
+
+/**
+ * 世界半径的上下界（世界共 `(2*radius+1)²` 格）。
+ * ★ MIN 取 7 ⇒ 初始世界 15×15＝225 格，**一开始就比视口大**：一眼看得出"视野只是一部分"。
+ * ★ MAX 取 40 ⇒ 81×81＝6561 格；真到这个量级才会再出现"铺不下"，那是另一个数量级的词条库。
+ */
+export const WORLD_MIN_RADIUS = 7;
+export const WORLD_MAX_RADIUS = 40;
+
+/** 世界格数（半径 → 格数）。★ 唯一实现：别在别处再写一遍 `(2R+1)**2` */
+export function worldCells(radius: number): number {
+  const r = Math.max(Math.trunc(radius) || 0, 0);
+  return (2 * r + 1) ** 2;
+}
+
+/**
+ * 词条数 → 世界半径：`clamp(ceil((sqrt(n) - 1) / 2), 7, 40)`。
+ *
+ * ★★ **必须只增不减**（`sqrt` 单调 ⇒ 天然成立）：这是"加词不挪旧格"的前提——半径只往外扩，
+ *   铺格序列是稳定前缀（见 `spiralCells`），已落位的词条与伙伴（`npc:<termId>`）**永不换格**。
+ * ★ 为什么按词条数而不是别的：地图是**用户自己词汇量的可见形状**，加词＝开疆。
+ *   实测本机数字：`n=0/140 ⇒ R=7`（225 格）、`n=327 ⇒ R=9`（361 格）。
+ */
+export function worldRadiusFor(termCount: number): number {
+  const n = Math.max(0, Math.trunc(termCount) || 0);
+  const need = Math.ceil((Math.sqrt(n) - 1) / 2);
+  return Math.min(Math.max(need, WORLD_MIN_RADIUS), WORLD_MAX_RADIUS);
+}
 
 /** 怪最高 3 级（1 级怪 = 1 道题 = 1 滴血） */
 export const CONTINENT_MAX_LEVEL = 3;
@@ -137,17 +173,25 @@ export function cellKey(row: number, col: number): string {
 }
 
 /**
- * 确定性螺旋的格子次序：从网格中心起「右1 下1 左2 上2 右3 …」，越界丢弃，取前 `cols*rows` 格。
+ * 确定性螺旋的格子次序：**从世界中心 `(0,0)` 起**「右1 下1 左2 上2 右3 …」，超出半径丢弃。
  * 词条按时间序填进来 ⇒ **越早入库的词条越靠中心**（知识从中心长出来），且永不重排。
+ *
+ * ★★ **为什么把中心钉死成 `(0,0)` 而不像旧版那样取 `floor(rows/2), floor(cols/2)`**：
+ *   旧写法下**世界尺寸一变、中心就跟着漂**（10 行→第 5 行、14 行→第 7 行）⇒ 全世界重排，
+ *   而开放世界恰恰要求"世界只增不减"。钉死中心后，生成序列**与半径无关**（越界只丢弃）
+ *   ⇒ **前 k 格恒同**：加词只在外面续圈，已落位的格一个都不动（`docs/KNOWLEDGE-CONTINENT-SPEC`
+ *   「铺格前缀必须稳定」那条）。
+ * ★ 返回的是**有符号坐标**（可为负）：世界范围是 `[-radius, radius]²`，中心 `(0,0)`。
  */
-export function spiralCells(cols: number, rows: number): Array<{ row: number; col: number }> {
-  const total = cols * rows;
+export function spiralCells(radius: number): Array<{ row: number; col: number }> {
+  const r = Math.max(Math.trunc(radius) || 0, 0);
+  const total = worldCells(r);
   const out: Array<{ row: number; col: number }> = [];
   const push = (row: number, col: number): void => {
-    if (row >= 0 && row < rows && col >= 0 && col < cols) out.push({ row, col });
+    if (row >= -r && row <= r && col >= -r && col <= r) out.push({ row, col });
   };
-  let row = Math.floor(rows / 2);
-  let col = Math.floor(cols / 2);
+  let row = 0;
+  let col = 0;
   push(row, col);
   let step = 1;
   while (out.length < total) {
@@ -162,11 +206,15 @@ export function spiralCells(cols: number, rows: number): Array<{ row: number; co
 }
 
 /**
- * 把词条铺进大陆：`created_at` 升序（同值按 id）⇒ 螺旋次序；超出格数**截断**（140 格以外不显示）。
- * ★ 截断是刻意的：地图是「概览」，不是列表——第 141 条词条不该把地图撑爆。
+ * 把词条铺进大陆：`created_at` 升序（同值按 id）⇒ 螺旋次序（中心 `(0,0)` 起）。
+ *
+ * ★★ 半径**由本函数自己现算**（`worldRadiusFor(terms.length)`）：单一入口——
+ *   调用方传半径就可能传出"比实际需要小"的值，那会静默截断词条（旧版 140 格截断的教训）。
+ * ★ 仍保留"铺不下就停"这一条，但只在**词条数超过 `WORLD_MAX_RADIUS` 容量（6561）**时才可能触发；
+ *   正常量级（≤500）永远铺得下 ⇒ 旧横幅「另有 N 条词条暂未铺上图」已删（不再有那种情况）。
  */
 export function layoutTiles<T extends ContinentTermLike>(terms: readonly T[]): Array<ContinentTile<T>> {
-  const cells = spiralCells(CONTINENT_COLS, CONTINENT_ROWS);
+  const cells = spiralCells(worldRadiusFor(terms.length));
   const sorted = [...terms].sort((a, b) => {
     const ka = `${a.created_at ?? ''}\u0000${a.id}`;
     const kb = `${b.created_at ?? ''}\u0000${b.id}`;
@@ -318,8 +366,12 @@ const LAND_DIRS: ReadonlyArray<readonly [number, number]> = [
 ];
 
 export interface SpreadLandsOptions {
-  cols?: number;
-  rows?: number;
+  /**
+   * 世界半径（世界为 `[-radius, radius]²`）。★ 由调用方给（它知道自己的世界多大）；
+   * 不给 ⇒ 用 `WORLD_MIN_RADIUS`（小世界），**绝不**默认成一个"看起来够大"的数——
+   * 默认值骗人比报错难查（旧版的 `cols/rows` 默认 14×10 就是这类隐患）。
+   */
+  radius?: number;
   /**
    * 谁都吞不了的格（**用英雄脚下的格**：怪不该把玩家站的地方占掉）。
    * ★ 这是「英雄位置」这个纯前端状态进入纯函数的**唯一**入口——函数本身仍然无状态。
@@ -341,8 +393,7 @@ export function spreadLands(
   sources: readonly ContinentLandSource[],
   opts: SpreadLandsOptions = {},
 ): ContinentLands {
-  const cols = opts.cols ?? CONTINENT_COLS;
-  const rows = opts.rows ?? CONTINENT_ROWS;
+  const radius = Math.max(Math.trunc(opts.radius ?? WORLD_MIN_RADIUS) || 0, 0);
   const blocked = opts.blocked ?? new Set<string>();
   const termCells = opts.termCells;
   const bodies = new Map<string, string>();
@@ -375,7 +426,7 @@ export function spreadLands(
         for (const [dr, dc] of LAND_DIRS) {
           const row = br + dr;
           const col = bc + dc;
-          if (row < 0 || row >= rows || col < 0 || col >= cols) continue;
+          if (row < -radius || row > radius || col < -radius || col > radius) continue;
           const nk = cellKey(row, col);
           if (taken.has(nk) || blocked.has(nk) || owned.has(nk)) continue;
           if (cands.some((c) => c.key === nk)) continue; // 同一格被两个已有格邻到：只算一次

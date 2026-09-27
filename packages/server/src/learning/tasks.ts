@@ -19,11 +19,13 @@
  *   聊天流里那条思考链进度面板，与这里毫无关系（同名会撞在同一个 barrel 里）。
  */
 import { randomUUID } from 'node:crypto';
-import { advanceDedupeKey, localDayKey, poolDedupeKey, unstallDedupeKey } from '@sb/shared';
+import { advanceDedupeKey, localDayKey, npcRescueDedupeKey, poolDedupeKey, unstallDedupeKey } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
 import { cardsByTerm, type TermCards } from './term-cards.js';
 import { drawablePool, grantEarnedKey } from './chest.js';
+// ★ 只取派生量的读口（`learning/npc.ts` 不反向 import 本文件 ⇒ 无环）：求救单的判据全在那边
+import { distressedNpcIds, distressedNpcs } from './npc.js';
 
 /** 一次最多挂几单没做完的。清单是"今天顺手做掉"的几件事，不是待办瀑布 */
 export const MAX_OPEN_TASKS = 4;
@@ -31,8 +33,12 @@ export const MAX_OPEN_TASKS = 4;
 /** 可抽池低于这个数才派"审候选"那一单（不低于就打扰人） */
 export const POOL_LOW_WATER = 5;
 
-/** 三类意图（ASCII 键，显示名在前端，同 `study_task.kind` 的判据） */
-export type TaskKind = 'advance' | 'unstall' | 'review_pool';
+/**
+ * 四类意图（ASCII 键，显示名在前端，同 `study_task.kind` 的判据）。
+ * ★ 2026-09-27 加 `'npc_rescue'`：知识大陆上的学习伙伴被怪堵住时的一声求救
+ *   （契约 `docs/NPC-PARTNER-SPEC.md` §5）。不新建调度器，仍挂既有 6 小时 tick。
+ */
+export type TaskKind = 'advance' | 'unstall' | 'review_pool' | 'npc_rescue';
 
 export interface StudyTask {
   id: string;
@@ -64,7 +70,10 @@ const TASK_COLS = 'id, kind, title, why, term_id, ref_id, target_star, status, c
 function toTask(r: TaskRow): StudyTask {
   return {
     id: r.id,
-    kind: r.kind === 'unstall' || r.kind === 'review_pool' ? r.kind : 'advance',
+    // 逐个列出已知三值，其余（含将来新增却忘在这里登记的 kind）一律落 advance——
+    // 与 `isDone` 末尾那个 `return false` 同一条判据：宁可分类显示错，也不要让未知 kind 自证完成
+    kind:
+      r.kind === 'unstall' || r.kind === 'review_pool' || r.kind === 'npc_rescue' ? r.kind : 'advance',
     title: r.title,
     why: r.why,
     termId: r.term_id,
@@ -186,6 +195,25 @@ function poolIntents(ownerId: string | null): Intent[] {
   }));
 }
 
+/**
+ * 求救单：遇险的伙伴**每位一单**，且派在队列最前（契约 §5.2）。
+ * ★ 为什么置首：这一单**有时效**（怪还在那儿），而"推进／破停滞／补池"三单随时可做。
+ *   `MAX_OPEN_TASKS = 4` 的额度被占满时，先出局的该是那三单。
+ * ★ 判据是「此刻在遇险」——由 `learning/npc.ts` 的派生量给，不从标题猜（§5.3）。
+ *   也因此天然不会"派单那一 tick 立刻判完成"（这正是它与 unstall 那单的差别）。
+ */
+function npcRescueIntents(ownerId: string | null): Intent[] {
+  return distressedNpcs(ownerId).map((d) => ({
+    kind: 'npc_rescue' as TaskKind,
+    dedupeKey: npcRescueDedupeKey(d.id),
+    title: `去救「${d.name}」`,
+    why: `它被「${d.threatTerm}」的怪堵住了——答对那道题，怪就散了。`,
+    termId: d.threatTermId,
+    refId: d.id,
+    targetStar: null,
+  }));
+}
+
 export interface DispatchResult {
   added: number;
   taskIds: string[];
@@ -209,6 +237,8 @@ export function dispatchTasks(ownerId: string | null, now = new Date()): Dispatc
     const cards = [...cardsByTerm(ownerId).values()];
     const advance = advanceIntents(cards);
     const intents = [
+      // ★ 求救单置首（§5.2）：它有时效，额度不够时先出局的该是下面三单
+      ...npcRescueIntents(ownerId),
       ...advance,
       ...unstallIntents(ownerId, cards, localDayKey(now), new Set(advance.map((a) => a.termId ?? ''))),
       ...poolIntents(ownerId),
@@ -233,7 +263,13 @@ export function dispatchTasks(ownerId: string | null, now = new Date()): Dispatc
 }
 
 /** 判据求值：只读事实、不写库，所以每次 `/state` 重算都安全（完成口径全仓只有这一处） */
-function isDone(row: TaskRow, ownerId: string | null, now: Date): boolean {
+function isDone(
+  row: TaskRow,
+  ownerId: string | null,
+  now: Date,
+  /** 当前「遇险伙伴 id」集；★ 由调用方算一次传进来——逐行重算等于把地图铺格跑 N 遍 */
+  distressed?: ReadonlySet<string>,
+): boolean {
   if (row.kind === 'advance') {
     if (!row.term_id || row.target_star === null) return false;
     const c = cardsByTerm(ownerId).get(row.term_id);
@@ -253,6 +289,13 @@ function isDone(row: TaskRow, ownerId: string | null, now: Date): boolean {
           WHERE id = ? AND status IN ('approved','rejected') AND decided_at IS NOT NULL`,
       )
       .get(row.ref_id);
+  }
+  if (row.kind === 'npc_rescue') {
+    if (!row.ref_id) return false; // 同 review_pool：没有 ref_id 就不许判完成
+    // ★★ 判据只有这一句：「该伙伴当前不再遇险」。怪被答对／词条被删／词条移出复习范围／
+    //    伙伴因地图缩小而消失——四种情况在派生量里**都表现为"不在遇险集合里"**，
+    //    ⇒ 「缺失即完成、防挂单」自动满足，不需要单独分支（§5.3）。
+    return !(distressed ?? distressedNpcIds(ownerId)).has(row.ref_id);
   }
   return false; // 未知 kind（将来加了新意图而忘了在这里判）⇒ 永不自证完成
 }
@@ -275,9 +318,11 @@ export function reconcileTasks(ownerId: string | null, now = new Date()): Reconc
   const flip = db.prepare(`UPDATE study_task SET status = 'done', done_at = datetime('now') WHERE id = ? AND status = 'open'`);
   const completed: string[] = [];
   let keysGranted = 0;
+  // ★ 只在真有求救单时才铺一次地图（`continentMap` 是全表扫 + 逐条算复习态）：白跑是浪费
+  const distressed = open.some((r) => r.kind === 'npc_rescue') ? distressedNpcIds(ownerId) : null;
   db.transaction(() => {
     for (const r of open) {
-      if (!isDone(r, ownerId, now)) continue;
+      if (!isDone(r, ownerId, now, distressed ?? undefined)) continue;
       if (flip.run(r.id).changes !== 1) continue; // 已被别的写者翻过 ⇒ 不发第二把
       completed.push(r.id);
       keysGranted += 1;

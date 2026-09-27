@@ -48,6 +48,10 @@ export const MODEL_ROLES: Array<{ role: ModelRole; label: string }> = [
   //   会回退讲解模型——督促本质是日常对话，而老库升级后 role_bindings 里本来就没有这一行，
   //   若按「必须绑定」处理，用户看到的是「该角色还没绑定模型」而他从没改过任何设置。
   { role: 'coach', label: '督促（复习陪练）' },
+// 2026-09-27 新增：知识大陆上的学习伙伴（NPC）。
+  // ★ 与 coach 同一条降级链：未绑定 ⇒ 回退 explain；连 key 都没有 ⇒ 本地台词（`learning/npc-talk.ts`）。
+  //   数组驱动 ⇒ 默认绑定 INSERT 与设置页渲染自动带上，无需迁移。
+  { role: 'npc', label: '学习伙伴（大陆 NPC）' },
   // v0.2.139 新增：生图（画图）。`generate_image` 工具的落点——绑定的模型打 OpenAI 兼容的
   // `/images/generations`，与聊天模型不同池，故默认模型走 `imagePlatformDefaultModel()`
   // （SB_IMAGE_MODEL > agnes-image-2.5-flash），**绝不回落**聊天默认（见 platform-channel.ts）。

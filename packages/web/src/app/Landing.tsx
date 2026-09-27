@@ -34,7 +34,7 @@
  * ★ 视觉纪律（`docs/ENGINEERING.md`）：禁 emoji，图标用 `components/icons.tsx` 的自绘 line-icon；
  *   配色只取 tokens.css 既有 token（#007aff 主色 / #fafafa 底），不另起色板；禁内联 style。
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AuthUser } from '@sb/shared';
 import { api } from '../lib/api';
 import { AccountBox } from '../components/AccountBox';
@@ -48,7 +48,9 @@ import { PRIVACY_ITEMS } from './landing-data';
 import { AUTH, FOOT, FOOT_CHANGELOG, FOOT_TERMS, GITHUB_BAND, HERO, PRIVACY, HERO_TAGS, STEPS, TOP } from './landing-copy';
 import { LangToggle, LandingLangProvider, useLandingLang } from './landing-lang';
 import { CATALOG_PATH, CHANGELOG_PATH } from '../seo/paths';
+import { useLandingAtmos } from './useLandingAtmos';
 import './landing.css';
+import './landing-dark.css';
 
 type AuthCard = 'closed' | 'register' | 'login';
 
@@ -63,6 +65,8 @@ export function Landing(props: { onAuthed: (u: AuthUser) => void }) {
 function LandingPage({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
   const { lang } = useLandingLang();
   const [card, setCard] = useState<AuthCard>('closed');
+  const rootRef = useRef<HTMLDivElement>(null);
+  useLandingAtmos(rootRef);
   // GitHub 登录入口是否可用（契约 AUTH-SPEC §2.8）：服务端没配凭据就不画按钮，
   // 请求失败（非 2xx / 网络）按「不可用」处理——宁少一个入口，不给用户一个点了报错的按钮。
   // ★ `demo`（§2.10 公用体验账号）同口径：开关在上游。两者共用**一次** providers 请求，
@@ -87,7 +91,7 @@ function LandingPage({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
   }, []);
 
   return (
-    <div className="landing">
+    <div className="landing" ref={rootRef} lang={lang === 'zh' ? 'zh-CN' : 'en'}>
       <header className="landing-top">
         <LandingBrand />
         <div className="landing-top-right">

@@ -56,7 +56,7 @@
 }
 /* 只有"有欠账"才上色：常亮的高亮色很快就没人看，颜色变了才是提示（刻意不做倒计时） */
 .coach-cap.warn {
-  color: #b26a00;
+  color: #ffb347;
   border-color: #f0d9b0;
 }
 .coach-cap.alert {
@@ -198,7 +198,7 @@
   margin: var(--sb-sp-2) var(--sb-sp-3) 0;
   padding: 6px 10px;
   border-radius: var(--sb-radius-sm);
-  background: #fdecec;
+  background: #2a1116;
   color: var(--sb-danger);
   font-size: var(--sb-fs-xs);
   line-height: var(--sb-lh);
@@ -377,7 +377,7 @@
 }
 .coach-card-ai.streaming {
   border-left-color: var(--sb-primary);
-  background: linear-gradient(180deg, #f7faff, var(--sb-surface));
+  background: linear-gradient(180deg, #1c1016, var(--sb-surface));
 }
 .coach-card-me {
   margin-left: 36px;
@@ -386,8 +386,8 @@
 }
 .coach-card-nudge {
   border-left: 3px solid #e0a23c;
-  background: #fffaf1;
-  color: #7a5210;
+  background: var(--sb-surface);
+  color: #ffd27a;
 }
 /* 趋势卡（记忆联动）：一张卡承载一份「我最近在学什么」的窗口快照。
    ★ 配色刻意走**中性**（既不是 AI 卡的蓝、也不是提醒卡的橙）：它既不是"我说的话"、
@@ -399,7 +399,7 @@
   margin-bottom: 4px;
   font-size: var(--sb-fs-xs);
   font-weight: 700;
-  color: #55637a;
+  color: #a8998e;
 }
 .coach-tr-body {
   color: var(--sb-ink);
@@ -439,7 +439,7 @@
 }
 .coach-tr-n {
   font-weight: 700;
-  color: #55637a;
+  color: #a8998e;
 }
 .coach-card-review {
   display: flex;
@@ -454,11 +454,11 @@
   font-weight: 700;
 }
 .coach-rv-mark.ok {
-  background: #e8f6ea;
+  background: var(--sb-pixel-green);
   color: var(--sb-success);
 }
 .coach-rv-mark.bad {
-  background: #fdecec;
+  background: #2a1116;
   color: var(--sb-danger);
 }
 .coach-rv-main {

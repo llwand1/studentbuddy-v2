@@ -1,0 +1,98 @@
+/* grimoire — 应用本体的「古典剑与魔法」外观层（2026-09-28），与落地页冒险录同一套语言：
+   渎神式黑铁外框 + 双金线、血红主按钮、铁灰次按钮、页标题带压印阴影与荆棘分隔。
+   只改外观（边框 / 阴影 / 字体 / 底色），不动任何布局尺寸；动效一律 steps()。 */
+
+:root {
+  --gr-gold: #c9a24a;
+  --gr-gold-dim: #5a4420;
+  --gr-iron: #07050a;
+  --gr-frame: inset 0 0 0 1px var(--gr-gold-dim), inset 0 0 0 3px var(--gr-iron), inset 0 0 0 4px #3a2c18, 5px 5px 0 #000;
+  --gr-frame-hi: inset 0 0 0 2px var(--gr-gold-dim), inset 0 0 0 4px var(--gr-iron), inset 0 0 0 5px var(--gr-gold), 8px 8px 0 #000, 0 0 36px -12px rgba(155, 31, 44, .55);
+}
+
+/* 页标题：压印阴影 + 下方荆棘分隔线 */
+body :is(.continent-head h1, .term-head h2, .cv-h2, .settings-view h2, .rv-head h2, .quiz-head h2) {
+  font-family: var(--sb-font-display, inherit);
+  letter-spacing: .04em;
+  text-shadow: 2px 2px 0 #000, 0 0 18px rgba(155, 31, 44, .35);
+}
+body :is(.continent-head, .term-head) h1::after,
+body .term-head h2::after {
+  content: ''; display: block; width: 180px; height: 3px; margin-top: 8px;
+  background: linear-gradient(90deg, var(--gr-gold) 0 12px, transparent 12px 16px, #7a1a24 16px 70%, transparent);
+}
+
+/* 面板：黑铁框 + 金线 */
+body :is(.quiz-card, .notes-block, .sum-card, .settings-sec, .rv-panel, .term-add, .term-domain-panel,
+  .term-edit, .rv-goal, .sb-pk-card, .sb-pk-mode, .sb-pk-fold, .sb-pk-term-panel, .coach-drawer,
+  .coach-qcard, .term-card, .choice-card, .continent-banner, .continent-codex, .continent-detail,
+  .continent-npc-card, .continent-chest-card) {
+  border: 2px solid var(--gr-iron) !important;
+  background: linear-gradient(#150e13, #0e090d) !important;
+  box-shadow: var(--gr-frame) !important;
+}
+
+/* 主舞台（大陆地图、弹窗）：更厚的双金框 + 两角荆棘纹 */
+body :is(.continent-map-wrap, .continent-modal-card) {
+  position: relative;
+  border: 3px solid var(--gr-iron) !important;
+  background: linear-gradient(#120b10, #0a060a) !important;
+  box-shadow: var(--gr-frame-hi) !important;
+}
+body :is(.continent-map-wrap, .continent-modal-card)::before,
+body :is(.continent-map-wrap, .continent-modal-card)::after {
+  content: ''; position: absolute; width: 22px; height: 22px; pointer-events: none; z-index: 5;
+  background:
+    linear-gradient(var(--gr-gold), var(--gr-gold)) 0 0 / 22px 4px no-repeat,
+    linear-gradient(var(--gr-gold), var(--gr-gold)) 0 0 / 4px 22px no-repeat,
+    linear-gradient(#7a1a24, #7a1a24) 7px 7px / 6px 6px no-repeat;
+  filter: drop-shadow(2px 2px 0 #000);
+}
+body :is(.continent-map-wrap, .continent-modal-card)::before { top: -6px; left: -6px; }
+body :is(.continent-map-wrap, .continent-modal-card)::after { right: -6px; bottom: -6px; transform: rotate(180deg); }
+
+/* 数字格（大陆 HUD / 词条统计）：铁牌 + 金色数字 */
+body :is(.continent-stats > span, .term-stat, .rv-stat) {
+  border: 2px solid var(--gr-iron) !important;
+  background: linear-gradient(#1c1318, #120c10) !important;
+  box-shadow: inset 0 0 0 1px var(--gr-gold-dim), 3px 3px 0 #000 !important;
+}
+body :is(.continent-stats > span, .term-stat, .rv-stat) :is(b, strong) { color: var(--gr-gold); text-shadow: 1px 1px 0 #000; }
+
+/* 主按钮：血红锻铁；次按钮：铁灰 + 金线，悬停时金光 */
+body :is(.sb-new-chat, .chat-send, .quiz-submit, .sum-gen, .coach-send, .settings-add) {
+  background: linear-gradient(#a3222f, #6e1420) !important;
+  color: #fff4e0 !important;
+  border: 2px solid var(--gr-iron) !important;
+  box-shadow: inset 0 0 0 1px #e0505b, 3px 3px 0 #000 !important;
+}
+body :is(.continent-btn, .term-btn, .rv-btn, .notes-save, .sb-pk-btn, .cv-chip) {
+  background: linear-gradient(#22161d, #140d12);
+  border: 2px solid var(--gr-iron) !important;
+  box-shadow: inset 0 0 0 1px var(--gr-gold-dim), 3px 3px 0 #000 !important;
+  transition: transform 100ms steps(2);
+}
+@media (hover: hover) {
+  body :is(.continent-btn, .term-btn, .rv-btn, .notes-save, .sb-pk-btn, .cv-chip):hover:not(:disabled) {
+    color: var(--gr-gold); box-shadow: inset 0 0 0 1px var(--gr-gold), 4px 5px 0 #000 !important; transform: translate(-1px, -2px);
+  }
+}
+
+/* 侧栏选中项：金线描边 + 一粒余烬 */
+body .sb-nav-item[aria-current='page'],
+body .sb-nav-item.active {
+  box-shadow: inset 0 0 0 1px var(--gr-gold), 3px 3px 0 #000 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body :is(.continent-btn, .term-btn, .rv-btn, .notes-save, .sb-pk-btn, .cv-chip) { transition: none; }
+}
+
+/* 卡牌页：每日宝箱 = 铁箍木匣（深木底 + 金线），卡牌 = 带金边的遗物 */
+body .cv-chest {
+  background: linear-gradient(#2a1c10, #1a1109) !important;
+  border: 2px solid var(--gr-iron) !important;
+  box-shadow: inset 0 0 0 1px var(--gr-gold-dim), inset 0 0 0 4px #3b2616, inset 0 0 0 5px var(--gr-gold-dim), 5px 5px 0 #000 !important;
+}
+body .gm-card { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .6), 3px 3px 0 #000; }
+body .gm-card[data-r="SSR"] { box-shadow: inset 0 0 0 1px #000, 3px 3px 0 #000, 0 0 18px -4px var(--gr-gold); }

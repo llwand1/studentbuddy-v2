@@ -15,7 +15,7 @@
  *   而真正的风险点在帧渲染口径（已由第三组锁覆盖）。
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, fireEvent, cleanup } from '@testing-library/react';
+import { render, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { Landing } from './Landing';
 import { LANDING_LANG_KEY } from './landing-lang';
 import { LANDING_DEMOS, TERM_FLOW } from './demo/registry';
@@ -73,12 +73,12 @@ describe('Landing — 未登录门面（2026-09-28 冒险录版式）', () => {
     expect(queryByPlaceholderText('邮箱')).toBeNull(); // 默认收起：表单不抢镜
   });
 
-  it('冒险录章节顺序固定：大陆 → 词条 → 伙伴 → 卡牌 → Boss 战 → 终章，且紧跟首屏', () => {
+  it('冒险录章节顺序固定：大陆 → 异火 → 副本 → 词条 → 伙伴 → 卡牌 → Boss 战 → 终章，且紧跟首屏', () => {
     const { container } = render(<Landing onAuthed={() => undefined} />);
     const blocks = [...container.querySelectorAll('.landing-body > section')];
     expect(blocks[0]?.classList.contains('landing-hero')).toBe(true);
     const ids = blocks.slice(1).map((n) => [...n.classList].find((c) => c.startsWith('wf-ch-')));
-    expect(ids).toEqual(['wf-ch-continent', 'wf-ch-term', 'wf-ch-npc', 'wf-ch-cards', 'wf-ch-boss', 'wf-ch-finale']);
+    expect(ids).toEqual(['wf-ch-continent', 'wf-ch-discover', 'wf-ch-dungeon', 'wf-ch-term', 'wf-ch-npc', 'wf-ch-cards', 'wf-ch-boss', 'wf-ch-finale']);
   });
 
   it('★ 门面只讲游戏化玩法：下线的旧功能与工程讲解不再出现', () => {
@@ -173,5 +173,28 @@ describe('词条演示 — 高亮口径', () => {
     // ★ jsdom 量不到布局，所以锁的是**那条父子关系本身**（它就是 bug 的唯一成因）。
     expect(container.querySelector('.ld-reply .ld-hover')).toBeTruthy();
     expect(container.querySelector('.ld-layer > .ld-hover')).toBeNull();
+  });
+});
+
+describe('Landing — 异火与副本（2026-09-28）', () => {
+  it('异火：走到篝火旁才揭开他人留下的词条笺，带留笺人名字', () => {
+    const { container } = render(<Landing onAuthed={() => undefined} />);
+    const ch = container.querySelector('.wf-ch-discover')!;
+    expect(ch.querySelector('.wd-term')).toBeNull();
+    const right = [...ch.querySelectorAll('.wd-pad button')].find((b) => b.textContent === '→')!;
+    for (let i = 0; i < 6; i++) fireEvent.click(right);
+    expect(ch.querySelector('.wd-term')?.textContent).toBe('费曼学习法');
+    expect(ch.querySelector('.wd-sign')?.textContent).toContain('夜读的阿柚');
+  });
+
+  it('副本：标「即将开启」，锻造后答对才解锁下一时代', async () => {
+    const { container } = render(<Landing onAuthed={() => undefined} />);
+    const ch = container.querySelector('.wf-ch-dungeon')!;
+    expect(ch.textContent).toContain('即将开启');
+    fireEvent.click(ch.querySelector('.wg-seed .wf-btn-blood')!);
+    await waitFor(() => expect(ch.querySelector('.wg-path')).toBeTruthy(), { timeout: 4000 });
+    expect(ch.querySelectorAll('.wg-node button:disabled').length).toBe(4);
+    fireEvent.click([...ch.querySelectorAll('.wg-opts button')].find((b) => b.textContent === '水')!);
+    expect(ch.querySelectorAll('.wg-node button:disabled').length).toBe(3);
   });
 });

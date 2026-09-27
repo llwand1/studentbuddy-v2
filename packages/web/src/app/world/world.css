@@ -211,3 +211,93 @@
   .cw-pop, .cw-title, .wn-shaft, .wn-hero, .wn-art, .wn-next, .wk-SSR::after, .wk-box, .wk-rays, .wk-got,
   .wb-art, .wb-bolt-2, .wz-cta, .wz-rune, .wb-hit .wb-foe-side .wb-art { animation: none !important; }
 }
+
+/* ── 荒野里的异火（意外发现）：俯视小地图 + 迷雾视野 + 异色篝火 + 余烬笺 ── */
+.wd-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 22px; max-width: 1040px; margin: 0 auto; }
+.wd-map-wrap { padding: 14px; }
+.wd-map { display: block; width: 100%; height: auto; image-rendering: pixelated; cursor: pointer; outline: none; background: #07050a; }
+.wd-map:focus-visible { box-shadow: 0 0 0 2px var(--lx-gold); }
+.wd-hue-cyan { --h1: #7ff0ff; --h2: #1aa3c2; }
+.wd-hue-violet { --h1: #d6a8ff; --h2: #7a3cc9; }
+.wd-hue-gold { --h1: #ffe08a; --h2: #c98a1a; }
+.wd-hue-green { --h1: #a8ffb0; --h2: #2f9e48; }
+.wd-pad { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; align-items: center; }
+.wd-pad .wf-btn { min-width: 38px; padding: 6px 10px; }
+.wd-night { margin-left: auto; }
+.wd-note { padding: 26px 24px; display: flex; align-items: center; justify-content: center; min-height: 260px; }
+.wd-far { margin: 0; color: var(--sb-ink-tertiary); font-size: 14px; line-height: 1.9; text-align: center; font-style: italic; }
+.wd-scroll { width: 100%; animation: wd-rise .6s steps(6) both; }
+.wd-kicker { margin: 0 0 8px; font-size: 12px; letter-spacing: .12em; color: var(--h1, var(--lx-gold)); }
+.wd-term { margin: 0 0 12px; font: 800 26px/1.3 var(--sb-font-display); color: var(--sb-ink); text-shadow: 0 0 18px var(--h2, #9b1f2c), 2px 2px 0 #000; }
+.wd-body { margin: 0 0 14px; padding: 14px 16px; font-size: 14px; line-height: 1.95; color: #e9dcc4; background: linear-gradient(#2a1f18, #1e1612); box-shadow: inset 0 0 0 1px #5a4420, 3px 3px 0 #000; }
+.wd-sign { margin: 0 0 16px; text-align: right; font-size: 12.5px; color: var(--sb-ink-secondary); }
+.wd-sign b { color: var(--h1, var(--lx-gold)); }
+.wd-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+@keyframes wd-bob { 50% { transform: translateY(-2px); } }
+@keyframes wd-flick { 50% { transform: scaleX(.86) translateY(1px); } }
+@keyframes wd-pulse { 50% { opacity: .5; } }
+@keyframes wd-rise { from { opacity: 0; transform: translateY(14px); } }
+
+/* ── 副本 · 即将开启：种子词条 → 锻造日志 → 时代之路 + 区域房间 ── */
+.wg-wrap { max-width: 1040px; margin: 0 auto; padding: 30px 26px 26px; min-height: 320px; }
+.wg-badge { position: absolute; top: -13px; left: 50%; transform: translateX(-50%); z-index: 6; padding: 4px 14px; font: 800 12px var(--sb-font-display); letter-spacing: .14em; color: #1a1208; background: linear-gradient(#e8c46a, #b0862e); border: 2px solid #000; box-shadow: 3px 3px 0 #000; }
+.wg-seed { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px 0; }
+.wg-seed-label { margin: 0; font-size: 12px; letter-spacing: .14em; color: var(--sb-ink-tertiary); }
+.wg-card { display: flex; align-items: center; gap: 10px; padding: 14px 26px; font: 800 22px var(--sb-font-display); color: #d8f5c0; background: linear-gradient(#1c3318, #0f1e0d); border: 2px solid #000; box-shadow: inset 0 0 0 1px #5aa04a, 4px 4px 0 #000, 0 0 30px -6px #5aa04a; }
+.wg-leaf { width: 18px; height: 18px; background: #6fd35a; clip-path: polygon(50% 0, 100% 40%, 60% 100%, 40% 100%, 0 40%); }
+.wg-log { list-style: none; margin: 0; padding: 12px 18px; min-width: min(420px, 100%); font: 13px/2 ui-monospace, monospace; color: #9fe38c; background: #07100a; box-shadow: inset 0 0 0 1px #2e5a2a; }
+.wg-log li::before { content: '› '; color: #5aa04a; }
+.wg-cursor { animation: wg-blink .6s steps(1) infinite; }
+.wg-cursor::before { content: '' !important; }
+.wg-path { list-style: none; margin: 0 0 20px; padding: 0; display: flex; gap: 0; counter-reset: era; }
+.wg-node { flex: 1; position: relative; }
+.wg-node + .wg-node::before { content: ''; position: absolute; top: 50%; left: -8px; width: 16px; height: 4px; background: #3a2a22; z-index: 1; }
+.wg-node.wg-clear + .wg-node::before { background: var(--lx-gold); box-shadow: 0 0 8px var(--lx-gold); }
+.wg-node button { width: calc(100% - 8px); margin: 0 4px; padding: 10px 6px; display: flex; flex-direction: column; gap: 2px; align-items: center; cursor: pointer; font: inherit; color: var(--sb-ink); border: 2px solid #000; box-shadow: inset 0 0 0 1px #5a4420, 3px 3px 0 #000; background: var(--wg-bg, #1a1216); }
+.wg-node button:disabled { cursor: not-allowed; filter: grayscale(.9) brightness(.45); }
+.wg-cur button { box-shadow: inset 0 0 0 2px var(--lx-gold), 3px 3px 0 #000, 0 0 16px -4px var(--lx-gold); }
+.wg-clear .wg-year::after { content: ' ✦'; color: var(--lx-gold); }
+.wg-year { font: 800 14px var(--sb-font-display); }
+.wg-place { font-size: 11px; color: var(--sb-ink-secondary); text-align: center; }
+.wg-t-soil { --wg-bg: linear-gradient(#3a2618, #22160e); --wg-glow: #a0703a; }
+.wg-t-glass { --wg-bg: linear-gradient(#1c2c34, #0f1a20); --wg-glow: #6ab0c8; }
+.wg-t-sun { --wg-bg: linear-gradient(#3a2e10, #1e1808); --wg-glow: #e8c46a; }
+.wg-t-leaf { --wg-bg: linear-gradient(#18301a, #0c1a0e); --wg-glow: #5aa04a; }
+.wg-t-lab { --wg-bg: linear-gradient(#26163a, #140c20); --wg-glow: #a870e0; }
+.wg-room { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; padding: 18px; background: var(--wg-bg); box-shadow: inset 0 0 0 1px #000, inset 0 0 60px -10px var(--wg-glow); animation: wd-rise .5s steps(5) both; }
+.wg-era { margin: 0 0 8px; font: 800 17px var(--sb-font-display); color: var(--wg-glow); text-shadow: 2px 2px 0 #000; }
+.wg-desc { margin: 0 0 16px; font-size: 13.5px; line-height: 1.9; color: #e3d6c0; }
+.wg-foe { display: flex; align-items: center; gap: 14px; }
+.wg-foe span { display: flex; flex-direction: column; font: 800 15px var(--sb-font-display); color: #f0b0b0; }
+.wg-foe small { font: 400 11px var(--sb-font-body, inherit); color: var(--sb-ink-tertiary); letter-spacing: .1em; }
+.wg-foe-art { width: 56px; height: 56px; flex: none; background: var(--wg-glow); filter: drop-shadow(3px 3px 0 #000) drop-shadow(0 0 10px var(--wg-glow)); animation: wd-bob 1.2s steps(2) infinite;
+  clip-path: polygon(20% 10%, 35% 25%, 65% 25%, 80% 10%, 90% 45%, 80% 80%, 65% 70%, 60% 95%, 40% 95%, 35% 70%, 20% 80%, 10% 45%);
+  -webkit-mask: radial-gradient(circle at 38% 45%, transparent 0 6%, #000 7%), radial-gradient(circle at 62% 45%, transparent 0 6%, #000 7%); -webkit-mask-composite: source-in; mask-composite: intersect; }
+.wg-foe-lab { clip-path: polygon(50% 0, 90% 20%, 100% 55%, 80% 90%, 50% 100%, 20% 90%, 0 55%, 10% 20%); }
+.wg-foe-down { animation: wg-down .6s steps(4) forwards; }
+.wg-gate { padding: 16px; background: rgba(0, 0, 0, .45); box-shadow: inset 0 0 0 2px #3a2a22, inset 0 0 0 3px #000; }
+.wg-gate-open { box-shadow: inset 0 0 0 2px var(--lx-gold), inset 0 0 24px -6px var(--lx-gold); }
+.wg-gate-h { margin: 0 0 8px; font-size: 11px; letter-spacing: .14em; color: var(--sb-ink-tertiary); }
+.wg-q { margin: 0 0 12px; font-size: 14.5px; line-height: 1.8; color: var(--sb-ink); font-weight: 700; }
+.wg-opts { display: flex; flex-direction: column; gap: 8px; }
+.wg-opts .wf-btn { text-align: left; }
+.wg-ok { background: linear-gradient(#2e5a24, #1a3614) !important; color: #e0ffd0 !important; opacity: 1 !important; }
+.wg-no { background: linear-gradient(#5a1a1a, #361010) !important; animation: wg-shake .3s steps(3); }
+.wg-verdict { margin: 12px 0 0; font-size: 13px; color: var(--sb-ink-secondary); }
+.wg-next { margin-top: 12px; }
+.wg-clearall { margin: 0 0 16px; padding: 14px; text-align: center; background: linear-gradient(90deg, transparent, rgba(201, 162, 74, .2), transparent); }
+.wg-clearall p { margin: 0 0 10px; font: 800 16px var(--sb-font-display); color: var(--lx-gold); text-shadow: 2px 2px 0 #000; }
+@keyframes wg-blink { 50% { opacity: 0; } }
+@keyframes wg-down { to { opacity: .15; transform: translateY(8px) scaleY(.6); filter: grayscale(1); } }
+@keyframes wg-shake { 33% { transform: translateX(-3px); } 66% { transform: translateX(3px); } }
+
+@media (max-width: 760px) {
+  .wd-grid, .wg-room { grid-template-columns: 1fr; }
+  .wg-path { flex-wrap: wrap; row-gap: 8px; }
+  .wg-node { flex: 1 1 30%; }
+  .wg-node + .wg-node::before { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wd-scroll, .wg-cursor, .wg-foe-art, .wg-room, .wg-no { animation: none !important; }
+  .wg-foe-down { animation: none; opacity: .15; }
+}

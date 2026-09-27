@@ -141,8 +141,8 @@
 
 .term-card-alias i {
   font-style: normal;
-  color: #b45309;
-  background: #fff8ec;
+  color: #ffb347;
+  background: var(--sb-pixel-gold);
   border: 1px solid #f6e2c0;
   border-radius: 4px;
   padding: 0 4px;

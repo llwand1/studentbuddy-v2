@@ -92,7 +92,7 @@
   padding: var(--sb-sp-1) var(--sb-sp-3);
 }
 .chat-step.running { color: var(--sb-primary); border-color: var(--sb-primary); }
-.chat-step.done { color: #15803d; border-color: rgba(34, 197, 94, 0.35); }
+.chat-step.done { color: #86c56e; border-color: rgba(34, 197, 94, 0.35); }
 .chat-step.error { color: var(--sb-danger); border-color: rgba(239, 68, 68, 0.4); }
 .chat-step-name { font-weight: 600; }
 .chat-step-detail {

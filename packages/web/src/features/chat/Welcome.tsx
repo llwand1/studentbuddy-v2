@@ -16,7 +16,7 @@ const CARDS: Array<{ icon: typeof ChatIcon; ring: string; title: string; prompt:
 export function Welcome({ onPick }: { onPick: (text: string) => void }) {
   return (
     <div className="welcome">
-      <p className="welcome-eyebrow">STUDY CAMP</p>
+      <p className="welcome-eyebrow">CAMPFIRE · 篝火营地</p>
       <PixelScene />
       <p className="welcome-hi">今天想学点什么？</p>
       <p className="welcome-sub">学 → 练 → 析 → 忆 → 反馈。点一张卡先起个头，文字会填进输入框，你可以改。</p>

@@ -168,7 +168,7 @@ export function ContinentMap({
         if (shown(d.row, d.col)) drawChest(ctx, d.row, d.col, bob + (i % 2));
       });
       tiles.forEach((t, i) => {
-        if (t.hasMonster && shown(t.row, t.col)) drawMonster(ctx, t, popOf(i));
+        if (t.hasMonster && shown(t.row, t.col)) drawMonster(ctx, t, popOf(i), now);
       });
       // ★ 伙伴画在**怪之上**（"他在怪的地盘上"要看得见）、**英雄之下**（玩家自己的角色永不被遮）
       npcs.forEach((n, i) => {

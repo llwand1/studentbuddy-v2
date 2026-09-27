@@ -68,17 +68,30 @@ const API_BASE = process.env.EVAL_API_BASE || 'https://api.openai.com/v1';
 const API_KEY = process.env.EVAL_API_KEY || '';
 const MODEL = process.env.EVAL_MODEL || '';
 
+const RETRIES = Number(opt('retries', '5'));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function llm(prompt, { temperature = 0.3, maxTokens = 4096 } = {}) {
-  const res = await fetch(`${API_BASE.replace(/\/$/, '')}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_KEY}` },
-    body: JSON.stringify({ model: MODEL, messages: [{ role: 'user', content: prompt }], temperature, max_tokens: maxTokens }),
-  });
-  if (!res.ok) throw new Error(`API ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const data = await res.json();
-  const text = data.choices?.[0]?.message?.content;
-  if (typeof text !== 'string') throw new Error('API 返回缺 choices[0].message.content');
-  return text;
+  let lastErr;
+  for (let attempt = 0; attempt <= RETRIES; attempt++) {
+    if (attempt > 0) await sleep(Math.min(60_000, 2000 * 2 ** attempt) + Math.random() * 1000); // 指数退避 4s→8s→16s→32s→60s
+    const res = await fetch(`${API_BASE.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_KEY}` },
+      body: JSON.stringify({ model: MODEL, messages: [{ role: 'user', content: prompt }], temperature, max_tokens: maxTokens }),
+    }).catch((e) => ({ ok: false, status: 'network', text: async () => String(e) }));
+    if (!res.ok) {
+      lastErr = new Error(`API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      // 429(限流)与 5xx(服务端抖动)值得重试;4xx 其他错误直接失败
+      if (res.status === 429 || res.status >= 500 || res.status === 'network') continue;
+      throw lastErr;
+    }
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content;
+    if (typeof text !== 'string') { lastErr = new Error('API 返回缺 choices[0].message.content'); continue; }
+    return text;
+  }
+  throw lastErr;
 }
 
 async function mapLimit(items, limit, fn) {

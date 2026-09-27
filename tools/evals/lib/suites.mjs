@@ -30,16 +30,23 @@ function runChecks(names, raw, kase) {
 
 // ════════════════════════ 复刻套件 ════════════════════════
 
+/**
+ * 剥离选项的字母编号前缀("A. 鲸"→"鲸")。
+ * 实测教训(agnes-2.5-flash 全量跑,rep-026):模型爱给选项加 "A./B." 前缀,
+ * 对单字选项这点噪音足以把 textSim 打到阈值之下——答案明明复刻对了却被判错。
+ */
+const stripOptPrefix = (s) => String(s ?? '').replace(/^\s*[A-Da-d][.、．::]\s*/, '');
+
 /** 答案一致性:按题型把"正确答案的文本"对上原题 */
 function answerMatches(q, ref, type) {
   if (type === 'single' || type === 'judge') {
-    const got = q.options?.[q.answer?.[0]];
-    const want = ref.options?.[ref.answer?.[0]];
-    return got != null && want != null && textSim(got, want) >= 0.6;
+    const got = stripOptPrefix(q.options?.[q.answer?.[0]]);
+    const want = stripOptPrefix(ref.options?.[ref.answer?.[0]]);
+    return !!got && !!want && textSim(got, want) >= 0.6;
   }
   if (type === 'multiple') {
-    const got = (q.answer ?? []).map((i) => q.options?.[i] ?? '');
-    const want = (ref.answer ?? []).map((i) => ref.options?.[i] ?? '');
+    const got = (q.answer ?? []).map((i) => stripOptPrefix(q.options?.[i] ?? ''));
+    const want = (ref.answer ?? []).map((i) => stripOptPrefix(ref.options?.[i] ?? ''));
     return got.length === want.length && setSim(got, want) >= 0.6;
   }
   if (type === 'fill') return setSim(q.answer, ref.answer) >= 0.6;
@@ -60,7 +67,9 @@ export const replicateSuite = {
     if (q) {
       typeOk = parsed.questions.length === 1 && q.type === kase.type;
       stemSim = textSim(q.question, kase.ref.question);
-      optSim = kase.ref.options ? setSim(q.options ?? [], kase.ref.options) : null;
+      optSim = kase.ref.options
+        ? setSim((q.options ?? []).map(stripOptPrefix), kase.ref.options.map(stripOptPrefix))
+        : null;
       similarity = optSim == null ? stemSim : 0.6 * stemSim + 0.4 * optSim;
       ansMatch = answerMatches(q, kase.ref, kase.type);
     }
@@ -280,6 +289,8 @@ export function selftestSuites() {
   check('复刻:答案被改 → ansMatch=false 且不成功', !gBad.ansMatch && !gBad.success);
   const wrongType = good.replace('"type":"single"', '"type":"judge"');
   check('复刻:题型跑偏 → oneOfType 变红', !replicateSuite.grade(wrongType, repCase).checks.oneOfType.pass);
+  const prefixed = good.replace('["黄河","长江","珠江","黑龙江"]', '["A. 黄河","B. 长江","C. 珠江","D. 黑龙江"]');
+  check('复刻:选项带字母前缀仍判一致(rep-026 实测教训)', replicateSuite.grade(prefixed, repCase).success);
 
   // 联网引用:引对 → 成功;引到干扰源 → hit 红;编号越界 → refsRange 红
   const srchCase = {

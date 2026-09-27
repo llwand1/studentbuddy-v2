@@ -1,0 +1,231 @@
+/**
+ * auth/code-flow — 验证码两个端点的用例编排（契约 docs/AUTH-SPEC.md §2.5）。
+ *
+ * ★ 2026-09-18 曾新增 **`registerByCode`**（「注册即验证」，§2.7）——配套把 `register` 的
+ *   **IP 桶单独收紧到 5/小时**（`AUTH_CODE_MAX_PER_IP_REGISTER_HOUR`，见 `code-limit.ts` 的
+ *   `IP_HOURLY_CAP`），两者一并落地。★ **2026-09-22 该契约作废**（理由与三处代价见
+ *   `registerAccount` 的头注）：`register` 用途摘线、注册端点改由 `auth/register-limit.ts` 计数。
+ *   **这条历史别当噪声删**——它记录了「消费端点与发码限流必须一并调整」这条耦合的两次生效。
+ *
+ * 分层的理由：`auth/codes.ts` 只管表与 crypto、`mail/` 只管发信，**两者都不该知道对方的策略**；
+ * 「邮箱没注册时发不发信」这类判断是**用例级**的，收在这一层。
+ * 本文件同样不碰 HTTP（错误一律抛 `AuthError` 码，由 `routes/auth.ts` 映射状态码）。
+ *
+ * ★★ 本文件最要害的一条：**`send-code` 的响应与「邮箱是否已注册」必须按 purpose 分两套，
+ *    且两个方向都是刻意的**（§2.5 表）——
+ *      · `login`：注册与否**一律回同一个 200**。分开就等于对外提供一个
+ *        「这个邮箱注册了吗」的查询接口（用户枚举）。
+ *      · `register`：已注册**刻意回 409**。用户填错邮箱要当场知道；
+ *        且「注册时已存在」不构成隐私——对方本来就能通过 `register` 的 409 感知到。
+ *    判断标准不是"一致就好"，而是「**这个信息会不会让攻击者拿到他本来拿不到的东西**」。
+ *    这张表**抽成纯函数 `decideSend`**：它有三个分支、其中两条今天还走不到，
+ *    留在编排里就是死代码（改错了没人报红），抽出来才能逐格钉死。
+ *
+ * ⚠️ **一条已知的旁路（已知限制，本次不修）**：`login` 态「已注册」要走一次发信网络往返，
+ *    「未注册」直接返回 ⇒ **响应时间可区分两者**（秒表即可枚举）。
+ *    不修的理由：① 该信息**本来就能从 `register` 的 409 直接拿到**（契约自己承认这一点）；
+ *    ② 修它要么牺牲「发信失败能如实告知用户」（改成 fire-and-forget），要么加人为延迟（脆弱）。
+ *    若将来 `register` 的泄露策略收紧，**这条必须一并修**——两者是同一道防线的两半。
+ *
+ * ⚠️ **另一条已知限制**：限流按邮箱计数 ⇒ 知道受害者邮箱的人可以**替他刷满每小时的发码配额**，
+ *    让他这一小时内无法用验证码登录（且连发 5 封骚扰邮件）。
+ *    不修的理由：这是"按邮箱限流"这个选择的内生代价，而**密码登录不受影响**
+ *    （§4.6 缓解第 5 条：双通道并存不可退让，正是为这类场景准备的）；
+ *    真要修得上"按 IP × 邮箱"的第三维限流，收益与复杂度不成比例。
+ */
+import {
+  AUTH_CODE_TTL_MS,
+  normalizeAuthNickname,
+  normalizeEmail,
+  normalizePurpose,
+  passwordProblem,
+  type AuthCodePurpose,
+  type AuthError,
+  type AuthUser,
+} from '@sb/shared';
+import { admitSend } from './code-limit.js';
+import { consumeCode, issueCode } from './codes.js';
+import { createUser, findUserByEmail } from './users.js';
+import { buildCodeMail, getMailSender } from '../mail/send.js';
+
+/**
+ * **已接线（存在消费端点）的用途白名单**。
+ *
+ * ★ 为什么需要这道闸门（两层理由，第二层更硬）：
+ *   ① 消费端点没落地时，发出去的码**没有任何地方能校验**，用户收得到信却用不上，
+ *      而每封都从 Resend 的 3000 封/月里扣（§4.6 成本账）。
+ *   ② ★★ **`register` 态会给「未注册的邮箱」发信**——这正是注册流程需要的，但它同时意味着
+ *      **任何人都能拿我们的发信通道给任意陌生邮箱发邮件**（垃圾邮件/钓鱼的现成跳板，
+ *      也是让发信域名被拉黑最快的方式）。`login` 态只给**已注册**邮箱发信，滥用面小得多。
+ *      ⇒ 它必须与消费端点**一并开放**，且必须配套收紧限流（§2.7）。
+ * ★ 用 `PURPOSE_INVALID`（400）而不是新造一个码：从调用方视角，"这个用途现在不能用"
+ *   与"这个用途不存在"是同一件事，多一个码只会多一个前端分支。
+ *
+ * ★ **2026-09-18 加 `register`，2026-09-22 摘出**：注册不再要求验证码（契约 §2.7
+ *   已作废登记），`register` 态**没有消费端点**⇒ 按本文件头注 ② 的原始理由**必须一并摘线**：
+ *   留着它 = 任何人可拿我们的发信通道给任意陌生邮箱发信（垃圾邮件/钓鱼跳板 + 烧光 Resend 日额度），
+ *   却**没有任何地方能校验那枚码**。`reset` 同理仍未接线 ⇒ 继续回 400。
+ */
+const WIRED_PURPOSES: readonly AuthCodePurpose[] = ['login'];
+
+/**
+ * 该用途**今天**有没有消费端点。★ 与 `decideSend` 刻意分成两件事：
+ *   前者是「当前做到哪」，后者是「契约 §2.5 怎么规定」——**把两者混在一个函数里，
+ *   策略表的 `register`/`reset` 两格就永远走不到，成为改错了没人报红的死分支**。
+ */
+export function isPurposeWired(purpose: AuthCodePurpose): boolean {
+  return WIRED_PURPOSES.includes(purpose);
+}
+
+/** `send-code` 对某个 (用途, 是否已注册) 该做什么。 */
+export type SendDecision =
+  /** 发码 + 发信 */
+  | 'send'
+  /** 什么都不做，但**回与 `send` 逐字相同的响应**（不泄露账号是否存在） */
+  | 'silent'
+  /** 回 409 `EMAIL_TAKEN`（**刻意泄露**：用户填错邮箱要当场知道） */
+  | 'taken';
+
+/**
+ * §2.5 那张表的**唯一实现**。纯函数、零 IO——因为它是这里最容易被"顺手改统一"的一处，
+ * 而改错的症状是**一个静默的用户枚举漏洞**（不会有任何运行时错误）。
+ *
+ * | 用途 | 已注册 | 未注册 |
+ * |---|---|---|
+ * | `login` | `send` | `silent`（**同响应**，否则等于提供"这个邮箱注册了吗"的查询接口） |
+ * | `register` | `taken` | `send` |
+ * | `reset` | `send` | `silent`（与 login 同口径：找回密码也不该泄露账号是否存在） |
+ */
+export function decideSend(purpose: AuthCodePurpose, registered: boolean): SendDecision {
+  if (purpose === 'register') return registered ? 'taken' : 'send';
+  return registered ? 'send' : 'silent';
+}
+
+/** 校验入参并归一。★ 两个端点共用，避免各写一遍导致「一处 trim、一处不 trim」。 */
+function parseTarget(rawEmail: unknown, rawPurpose: unknown): { email: string; purpose: AuthCodePurpose } {
+  const email = normalizeEmail(rawEmail);
+  if (!email) throw new Error('EMAIL_INVALID' satisfies AuthError);
+  const purpose = normalizePurpose(rawPurpose);
+  if (!purpose) throw new Error('PURPOSE_INVALID' satisfies AuthError);
+  return { email, purpose };
+}
+
+/**
+ * 限流错误：比普通 `AuthError` **多带一个 `retryAfterMs`**（契约 §2.5 / §4.5）。
+ *
+ * ★ 为什么单造一个类，而不是给 `Error.message` 加后缀：`retryAfterMs` 是**结构化字段**，
+ *   而本仓的错误约定是「`message` 只放 `AuthError` 码、由路由映射成 HTTP」——
+ *   把数字塞进 `message` 会让路由那层的 `code in ERROR_STATUS` 判断直接失效
+ *   （症状是**限流变成 500**，用户看到"服务器内部错误"，而真正的原因是"等一会儿再来"）。
+ * ★ 为什么**只有这一个码**带 payload：其余错误（`EMAIL_TAKEN` / `CODE_INVALID` / `CODE_EXPIRED`…）
+ *   都是「用户改一下重来」，**没有"等多久"这回事**；给了反而诱导前端对所有失败都显示倒计时。
+ *   ⇒ 路由层也为它单列一个出口（`failRateLimited`），不给 `fail` 加可选参数——
+ *   可选参数会让「给 `EMAIL_TAKEN` 也传一个」变成编译期合法的事。
+ *
+ * ★★ 这个类存在的全部理由是**一条曾经只是文档承诺的缓解措施**（2026-09-18 v0.2.59）：
+ *   `admitSend` 一直在算 `retryAfterMs`、`code-limit.test.ts` 也一直在断言它，
+ *   但**它从未到达过响应体**（`sendCode` 只把 `admission.ok === false` 翻成一个裸错误码）。
+ *   是 `_probe/auth-smoke.mjs` 真机跑到第 11 节才把它揪出来——
+ *   **单元测试全绿、契约写着"已实现"，只有真机请求能看见那个字段不存在**。
+ */
+export class CodeRateLimitedError extends Error {
+  constructor(readonly retryAfterMs: number) {
+    super('CODE_RATE_LIMITED' satisfies AuthError);
+    this.name = 'CodeRateLimitedError';
+  }
+}
+
+/**
+ * `POST /api/auth/send-code` 的用例。
+ *
+ * 顺序**不可换**：两道校验（格式/用途 → 是否接线）→ 限流 → 策略 → 发信。
+ * ★ 校验闸在限流**之前**：脏请求（邮箱非法、用途未接线）不该占用户的名额。
+ * ★ 限流计数在**注册与否之前**，这一点是刻意的：若只对"已注册"计数，则
+ *   「第 6 次收到 429」本身就成了一条枚举信号（未注册的永远不 429）。
+ * ★ 发信失败抛 `MAIL_SEND_FAILED`，**不让用户干等**（ADR-5：失败必须可读、可重试）。
+ *   代价是"限流额度已被消耗"——失败不该给额外尝试机会，这个方向是安全的。
+ * ★ 限流被拒抛 `CodeRateLimitedError`（**带 `retryAfterMs`**）：被拒的那一刻用户唯一
+ *   有用的信息是"还要等多久"，而这个数**只有这一层手里有**——再往下丢一次就回不来了。
+ */
+export async function sendCode(
+  rawEmail: unknown,
+  rawPurpose: unknown,
+  ip: string,
+  now: number = Date.now(),
+): Promise<{ expiresInMs: number }> {
+  const { email, purpose } = parseTarget(rawEmail, rawPurpose);
+  if (!isPurposeWired(purpose)) throw new Error('PURPOSE_INVALID' satisfies AuthError);
+
+  const admission = admitSend(email, ip, purpose, now);
+  if (!admission.ok) throw new CodeRateLimitedError(admission.retryAfterMs);
+
+  const decision = decideSend(purpose, findUserByEmail(email) !== null);
+  if (decision === 'taken') throw new Error('EMAIL_TAKEN' satisfies AuthError);
+  // ★ `silent`：**不发信，但回一个与 `send` 逐字相同的响应**（含 `expiresInMs`）。
+  //   回一个"看起来发了"的响应是刻意的——真实情况只有攻击者看不到的那一侧不同。
+  if (decision === 'silent') return { expiresInMs: AUTH_CODE_TTL_MS };
+
+  const { code } = issueCode(email, purpose, now);
+  try {
+    await getMailSender().send(buildCodeMail(email, code, purpose));
+  } catch (e) {
+    // 只记通道名与错误消息，**不记邮件正文**（里面有验证码）
+    console.error('[sb-mail] 发信失败:', e instanceof Error ? e.message : e);
+    throw new Error('MAIL_SEND_FAILED' satisfies AuthError);
+  }
+  return { expiresInMs: AUTH_CODE_TTL_MS };
+}
+
+/**
+ * `POST /api/auth/login-by-code` 的用例：核销码 → 取账号。**会话由路由建**（见 `routes/auth.ts`）。
+ *
+ * ★ **不自动建号**（契约 §2.5）：`send-code` 在 login 态不限注册与否，自动建号会让
+ *   任何人用任意邮箱凭空创建账号，且用户打错一位就多出一个空账号。
+ *   账号不存在 → `CREDENTIALS_INVALID`（与密码登录同一个码，不透露"这个邮箱没注册"）。
+ * ★ 码的消费**先于**账号查找：码是一次性凭据，验证通过就该失效。
+ *   为"账号不存在"保留码，等于给枚举账号留了一个可重复试探的口子。
+ */
+export function loginByCode(rawEmail: unknown, rawCode: unknown, now: number = Date.now()): AuthUser {
+  const email = normalizeEmail(rawEmail);
+  if (!email) throw new Error('EMAIL_INVALID' satisfies AuthError);
+  consumeCode(email, 'login', rawCode, now); // 失败抛 CODE_INVALID / CODE_EXPIRED
+  const user = findUserByEmail(email);
+  if (!user) throw new Error('CREDENTIALS_INVALID' satisfies AuthError);
+  return user;
+}
+
+/**
+ * `POST /api/auth/register` 的用例：建号 → 返回契约用户。**会话由路由建**（见 `routes/auth.ts`）。
+ *
+ * ★★ 2026-09-22（契约 §2.7「注册即验证」**作废**）：注册**不再核销邮箱验证码**。
+ *   这次改动的理由不是安全权衡，而是**运营**：学习题材冷启动没人注册，而注册要等一封真邮件＝
+ *   第一道流失点（同期实测：当日 27 PV、新注册 0）。
+ *   ⚠️ 如实记下的三处代价（都真实存在，不做掩盖）：
+ *     ① 建出的账号 `email` **未经所有权证明**——任何人可用他人邮箱抢先占位
+ *        （后来者拿到 `EMAIL_TAKEN`「已经注册过了」，等于丢失该邮箱的注册权）；
+ *     ② 将来接 `reset`（密码找回）时**不能再以"收得到这封邮件"当作身份凭据**，
+ *        否则未验证邮箱＝账号所有权——这条是 §2.7 作废后**最需要记住**的一条；
+ *     ③ 摘码等于摘掉唯一的注册限流（发码闸原本是脚本刷不动的原因）⇒ **一并补**
+ *        `auth/register-limit.ts` 的按 IP 计数，且发码侧 `register` 用途**一并摘线**
+ *        （没消费端的发码用途＝开放邮件中继）。
+ *   ★ 想恢复验证：把 `WIRED_PURPOSES` 的 `register` 加回来 + 这里补回 `consumeCode` +
+ *     前端 `AccountBox` 的注册态码行恢复，三处**必须一并**（少一处就是一个静默后门）。
+ *
+ * ★ 顺序仍是「**纯校验 → 建号**」，理由未变：邮箱格式 / 密码长度 / 昵称都是纯函数、零 IO，
+ *   而 `createUser` 会写库。★ **建号复用 `createUser`**：它内部已带两层（先查一次给友好码 +
+ *   catch 住并发撞 `UNIQUE(email)` 的竞态），本函数不重复实现查重——两处各写一遍必然
+ *   漂成「一处拦一处不拦」。
+ */
+export async function registerAccount(
+  rawEmail: unknown,
+  rawPassword: unknown,
+  rawNickname: unknown,
+): Promise<AuthUser> {
+  const email = normalizeEmail(rawEmail);
+  if (!email) throw new Error('EMAIL_INVALID' satisfies AuthError);
+  const pwProblem = passwordProblem(rawPassword);
+  if (pwProblem) throw new Error(pwProblem);
+  if (normalizeAuthNickname(rawNickname) === null) throw new Error('NICKNAME_INVALID' satisfies AuthError);
+
+  return createUser(email, rawPassword, rawNickname);
+}

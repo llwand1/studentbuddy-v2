@@ -1,0 +1,136 @@
+.quiz-card {
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  box-shadow: var(--sb-shadow-1);
+  padding: var(--sb-sp-4);
+  margin: var(--sb-sp-2) 0;
+  max-width: 640px;
+}
+.quiz-head { font-weight: 700; margin-bottom: var(--sb-sp-3); font-size: var(--sb-fs-lg); }
+
+.quiz-q { margin-bottom: var(--sb-sp-4); }
+.quiz-q-title { margin-bottom: var(--sb-sp-2); line-height: 1.7; }
+.quiz-q-type {
+  display: inline-block;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+  border-radius: 6px;
+  padding: 1px 8px;
+  margin-right: var(--sb-sp-2);
+  vertical-align: 1px;
+}
+
+/* 题目配图：模型产出的 SVG 宽度已由 fixSvg 钳到 680，卡片内再收一层并允许横向滚动兜底 */
+.quiz-q-svg {
+  margin: var(--sb-sp-2) 0 var(--sb-sp-3);
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.quiz-opt {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  width: 100%;
+  text-align: left;
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  margin-bottom: var(--sb-sp-1);
+  font-size: var(--sb-fs-sm);
+  transition: border-color 0.15s, background 0.15s;
+}
+.quiz-opt:hover:not(:disabled) { border-color: var(--sb-primary); }
+.quiz-opt.picked { border-color: var(--sb-primary); background: var(--sb-primary-weak); }
+.quiz-opt.right { border-color: var(--sb-success); background: rgba(34, 197, 94, 0.07); }
+
+.quiz-opt-key {
+  width: 20px; height: 20px;
+  border: 1px solid var(--sb-line);
+  border-radius: 50%;
+  font-size: var(--sb-fs-xs);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.quiz-opt.picked .quiz-opt-key { border-color: var(--sb-primary); color: var(--sb-primary); }
+
+.quiz-mark { margin-left: auto; font-weight: 700; }
+.quiz-mark.ok { color: var(--sb-success); }
+.quiz-mark.bad { color: var(--sb-danger); }
+
+.quiz-fill, .quiz-essay {
+  width: 100%;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  font: inherit;
+  font-size: var(--sb-fs-sm);
+  background: var(--sb-bg);
+  color: var(--sb-ink);
+}
+.quiz-fill:focus, .quiz-essay:focus { outline: none; border-color: var(--sb-primary); }
+
+.quiz-submit {
+  margin-top: var(--sb-sp-2);
+  padding: var(--sb-sp-1) var(--sb-sp-4);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-primary);
+  color: #fff;
+  font-size: var(--sb-fs-sm);
+  font-weight: 600;
+}
+.quiz-submit:disabled { background: var(--sb-ink-tertiary); cursor: not-allowed; }
+
+.quiz-explain {
+  margin-top: var(--sb-sp-2);
+  font-size: var(--sb-fs-sm);
+  background: var(--sb-bg);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  line-height: 1.7;
+}
+.quiz-explain-body { margin-top: var(--sb-sp-1); color: var(--sb-ink-secondary); }
+.quiz-source { margin-top: var(--sb-sp-1); color: var(--sb-ink-tertiary); font-size: var(--sb-fs-xs); }
+
+/* 情景面板的「重开 demo」按钮（`ScenarioPanel`）——同一份版式原先还服务题库页，
+   那套（.quiz-bank-* / .quiz-gen-form / .quiz-mix-tip / .quiz-note / .quiz-explain-mt）
+   已于 2026-09-26 随题库整族下线 */
+.quiz-gen-btn { padding: var(--sb-sp-1) var(--sb-sp-4); border-radius: var(--sb-radius-sm); background: var(--sb-primary); color: #fff; font-weight: 600; font-size: var(--sb-fs-sm); }
+.quiz-gen-btn:disabled { background: var(--sb-ink-tertiary); cursor: not-allowed; }
+
+/* 情景题宿主面板（契约 SCENARIO-SPEC §5）：iframe 宿主 + 任务清单 + 服务端判分完成态 */
+.sb-scenario { display: flex; flex-direction: column; gap: var(--sb-sp-2); }
+.sb-scenario-head { display: flex; align-items: center; gap: var(--sb-sp-2); flex-wrap: wrap; }
+.sb-scenario-title { font-weight: 600; font-size: var(--sb-fs-sm); }
+.sb-scenario-live {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-on-primary, #fff);
+  background: var(--sb-primary);
+  border-radius: 999px;
+  padding: 1px var(--sb-sp-2);
+}
+.sb-scenario-live.off { background: var(--sb-ink-tertiary); }
+.sb-scenario-frame {
+  width: 100%;
+  height: 420px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+}
+.sb-scenario-tasks { list-style: none; margin: 0; padding: 0; }
+.sb-scenario-task {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sb-sp-2);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  margin-bottom: var(--sb-sp-2);
+  line-height: 1.7;
+}
+.sb-scenario-task.is-correct { border-left: 3px solid var(--sb-success, #2e7d32); }
+.sb-scenario-task.is-wrong { border-left: 3px solid var(--sb-danger, #c62828); }
+.sb-scenario-task-state { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); white-space: nowrap; }

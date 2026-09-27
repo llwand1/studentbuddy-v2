@@ -1,0 +1,15 @@
+{
+  "name": "@sb/shared",
+  "version": "2.0.0-alpha.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ebbinghaus": "./src/ebbinghaus.ts",
+    "./sse-events": "./src/sse-events.ts",
+    "./content-blocks": "./src/content-blocks.ts",
+    "./api": "./src/api.ts",
+    "./domain": "./src/domain.ts",
+    "./obs": "./src/obs.ts"
+  }
+}

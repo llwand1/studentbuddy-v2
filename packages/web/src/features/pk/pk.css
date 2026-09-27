@@ -1,0 +1,1313 @@
+/* PK 对战页（#/pk）——移动优先（≥375px），视觉 token 全走 tokens.css（禁内联 style）。 */
+
+.sb-pk {
+  /* ── 响应式三档旋钮（断点块只覆盖这几个值，规则本身只写一次）──
+     档 1 移动 <720 ｜ 档 2 平板 720~1023 ｜ 档 3 桌面 ≥1024 ｜ 档 4 矮屏横放
+     三档的差异**只在宽度与布局方向**，不在字号/触摸目标上——见文件末尾「响应式三档」。 */
+  --sb-pk-max: 480px;
+  --sb-pk-content-max: none;
+  --sb-pk-cols: 1;
+  --sb-pk-score: 28px;
+  max-width: var(--sb-pk-max);
+  margin: 0 auto;
+  padding: var(--sb-sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-4);
+  min-height: 100%;
+}
+
+.sb-pk-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-3);
+}
+
+.sb-pk-back {
+  color: var(--sb-ink-secondary);
+  text-decoration: none;
+  font-size: var(--sb-fs-sm);
+}
+
+.sb-pk-title {
+  font-size: var(--sb-fs-lg);
+  font-weight: 600;
+}
+
+.sb-pk-boot {
+  color: var(--sb-ink-secondary);
+  text-align: center;
+  padding: var(--sb-sp-6) 0;
+}
+
+.sb-pk-card {
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  box-shadow: var(--sb-shadow-1);
+  padding: var(--sb-sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+}
+
+.sb-pk-h2 {
+  font-size: var(--sb-fs-lg);
+  font-weight: 600;
+}
+
+.sb-pk-hint {
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-sm);
+}
+
+.sb-pk-form {
+  display: flex;
+  gap: var(--sb-sp-2);
+}
+
+.sb-pk-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: 9px var(--sb-sp-3);
+  font-size: var(--sb-fs-md);
+  font-family: inherit;
+  background: var(--sb-surface);
+  color: var(--sb-ink);
+}
+
+.sb-pk-input:focus {
+  outline: none;
+  border-color: var(--sb-primary);
+}
+
+.sb-pk-input.code {
+  letter-spacing: 6px;
+  text-align: center;
+  font-size: var(--sb-fs-xl);
+}
+
+.sb-pk-btn {
+  border-radius: var(--sb-radius-sm);
+  padding: 9px var(--sb-sp-4);
+  font-size: var(--sb-fs-md);
+  background: var(--sb-sidebar);
+  color: var(--sb-ink);
+}
+
+.sb-pk-btn.primary {
+  background: var(--sb-primary);
+  color: #fff;
+}
+
+.sb-pk-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sb-pk-error {
+  background: var(--sb-primary-weak);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  color: var(--sb-danger);
+  font-size: var(--sb-fs-sm);
+}
+
+.sb-pk-me {
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-xs);
+  text-align: center;
+}
+
+.sb-pk-me-id {
+  margin-left: var(--sb-sp-2);
+}
+
+/* 房号展示 */
+.sb-pk-code-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sb-sp-3);
+}
+
+.sb-pk-code-label {
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-sm);
+}
+
+.sb-pk-code {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-pk-link {
+  margin-left: auto;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.sb-pk-link.ok {
+  color: var(--sb-success);
+}
+
+/* 玩家座位 */
+.sb-pk-player {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-3);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+}
+
+.sb-pk-player.pending {
+  color: var(--sb-ink-tertiary);
+  border-style: dashed;
+}
+
+.sb-pk-seat {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+}
+
+.sb-pk-nick {
+  font-weight: 600;
+}
+
+/* 对局：时钟 + 比分条 */
+.sb-pk-clock {
+  font-size: 40px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-pk-score {
+  display: flex;
+  gap: var(--sb-sp-3);
+}
+
+.sb-pk-side {
+  flex: 1;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sb-sp-1);
+}
+
+.sb-pk-side.me {
+  border-color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+}
+
+.sb-pk-score-num {
+  font-size: var(--sb-fs-xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-pk-todo {
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-xs);
+  text-align: center;
+}
+
+.sb-pk-winner {
+  font-size: var(--sb-fs-xl);
+  font-weight: 600;
+  text-align: center;
+  color: var(--sb-primary);
+}
+
+/* ── 模式选择与对局动作区 ───────────────────────── */
+
+.sb-pk-modes {
+  display: flex;
+  gap: var(--sb-sp-2);
+}
+
+.sb-pk-mode {
+  flex: 1;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--sb-fs-md);
+  background: var(--sb-surface);
+}
+
+.sb-pk-mode small {
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-xs);
+}
+
+.sb-pk-mode.active {
+  border-color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+}
+
+.sb-pk-mode-row {
+  display: flex;
+  gap: var(--sb-sp-2);
+}
+
+.sb-pk-mode-pill {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  border: 1px solid var(--sb-line);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.sb-pk-mode-pill.ai {
+  color: var(--sb-primary);
+  border-color: var(--sb-primary);
+}
+
+.sb-pk-ai-tag {
+  margin-left: var(--sb-sp-1);
+  font-size: 10px;
+  color: var(--sb-primary);
+  border: 1px solid var(--sb-primary);
+  border-radius: 4px;
+  padding: 0 3px;
+}
+
+.sb-pk-sub {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.sb-pk-flash {
+  text-align: center;
+  font-weight: 600;
+  color: var(--sb-primary);
+}
+
+.sb-pk-q-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sb-sp-2);
+}
+
+.sb-pk-deadline {
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-danger);
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-pk-stem {
+  font-size: var(--sb-fs-md);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.sb-pk-options {
+  /* grid 而非 flex：桌面档要一次放 4 项成两行（`--sb-pk-cols` 三档 = 1/1/2） */
+  display: grid;
+  grid-template-columns: repeat(var(--sb-pk-cols, 1), minmax(0, 1fr));
+  gap: var(--sb-sp-2);
+}
+
+.sb-pk-option {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sb-sp-2);
+  text-align: left;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-3);
+  font-size: var(--sb-fs-md);
+  background: var(--sb-surface);
+}
+
+.sb-pk-option:active {
+  border-color: var(--sb-primary);
+}
+
+.sb-pk-option-letter {
+  font-weight: 600;
+  color: var(--sb-primary);
+}
+
+.sb-pk-done {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sb-sp-2) 0;
+  border-bottom: 1px solid var(--sb-line);
+}
+
+.sb-pk-done:last-child {
+  border-bottom: none;
+}
+
+.sb-pk-verdict {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-danger);
+}
+
+.sb-pk-verdict.ok {
+  color: var(--sb-success);
+}
+
+.sb-pk-review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+  padding: var(--sb-sp-2) 0;
+  border-bottom: 1px solid var(--sb-line);
+}
+
+.sb-pk-review:last-child {
+  border-bottom: none;
+}
+
+.sb-pk-review-opts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-1);
+}
+
+.sb-pk-review-opt {
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+  padding: 2px var(--sb-sp-2);
+  border-radius: var(--sb-radius-sm);
+}
+
+.sb-pk-review-opt.correct {
+  color: var(--sb-success);
+  background: var(--sb-primary-weak);
+}
+
+.sb-pk-review-opt.wrong {
+  color: var(--sb-danger);
+}
+
+/* ── 主题条 / 裁判面板 / 道具与二次机会 ─────────────── */
+
+.sb-pk-topic {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  margin-top: var(--sb-sp-3);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  background: var(--sb-primary-weak);
+  border-radius: var(--sb-radius-sm);
+  font-size: var(--sb-fs-sm);
+}
+
+.sb-pk-topic-label {
+  color: var(--sb-ink-secondary);
+  flex: none;
+}
+
+.sb-pk-topic-name {
+  color: var(--sb-ink);
+  font-size: var(--sb-fs-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-pk-topic-owner {
+  margin-left: auto;
+  color: var(--sb-primary);
+  flex: none;
+}
+
+.sb-pk-judge .sb-pk-advice {
+  margin: 0;
+  padding-left: var(--sb-sp-5);
+  color: var(--sb-ink);
+  font-size: var(--sb-fs-sm);
+  line-height: 1.7;
+}
+
+.sb-pk-refs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--sb-sp-2);
+}
+
+.sb-pk-ref {
+  color: var(--sb-primary);
+  font-size: var(--sb-fs-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-pk-btn.tiny {
+  padding: 2px var(--sb-sp-2);
+  font-size: var(--sb-fs-sm);
+}
+
+/* §15：出题区题型切换（单选/判断）——选中态用主色底反白，与 primary 同族 */
+.sb-pk-btn.tiny.on {
+  background: var(--sb-primary);
+  border-color: var(--sb-primary);
+  color: #fff;
+}
+
+.sb-pk-kind-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-1);
+  margin-bottom: var(--sb-sp-1);
+}
+
+.sb-pk-btn.ghost {
+  background: transparent;
+  border: 1px solid var(--sb-line);
+  color: var(--sb-primary);
+}
+
+.sb-pk-sub.dim {
+  opacity: 0.5;
+}
+
+.sb-pk-retry-tag {
+  display: inline-block;
+  margin-right: var(--sb-sp-2);
+  padding: 0 4px;
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-primary-weak);
+  color: var(--sb-primary);
+  font-size: var(--sb-fs-sm);
+}
+
+/* ── 投降 / 对战历史 ─────────────────────────────── */
+
+/* 危险动作（不可撤销的那一个）走描边而非实心：它在版面上不该是最抢眼的按钮 */
+.sb-pk-btn.danger {
+  background: transparent;
+  border: 1px solid var(--sb-danger);
+  color: var(--sb-danger);
+}
+
+.sb-pk-row {
+  display: flex;
+  gap: var(--sb-sp-2);
+}
+
+.sb-pk-row .sb-pk-btn {
+  flex: 1;
+}
+
+/* 历史行整行可点：button 需重置浏览器默认（居中 / 白底 / 系统字体） */
+.sb-pk-hist-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--sb-sp-3);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+  color: var(--sb-ink);
+}
+
+.sb-pk-hist-badge {
+  flex: none;
+  width: 22px;
+  padding: 2px 0;
+  text-align: center;
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-sidebar);
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-sm);
+}
+
+.sb-pk-hist-badge.win {
+  background: var(--sb-primary-weak);
+  color: var(--sb-primary);
+}
+
+.sb-pk-hist-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--sb-fs-md);
+}
+
+.sb-pk-hist-main small {
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-xs);
+}
+
+.sb-pk-hist-score {
+  flex: none;
+  color: var(--sb-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   横屏对阵 / 出题过渡 / 对错反馈 / 结算仪式感
+
+   ★ 三条硬规矩：
+   ① 动画**只在真事件上动**——没有事件就没有动画，绝不搞常驻装饰
+     （常驻动效会抢走题目本身的注意力，那是在给自己加戏）。
+   ② 全部手写 keyframes：本仓前端零第三方库，动画也不例外。
+   ③ 系统开了「减弱动态效果」就全关（见文件末尾）——动画是增强，不是信息载体。
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── 容器放宽：已迁至文件末尾「响应式三档」。原 `orientation: landscape` 判断标准会同时判错
+      iPad 竖屏 / 手机横屏 / 桌面窄窗三种情形，故改为屏宽判断标准。── */
+
+/* ── 对阵布局：竖屏上下、横屏左右（同一份 DOM，纯 CSS 切换）── */
+.sb-pk-arena {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+}
+
+.sb-pk-arena-side {
+  display: flex;
+  flex-direction: row; /* 竖屏时横排：省下的垂直空间留给中央区 */
+  align-items: center;
+  gap: var(--sb-sp-3);
+  padding: var(--sb-sp-3);
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+}
+
+.sb-pk-arena-side.empty {
+  color: var(--sb-ink-tertiary);
+}
+
+.sb-pk-side-label {
+  flex: none;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.sb-pk-arena-score {
+  font-size: var(--sb-pk-score, 28px);
+  font-weight: 700;
+  color: var(--sb-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-pk-arena-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+  min-width: 0;
+  /* 平板档单列时封顶 620 居中（一行别太长）；桌面三栏时该值为 none，宽度由 flex 决定 */
+  max-width: var(--sb-pk-content-max, none);
+  margin-inline: auto;
+}
+
+/* ── 三栏切换：已迁至文件末尾「响应式三档」（档 3 桌面 ≥1024 / 档 4 矮屏横放）── */
+
+.sb-pk-rotate-tip {
+  margin: 0;
+  text-align: center;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+/* ── 旋转提示仅在单列档显示：三栏档（桌面 / 矮屏横放）已无「横过来更好」可讲 ── */
+
+/* ── 折叠区（次要信息默认收起：同屏元素减半才叫「不挤」）── */
+.sb-pk-fold {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+}
+
+.sb-pk-fold-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sb-sp-2);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--sb-sp-3);
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  color: var(--sb-ink-secondary);
+  font-family: inherit;
+  font-size: var(--sb-fs-sm);
+  cursor: pointer;
+}
+
+.sb-pk-fold-btn:active {
+  background: var(--sb-sidebar);
+}
+
+.sb-pk-fold-caret {
+  color: var(--sb-primary);
+  font-weight: 600;
+}
+
+.sb-pk-fold-sum {
+  color: var(--sb-ink-tertiary);
+}
+
+.sb-pk-fold-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+}
+
+/* ── 出题过渡：对方出题的那几秒（呼吸点 + 骨架屏，不做假进度条）── */
+.sb-pk-pending {
+  border-color: var(--sb-primary-weak);
+}
+
+.sb-pk-pending-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+}
+
+.sb-pk-pending-text {
+  font-size: var(--sb-fs-md);
+  font-weight: 600;
+  color: var(--sb-ink);
+}
+
+.sb-pk-pending-sec {
+  margin-left: auto;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-pk-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.sb-pk-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--sb-primary);
+  animation: sb-breathe 1.2s ease-in-out infinite;
+}
+
+.sb-pk-dots i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.sb-pk-dots i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+.sb-pk-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+  padding: var(--sb-sp-2) 0;
+}
+
+.sb-pk-sk-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--sb-sidebar) 0%, #eceef2 40%, var(--sb-sidebar) 80%);
+  background-size: 220% 100%;
+  animation: sb-sheen 1.4s linear infinite;
+}
+
+.sb-pk-sk-line.w70 {
+  width: 70%;
+}
+
+.sb-pk-sk-line.w92 {
+  width: 92%;
+}
+
+.sb-pk-sk-line.w55 {
+  width: 55%;
+}
+
+/* ── 判分反馈（关键节点：答对弹入 / 答错抖动 / 超时灰 / 中性提示）── */
+.sb-pk-verdict-flash {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  padding: var(--sb-sp-3);
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  font-size: var(--sb-fs-md);
+}
+
+.sb-pk-verdict-icon {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sb-pk-verdict-ring {
+  stroke: currentColor;
+  opacity: 0.25;
+}
+
+.sb-pk-verdict-mark {
+  stroke: currentColor;
+}
+
+.sb-pk-verdict-text {
+  color: var(--sb-ink);
+  font-weight: 600;
+}
+
+.sb-pk-verdict-flash.correct {
+  color: var(--sb-success);
+  border-color: rgba(34, 197, 94, 0.3);
+  animation: sb-pop 0.32s ease-out;
+}
+
+.sb-pk-verdict-flash.wrong {
+  color: var(--sb-danger);
+  border-color: rgba(239, 68, 68, 0.3);
+  animation: sb-shake 0.42s ease-out;
+}
+
+.sb-pk-verdict-flash.timeout {
+  color: var(--sb-ink-secondary);
+  animation: sb-rise 0.3s ease-out;
+}
+
+.sb-pk-verdict-flash.info {
+  color: var(--sb-primary);
+  border-color: var(--sb-primary-weak);
+  animation: sb-rise 0.3s ease-out;
+}
+
+/* ── 结算面板：徽章弹入 → 比分跳入 → 统计逐条淡入 ── */
+.sb-pk-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sb-sp-3);
+  padding: var(--sb-sp-5);
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-lg);
+  box-shadow: var(--sb-shadow-2);
+  animation: sb-rise 0.34s ease-out;
+}
+
+.sb-pk-result-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  font-size: var(--sb-fs-xl);
+  font-weight: 700;
+  animation: sb-pop 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.4);
+}
+
+.sb-pk-result.win .sb-pk-result-badge {
+  color: var(--sb-success);
+}
+
+.sb-pk-result.lose .sb-pk-result-badge,
+.sb-pk-result.draw .sb-pk-result-badge {
+  color: var(--sb-ink-secondary);
+}
+
+.sb-pk-cup {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sb-pk-result-title {
+  margin: 0;
+  font-size: var(--sb-fs-lg);
+  color: var(--sb-ink);
+  animation: sb-rise 0.3s ease-out 0.1s both;
+}
+
+.sb-pk-result-reason {
+  margin: 0;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+  animation: sb-rise 0.3s ease-out 0.16s both;
+}
+
+.sb-pk-result-score {
+  display: flex;
+  gap: var(--sb-sp-5);
+  animation: sb-rise 0.3s ease-out 0.22s both;
+}
+
+.sb-pk-result-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.sb-pk-result-side.won .sb-pk-result-num {
+  color: var(--sb-success);
+}
+
+.sb-pk-result-num {
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--sb-ink);
+  font-variant-numeric: tabular-nums;
+  animation: sb-num 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.5) 0.3s both;
+}
+
+.sb-pk-result .sb-pk-winner {
+  animation: sb-rise 0.3s ease-out 0.38s both;
+}
+
+.sb-pk-result .sb-pk-btn {
+  min-width: 160px;
+  animation: sb-rise 0.3s ease-out 0.44s both;
+}
+
+/* ── 触控区与间距：竖屏 375px 下「挤」的直接原因就是 8px 间距 + 无最小高度 ── */
+.sb-pk-options {
+  gap: var(--sb-sp-3);
+}
+
+.sb-pk-option {
+  min-height: 48px;
+  padding: var(--sb-sp-3);
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.sb-pk-option:active {
+  transform: scale(0.985);
+  background: var(--sb-primary-weak);
+}
+
+.sb-pk-option-text {
+  flex: 1 1 auto;
+  text-align: left;
+}
+
+.sb-pk-btn {
+  min-height: 44px;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+
+.sb-pk-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.sb-pk-form {
+  gap: var(--sb-sp-3);
+}
+
+.sb-pk-input {
+  min-height: 44px;
+}
+
+/* 答题时限只剩最后 10 秒：不给提示的话，人会在「我还能想一下」的错觉里被判超时 */
+.sb-pk-deadline.urgent {
+  color: var(--sb-danger);
+  font-weight: 700;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   响应式三档：比例随**屏宽**变，不随设备方向变（2026-09-16 断点重构）
+
+   ★ 为什么废掉 `orientation` 当判断标准：它同时判错三种常见情形——
+     ① iPad 竖屏 768 宽被判「竖屏」→ 限死 480，白扔 288px；
+     ② 手机横屏 667 宽被判「横屏」→ 上三栏，150px 侧栏塞进 667 直接挤爆；
+     ③ 桌面窗口拉窄 → 同「竖屏」判反。
+   正确判断标准是**内容需要多宽**：够 1024 就三栏，够 720 就放宽，否则单列。
+
+   ★ 手机横屏这个真实场景没丢：它的病根是「屏矮」而不是「屏宽」，
+     故单独由档 4（矮屏横放）接住——判断标准换成高度。
+   ══════════════════════════════════════════════════════════════════ */
+
+/* 档 2 · 平板（720~1023）：容器放宽到 720，内容列封顶 620 居中 */
+@media (min-width: 720px) {
+  .sb-pk {
+    --sb-pk-max: 720px;
+    --sb-pk-content-max: 620px;
+  }
+}
+
+/* 档 3 · 桌面（≥1024）：1120 容器 + 左|中|右三栏 + 选项 2 列 */
+@media (min-width: 1024px) {
+  .sb-pk {
+    --sb-pk-max: 1120px;
+    --sb-pk-content-max: none; /* 三栏时中间栏宽度由 flex 决定，不再封顶 */
+    --sb-pk-cols: 2;
+    --sb-pk-score: 34px; /* 侧栏比分是三栏里的视觉锚点，放大才配得上 186px 的栏宽 */
+  }
+
+  .sb-pk-arena {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .sb-pk-arena-side {
+    flex: 0 0 186px;
+    flex-direction: column; /* 宽栏放竖内容（昵称/比分/答对/求助四行） */
+    justify-content: center;
+    text-align: center;
+  }
+
+  .sb-pk-arena-main {
+    flex: 1 1 auto;
+  }
+
+  /* 桌面没有「横过来」这回事 */
+  .sb-pk-rotate-tip {
+    display: none;
+  }
+
+  /* 中间栏可到 700px，题干 14px 一行能排 50 字——放大一档更好扫读 */
+  .sb-pk-stem {
+    font-size: 15px;
+  }
+}
+
+/* 档 4 · 矮屏横放（600~1023 宽 + ≤520 高）：竖排装不下，改左右
+   —— 这才是原 `orientation: landscape` 真正要解决的情形，不能连带丢掉。
+   上界 1023 是为了不抢档 3：桌面窗口够宽时，三栏尺寸归档 3 管。 */
+@media (min-width: 600px) and (max-width: 1023px) and (max-height: 520px) {
+  .sb-pk {
+    --sb-pk-max: 960px;
+    --sb-pk-content-max: none;
+  }
+
+  .sb-pk-arena {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .sb-pk-arena-side {
+    flex: 0 0 132px; /* 矮屏里侧栏只放比分，比桌面档窄 */
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .sb-pk-arena-main {
+    flex: 1 1 auto;
+  }
+
+  .sb-pk-rotate-tip {
+    display: none;
+  }
+}
+
+/* ── keyframes（全部手写，零第三方库）── */
+@keyframes sb-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes sb-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes sb-breathe {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes sb-sheen {
+  0% {
+    background-position: -120% 0;
+  }
+  100% {
+    background-position: 220% 0;
+  }
+}
+
+@keyframes sb-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sb-num {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 无障碍：系统开了「减弱动态效果」就全关——动画是增强，不是信息载体 */
+@media (prefers-reduced-motion: reduce) {
+  .sb-pk *,
+  .sb-pk *::before,
+  .sb-pk *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ── §15：词条出题选择器（PkTermPicker / PkTermPickerOverlay）──────── */
+
+.sb-pk-term-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-1);
+  margin-left: auto; /* 题型行右侧；chips 多时换行 */
+  flex-wrap: wrap;
+}
+
+.sb-pk-term-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sb-sp-1);
+}
+
+.sb-pk-term-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px var(--sb-sp-2);
+  font-size: var(--sb-fs-sm);
+  border: 1px solid var(--sb-line);
+  border-radius: 999px;
+  background: var(--sb-bg);
+  cursor: pointer;
+}
+
+.sb-pk-term-chip span {
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-sm);
+}
+
+.sb-pk-term-chip:hover span {
+  color: var(--sb-danger);
+}
+
+/* 弹层：点遮罩关闭 */
+.sb-pk-term-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sb-sp-3);
+}
+
+.sb-pk-term-panel {
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-lg, 12px);
+  width: min(520px, 100%);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sb-sp-3);
+  gap: var(--sb-sp-2);
+}
+
+.sb-pk-term-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+}
+
+.sb-pk-term-head .sb-pk-input {
+  flex: 1;
+}
+
+.sb-pk-term-count {
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+  white-space: nowrap;
+}
+
+.sb-pk-term-count.full {
+  color: var(--sb-danger);
+}
+
+.sb-pk-term-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sb-pk-term-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sb-sp-2);
+  width: 100%;
+  text-align: left;
+  padding: var(--sb-sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--sb-radius-md, 8px);
+  background: transparent;
+  cursor: pointer;
+}
+
+.sb-pk-term-row:hover {
+  background: var(--sb-bg);
+}
+
+.sb-pk-term-row.on {
+  border-color: var(--sb-primary);
+  background: var(--sb-bg);
+}
+
+.sb-pk-term-name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sb-pk-term-def {
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-pk-term-empty {
+  padding: var(--sb-sp-3);
+  color: var(--sb-ink-tertiary);
+  text-align: center;
+}
+
+/* ── §15.4：对战情景题宿主（PkScenarioHost / 回看清单共用任务行样式）── */
+
+.sb-pk-scenario {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+}
+
+.sb-pk-scenario-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sb-sp-2);
+  flex-wrap: wrap;
+}
+
+/* demo 高度给足一屏内的可玩区域；sandbox 与服务端 CSP 双保险在组件/路由两处，样式不背安全账 */
+.sb-pk-scenario-frame {
+  width: 100%;
+  height: min(60vh, 420px);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: #fff;
+}
+
+.sb-pk-scenario-tasks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+}
+
+.sb-pk-scenario-task {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sb-sp-2);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+}
+
+.sb-pk-scenario-task .t {
+  flex: 1;
+  min-width: 0;
+}
+
+.sb-pk-scenario-task .m {
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-sm);
+}
+
+.sb-pk-scenario-state {
+  flex: none;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+
+.sb-pk-scenario-task.ok .sb-pk-scenario-state {
+  color: var(--sb-success);
+  font-weight: 600;
+}
+
+.sb-pk-scenario-task.no .sb-pk-scenario-state {
+  color: var(--sb-danger, #c62828);
+  font-weight: 600;
+}

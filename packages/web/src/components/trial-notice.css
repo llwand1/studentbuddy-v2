@@ -1,0 +1,17 @@
+/* TrialNotice：侧栏最底部一行定位提醒。账号框 (.sb-user-box) 的 margin-top:auto
+   把「账号框 + 本行」整体推到底部，本行在账号框之下、贴侧栏底。 */
+.sb-trial-notice {
+  flex-shrink: 0;
+  padding: 0 var(--sb-sp-1) var(--sb-sp-2);
+  font-size: var(--sb-fs-xs);
+  line-height: 1.5;
+  color: var(--sb-ink-tertiary);
+}
+.sb-trial-notice a {
+  color: var(--sb-primary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sb-trial-notice a:hover {
+  text-decoration: underline;
+}

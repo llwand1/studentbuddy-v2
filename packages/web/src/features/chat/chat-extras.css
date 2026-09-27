@@ -1,0 +1,467 @@
+/* chat-extras.css —— 对话页新增交互的样式（思考面板 / 回到底部 / 轮次元信息）。
+   为什么单开文件而不是改 chat.css：chat.css 正被另一处进行中的改动（文档模式 pill）占用，
+   并行编辑同一文件会撞车。等那处改动提交后合并回 chat.css 即可。 */
+
+/* ---------- 思考过程（reasoning） ---------- */
+.chat-thought {
+  max-width: 78%;
+  margin: 0 0 var(--sb-sp-3);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  background: var(--sb-surface);
+  overflow: hidden;
+}
+.chat-thought-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  width: 100%;
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+  text-align: left;
+}
+.chat-thought-head:hover { color: var(--sb-ink); }
+.chat-thought-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sb-ink-tertiary);
+  flex: none;
+}
+/* 进行中：呼吸灯（只动 opacity，不做位移，尊重 prefers-reduced-motion 的降级由系统处理） */
+.chat-thought-dot.live {
+  background: var(--sb-primary);
+  animation: chat-thought-pulse 1.2s ease-in-out infinite;
+}
+@keyframes chat-thought-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+.chat-thought-title { flex: 1; }
+/* 体量摘要（收口后才有）：字数不是状态，用弱化的 tertiary 色，不跟标题抢视线 */
+.chat-thought-meta {
+  flex: none;
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.chat-thought-toggle { color: var(--sb-ink-tertiary); font-size: var(--sb-fs-xs); }
+.chat-thought-body {
+  padding: 0 var(--sb-sp-3) var(--sb-sp-3);
+  font-size: var(--sb-fs-sm);
+  line-height: 1.7;
+  color: var(--sb-ink-secondary);
+  /* 思考是模型草稿：整段原样展示（保留换行），不按 Markdown 解析 */
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow-y: auto;
+  border-top: 1px solid var(--sb-line);
+  padding-top: var(--sb-sp-2);
+  margin-top: 2px;
+}
+
+/* ---------- 消息时间戳与操作（复制 / 重新生成） ---------- */
+/* .chat-row 是 flex row（user 侧靠右）。靠 wrap + 100% 宽把 foot 挤到气泡下一行，
+   不去改 chat.css 里 .chat-row 的既有布局。 */
+.chat-row { flex-wrap: wrap; }
+.msg-foot {
+  flex: 0 0 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  padding: 2px 2px 0;
+  min-height: 16px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+.chat-row.user .msg-foot { justify-content: flex-end; }
+.msg-time { font-variant-numeric: tabular-nums; }
+/* 操作默认隐身，hover 或键盘聚焦才显形：常显会让每条消息下面挂一排按钮，噪音盖过正文 */
+.msg-act {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.chat-row:hover .msg-act,
+.msg-foot:focus-within .msg-act { opacity: 1; }
+.msg-act:hover:not(:disabled) { color: var(--sb-primary); }
+.msg-act:disabled { opacity: 0 !important; cursor: default; }
+
+/* ---------- 轮次元信息（token / 耗时） ---------- */
+.chat-round-meta {
+  padding: 0 var(--sb-sp-1) var(--sb-sp-3);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+/* ---------- 回到底部 ---------- */
+/* 不做浮层：滚动容器内的 absolute 会随内容一起滚走，而 .chat-view 的高度里
+   composer 是不定高的。放成 composer 上方的常规流元素，位置永远对。 */
+.chat-jump {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 auto var(--sb-sp-2);
+  padding: 6px 12px;
+  border: 1px solid var(--sb-line);
+  border-radius: 999px;
+  background: var(--sb-surface);
+  box-shadow: var(--sb-shadow-2);
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-xs);
+  cursor: pointer;
+}
+.chat-jump:hover {
+  color: var(--sb-primary);
+  border-color: var(--sb-primary);
+}
+
+/* ===== 工具过程卡片（可展开） =====
+   基础 chip 样式在 chat.css（.chat-step 容器/三态配色）；这里把它从 flex 行
+   改成块容器：内部 .chat-step-row 是真正的行，点击可展开 .chat-step-payload */
+.chat-step {
+  display: block;
+}
+.chat-step-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+}
+.chat-step-row:not(:disabled) {
+  cursor: pointer;
+}
+.chat-step-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+}
+.chat-step-spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: chat-step-spin 0.8s linear infinite;
+}
+@keyframes chat-step-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* 耗时徽标（§4.7）：running 期是本地 tick，终态换服务端实测值；缺值不渲染，无占位 */
+.chat-step-duration {
+  flex: none;
+  font-size: var(--sb-fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--sb-ink-tertiary);
+}
+.chat-step-error-text {
+  color: var(--sb-danger, #c0392b);
+}
+.chat-step-caret {
+  margin-left: auto;
+  flex: none;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+.chat-step-payload {
+  margin-top: var(--sb-sp-2);
+  border-top: 1px dashed var(--sb-line);
+  padding-top: var(--sb-sp-2);
+}
+.chat-step-payload-label {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+  margin-bottom: 4px;
+}
+.chat-step-payload pre {
+  margin: 0 0 var(--sb-sp-2);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: var(--sb-radius-sm);
+  font-size: var(--sb-fs-xs);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow: auto;
+  color: var(--sb-ink-secondary);
+}
+
+/* ===== 任务清单面板（标准 CoT，SSE tasks 事件） ===== */
+.chat-tasks {
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  margin-bottom: var(--sb-sp-2);
+  max-width: 420px;
+}
+/* 标题行是 button（全部完成后可点击收起清单），故按按钮重置外观 */
+.chat-tasks-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--sb-fs-sm);
+  font-weight: 600;
+  color: var(--sb-ink-secondary);
+  text-align: left;
+}
+.chat-tasks-head:not(:disabled) { cursor: pointer; }
+.chat-tasks-head:not(:disabled):hover { color: var(--sb-ink); }
+.chat-tasks-caret {
+  flex: none;
+  font-size: var(--sb-fs-xs);
+  font-weight: 400;
+  color: var(--sb-ink-tertiary);
+}
+.chat-tasks-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sb-line);
+  flex: none;
+}
+.chat-tasks-dot.live {
+  background: var(--sb-primary);
+  animation: chat-task-pulse 1.2s ease-in-out infinite;
+}
+@keyframes chat-task-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.chat-tasks-progress {
+  margin-left: auto;
+  color: var(--sb-ink-tertiary);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.chat-tasks-list {
+  list-style: none;
+  margin: var(--sb-sp-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chat-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+.chat-task-mark {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 1.5px solid var(--sb-line);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #15803d;
+  margin-top: 1px;
+}
+.chat-task.done .chat-task-mark {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.12);
+}
+.chat-task.done .chat-task-text {
+  color: var(--sb-ink-tertiary);
+  text-decoration: line-through;
+}
+/* 进行中：圈内转环（复用工具卡片同款 spinner）+ 文字回到主色加粗——
+   长任务里「现在正在做哪条」是用户唯一的过程锚点，必须比待办更显眼 */
+.chat-task.in_progress .chat-task-mark {
+  border-color: var(--sb-primary);
+  color: var(--sb-primary);
+}
+.chat-task.in_progress .chat-task-text {
+  color: var(--sb-ink);
+  font-weight: 500;
+}
+.chat-task-spinner {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  animation: chat-step-spin 0.8s linear infinite;
+}
+
+/* ===== 回复中三点弹跳（发起后到首 token 落屏前的空窗补位） ===== */
+.chat-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+}
+.chat-typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sb-ink-tertiary);
+  animation: chat-typing-bounce 1.2s ease-in-out infinite;
+}
+.chat-typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.chat-typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes chat-typing-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+/* ===== 思考中状态行（v13 体验升级）：短语轮播 + 已用时，接在三点弹跳后 ===== */
+.chat-typing-status {
+  margin-left: 4px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--sb-ink-tertiary);
+}
+.chat-typing-elapsed {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+/* 用户气泡上的「编辑」入口：默认隐形，悬停浮现（不打扰阅读） */
+.msg-edit-trigger {
+  margin-top: 4px;
+  align-self: flex-end;
+  border: none;
+  background: none;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: var(--sb-ink-tertiary);
+  cursor: pointer;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.chat-row.user:hover .msg-edit-trigger,
+.msg-edit-trigger:focus-visible {
+  opacity: 1;
+}
+.msg-edit-trigger:hover {
+  color: var(--sb-primary);
+}
+/* 编辑重发的就地编辑态：替换原气泡 */
+.msg-editing {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(560px, 100%);
+}
+.msg-editing textarea {
+  width: 100%;
+  min-height: 72px;
+  max-height: 200px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--sb-primary);
+  border-radius: 14px;
+  background: var(--sb-surface, #fff);
+  color: var(--sb-ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+}
+.msg-editing-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.msg-editing-actions button {
+  border: 1px solid var(--sb-line, #e5e5e5);
+  background: var(--sb-surface, #fff);
+  color: var(--sb-ink);
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.msg-editing-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.msg-editing-actions .primary {
+  border-color: var(--sb-primary);
+  background: var(--sb-primary);
+  color: #fff;
+}
+
+/* ===== 收口后过程摘要行（v13）：折成一行，点开才展开全过程 ===== */
+.proc-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  padding: 3px 8px;
+  font-size: 12px;
+  color: var(--sb-ink-secondary);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.proc-summary:hover {
+  background: var(--sb-primary-weak);
+  color: var(--sb-primary);
+}
+.proc-summary-chevron {
+  transition: transform 0.15s ease;
+}
+.proc-summary-chevron.open {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .proc-summary-chevron {
+    transition: none;
+  }
+}

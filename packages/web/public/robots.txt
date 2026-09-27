@@ -1,0 +1,17 @@
+# 默认不抓取，只按路径放行公开页与公开静态资源。
+# 新增一个公开面，就要在这里补一行，否则它不会被收录。
+User-agent: *
+Disallow: /
+Allow: /$
+Allow: /terms/
+# 英文侧 /terms/en/ 由上面那扇前缀放行；新公开面若不在 /terms/ 下，要另开一扇
+Allow: /changelog/
+Allow: /ebbinghaus-plan.html
+Allow: /atom.xml
+Allow: /robots.txt
+Allow: /favicon.svg
+Allow: /sitemap.xml
+# 分享图（og:image）：社交平台抓图不看 robots，图片搜索看——不放行就是自己挡自己的图
+Allow: /og/
+
+Sitemap: https://11wand.com/sitemap.xml

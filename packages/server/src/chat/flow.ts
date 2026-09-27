@@ -1,0 +1,386 @@
+/**
+ * chat/flow — 单轮对话编排（chat 域唯一入口）。
+ * 职责：会话串行锁（同会话消息不交错）/ abort 真断流 / 流式经 sse-bus 广播 /
+ * 边流边累积末尾一次落库 / 用量兜底估算落库（v1 全部踩坑语义继承）。
+ * 单轨原则：仅原生 function-calling，工具注册表见 chat/tools/。
+ */
+import { getDb } from '../storage/db.js';
+import { routeRole } from '../llm/router.js';
+import { getMaxOutputTokens } from '../llm/model-limits.js';
+import { publish, startNewRound } from './sse-bus.js';
+import { publishEvent } from '../events/bus.js';
+import { estimateTokens, truncateHistoryToBudget, getContextLimit } from './context.js';
+import { toolDefinitions, toolDefinitionTokens } from './tools/index.js';
+import { runToolCalls, type StepPayload } from './tool-exec.js';
+import { createExecTool } from './tool-dispatch.js';
+import { persistRounds, loadHistory, insertUserMessage, insertAssistantMessage } from './persist.js';
+import { cancelChoicesBySession } from './choice.js';
+import { assembleContextMessages, collectContextSegments } from './context-segments.js';
+import { TASKS_TOOL, type TaskItem } from './task-list.js';
+import { countUsage } from '../learning/terms.js';
+import { afterTurn } from './post-turn.js';
+import type { ChatMessage, ToolCall } from '../llm/types.js';
+import { contentToText } from '../llm/types.js';
+import { describeImages } from './vision.js';
+import { runGrillClosing } from './grill.js';
+import { buildOpening, dropOpening } from './opening.js';
+import type { ChatOptions, ChatResult } from './options.js';
+
+/**
+ * 工具循环上限（v1 语义：模型连续发起工具调用时的轮次天花板，防死循环）。
+ * 8 → 15：八轮在多步任务（查资料→对比→出清单）上
+ * 常被截断在半途，硬上限反而制造「工具调用已达上限」的劣质收尾。
+ * 死循环防护不靠这个数——`toolBudget` 每轮回灌后核对窗口占用，超了立即 break（见下），
+ * 真正的兜底是预算而不是轮数；轮数只防「模型反复调工具但每次都只吃一点点窗口」。
+ */
+const MAX_TOOL_TURNS = 15;
+/** 单条工具结果回灌上限（v1 语义：多轮工具调用会把上下文撑爆） */
+const MAX_TOOL_RESULT_CHARS = 14_000;
+
+/** 同会话串行锁：并发消息排队执行，绝不交错（v1 修复语义） */
+const locks = new Map<string, Promise<unknown>>();
+
+// 出入参契约已切到 `chat/options.ts`（2026-09-18，行数红线）。此处**转出**而非让调用方改路径——
+// 契约搬家不该逼 6 个调用点跟着改 import（那只会制造一次无意义的全仓改动）。
+export type { ChatOptions, ChatResult } from './options.js';
+
+export function handleMessage(opts: ChatOptions): Promise<ChatResult> {
+  const prev = locks.get(opts.sessionId) ?? Promise.resolve();
+  const next = prev.then(() => runTurn(opts), () => runTurn(opts));
+  locks.set(opts.sessionId, next);
+  const cleanup = () => {
+    if (locks.get(opts.sessionId) === next) locks.delete(opts.sessionId);
+  };
+  next.then(cleanup, cleanup);
+  return next;
+}
+
+async function runTurn(opts: ChatOptions): Promise<ChatResult> {
+  const { sessionId } = opts;
+  const db = getDb();
+
+  // 看图蒸馏（v17）：图 → 视觉模型 → 文字描述。失败即向用户报真话并中止本轮，
+  // 不污染主模型上下文、不落半截数据。蒸馏描述会拼进 userText 一并持久化，
+  // 故历史回放 / 重新生成都不必二次调视觉模型。
+  let visionDesc = '';
+  if (opts.images && opts.images.length > 0) {
+    try {
+      visionDesc = await describeImages(opts.images, opts.signal, opts.ownerId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '图片理解失败';
+      publish(sessionId, { type: 'chat-error', sessionId, message: msg });
+      return { ok: false, error: msg };
+    }
+  }
+  const userText = opts.text + (visionDesc ? `\n\n[图片内容]\n${visionDesc}` : '');
+
+  // 用户消息落库（新会话以首句生成标题）。images 列仅作 UI 缩略图回显，主模型看到的是上面的 userText。
+  // skipUserPersist：重新生成走这条路——提问本来就在库里（regenerate.ts 只删它之后的产物），再插一条就成了重复提问
+  if (!opts.skipUserPersist) {
+    insertUserMessage(sessionId, userText, opts.images ?? []);
+  }
+  const sessionTitle = (
+    db.prepare('SELECT title FROM sessions WHERE id = ?').get(sessionId) as { title: string } | undefined
+  )?.title;
+  if (sessionTitle === '新对话') {
+    db.prepare('UPDATE sessions SET title = ? WHERE id = ?').run(opts.text.slice(0, 30) || '新对话', sessionId);
+  }
+  db.prepare(`UPDATE sessions SET updated_at = datetime('now') WHERE id = ?`).run(sessionId);
+  // ★ 主链路的模型选择必须带归属——不带就是「用户 A 配的 key 被 B 的对话烧掉」
+  const target = routeRole(opts.role ?? 'explain', undefined, opts.ownerId);
+  if (!target || !target.model) {
+    const msg = !target
+      ? '没有可用的服务商：请到设置页添加 provider（baseUrl + apiKey）'
+      : `角色 ${opts.role ?? 'explain'} 未配置模型：请到设置页完成角色模型绑定`;
+    publish(sessionId, { type: 'chat-error', sessionId, message: msg });
+    return { ok: false, error: msg };
+  }
+
+  startNewRound(sessionId);
+  // 轮起点帧：缓冲第一帧，切会话/重连回放时前端据此恢复计时基准（契约 SSE-CONTRACT §2）
+  publish(sessionId, { type: 'round-start', sessionId, startedAt: Date.now() });
+
+  // 单轨工具循环（见 chat/tools/）：update_tasks 不进注册表（有状态工具，理由见 task-list.ts 头注），
+  // definition 拼进列表、执行走 exec 注入。★ 必须在预算前声明：tools JSON 现计入 systemPromptTokens（契约 §4.4 第 1 条）。
+  const tools = [...toolDefinitions(), TASKS_TOOL.definition];
+
+  // 组装上下文。附加 system 段（摘要/词条/资料/偏好/画像/触发增强）的**构造、落位与预算核算**
+  // 全在 chat/context-segments.ts —— 此前这三件事在本文件里各写一遍（同一份清单写两遍），
+  // 加一段要改三处且漏一处不报错、只静默漂，故收成一份清单（理由见该文件头注释）。
+  const { segments, systemPromptTokens, liveHistory } = collectContextSegments({
+    history: loadHistory(sessionId),
+    sessionId,
+    // 检索词用 userText 而非 opts.text：发图时若只拿「这个怎么推导」去检索词条/资料，
+    // 画面里的信息完全用不上（无图时两者恒等，老行为不变）
+    text: userText,
+    ownerId: opts.ownerId ?? null,
+  });
+  // 顺序不可换：截断要用段清单算出的预算，装配要用截断后的历史（截断含工具轮对齐）
+  const truncated = truncateHistoryToBudget(liveHistory, {
+    limit: getContextLimit(target.model),
+    // §4.4 第 1 条：工具定义逐轮全量下发，与 system 段同口径进预算（此前不进任何账 ⇒ 截断恒少算）
+    systemPromptTokens: systemPromptTokens + toolDefinitionTokens(tools),
+  });
+  const { messages, nudgeMsg } = assembleContextMessages(segments, truncated);
+  // 开场硬指令（grill-me / 联网，装配见 chat/opening.ts）：只在内存 messages 里活，不落库——它是指令不是发言
+  const opening = buildOpening({ grill: opts.grillMe === true, online: opts.online === true });
+  if (opening.msg) messages.push(opening.msg);
+  // 工具循环预算：窗口 − 全部附加 system 段（`systemPromptTokens`，见 context-segments.ts）
+  // − 已载历史 − 预留。每轮工具回灌后核对，接近上限提前收口——小上下文模型
+  // 15 轮 × MAX_TOOL_RESULT_CHARS 会撑爆窗口（轮数上限由 8 提到 15 后，
+  // 这条预算闸是唯一的窗口守门人，别把它当摆设）。
+  const toolBudget = Math.max(
+    0,
+    getContextLimit(target.model) -
+      (systemPromptTokens + toolDefinitionTokens(tools)) -
+      truncated.reduce((s, m) => s + estimateTokens((m.content || '') + (m.toolCalls ? JSON.stringify(m.toolCalls) : '')), 0) -
+      20_000,
+  );
+  let toolTokens = 0;
+  let budgetExceeded = false;
+
+  let acc = '';
+  /**
+   * 本轮思考链：与 acc 同策略——边流边攒、收口时随消息一起落库。
+   * 此前只 publish 不落库（见下方 chunk.reasoning 分支的原注释），刷新即永久丢失；
+   * 「它刚才是怎么想的」在学习场景里是答案的一部分，故与正文同等持久化（v11 迁移加列）。
+   */
+  let reasoningAcc = '';
+  /**
+   * 本轮思考耗时（契约 TOOL-ECOSYSTEM-SPEC §4.7）：起点＝首个 reasoning 分片发出时刻，
+   * 终点＝首个正文分片（无正文则收口时刻）；**服务端测差值**——前端掐表在断线/切会话后丢起点
+   * （LobeChat 反面教材），AG-UI 时间戳 spec 明令不得参与计算。0＝本轮没出过思考（落 NULL，不是 0 秒）。
+   */
+  let reasoningStartMs = 0;
+  let thinkingMs = 0;
+  /** 本轮的最终任务清单：patch 模式基于它增量合并，收口时随消息落库 */
+  let latestTasks: TaskItem[] = [];
+  let usage: { promptTokens: number; completionTokens: number } | undefined;
+
+  /**
+   * 追加收尾文本（上限提示 / 中断标记）：补进 acc 的与下发的是同一个 delta，
+   * acc 因此恒等于已上屏文本——屏上与库内不会分叉（刷新前后一字不差）。
+   */
+  const appendFinal = (suffix: string) => {
+    const delta = acc ? (acc.endsWith('\n') ? '' : '\n\n') + suffix : suffix;
+    acc += delta;
+    publish(sessionId, { type: 'token', sessionId, content: delta });
+  };
+
+  const onStep = (
+    tool: string,
+    status: 'running' | 'done' | 'error',
+    detail?: string,
+    payload?: StepPayload,
+  ) => {
+    // StepPayload（调度器统一注入 toolCallId/durationMs/errorText）整包摊进 step 帧——
+    // 逐字段列写会两头各记一份清单，加字段必漏一边（契约 SSE-CONTRACT §2）
+    publish(sessionId, { type: 'step', sessionId, tool, status, detail, ...payload });
+  };
+  // update_tasks 的清单合并与非清单工具转发在 chat/tool-dispatch.ts（拆文件：本文件加计时线后破线）
+  const execTool = createExecTool({
+    sessionId,
+    grill: opening.grill,
+    getTasks: () => latestTasks,
+    setTasks: (items) => {
+      latestTasks = items;
+    },
+  });
+  /** 工具轮攒到最终答案确认后一并落库：中途失败/中止不留孤儿 tool 消息（v1 语义）。
+   *  `durations` 与 `results` 同序（每次调用的实测耗时落 `messages.duration_ms`） */
+  const rounds: Array<{ calls: ToolCall[]; results: ChatMessage[]; durations: Array<number | undefined> }> = [];
+  const abortIfNeeded = () => {
+    if (opts.signal?.aborted) throw new Error('已停止');
+  };
+
+  try {
+    let pendingToolRound = false;
+    for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
+      abortIfNeeded();
+      let turnText = '';
+      let turnToolCalls: ToolCall[] | undefined;
+      /** 本轮思考链：全局累积（落库）之外按轮另记一份——anthropic thinking + 工具循环时，
+          assistant(tool_use) 轮必须把它那轮的思考块原样回灌，适配器从这里取（types.ChatMessage.reasoning） */
+      let turnReasoning = '';
+      for await (const chunk of target.adapter.chat({
+        model: target.model,
+        apiKey: target.apiKey,
+        baseUrl: target.baseUrl,
+        messages,
+        signal: opts.signal,
+        tools,
+        // 强绑只到 turn 0：turn 1 起必须放开，否则模型被锁死在开场动作上，正文永远出不来
+        toolChoice: turn === 0 ? opening.toolChoice : undefined,
+        // 显式传输出上限（B 系列防御）：不再依赖适配器 ?? getMaxOutputTokens 兜底，
+        // 新增适配器漏写兜底时 Anthropic 会直接 400——类型层由 ChatRequest.maxTokens 承载。
+        maxTokens: getMaxOutputTokens(target.model),
+        // 池中 AI（stream_mode='once'）一次性回答；原生 AI 开思考链（仅 anthropic 适配器响应此开关）
+        streamMode: target.streamMode,
+        thinking: target.adapter.type === 'anthropic',
+      })) {
+        abortIfNeeded();
+        if (chunk.reasoning) {
+          // 边流式呈现、边累积落库（v11）：只发布不落库的话刷新即丢，重开会话看不到当时怎么想的
+          if (!reasoningStartMs) reasoningStartMs = Date.now();
+          turnReasoning += chunk.reasoning;
+          reasoningAcc += chunk.reasoning;
+          publish(sessionId, { type: 'reasoning', sessionId, content: chunk.reasoning });
+        }
+        if (chunk.content) {
+          if (reasoningStartMs && !thinkingMs) thinkingMs = Date.now() - reasoningStartMs; // 正文开始＝思考结束（§4.7 口径）
+          turnText += chunk.content;
+          acc += chunk.content;
+          publish(sessionId, { type: 'token', sessionId, content: chunk.content });
+        }
+        if (chunk.usage) {
+          // 多轮各自计费：跨轮累加而非覆盖
+          usage = {
+            promptTokens: (usage?.promptTokens ?? 0) + chunk.usage.promptTokens,
+            completionTokens: (usage?.completionTokens ?? 0) + chunk.usage.completionTokens,
+          };
+        }
+        if (chunk.toolCalls && chunk.toolCalls.length > 0) turnToolCalls = chunk.toolCalls;
+        if (chunk.done) break;
+      }
+
+      if (!turnToolCalls) {
+        pendingToolRound = false;
+        break; // 无工具调用 → 本轮即最终回答
+      }
+
+      const results: ChatMessage[] = [];
+      // 并行执行 + 单工具超时 + 中止即停（契约 §4.3）：原来是 for 循环裸 await，
+      // 多工具时耗时叠加，且长工具期间「停止」按钮形同虚设（signal 没进执行环节）。
+      // 结果按调用顺序回灌，顺序稳定性＝回归锁可钉（见 chat/tool-exec.test.ts）。
+      const outcomes = await runToolCalls(turnToolCalls, { onStep }, {
+        signal: opts.signal,
+        exec: execTool,
+        // 会话 id 透传：ask_choice 据此把提问绑到当前会话（方案选择框）
+        sessionId,
+        // ask_choice 要等学习者点选、契约不设超时——不豁免就会被 30s 默认超时掐断（见 tool-exec.ts）
+        noTimeout: ['ask_choice'],
+        // ★ v31 补传：此前这里没有 ownerId ⇒ `manage_terms`（已退役，现词条族在 term-ops.ts）的词条增删改查全落**无主行**
+        //   （主人自己登录后看不到），而**全程不报错**。必填化就是为了逼出这类静默错误。
+        ownerId: opts.ownerId ?? null,
+      });
+      abortIfNeeded();
+      const durations: Array<number | undefined> = [];
+      for (const o of outcomes) {
+        results.push({ role: 'tool', content: o.content.slice(0, MAX_TOOL_RESULT_CHARS), toolCallId: o.id });
+        durations.push(o.durationMs);
+      }
+      rounds.push({ calls: turnToolCalls, results, durations });
+      messages.push({ role: 'assistant', content: '', toolCalls: turnToolCalls, reasoning: turnReasoning || undefined }, ...results);
+      toolTokens +=
+        estimateTokens(JSON.stringify(turnToolCalls)) + results.reduce((s, r) => s + estimateTokens(contentToText(r.content)), 0);
+      if (turnText) {
+        acc += '\n\n'; // 过程语与下一轮正文之间留分隔（已流式上屏，不能粘连）
+        publish(sessionId, { type: 'token', sessionId, content: '\n\n' }); // 分隔符同样下发：屏上与库内文本逐字一致
+      }
+      pendingToolRound = true;
+      // 首轮一过就摘触发增强与开场指令（联网留着每轮重搜、nudge 留着会再问，都只对开场负责）
+      if (turn === 0) {
+        const i = nudgeMsg ? messages.indexOf(nudgeMsg) : -1;
+        if (i >= 0) messages.splice(i, 1);
+        dropOpening(messages, opening);
+      }
+      if (toolTokens > toolBudget) {
+        budgetExceeded = true;
+        break; // 预算耗尽，提前停止工具循环（预留收尾窗口）
+      }
+    }
+
+    dropOpening(messages, opening);
+
+    if (pendingToolRound) {
+      const capMsg = budgetExceeded
+        ? '上下文预算已满，工具调用提前停止；请基于已有内容作答或开始新对话。'
+        : `工具调用已达上限（${MAX_TOOL_TURNS} 轮），已停止；请调整提问或直接要求作答。`;
+      appendFinal(capMsg);
+      publish(sessionId, { type: 'chat-error', sessionId, message: capMsg });
+    }
+
+    if (reasoningStartMs && !thinkingMs) thinkingMs = Date.now() - reasoningStartMs; // 只有思考没有正文（纯工具轮收口）：终点=收口时刻
+    const assistantId = persistRounds(sessionId, rounds, acc, usage?.completionTokens ?? estimateTokens(acc), {
+      reasoning: reasoningAcc,
+      tasks: latestTasks,
+      thinkingMs: thinkingMs || undefined,
+    });
+    // ★ v29 起带上 user_id（契约 TENANCY-SPEC §8.1.2）：**只用于归属与诊断**，不是配额账本
+    //   （§8.1.3 已把免费通道改成「额度不限、只限并发」⇒ 不做 token 聚合）。
+    db.prepare(`INSERT INTO token_usage (session_id, model, prompt_tokens, completion_tokens, source, user_id) VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(
+        sessionId,
+        target.model,
+        usage?.promptTokens ?? estimateTokens(messages.map((m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content))).join('\n')),
+        usage?.completionTokens ?? estimateTokens(acc),
+        usage ? 'provider' : 'estimated',
+        opts.ownerId ?? null,
+      );
+    db.prepare(`UPDATE sessions SET updated_at = datetime('now') WHERE id = ?`).run(sessionId);
+
+    // ★ 事件带归属——订阅者 `learning/activity.ts` 要按人记 XP / 每日计数 / 连签，
+    //   而总线改前只有「发生了什么」。类型上 `ownerId` 必填 ⇒ 漏传是编译错误（见 `events/bus.ts`）。
+    publishEvent({ type: 'chat_done', sessionId, ownerId: opts.ownerId ?? null });
+    // 忆域 v2 收尾：抽词 → 落词条库 → **追问连边** → 长期记忆压缩。
+    // 2026-09-20 整段搬到 `chat/post-turn.ts`（本文件 394 行 + 这一步会顶到 server ≤400 红线；
+    // 按仓规拆文件不压注释）。那些注释（必须带 ownerId、压缩为何串行在抽词之后不 await）
+    // 已随代码一起搬过去，此处不抄第二遍——两份说明迟早会分叉。
+    afterTurn({ sessionId, text: opts.text, answer: acc, ownerId: opts.ownerId ?? null });
+    // 归属随聊天链路下来（同 compactIfNeeded）：词条库本身尚无归属列，但流水按人记，
+    // 将来词条库归主时可直接支撑"按人统计"（契约 MEMORY-TREND-SPEC §6）
+    countUsage(acc, opts.ownerId ?? null);
+    publish(sessionId, {
+      type: 'done',
+      sessionId,
+      // 思考耗时随收口帧下发（与刚落的 `thinking_ms` 同源——落库先于发布，屏上与库内不会分叉）
+      ...(thinkingMs ? { thinkingMs } : {}),
+      usage: {
+        promptTokens: usage?.promptTokens ?? 0,
+        completionTokens: usage?.completionTokens ?? 0,
+        source: usage ? 'provider' : 'estimated',
+      },
+    });
+    // v18.3 grill-me 收尾：抛出「下一步」选项卡。**必须放在 done 帧之后**——
+    // 此前卡在 chat_done 之前弹出，而前端 busy 要等 done 帧才解除：卡片已可点、
+    // 点了却被 useSendActions 的 busy 门禁静默拒绝（void 吞掉 {ok:false}），
+    // 实测表现为「点了收尾卡模型不动」（2026-09-17）。
+    // SSE 是会话级持久订阅（sse-client，与 POST /chat/send 分离，断线回放兜底），
+    // done 之后发帧照样送达；失败一律静默，不能让已上屏的回答变出错。
+    if (opts.grillMe) {
+      await runGrillClosing({ sessionId, adapter: target.adapter, model: target.model, apiKey: target.apiKey,
+        baseUrl: target.baseUrl, messages, tools, signal: opts.signal, onStep, ownerId: opts.ownerId ?? null });
+    }
+    return { ok: true, assistantMessageId: assistantId };
+  } catch (err) {
+    const aborted = opts.signal?.aborted === true;
+    const msg = err instanceof Error ? err.message : String(err);
+    // 逃生口①：本轮异常 / 被停止时连带作废本会话挂起的方案选择。
+    // 必做——挂起的 ask_choice 不在 signal 的掐断路径上，它等的是「人点一下」；
+    // 用户既然选了停止，就再没人会点那张卡，不作废工具会永久悬挂（会话锁也一起卡住）。
+    cancelChoicesBySession(sessionId, aborted ? '用户已停止生成' : '本轮生成中断');
+    // 流什么就存什么：已上屏的字不留白（中止与中途失败同样收口）。
+    // 工具轮仍不落，绝不留孤儿 tool 消息。
+    if (acc) {
+      appendFinal(`（${aborted ? '已停止' : '生成中断'}）`);
+      // 中断也把已攒下的思考与任务清单带上：工具轮不落（防孤儿 tool 消息），
+      // 但过程文本本身无害且有用——「它刚才想到哪一步」正是中断后最想看的
+      if (reasoningStartMs && !thinkingMs) thinkingMs = Date.now() - reasoningStartMs; // 中断时刻即思考终点
+      insertAssistantMessage({
+        sessionId,
+        content: acc,
+        tokens: estimateTokens(acc),
+        reasoning: reasoningAcc || null,
+        tasks: latestTasks,
+        thinkingMs,
+      });
+    }
+    publish(sessionId, { type: 'chat-error', sessionId, message: aborted ? '已停止' : `生成失败：${msg}` });
+    // 失败也要收口：缓冲里留下终止帧，切回会话时不会重放这半截死流
+    publish(sessionId, { type: 'done', sessionId });
+    return { ok: false, error: msg };
+  }
+}
+
+// persistRounds / loadHistory 已搬至 chat/persist.ts
+// （2026-09-14 为方案选择框接线腾 400 行门禁空间，零行为改动）

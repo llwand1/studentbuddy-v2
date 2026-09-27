@@ -1,0 +1,1035 @@
+/* landing — 未登录落地页（浅色 minimal，只取 tokens.css 既有 token，不另起色板） */
+
+.landing {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--sb-bg, #fafafa);
+  color: var(--sb-text, #1d1d1f);
+  font-family: inherit;
+}
+
+/* ── 顶栏 ── */
+.landing-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  background: var(--sb-surface, #fff);
+  border-bottom: 1px solid var(--sb-border, #e5e5ea);
+}
+.landing-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* 名字 + 副标题两行：文案与产品侧栏 logo 同源（`lib/brand.ts`），尺寸按门面的语境放大
+   （产品侧栏是 14px/700 + 10px，这里是 20px/700 + 12.5px——同一块牌子，两个场合） */
+.landing-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.landing-brand-name {
+  font-weight: 700;
+  font-size: var(--sb-fs-xl, 20px);
+  letter-spacing: -0.1px;
+  line-height: 1.25;
+}
+.landing-brand-tag {
+  /* ★ 这一行在打字开始前是**空的**（副标题还没轮到），若不给 min-height，
+     它出现的那一刻顶栏会长高一次、把下面整页往下推——同双屏节那条换帧跳版的教训。
+     行高与 min-height 一起定死，保证「空着」和「打完」占的是同一块地方。 */
+  min-height: 17px;
+  font-size: var(--sb-fs-sm, 12.5px);
+  line-height: 17px;
+  color: var(--sb-ink-tertiary, #9aa1b0);
+  letter-spacing: 0.5px;
+}
+.landing-ghost {
+  border: 1px solid var(--sb-border, #e5e5ea);
+  background: var(--sb-surface, #fff);
+  color: inherit;
+  border-radius: 8px;
+  padding: 6px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.landing-ghost:hover {
+  border-color: var(--sb-primary, #007aff);
+  color: var(--sb-primary, #007aff);
+}
+
+/* ── Hero ── */
+.landing-body {
+  flex: 1;
+  width: min(960px, 92vw);
+  margin: 0 auto;
+  padding: 56px 0 32px;
+}
+/* 2026-09-20 hero 重构：居中单栏 → 左文案 + 右实时演示双栏。
+   演示窗是首屏的主角，故左栏文案宽度收窄到 480 以内（长行会把人推离右侧演示）。 */
+.landing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.02fr);
+  gap: 44px;
+  align-items: center;
+  text-align: left;
+  padding: 6px 0 2px;
+}
+.landing-hero-copy,
+.landing-hero-demo {
+  min-width: 0;
+}
+.landing-title {
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1.28;
+  margin: 0 0 16px;
+  letter-spacing: 0.4px;
+}
+.landing-sub {
+  max-width: 480px;
+  margin: 0 0 26px;
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+.landing-cta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.landing-cta {
+  background: var(--sb-primary, #007aff);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 11px 36px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.landing-cta:hover {
+  filter: brightness(1.08);
+}
+.landing-cta-note {
+  font-size: 12px;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+
+/* 公用体验账号行（契约 AUTH-SPEC §2.10）：按钮 + 警示语竖排，警示语必须读得到 */
+.landing-demo-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 12px;
+}
+.landing-demo-error {
+  color: var(--sb-danger, #ef4444);
+}
+
+/* 注册/登录卡（复用 AccountBox 的 sb-user-form 样式，这里只管容器） */
+.landing-auth-card {
+  max-width: 340px;
+  margin: 28px auto 0;
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 14px;
+  padding: 18px 18px 14px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
+  text-align: left;
+}
+
+/* 登录卡内的 GitHub 入口（契约 AUTH-SPEC §2.8）：「或」分隔线 + 整宽按钮 + 归并提示 */
+.landing-auth-github {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.landing-auth-github-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+.landing-auth-github-or::before,
+.landing-auth-github-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--sb-border, #e5e5ea);
+}
+.landing-github-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--sb-border, #e5e5ea);
+  background: var(--sb-surface, #fff);
+  color: inherit;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+.landing-github-btn:hover {
+  border-color: var(--sb-primary, #007aff);
+  color: var(--sb-primary, #007aff);
+}
+.landing-github-hint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+
+/* ── 功能六宫格 ── */
+.landing-features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 52px;
+}
+.landing-feature {
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 12px;
+  padding: 18px 16px;
+}
+.landing-feature-icon {
+  display: inline-flex;
+  color: var(--sb-primary, #007aff);
+  margin-bottom: 8px;
+}
+.landing-feature-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+.landing-feature-desc {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--sb-text-secondary, #6e6e73);
+  margin: 0;
+}
+
+/* ── 三步开始 ── */
+.landing-steps {
+  display: flex;
+  justify-content: center;
+  gap: 36px;
+  margin: 44px 0 12px;
+  font-size: 13px;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+.landing-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.landing-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--sb-primary, #007aff);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ── 页脚 ── */
+.landing-foot {
+  text-align: center;
+  padding: 20px 0 26px;
+  font-size: 12px;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+.landing-foot a {
+  color: var(--sb-primary, #007aff);
+  text-decoration: none;
+}
+.landing-foot a:hover {
+  text-decoration: underline;
+}
+
+/* ── 窄屏适配 ── */
+@media (max-width: 720px) {
+  .landing-features {
+    grid-template-columns: 1fr;
+  }
+  .landing-steps {
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+  }
+  .landing-title {
+    font-size: 26px;
+  }
+}
+
+/* ── 扩容（2026-09-19）：五环闭环 / 功能九宫格 / 工程较真 / 隐私自持 ── */
+.landing-top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* 中英切换按钮组（2026-09-22）：比 ghost 更小一号，门面上不跟登录键抢位 */
+.landing-lang {
+  display: inline-flex;
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.landing-lang-btn {
+  border: none;
+  background: var(--sb-surface, #fff);
+  color: var(--sb-text-secondary, #6e6e73);
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.landing-lang-btn + .landing-lang-btn {
+  border-left: 1px solid var(--sb-border, #e5e5ea);
+}
+.landing-lang-btn:hover {
+  color: var(--sb-primary, #007aff);
+}
+.landing-lang-on {
+  background: var(--sb-primary, #007aff);
+  color: #fff;
+}
+.landing-lang-on:hover {
+  color: #fff;
+}
+.landing-gh {
+  text-decoration: none;
+}
+.landing-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+  margin-top: 24px;
+  font-size: 12.5px;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+.landing-section {
+  margin-top: 64px;
+}
+.landing-h2 {
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.landing-accent {
+  color: var(--sb-primary, #007aff);
+}
+.landing-section-sub {
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--sb-text-secondary, #6e6e73);
+  margin: 0 0 26px;
+}
+
+/* 五环闭环：横向卡片 + 箭头 */
+.landing-loop {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+.landing-loop-card {
+  flex: 1;
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 12px;
+  padding: 14px 12px;
+}
+.landing-loop-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.landing-loop-icon {
+  display: inline-flex;
+  color: var(--sb-primary, #007aff);
+}
+.landing-loop-step {
+  font-size: 13px;
+  font-weight: 700;
+}
+.landing-loop-arrow {
+  margin-left: auto;
+  color: var(--sb-border, #c7c7cc);
+  font-size: 14px;
+}
+
+/* 工程较真：2×2 */
+.landing-eng {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+.landing-eng-card {
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 12px;
+  padding: 18px 16px;
+}
+
+/* 隐私自持：左清单右 CTA */
+.landing-privacy {
+  display: flex;
+  gap: 40px;
+  align-items: center;
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 14px;
+  padding: 26px 28px;
+}
+.landing-privacy .landing-h2,
+.landing-privacy .landing-section-sub {
+  text-align: left;
+}
+.landing-privacy-list {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 2;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+.landing-privacy-list li::before {
+  content: "·";
+  color: var(--sb-primary, #007aff);
+  font-weight: 700;
+  margin-right: 8px;
+}
+.landing-privacy-cta {
+  flex-shrink: 0;
+  text-align: center;
+}
+.landing-privacy-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+/* 窄屏：闭环纵排、工程单列、隐私堆叠 */
+@media (max-width: 720px) {
+  .landing-loop {
+    flex-direction: column;
+  }
+  .landing-loop-arrow {
+    transform: rotate(90deg);
+    margin: 0;
+  }
+  .landing-eng {
+    grid-template-columns: 1fr;
+  }
+  .landing-privacy {
+    flex-direction: column;
+    gap: 18px;
+  }
+}
+
+/* ── GitHub 横幅（显眼位：hero 正下方首屏内） ── */
+.landing-github {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 26px;
+  padding: 16px 22px;
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-left: 3px solid var(--sb-primary, #007aff);
+  border-radius: 12px;
+}
+.landing-github-main {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.landing-github-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+.landing-github-link {
+  font-size: 13px;
+  color: var(--sb-primary, #007aff);
+  text-decoration: none;
+  word-break: break-all;
+}
+.landing-github-link:hover {
+  text-decoration: underline;
+}
+.landing-github-note {
+  font-size: 13px;
+  color: var(--sb-text-secondary, #6e6e73);
+  text-decoration: none;
+}
+.landing-github-note b {
+  color: var(--sb-text, #1d1d1f);
+}
+.landing-github-note:hover b {
+  color: var(--sb-primary, #007aff);
+}
+
+/* ── 词条旅程（2026-09-20；2026-09-21 改为 B 累积回路）：核心机制段，排在五环之前 ──
+ * 左环（过程）+ 右清单（细节）。原先是 `repeat(5, 1fr)` 的五张横排卡——那是五段**并排**的
+ * 说明文，而这段讲的就是「一个词条走完一圈」，所以把圈画出来、细节留给右侧清单。
+ */
+.landing-journey-loop {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: var(--sb-sp-5, 24px);
+  align-items: center;
+}
+
+/* 环：300×280 的盒子里摆 220×220 的 SVG，四周留给站名药丸（最外侧的横向两个会伸出 100px） */
+.landing-orbit {
+  position: relative;
+  width: 300px;
+  height: 280px;
+  flex: none;
+}
+.landing-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.landing-ring-bg {
+  fill: none;
+  stroke: var(--sb-border, #e5e5ea);
+  stroke-width: 2;
+}
+/* ★ 组旋转必须显式设 `transform-box: view-box` + 以 viewBox 坐标给原点：SVG 元素默认按
+ *   自己的包围盒算原点，不设这条，弧会绕着「弧自己的中心」转而不是绕圆心转。
+ *   缓动用 ease-in-out 而非 ease-out：这是**已在屏上的元素移动**（两站之间滑过去）。 */
+.landing-ring-run {
+  transform-box: view-box;
+  transform-origin: 110px 110px; /* = TermJourney.tsx 的圆心 C，改半径必须同步改这条 */
+  transition: transform 0.62s cubic-bezier(0.455, 0.03, 0.515, 0.955);
+}
+.landing-ring-arc {
+  fill: none;
+  stroke: var(--sb-primary, #007aff);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+.landing-ring-token {
+  fill: var(--sb-primary, #007aff);
+  filter: drop-shadow(0 0 6px rgba(0, 122, 255, 0.45));
+}
+/* 站名药丸：自带 surface 底色，正好把从底下穿过去的环线遮住（不遮会像划掉了字）。
+ * 定位用 translate(-50%,-50%)，而这里动画只碰颜色不碰 transform ⇒ 不会互相顶掉 */
+.landing-orbit-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 3px 10px;
+  font-size: 12.5px;
+  white-space: nowrap;
+  color: var(--sb-text-secondary, #6e6e73);
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 999px;
+  transition: color 0.35s ease, border-color 0.35s ease;
+}
+.landing-orbit-node.hot {
+  color: var(--sb-primary, #007aff);
+  border-color: var(--sb-primary, #007aff);
+  font-weight: 600;
+}
+/* 中央就是词条的 `usage_count`（口径与货对板核查见 TermJourney.tsx 头注）。
+ * 数字变化在产品里是**无动画**的（刷新出来就是新值）⇒ 这里也只做静态显示，不加跳字 */
+.landing-orbit-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.landing-orbit-k {
+  font-size: 11px;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+.landing-orbit-n {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--sb-primary, #007aff);
+  font-variant-numeric: tabular-nums;
+}
+.landing-orbit-s {
+  font-size: 11px;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+
+.landing-jsteps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* 非当前站刻意压成"没有卡片"的样子：五行都抢眼等于没有重点 */
+.landing-jstep {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 9px 14px;
+  transition: background-color 0.35s ease, border-color 0.35s ease;
+}
+.landing-jstep.hot {
+  background: var(--sb-surface, #fff);
+  border-color: var(--sb-border, #e5e5ea);
+}
+.landing-jstep-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.landing-jstep-icon {
+  display: inline-flex;
+  color: var(--sb-primary, #007aff);
+}
+.landing-jstep-no {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--sb-text-secondary, #6e6e73);
+  letter-spacing: 0.5px;
+}
+/* 落地状态标签：与 README「未落地项在标题即标状态」同一纪律，宁可显得像未完成，也不冒充已完成 */
+.landing-jtag {
+  margin-left: auto;
+  padding: 2px 7px;
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--sb-primary, #007aff);
+  background: var(--sb-primary-weak, rgba(0, 122, 255, 0.08));
+  border-radius: 999px;
+}
+.landing-jtag-part {
+  color: var(--sb-text-secondary, #6e6e73);
+  background: rgba(30, 40, 60, 0.06);
+}
+.landing-jstep-lead {
+  font-size: 12.5px;
+  color: var(--sb-primary, #007aff);
+  margin: 0 0 6px;
+}
+/* 标题在 `.landing-jstep-top` 这个 flex 行里，`.landing-feature-title` 自带的
+ * `margin: 0 0 6px` 会让它比同行其它项低 3px —— 行内一律清掉 */
+.landing-jstep .landing-feature-title {
+  font-size: 15px;
+  margin: 0;
+}
+.landing-jstep .landing-feature-desc {
+  line-height: 1.65;
+}
+/* 诚实标注那一行：字号与说明同级，但它是「哪些是真的、哪些是压缩的」的交代，不能藏 */
+.landing-jnote {
+  margin-top: 14px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+
+/* 减少动态效果：环**不滑**（transform 位移是这一段的"动"），但颜色/底色过渡保留——
+ * reduce 要移除的是位移与缩放，不是把所有视觉反馈抹平。计时器侧另有 `prefersReducedMotion()`
+ * 兜底（不挂 setInterval 就停在第 0 站），这条管的是「系统偏好被中途改变」那种情况。 */
+@media (prefers-reduced-motion: reduce) {
+  .landing-ring-run {
+    transition: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   PkJourney — 对战那一节的**双屏外框**（`app/PkJourney.tsx` + `app/pk-boards.tsx`）
+
+   ★ 这里**只有外框**：两块屏里面的每一块卡片、每一个动效都来自产品自己的 `pk.css`
+     （`.sb-pk` 就是产品的页面容器，一个 `.sb-pk` = 一块屏）。所以这一段没有第二条
+     keyframes、也没有第二套对战样式——演示与实物的差别在结构上被消掉了，
+     剩下的唯一差别是时间，已经写在页面那行 `.landing-jnote` 里。
+   ══════════════════════════════════════════════════════════════════ */
+.landing-pk-boards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sb-sp-4, 16px);
+  /* 只读演示：产品里这些是真按钮，这里点下去不会有任何反应 ⇒ 直接把事件掐掉，
+     免得留下六个"看着能点"的死控件。整段对读屏也隐藏（下面的五步清单才是正文）。 */
+  pointer-events: none;
+  user-select: none;
+}
+.landing-pk-screen {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--sb-bg, #fafafa);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.landing-pk-screen-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-3, 12px);
+  padding: 8px 12px;
+  background: var(--sb-surface, #fff);
+  border-bottom: 1px solid var(--sb-border, #e5e5ea);
+}
+.landing-pk-side {
+  font-size: 12px;
+  color: var(--sb-text-secondary, #6e6e73);
+}
+/* 一侧自己的比分：产品对阵布局里就是「label + 大数字 + 答对/求助」那一列（PkArena.tsx:33-46） */
+.landing-pk-meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sb-sp-2, 8px);
+  margin-left: auto;
+}
+.landing-pk-screen .sb-pk-arena-score {
+  font-size: 22px;
+}
+/* 帧高必须**不随帧变**：两侧内容高度每 2.5s 换一次，没有这条就会把下面的清单顶来顶去。
+ * ★ 580 不是猜的：把 `min-height` 摘掉后，用 headless Edge + CDP 每 250ms 采一次
+ *   `.landing-pk-screen-body` 的自然高度，两整圈 × 七档视口（屏宽 = 内容列宽）：
+ *     472 → 351~554 ／ 463 → 351~554 ／ 406 → 351~551 ／ 351 → 351~573 ／ 326 → 374~573
+ *     ／ 644（≤720 单列）→ 269~530 ／ 442（单列）→ 269~551
+ *   ⇒ 最高 573（双列最窄那一档，题干换行最多），取 580 留 7px 余量；一帧之内两侧等高
+ *   （同一行 grid），所以只按最高值封顶。★ 改帧内容（加卡片、换题干长度）必须重新量：
+ *   这条一崩，症状是「下面的清单每 2.5 秒抖一下」，而 jsdom 读不到布局 ⇒ 测试不会红。
+ * ★ 七档全部 `scrollHeight - clientHeight = 0`（没有任何一帧被裁掉）。
+ * ★ `margin: 0` 是**修掉一条只有真机才看得见的抖动**：产品的 `.sb-pk` 自带 `margin: 0 auto`
+ *   （它在页面里是顶层块，靠这条限宽 1120 并居中）。一旦被放进 flex 列，交叉轴上的 auto 外边距
+ *   会**取消 stretch**，容器改成按内容收缩——「对手正在出题」那张卡窄，那一帧这块屏的内容宽
+ *   从 438 掉到 259（实测），主题条跟着一起变窄，每 2.5 秒跳一次宽度。
+ *   ★ 选择器写成两条类名是为了**压过** `.sb-pk`（同权重时谁赢看打包顺序，不可靠）。
+ *   ★ 同一条「jsdom 看不见布局」的教训上一次同类问题刚记过一次（速览卡被 `overflow:hidden` 裁切）。 */
+/* 选择器写成两条类名是为了**压过**产品的 `.sb-pk { margin: 0 auto }`（同权重时谁赢看打包顺序，不可靠） */
+.landing-pk-screen .landing-pk-screen-body {
+  flex: 1;
+  margin: 0;
+  min-height: 580px;
+}
+/* 清单整宽铺在下面：五条说明一行都不许为动效让路（口径同 `TermJourney`） */
+.landing-pk-steps {
+  max-width: 860px;
+  margin: var(--sb-sp-5, 24px) auto 0;
+}
+
+@media (max-width: 720px) {
+  /* 窄屏回落成上下排列——与产品自己对 `sb-pk-arena` 的做法同一条规矩：
+     响应式而不是锁死横屏，「拿提示挡住功能」是错的（PK-SPEC §13.2） */
+  .landing-pk-boards {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 980px) {
+  /* 环与清单堆叠：环居中在上、清单整宽在下（280px 那一列在窄屏是浪费而不是紧凑） */
+  .landing-journey-loop {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: var(--sb-sp-4, 16px);
+  }
+  .landing-jsteps {
+    width: 100%;
+  }
+}
+
+/* 窄屏：hero 双栏堆叠（文案在上、演示窗在下），文案放宽到整宽 */
+@media (max-width: 880px) {
+  .landing-hero {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+  .landing-sub {
+    max-width: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   2026-09-22 落地页重排：产品整体介绍（`.landing-intro`）+ 功能区（`.landing-zone`）
+   ────────────────────────────────────────────────────────────────────
+   ★ 这两块在 **DOM 顺序**上必须是「介绍在前、功能在后」（`Landing.tsx` 头注的硬约束，
+     由 `Landing.test.tsx` 机器锁）。CSS 里**刻意不给两者设不同的 z-index / 定位**，
+     免得将来有人把功能区提上来"视觉在前"——那跟调整 DOM 顺序是同一个后果，
+     却绕开了那条断言。视觉上的层次只由间距与底色表达。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── 产品整体介绍 ── */
+.landing-intro {
+  margin-top: 72px;
+}
+.landing-intro-eyebrow {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sb-primary, #007aff);
+  margin: 0 0 10px;
+}
+.landing-intro-h2 {
+  /* 与 `.landing-h2` 同源，只压一号——它是整页第一个二级标题，
+     字号若与功能区标题同大，"谁是开头"这件事就模糊了 */
+  font-size: 26px;
+}
+.landing-intro-def {
+  /* ★ 这一句是整页唯一的定义句，故给它最大的阅读宽度与行高：
+     它被 skim 掉就等于这一整段白写。左右各留 -64px 让它比正文宽一点，
+     视觉上独立于后面的卡片群。 */
+  max-width: 640px;
+  margin: 0 auto 30px;
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--sb-text-secondary, #6e6e73);
+  text-align: center;
+}
+.landing-intro-def strong {
+  color: var(--sb-text, #1d1d1f);
+  font-weight: 600;
+}
+
+/* 「词条是主体」块：整页唯一一块浅底色，用来把读者的眼睛钉在正文正中 */
+.landing-spine {
+  background: var(--sb-surface, #fff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 16px;
+  padding: 26px 28px 22px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+}
+.landing-spine-head {
+  margin-bottom: 20px;
+}
+.landing-intro-h3 {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.landing-intro-h3 strong {
+  color: var(--sb-primary, #007aff);
+}
+.landing-intro-lead {
+  text-align: center;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--sb-text-secondary, #6e6e73);
+  margin: 0;
+}
+.landing-spine-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px 22px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: spine;
+}
+.landing-spine-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 10px;
+  background: var(--sb-bg, #fafafa);
+}
+/* 覆盖 `.landing-feature-icon` 的 `margin-bottom`：这里是横排，图标要跟文字基线对齐
+   （同一套类名在两个地方用，垂直/水平是唯一差别——这也是该样式只设 color、不设排版的由来） */
+.landing-spine-icon {
+  margin-bottom: 0;
+  flex: none;
+  margin-top: 1px;
+}
+.landing-spine-text {
+  min-width: 0;
+}
+
+/* 三句话说清：T3 版式的标准件——演示已开道，文字只补三件最小必要的事 */
+.landing-intro-three {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 26px;
+}
+.landing-intro-card {
+  padding: 16px 18px;
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 12px;
+  background: var(--sb-bg, #fafafa);
+}
+.landing-intro-q {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--sb-primary, #007aff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  background: var(--sb-surface, #fff);
+  border-radius: 6px;
+  padding: 2px 8px;
+  margin-bottom: 10px;
+}
+
+/* 信任标签条：一行扫完，不占正文位置 */
+.landing-intro-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+}
+.landing-intro-tags li {
+  font-size: 12px;
+  color: var(--sb-text-secondary, #6e6e73);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  background: var(--sb-surface, #fff);
+  border-radius: 999px;
+  padding: 4px 14px;
+}
+
+/* 「词条是主体」独立成段之后，它不再与「它是什么」共用一个 section：
+   段间距刻意小于 `.landing-intro` 的 72px（那是 hero 与首个介绍段之间的距离）——
+   两段若隔得一样开，看上去就是两个各自成立的章节，读不出「讲完是什么 → 接着讲靠什么运转」的承接。 */
+.landing-intro-term {
+  margin-top: 40px;
+}
+
+/* ── 功能区 ── */
+.landing-zone {
+  margin-top: 84px;
+  padding-top: 44px;
+  border-top: 1px solid var(--sb-border, #e5e5ea);
+}
+.landing-zone-head {
+  margin-bottom: 30px;
+}
+.landing-zone-block {
+  margin-top: 58px;
+}
+.landing-zone-h3 {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+/* ── 一步步动线（2026-09-22 二次调整：功能要「一步步讲」，不是并列九宫格） ──
+   ★ 层级靠**边框虚实**区分，不靠颜色：实线卡片是「第几步」，虚线小卡是「这一步里的入口」。
+     再叠一层颜色就会跟主色抢注意力，而这一屏已经有 9 个图标了。 */
+.landing-walk {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+.landing-walk-step {
+  padding: 18px 20px 16px;
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 14px;
+  background: var(--sb-surface, #fff);
+}
+.landing-walk-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.landing-walk-no {
+  /* 等宽数字：01–05 竖着排下来，非等宽字体会让编号列看着参差 */
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--sb-primary, #007aff);
+  font-variant-numeric: tabular-nums;
+}
+.landing-walk-ring {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sb-primary, #007aff);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  background: var(--sb-bg, #fafafa);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+.landing-walk-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+.landing-walk-desc {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--sb-text-secondary, #6e6e73);
+  margin: 0 0 12px;
+}
+.landing-walk-caps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px 16px;
+}
+.landing-walk-cap {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--sb-border, #e5e5ea);
+  border-radius: 10px;
+  background: var(--sb-bg, #fafafa);
+}
+/* 同 `.landing-spine-icon`：横排时图标要跟文字基线对齐，覆盖基类那 8px 下外边距 */
+.landing-walk-cap-icon {
+  margin-bottom: 0;
+  flex: none;
+  margin-top: 1px;
+}
+/* 动线与两屏演示之间的过渡句：它是「骨架 → 例子」的接缝，不是又一个标题 */
+.landing-zone-lead {
+  margin-top: 48px;
+}
+
+/* 窄屏：介绍段的三栏与词条去向的双列都堆成单列 */
+@media (max-width: 880px) {
+  .landing-intro-three {
+    grid-template-columns: 1fr;
+  }
+  /* 动线在窄屏单列：auto-fit 的 240px 下限在 320px 屏上仍会挤出两列，明确降到一列 */
+  .landing-walk-caps {
+    grid-template-columns: 1fr;
+  }
+  .landing-walk-step {
+    padding: 16px;
+  }
+  .landing-spine {
+    padding: 20px 18px 18px;
+  }
+  .landing-zone {
+    margin-top: 64px;
+  }
+}
+

@@ -1,0 +1,346 @@
+/**
+ * graph.css — 知识图页与邻域图的样式（配色全部走 tokens.css，组件里不写颜色）。
+ *
+ * ★ 三种边出处刻意用**三套线型**而不只是换个颜色（契约 §4.2 三值不平权）：
+ *     user 实线 · ai 短虚线 · derived 点线
+ *   只靠颜色区分在色觉障碍下会失效，也会在缩略图尺寸下糊成一片；线型是更稳的分层信号。
+ *   再叠一层颜色深浅（primary → ink-secondary → ink-tertiary），两重信号互相印证。
+ */
+
+.gr-page {
+  /* 本页的语义色（从 design token 派生，别处改 token 这里跟着变） */
+  --gr-term: var(--sb-primary);
+  --gr-note: var(--sb-success);
+  --gr-muted: var(--sb-ink-tertiary);
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--sb-sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+}
+
+.gr-page-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sb-sp-3);
+}
+.gr-page-head h2 { font-size: var(--sb-fs-xl); font-weight: 600; }
+.gr-page-sub { font-size: var(--sb-fs-xs); color: var(--sb-ink-secondary); }
+
+/* ── 统计条 ── */
+
+.gr-stats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sb-sp-2);
+}
+.gr-stat {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: 3px var(--sb-sp-2);
+}
+.gr-stat b { color: var(--sb-ink); font-size: var(--sb-fs-sm); }
+.gr-stat.user { border-color: rgba(0, 122, 255, 0.4); }
+.gr-stat.ai { border-style: dashed; }
+.gr-stat.derived { color: var(--sb-ink-tertiary); }
+
+/* ── 工具栏 ── */
+
+.gr-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  flex-wrap: wrap;
+}
+.gr-tabs { display: flex; gap: var(--sb-sp-1); }
+.gr-tab {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  padding: 4px var(--sb-sp-2);
+  border-radius: var(--sb-radius-sm);
+}
+.gr-tab:hover { background: rgba(30, 40, 60, 0.05); }
+.gr-tab.on { background: var(--sb-primary-weak); color: var(--sb-primary); font-weight: 600; }
+
+.gr-search {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-1);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: 3px var(--sb-sp-2);
+  background: var(--sb-surface);
+  color: var(--sb-ink-tertiary);
+}
+.gr-search input { border: none; outline: none; font-size: var(--sb-fs-sm); width: 140px; }
+
+.gr-depth {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-1);
+}
+.gr-depth select { font-size: var(--sb-fs-xs); border: 1px solid var(--sb-line); border-radius: var(--sb-radius-sm); padding: 3px; }
+
+/* ── 主体两栏 ── */
+
+.gr-body {
+  display: grid;
+  grid-template-columns: 224px 1fr;
+  gap: var(--sb-sp-4);
+  align-items: start;
+  min-height: 0;
+}
+
+.gr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 640px;
+  overflow-y: auto;
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  padding: var(--sb-sp-2);
+}
+.gr-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+  border-radius: var(--sb-radius-sm);
+  text-align: left;
+  transition: background 0.15s;
+}
+.gr-item:hover { background: rgba(30, 40, 60, 0.05); }
+.gr-item.on { background: var(--sb-primary-weak); }
+.gr-item-name {
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gr-list-more { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); padding: var(--sb-sp-1); }
+
+.gr-main { display: flex; flex-direction: column; gap: var(--sb-sp-4); min-width: 0; }
+
+/* ── 邻域画布 ── */
+
+.gr-canvas {
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  padding: var(--sb-sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+}
+.gr-truncated {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  background: rgba(30, 40, 60, 0.04);
+  border-radius: var(--sb-radius-sm);
+  padding: 3px var(--sb-sp-2);
+}
+.gr-svg { width: 100%; height: 420px; }
+
+/* 环引导线：极浅的点线，只提供"远近"的量感，不抢内容 */
+.gr-ring { fill: none; stroke: var(--sb-line); stroke-width: 1; stroke-dasharray: 2 5; }
+
+/* 节点卡片 */
+.gr-node rect {
+  fill: var(--sb-surface);
+  stroke: var(--sb-line);
+  stroke-width: 1.5;
+  transition: stroke 0.15s;
+}
+.gr-node.clickable { cursor: pointer; }
+.gr-node.clickable:hover rect { stroke: var(--sb-primary); }
+.gr-node.term rect { stroke: var(--gr-term); stroke-opacity: 0.55; }
+.gr-node.note rect { stroke: var(--gr-note); stroke-opacity: 0.55; }
+.gr-node.turn rect { stroke: var(--sb-line); }
+.gr-node.concept rect { stroke: var(--gr-term); stroke-opacity: 0.4; stroke-dasharray: 4 3; }
+.gr-node.center rect { stroke-width: 2.5; stroke-opacity: 1; filter: drop-shadow(0 2px 6px rgba(30, 40, 80, 0.16)); }
+
+.gr-node-kind { font-size: 10px; fill: var(--sb-ink-tertiary); }
+.gr-node-name { font-size: var(--sb-fs-sm); fill: var(--sb-ink); font-weight: 500; }
+.gr-node.center .gr-node-kind { fill: var(--sb-primary); }
+
+/* 边：实线 / 短虚线 / 点线 三档（+ 颜色深浅互相印证） */
+.gr-edge { fill: none; }
+.gr-edge-line { fill: none; }
+.gr-edge.user .gr-edge-line { stroke: var(--sb-primary); stroke-width: 1.8; }
+.gr-edge.ai .gr-edge-line { stroke: var(--sb-ink-secondary); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.gr-edge.derived .gr-edge-line { stroke: var(--sb-ink-tertiary); stroke-width: 1.2; stroke-dasharray: 1 4; }
+
+.gr-edge-text {
+  font-size: 10px;
+  fill: var(--sb-ink-secondary);
+  /* 压在线上也要能读：先描一圈底色再填字（paint-order 是 SVG 的属性，不是内联 style） */
+  stroke: var(--sb-surface);
+  stroke-width: 3;
+  paint-order: stroke;
+}
+
+.gr-arrow.user path { fill: var(--sb-primary); }
+.gr-arrow.ai path { fill: var(--sb-ink-secondary); }
+.gr-arrow.derived path { fill: var(--sb-ink-tertiary); }
+
+/* ── 图例 ── */
+
+.gr-legend { display: flex; gap: var(--sb-sp-4); flex-wrap: wrap; }
+.gr-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-1);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+}
+.gr-legend-line { stroke: var(--sb-ink-tertiary); stroke-width: 2; }
+.gr-legend-item.user .gr-legend-line { stroke: var(--sb-primary); }
+.gr-legend-item.ai .gr-legend-line { stroke: var(--sb-ink-secondary); stroke-dasharray: 5 4; }
+.gr-legend-item.derived .gr-legend-line { stroke: var(--sb-ink-tertiary); stroke-dasharray: 1 4; }
+
+/* ── 节点详情卡 ── */
+
+.gr-detail {
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  padding: var(--sb-sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+}
+.gr-detail-head { display: flex; align-items: center; gap: var(--sb-sp-2); flex-wrap: wrap; }
+.gr-detail-name { font-size: var(--sb-fs-lg); font-weight: 600; }
+.gr-detail-meta { display: flex; gap: var(--sb-sp-3); font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); }
+.gr-detail-note { font-size: var(--sb-fs-xs); color: var(--sb-ink-secondary); }
+
+.gr-kind-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--sb-line);
+  color: var(--sb-ink-secondary);
+  white-space: nowrap;
+}
+.gr-kind-badge.term { color: var(--sb-primary); border-color: rgba(0, 122, 255, 0.4); }
+.gr-kind-badge.note { color: var(--sb-success); border-color: rgba(34, 197, 94, 0.45); }
+.gr-kind-badge.concept { color: var(--sb-ink-secondary); border-style: dashed; }
+
+/* ── 关系清单 ── */
+
+.gr-rel-block { display: flex; flex-direction: column; gap: var(--sb-sp-1); }
+.gr-rel-head { font-size: var(--sb-fs-xs); color: var(--sb-ink-secondary); font-weight: 600; }
+.gr-rel-empty { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); }
+.gr-rel-list { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+
+.gr-rel {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  font-size: var(--sb-fs-sm);
+  padding: 3px var(--sb-sp-2);
+  border-radius: var(--sb-radius-sm);
+  border-left: 3px solid var(--sb-line);
+}
+.gr-rel.user { border-left-color: var(--sb-primary); }
+.gr-rel.ai { border-left-style: dashed; border-left-color: var(--sb-ink-secondary); }
+.gr-rel.derived { border-left-color: var(--sb-ink-tertiary); }
+
+.gr-rel-dir { color: var(--sb-ink-tertiary); }
+.gr-rel-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gr-rel-kind { font-size: var(--sb-fs-xs); color: var(--sb-ink-secondary); }
+.gr-rel-origin { font-size: 10px; color: var(--sb-ink-tertiary); }
+.gr-rel-del { color: var(--sb-ink-tertiary); padding: 0 4px; }
+.gr-rel-del:hover { color: var(--sb-danger); }
+.gr-rel-locked { font-size: 10px; color: var(--sb-ink-tertiary); }
+
+/* ── 表单与按钮 ── */
+
+.gr-add-edge, .gr-add-node {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+  border-top: 1px solid var(--sb-line);
+  padding-top: var(--sb-sp-3);
+}
+.gr-add-row { display: flex; gap: var(--sb-sp-2); flex-wrap: wrap; }
+.gr-add-row input, .gr-add-row select {
+  flex: 1;
+  min-width: 140px;
+  font-size: var(--sb-fs-sm);
+  font-family: inherit;
+  padding: 5px var(--sb-sp-2);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+  color: var(--sb-ink);
+}
+.gr-add-evidence {
+  font-size: var(--sb-fs-sm);
+  font-family: inherit;
+  padding: 5px var(--sb-sp-2);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+}
+.gr-add-hint { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); }
+
+.gr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sb-sp-1);
+  font-size: var(--sb-fs-sm);
+  padding: 5px var(--sb-sp-3);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+  color: var(--sb-ink-secondary);
+  transition: border-color 0.15s, color 0.15s;
+  align-self: flex-start;
+}
+.gr-btn:hover:not(:disabled) { border-color: var(--sb-primary); color: var(--sb-primary); }
+.gr-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.gr-btn.primary { background: var(--sb-primary); border-color: var(--sb-primary); color: #fff; }
+.gr-btn.primary:hover:not(:disabled) { opacity: 0.88; color: #fff; }
+
+/* ── 空态与提示 ── */
+
+.gr-empty {
+  padding: var(--sb-sp-5);
+  text-align: center;
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-sm);
+}
+.gr-empty-sub { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); margin-top: var(--sb-sp-1); }
+.gr-empty-canvas {
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gr-msg {
+  position: fixed;
+  bottom: var(--sb-sp-5);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--sb-ink);
+  color: #fff;
+  font-size: var(--sb-fs-sm);
+  padding: var(--sb-sp-2) var(--sb-sp-4);
+  border-radius: var(--sb-radius-md);
+  box-shadow: var(--sb-shadow-2);
+  z-index: 20;
+}

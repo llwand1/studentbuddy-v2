@@ -1,0 +1,39 @@
+# deploy/docker/Caddyfile —— compose 用的反向代理配置（EXPERIMENTAL，与 docker-compose.yml 定性一致）
+#
+# 默认档：纯 HTTP 本地起测（无域名、无证书，`http://localhost:8080` 直接可用）。
+# 生产档：把下面 `:80 {` 换成你的域名（例如 `example.com {`），取消 443 段的注释——
+#         Caddy 会自己申请/续期 Let's Encrypt 证书，前提是域名 A 记录已指对（DEPLOY.md §9 第 1 条）。
+#
+# 线上（systemd 形态）跑的是另一份 /etc/caddy/Caddyfile，真身在服务器上，不入仓；
+# 其结构与本文件一致，逐行解释见 DEPLOY.md §4。
+
+:80 {
+	encode gzip
+
+	# 访客路径与线上同源：/api/* 进后端，其余进静态托底
+	handle /api/* {
+		reverse_proxy server:18791
+	}
+
+	handle {
+		# ★ SPA 深链兜底（实测 2026-09-27）：静态文件由主 caddy 自己服务（卷挂 /srv）——
+		#   `try_files + reverse_proxy web` 的组合试过且**不通**：try_files 查的是主 caddy 自己的 FS，
+		#   代理后端的存在性它查不到，深链仍 404。web 服务保留作过渡托底，接线待「server 静态托管」落地后一并删。
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+# ——— 生产档模板（按需取消注释并替换域名；本地试跑请保持注释）———
+# example.com {
+# 	encode gzip
+# 	root * /srv/site
+# 	handle /api/* {
+# 		reverse_proxy server:18791
+# 	}
+# 	handle {
+# 		try_files {path} /index.html
+# 		file_server
+# 	}
+# }

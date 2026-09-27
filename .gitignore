@@ -1,0 +1,15 @@
+# 依赖与构建产物
+node_modules/
+dist/
+coverage/
+test-results/
+.runtime/
+.vite/
+*.log
+
+# 下划线前缀 = 会话级临时诊断脚本与探针（eslint 与 tsconfig 同样排除）
+**/_*.ts
+**/_*.tsx
+**/_*.mjs
+tools/probes/_e2e/
+_probe/

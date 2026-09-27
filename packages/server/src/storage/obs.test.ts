@@ -1,0 +1,92 @@
+import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { getDb, openIsolated } from './db.js';
+import { recordObsEvent, listObsEvents, wireObsEvents } from './obs.js';
+import { publishEvent } from '../events/bus.js';
+
+function tmp(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'sb-obs-test-'));
+}
+
+describe('storage/obs — 可观测地基（v9 event_log）', () => {
+  it('v9 迁移：event_log 表与双索引存在', () => {
+    const db = openIsolated(tmp());
+    const tables = (
+      db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as Array<{ name: string }>
+    ).map((r) => r.name);
+    expect(tables).toContain('event_log');
+    const idx = (
+      db.prepare(`SELECT name FROM sqlite_master WHERE type='index'`).all() as Array<{ name: string }>
+    ).map((r) => r.name);
+    expect(idx).toContain('idx_event_log_kind_ts');
+    expect(idx).toContain('idx_event_log_ts');
+  });
+
+  it('record + list：字段回读、payload JSON 还原、未传字段为 null、id 倒序', () => {
+    openIsolated(tmp());
+    const id1 = recordObsEvent({ kind: 'search_empty', payload: { query: 'test', failed: 'x: y' } });
+    expect(id1).toBeGreaterThan(0);
+    recordObsEvent({ kind: 'tool_error', sessionId: 's1', latencyMs: 12, tokensIn: 3, tokensOut: 5 });
+    const rows = listObsEvents();
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.kind).toBe('tool_error'); // 倒序：后插的在前
+    expect(rows[0]?.sessionId).toBe('s1');
+    expect(rows[0]?.latencyMs).toBe(12);
+    expect(rows[0]?.payload).toBeNull();
+    expect(rows[1]?.payload).toEqual({ query: 'test', failed: 'x: y' });
+    expect(rows[1]?.sessionId).toBeNull();
+  });
+
+  it('list 过滤：kind 精确 / sinceId 增量 / limit 钳制 1..200', () => {
+    openIsolated(tmp());
+    for (let i = 0; i < 5; i++) {
+      recordObsEvent({ kind: i % 2 === 0 ? 'search_empty' : 'tool_error' });
+    }
+    expect(listObsEvents({ kind: 'search_empty' })).toHaveLength(3);
+    const all = listObsEvents();
+    const mid = all[2]?.id;
+    const since = listObsEvents({ sinceId: mid });
+    expect(since).toHaveLength(2);
+    expect(since.every((r) => (mid ?? 0) < r.id)).toBe(true);
+    expect(listObsEvents({ limit: 2 })).toHaveLength(2);
+    expect(listObsEvents({ limit: 999 })).toHaveLength(5); // 上钳 200，数据只有 5
+    expect(listObsEvents({ limit: 0 })).toHaveLength(1); // 下钳 1
+    expect(listObsEvents({ kind: 'thumbs_down' })).toHaveLength(0); // 合法 kind 无数据
+  });
+
+  /**
+   * 归属过滤（2026-09-21 闸门 #2 修复）：`event_log` 没有 owner 列 ⇒ 归属**回 sessions 判**。
+   * 钉三件事：非空 ownerId 只回本人会话的事件；无会话的平台事件与孤儿会话事件一并挡掉；
+   * `null`（未登录单人模式）不过滤——本地旧行为不许回归。
+   */
+  it('归属过滤：ownerId 非空只回本人会话的事件；平台事件（无会话）也不给；null = 本地模式不过滤', () => {
+    openIsolated(tmp());
+    getDb()
+      .prepare(`INSERT INTO sessions (id, user_id) VALUES ('sa', 'u-a'), ('sb', 'u-b'), ('s-orphan', NULL)`)
+      .run();
+    recordObsEvent({ kind: 'search_empty', sessionId: 'sa', payload: { query: '甲的问题' } });
+    recordObsEvent({ kind: 'search_empty', sessionId: 'sb', payload: { query: '乙的问题' } });
+    recordObsEvent({ kind: 'search_empty', sessionId: 's-orphan' });
+    recordObsEvent({ kind: 'tool_error' }); // 平台事件：压根没有会话
+
+    const mine = listObsEvents({ ownerId: 'u-a' });
+    expect(mine.map((r) => r.sessionId)).toEqual(['sa']); // 别家会话 / 孤儿会话 / 平台事件全挡掉
+
+    expect(listObsEvents({ ownerId: null })).toHaveLength(4); // 单人本地模式：不过滤
+    expect(listObsEvents()).toHaveLength(4); // 省略 ownerId = 旧行为（未登录调用点）
+  });
+
+  it('wireObsEvents：publishEvent(obs) 自动落库；重复 wire 幂等；非 obs 事件不落', () => {
+    openIsolated(tmp());
+    wireObsEvents();
+    wireObsEvents();
+    publishEvent({ type: 'obs', kind: 'search_empty', payload: { query: 'q' } });
+    publishEvent({ type: 'chat_done', sessionId: 's', ownerId: null });
+    const rows = listObsEvents();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.kind).toBe('search_empty');
+    expect(rows[0]?.payload).toEqual({ query: 'q' });
+  });
+});

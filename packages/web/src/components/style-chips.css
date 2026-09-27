@@ -1,0 +1,34 @@
+/**
+ * style-chips.css — 四维偏好 chip 行的样式（StyleChips 自带，不蹭 settings.css）。
+ * 原因：StyleChips 是设置卡与「出题前选项卡」共用的渲染件，若复用 .quiz-mix-chip，
+ * 组件就隐式依赖某个 feature 的 css 被加载；视觉配方照抄 settings.css 的 chip，10 行换解耦。
+ */
+.style-rows { display: grid; gap: var(--sb-sp-3); }
+
+.style-row { display: grid; gap: var(--sb-sp-1); }
+
+.style-row-q {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sb-sp-2);
+  font-size: var(--sb-fs-sm);
+  font-weight: 600;
+  color: var(--sb-ink);
+}
+
+.style-row-hint { font-size: var(--sb-fs-xs); font-weight: 400; color: var(--sb-ink-tertiary); }
+
+.style-row-chips { display: flex; flex-wrap: wrap; gap: var(--sb-sp-2); }
+
+.style-chip {
+  border: 1px solid var(--sb-line);
+  border-radius: 999px;
+  padding: var(--sb-sp-1) var(--sb-sp-3);
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+  background: var(--sb-bg);
+}
+.style-chip:hover:not(:disabled) { border-color: var(--sb-primary); color: var(--sb-primary); }
+.style-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+.style-chip.active { background: var(--sb-primary); border-color: var(--sb-primary); color: #fff; }

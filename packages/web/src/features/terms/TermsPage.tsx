@@ -1,0 +1,295 @@
+/**
+ * TermsPage — 词条库（忆域 v2：AI 自动词条库）。
+ * 取代旧「背背背」翻卡页：AI 在对话/搜索中自动把重要词条入库，
+ * 本页提供领域 Tab 浏览、搜索、手动添加、编辑释义、删除、重要度/使用次数查看，
+ * 以及**复习范围的逐条开关**（v28：词条行右侧「纳入复习 / 移出复习」）。
+ *
+ * `initialKeyword`：跨页带词进来做搜索初值（现状两个来源＝对话页词条卡「打开词条库」与全局搜索）。
+ * ★ 原第三来源「知识图页节点 → 去词条库看正文」已随功能下线删除。
+ * 调用方用 `key` 控制重挂，故这里直接拿它做初值即可，不需要额外的 effect 同步。
+ */
+import { useCallback, useEffect, useState } from 'react';
+import { api, type TermItem } from '../../lib/api';
+import { computeReviewState } from '@sb/shared';
+import { CardsIcon, SearchIcon, PlusIcon } from '../../components/icons';
+import { DomainBar, type DomainStat } from './DomainBar';
+import { ReviewPanel } from './ReviewPanel';
+import { UndoDeleteBar } from './UndoDeleteBar';
+import { CATALOG_PATH } from '../../seo/paths';
+import './terms.css';
+
+/**
+ * 词条行的「多久没复习」徽标（v23）。
+ * 天数由 shared 现算——与服务端排队列用的是同一份实现，故列表与队列不会互相打脸。
+ */
+function ReviewBadge({ t }: { t: TermItem }) {
+  const rs = computeReviewState({
+    lastReviewedAt: t.last_reviewed_at,
+    createdAt: t.created_at,
+    stage: t.review_stage,
+  });
+  const cls = rs.status === 'overdue' ? 'term-rv overdue' : rs.status === 'due' ? 'term-rv due' : 'term-rv';
+  return (
+    <span className={cls}>
+      {rs.mastered ? `已入长期记忆 · ${rs.daysSince} 天` : `${rs.daysSince} 天没复习`}
+    </span>
+  );
+}
+
+export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) {
+  const [stats, setStats] = useState<{
+    total: number;
+    domains: DomainStat[];
+    today: number;
+    /** 偏好领域（服务端已排好全序；只含提及数 > 0 的领域——「没提过」不是偏好） */
+    preferred: Array<{ domain: string; mentionCount: number }>;
+  }>({
+    total: 0,
+    domains: [],
+    today: 0,
+    preferred: [],
+  });
+  const [terms, setTerms] = useState<TermItem[]>([]);
+  const [domain, setDomain] = useState('all');
+  const [keyword, setKeyword] = useState(initialKeyword);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editDef, setEditDef] = useState('');
+  const [editDomain, setEditDomain] = useState('');
+  const [newTerm, setNewTerm] = useState('');
+  const [newDef, setNewDef] = useState('');
+  const [newDomain, setNewDomain] = useState('');
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const reload = useCallback(async () => {
+    const [s, t] = await Promise.all([api.terms.domains(), api.terms.list(domain, keyword.trim() || undefined)]);
+    setStats(s);
+    setTerms(t);
+  }, [domain, keyword]);
+
+  useEffect(() => {
+    void reload().catch(() => undefined);
+  }, [reload]);
+
+  const flash = (m: string) => {
+    setMsg(m);
+    window.setTimeout(() => setMsg(''), 2200);
+  };
+
+  const add = async () => {
+    if (!newTerm.trim() || !newDef.trim() || busy) return;
+    setBusy(true);
+    try {
+      await api.terms.add(newTerm.trim(), newDef.trim(), newDomain.trim() || undefined);
+      setNewTerm('');
+      setNewDef('');
+      setNewDomain('');
+      flash('已存入词条库');
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startEdit = (t: TermItem) => {
+    setEditing(t.id);
+    setEditDef(t.definition);
+    setEditDomain(t.domain);
+  };
+
+  const saveEdit = async (t: TermItem) => {
+    if (!editDef.trim()) return;
+    await api.terms.update(t.id, { definition: editDef.trim(), domain: editDomain.trim() || undefined });
+    setEditing(null);
+    flash('已更新');
+    await reload();
+  };
+
+  const remove = async (id: string) => {
+    await api.terms.remove(id);
+    flash('已删除');
+    await reload();
+  };
+
+  /**
+   * 单条词条的复习范围开关（v28 选择式复习）。
+   * ★ 判断标准用服务端算好的 `review_in_scope`，**不是** `review_enabled` 那一列：
+   *   后者可能是 `NULL`（继承领域），拿它判"现在复不复习"会把"领域已开"读成"没开"。
+   * ★ 纳入会**清零进度**（"清零重来"），故文案必须把这件事说出来——
+   *   进度是不可撤销的，静默清掉等于让用户莫名其妙从头背。
+   */
+  const toggleScope = async (t: TermItem) => {
+    const on = t.review_in_scope !== 1;
+    await api.terms.scopeTerm(t.id, on);
+    flash(on ? '已纳入复习范围（进度从第 1 天重新开始）' : '已移出复习范围');
+    await reload();
+  };
+
+  return (
+    <div className="term-page">
+      <div className="term-head">
+        <h2>词条库</h2>
+        <span className="term-sub">AI 会在对话中自动记住重要词条，之后回答会优先使用这些术语</span>
+      </div>
+
+      {/* 删除撤销条（契约 §4.5）：有未撤销的删除记录才出现；本体在 UndoDeleteBar（本文件贴 300 红线） */}
+      <UndoDeleteBar onChanged={reload} flash={flash} />
+
+      <div className="term-stats">
+        <span className="term-stat">
+          <b>{stats.total}</b> 词条
+        </span>
+        <span className="term-stat">
+          <b>{stats.domains.length}</b> 领域
+        </span>
+        <span className="term-stat">
+          <b>{stats.today}</b> 今日新增
+        </span>
+      </div>
+
+      {/* 偏好领域（契约 MEMORY-TREND-SPEC §2）：按「该领域词条被提及的**总**次数」排出来的学习重心。
+          ★ 为什么这行必须可点：它是**结论**（"你最常碰的是计算机网络"），而结论旁边必须能一步跳到
+            证据（该领域下到底是哪些词条、各被提了多少次）。只展示不可点，这行就退化成装饰。
+          ★ 取前 4 个而非全部：这里是一句话摘要，全榜在服务端 `preferred` 里（前端不截断数据，只截展示）。 */}
+      {stats.preferred.length > 0 && (
+        <div className="term-preferred">
+          <span className="term-preferred-label">偏好领域</span>
+          {stats.preferred.slice(0, 4).map((p) => (
+            <button
+              key={p.domain}
+              className={domain === p.domain ? 'term-preferred-chip on' : 'term-preferred-chip'}
+              title={`「${p.domain}」的词条共被提及 ${p.mentionCount} 次`}
+              onClick={() => setDomain(p.domain)}
+            >
+              {p.domain}
+              <span className="term-preferred-num">{p.mentionCount}</span>
+            </button>
+          ))}
+          <span className="term-preferred-hint">按词条提及总次数排</span>
+        </div>
+      )}
+
+      {/* 复习面板（v23 艾宾浩斯）：先于列表，因为它回答的是「现在该干什么」 */}
+      <ReviewPanel domain={domain} onChanged={reload} />
+
+      <div className="term-toolbar">
+        <DomainBar domains={stats.domains} active={domain} onPick={setDomain} onChanged={reload} />
+        <div className="term-search">
+          <SearchIcon size={14} />
+          <input placeholder="搜词条…" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+        </div>
+      </div>
+
+      <div className="term-list">
+        {terms.length === 0 && (
+          <div className="term-empty">
+            <CardsIcon size={26} />
+            <p>{keyword || domain !== 'all' ? '没有匹配的词条' : '词条库还是空的'}</p>
+            <p className="term-empty-sub">
+              AI 会在每次对话/搜索后自动把重要术语存进来；也可以手动添加。
+            </p>
+            {/* 空态才有这条：还没有词条的人正是「这些概念到底在说什么」的读者。
+                新开标签——SPA 没有路由，同标签跳走等于丢掉整个应用状态。 */}
+            <a
+              className="term-empty-link"
+              href={CATALOG_PATH}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              先读公开词条：这些学习科学概念到底说什么
+            </a>
+          </div>
+        )}
+        {terms.map((t) => (
+          <div key={t.id} className="term-item">
+            {editing === t.id ? (
+              <div className="term-edit">
+                <input value={editDomain} onChange={(e) => setEditDomain(e.target.value)} placeholder="领域（如 english / math）" />
+                <textarea value={editDef} onChange={(e) => setEditDef(e.target.value)} rows={2} />
+                <div className="term-edit-actions">
+                  <button className="term-btn ok" onClick={() => void saveEdit(t)}>
+                    保存
+                  </button>
+                  <button className="term-btn" onClick={() => setEditing(null)}>
+                    取消
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="term-main">
+                  <div className="term-top">
+                    <span className="term-name">{t.term}</span>
+                    <span className="term-domain">{t.domain}</span>
+                    {t.aliases?.length > 0 && (
+                      <span className="term-alias" title="AI 整理时并入的同义词">
+                        别名 {t.aliases.join(' · ')}
+                      </span>
+                    )}
+                    {t.usage_count > 0 && <span className="term-used">已在对话中使用 {t.usage_count} 次</span>}
+                  </div>
+                  <div className="term-def">{t.definition}</div>
+                  <div className="term-meta">
+                    {t.source_title && <span>来自：{t.source_title.slice(0, 16)}</span>}
+                    <span>{t.updated_at?.slice(0, 10)}</span>
+                    {/* ★ v28：**未纳入复习范围的词条不显示复习徽标**。
+                        显示"N 天没复习"会让人以为它在催，而它根本不在复习池里——
+                        徽标只能有一个含义，否则数字与队列对不上就是必然的。 */}
+                    {t.review_in_scope === 1 && <ReviewBadge t={t} />}
+                  </div>
+                </div>
+                <div className="term-side">
+                  <div className="term-imp" title={`AI 标注重要度 ${Math.round(t.importance * 100)}%`}>
+                    {/* gates:style-ok 数据驱动宽度走 CSS 变量（非硬编码样式） */}
+                    <i style={{ ['--imp-w' as string]: `${Math.round(t.importance * 100)}%` }} />
+                  </div>
+                  <div className="term-actions">
+                    <button
+                      className={t.review_in_scope === 1 ? 'term-btn' : 'term-btn ok'}
+                      title={
+                        t.review_in_scope === 1
+                          ? '移出复习范围（已积累的进度保留，重新纳入时会清零重来）'
+                          : '纳入复习范围，从第 1 天开始记'
+                      }
+                      onClick={() => void toggleScope(t)}
+                    >
+                      {t.review_in_scope === 1 ? '移出复习' : '纳入复习'}
+                    </button>
+                    <button className="term-btn" onClick={() => startEdit(t)}>
+                      编辑
+                    </button>
+                    <button className="term-btn danger" onClick={() => void remove(t.id)}>
+                      删除
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="term-add">
+        <div className="term-add-title">手动添加词条</div>
+        <div className="term-add-row">
+          <input placeholder="词条（如 closure / 二重积分）" value={newTerm} onChange={(e) => setNewTerm(e.target.value)} />
+          <input placeholder="领域（如 english / math，留空 general）" value={newDomain} onChange={(e) => setNewDomain(e.target.value)} />
+        </div>
+        <div className="term-add-row">
+          <input
+            className="term-add-def"
+            placeholder="释义"
+            value={newDef}
+            onChange={(e) => setNewDef(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && void add()}
+          />
+          <button className="term-btn primary" onClick={() => void add()} disabled={busy || !newTerm.trim() || !newDef.trim()}>
+            <PlusIcon size={14} /> 添加
+          </button>
+        </div>
+      </div>
+
+      {msg && <div className="term-msg">{msg}</div>}
+    </div>
+  );
+}

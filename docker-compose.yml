@@ -1,0 +1,78 @@
+# ⚠️ EXPERIMENTAL（定性 2026-09-24）→ ★ **2026-09-27 本机（Windows·Docker Desktop/WSL2）实机跑通**：
+#   build/全栈/注册登录链路/持久卷重起均实测通过（拦路石＝本机镜像拉取源失效，非本文件）。
+#   **线上服务器仍未切容器形态**：服务器 compose 从未跑过，且现网 systemd caddy 占着宿主 80/443，
+#   切换必须先停旧形态（见 tools/docker/部署切换手册.md §4，未执行）。
+# 线上真实运行形态仍是「ssh 直传 + systemd + Caddy」，判断标准见 DEPLOY.md：
+#   - better-sqlite3 风险已排除：v11.10.0 命中 node-v127 prebuilt，未走 gyp 现编（09-27 实测）；
+#   - web/dist 靠一次性容器拷入共享卷，**站点文件放卷根**、主 caddy 挂 /srv 自服务＋SPA 兜底
+#     （09-27 实测修正；切换手册 §3.1 原「拷到 /dst/web/」布局会 404）；server 尚不托管静态站。
+# 修硬伤记录（2026-09-24）：
+#   1. caddy 曾挂载仓里**不存在**的 `./Caddyfile` ⇒ 改挂 `deploy/docker/Caddyfile`（本仓现在真有这份示例）；
+#   2. env_file 曾硬编码**生产机私有路径** `/opt/studentbuddy/app/.env` ⇒ 改走 compose 对根 `.env` 的原生插值，仓库不再引用任何机器专属路径；
+#   3. 域名曾写死 `11wand.com` ⇒ 改 `${SB_PUBLIC_ORIGIN}` 注入，本地起测不必改文件。
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: studentbuddy-server:v0.1
+    restart: unless-stopped
+    environment:
+      # —— 五条安全闸门：与 DEPLOY.md §5 表逐一对齐，一个都不能少 ——
+      SB_HOST: 0.0.0.0            # 容器内必须 0.0.0.0（systemd 形态用默认 127.0.0.1，此处刻意不同）
+      SB_PORT: "18791"
+      SB_REQUIRE_AUTH: "1"
+      SB_COOKIE_SECURE: "1"       # ⚠️ 纯 http 本地试跑时浏览器会丢弃 Secure cookie，本地试请置 0
+      SB_TRUST_PROXY: "1"
+      SB_ALLOWED_ORIGINS: ${SB_PUBLIC_ORIGIN:-http://localhost:8080}   # 不收通配符；换域名用根 .env 注入
+      SB_UPSTREAM_SITE_MAX_CONCURRENT: "8"      # 占位值，业务值定了改这里
+      SB_UPSTREAM_SITE_QUEUE_MAX: "20"
+      # —— 密钥类：值放仓库根 `.env`（gitignore 的），compose 原生插值透传，本文件零明文 ——
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SB_MAIL_FROM: ${SB_MAIL_FROM:-}
+      SB_GITHUB_CLIENT_ID: ${SB_GITHUB_CLIENT_ID:-}
+      SB_GITHUB_CLIENT_SECRET: ${SB_GITHUB_CLIENT_SECRET:-}
+      SB_PLATFORM_BASE_URL: ${SB_PLATFORM_BASE_URL:-}
+      SB_PLATFORM_API_KEY: ${SB_PLATFORM_API_KEY:-}
+      SB_PLATFORM_MODEL: ${SB_PLATFORM_MODEL:-}
+    volumes:
+      - sb-data:/data                  # SQLite 持久卷；容器可删，卷不能删
+    deploy:
+      resources:
+        limits:
+          memory: 400M                 # 对齐 systemd 的 MemoryMax=400M 保险丝
+    networks: [sbnet]
+    # ★ 不向宿主机 publish 端口——只有 caddy 经 sbnet 访问
+
+  # 临时静态托底：server 尚不服务 web/dist（待仓内静态托管开关落地后删除本服务）
+  web:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    command: caddy file-server --root /srv --listen :8080 --access-log
+    volumes:
+      - sb-webdist:/srv:ro            # ★站点文件放**卷根**（实测 2026-09-27：配合上行 --root /srv；切换手册 §3.1 的 `cp 到 /dst/web/` 布局会 404，拷平时去掉 /web 一层）
+    networks: [sbnet]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "${SB_PUB_HTTP:-80}:80"
+      - "${SB_PUB_HTTPS:-443}:443"
+    volumes:
+      - ./deploy/docker/Caddyfile:/etc/caddy/Caddyfile:ro   # ★ 本仓真实存在的示例（原引用的 ./Caddyfile 不存在）
+      - sb-webdist:/srv:ro              # ★ 主 caddy 直接服务静态站＋SPA 兜底（实测 2026-09-27，见 Caddyfile 内注释）
+      - caddy-config:/config
+      - caddy-data:/data               # ★ TLS 证书存这里，删卷=重签发（Let's Encrypt 有频控）
+    networks: [sbnet]                  # 走桥接：反代目标写服务名 server:18791 / web:8080
+    depends_on: [server, web]
+
+volumes:
+  sb-data:
+  sb-webdist:
+  caddy-config:
+  caddy-data:
+
+networks:
+  sbnet:
+    driver: bridge

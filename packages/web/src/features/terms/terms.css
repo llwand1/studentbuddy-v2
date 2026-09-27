@@ -1,0 +1,1105 @@
+/* terms.css — 词条库页（忆域 v2，取代 memorize.css） */
+
+/* 页面占满 .sb-main 高度做局部滚动：头部/统计/工具栏/添加框固定，仅词条列表内滚
+   （否则整页随内容撑高，滚动发生在 .sb-main 上，是整屏滚而非列表滚）
+   ★ v23.2：`overflow` 从 `hidden` 改成 `auto`——`hidden` 是「静默不可达」的帮凶：
+     内容一旦超出（极矮窗口、面板展开到 45vh 上限），被裁掉的那截**连滚过去的办法都没有**。
+     改成 auto 后正常窗口下不出现条（不改变既有观感），挤爆时至少还滚得到。 */
+.term-page {
+  max-width: 760px;
+  padding: 20px 24px 20px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.term-head {
+  flex-shrink: 0;
+}
+
+.term-head h2 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.term-sub {
+  font-size: 12px;
+  color: var(--sb-ink-secondary);
+  margin-top: 4px;
+  display: block;
+}
+
+/* 顶部统计 */
+.term-stats {
+  display: flex;
+  gap: 10px;
+  margin: 14px 0;
+  flex-shrink: 0;
+}
+
+.term-stat {
+  background: var(--sb-sidebar);
+  border: 1px solid var(--sb-line);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--sb-ink-secondary);
+}
+
+.term-stat b {
+  font-size: 16px;
+  color: var(--sb-primary, #007aff);
+  margin-right: 3px;
+}
+
+/* 偏好领域行（契约 MEMORY-TREND-SPEC §2）：结论 → 证据的一步跳转，故 chip 是按钮不是文字 */
+.term-preferred {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: -4px 0 14px;
+  font-size: 12px;
+}
+
+.term-preferred-label {
+  color: var(--sb-ink-secondary);
+  font-weight: 600;
+}
+
+.term-preferred-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--sb-sidebar);
+  border: 1px solid var(--sb-line);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--sb-ink);
+  cursor: pointer;
+}
+
+.term-preferred-chip:hover {
+  border-color: var(--sb-primary, #007aff);
+  color: var(--sb-primary, #007aff);
+}
+
+.term-preferred-chip.on {
+  background: var(--sb-primary, #007aff);
+  border-color: var(--sb-primary, #007aff);
+  color: #fff;
+}
+
+/* 计数必须跟着 chip 一起走：只给结论不给依据，用户没法判断这个"偏好"有多重 */
+.term-preferred-num {
+  font-size: 10.5px;
+  opacity: 0.75;
+}
+
+.term-preferred-hint {
+  color: var(--sb-ink-secondary);
+  opacity: 0.85;
+}
+
+/* 工具栏：领域 Tab + 搜索 */
+.term-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.term-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.term-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  padding: 5px 12px;
+  border-radius: 99px;
+  border: 1px solid var(--sb-line);
+  background: transparent;
+  color: var(--sb-ink-secondary);
+  cursor: pointer;
+  transition: 0.15s;
+}
+
+.term-tab:hover {
+  border-color: var(--sb-primary, #007aff);
+  color: var(--sb-primary, #007aff);
+}
+
+.term-tab.on {
+  background: var(--sb-primary, #007aff);
+  border-color: var(--sb-primary, #007aff);
+  color: #fff;
+  font-weight: 600;
+}
+
+.term-tab-count {
+  font-size: 10.5px;
+  opacity: 0.75;
+}
+
+.term-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--sb-line);
+  border-radius: 8px;
+  padding: 5px 10px;
+  color: var(--sb-ink-secondary);
+  background: #fff;
+}
+
+.term-search input {
+  border: none;
+  outline: none;
+  font-size: 12.5px;
+  width: 140px;
+  background: transparent;
+  color: var(--sb-ink);
+}
+
+/* 词条列表：唯一滚动区（头部/工具栏/添加框固定在外，滚动只发生在这里）
+   ★ min-height 是**保底**不是布局值：本页其它兄弟都是 flex-shrink:0，一旦有兄弟按内容撑高，
+     列表就是唯一被牺牲的那个（曾被压到 4px 并被父级 overflow:hidden 裁掉）。给个下限，
+     让「词条库本体」任何情况下都还剩一块可滚的区域。 */
+.term-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 160px;
+  overflow-y: auto;
+  padding: 2px 2px 2px 0;
+}
+
+.term-item {
+  display: flex;
+  gap: 12px;
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  align-items: flex-start;
+}
+
+.term-item:hover {
+  border-color: var(--sb-primary-weak);
+}
+
+.term-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.term-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.term-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--sb-ink);
+}
+
+.term-domain {
+  font-size: 10.5px;
+  color: var(--sb-primary, #007aff);
+  border: 1px solid var(--sb-primary-weak);
+  background: var(--sb-primary-weak);
+  border-radius: 99px;
+  padding: 1px 8px;
+}
+
+/* AI 整理并入的同义词（词条库 v2.1）：虚线描边与领域徽标区分 */
+.term-alias {
+  font-size: 10.5px;
+  color: var(--sb-ink-secondary);
+  border: 1px dashed var(--sb-line, currentColor);
+  border-radius: 99px;
+  padding: 1px 8px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.term-used {
+  font-size: 11px;
+  color: var(--sb-ink-secondary);
+}
+
+.term-def {
+  font-size: 13px;
+  color: var(--sb-ink);
+  margin-top: 5px;
+  line-height: 1.6;
+}
+
+.term-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--sb-ink-tertiary);
+  margin-top: 6px;
+}
+
+.term-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  width: 120px;
+}
+
+/* 重要度条（数据驱动高度走 CSS 变量，门禁禁内联 style） */
+.term-imp {
+  width: 100%;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--sb-line);
+  overflow: hidden;
+}
+
+.term-imp i {
+  display: block;
+  height: 100%;
+  width: var(--imp-w, 0%);
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--sb-primary, #007aff), #5ac8fa);
+}
+
+.term-actions {
+  display: flex;
+  flex-wrap: wrap; /* v28：多了「纳入/移出复习」，窄侧栏下允许换行而不是撑破 .term-side */
+  gap: 6px;
+}
+
+.term-btn {
+  font-size: 11.5px;
+  padding: 3px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--sb-line);
+  background: transparent;
+  color: var(--sb-ink-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: 0.15s;
+}
+
+.term-btn:hover {
+  border-color: var(--sb-primary, #007aff);
+  color: var(--sb-primary, #007aff);
+}
+
+.term-btn.primary {
+  background: var(--sb-primary, #007aff);
+  border-color: var(--sb-primary, #007aff);
+  color: #fff;
+}
+
+.term-btn.ok {
+  background: #34c759;
+  border-color: #34c759;
+  color: #fff;
+}
+
+.term-btn.danger:hover {
+  border-color: #ff3b30;
+  color: #ff3b30;
+}
+
+.term-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 编辑态 */
+.term-edit {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.term-edit input,
+.term-edit textarea,
+.term-add input {
+  border: 1px solid var(--sb-line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  outline: none;
+  font-family: inherit;
+  background: #fff;
+  color: var(--sb-ink);
+}
+
+.term-edit input:focus,
+.term-edit textarea:focus,
+.term-add input:focus {
+  border-color: var(--sb-primary, #007aff);
+}
+
+.term-edit textarea {
+  resize: vertical;
+}
+
+.term-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* 空态 */
+.term-empty {
+  text-align: center;
+  padding: 44px 0;
+  color: var(--sb-ink-secondary);
+  border: 1px dashed var(--sb-line);
+  border-radius: 12px;
+}
+
+.term-empty p {
+  margin-top: 8px;
+  font-size: 13.5px;
+}
+
+.term-empty-sub {
+  font-size: 12px;
+  color: var(--sb-ink-tertiary);
+}
+
+.term-empty-link {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--sb-primary);
+  text-decoration: none;
+}
+
+.term-empty-link:hover {
+  text-decoration: underline;
+}
+
+/* 手动添加：固定在列表下方（不随列表滚动） */
+.term-add {
+  margin-top: 14px;
+  flex-shrink: 0;
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.term-add-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--sb-ink-secondary);
+  margin-bottom: 10px;
+}
+
+.term-add-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.term-add-row input {
+  flex: 1;
+}
+
+.term-add-row .term-add-def {
+  flex: 1;
+}
+
+/* 操作反馈 */
+.term-msg {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(17, 24, 39, 0.92);
+  color: #fff;
+  font-size: 12.5px;
+  padding: 8px 16px;
+  border-radius: 99px;
+  z-index: 50;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+/* ── 领域条（v19：领域升为一等实体，可增删改）── */
+.term-tabs-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+/* 管理面板做**下拉浮层**：不撑高工具栏、不把词条列表推下去；关闭态零占位 */
+.term-domain-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: min(560px, 92vw);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--sb-line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.term-domain-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.term-domain-row.new {
+  padding-top: 8px;
+  border-top: 1px dashed var(--sb-line);
+}
+
+.term-domain-name,
+.term-domain-note {
+  font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid var(--sb-line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--sb-ink);
+  outline: none;
+}
+
+.term-domain-name {
+  width: 116px;
+}
+
+.term-domain-note {
+  flex: 1;
+  min-width: 0;
+}
+
+.term-domain-name:focus,
+.term-domain-note:focus {
+  border-color: var(--sb-primary, #007aff);
+}
+
+.term-domain-count {
+  font-size: 11px;
+  color: var(--sb-ink-secondary);
+  white-space: nowrap;
+}
+
+.term-domain-empty {
+  margin: 2px 0 6px;
+  font-size: 12px;
+  color: var(--sb-ink-secondary);
+}
+
+.term-domain-msg {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--sb-ink-secondary);
+}
+
+/* ── 复习面板（v23 艾宾浩斯遗忘曲线）──
+   配色沿用词条页既有 token；只有「逾期」用 danger —— 它是全页唯一需要立刻看见的信号，
+   再给别的元素上色，逾期就不再是最显眼的那个（告警色滥用 = 没有告警）。
+
+   ★ v23.1 修「面板把词条库本体挤没了」：本页是「固定高度 + overflow:hidden +
+     只有 .term-list 一个弹性子项（flex:1; min-height:0）」的布局。面板若按内容撑高
+     （队列顶满 QUEUE_LIMIT=20 ⇒ 实测 2073px），唯一的弹性子项会被压成 4px 并被裁掉，
+     且因父级 overflow:hidden 连滚动条都没有 ⇒ 搜索/添加/编辑/删除全部不可达。
+     故面板必须「高度自收敛」：自己做成 flex 列、队列限高内滚、空间不足时整体可收缩。
+
+   ★★ v23.2 修上面那条的**反方向**事故：面板自己 `flex-shrink:1` + `overflow:hidden`，
+     而 v28 的 `.rv-scope` 是 `flex-shrink:0` ⇒ 窗口矮时面板被压到只剩头，**多出来的内容
+     既看不见也滚不到**（实测 900×620 展开态面板 43px / 裁掉 356px，40 颗「记住了/忘了」
+     只剩 1 颗可达；1024×700 只剩 2 颗）。`.rv-queue` 自己的 `max-height` 内滚**救不了它**——
+     队列整体在外层被裁掉了，滚了也在裁掉的区域里。
+     ⇒ 收敛点从「队列限高」挪到「**面板体限高且可滚**」：`.rv-body` 是面板内唯一滚动区，
+     `.rv-head`（两枚开关）留在体外 ⇒ 滚到哪儿都收得回来，展开不是单向操作。 */
+.rv-panel {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  /* 整块硬上限：与探针 I2 同一条口径（≤ 视口 45%），由构造保证而不是靠里面每块自己克制 */
+  max-height: 45vh;
+  overflow: hidden;
+  margin: 10px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-lg);
+  background: var(--sb-surface);
+}
+
+/* 面板体是面板内唯一滚动区：`.rv-head`（两枚开关）留在它外面 ⇒ 滚到哪儿都收得回来 */
+.rv-body {
+  display: flex;
+  flex: 0 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  overflow-y: auto;
+  /* 最后一项的 margin-bottom 在滚动容器里不计入高度，故用 padding 兜住 */
+  padding-bottom: 2px;
+}
+
+.rv-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: var(--sb-fs-md);
+  color: var(--sb-ink);
+}
+
+/* 折叠态摘要：收起后也必须一眼看见「今天欠多少」——与展开态同源（overview），不另算一套口径 */
+.rv-sum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+
+.rv-sum-warn {
+  color: var(--sb-danger);
+  font-weight: 600;
+}
+
+.rv-toggle {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--sb-line);
+  border-radius: 99px;
+  background: transparent;
+  color: var(--sb-ink-secondary);
+  font-size: var(--sb-fs-xs);
+  cursor: pointer;
+  transition: 0.15s;
+}
+
+.rv-toggle:hover {
+  border-color: var(--sb-primary, #007aff);
+  color: var(--sb-primary, #007aff);
+}
+
+/* 展开指示：纯 CSS 三角（禁用 emoji 作图标），展开时翻转 */
+.rv-caret {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  transition: transform 0.15s;
+}
+
+.rv-caret.on {
+  transform: rotate(180deg);
+}
+
+.rv-sched {
+  margin-top: 8px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.rv-loading,
+.rv-empty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+
+.rv-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+
+.rv-stat b {
+  margin-right: 3px;
+  font-size: var(--sb-fs-lg);
+  color: var(--sb-ink);
+}
+
+.rv-stat-warn b {
+  color: var(--sb-danger);
+}
+
+.rv-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 42px;
+  margin-top: 10px;
+}
+
+.rv-bar-wrap {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 2px;
+}
+
+/* 高度由 --rv-h 驱动（数据来自近 7 天复习量），最小 2px 保证「复习过 0 次」也看得见格子 */
+.rv-bar {
+  width: 100%;
+  min-height: 2px;
+  height: var(--rv-h, 0%);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-primary-weak);
+}
+
+.rv-bar-wrap em {
+  font-size: 10px;
+  font-style: normal;
+  color: var(--sb-ink-tertiary);
+}
+
+.rv-queue-head {
+  margin: 12px 0 6px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+
+/* 队列不再自己限高内滚：滚动收在 `.rv-body` 一处（两处嵌套滚动 = 滚轮不知道该给谁）。
+   它按内容自然长高，超出部分由面板体滚，所以每一颗「记住了/忘了」都滚得到。 */
+.rv-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rv-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  background: var(--sb-bg);
+}
+
+.rv-item.overdue {
+  border-color: var(--sb-danger);
+}
+
+.rv-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.rv-item-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.rv-term {
+  font-size: var(--sb-fs-md);
+  font-weight: 600;
+  color: var(--sb-ink);
+}
+
+.rv-domain,
+.rv-days,
+.rv-meta {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.rv-meta {
+  margin-top: 4px;
+}
+
+.rv-badge {
+  padding: 1px 6px;
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-primary-weak);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+}
+
+.rv-badge-due {
+  background: var(--sb-primary);
+  color: #fff;
+}
+
+.rv-badge-overdue {
+  background: var(--sb-danger);
+  color: #fff;
+}
+
+.rv-def {
+  margin-top: 4px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink);
+}
+
+.rv-item-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rv-btn {
+  padding: 3px 10px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  cursor: pointer;
+}
+
+.rv-btn:hover:not(:disabled) {
+  border-color: var(--sb-primary);
+  color: var(--sb-primary);
+}
+
+.rv-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rv-btn.ok {
+  border-color: var(--sb-success);
+  color: var(--sb-success);
+}
+
+.rv-btn.danger {
+  border-color: var(--sb-danger);
+  color: var(--sb-danger);
+}
+
+/* 词条列表里的「N 天没复习」：默认灰，逾期才上色（同上，不稀释告警） */
+.term-rv {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.term-rv.due {
+  color: var(--sb-primary);
+}
+
+.term-rv.overdue {
+  color: var(--sb-danger);
+}
+
+/* ── v28 复习范围选择器（契约 EBBINGHAUS-SPEC §9）────────────────────────────
+   ★ 与队列刻意**并列**而不是嵌进同一个折叠区：范围是低频的一次性设置（"我该背什么"），
+     队列是高频的日常动作（"今天还哪些账"）。合在一起的话，每次想调范围都得先展开
+     20 条队列，而队列一展开就是 2000px（v23.1 那条布局教训）。 */
+.rv-sum-hint {
+  color: var(--sb-ink-tertiary);
+}
+
+.rv-scope {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--sb-line);
+}
+
+.rv-scope-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink);
+}
+
+.rv-scope-hint,
+.rv-scope-num {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.rv-scope-tip {
+  margin: 4px 0 8px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  line-height: 1.5;
+}
+
+/* 领域列表不再自己限高：面板体已经可滚，两处嵌套滚动只会让滚轮不知道该给谁。
+   12 个领域自然排下来约 4 行（≈130px），由 `.rv-body` 承担滚动。 */
+.rv-scope-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rv-scope-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-bg);
+  color: var(--sb-ink);
+  font-size: var(--sb-fs-sm);
+  cursor: pointer;
+}
+
+.rv-scope-row:hover {
+  border-color: var(--sb-primary);
+}
+
+.rv-scope-row:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* 全选态：整块上品牌色，与"部分"拉开距离（部分态只染框，不染底） */
+.rv-scope-all {
+  background: var(--sb-primary-weak);
+  border-color: var(--sb-primary);
+}
+
+.rv-scope-all .rv-scope-num {
+  color: var(--sb-primary);
+}
+
+/* 三态勾选框：全选 = 对勾 / 部分 = 横杠 / 未选 = 空框。
+   ★ 勾与杠用 CSS 画而不是字符：本仓禁 emoji，且 ✓ 这类字符在不同字体下宽度不一，
+     一行里三个框会视觉不齐；`--sb-surface` 当勾的颜色（浅色下即白，与品牌蓝底对比足够）。 */
+.rv-tri {
+  position: relative;
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid var(--sb-ink-tertiary);
+  border-radius: 4px;
+  background: var(--sb-surface);
+}
+
+.rv-tri-all {
+  border-color: var(--sb-primary);
+  background: var(--sb-primary);
+}
+
+.rv-tri-all::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 3px;
+  height: 7px;
+  border: solid var(--sb-surface);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+
+.rv-tri-some {
+  border-color: var(--sb-primary);
+}
+
+.rv-tri-some::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 5px;
+  width: 7px;
+  height: 1.5px;
+  background: var(--sb-primary);
+}
+
+.rv-scope-msg {
+  margin-top: 8px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+}
+
+/* 删除撤销条（UndoDeleteBar）：页面顶部应急出口，一行一条删除记录 */
+.term-undo-bar {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+.term-undo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sb-sp-2);
+}
+.term-undo-more { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); }
+
+/* ── 自定义复习目标（v1.2，契约 EBBINGHAUS-SPEC §10）─────────────────────────
+   与 `.rv-scope` 同一套骨架（设置类卡片）：顶部虚线分隔 + 头部一行 + 可换行控件。
+   ★ 与范围卡一样**不自己限高**：面板体（`.rv-body`）已经可滚，嵌套滚动会让滚轮失焦。 */
+.rv-goal {
+  flex-shrink: 0;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--sb-line);
+}
+
+.rv-goal-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink);
+}
+
+.rv-goal-hint,
+.rv-goal-num {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+/* 达标态用品牌色（本页告警色已留给"逾期"，这里不再抢） */
+.rv-goal-ok {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-primary);
+}
+
+.rv-goal-bar {
+  height: 6px;
+  margin: 8px 0 0;
+  border-radius: 3px;
+  background: var(--sb-line);
+  overflow: hidden;
+}
+
+/* 宽度由内联 CSS 变量给（数据驱动，见 ReviewGoalCard 的 gates:style-ok 注释） */
+.rv-goal-fill {
+  display: block;
+  height: 100%;
+  width: var(--rv-goal-pct, 0%);
+  background: var(--sb-primary);
+}
+
+.rv-goal-tip {
+  margin: 6px 0 8px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  line-height: 1.5;
+}
+
+.rv-goal-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rv-goal-label {
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+
+.rv-goal-input {
+  width: 64px;
+  padding: 4px 8px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-bg);
+  color: var(--sb-ink);
+  font-size: var(--sb-fs-sm);
+}
+
+.rv-goal-input:disabled {
+  opacity: 0.55;
+}
+
+.rv-goal-presets {
+  margin-left: 4px;
+}
+
+.rv-goal-presets,
+.rv-goal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rv-goal-domains {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.rv-goal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-bg);
+  color: var(--sb-ink);
+  font-size: var(--sb-fs-xs);
+  cursor: pointer;
+}
+
+.rv-goal-chip:hover:not(:disabled) {
+  border-color: var(--sb-primary);
+}
+
+.rv-goal-chip:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.rv-goal-chip.on {
+  background: var(--sb-primary-weak);
+  border-color: var(--sb-primary);
+}
+
+.rv-goal-msg {
+  margin-top: 8px;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  line-height: 1.5;
+}

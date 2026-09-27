@@ -1,0 +1,222 @@
+/**
+ * growth/counters — 诚实计数的**唯一写入口**（契约 `docs/GROWTH-SPEC.md` §2）。
+ *
+ * ★★ 本模块存在的理由是一件容易做错的事：**数从哪里记，决定了这个数能不能信。**
+ *   计数只写在 **HTTP 入口层**（调用点全在 `routes/`），不写在领域函数里。这不是风格偏好，
+ *   是三条实打实的后果：
+ *   ① 体验号的**八条种子内容**走的是 `saveOneTerm`（`auth/demo-seed.ts`），一个 HTTP 请求都不经过
+ *      ⇒ **结构上进不了这份账**，不需要「记得把种子排除」；
+ *   ② 探针流量带 `X-SB-Probe`／`studentbuddy-probe/*` UA（探针打标），本模块在写入口
+ *      一处判掉 ⇒ `_probe/prod-pulse.mjs` 每几分钟一次的 demo-login **不会再灌爆体验号计数**；
+ *   ③ 真实用户的动作与「脚本造出来的动作」在**写入侧**就分开了，读侧拿到的数不需要理由就能报。
+ *
+ * ★ 三条不变式（都在 `counters.test.ts` 有锁）：
+ *   · **同一来源 IP 同一自然日只算一次**（判断标准，靠 `PRIMARY KEY (kind, bucket, day)` ＋ `INSERT OR IGNORE`）；
+ *   · **不落裸 IP**：桶是 `sha256(盐 + IP)` 前 16 位，盐在同库里稳定（`growth_secret`，见迁移 v41 为什么不用环境变量）；
+ *   · ★ **记录永远不抛**：本模块挂在登录与启动路径上，计数是旁路观测，
+ *     它坏了一次的代价应该是「少个数」，不该是「进不去应用」。
+ */
+import { createHash } from 'node:crypto';
+import { localDayKey } from '@sb/shared';
+import { getDb } from '../storage/db.js';
+
+/** 三种真实动作（★ 刻意不含「词条被写入」：那条要走 owner 维度，与这里的 IP 桶不同单位，混进一张表就是混两种口径）。 */
+export const GROWTH_ACTIONS = ['app_open', 'demo_enter', 'register_done'] as const;
+
+export type GrowthAction = (typeof GROWTH_ACTIONS)[number];
+
+/**
+ * 单位与口径。⚠️ **只许写「次」，不许写「人」**（总口径 §0 第 2 条：现有设施算不出 UV，
+ * 原始 `hits` 表 0 行）——`unit` 与 `unitLabel` 随响应体一起出去，就是为了让
+ * 「将来谁来显示」都拿得到这句话是怎么算的，而不是只拿到一个光秃秃的整数。
+ */
+export const GROWTH_UNIT = 'ip_day';
+export const GROWTH_UNIT_LABEL = '次（同一来源 IP 当天只算一次）';
+
+/** 探针打好的两个标记（`_probe/probe-marker.mjs` 发 UA ＋ 请求头），本模块**照原样认**。 */
+export const PROBE_HEADER = 'x-sb-probe';
+export const PROBE_UA_PREFIX = 'studentbuddy-probe/';
+
+/** 归因头（契约 §2.5）：前端把落地 URL 上的 `?ref=` 存下来，之后每个请求带回来。 */
+export const REF_HEADER = 'x-sb-ref';
+
+/** 没有来源信息时读侧看到的名字。★ 不叫 `unknown`：`direct`（直链／书签／站内跳转）是它的真实含义。 */
+export const GROWTH_SOURCE_DIRECT = 'direct';
+
+/**
+ * 渠道名的形状限制：小写字母数字起头，≤24 字符，只留 `[a-z0-9_-]`。
+ *
+ * ★ 为什么**不设白名单**：每开一条新渠道都要改一次代码＋重发版，
+ *   而渠道清单那十条就是会长大的那部分。限制只留在字符集与长度上——够防「把整条 URL 塞进来」，
+ *   不需要枚举。
+ * ⚠️ 代价如实记：垃圾值写得进来。但它**涨不起来**：一个 `(kind, bucket, day)` 只有一行、
+ *   一行只有一个 source，所以垃圾 source 的条数上界就是垃圾 IP·天的条数。
+ */
+const SOURCE_MAX = 24;
+
+/** 把任意来源串归一成表里那一格能放的样子；空／全是非法字符 ⇒ `''`（读侧折成 `direct`）。 */
+export function normalizeGrowthSource(raw: string): string {
+  const cleaned = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^[-_]+|[-_]+$/g, '')
+    .slice(0, SOURCE_MAX);
+  return cleaned;
+}
+
+/**
+ * 只声明本模块真正要读的两样，不 import express 的 `Request`：
+ * 这样测试可以直接喂字面量，而调用点传 `req` 一样过（结构化类型）。
+ */
+export interface GrowthRequestLike {
+  ip?: string;
+  headers: Record<string, string | string[] | undefined>;
+}
+
+/** 请求头可能被 Node 解析成数组（重复头），两值都要判，不能只判 string。 */
+function headerValue(value: string | string[] | undefined): string {
+  const one = Array.isArray(value) ? value[0] : value;
+  return typeof one === 'string' ? one : '';
+}
+
+/** 这条请求带回来的渠道名（已归一；空串＝没带，读侧折成 `direct`）。 */
+function sourceOfRequest(req: GrowthRequestLike): string {
+  return normalizeGrowthSource(headerValue(req.headers[REF_HEADER]));
+}
+
+/**
+ * 这条请求是**我们自己造的**吗？
+ *
+ * ★ 两个通道各判各的，**任一条命中就算探针**：UA 进 Caddy 日志、请求头进应用——
+ *   将来加新探针时可能只带其中一个（`curl` 就只能带 UA），所以不做「两个都要有」。
+ * ⚠️ 反过来刻意**不**按「UA 不在白名单就剔掉」处理：那会把真人少计（老旧浏览器、无 UA 的读屏器）。
+ *   判断标准是「认得出自己」，不是「认不出别人」。
+ */
+export function isProbeRequest(req: GrowthRequestLike): boolean {
+  if (headerValue(req.headers[PROBE_HEADER]).trim() !== '') return true;
+  return headerValue(req.headers['user-agent']).toLowerCase().startsWith(PROBE_UA_PREFIX);
+}
+
+/**
+ * 盐从库里读、**刻意不做模块级缓存**：本仓的库在测试与运行期会被换（`openIsolated`／`closeDb`），
+ * 缓存会让下一座库拿着上一座库的盐算桶——那种错不会有任何报错，只会让去重悄悄失效。
+ * 一行 `SELECT` 的成本，比这个风险便宜。
+ */
+function readSalt(): string {
+  const row = getDb().prepare('SELECT salt FROM growth_secret LIMIT 1').get() as { salt: string } | undefined;
+  if (!row) throw new Error('growth_secret 缺行（迁移 v41 未应用？）');
+  return row.salt;
+}
+
+/** 桶：`sha256(盐|IP)` 前 16 位。16 位十六进制＝64 bit，本表量级下碰撞可忽略，而明文 IP 不该留。 */
+export function growthBucket(ip: string, salt: string): string {
+  return createHash('sha256').update(`${salt}|${ip}`).digest('hex').slice(0, 16);
+}
+
+/**
+ * 记一次动作。返回 `true` ＝ 今天第一次见到这个桶（写进去了一行），`false` ＝ 已被去过或是探针。
+ *
+ * ⚠️ `ip` 为空串的处置：**照记不误**。生产未配 `SB_TRUST_PROXY=1` 时 `req.ip` 恒为反代自身地址
+ *   （同 `routes/auth.ts` 的 `clientIp` 注释），后果是**全站塌成每天一次**——那是**少计**，
+ *   方向安全（宁可少报也不谎报），但它会在发版后被当成「没人来」，所以口径写进 GROWTH-SPEC §4：
+ *   上线第一天必须核 `app_open` 是否 >1，否则先修配置再看数。
+ */
+export function recordGrowthAction(action: GrowthAction, req: GrowthRequestLike): boolean {
+  try {
+    if (isProbeRequest(req)) return false;
+    const salt = readSalt();
+    const bucket = growthBucket(req.ip ?? '', salt);
+    const day = localDayKey(new Date());
+    const info = getDb()
+      .prepare(
+        `INSERT OR IGNORE INTO growth_action_day (kind, bucket, day, first_seen_at, source)
+         VALUES (?, ?, ?, datetime('now'), ?)`,
+      )
+      .run(action, bucket, day, sourceOfRequest(req));
+    return info.changes > 0;
+  } catch (e) {
+    // ★ 旁路观测不许变成故障源：这里只 warn，不抛（见头注不变式③）
+    console.warn('[sb-growth] 记录失败（不影响本次请求）:', e instanceof Error ? e.message : e);
+    return false;
+  }
+}
+
+/** 一个渠道名在一天的一个桶里只会出现一次，所以「按来源分组」与「按动作分组」是同一张表的两面。 */
+export interface GrowthSourceRow {
+  /** 归一后的渠道名；库里那格空串在这里折成 `direct`。 */
+  source: string;
+  counts: Record<GrowthAction, number>;
+}
+
+/**
+ * 读侧：按渠道名分组。★ 与 `counts` 同源同表 ⇒ 判断标准「各来源之和 == counts」在 SQL 之外成立与否
+ *   是可查的（`counters.test.ts` 锁住它），不是设计上的承诺。
+ * ⚠️ 排序不能交给 `ORDER BY source`：那会让「谁最多」这条读数每次翻页都在变（渠道名是外来值，
+ *   字典序没有意义）。这里按三动作之和降序，和相同再按名字，**结果是确定的**。
+ */
+function readSources(): GrowthSourceRow[] {
+  const rows = getDb()
+    .prepare('SELECT source, kind, COUNT(*) AS c FROM growth_action_day GROUP BY source, kind')
+    .all() as Array<{ source: string; kind: string; c: number }>;
+  const bySource = new Map<string, Record<GrowthAction, number>>();
+  for (const r of rows) {
+    const key = r.source === '' ? GROWTH_SOURCE_DIRECT : r.source;
+    const slot = bySource.get(key) ?? emptyCounts();
+    if (isGrowthAction(r.kind)) slot[r.kind] = r.c;
+    bySource.set(key, slot);
+  }
+  return [...bySource.entries()]
+    .map(([source, counts]) => ({ source, counts }))
+    .sort((a, b) => sum(a.counts) - sum(b.counts) || a.source.localeCompare(b.source))
+    .reverse();
+}
+
+export interface GrowthSnapshot {
+  counts: Record<GrowthAction, number>;
+  /** ★ 与 `counts` 同一张表的另一面：按渠道名分组，各来源之和 == `counts`（判断标准见 §5 第 7 条）。 */
+  bySource: GrowthSourceRow[];
+  /** 见 `GROWTH_UNIT_LABEL`——数字与它的算法必须一起出门。 */
+  unit: string;
+  unitLabel: string;
+  /** 表里最早的一天（还没有任何数时为 `null`，★ 不是 1970-01-01 那种假默认）。 */
+  firstDay: string | null;
+}
+
+function emptyCounts(): Record<GrowthAction, number> {
+  const counts = {} as Record<GrowthAction, number>;
+  for (const a of GROWTH_ACTIONS) counts[a] = 0;
+  return counts;
+}
+
+/** `kind` 是库里的裸文本，读到不认识的值不当 0 吞掉、也不给它编一个新键。 */
+function isGrowthAction(kind: string): kind is GrowthAction {
+  return (GROWTH_ACTIONS as readonly string[]).includes(kind);
+}
+
+function sum(counts: Record<GrowthAction, number>): number {
+  return GROWTH_ACTIONS.reduce((n, a) => n + counts[a], 0);
+}
+
+/**
+ * 读侧快照：三种动作各自的「IP·天」数，加上它们的来源分解。
+ *
+ * ★ **零填充在 SQL 之外做**（`GROWTH_ACTIONS` 是唯一的键表）：`GROUP BY` 出来的行只含非零项，
+ *   少了这一步，读侧就得到「缺键」而不是「0」——而缺键在上层极易被当成 0 之外的事实源。
+ * ⚠️ 真实计数为 0 时本模块**不造任何兜底数字**（判断标准：「计数为 0 时页面不许显示假数」，见 GROWTH-SPEC §3）。
+ */
+export function readGrowthSnapshot(): GrowthSnapshot {
+  const rows = getDb()
+    .prepare('SELECT kind, COUNT(*) AS c FROM growth_action_day GROUP BY kind')
+    .all() as Array<{ kind: string; c: number }>;
+  const counts = emptyCounts();
+  for (const r of rows) if (isGrowthAction(r.kind)) counts[r.kind] = r.c;
+  const first = getDb().prepare('SELECT MIN(day) AS d FROM growth_action_day').get() as { d: string | null };
+  return {
+    counts,
+    bySource: readSources(),
+    unit: GROWTH_UNIT,
+    unitLabel: GROWTH_UNIT_LABEL,
+    firstDay: first.d,
+  };
+}

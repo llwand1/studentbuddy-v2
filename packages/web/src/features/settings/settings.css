@@ -1,0 +1,238 @@
+.settings-view {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sb-sp-5) var(--sb-sp-4);
+  max-width: 860px;
+  margin: 0 auto;
+  width: 100%;
+}
+.settings-view h2 { margin-bottom: var(--sb-sp-4); }
+
+.settings-sec {
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  box-shadow: var(--sb-shadow-1);
+  padding: var(--sb-sp-4);
+  margin-bottom: var(--sb-sp-4);
+}
+.settings-sec h3 { font-size: var(--sb-fs-lg); margin-bottom: var(--sb-sp-3); }
+.settings-hint { color: var(--sb-ink-secondary); font-size: var(--sb-fs-sm); margin-bottom: var(--sb-sp-3); }
+
+.settings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--sb-fs-sm);
+  margin-bottom: var(--sb-sp-3);
+}
+.settings-table th {
+  text-align: left;
+  color: var(--sb-ink-tertiary);
+  font-weight: 500;
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+  border-bottom: 1px solid var(--sb-line);
+}
+.settings-table td {
+  padding: var(--sb-sp-2);
+  border-bottom: 1px solid var(--sb-line);
+}
+.settings-table .mono { font-family: Consolas, monospace; font-size: var(--sb-fs-xs); color: var(--sb-ink-secondary); }
+
+.settings-form {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1.5fr 1fr auto;
+  gap: var(--sb-sp-2);
+}
+.settings-form input, .settings-table input, .settings-table select {
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+  font: inherit;
+  font-size: var(--sb-fs-sm);
+  background: var(--sb-bg);
+  color: var(--sb-ink);
+  min-width: 0;
+}
+.settings-form input:focus, .settings-table input:focus, .settings-table select:focus {
+  outline: none;
+  border-color: var(--sb-primary);
+}
+
+.settings-add {
+  padding: var(--sb-sp-1) var(--sb-sp-3);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-primary);
+  color: #fff;
+  font-size: var(--sb-fs-sm);
+  font-weight: 600;
+}
+.settings-add:hover:not(:disabled) { opacity: 0.88; }
+.settings-add:disabled { background: var(--sb-ink-tertiary); cursor: not-allowed; }
+
+/* ★ 一键默认设置的**二次确认**：这个动作会覆盖用户已有的 8 行绑定
+   （含自填模型名），是不可逆的 ⇒ 确认键走危险色实心、取消键走中性描边。
+   ★ 与 `terms/DomainBar.tsx` 的两段式删除同一范式，不用 `window.confirm`（原生弹窗在本地
+   Web 里观感割裂，本仓已在那个文件里说明过）。★ 只改配色，不动 `.settings-add` 的尺寸，
+   免得确认态出现时按钮"长大/缩小"一下、把旁边的额度文案顶走。 */
+.settings-add.danger { background: var(--sb-danger); }
+.settings-cancel {
+  padding: var(--sb-sp-1) var(--sb-sp-3);
+  border-radius: var(--sb-radius-sm);
+  border: 1px solid var(--sb-line);
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+.settings-cancel:hover:not(:disabled) { background: var(--sb-bg); }
+.settings-cancel:disabled { color: var(--sb-ink-tertiary); cursor: not-allowed; }
+
+.settings-del {
+  color: var(--sb-danger);
+  font-size: var(--sb-fs-sm);
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+}
+.settings-del:hover:not(:disabled) { background: rgba(239, 68, 68, 0.08); border-radius: var(--sb-radius-sm); }
+.settings-del:disabled { color: var(--sb-ink-tertiary); cursor: not-allowed; }
+
+/* 平台服务商标记（M2c）：可见但不可改不可删，让限制在界面上就看得见 */
+.settings-tag {
+  margin-left: var(--sb-sp-1);
+  padding: 0 var(--sb-sp-1);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-xs);
+}
+
+.settings-msg {
+  font-size: var(--sb-fs-sm);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  border-radius: var(--sb-radius-sm);
+  margin-bottom: var(--sb-sp-3);
+}
+.settings-msg.ok { background: rgba(34, 197, 94, 0.08); color: #15803d; }
+.settings-msg.err { background: rgba(239, 68, 68, 0.08); color: var(--sb-danger); }
+
+/* 联网搜索 key */
+.settings-keys { display: grid; gap: var(--sb-sp-2); margin-bottom: var(--sb-sp-3); }
+.settings-key-row {
+  display: grid;
+  grid-template-columns: 150px 1fr auto;
+  gap: var(--sb-sp-2);
+  align-items: center;
+}
+.settings-key-row input {
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+  font: inherit;
+  font-size: var(--sb-fs-sm);
+  background: var(--sb-bg);
+  color: var(--sb-ink);
+  min-width: 0;
+}
+.settings-key-row input:focus { outline: none; border-color: var(--sb-primary); }
+.settings-state { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); white-space: nowrap; }
+.settings-state.on { color: #15803d; }
+/* flex-wrap：免费通道那张卡的额度文案较长（"本窗口已用 12 / 250 次…"），
+   不换行会把按钮挤到卡片外。加上它对既有卡片无影响（它们的文案都短，不会触发换行）。 */
+.settings-actions { display: flex; gap: var(--sb-sp-2); align-items: center; flex-wrap: wrap; }
+
+/* 角色模型绑定：模型列是「下拉（或输入框）+ 可选的手填框」，两者都占满该列 */
+.settings-table .settings-model-select { width: 100%; }
+.settings-table .settings-model-input { width: 100%; margin-top: var(--sb-sp-1); }
+.settings-test {
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-1) var(--sb-sp-3);
+}
+.settings-test:hover:not(:disabled) { border-color: var(--sb-primary); color: var(--sb-primary); }
+.settings-test:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* 出题题型配比（预设 chip + 每题型步进器） */
+.quiz-mix-presets { display: flex; flex-wrap: wrap; gap: var(--sb-sp-2); margin-bottom: var(--sb-sp-3); }
+.quiz-mix-chip {
+  border: 1px solid var(--sb-line);
+  border-radius: 999px;
+  padding: var(--sb-sp-1) var(--sb-sp-3);
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+  background: var(--sb-bg);
+}
+.quiz-mix-chip:hover:not(:disabled) { border-color: var(--sb-primary); color: var(--sb-primary); }
+.quiz-mix-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+.quiz-mix-chip.active { background: var(--sb-primary); border-color: var(--sb-primary); color: #fff; }
+
+.quiz-mix-rows { display: grid; gap: var(--sb-sp-2); margin-bottom: var(--sb-sp-2); }
+/* 双列行（契约 QUIZ-BLEND-SPEC §2）：题型名 | AI 出题步进器 | 网络真题步进器 */
+.quiz-mix-row {
+  display: grid;
+  grid-template-columns: 84px 1fr 1fr;
+  gap: var(--sb-sp-2);
+  align-items: center;
+  font-size: var(--sb-fs-sm);
+}
+.quiz-mix-head { color: var(--sb-ink-secondary); }
+.quiz-mix-label { color: var(--sb-ink); }
+.quiz-mix-cell { display: inline-flex; align-items: center; gap: var(--sb-sp-1); }
+.quiz-mix-na { color: var(--sb-ink-secondary); opacity: 0.75; }
+.quiz-mix-step {
+  width: 28px;
+  height: 26px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  color: var(--sb-ink-secondary);
+  background: var(--sb-bg);
+  line-height: 1;
+}
+.quiz-mix-step:hover:not(:disabled) { border-color: var(--sb-primary); color: var(--sb-primary); }
+.quiz-mix-step:disabled { opacity: 0.4; cursor: not-allowed; }
+.quiz-mix-num {
+  width: 52px;
+  height: 26px;
+  text-align: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--sb-ink);
+  background: var(--sb-bg);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: 0 2px;
+}
+.quiz-mix-num:focus { outline: none; border-color: var(--sb-primary); }
+.quiz-mix-num:disabled { opacity: 0.5; }
+.quiz-mix-total { font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary); margin-left: auto; }
+
+/* 工具卡（ToolsCard）：0 档风险行与失败计数的告警色，只加两个修饰类 */
+.settings-hint.warn { color: var(--sb-danger); }
+.settings-table .num-bad { color: var(--sb-danger); font-weight: 600; }
+
+/* 词条朗读设置（SpeechCard）——音色下拉 + 语速滑条。
+   ★ 本项目此前没有任何滑条（全仓无 input[type=range]），这是第一处：用原生 range
+     + `accent-color` 着色，不引控件库；除 accent-color 外全部走既有 token 变量。 */
+.speech-rows { display: grid; gap: var(--sb-sp-2); margin-bottom: var(--sb-sp-3); }
+.speech-row { display: flex; align-items: center; gap: var(--sb-sp-2); }
+.speech-label { flex: 0 0 48px; font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary); }
+.speech-select {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+  font: inherit;
+  font-size: var(--sb-fs-sm);
+  background: var(--sb-bg);
+  color: var(--sb-ink);
+}
+.speech-select:focus { outline: none; border-color: var(--sb-primary); }
+.speech-select:disabled { opacity: 0.5; cursor: not-allowed; }
+.speech-range { flex: 1; min-width: 0; accent-color: var(--sb-primary); }
+.speech-range:disabled { opacity: 0.5; cursor: not-allowed; }
+.speech-rate {
+  flex: 0 0 44px;
+  text-align: right;
+  font-family: Consolas, monospace;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+}

@@ -95,6 +95,13 @@
 .quiz-explain-body { margin-top: var(--sb-sp-1); color: var(--sb-ink-secondary); }
 .quiz-source { margin-top: var(--sb-sp-1); color: var(--sb-ink-tertiary); font-size: var(--sb-fs-xs); }
 
+/* 作答判定（issue #56）：跟「答案：」同一行，所以是 inline + 左间距而不是块级 */
+.quiz-verdict { margin-left: var(--sb-sp-2); font-weight: 600; color: var(--sb-ink-tertiary); }
+.quiz-verdict.ok { color: var(--sb-success); }
+.quiz-verdict.bad { color: var(--sb-danger); }
+/* 记账状态那一行：与 `.quiz-source` 同层级（都是"关于这道题的元信息"，不是题目内容本身） */
+.quiz-trail { margin-top: var(--sb-sp-1); color: var(--sb-ink-tertiary); font-size: var(--sb-fs-xs); }
+
 /* 情景面板的「重开 demo」按钮（`ScenarioPanel`）——同一份版式原先还服务题库页，
    那套（.quiz-bank-* / .quiz-gen-form / .quiz-mix-tip / .quiz-note / .quiz-explain-mt）
    已于 2026-09-26 随题库整族下线 */

@@ -41,6 +41,8 @@
  *   登记簿上仍挂 [WIP] 的文件）。
  *   **2026-09-25（同日第二跳）本批另开 `-v45.ts` 一片**：`-v44.ts` 也是同伴当天落地、且同仓仍有
  *   会话在途 ⇒ 同一条理由第三次沿用。并片随时可做（纯搬运、零行为改动）。
+ *   **2026-09-27 起落点是 `-v46.ts` 片尾**（同一条理由第四次沿用：`-v45.ts` 随 PR #54 当天合入，
+ *   本批不应把别人的文件拉进 diff；并片随时可做）。
  * ⚠️ 回放迁移链的测试必须把**加列**也 DROP 掉（`ALTER TABLE ADD COLUMN` 不幂等，
  *   本仓实测踩过 `duplicate column name: summary` / `: images`，见 `storage/db.test.ts`）。
  */
@@ -55,6 +57,7 @@ import { MIGRATIONS_V41 } from './migrations-list-v41.js';
 import { MIGRATIONS_V43 } from './migrations-list-v43.js';
 import { MIGRATIONS_V44 } from './migrations-list-v44.js';
 import { MIGRATIONS_V45 } from './migrations-list-v45.js';
+import { MIGRATIONS_V46 } from './migrations-list-v46.js';
 
 export const MIGRATIONS: Array<{ version: number; statements: string[] }> = [
   ...MIGRATIONS_V1_9,
@@ -68,4 +71,5 @@ export const MIGRATIONS: Array<{ version: number; statements: string[] }> = [
   ...MIGRATIONS_V43,
   ...MIGRATIONS_V44,
   ...MIGRATIONS_V45,
+  ...MIGRATIONS_V46,
 ];

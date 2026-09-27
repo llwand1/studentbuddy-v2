@@ -50,13 +50,18 @@ export function MessageRow({
   const [procExpanded, setProcExpanded] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
 
-  // 题卡（2026-09-26 起不再上报作答）：`/api/quiz/stats/record` 与题库整族一起下线，
-  // 卡片只做「点选作答 → 当场判分 → 出解析」，对错不留痕。
+  // 题卡：2026-09-26 起随题库整族断线（`/api/quiz/stats/record` 下线，作答不留痕），
+  // 2026-09-27（issue #56）接回上报，但走的是新的 `/api/quiz/report`——**这里传的 `quizId`
+  // 就是那根线**：卡片只交原始作答，对错由服务端复判。
+  // ★ 两条来源都带得上 id（`chat-blocks.ts`：live 从 `blockId` 反解、历史从 `[QUIZ]` 行的
+  //   `quizId` 键读回），所以这里**不需要**再为它改 SSE 契约。老行没这个键 ⇒ undefined ⇒
+  //   卡片照常作答、只是不记账（`QuizCard` 里那条 `legacy` 分支）。
   if (m.quizBlock) {
     return (
       <QuizCard
         title={m.quizBlock.quiz.title ?? '练习'}
         questions={m.quizBlock.quiz.questions}
+        quizId={m.quizBlock.quizId}
       />
     );
   }

@@ -1,5 +1,5 @@
 /**
- * routes/quiz — 出题薄路由（只剩 `/generate` 一条）。
+ * routes/quiz — 出题薄路由（`/generate` 出题 ＋ `/report` 答题复判）。
  *
  * ★ 2026-09-26 题库整族下线（老板判决：线上实测无人使用，且它是依附对话核的派生产品线）：
  *   `/bank*`（列表/读取/删组/逐题剔除）、`/collect/*`（现场搜集两段）、`/analyze/:id`（薄弱点分析）、
@@ -8,6 +8,13 @@
  *   对战共用的出口（`chat/tools/generate-quiz.ts` 与 `pk/match.ts` 走的是同一台引擎）。
  * ★ 随之下线的是**落库**，不是题卡：本路由出卡仍走 `announceQuizToSession`（会话里看得见、
  *   刷新可还原），只是 `quizId` 从 2026-09-26 起是**本次调用的临时 id**，不再有 `quiz_bank` 行。
+ * ★★ 2026-09-27（issue #56）补回 `/report`，但它**不是 `/stats/record` 的复活**，三点都不同：
+ *   旧那条收前端算好的布尔（新这条只收原始作答、对错由服务端复判）、
+ *   旧那条每答一次 `attempts+1`（新这条首答唯一，因为 `quiz_answered` 挂着 XP=3）、
+ *   旧那条写 `quiz_stats`（新这条写 `quiz_answer_log`）。
+ *   ★ 而 `quiz_answered` 这个事件类型**从 2026-08-23 的 `fc55b7e`（M4 反馈环）起就只有声明
+ *   与消费、没有任何发布者**（`git log -S "type: 'quiz_answered'"` 只命中那一条），
+ *   本条路由是它在本仓的**第一个**发布者——不是"恢复了被删的发布点"。
  */
 import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
@@ -16,6 +23,7 @@ import { loadQuizMix } from '../learning/quiz.js';
 import { loadQuizSourceMix } from '../learning/quiz-source-mix.js';
 import { generateBlendedQuiz } from '../learning/quiz-blend.js';
 import { announceQuizToSession } from '../learning/quiz-announce.js';
+import { reportQuizAnswer } from '../learning/quiz-answer.js';
 import { announceScenarioToSession, generateScenario } from '../learning/scenario.js';
 import { emptyScenarioGenReport } from '../learning/scenario-protocol.js';
 import {
@@ -173,4 +181,54 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+/**
+ * 答题复判上报：`{ quizId, index, picked?｜text? }` → 服务端判分 → 写 `quiz_answer_log` → 发 `quiz_answered`。
+ * （issue #56，2026-09-27。形状照 `/api/scenario/report`：那条早就是"宿主面板只报观察到的操作、
+ * 对错由服务端判"，本条是同一条口径用到题卡上。）
+ *
+ * ★★ **请求里没有 `correct`**。老板拍板"服务端复判"（逐字见 issue #56），
+ *   所以这里只收**原始作答**（选项下标 / 填空文本），对错由 `shared/quiz-judge.ts` 现算。
+ *   这个形状本身就是一条防线：如果哪天有人给前端加一个 `correct: true` 参数，
+ *   它会被这里的解构直接忽略——数据可信度不靠约定，靠没有入口。
+ *
+ * ★ 响应里**同时**给 `correct` 与 `recorded`：前者是复判结果（前端拿它覆盖自己那份即时反馈，
+ *   两侧共用同一纯函数所以正常情况下一致），后者只说明"这次有没有写进流水"。
+ *   不合并的理由见 `quiz-answer.ts::QuizReportResult` 头注（刷新重答是正常操作，不能报失败）。
+ *
+ * ⚠️ 与 `/generate` 不同，本条**不需要** sessionId：归属经 `quizId → quiz_block.session_id` 带出来，
+ *   让客户端自报会话等于给它一个"往别人会话里记流水"的口子。
+ */
+quizRouter.post('/report', (req: Request, res: Response) => {
+  const { quizId, index, picked, text } = req.body as {
+    quizId?: unknown;
+    index?: unknown;
+    picked?: unknown;
+    text?: unknown;
+  };
+  if (typeof quizId !== 'string' || !quizId) {
+    res.status(400).json({ error: 'quizId 必填' });
+    return;
+  }
+  if (typeof index !== 'number' || !Number.isInteger(index) || index < 0) {
+    res.status(400).json({ error: 'index 必须是非负整数' });
+    return;
+  }
+  // 逐元素收窄成整数：非整数的项**丢掉**而不是报错，是因为前端那道闸门（提交按钮只在有选中时解禁）
+  // 决定了畸形项只可能来自手改请求，而为一件不会发生的事开一条 400 分支，
+  // 只会让"这条请求到底被不被记账"多一种说不清的中间态。丢完为空 ⇒ 判分函数自己返回"不判"。
+  const pickedList = Array.isArray(picked)
+    ? picked.filter((v): v is number => typeof v === 'number' && Number.isInteger(v))
+    : undefined;
+  const r = reportQuizAnswer(quizId, index, { picked: pickedList, text: typeof text === 'string' ? text : undefined }, ownerIdOf(req));
+  if (!r.ok) {
+    // ★ `not-found` 回 404 而**不分「不存在／不是你的」**：与 `/api/scenario/demo/:id` 同口径，
+    //   区分了就把这条路由变成"猜 quizId 探别人的答题记录"的探针。
+    res.status(r.reason === 'not-found' ? 404 : 400).json({
+      error: r.reason === 'not-found' ? '题卡不存在' : '题号不在该题组内',
+    });
+    return;
+  }
+  res.json({ ok: true, correct: r.correct, recorded: r.recorded });
 });

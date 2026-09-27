@@ -166,7 +166,7 @@ flowchart TD
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼；对已下线路由（`/bank/:id` 等）有**墓碑锁**（断言 404，防止功能悄悄复活没人知道） |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **222 文件 / 2996 例**（2993 passed + 3 skipped + 0 failed）；逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3。
+当前测试基线 **222 文件 / 2996 例**，全绿；passed/skipped 明细随平台略有差异（skipped 数分平台不同），**不进本文手抄**——实跑明细由 `node tools/metrics.mjs --tests` 当场产出。逐文件不变量见 [`docs/dev/test-plan.md`](docs/dev/test-plan.md) §3。
 
 **四项门禁是 CI 强制，不是口号**：server 单文件 ≤400 行、web 组件 ≤300 行（逼着功能拆文件，`flow.ts` 贴线开新文件就是常态）；全仓禁 `any`；web 禁内联 `style={{`（一律走 tokens.css token）；每个测试文件必须在台账登记。`metrics.mjs` 负责另一类腐烂：数字由脚本产出落 `docs/metrics.md` 标记区，README 徽章、正文基线、线上版本号与首屏统计全部进 `--check` 对账——手抄的数字必然腐烂，这一课在本文自己的历史里发生过不止一次。
 

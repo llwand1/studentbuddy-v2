@@ -1,30 +1,31 @@
 #!/usr/bin/env node
 /**
- * evals/run — 出题能力评测跑分器(零依赖,Node ≥ 22)。
+ * evals/run — 模型能力评测跑分器(零依赖,Node ≥ 22)。四套件:
+ *
+ *   quiz-gen   从材料出题:协议服从性(40 例,含提示注入对抗)
+ *   replicate  复刻网络题目:保真度 → 成功率 + 总体相似度(30 例)
+ *   search     联网搜索出题:refs 引用溯源 → 引用命中率(15 例)
+ *   terms      词条抽取:对金标 P/R/F1(25 例)
  *
  * 用法:
- *   node tools/evals/run.mjs --selftest            # 评分器自检(19 条坏夹具逐一必须被抓到)
- *   node tools/evals/run.mjs --fake                # 假模型全流程(零 key,验证通路,应当全绿)
- *   EVAL_API_KEY=sk-xx EVAL_MODEL=gpt-4o-mini node tools/evals/run.mjs        # 真模型跑分
- *   EVAL_API_BASE=https://api.deepseek.com/v1 ...  # 任意 OpenAI 兼容端点(自带 Key 哲学)
- *
- * 可选参数:
- *   --dataset <path>   默认 tools/evals/datasets/quiz-gen.jsonl
- *   --check <0..1>     总分低于阈值时退出码 1(接 CI 用)
- *   --judge            额外用模型当裁判打质量分(正确性/清晰度/干扰项,1..5)
- *   --concurrency <n>  真模型并发,默认 3
- *   --only <id前缀>    只跑匹配用例
+ *   node tools/evals/run.mjs --selftest                # 评分器自检(零 key 零网络)
+ *   node tools/evals/run.mjs --fake                    # 假模型验通路(应当全绿)
+ *   EVAL_API_KEY=sk-x EVAL_MODEL=gpt-4o-mini node tools/evals/run.mjs   # 真模型全量
+ *   ... run.mjs --suite replicate,search               # 只跑部分套件
+ *   ... run.mjs --only rep-00 --check 0.8 --judge      # 前缀过滤/CI 阈值/模型裁判
  *
  * 产出:tools/evals/results/<tag>.json(逐用例逐检查)+ 同名 .md(汇总报告)。
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildPrompt, loadQuizProtocol } from './lib/protocol.mjs';
+import { buildPrompt, buildReplicatePrompt, buildSearchPrompt, buildTermsPrompt, loadQuizProtocol, loadTermsProtocol } from './lib/protocol.mjs';
 import { gradeCase, HARD_CHECKS, SOFT_CHECKS } from './lib/graders.mjs';
 import { fakeCompletion, BROKEN_FIXTURES, FIXTURE_CASE } from './lib/fake-model.mjs';
+import { replicateSuite, searchSuite, termsSuite, selftestSuites } from './lib/suites.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const pct = (x) => `${(x * 100).toFixed(1)}%`;
 
 // ── 参数 ──
 const argv = process.argv.slice(2);
@@ -33,10 +34,34 @@ const opt = (n, d) => {
   const i = argv.indexOf(`--${n}`);
   return i >= 0 && argv[i + 1] ? argv[i + 1] : d;
 };
-const DATASET = opt('dataset', join(HERE, 'datasets', 'quiz-gen.jsonl'));
 const CHECK = opt('check', null);
 const ONLY = opt('only', null);
 const CONCURRENCY = Number(opt('concurrency', '3'));
+
+// ── 套件登记表 ──
+const quizGenSuite = {
+  grade: (raw, kase) => {
+    const g = gradeCase(raw, kase);
+    return { ...g, success: Object.values(g.checks).every((c) => c.pass) };
+  },
+  aggregate: (results) => {
+    const allGreen = results.filter((r) => r.success).length;
+    const score = results.reduce((a, r) => a + r.score, 0) / results.length;
+    return {
+      primary: score,
+      headline: `总分 ${(score * 100).toFixed(1)} · 全绿率 ${pct(allGreen / results.length)}`,
+      metrics: { 总分: (score * 100).toFixed(1), 全绿率: pct(allGreen / results.length) },
+    };
+  },
+  fake: fakeCompletion,
+};
+
+const SUITES = {
+  'quiz-gen': { ...quizGenSuite, dataset: 'quiz-gen.jsonl', prompt: buildPrompt, 用处: '从材料出题的协议服从性(对话出题/知识大陆挑战/对战的共同地基)' },
+  replicate: { ...replicateSuite, dataset: 'quiz-replicate.jsonl', prompt: buildReplicatePrompt, 用处: '复刻网络题目保真度(联网搜到真题后转协议格式,考点与答案不许跑)' },
+  search: { ...searchSuite, dataset: 'quiz-search.jsonl', prompt: buildSearchPrompt, 用处: '联网出题的 refs 引用溯源(引对资料=可信度,引错比不引更糟)' },
+  terms: { ...termsSuite, dataset: 'term-extract.jsonl', prompt: buildTermsPrompt, 用处: '词条抽取质量(词条是产品主体,抽错=学练忆全歪)' },
+};
 
 // ── 真模型调用(OpenAI 兼容 /chat/completions)──
 const API_BASE = process.env.EVAL_API_BASE || 'https://api.openai.com/v1';
@@ -47,12 +72,7 @@ async function llm(prompt, { temperature = 0.3, maxTokens = 4096 } = {}) {
   const res = await fetch(`${API_BASE.replace(/\/$/, '')}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_KEY}` },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      temperature,
-      max_tokens: maxTokens,
-    }),
+    body: JSON.stringify({ model: MODEL, messages: [{ role: 'user', content: prompt }], temperature, max_tokens: maxTokens }),
   });
   if (!res.ok) throw new Error(`API ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const data = await res.json();
@@ -75,140 +95,135 @@ async function mapLimit(items, limit, fn) {
   return out;
 }
 
-// ── LLM 裁判(可选):对通过硬检查的输出打质量分 ──
-async function judgeQuality(raw, quizCase) {
-  const prompt = `你是出题质量评审。下面是给定材料与一份 AI 生成的题组 JSON。请从三个维度各打 1-5 分(5 最好):
-correctness(标注的答案在学科上确实正确)、clarity(题干清晰无歧义)、distractors(干扰项有迷惑性、不弱智)。
-只输出 JSON:{"correctness":n,"clarity":n,"distractors":n,"worst_question":"一句话指出最差的一题及原因"}
+// ── LLM 裁判(可选,仅 quiz-gen/replicate):质量分 1..5 ──
+async function judgeQuality(raw, material) {
+  const prompt = `你是出题质量评审。给下面这份 AI 生成的题组 JSON 从三个维度各打 1-5 分(5 最好):
+correctness(标注的答案在学科上确实正确)、clarity(题干清晰无歧义)、distractors(干扰项有迷惑性)。
+只输出 JSON:{"correctness":n,"clarity":n,"distractors":n}
 
-【材料】
-${quizCase.material}
-
-【题组】
-${raw}`;
+【背景材料】\n${material}\n\n【题组】\n${raw}`;
   try {
     const text = await llm(prompt, { temperature: 0 });
     const m = text.match(/\{[\s\S]*\}/);
-    if (!m) return null;
-    const j = JSON.parse(m[0]);
+    const j = m ? JSON.parse(m[0]) : null;
     const ok = (v) => Number.isFinite(v) && v >= 1 && v <= 5;
-    if (!ok(j.correctness) || !ok(j.clarity) || !ok(j.distractors)) return null;
-    return j;
+    return j && ok(j.correctness) && ok(j.clarity) && ok(j.distractors) ? j : null;
   } catch {
     return null;
   }
 }
 
-// ── 自检:19 条坏夹具,对应检查必须变红 ──
+// ── 自检 ──
 function selftest() {
-  loadQuizProtocol(); // 顺带护栏:生产协议还提取得到
+  loadQuizProtocol();
+  loadTermsProtocol(); // 护栏:两份生产协议都还提取得到
   let failed = 0;
+  console.log('── quiz-gen 评分器(坏夹具必须被抓)──');
   for (const fx of BROKEN_FIXTURES) {
     const kase = { ...FIXTURE_CASE, mix: { ...FIXTURE_CASE.mix, ...(fx.mix ?? {}) } };
     if (fx.mix) for (const t of Object.keys(kase.mix)) if (!(t in fx.mix)) kase.mix[t] = 0;
     const { checks } = gradeCase(fx.output, kase);
     const hit = checks[fx.mustFail] && !checks[fx.mustFail].pass;
-    console.log(`${hit ? '✅' : '❌'} ${fx.name} → 期望 ${fx.mustFail} 变红${hit ? '' : `(实际:${JSON.stringify(checks[fx.mustFail])})`}`);
+    console.log(`${hit ? '✅' : '❌'} ${fx.name} → 期望 ${fx.mustFail} 变红`);
     if (!hit) failed += 1;
   }
-  // 反向护栏:好输出必须全绿
   const good = fakeCompletion(FIXTURE_CASE);
-  const { checks, score } = gradeCase(good, FIXTURE_CASE);
-  const allGreen = Object.values(checks).every((c) => c.pass);
-  console.log(`${allGreen ? '✅' : '❌'} 假模型好输出全绿(score=${score.toFixed(2)})`);
+  const allGreen = Object.values(gradeCase(good, FIXTURE_CASE).checks).every((c) => c.pass);
+  console.log(`${allGreen ? '✅' : '❌'} 假模型好输出全绿`);
   if (!allGreen) failed += 1;
-  console.log(failed === 0 ? `\n自检通过:${BROKEN_FIXTURES.length} 条坏夹具全部被抓到` : `\n自检失败 ${failed} 条`);
+  console.log('── 复刻/联网/词条 评分器 ──');
+  failed += selftestSuites();
+  console.log(failed === 0 ? '\n自检全部通过' : `\n自检失败 ${failed} 条`);
   process.exit(failed === 0 ? 0 : 1);
 }
 
 // ── 主流程 ──
 async function main() {
   if (flag('selftest')) return selftest();
-
   const useFake = flag('fake');
   if (!useFake && (!API_KEY || !MODEL)) {
     console.error('真模型模式需要 EVAL_API_KEY 与 EVAL_MODEL(或加 --fake 用假模型验通路)。');
     process.exit(2);
   }
 
-  let cases = readFileSync(DATASET, 'utf8')
-    .split('\n')
-    .filter((l) => l.trim())
-    .map((l) => JSON.parse(l));
-  if (ONLY) cases = cases.filter((c) => c.id.startsWith(ONLY));
-  console.log(`数据集 ${cases.length} 例 | 模式:${useFake ? '假模型(验通路)' : `${MODEL} @ ${API_BASE}`}\n`);
+  const wanted = opt('suite', 'all');
+  const suiteNames = wanted === 'all' ? Object.keys(SUITES) : wanted.split(',').map((s) => s.trim());
+  for (const n of suiteNames) if (!SUITES[n]) { console.error(`未知套件 ${n}(可选:${Object.keys(SUITES).join(', ')})`); process.exit(2); }
 
-  const results = await mapLimit(cases, useFake ? 8 : CONCURRENCY, async (kase) => {
-    const started = Date.now();
-    let raw;
-    let error = null;
-    try {
-      raw = useFake ? fakeCompletion(kase) : await llm(buildPrompt(kase));
-    } catch (e) {
-      error = String(e.message ?? e);
-      raw = '';
-    }
-    const graded = gradeCase(raw, kase);
-    let judge = null;
-    if (flag('judge') && !useFake && !error) judge = await judgeQuality(raw, kase);
-    const hardFails = Object.entries(graded.checks)
-      .filter(([, c]) => c.tier === 'hard' && !c.pass)
-      .map(([n]) => n);
-    const mark = error ? '💥' : hardFails.length === 0 ? '✅' : '❌';
-    console.log(
-      `${mark} ${kase.id} [${kase.domain}] score=${graded.score.toFixed(2)}` +
-        (hardFails.length ? ` 红:${hardFails.join(',')}` : '') +
-        (judge ? ` 裁判:${judge.correctness}/${judge.clarity}/${judge.distractors}` : '') +
-        (error ? ` ${error.slice(0, 60)}` : ''),
-    );
-    return { id: kase.id, domain: kase.domain, ms: Date.now() - started, error, raw, ...graded, judge };
-  });
+  const summary = [];
+  const allResults = {};
+  for (const name of suiteNames) {
+    const suite = SUITES[name];
+    let cases = readFileSync(join(HERE, 'datasets', suite.dataset), 'utf8')
+      .split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
+    if (ONLY) cases = cases.filter((c) => c.id.startsWith(ONLY));
+    if (cases.length === 0) continue;
+    console.log(`\n══ 套件 ${name}(${cases.length} 例)| ${suite.用处} ══`);
+
+    const results = await mapLimit(cases, useFake ? 8 : CONCURRENCY, async (kase) => {
+      let raw = '';
+      let error = null;
+      try {
+        raw = useFake ? suite.fake(kase) : await llm(suite.prompt(kase));
+      } catch (e) {
+        error = String(e.message ?? e);
+      }
+      const graded = suite.grade(raw, kase);
+      let judge = null;
+      if (flag('judge') && !useFake && !error && (name === 'quiz-gen' || name === 'replicate'))
+        judge = await judgeQuality(raw, kase.material ?? kase.ref?.question ?? '');
+      const bad = Object.entries(graded.checks).filter(([, c]) => !c.pass).map(([n]) => n);
+      console.log(
+        `${error ? '💥' : graded.success ? '✅' : '❌'} ${kase.id}` +
+          (graded.similarity != null ? ` 相似度=${graded.similarity.toFixed(2)}` : '') +
+          (graded.f1 != null ? ` F1=${graded.f1.toFixed(2)}` : '') +
+          (bad.length && !graded.success ? ` 红:${bad.join(',')}` : '') +
+          (judge ? ` 裁判:${judge.correctness}/${judge.clarity}/${judge.distractors}` : '') +
+          (error ? ` ${error.slice(0, 60)}` : ''),
+      );
+      return { id: kase.id, error, raw, judge, ...graded };
+    });
+
+    const agg = suite.aggregate(results);
+    console.log(`── ${name}:${agg.headline}`);
+    summary.push({ name, n: results.length, ...agg });
+    allResults[name] = results;
+  }
 
   // ── 汇总 ──
-  const scores = results.map((r) => r.score);
-  const overall = scores.reduce((a, b) => a + b, 0) / (scores.length || 1);
-  const perCheck = {};
-  for (const name of [...Object.keys(HARD_CHECKS), ...Object.keys(SOFT_CHECKS)]) {
-    const ok = results.filter((r) => r.checks[name]?.pass).length;
-    perCheck[name] = { pass: ok, total: results.length, rate: ok / (results.length || 1) };
-  }
-  const allGreen = results.filter((r) => Object.values(r.checks).every((c) => c.pass)).length;
+  const overall = summary.reduce((a, s) => a + s.primary, 0) / (summary.length || 1);
+  console.log('\n═══════════ 汇总 ═══════════');
+  for (const s of summary) console.log(`${s.name.padEnd(10)} ${String(s.n).padStart(3)} 例  ${s.headline}`);
+  console.log(`综合分(各套件主指标均值):${(overall * 100).toFixed(1)} / 100`);
 
   const tag = `${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}-${useFake ? 'fake' : MODEL.replace(/[^\w.-]/g, '_')}`;
   const outDir = join(HERE, 'results');
   mkdirSync(outDir, { recursive: true });
-  writeFileSync(join(outDir, `${tag}.json`), JSON.stringify({ tag, dataset: DATASET, overall, perCheck, results }, null, 2));
+  writeFileSync(join(outDir, `${tag}.json`), JSON.stringify({ tag, model: useFake ? 'fake' : MODEL, overall, summary, results: allResults }, null, 2));
 
   const md = [
-    `# 出题 eval 报告 · ${tag}`,
-    ``,
-    `- 用例:${results.length} | 全绿:${allGreen} (${((allGreen / results.length) * 100).toFixed(0)}%) | **总分:${(overall * 100).toFixed(1)}**`,
-    ``,
-    `| 检查项 | 层级 | 通过率 |`,
-    `| --- | --- | --- |`,
-    ...Object.entries(perCheck).map(
-      ([n, s]) => `| ${n} | ${n in HARD_CHECKS ? 'hard' : 'soft'} | ${s.pass}/${s.total} (${(s.rate * 100).toFixed(0)}%) |`,
-    ),
-    ``,
-    `## 未全绿用例`,
-    ``,
-    ...results
-      .filter((r) => !Object.values(r.checks).every((c) => c.pass))
-      .map((r) => {
-        const bad = Object.entries(r.checks)
-          .filter(([, c]) => !c.pass)
-          .map(([n, c]) => `${n}(${c.note ?? ''})`)
-          .join('、');
-        return `- **${r.id}** [${r.domain}] score=${r.score.toFixed(2)}:${r.error ? `调用失败 ${r.error}` : bad}`;
+    `# eval 报告 · ${tag}`,
+    '',
+    `综合分:**${(overall * 100).toFixed(1)} / 100**(各套件主指标均值)`,
+    '',
+    '| 套件 | 样本 | 结果 |',
+    '| --- | --- | --- |',
+    ...summary.map((s) => `| ${s.name} | ${s.n} | ${Object.entries(s.metrics).map(([k, v]) => `${k} ${v}`).join(' · ')} |`),
+    '',
+    '## 未成功用例',
+    '',
+    ...Object.entries(allResults).flatMap(([name, rs]) =>
+      rs.filter((r) => !r.success).map((r) => {
+        const bad = Object.entries(r.checks).filter(([, c]) => !c.pass).map(([n, c]) => `${n}(${c.note ?? ''})`).join('、');
+        return `- **${name}/${r.id}**:${r.error ? `调用失败 ${r.error}` : bad}`;
       }),
+    ),
   ].join('\n');
   writeFileSync(join(outDir, `${tag}.md`), md + '\n');
-
-  console.log(`\n═══ 总分 ${(overall * 100).toFixed(1)} / 100 | 全绿 ${allGreen}/${results.length} ═══`);
   console.log(`报告:tools/evals/results/${tag}.md(+.json)`);
 
   if (CHECK != null && overall < Number(CHECK)) {
-    console.error(`低于阈值 ${CHECK},退出码 1`);
+    console.error(`综合分低于阈值 ${CHECK},退出码 1`);
     process.exit(1);
   }
 }

@@ -16,7 +16,7 @@ export function extractQuizBlock(raw) {
   return { body: matches[0]?.[1] ?? null, outside, count: matches.length };
 }
 
-function tryParse(raw) {
+export function tryParse(raw) {
   const { body } = extractQuizBlock(raw);
   if (body == null) return null;
   try {

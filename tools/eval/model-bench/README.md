@@ -1,28 +1,40 @@
-# tools/evals — 模型能力评测(eval)· 四套件 110 样本
+# tools/eval/model-bench — 模型横评 · 四套件 110 样本
 
-衡量**真模型**在本产品四条 AI 链路上的输出质量。与 `packages/**` 的 2997 个确定性单测互补:**单测锁"代码对不对",eval 锁"模型好不好"**——换模型、换 provider、改提示词之前后各跑一遍,分数变化就是决策依据,不再靠手感。
+衡量**任意 OpenAI 兼容模型**在本产品四条 AI 链路上的**裸输出**质量。换模型、换 provider、改提示词之前后各跑一遍,分数变化就是决策依据,不再靠手感。
+
+## 与 `tools/eval/` 评测台的分工(两套各管一头,数并排读)
+
+| | `tools/eval/`(评测台,`npm run eval`) | `model-bench/`(本目录,`npm run eval:models`) |
+|---|---|---|
+| 评什么 | **产品链路**:走生产同款抽取/修复(`extractQuizJson`),四档解析 strict/repaired/rescued/failed,两 arm(配图开/关)永不合并 | **模型裸输出**:不过修复器,协议服从性一刀切 |
+| 口径在哪 | `packages/server/src/learning/quiz-eval-metrics.ts`(纯函数,26 例回归锁进 vitest) | 本目录 `lib/`(零依赖 .mjs,`--selftest` 35 条断言;`tools/` 不入 vitest,同评测台运行侧) |
+| 模型 | 产品当前接的那一档 | 任意 OpenAI 兼容端点(自带 Key 横向对比) |
+| 覆盖 | 出题(词条驱动,批次 B 将扩 search/collect/scenario/chat/review) | 出题 + **复刻相似度** + **联网引用命中** + **词条抽取 F1** + 注入对抗 |
+| 怎么读 | "产品今天交付什么水平" | "这只模型本身什么水平" |
+
+两边并读的用法:同一份失败,评测台落在 `repaired/rescued` 档而 model-bench 直接红 ⇒ 是修复器救回来的,**该改提示词**;两边都绿 ⇒ 模型本身就行。**口径已对齐的点**:essay 缺 `explanation` 只记观察、不进判据(评测台批次 A 108 题真机逼出的修正,协议示例里 essay 本就没这字段)——本目录 schema 检查同步放行 essay、其余题型照红。
 
 ## 快速开始
 
 ```bash
 # 1. 评分器自检(34 条断言:19 条坏夹具 + 相似度/复刻/联网/词条评分器;零 key 零网络)
-node tools/evals/run.mjs --selftest
+npm run eval:models -- --selftest
 
 # 2. 假模型验通路(110 例应当全绿;零 key 零网络,同 demo:e2e 的假 LLM 哲学)
-node tools/evals/run.mjs --fake
+npm run eval:models -- --fake
 
 # 3. 真模型跑分(任意 OpenAI 兼容端点,自带 Key)
-EVAL_API_KEY=sk-xxx EVAL_MODEL=gpt-4o-mini node tools/evals/run.mjs
-EVAL_API_BASE=https://api.deepseek.com/v1 EVAL_API_KEY=sk-xxx EVAL_MODEL=deepseek-chat node tools/evals/run.mjs
+EVAL_API_KEY=sk-xxx EVAL_MODEL=gpt-4o-mini npm run eval:models --
+EVAL_API_BASE=https://api.deepseek.com/v1 EVAL_API_KEY=sk-xxx EVAL_MODEL=deepseek-chat npm run eval:models --
 
 # 只跑部分套件 / 前缀过滤 / CI 阈值 / 模型裁判
-node tools/evals/run.mjs --suite replicate,search
-node tools/evals/run.mjs --only rep-0 --fake
-node tools/evals/run.mjs --fake --check 0.9
-EVAL_API_KEY=... EVAL_MODEL=... node tools/evals/run.mjs --judge
+npm run eval:models -- --suite replicate,search
+npm run eval:models -- --only rep-0 --fake
+npm run eval:models -- --fake --check 0.9
+EVAL_API_KEY=... EVAL_MODEL=... npm run eval:models -- --judge
 ```
 
-报告落 `tools/evals/results/<tag>.md`(汇总)+ `.json`(逐用例逐检查原始数据,已 gitignore)。
+报告落 `tools/eval/model-bench/results/<tag>.md`(汇总)+ `.json`(逐用例逐检查原始数据,已 gitignore)。
 
 ## 四个套件:各自测什么、对产品有什么用
 

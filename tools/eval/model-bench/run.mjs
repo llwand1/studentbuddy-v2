@@ -8,13 +8,13 @@
  *   terms      词条抽取:对金标 P/R/F1(25 例)
  *
  * 用法:
- *   node tools/evals/run.mjs --selftest                # 评分器自检(零 key 零网络)
- *   node tools/evals/run.mjs --fake                    # 假模型验通路(应当全绿)
- *   EVAL_API_KEY=sk-x EVAL_MODEL=gpt-4o-mini node tools/evals/run.mjs   # 真模型全量
+ *   npm run eval:models -- --selftest                # 评分器自检(零 key 零网络)
+ *   npm run eval:models -- --fake                    # 假模型验通路(应当全绿)
+ *   EVAL_API_KEY=sk-x EVAL_MODEL=gpt-4o-mini npm run eval:models --   # 真模型全量
  *   ... run.mjs --suite replicate,search               # 只跑部分套件
  *   ... run.mjs --only rep-00 --check 0.8 --judge      # 前缀过滤/CI 阈值/模型裁判
  *
- * 产出:tools/evals/results/<tag>.json(逐用例逐检查)+ 同名 .md(汇总报告)。
+ * 产出:tools/eval/model-bench/results/<tag>.json(逐用例逐检查)+ 同名 .md(汇总报告)。
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -233,7 +233,7 @@ async function main() {
     ),
   ].join('\n');
   writeFileSync(join(outDir, `${tag}.md`), md + '\n');
-  console.log(`报告:tools/evals/results/${tag}.md(+.json)`);
+  console.log(`报告:tools/eval/model-bench/results/${tag}.md(+.json)`);
 
   if (CHECK != null && overall < Number(CHECK)) {
     console.error(`综合分低于阈值 ${CHECK},退出码 1`);

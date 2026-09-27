@@ -1,4 +1,6 @@
 > 2026-09-27 出题功能评测批次 A：功能级评测的**评分口径**落进 `packages/server/src/learning/quiz-eval-metrics.ts`（纯函数、不发请求不读库），运行侧在 `tools/eval/`（录制代理＋离线重算，运行产物 gitignore）。首轮 108 题读数与五条缺陷见 `docs/eval/quiz.md`。只登记口径单测——`tools/` 不在 vitest include 也不在 tsconfig 覆盖内。
+>
+> 同日并入 **model-bench 模型横评**(`tools/eval/model-bench/`,`npm run eval:models`):跨模型裸输出四套件(出题/复刻相似度/联网引用命中/词条 F1,110 样本),与评测台分工见其 README;评分器自检 35 条断言走 `--selftest`(零 key 零网络),同样只在 tools/ 运行侧、不进 vitest。essay 缺 explanation 的口径已与本批次对齐(观察不判据)。
 
 | 本批测试文件 | 用例 | 不变量 |
 |---|---:|---|

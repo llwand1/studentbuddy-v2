@@ -60,7 +60,12 @@ export const HARD_CHECKS = {
     }
   },
 
-  /** 字段契约:title/questions;每题 type/question/answer/explanation/svg/refs 一个不许省 */
+  /**
+   * 字段契约:title/questions;每题 type/question/answer/explanation/svg/refs 一个不许省。
+   * ★ 口径对齐 quiz-eval-metrics(评测台批次 A,108 题真机逼出的修正):
+   *   essay 缺 explanation **只记观察、不进判据**——协议示例里的 essay 对象本就没有
+   *   explanation 字段,模型照示例办事不算错;其余题型缺 explanation 照红。
+   */
   schema(raw) {
     const q = tryParse(raw);
     if (!q) return { pass: false, note: '无合法 JSON' };
@@ -69,8 +74,10 @@ export const HARD_CHECKS = {
     const REQUIRED = ['type', 'question', 'answer', 'explanation', 'svg', 'refs'];
     for (let i = 0; i < q.questions.length; i++) {
       const item = q.questions[i];
-      for (const f of REQUIRED)
+      for (const f of REQUIRED) {
+        if (f === 'explanation' && item.type === 'essay') continue; // 观察值,见函数头注
         if (!(f in item)) return { pass: false, note: `第 ${i + 1} 题缺字段 ${f}(协议:不要省略)` };
+      }
       if (['single', 'multiple', 'judge'].includes(item.type) && !Array.isArray(item.options))
         return { pass: false, note: `第 ${i + 1} 题(${item.type})缺 options` };
     }

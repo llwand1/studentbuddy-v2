@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const QUIZ_TS = join(ROOT, 'packages', 'server', 'src', 'learning', 'quiz.ts');
 const TERMS_TS = join(ROOT, 'packages', 'server', 'src', 'learning', 'term-extract.ts');
 

@@ -1,0 +1,42 @@
+{
+  "_meta": {
+    "用途": "检索召回评测台（tools/probes/doc-rag-eval.mts）的病例集，契约 DOC-RAG-SPEC §10.5。",
+    "cohort纪律": "termsFrom=rewrites 的 13 条：术语串来自 2026-09-27 `agnes-3.0-flash` 真调快照（文件 doc-rag-rewrites.json，**本文件不复制它的术语串**，只按 para 原句引用 ⇒ 快照是唯一真相源）。author=dev-hand 的 17 条：题目与术语串都由开发会话手写，**刻意不烧真调额度**（实测免费档连发约 9 次即 429，而生产与探针共用同一把 key）。",
+    "为什么必须分开报": "手写的题＋手写的词＝同一个脑子造的两端，混进一个数字里就是给自己的解释背书。所以评测台按 cohort 分别出召回数，永不合并。",
+    "已知偏差": "① 题目是我造的，不代表真实学生会这么问（真样本要等 MT 单或线上语料授权）；② 事实句固定落在每章第 21 段之后，位置偏差不为零；③ 语料表抄自 doc-rag-bm25.mjs，两张表可能漂移且**目前没有锁**。",
+    "字段": "id 病例号｜chapter 1 起的章号（对应 FACTS）｜author 出题人｜kw 贴原文用词的提问（上限对照）｜para 学生大白话｜termsFrom 术语串来源｜terms 仅 dev-hand 带（空格分隔）"
+  },
+  "cases": [
+    { "id": "c01", "chapter": 1, "author": "probe-existing", "kw": "月球表面的重力加速度是多少", "para": "在月球上松手，物体下落得有多快", "termsFrom": "rewrites" },
+    { "id": "c02", "chapter": 2, "author": "probe-existing", "kw": "第一宇宙速度的数值是多少", "para": "贴着地表绕地球转需要多快的速度", "termsFrom": "rewrites" },
+    { "id": "c03", "chapter": 3, "author": "probe-existing", "kw": "哪种碰撞动能损失比例最大", "para": "两物体撞完粘在一起时机械能掉得最狠吗", "termsFrom": "rewrites" },
+    { "id": "c04", "chapter": 4, "author": "probe-existing", "kw": "扭秤实验测出的引力常量是谁做的", "para": "最早把万有引力那个比例系数称出来的人是谁", "termsFrom": "rewrites" },
+    { "id": "c05", "chapter": 5, "author": "probe-existing", "kw": "油滴实验测定元电荷的数值", "para": "基本电荷量是被哪个实验第一次数出来的", "termsFrom": "rewrites" },
+    { "id": "c06", "chapter": 6, "author": "probe-existing", "kw": "场强为零处电势是否为零", "para": "某点没有电场力的效果时，那里的电位参考值能确定吗", "termsFrom": "rewrites" },
+    { "id": "c07", "chapter": 9, "author": "probe-existing", "kw": "楞次定律的本质是能量守恒吗", "para": "判断感应电流方向那条规矩，深层依据是啥", "termsFrom": "rewrites" },
+    { "id": "c08", "chapter": 11, "author": "probe-existing", "kw": "全反射临界角公式 sin C 等于 1 除以 n", "para": "光从光密进光疏，刚好折不到达时的入射角怎么求", "termsFrom": "rewrites" },
+    { "id": "c09", "chapter": 14, "author": "probe-existing", "kw": "半衰期受温度压强影响吗", "para": "把样品加热，衰变一半所需时间会变吗", "termsFrom": "rewrites" },
+    { "id": "c10", "chapter": 15, "author": "probe-existing", "kw": "遏止电压与入射光频率的关系", "para": "让光电流刚好为零的那个反向电压取决于什么", "termsFrom": "rewrites" },
+    { "id": "c11", "chapter": 19, "author": "probe-existing", "kw": "催化剂改变化学平衡位置吗", "para": "加催化剂之后，最终转化率会不会提高", "termsFrom": "rewrites" },
+    { "id": "c12", "chapter": 22, "author": "probe-existing", "kw": "电解饱和食盐水阴极产物是什么", "para": "食盐水通电时，接负极那端冒出的气体是啥", "termsFrom": "rewrites" },
+    { "id": "c13", "chapter": 24, "author": "probe-existing", "kw": "多次测量能不能消除系统误差", "para": "把仪器本身的偏差靠反复读数取平均抹掉，行不行", "termsFrom": "rewrites" },
+
+    { "id": "c14", "chapter": 7, "author": "dev-hand", "kw": "超导体零电阻对应的温度叫什么", "para": "材料突然一点都不电阻了，那个温度点上书上给它起了个啥名", "termsFrom": "inline", "terms": "超导 转变温度 临界温度 零电阻 完全导电态" },
+    { "id": "c15", "chapter": 8, "author": "dev-hand", "kw": "霍尔电压与载流子浓度的关系", "para": "测霍尔效应那个电压，导体里能自由跑的电荷载流子越多，它是越大还是越小", "termsFrom": "inline", "terms": "霍尔电压 载流子浓度 成反比 磁电效应 导体薄片" },
+    { "id": "c16", "chapter": 10, "author": "dev-hand", "kw": "理想变压器原副线圈频率是否改变", "para": "变压之后交流电每秒钟来回摆的次数会不会跟着变", "termsFrom": "inline", "terms": "交流 频率 保持不变 匝数比 周期" },
+    { "id": "c17", "chapter": 12, "author": "dev-hand", "kw": "双缝干涉相邻亮纹间距公式", "para": "双缝实验里两条亮纹挨得多开，跟挡板到屏幕的远近有关系吗", "termsFrom": "inline", "terms": "双缝 亮纹 条纹间距 屏 成正比 波长" },
+    { "id": "c18", "chapter": 13, "author": "dev-hand", "kw": "α射线穿透能力与电离能力", "para": "三种射线里面，哪一种最穿不透东西但把空气电离得最厉害", "termsFrom": "inline", "terms": "α射线 穿透能力 电离能力 氦核 电离本领" },
+    { "id": "c19", "chapter": 16, "author": "dev-hand", "kw": "绝热过程的定义", "para": "一个变化过程里热量一点都不跟外面进出，这种过程叫什么名字", "termsFrom": "inline", "terms": "绝热 热量交换 状态量 内能 热力学第一定律" },
+    { "id": "c20", "chapter": 17, "author": "dev-hand", "kw": "温度是分子平均动能的标志", "para": "宏观上量出来的温度，说到底反映的是微观粒子哪个平均下来的量", "termsFrom": "inline", "terms": "温度 分子 平均动能 标志 热运动" },
+    { "id": "c21", "chapter": 18, "author": "dev-hand", "kw": "孤立系统的熵永不减少", "para": "一个跟外界完全隔绝的系统，它的混乱程度有没有可能自己往回降", "termsFrom": "inline", "terms": "熵 孤立系统 无序程度 方向性 热力学第二定律" },
+    { "id": "c22", "chapter": 20, "author": "dev-hand", "kw": "水的离子积 Kw 数值", "para": "常温二十五度的时候，水电离出来的两种离子浓度乘积等于多少", "termsFrom": "inline", "terms": "水的离子积 电离度 弱电解质 离子积 水解" },
+    { "id": "c23", "chapter": 21, "author": "dev-hand", "kw": "原电池负极发生什么反应", "para": "原电池跑起来的时候，负极那头是丢电子还是得电子，算氧化还是还原", "termsFrom": "inline", "terms": "原电池 负极 氧化反应 化合价 电子转移" },
+    { "id": "c24", "chapter": 23, "author": "dev-hand", "kw": "酯化反应属于哪种基本反应类型", "para": "酸和醇生成酯还有水那类反应，按大类划分该归进哪一种", "termsFrom": "inline", "terms": "酯化 取代反应 官能团 消去 有机反应类型" },
+    { "id": "c25", "chapter": 1, "author": "dev-hand", "kw": "月球重力加速度数值", "para": "听说在月亮上东西掉得特别慢，那个下落的加速度到底有多大", "termsFrom": "inline", "terms": "月球表面 重力加速度 自由落体 万有引力 加速度" },
+    { "id": "c26", "chapter": 2, "author": "dev-hand", "kw": "最小的环绕速度是多少", "para": "绕着地球转一圈不用掉下来的最小速度是多少来着，别跟挣脱那个数搞混", "termsFrom": "inline", "terms": "第一宇宙速度 环绕速度 轨道 中心天体 周期" },
+    { "id": "c27", "chapter": 9, "author": "dev-hand", "kw": "楞次定律的深层依据", "para": "感应电流为啥总要跟引起它的变化对着干，说到底是在保住哪条守恒", "termsFrom": "inline", "terms": "楞次定律 能量守恒 磁通量 感应电动势 线圈" },
+    { "id": "c28", "chapter": 11, "author": "dev-hand", "kw": "全反射临界角计算", "para": "光从密的地方进稀的地方，刚好完全反射不出去时的角度怎么算", "termsFrom": "inline", "terms": "全反射 临界角 折射率 入射角 折射角" },
+    { "id": "c29", "chapter": 15, "author": "dev-hand", "kw": "遏止电压由什么决定", "para": "要让光电流刚好变成零，加的那个反向电压跟光的强度有没有关系", "termsFrom": "inline", "terms": "遏止电压 入射光频率 光电子 逸出功 极限频率" },
+    { "id": "c30", "chapter": 19, "author": "dev-hand", "kw": "催化剂对平衡的影响", "para": "催化剂到底改的是到平衡的快慢还是平衡本身", "termsFrom": "inline", "terms": "催化剂 平衡移动 平衡常数 转化率 勒夏特列" }
+  ]
+}

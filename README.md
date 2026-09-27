@@ -187,12 +187,12 @@ node tools/metrics.mjs --tests --check
 <details>
 <summary>工程指标与代码地图</summary>
 
-![tests](https://img.shields.io/badge/tests-214%20files%20%2F%202903%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-215%20files%20%2F%202921%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-129-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-136%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 
-测试基线：**214 文件 / 2903 例**（2902 passed + 1 skipped + 0 failed）。指标由 `tools/metrics.mjs` 产出，详情见[工程指标](docs/metrics.md)与[测试计划](docs/dev/test-plan.md)。
+测试基线：**215 文件 / 2921 例**（2920 passed + 1 skipped + 0 failed）。指标由 `tools/metrics.mjs` 产出，详情见[工程指标](docs/metrics.md)与[测试计划](docs/dev/test-plan.md)。
 
 `v0.2.x` 是对外发布的构建版本，`package.json` 里的 `2.0.0-alpha.0` 是 v2 产品开发线。看线上变化请以公开更新记录和 GitHub Releases 为准。
 

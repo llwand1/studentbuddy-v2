@@ -41,7 +41,7 @@ import { AccountBox } from '../components/AccountBox';
 import { DemoLoginButton } from '../components/DemoLoginButton';
 import { GithubLoginButton } from '../components/GithubLoginButton';
 import { LandingBrand } from './LandingBrand';
-import { LandingContinent } from './LandingContinent';
+import { LandingHero } from './hero/LandingHero';
 import { LandingIntro } from './LandingIntro';
 import { LandingFeatures } from './LandingFeatures';
 import { PRIVACY_ITEMS } from './landing-data';
@@ -103,9 +103,9 @@ function LandingPage({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
       </header>
 
       <main className="landing-body">
-        {/* ① hero：按 T3 只留三样——标题、一句话、CTA。演示窗是这一屏的主角。
-            原先那句塞了 4 个 feature 从句的副标已全部下放到 `LandingIntro` / `LandingFeatures`。 */}
-        <section className="landing-hero">
+        {/* ① hero：2026-09-28 升级为可交互暗黑像素序章「词条即力量」（`hero/LandingHero`）。
+            标题/副标/CTA 仍由本文件给出（被测试锁住的门面文案），序章舞台包在外面。 */}
+        <LandingHero>
           <div className="landing-hero-copy">
             <h1 className="landing-title">
               {HERO.titlePre[lang]}
@@ -133,10 +133,7 @@ function LandingPage({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
               ))}
             </div>
           </div>
-          <div className="landing-hero-demo">
-            <LandingContinent />
-          </div>
-        </section>
+        </LandingHero>
 
         {/* ② 注册/登录卡：贴着 CTA 展开（它是 hero 的延伸，不占内容序列的位置） */}
         {card !== 'closed' && (

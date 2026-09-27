@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-27T06:36:39.019Z",
+  "generatedAt": "2026-09-27T07:22:59.794Z",
   "code": {
     "rows": [
       {
@@ -20,13 +20,13 @@
         "pkg": "web",
         "srcFiles": 200,
         "testFiles": 76,
-        "srcLines": 27054,
+        "srcLines": 27055,
         "testLines": 11602
       }
     ],
     "srcFiles": 413,
     "testFiles": 222,
-    "srcLines": 60211,
+    "srcLines": 60212,
     "testLines": 42258,
     "tsxTestFiles": 30
   },
@@ -86,21 +86,21 @@
     "probes": 15
   },
   "repo": {
-    "head": "5e00812",
+    "head": "e03d619",
     "headDate": "2026-09-27",
-    "commitsLast14d": 269,
-    "branch": "feat/knowledge-continent-npc",
-    "dirtyFiles": 3
+    "commitsLast14d": 272,
+    "branch": "docs/readme-interview",
+    "dirtyFiles": 1
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 60.8,
+    "wallSec": 66,
     "staleDays": 0,
     "files": 222,
     "cases": 2996,
-    "passed": 2995,
-    "skipped": 1,
+    "passed": 2993,
+    "skipped": 3,
     "failed": 0,
     "success": true
   },
@@ -159,8 +159,8 @@
     {
       "label": "正文 passed 口径",
       "claimed": "2995 passed + 1 skipped + 0 failed",
-      "measured": "2995 passed + 1 skipped + 0 failed",
-      "ok": true
+      "measured": "2993 passed + 3 skipped + 0 failed",
+      "ok": false
     },
     {
       "label": "正文基线句",

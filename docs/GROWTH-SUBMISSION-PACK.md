@@ -45,6 +45,7 @@
 
 > 素材来源：`packages/web/index.html` 的 `meta description`／`og:description`、`landing-copy.ts` 的 `HERO.sub` 与 `INTRO.def`、README「这是什么」。
 > **没有一句是新写的**——所以每一条都能被站内既有文案证。
+> **对账留痕 2026-09-27**：README 已整篇重写为工程/面试向（新增「对话核」「AI 出题」「情景题」「搜索四层」等节，删「这是什么」标题）。逐条核过：A/B/C 三候选的每个事实主张（词条主体 / 自托管自带 Key / 出题复习对战围词条转 / 非聊天框）在新 README 里均有对应且未变 ⇒ **三条候选不必换**；本节此后对账以新 README 的「为什么用它」「产品判断」两节为源。
 
 ### 中文（表单常给 ≤140 字，三条都远小于）
 
@@ -70,14 +71,14 @@
 
 > studentbuddy 是一个开源、可自托管的 AI 学习助手。它把「学 → 练 → 析 → 忆 → 反馈」做成一条自动运转的闭环：你只管提问，讲解、出题、判分、复习排期、AI 主动督促自己往下走。核心是一份**你自己的词条库**——对话里学到的概念自动入库，一个词进了库就会驱动出题、决定复习时机（1/2/4/7/15/30/60 天）、在回复里被高亮标出、还能拿去对战。用你自己的模型 Key，数据存在你自己的服务器（一个 SQLite 单文件，备份＝拷一个目录）。MIT 开源，也可免注册直接体验。
 
-**出处**：`landing-data.ts` 的 `INTRO.def` ＋ `TERM_SPINE` 四条（★ 2026-09-26 现查：原写「五条」是批次 K 删掉「沉淀总结」之后的滞后账；★ **那四条里的「连成图谱」本身是假话**——`knowledge_edge` 的每轮自动连边随学习流于 09-25 删除，见 `chat/post-turn.ts:14` 注——所以 3a 这段抄出来时**不许带图谱那半**，本段已按此改写）＋ `PRIVACY_ITEMS` 第一条；逐条对得上 README「功能总览」。
+**出处**：`landing-data.ts` 的 `INTRO.def` ＋ `TERM_SPINE` 四条（★ 2026-09-26 现查：原写「五条」是批次 K 删掉「沉淀总结」之后的滞后账；★ **那四条里的「连成图谱」本身是假话**——`knowledge_edge` 的每轮自动连边随学习流于 09-25 删除，见 `chat/post-turn.ts:14` 注——所以 3a 这段抄出来时**不许带图谱那半**，本段已按此改写）＋ `PRIVACY_ITEMS` 第一条；逐条对得上 README（★ 2026-09-27 对账：README 已重写为工程/面试向，本段事实主张对应新 README 的「为什么用它」与「AI 出题」两节，未变）。
 
 ### 3b · 约 600 字（中文，标准表单）
 
 > studentbuddy 想解决的是「AI 学习产品＝套了学习提示词的聊天框」这件事。它的答案是**把词条做成主体**：
 >
 > - **学**：流式对话 + 思考链 + 联网检索 + 文档模式（长文档 BM25 段落检索、带段号可溯源）
-> - **练**：自建出题引擎——结构化协议、四题型配比可配、自动判分、模型特化 SVG 配图
+> - **练**：自建出题引擎——结构化协议、六题型配比可配（单选/多选/填空/解答/判断/情景；★ 2026-09-27 对账订正：原写「四题型」滞后于 generate_quiz 现役六型）、自动判分、模型特化 SVG 配图
 > - **析**：题卡在对话里当场判分、逐题给解析，AI 主动督促带学习趋势
 > - **忆**：AI 自学词条库 + 艾宾浩斯复习时钟（1/2/4/7/15/30/60 天，到期自己进队列）+ 跨会话长期记忆
 > - **反馈**：XP、连签，外加 AI 主动督促（★ 2026-09-25：原列的「今日总结」整页已下线删除，对外素材里**不许再写**——落地页那格同步换成了「AI 主动督促」）
@@ -96,7 +97,7 @@
 >
 > What that means in practice, once a concept is filed into your library:
 >
-> - it **drives quizzes** — questions generated around the term, four question types with a tunable mix, auto-graded by structure rather than by asking the model to mark its own homework
+> - it **drives quizzes** — questions generated around the term, six question types with a tunable mix (multiple-choice, fill-in, essay, true/false and interactive scenario questions; ★ 2026-09-27: was "four", synced to the current six-type engine), auto-graded by structure rather than by asking the model to mark its own homework
 > - it **schedules its own review** on spaced intervals (1/2/4/7/15/30/60 days); due terms enter the queue on their own
 > - it **shows up where you read** — terms from your own library are marked inside the reply, hover for the definition and its review state
 > - it **feeds the study-trend card** the AI coach quotes, whose numbers all come from SQL, never from the model

@@ -13,6 +13,7 @@
  *   EVAL_API_KEY=sk-x EVAL_MODEL=gpt-4o-mini npm run eval:models --   # 真模型全量
  *   ... run.mjs --suite replicate,search               # 只跑部分套件
  *   ... run.mjs --only rep-00 --check 0.8 --judge      # 前缀过滤/CI 阈值/模型裁判
+ *   ... run.mjs --verify                               # 盲解验算效果(quiz-gen 套件,对应生产 quiz-verify.ts / issue #71)
  *
  * 产出:tools/eval/model-bench/results/<tag>.json(逐用例逐检查)+ 同名 .md(汇总报告)。
  */
@@ -20,7 +21,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildPrompt, buildReplicatePrompt, buildSearchPrompt, buildTermsPrompt, loadQuizProtocol, loadTermsProtocol } from './lib/protocol.mjs';
-import { gradeCase, HARD_CHECKS, SOFT_CHECKS } from './lib/graders.mjs';
+import { gradeCase, HARD_CHECKS, SOFT_CHECKS, tryParse } from './lib/graders.mjs';
 import { fakeCompletion, BROKEN_FIXTURES, FIXTURE_CASE } from './lib/fake-model.mjs';
 import { replicateSuite, searchSuite, termsSuite, selftestSuites } from './lib/suites.mjs';
 
@@ -108,6 +109,57 @@ async function mapLimit(items, limit, fn) {
   return out;
 }
 
+// ── 盲解验算(--verify,量产品保险丝 quiz-verify.ts 的效果,issue #71)──
+//
+// 对 quiz-gen 套件每道选择类题:同一模型**盲解**(只喂题干+选项,与生产 buildSolvePrompt
+// 同款无泄漏),与标注比对。产出四个数:一致率 / 拦截数 / 不可解数 / answers 红 before→after
+// (after = 把被拦的题丢掉后重跑 answers 检查)——「保险丝拦住了多少坏题」从此是可对照的数字。
+// 解析纪律与生产 quiz-verify.ts 一致:只认字母;单选答出多个字母=矛盾 → 不猜,记 unresolved。
+const V_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
+function verifyParse(reply, optionCount, multiple) {
+  const seen = new Set();
+  for (const ch of String(reply).toUpperCase()) {
+    const i = V_LETTERS.indexOf(ch);
+    if (i >= 0 && i < optionCount) seen.add(i);
+  }
+  if (seen.size === 0 || (!multiple && seen.size > 1)) return null;
+  return [...seen].sort((a, b) => a - b);
+}
+
+async function verifySolve(q, useFake) {
+  if (useFake) return (q.answer ?? []).map((i) => V_LETTERS[i] ?? '').join(''); // 假模式=理想 solver,验通路
+  const opts = (q.options ?? []).map((o, i) => `${V_LETTERS[i]}. ${o}`);
+  const ask = q.type === 'multiple' ? '这是多选题,只输出全部正确选项的字母(如 AC),不要任何解释。' : '只输出正确选项的字母,不要任何解释。';
+  try {
+    return await llm([ask, '', `题干：${q.question}`, ...opts].join('\n'), { temperature: 0, maxTokens: 16 });
+  } catch {
+    return null;
+  }
+}
+
+async function verifyQuizRaw(raw, useFake) {
+  const parsed = tryParse(raw);
+  const qs = parsed?.questions ?? [];
+  const stats = { checked: 0, passed: 0, dropped: 0, unresolved: 0 };
+  const kept = [];
+  for (const q of qs) {
+    if (!['single', 'multiple', 'judge'].includes(q.type) || !Array.isArray(q.options) || !Array.isArray(q.answer)) {
+      kept.push(q);
+      continue;
+    }
+    const reply = await verifySolve(q, useFake);
+    stats.checked += 1;
+    if (reply == null) { stats.unresolved += 1; kept.push(q); continue; }
+    const got = verifyParse(reply, q.options.length, q.type === 'multiple');
+    if (got == null) { stats.unresolved += 1; kept.push(q); continue; }
+    const want = (q.answer ?? []).map(Number);
+    const same = got.length === want.length && got.every((x) => want.includes(x));
+    if (same) { stats.passed += 1; kept.push(q); } else stats.dropped += 1;
+  }
+  const filteredRaw = parsed && kept.length > 0 ? `[QUIZ]${JSON.stringify({ title: parsed.title, questions: kept })}[/QUIZ]` : raw;
+  return { ...stats, answersAfterOk: HARD_CHECKS.answers(filteredRaw).pass };
+}
+
 // ── LLM 裁判(可选,仅 quiz-gen/replicate):质量分 1..5 ──
 async function judgeQuality(raw, material) {
   const prompt = `你是出题质量评审。给下面这份 AI 生成的题组 JSON 从三个维度各打 1-5 分(5 最好):
@@ -185,6 +237,8 @@ async function main() {
       let judge = null;
       if (flag('judge') && !useFake && !error && (name === 'quiz-gen' || name === 'replicate'))
         judge = await judgeQuality(raw, kase.material ?? kase.ref?.question ?? '');
+      let verify = null;
+      if (flag('verify') && name === 'quiz-gen' && !error) verify = await verifyQuizRaw(raw, useFake);
       const bad = Object.entries(graded.checks).filter(([, c]) => !c.pass).map(([n]) => n);
       console.log(
         `${error ? '💥' : graded.success ? '✅' : '❌'} ${kase.id}` +
@@ -192,13 +246,26 @@ async function main() {
           (graded.f1 != null ? ` F1=${graded.f1.toFixed(2)}` : '') +
           (bad.length && !graded.success ? ` 红:${bad.join(',')}` : '') +
           (judge ? ` 裁判:${judge.correctness}/${judge.clarity}/${judge.distractors}` : '') +
+          (verify ? ` 验算:${verify.passed}/${verify.checked}一致${verify.dropped ? `·拦${verify.dropped}` : ''}` : '') +
           (error ? ` ${error.slice(0, 60)}` : ''),
       );
-      return { id: kase.id, error, raw, judge, ...graded };
+      return { id: kase.id, error, raw, judge, verify, ...graded };
     });
 
     const agg = suite.aggregate(results);
     console.log(`── ${name}:${agg.headline}`);
+    // 验算汇总(--verify):一致率/拦截/answers 红 before→after ——保险丝效果的正账
+    const withV = results.filter((r) => r.verify);
+    if (withV.length > 0) {
+      const t = withV.reduce((a, r) => ({ checked: a.checked + r.verify.checked, passed: a.passed + r.verify.passed, dropped: a.dropped + r.verify.dropped, unresolved: a.unresolved + r.verify.unresolved }), { checked: 0, passed: 0, dropped: 0, unresolved: 0 });
+      const redBefore = withV.filter((r) => r.checks.answers && !r.checks.answers.pass).length;
+      const redAfter = withV.filter((r) => !r.verify.answersAfterOk).length;
+      agg.verify = { ...t, answersRedBefore: redBefore, answersRedAfter: redAfter };
+      agg.metrics['验算一致率'] = t.checked ? `${((t.passed / t.checked) * 100).toFixed(1)}%` : 'n/a';
+      agg.metrics['验算拦截'] = `${t.dropped} 题(不可解 ${t.unresolved})`;
+      agg.metrics['answers红 前→后'] = `${redBefore} → ${redAfter} 例`;
+      console.log(`── 验算(--verify):一致率 ${agg.metrics['验算一致率']} · 拦截 ${t.dropped} 题 · answers 红 ${redBefore}→${redAfter} 例`);
+    }
     summary.push({ name, n: results.length, ...agg });
     allResults[name] = results;
   }

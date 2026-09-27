@@ -75,6 +75,10 @@ EVAL_API_KEY=... EVAL_MODEL=... npm run eval:models -- --judge
 
 各套件主指标的均值(×100)。`--check <阈值>` 低于即退出码 1,可接 CI 或发版前门禁。
 
+### `--verify` — 盲解验算效果(对应生产 `quiz-verify.ts`,issue #71)
+
+量的是那道**保险丝**:生产侧出题后 solver 盲解验答案、不一致丢题。加 `--verify` 后,quiz-gen 套件每道选择类题会被同一模型盲解一遍(只喂题干+选项,与生产 `buildSolvePrompt` 同款无泄漏),报四个数:**验算一致率**(标注与盲解一致的占比)、**拦截数**(会被丢弃的题)、**不可解数**(solver 答不上/矛盾,保守放行)、**answers 红 前→后**(把被拦的题丢掉后重跑 answers 检查)。解析纪律与生产实现逐字一致:只认字母、单选答出多个字母=矛盾不猜。假模式下 solver=理想应答,用于验通路。
+
 ## 纪律(与仓库既有哲学对齐)
 
 - **协议不许手抄**:`QUIZ_PROTOCOL` 与 `TERMS_PROTOCOL` 运行时直接从生产源码正则提取,生产协议一改 eval 自动跟上(同 `tools/metrics.mjs` 对账纪律);配比指令、资料块措辞逐字镜像 `buildMixInstruction` / `buildQuizSearchBlock`。

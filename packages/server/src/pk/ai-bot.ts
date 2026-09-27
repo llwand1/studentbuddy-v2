@@ -76,7 +76,7 @@ export async function runAiQuiz(roomId: string, ownerId: string | null): Promise
   try {
     // 末参 online=true：AI 出题也联网，与人出题同口径（match.ts 那侧同样开了）。
     // 失败不阻断：搜不到就退回模型知识，AI 出题失败本就按 CD 不变、可免费重试处理，计分不受影响。
-    payload = await generateQuiz(topic, undefined, PK_QUIZ_MIX, undefined, undefined, true, ownerId);
+    payload = await generateQuiz(topic, undefined, PK_QUIZ_MIX, undefined, undefined, true, ownerId, true); // 末参 verify=true：对战题必须过盲解验算（issue #71）
   } catch {
     payload = null;
   }

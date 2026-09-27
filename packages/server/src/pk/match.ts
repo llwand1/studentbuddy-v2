@@ -175,6 +175,7 @@ export async function submitQuiz(
         undefined,
         true,
         ownerId,
+        true, // verify：对战题必须过盲解验算（issue #71）
       );
       generated = payload?.questions.find((x) => x.type === qKind);
     }

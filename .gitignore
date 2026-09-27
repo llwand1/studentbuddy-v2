@@ -16,3 +16,4 @@ _probe/
 
 # 评测台运行产物：每次真调的模型原文录制与指标快照（同 coverage/ 的道理——入库就是把采集时刻的旧数字留在树里误导人）
 tools/eval/reports/
+_sb_write_probe.txt

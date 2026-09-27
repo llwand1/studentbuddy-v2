@@ -34,11 +34,11 @@ export const HERO: {
   ctaNote: Bi;
   statsAria: Bi;
 } = {
-  titlePre: { zh: '从一个问题出发，', en: 'Start with a question. ' },
-  titleAccent: { zh: '探索你的知识大陆', en: 'Explore a world of knowledge.' },
+  titlePre: { zh: '把词条化为力量，', en: 'Turn knowledge into power. ' },
+  titleAccent: { zh: '向遗忘的怪物宣战', en: 'Face the monsters of forgetting.' },
   sub: {
-    zh: '一个游戏化知识学习 Agent。和 AI 把问题聊明白，让知识变成地图上的地块；遇见复习怪物，就用理解收复它。',
-    en: 'A gamified knowledge learning agent. Work through questions with AI, see concepts become land, and reclaim tiles by answering review challenges.',
+    zh: '一个游戏化知识学习 Agent。你是能把知识词条化为力量的勇者：和 AI 把问题聊明白，词条就成了你的武器；遗忘化作怪物侵占大陆，用理解击败它们、收复地块、收集卡牌。',
+    en: 'A gamified knowledge learning agent. You are a hero who turns terms into power: work through questions with AI and every term becomes a weapon; when forgetting spawns monsters on the continent, defeat them with understanding, reclaim land and collect cards.',
   },
   cta: { zh: '开始使用', en: 'Get started' },
   ctaNote: { zh: '从你感兴趣的一个问题开始', en: 'Bring a question you care about' },
@@ -47,9 +47,9 @@ export const HERO: {
 
 /** 首屏用玩法标签说明体验，工程指标留在仓库的自动对账页。 */
 export const HERO_TAGS: Bi[] = [
-  { zh: '像素世界', en: 'Pixel world' },
+  { zh: '词条即武器', en: 'Terms as weapons' },
   { zh: '知识大陆', en: 'Knowledge continent' },
-  { zh: '图文复盘', en: 'Visual explanations' },
+  { zh: '暗黑像素', en: 'Dark pixel art' },
 ];
 
 export const AUTH: { or: Bi; ghBtn: Bi; ghHint: Bi } = {

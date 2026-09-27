@@ -66,7 +66,7 @@ describe('Landing — 未登录门面', () => {
     // ★ 用 container 读整串而不是 getByText：标题里嵌了 <span class="landing-accent">，
     //   而 getByText 只拼元素的**直接文本子节点**（不含后代），跨 span 的整串它匹配不到
     //   （实测踩过：报 unable to find an element with the text）。
-    expect(container.querySelector('.landing-title')?.textContent).toBe('从一个问题出发，探索你的知识大陆');
+    expect(container.querySelector('.landing-title')?.textContent).toBe('把词条化为力量，向遗忘的怪物宣战');
     expect(getByText('开始使用')).toBeTruthy();
     // 词条旅程五步（2026-09-21 B 回路改锁）：五步现在**各出现两次**——环上药丸 + 右侧清单，
     // `getByText` 遇到多个即抛。改成锁结构，而且这比原来**更强**：
@@ -101,7 +101,9 @@ describe('Landing — 未登录门面', () => {
     expect(container.textContent).not.toContain('每日总结');
     expect(container.textContent).not.toContain('刷题笔记');
     expect(LANDING_DEMOS.map(d => d.key)).not.toContain('graph-flow');
-    expect(container.querySelector('.landing-hero .landing-continent')?.textContent).toContain('知识大陆');
+    // 2026-09-28：首屏换成可交互序章，HUD 仍标明「知识大陆」，手牌四张词条卡齐备
+    expect(container.querySelector('.landing-hero .lh-hud')?.textContent).toContain('知识大陆');
+    expect(container.querySelectorAll('.landing-hero .lh-card').length).toBe(4);
     expect(getByText('智能出题')).toBeTruthy();
     expect(getByText('词条高亮')).toBeTruthy();
     expect(getByText('AI 对战')).toBeTruthy();
@@ -185,7 +187,7 @@ describe('Landing — 介绍顺序：它是什么 → 词条 → 功能（2026-0
     const { container } = render(<Landing onAuthed={() => undefined} />);
     // hero 副标瘦身为一句自我介绍：原先那句塞了 4 个 feature 从句的副标已下放介绍段/功能区
     expect(container.querySelector('.landing-sub')?.textContent).toBe(
-      '一个游戏化知识学习 Agent。和 AI 把问题聊明白，让知识变成地图上的地块；遇见复习怪物，就用理解收复它。',
+      '一个游戏化知识学习 Agent。你是能把知识词条化为力量的勇者：和 AI 把问题聊明白，词条就成了你的武器；遗忘化作怪物侵占大陆，用理解击败它们、收复地块、收集卡牌。',
     );
     expect(container.querySelector('.landing-intro-h3')?.textContent).toBe('一切都以词条为主体');
     expect(

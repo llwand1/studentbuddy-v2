@@ -9,10 +9,10 @@
  *     → assistant 消息落库 → GET /messages 逐字一致（「流什么就存什么」）
  *     → 断线重连：已完结轮只回放 done（全量回放会双上屏，B-007 系教训）
  *     → 跨用户负锁：用户 B 读 A 的会话必须 404（不回 403）
- *   出题纵切：POST /api/quiz/generate（假模型出 [QUIZ] 协议）→ 落题库
- *     → GET /bank/:id 读回 → 逐题判分提交 /stats/record → 统计行读回
- *     → 用户 B 读 A 的题库必须 404
- *   重启存活：杀掉服务进程、以同一数据目录再拉起 → 登录 → 消息与题库仍在
+ *   出题纵切：POST /api/quiz/generate（假模型出 [QUIZ] 协议）→ 登记行进会话
+ *     （题库 2026-09-26 整族下线：quizId 只是临时 id，持久化边界＝messages 表）
+ *     → 墓碑锁：/bank/:id 与 /stats/record 对任何人都是 404（防止功能悄悄复活没人知道）
+ *   重启存活：杀掉服务进程、以同一数据目录再拉起 → 登录 → 消息与出题登记行仍在
  *
  * 边界（诚实声明）：本脚本不驱动 React——前端层由 21 个 jsdom 组件测试与
  * tools/probes/ 的 15 个真机 CDP 探针负责（分层理由见 README §Engineering Proof）。
@@ -271,11 +271,11 @@ async function main() {
     const stolenList = await B.json('GET', '/api/sessions');
     ok('B 的会话列表不含 A 的会话', Array.isArray(stolenList.data) && !stolenList.data.some((s) => s.id === sessionId));
 
-    step('6. 出题纵切：generate → 协议解析 → 落库 → 读回');
+    step('6. 出题纵切：generate → 协议解析 → 登记行进会话（题库 2026-09-26 下线，持久化边界＝messages 表）');
     const gen = await A.json('POST', '/api/quiz/generate', {
       topic: '牛顿运动定律',
+      sessionId,
       mix: { single: 2, multiple: 1, fill: 1, essay: 0, judge: 0 },
-      save: true,
     });
     ok('POST /quiz/generate 200', gen.status === 200, JSON.stringify(gen.data)?.slice(0, 200));
     const quiz = gen.data?.quiz;
@@ -283,33 +283,24 @@ async function main() {
     const mixReport = gen.data?.mix;
     ok('配比报告如实回填 requested/actual', !!mixReport?.requested && !!mixReport?.actual);
     const quizId = gen.data?.quizId;
-    ok('quizId 落库返回', !!quizId);
-    const bank = await A.json('GET', `/api/quiz/bank/${quizId}`);
-    ok('GET /bank/:id 读回同一题组', bank.status === 200 && bank.data?.quiz?.questions?.length === 4);
+    ok('quizId 返回（★ 临时 id：只用于 SSE blockId 与 quiz_generated 事件，不再对应任何题库行）', !!quizId);
+    const msgs1 = await A.json('GET', `/api/sessions/${sessionId}/messages`);
+    const quizRow = (msgs1.data ?? []).find((m) => m.role === 'assistant' && typeof m.content === 'string' && m.content.startsWith('[QUIZ]'));
+    ok('出题登记行已进会话（[QUIZ]…[/QUIZ]，重开会话可还原的持久化载体）', !!quizRow, quizRow?.content?.slice(0, 120));
+    const rowQuiz = quizRow ? JSON.parse(quizRow.content.slice('[QUIZ]'.length, quizRow.content.lastIndexOf('[/QUIZ]'))) : null;
+    ok('登记行带同一 quizId 且 4 题齐全', rowQuiz?.quizId === quizId && Array.isArray(rowQuiz?.questions) && rowQuiz.questions.length === 4, `rowQuizId=${rowQuiz?.quizId} 题数=${rowQuiz?.questions?.length}`);
+    const bankGone = await A.json('GET', `/api/quiz/bank/${quizId}`);
+    ok('★ 墓碑锁：/bank/:id 已随题库整族下线 ⇒ 404（读回路径不复存在）', bankGone.status === 404, `got ${bankGone.status}`);
     ok('题库侧 fake-quiz 模型确实被调用', fake.calls.some((c) => c.model === 'fake-quiz'));
 
-    step('7. 判分与统计：按结构化答案对错逐题提交 → 统计读回');
-    const answers = [
-      { index: 0, picked: [1] },
-      { index: 1, picked: [1] }, // 故意答错（正确是 [2]）
-      { index: 2, picked: [1, 2, 3] },
-      { index: 3, picked: ['ma'] },
-    ];
-    for (const a of answers) {
-      const q = quiz.questions[a.index];
-      const correct = JSON.stringify(a.picked) === JSON.stringify(q.answer);
-      const rec = await A.json('POST', '/api/quiz/stats/record', { quizId, questionIndex: a.index, correct, answer: a.picked });
-      ok(`第 ${a.index + 1} 题提交（服务端契约只收对错事实）`, rec.status === 200);
-    }
-    const bank2 = await A.json('GET', `/api/quiz/bank/${quizId}`);
-    const stats = bank2.data?.stats ?? [];
-    const correctSum = stats.reduce((s, r) => s + (r.correct ? 1 : 0), 0);
-    ok('统计行 4 条', stats.length === 4, JSON.stringify(stats));
-    ok('★「析」：3 对 1 错的正确率可读出（75%）', correctSum === 3 && stats.length === 4);
+    step('7. 即时判分：答案随题下发（题卡当场判），服务端不再收逐题统计');
+    ok('每题都带 answer 键（题卡当场判分的前提）', Array.isArray(quiz.questions) && quiz.questions.every((q) => q.answer !== undefined), JSON.stringify(quiz.questions?.map((q) => Object.keys(q))));
+    const statsGone = await A.json('POST', '/api/quiz/stats/record', { quizId, questionIndex: 0, correct: true });
+    ok('★ 墓碑锁：/stats/record 已随题库整族下线 ⇒ 404（逐题统计不复存在）', statsGone.status === 404, `got ${statsGone.status}`);
 
-    step('8. 题库侧隔离负锁：B 读不到 A 的题库');
+    step('8. 题库下线负锁（B 视角）：题卡的隔离边界＝会话归属（步骤 5 已锁），读回路径对任何人都不存在');
     const stolenBank = await B.json('GET', `/api/quiz/bank/${quizId}`);
-    ok('B 读 A 题库 ⇒ 404', stolenBank.status === 404, `got ${stolenBank.status}`);
+    ok('B 读该 quizId 的旧题库 ⇒ 404（连同 A 也没有这条路径）', stolenBank.status === 404, `got ${stolenBank.status}`);
 
     step('9. 重启存活：杀进程 → 同库再起 → 登录 → 数据仍在（持久化边界）');
     server.kill();
@@ -334,8 +325,9 @@ async function main() {
     ok('重启后 A 用密码登录成功（口令哈希/会话链路持久）', login.status === 200 && !!login.data?.user?.id, JSON.stringify(login.data));
     const msgs2 = await A2.json('GET', `/api/sessions/${sessionId}/messages`);
     ok('重启后消息仍在库（assistant 内容与重启前逐字一致）', (msgs2.data ?? []).some((m) => m.role === 'assistant' && m.content === streamedText));
-    const bank3 = await A2.json('GET', `/api/quiz/bank/${quizId}`);
-    ok('重启后题库与统计仍在', bank3.status === 200 && (bank3.data?.stats ?? []).length === 4);
+    const msgs3 = await A2.json('GET', `/api/sessions/${sessionId}/messages`);
+    const row3 = (msgs3.data ?? []).find((m) => m.role === 'assistant' && typeof m.content === 'string' && m.content.includes(`"quizId":"${quizId}"`));
+    ok('重启后出题登记行仍在会话里（同一 quizId，题卡刷新可还原）', !!row3, row3?.content?.slice(0, 120));
 
     step('收尾');
     ok('全程零真实外呼（fake.calls 即全部模型流量）', true, `calls=${fake.calls.length}`);

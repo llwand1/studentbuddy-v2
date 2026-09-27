@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-27T06:06:15.421Z",
+  "generatedAt": "2026-09-27T06:36:39.019Z",
   "code": {
     "rows": [
       {
@@ -20,13 +20,13 @@
         "pkg": "web",
         "srcFiles": 200,
         "testFiles": 76,
-        "srcLines": 27042,
+        "srcLines": 27054,
         "testLines": 11602
       }
     ],
     "srcFiles": 413,
     "testFiles": 222,
-    "srcLines": 60199,
+    "srcLines": 60211,
     "testLines": 42258,
     "tsxTestFiles": 30
   },
@@ -86,16 +86,16 @@
     "probes": 15
   },
   "repo": {
-    "head": "20f3bdf",
+    "head": "5e00812",
     "headDate": "2026-09-27",
-    "commitsLast14d": 268,
+    "commitsLast14d": 269,
     "branch": "feat/knowledge-continent-npc",
     "dirtyFiles": 3
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 65.3,
+    "wallSec": 60.8,
     "staleDays": 0,
     "files": 222,
     "cases": 2996,
@@ -152,8 +152,8 @@
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.139",
-      "measured": "v0.2.139",
+      "claimed": "v0.2.140",
+      "measured": "v0.2.140",
       "ok": true
     },
     {

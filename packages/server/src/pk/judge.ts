@@ -233,6 +233,7 @@ async function generateSimilar(topic: string, nextPrompt: string, ownerId?: stri
       undefined,
       true,
       ownerId,
+      true, // verify：对战题必须过盲解验算（issue #71）
     );
     return payload?.questions.find((x) => x.type === 'single') ?? null;
   } catch {

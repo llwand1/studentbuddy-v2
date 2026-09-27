@@ -1,0 +1,30 @@
+{"id":"rep-001-math-eq","domain":"数学","type":"single","ref":{"question":"解方程 3x+5=20，x 的值是多少？","options":["3","5","15","45"],"answer":[1]}}
+{"id":"rep-002-math-circle","domain":"数学","type":"single","ref":{"question":"半径为 3 的圆，面积是多少？","options":["6π","9π","3π","12π"],"answer":[1]}}
+{"id":"rep-003-phys-light","domain":"物理","type":"single","ref":{"question":"光在真空中的传播速度约为多少？","options":["3×10⁶ m/s","3×10⁷ m/s","3×10⁸ m/s","3×10⁹ m/s"],"answer":[2]}}
+{"id":"rep-004-chem-water","domain":"化学","type":"single","ref":{"question":"水的化学式是什么？","options":["H₂O","CO₂","O₂","H₂O₂"],"answer":[0]}}
+{"id":"rep-005-bio-atp","domain":"生物","type":"single","ref":{"question":"细胞内直接供能的「能量货币」是哪种物质？","options":["DNA","葡萄糖","ATP","蛋白质"],"answer":[2]}}
+{"id":"rep-006-hist-qin","domain":"历史","type":"single","ref":{"question":"秦统一六国、建立中国历史上第一个统一的中央集权王朝是在哪一年？","options":["公元前 230 年","公元前 221 年","公元前 202 年","公元 221 年"],"answer":[1]}}
+{"id":"rep-007-geo-everest","domain":"地理","type":"single","ref":{"question":"世界海拔最高的山峰是哪一座？","options":["乔戈里峰","干城章嘉峰","珠穆朗玛峰","洛子峰"],"answer":[2]}}
+{"id":"rep-008-eng-verb","domain":"英语","type":"single","ref":{"question":"He ____ to school by bike every day. 空格处应填哪一项？","options":["go","goes","going","gone"],"answer":[1]}}
+{"id":"rep-009-cs-binary","domain":"计算机","type":"single","ref":{"question":"二进制数 1011 转换为十进制是多少？","options":["9","10","11","13"],"answer":[2]}}
+{"id":"rep-010-math-pyth","domain":"数学","type":"single","ref":{"question":"直角三角形两条直角边分别为 3 和 4，斜边长是多少？","options":["5","6","7","12"],"answer":[0]}}
+{"id":"rep-011-phys-fall","domain":"物理","type":"judge","ref":{"question":"在忽略空气阻力的情况下，重的物体比轻的物体下落得更快。","options":["正确","错误"],"answer":[1]}}
+{"id":"rep-012-bio-virus","domain":"生物","type":"judge","ref":{"question":"病毒具有细胞结构，能够独立进行新陈代谢。","options":["正确","错误"],"answer":[1]}}
+{"id":"rep-013-hist-treaty","domain":"历史","type":"judge","ref":{"question":"中日甲午战争后，清政府被迫签订了《马关条约》。","options":["正确","错误"],"answer":[0]}}
+{"id":"rep-014-chem-rust","domain":"化学","type":"judge","ref":{"question":"铁生锈是一种物理变化。","options":["正确","错误"],"answer":[1]}}
+{"id":"rep-015-geo-yangtze","domain":"地理","type":"judge","ref":{"question":"长江是中国最长的河流。","options":["正确","错误"],"answer":[0]}}
+{"id":"rep-016-phys-boil","domain":"物理","type":"fill","ref":{"question":"标准大气压下，水的沸点是____℃。","answer":["100"]}}
+{"id":"rep-017-hist-inventions","domain":"历史","type":"fill","ref":{"question":"中国古代四大发明是造纸术、印刷术、指南针和____。","answer":["火药"]}}
+{"id":"rep-018-bio-photo","domain":"生物","type":"fill","ref":{"question":"光合作用吸收____，释放氧气。","answer":["二氧化碳"]}}
+{"id":"rep-019-math-triangle","domain":"数学","type":"fill","ref":{"question":"三角形的内角和为____度。","answer":["180"]}}
+{"id":"rep-020-eng-past","domain":"英语","type":"fill","ref":{"question":"动词 go 的过去式是____。","answer":["went"]}}
+{"id":"rep-021-chem-first","domain":"化学","type":"single","ref":{"question":"元素周期表中的第一号元素是什么？","options":["氦","氢","氧","碳"],"answer":[1]}}
+{"id":"rep-022-hist-tang","domain":"历史","type":"single","ref":{"question":"唐朝的建立者是谁？","options":["李世民","李渊","李隆基","武则天"],"answer":[1]}}
+{"id":"rep-023-geo-pacific","domain":"地理","type":"single","ref":{"question":"世界上面积最大的海洋是哪一个？","options":["大西洋","印度洋","北冰洋","太平洋"],"answer":[3]}}
+{"id":"rep-024-cs-404","domain":"计算机","type":"single","ref":{"question":"HTTP 状态码 404 表示什么含义？","options":["请求成功","服务器内部错误","请求的资源不存在","禁止访问"],"answer":[2]}}
+{"id":"rep-025-astro-lightyear","domain":"天文","type":"single","ref":{"question":"「光年」是什么物理量的单位？","options":["时间","长度","速度","亮度"],"answer":[1]}}
+{"id":"rep-026-bio-mammal","domain":"生物","type":"multiple","ref":{"question":"下列动物中属于哺乳动物的有哪些？","options":["鲸","鲨鱼","蝙蝠","企鹅"],"answer":[0,2]}}
+{"id":"rep-027-energy-renew","domain":"地理","type":"multiple","ref":{"question":"下列能源中属于可再生能源的有哪些？","options":["太阳能","煤炭","风能","石油"],"answer":[0,2]}}
+{"id":"rep-028-astro-sunrise","domain":"天文","type":"judge","ref":{"question":"由于地球自西向东自转，太阳总是从东方升起。","options":["正确","错误"],"answer":[0]}}
+{"id":"rep-029-lit-hongloumeng","domain":"语文","type":"single","ref":{"question":"《红楼梦》的作者是谁？","options":["罗贯中","施耐庵","吴承恩","曹雪芹"],"answer":[3]}}
+{"id":"rep-030-astro-orbit","domain":"天文","type":"fill","ref":{"question":"地球绕太阳公转一周大约需要____天。","answer":["365"]}}

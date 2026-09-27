@@ -1,0 +1,25 @@
+{"id":"term-001-energy","domain":"物理","material":"运动的物体具有动能，动能大小与质量和速度有关；被举高或发生弹性形变的物体具有势能。动能与势能统称机械能，在只有重力做功的情况下，机械能总量保持不变，这就是机械能守恒定律。","gold":["动能","势能","机械能","机械能守恒定律"]}
+{"id":"term-002-mito","domain":"生物","material":"线粒体是细胞进行有氧呼吸的主要场所，被称为细胞的「动力车间」。有氧呼吸把葡萄糖彻底氧化分解，释放的能量大部分以热能散失，其余储存在 ATP 中供细胞直接利用。","gold":["线粒体","有氧呼吸","ATP"]}
+{"id":"term-003-mole","domain":"化学","material":"摩尔是物质的量的单位，1 摩尔任何粒子的粒子数都约为 6.02×10²³ 个，这个数值称为阿伏伽德罗常数。摩尔质量指单位物质的量的物质所具有的质量，以 g/mol 为单位。","gold":["摩尔","物质的量","阿伏伽德罗常数","摩尔质量"]}
+{"id":"term-004-hash","domain":"cs","material":"哈希表通过哈希函数把键映射到数组下标，实现平均 O(1) 的查找。不同的键可能映射到同一位置，称为哈希冲突，常用链地址法或开放寻址法解决。装载因子过高时需要扩容并重新哈希。","gold":["哈希表","哈希函数","哈希冲突","装载因子"]}
+{"id":"term-005-photo-en","domain":"english","material":"Photosynthesis takes place in the chloroplast, where chlorophyll absorbs sunlight. The plant converts carbon dioxide and water into glucose, releasing oxygen as a by-product.","gold":["photosynthesis","chloroplast","chlorophyll","glucose"]}
+{"id":"term-006-inflation","domain":"经济","material":"通货膨胀指物价总水平持续上涨、货币购买力下降的现象，常用居民消费价格指数（CPI）来衡量。温和的通胀可能刺激经济，而恶性通胀会严重侵蚀居民财富。","gold":["通货膨胀","CPI","购买力"]}
+{"id":"term-007-immune","domain":"医学","material":"抗原是能引起免疫反应的物质，抗体则是免疫系统针对特定抗原产生的蛋白质。疫苗的原理是让人体在不患病的情况下接触抗原，产生抗体和免疫记忆，获得特异性免疫。","gold":["抗原","抗体","疫苗","特异性免疫"]}
+{"id":"term-008-plate","domain":"地理","material":"板块构造学说认为岩石圈被分割成六大板块，板块在软流层上缓慢移动。板块交界处地壳活跃，多火山和地震，环太平洋地带就是世界上最主要的地震带和火山带。","gold":["板块构造学说","软流层","地震带"]}
+{"id":"term-009-derivative","domain":"数学","material":"导数描述函数在某一点的瞬时变化率，几何意义是曲线在该点切线的斜率。函数在极值点处若可导，则导数为零；通过导数的正负可以判断函数的单调性。","gold":["导数","切线","极值","单调性"]}
+{"id":"term-010-memory","domain":"心理学","material":"短时记忆容量有限，一般只能保持 7±2 个组块，持续时间约 20 到 30 秒。通过组块化可以扩大单个组块的信息量，通过复述可以把短时记忆转入长时记忆。工作记忆是在短时记忆基础上强调信息加工功能的概念。","gold":["短时记忆","组块","长时记忆","工作记忆"]}
+{"id":"term-011-water-en","domain":"english","material":"In the water cycle, water evaporates from the ocean surface, then condenses into tiny droplets that form clouds. When the droplets grow heavy, they fall as precipitation, such as rain or snow.","gold":["evaporate","condense","precipitation"]}
+{"id":"term-012-guardian","domain":"法律","material":"限制民事行为能力人实施民事法律行为，需由其法定代理人代理或者经其同意、追认。未成年人的父母是其监护人；监护人应当按照最有利于被监护人的原则履行监护职责。","gold":["限制民事行为能力人","法定代理人","监护人"]}
+{"id":"term-013-parallax","domain":"天文","material":"光年是光在真空中一年内走过的距离，约 9.46 万亿公里，用于度量天体距离。测量较近恒星距离常用视差法：地球公转引起恒星视位置的微小变化，视差越大距离越近。恒星的亮度用星等表示，数值越小越亮。","gold":["光年","视差","星等"]}
+{"id":"term-014-interval","domain":"音乐","material":"音程是两个音之间的音高距离。半音是十二平均律中最小的音程单位，两个半音构成一个全音。音名相同、频率比为 2:1 的两个音相距一个八度。","gold":["音程","半音","全音","八度"]}
+{"id":"term-015-catalyst","domain":"化学","material":"催化剂能改变化学反应速率而自身的质量和化学性质在反应前后保持不变。它的作用机理是降低反应的活化能，使更多分子成为活化分子，从而加快反应。酶是生物体内的高效催化剂。","gold":["催化剂","活化能","酶"]}
+{"id":"term-016-gene","domain":"生物","material":"DNA 是主要的遗传物质，基因是有遗传效应的 DNA 片段。细胞核内的 DNA 与蛋白质结合形成染色体，人的体细胞中有 23 对染色体。基因通过控制蛋白质的合成来控制生物的性状。","gold":["DNA","基因","染色体","性状"]}
+{"id":"term-017-process","domain":"cs","material":"进程是操作系统进行资源分配的基本单位，线程是 CPU 调度的基本单位，同一进程内的多个线程共享内存空间。CPU 在多个任务间切换时需要保存与恢复现场，称为上下文切换，切换过于频繁会带来明显开销。","gold":["进程","线程","上下文切换"]}
+{"id":"term-018-induction","domain":"物理","material":"法拉第发现了电磁感应现象：闭合电路的一部分导体做切割磁感线运动，或穿过闭合电路的磁通量发生变化时，电路中会产生感应电流。发电机就是根据电磁感应原理制成的。","gold":["电磁感应","磁通量","感应电流"]}
+{"id":"term-019-rhetoric-en","domain":"english","material":"A metaphor states that one thing is another, as in \"Time is a thief\". A simile compares two things using \"like\" or \"as\". Personification gives human qualities to non-human things, for example, \"The wind whispered through the trees\".","gold":["metaphor","simile","personification"]}
+{"id":"term-020-keju","domain":"历史","material":"科举制创立于隋朝，是通过分科考试选拔官员的制度。唐代科举以进士、明经两科最受重视；殿试由皇帝亲自主持，殿试第一名称为状元。科举制延续约 1300 年，1905 年被废除。","gold":["科举制","进士","殿试","状元"]}
+{"id":"term-021-sequence","domain":"数学","material":"等差数列中任意相邻两项之差都等于同一个常数，这个常数叫公差。等差数列的通项公式为 an=a1+(n-1)d，前 n 项和公式为 Sn=n(a1+an)/2。","gold":["等差数列","公差","通项公式"]}
+{"id":"term-022-contour","domain":"地理","material":"地图上海拔相等的相邻各点连成的线叫等高线。等高线密集表示坡度陡，稀疏表示坡度缓；等高线向低处凸出的地方是山脊，向高处凸出的地方是山谷。","gold":["等高线","海拔","坡度","山脊"]}
+{"id":"term-023-utility","domain":"经济","material":"边际效用指每多消费一单位商品所增加的满足程度，通常随消费量增加而递减，称为边际效用递减规律。机会成本是为了得到某种东西而放弃的其他选择中价值最高者。","gold":["边际效用","边际效用递减规律","机会成本"]}
+{"id":"term-024-code-en","domain":"english","material":"An algorithm is a step-by-step procedure for solving a problem. In programming, a variable stores a value that may change, while a loop lets the computer repeat an instruction through iteration until a condition is met.","gold":["algorithm","variable","iteration"]}
+{"id":"term-025-ecosystem","domain":"生物","material":"生态系统由生物群落和无机环境构成。生产者通过光合作用制造有机物，消费者直接或间接以生产者为食，分解者把动植物遗体分解为无机物归还环境。食物链和食物网是能量流动与物质循环的渠道。","gold":["生态系统","生产者","分解者","食物链"]}

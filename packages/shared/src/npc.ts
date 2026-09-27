@@ -1,34 +1,58 @@
 /**
- * @sb/shared/npc — 地图学习伙伴（NPC）的派生公式／名字池／降级台词（契约 `docs/NPC-PARTNER-SPEC.md`）。
+ * @sb/shared/npc — 地图学习伙伴（NPC）的跨端口径：遇险判据／今日交换余额／名字与台词池／花名册容错解析
+ * （契约 `docs/NPC-PARTNER-SPEC.md`）。
  *
- * ★ 为什么放 shared 而不是 server：NPC 的**数量／位置／遇险**三件事必须"跨端一致"
- *   （同一份库在任何端算出同一位伙伴），这是 `continent.ts` 那条 FNV-1a 确定性哈希的同一条判据。
+ * ★ 为什么放 shared 而不是 server：伙伴的**遇险结论**与**今日还能换几次**必须"跨端一致"
+ *   （同一份库在任何端算出同一位伙伴的处境），这是 `continent.ts` 那条 FNV-1a 确定性哈希的同一条判据。
  *   前端要画他、服务端要派单，两处若各算一遍，就会出现"图上画着伙伴遇险、任务清单里没有那单"。
  *   ⇒ **唯一实现放这里**，两端只调用，不复制（同 `term-cards.ts` 的 `starOf`/`rarityOf`）。
+ *
+ * ★★ 2026-09-27 批 12（玩家创建制）**改口径**：伙伴不再由词条数自动派生——旧口径
+ *   `npcCountFor(词条数)`／`npcTermsToNext`／`placeNpcs(candidates, n)` 那一整套自动派位**退役**
+ *   （老板原话「npc 不要那么多，由玩家来创建比较好」）。现在是**玩家在地图上点一格创建**，
+ *   花名册落在 `app_settings` 的 `npc_party` 键上（见 `NpcPartyMember`／`parseNpcParty`）。
+ *   ⇒ 本文件只剩四件仍然跨端的事：**遇险判据**、**今日交换余额**、**名字与台词池**、**花名册解析**，
+ *   外加两条纯公式（名额上限 `npcCapFor`、门票 `npcTasksRequiredFor`）。
  *
  * ★★ 零随机：本文件不许出现 `Math.random` / `Date.now`。伙伴的位置与名字一旦随机，刷新一次就换人，
  *   「他」这个身份（以及用户给他起的名字）立刻失去意义——这是全册最重要的一条实现纪律。
  */
-import { continentHash, worldCells, worldRadiusFor } from './continent.js';
+import { continentHash, worldCells } from './continent.js';
 
 /**
- * 伙伴数量上限的**上下界**（2026-09-27 开放世界批改：上限不再写死，跟世界半径涨）。
- * ★ `NPC_MAX_MIN = 6`：世界再小也"看得出多了人"的密度底（也是旧口径的那个 6）。
+ * 伙伴**名额上限**的上下界（2026-09-27 批 11 改：上限不再写死，跟世界半径涨）。
+ * ★ `NPC_MAX_MIN = 6`：世界再小也"站得下几个人"的密度底（也是旧口径的那个 6）。
  * ★ `NPC_MAX_CAP = 24`：硬上限——再多就"人挤人"，且地图本身也装不下。
  * ⚠️ 密度口径（每 40 格站 1 位）是**产品感受值**，把握度中；要调只改 `npcCapFor` 一处。
  */
 export const NPC_MAX_MIN = 6;
 export const NPC_MAX_CAP = 24;
 
-/** 世界半径 → 伙伴上限：`clamp(floor(世界格数 / 40), 6, 24)` ≈ 每 40 格站 1 位 */
+/** 世界半径 → 伙伴**名额上限**：`clamp(floor(世界格数 / 40), 6, 24)` ≈ 每 40 格站 1 位 */
 export function npcCapFor(radius: number): number {
   const r = Math.max(Math.trunc(radius) || 0, 0);
   const byArea = Math.floor(worldCells(r) / 40);
   return Math.min(Math.max(byArea, NPC_MAX_MIN), NPC_MAX_CAP);
 }
 
-/** 每 8 条词条解锁一位伙伴（★ 按「词条数」不按「领地格数」，理由见 SPEC §2.1） */
-export const NPC_TERMS_PER_NPC = 8;
+/**
+ * 创建**第 N 位**伙伴所需的**已完成任务数**（门票；2026-09-27 批 12 老板裁定「完成一定量的任务等多个条件」）。
+ *
+ * ★ 第 1 位无条件（`0`）：宣传点是「创建你的 AI 学习伙伴」，用户第一眼必须创建得出来——
+ *   一上来就要 3 单任务，他看到的是一枚永远灰着的钮，"这个功能是坏的"。
+ * ★ 第 N≥2 位＝`3 × (N-1)`（3／6／9…）：每多一位都要真的做过几单任务，数量自然长不起来。
+ * ★★ 口径按**名册序号**算，不按"历史创建次数"：否则"让他回家再重建"就是免费刷位，
+ *   门票当场作废（这也是 `removePartner` 必须真的从名册里删掉、而不是打个标记的原因）。
+ * ★ 账本用既有 `study_task` 的 `status='done'` 行数（零新表，见 SPEC §2.3）——
+ *   它天然把"救伙伴""补池""推进""破停滞"四类单都算进来：**做过的事都算**。
+ */
+export const NPC_TASKS_PER_PARTNER = 3;
+
+/** 创建第 `ordinal` 位（1 起）所需的已完成任务数：第 1 位 0，第 N≥2 位 `3×(N-1)` */
+export function npcTasksRequiredFor(ordinal: number): number {
+  const n = Math.max(Math.trunc(ordinal) || 0, 1);
+  return NPC_TASKS_PER_PARTNER * (n - 1);
+}
 
 /** 「遇险」的判定半径（曼哈顿距离），与「靠近才开打」同一条判据 */
 export const NPC_DANGER_RANGE = 1;
@@ -36,8 +60,11 @@ export const NPC_DANGER_RANGE = 1;
 /** 伙伴名字长度上限（按码点截断，避免劈裂代理对） */
 export const NPC_NAME_MAX = 12;
 
-/** 伙伴身份的 `app_settings` 键（`{ name: string }`；空串 = 删键回默认） */
-export const SETTING_KEY_NPC_PARTNER = 'npc_partner';
+/** 伙伴人设（一句自我介绍）长度上限（按码点截断，同上） */
+export const NPC_BIO_MAX = 40;
+
+/** 伙伴花名册的 `app_settings` 键（值 = `{ members: NpcPartyMember[] }`） */
+export const SETTING_KEY_NPC_PARTY = 'npc_party';
 
 /** 每天可交换次数（卡是读数不是道具、信物无法消耗 ⇒ 日闸门是唯一真实代价，见 SPEC §6.3） */
 export const NPC_TRADES_PER_DAY = 2;
@@ -59,7 +86,7 @@ export const NPC_TRADE_COST_LINE =
 export const NPC_FALLBACK_NOTICE =
   '伙伴现在靠固定台词应答——到设置里给他绑一个模型，他就能真的聊起来。';
 
-/** 默认名字池（主伙伴由用户命名覆盖；其余伙伴从这里按哈希取） */
+/** 默认名字池（创建时 AI 不可用 ⇒ 从这里按哈希取一位；也是"AI 起的名字"的兜底） */
 export const NPC_NAME_POOL: readonly string[] = [
   '阿问',
   '小路',
@@ -93,91 +120,48 @@ export const NPC_FALLBACK_LINES: readonly string[] = [
 ];
 
 /**
- * 伙伴数量：`clamp(floor(词条数 / 8), 1, npcCapFor(世界半径))`。
- * ★ 下限 1：空大陆也该有一位伙伴在场（宣传点是「创建你的 AI 学习伙伴」）。
- * ★★ 上限**跟世界半径涨**（老板 2026-09-27 裁定「跟着世界涨」）：世界开放后地图不再封在 140 格，
- *   若上限写死，327 条词条就顶死、"开疆拓土"没有奖励感（与 ⑦ 那条相悖）。
- * ★ `radius` **可省**：省了就用 `worldRadiusFor(termCount)` —— 单一入口，调用方传不出"配不上词条数"
- *   的半径（要测边界就显式传，那就是刻意的）。
+ * 花名册里的一位伙伴（**这就是落库的形状**，见 `SETTING_KEY_NPC_PARTY`）。
+ * ★ `id` 锚在 `termId` 上（`npc:<termId>`）：他"守哪条知识"是他这个人的定义，
+ *   而位置是玩家点的（`row`/`col`），两者都要存 —— 位置不存，刷新一次他就挪窝了。
+ * ★★ 位置**存得起**得益于批 11 的有符号固定中心坐标：世界半径只增不减 ⇒ 已存坐标**永不失效**。
+ *   换成"旧坐标 = 世界左上角起算"的老口径，这张表一加词就得整体迁移（这就是它必须存下来的代价）。
  */
-export function npcCountFor(termCount: number, radius: number = worldRadiusFor(termCount)): number {
-  const n = Math.max(0, Math.trunc(termCount) || 0);
-  return Math.min(Math.max(Math.floor(n / NPC_TERMS_PER_NPC), 1), npcCapFor(radius));
-}
-
-/** 还差几条词条才多一位伙伴；已封顶 ⇒ `null`（UI 用它说 ⑦ 那句激励，不自己算） */
-export function npcTermsToNext(termCount: number, radius: number = worldRadiusFor(termCount)): number | null {
-  const n = Math.max(0, Math.trunc(termCount) || 0);
-  if (npcCountFor(n, radius) >= npcCapFor(radius)) return null;
-  const target = (npcCountFor(n, radius) + 1) * NPC_TERMS_PER_NPC;
-  return Math.max(target - n, 1);
-}
-
-/** 伙伴 id：锚在词条 id 上（跨端稳定，且自带"他懂哪块知识"的语义） */
-export function npcIdOf(termId: string): string {
-  return `npc:${termId}`;
-}
-
-/** 默认名字：`NPC_NAME_POOL[hash % len]`（确定性；同一条词条任何端同名） */
-export function npcNameFor(termId: string): string {
-  if (NPC_NAME_POOL.length === 0) return '';
-  const idx = continentHash(`npcname|${termId}`) % NPC_NAME_POOL.length;
-  return NPC_NAME_POOL[idx] ?? NPC_NAME_POOL[0] ?? '';
-}
-
-/** 可落脚的候选格（服务端从 `continentMap` + `layoutTiles` 产出，**已过滤掉有怪的格**） */
-export interface NpcCandidate {
-  termId: string;
-  term: string;
-  domain: string;
-  row: number;
-  col: number;
-}
-
-/** 一位伙伴（落位结果；`name` 是默认名，主伙伴由服务端用用户命名覆盖） */
-export interface NpcPlacement {
+export interface NpcPartyMember {
+  /** `npc:<termId>` */
   id: string;
+  /** 显示名（创建时 AI 起，可被用户改名；两者都归一化到 `NPC_NAME_MAX`） */
   name: string;
+  /** 一句人设（创建时 AI 写，降级时用 `npcTemplateBio`） */
+  bio: string;
+  /** 他守的词条 = 玩家安置他时点的那一格上的词条 */
   termId: string;
-  term: string;
-  domain: string;
   row: number;
   col: number;
 }
 
 /**
- * 落位：候选格按 `continentHash('npc|' + termId)` 升序（同值按 termId 升序，稳定）取前 `count` 个。
- * ⚠️ 调用方必须**先过滤 `!hasMonster`**：不过滤会出现"伙伴和怪站在同一格"。
+ * 名额与门票的读数（契约 SPEC §2.3）。
+ * ★ 放 shared 而不是 server：**两端都要读它**——地图页用它说"能不能创建"，任务清单用它说
+ *   "还差几单"。若只在服务端定义，web 就得再写一份镜像（本册唯一一处不值当的复制）。
+ * ★ `blockedBy` 是**服务端算好的一句话**，UI 直接显示它，不许自己按 count/max 再编理由
+ *   （两处各编一遍，就会出现"面板说名额满了、地图说还差单据"）。
  */
-export function placeNpcs(candidates: readonly NpcCandidate[], count: number): NpcPlacement[] {
-  const want = Math.min(Math.max(Math.trunc(count) || 0, 0), NPC_MAX_CAP);
-  if (want <= 0) return [];
-  const ranked = [...candidates].sort((a, b) => {
-    const ha = continentHash(`npc|${a.termId}`);
-    const hb = continentHash(`npc|${b.termId}`);
-    if (ha !== hb) return ha - hb;
-    return a.termId < b.termId ? -1 : a.termId > b.termId ? 1 : 0;
-  });
-  const out: NpcPlacement[] = [];
-  const seen = new Set<string>();
-  for (const c of ranked) {
-    if (out.length >= want) break;
-    if (seen.has(c.termId)) continue;
-    seen.add(c.termId);
-    out.push({
-      id: npcIdOf(c.termId),
-      name: npcNameFor(c.termId),
-      termId: c.termId,
-      term: c.term,
-      domain: c.domain,
-      row: c.row,
-      col: c.col,
-    });
-  }
-  return out;
+export interface NpcQuota {
+  /** 已在册的伙伴数 */
+  count: number;
+  /** 名额上限（`npcCapFor(世界半径)`，跟世界涨） */
+  max: number;
+  /** 已完成任务数（既有 `study_task` 的 `status='done'` 行数，零新表） */
+  doneTasks: number;
+  /** 创建**下一位**所需的已完成任务数（第 1 位＝0） */
+  needTasks: number;
+  /** 现在能不能创建（名额／门票／"有没有地可守"三条都过） */
+  canCreate: boolean;
+  /** 不能创建时的一句人话（能创建时 `''`）；★ 禁静默：钮灰着也要说清为什么 */
+  blockedBy: string;
 }
 
-/** 一个格子（伙伴站位） */
+/** 一个格子（伙伴站位／可落位格） */
 export interface NpcSpot {
   row: number;
   col: number;
@@ -198,6 +182,96 @@ export interface NpcThreat {
   distance: number;
 }
 
+/** 伙伴 id：锚在词条 id 上（跨端稳定，且自带"他懂哪块知识"的语义） */
+export function npcIdOf(termId: string): string {
+  return `npc:${termId}`;
+}
+
+/**
+ * 名字归一化：丢控制符 + 去首尾空白 + 按码点截断到 12 字；空串表示"没有名字"（调用方自行裁决）。
+ * ★ 控制符用码点过滤而不是正则：`[\u0000-\u001f]` 会踩 eslint 的 `no-control-regex`
+ *   （那条规则防的是"看不见的字符溜进正则"，这里确实是刻意要滤掉它们，故改成显式判断）。
+ * ★ 截断按码点（`Array.from`）而不是 `slice`：后者按 UTF-16 单元切，会把 emoji 劈成半个。
+ */
+function clampText(input: string, max: number): string {
+  const kept: string[] = [];
+  for (const ch of input) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code < 0x20 || code === 0x7f) continue;
+    kept.push(ch);
+  }
+  return Array.from(kept.join('').trim()).slice(0, max).join('');
+}
+
+export function normalizeNpcName(input: string): string {
+  return clampText(input, NPC_NAME_MAX);
+}
+
+/** 人设归一化：与名字同一条清洗规则，上限 `NPC_BIO_MAX`（AI 写长了就截，不静默丢整句） */
+export function normalizeNpcBio(input: string): string {
+  return clampText(input, NPC_BIO_MAX);
+}
+
+/** AI 不可用时的兜底名字：`NPC_NAME_POOL[hash % len]`（确定性 ⇒ 同一个词条每次都同一位） */
+export function npcNameFromPool(seed: string): string {
+  if (NPC_NAME_POOL.length === 0) return '';
+  const idx = continentHash(`npcname|${seed}`) % NPC_NAME_POOL.length;
+  return NPC_NAME_POOL[idx] ?? NPC_NAME_POOL[0] ?? '';
+}
+
+/** AI 不可用时的兜底人设（★ 只说他守的那条词条，不编造用户进度，同降级台词那条判据） */
+export function npcTemplateBio(term: string): string {
+  const label = term.trim() || '自己那块地';
+  return normalizeNpcBio(`守着「${label}」的伙伴，聊它最在行。`);
+}
+
+/**
+ * 花名册容错解析（数据容错 ADR-6）：坏 JSON／坏条目一律**跳过而不抛**，其余照常返回。
+ * ★ 逐条校验四样：`termId`／`name` 非空、`row`／`col` 是有限数——缺任一样就丢这一位。
+ *   "宁可少一位伙伴，也不要一位没有名字、没有坐标的伙伴"：后者会在画布上变成幽灵节点。
+ * ★ 去重按 `id`（= `npc:<termId>`）与 `row,col` 两把尺子：同一条词条不能被两位伙伴守
+ *   （否则"他守哪条"这句话就说不清），同一格也不能站两个人。
+ * ★ 空串／`{}`／`{members:[]}` 都是合法的"还没有伙伴"，返回 `[]`。
+ */
+export function parseNpcParty(raw: string): NpcPartyMember[] {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw) as unknown;
+  } catch {
+    return [];
+  }
+  if (!value || typeof value !== 'object') return [];
+  const list = (value as { members?: unknown }).members;
+  if (!Array.isArray(list)) return [];
+  const out: NpcPartyMember[] = [];
+  const seenId = new Set<string>();
+  const seenCell = new Set<string>();
+  for (const entry of list) {
+    if (!entry || typeof entry !== 'object') continue;
+    const m = entry as Record<string, unknown>;
+    const termId = typeof m.termId === 'string' ? m.termId.trim() : '';
+    const name = normalizeNpcName(typeof m.name === 'string' ? m.name : '');
+    const row = Math.trunc(Number(m.row));
+    const col = Math.trunc(Number(m.col));
+    if (!termId || !name || !Number.isFinite(row) || !Number.isFinite(col)) continue;
+    const id = typeof m.id === 'string' && m.id ? m.id : npcIdOf(termId);
+    const cell = `${row},${col}`;
+    if (seenId.has(id) || seenCell.has(cell)) continue;
+    seenId.add(id);
+    seenCell.add(cell);
+    out.push({
+      id,
+      name,
+      bio: normalizeNpcBio(typeof m.bio === 'string' ? m.bio : ''),
+      termId,
+      row,
+      col,
+    });
+    if (out.length >= NPC_MAX_CAP) break;
+  }
+  return out;
+}
+
 /** 曼哈顿距离（★ 只在 shared 里算一次，前端不重算遇险结论） */
 export function npcDistance(a: NpcSpot, b: NpcSpot): number {
   return Math.abs(a.row - b.row) + Math.abs(a.col - b.col);
@@ -206,6 +280,9 @@ export function npcDistance(a: NpcSpot, b: NpcSpot): number {
 /**
  * 遇险判定：半径 `range` 内最近的一只怪即威胁；同距按 termId 升序取（确定性）。
  * ★ 距离取 1（正相邻）与 `canStrike` 同判据：伙伴喊"救命"的位置，就是用户**一步能打到**的位置。
+ * ★★ 距离 **0 是合法威胁**（怪就站在他那一格上）：玩家创建时那一格是空的，但之后逾期词条冒出的怪
+ *   可能正好压在他身上——这正是"他的地被夺走了"，也是本玩法最想被看见的一幕。
+ *   ⇒ 落位规则改由「创建时校验」承担（见 SPEC §2.2），`npcDistress` 本身不再假设"他和怪不同格"。
  */
 export function npcDistress(
   npc: NpcSpot,
@@ -233,22 +310,6 @@ export function npcRescueDedupeKey(npcId: string): string {
 export function npcTradesLeft(usedToday: number): number {
   const used = Math.max(0, Math.trunc(usedToday) || 0);
   return Math.max(NPC_TRADES_PER_DAY - used, 0);
-}
-
-/**
- * 名字归一化：丢控制符 + 去首尾空白 + 按码点截断到 12 字；**空串 = 恢复默认**（调用方删键）。
- * ★ 控制符用码点过滤而不是正则：`[\u0000-\u001f]` 会踩 eslint 的 `no-control-regex`
- *   （那条规则防的是"看不见的字符溜进正则"，这里确实是刻意要滤掉它们，故改成显式判断）。
- * ★ 截断按码点（`Array.from`）而不是 `slice`：后者按 UTF-16 单元切，会把 emoji 劈成半个。
- */
-export function normalizeNpcName(input: string): string {
-  const kept: string[] = [];
-  for (const ch of input) {
-    const code = ch.codePointAt(0) ?? 0;
-    if (code < 0x20 || code === 0x7f) continue;
-    kept.push(ch);
-  }
-  return Array.from(kept.join('').trim()).slice(0, NPC_NAME_MAX).join('');
 }
 
 /**

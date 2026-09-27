@@ -34,9 +34,9 @@ interface Props {
   npc: NpcView;
   tokens: readonly NpcToken[];
   tradesLeft: number;
-  /** 是不是**主伙伴**（只有"你的那位"能改名，见 SPEC §3） */
-  isPartner: boolean;
   onRename: (name: string) => Promise<void>;
+  /** 「让他回家」：把这位伙伴从名册里删掉（★ 真删——门票按名册序号算，留个隐身位就是免费刷位） */
+  onRemove: () => Promise<void>;
   onClose: () => void;
   /** 「去救他」：把用户送到能打的格（★ **不代打**，只是走过去） */
   onRescue: (threatTermId: string) => void;
@@ -48,8 +48,8 @@ export function NpcDialog({
   npc,
   tokens,
   tradesLeft,
-  isPartner,
   onRename,
+  onRemove,
   onClose,
   onRescue,
   onLibraryChanged,
@@ -63,6 +63,8 @@ export function NpcDialog({
   const [draw, setDraw] = useState<ChestDraw | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  /** 「让他回家」是否已上膛（两段式：一个不可撤销的动作不该一键就发生） */
+  const [armed, setArmed] = useState(false);
 
   const threat = npc.threat;
 
@@ -91,6 +93,21 @@ export function NpcDialog({
       await onRename(name.trim());
     } catch (e) {
       setNote(e instanceof Error ? e.message : '改名没成功');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** 让他回家：★ 失败也说真话（服务端会说"这位伙伴不在大陆上了"），不静默吞掉 */
+  const leave = async (): Promise<void> => {
+    if (busy) return;
+    setBusy(true);
+    setNote('');
+    try {
+      await onRemove();
+      onClose();
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : '没送走，再试一次');
     } finally {
       setBusy(false);
     }
@@ -142,6 +159,7 @@ export function NpcDialog({
             {npc.name}
             <small>
               守「{npc.term}」· {npc.domain}
+              {npc.bio ? ` · ${npc.bio}` : ''}
             </small>
           </span>
           <button className="continent-btn ghost" onClick={onClose}>
@@ -160,21 +178,39 @@ export function NpcDialog({
           </button>
         )}
 
-        {isPartner && (
-          <div className="continent-npc-line">
-            <input
-              className="continent-input"
-              value={name}
-              maxLength={12}
-              placeholder="给他起个名字"
-              aria-label="伙伴名字"
-              onChange={(e) => setName(e.target.value)}
-            />
-            <button className="continent-btn ghost" disabled={busy || !name.trim()} onClick={() => void rename()}>
-              起名
-            </button>
-          </div>
-        )}
+        {/* ★ 每位伙伴都能改名：批 12 起名字存在名册里，"只有第 0 位能改"那条随自动派位一起退役 */}
+        <div className="continent-npc-line">
+          <input
+            className="continent-input"
+            value={name}
+            maxLength={12}
+            placeholder="给他起个名字"
+            aria-label="伙伴名字"
+            onChange={(e) => setName(e.target.value)}
+          />
+          <button className="continent-btn ghost" disabled={busy || !name.trim()} onClick={() => void rename()}>
+            起名
+          </button>
+        </div>
+
+        {/* ★ 「让他回家」两段式：第一下只是上膛（`armed`），第二下才真删 */}
+        <div className="continent-npc-line">
+          <button
+            className={armed ? 'continent-btn' : 'continent-btn ghost'}
+            disabled={busy}
+            onClick={() => {
+              if (!armed) {
+                setArmed(true);
+                return;
+              }
+              setArmed(false);
+              void leave();
+            }}
+          >
+            {armed ? '确认送他回家' : '让他回家'}
+          </button>
+          {armed && <span className="continent-note">他走了位置与名额都空出来；他守的词条和卡一张不动。</span>}
+        </div>
 
         <div className="continent-npc-say">
           <p>{reply || `说句话吧——他只聊「${npc.term}」和他守的这块地。`}</p>

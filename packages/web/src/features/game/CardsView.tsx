@@ -52,7 +52,11 @@ function StatsBar({
   );
 }
 
-export function CardsView() {
+/**
+ * `onGoContinent` 由 `App` 注入：任务清单里那条"伙伴名额"要能把人送到知识大陆（创建伙伴的落点在那边）。
+ * ★ 这里**不自己拉** `/api/npc`：名额随 `/state` 一起回来（同一个瞬间），多一次读只会多一个不一致的机会。
+ */
+export function CardsView({ onGoContinent }: { onGoContinent: () => void }) {
   const s = useCardsState();
 
   if (s.data === null) {
@@ -124,6 +128,8 @@ export function CardsView() {
         tasks={tasks}
         candidates={candidates}
         freshTaskIds={s.freshTaskIds}
+        npcQuota={s.data.npc}
+        onGoContinent={onGoContinent}
         onChanged={() => void s.refresh()}
       />
 

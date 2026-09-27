@@ -11,8 +11,10 @@
  *   **不带全库卡墙/复习流水**："你还有 5 条欠账"由 coach 说，不由伙伴说——否则他会与任务清单打架。
  */
 import { npcFallbackLine } from '@sb/shared';
-import { routeRole } from '../llm/router.js';
 import type { ChatMessage } from '../llm/types.js';
+// ★ `resolveNpcTarget` 住在 `npc-genesis.ts`：那是"伙伴这一族用哪个模型角色"的唯一口径（起名也要用它），
+//   放那边还顺手断开了 `genesis → talk → npc.ts` 这个环（talk 要 `NpcView`，而 npc.ts 要 party → genesis）。
+import { resolveNpcTarget } from './npc-genesis.js';
 import type { NpcView } from './npc.js';
 
 /** 短对话上限（伙伴说不长的话）；温度比 coach 的 0.6 高——伙伴要有人味 */
@@ -23,13 +25,6 @@ export interface NpcTalkResult {
   reply: string;
   /** ★ `fallback` 不是"失败了"，是"现在只能这样"——前端必须据此说实话，不许当成正常 AI 回复 */
   source: 'ai' | 'fallback';
-}
-
-/** 与 `resolveCoachTarget` 同形：`npc` 未绑定 ⇒ 回退讲解（伙伴对话本质是日常对话，§4.1） */
-export function resolveNpcTarget(ownerId: string | null) {
-  const own = routeRole('npc', undefined, ownerId);
-  if (own?.model) return own;
-  return routeRole('explain', undefined, ownerId) ?? own;
 }
 
 function buildNpcPrompt(npc: NpcView): string {

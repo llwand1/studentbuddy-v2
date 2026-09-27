@@ -164,10 +164,10 @@ beforeEach(() => {
   npcMock.state.mockResolvedValue({
     partnerName: '',
     npcs: [],
-    count: 1,
-    max: 6,
-    termsToNext: 16,
     tradesLeft: 2,
+    // ★ 批 12 起"数量"改由 `quota` 一次给全（名额/门票/能不能创建）；另多一份可落位格 `spots`
+    quota: { count: 0, max: 6, doneTasks: 0, needTasks: 0, canCreate: false, blockedBy: '还没有词条' },
+    spots: [],
   });
 });
 

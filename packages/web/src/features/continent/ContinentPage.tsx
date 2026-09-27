@@ -17,6 +17,7 @@ import type { ContinentMapTerm } from '../../lib/api-terms-continent';
 import { ContinentChest } from './ContinentChest';
 import { ContinentMap, type ContinentChestDrop } from './ContinentMap';
 import { ContinentPartners, useContinentPartners } from './continent-partners';
+import { ContinentDpad } from './continent-dpad';
 import { MonsterDialog } from './MonsterDialog';
 import { CodexPanel } from './CodexPanel';
 import { buildContinentView, canStrike, tileStatusText, type ContinentTileView } from './continent-view';
@@ -36,8 +37,11 @@ export function ContinentPage() {
   /** 地上掉落的宝箱（本局打怪留下的位置；**不落库**——开箱走既有账本） */
   const [drops, setDrops] = useState<ContinentChestDrop[]>([]);
   const [chestAt, setChestAt] = useState<ContinentChestDrop | null>(null);
-  /** 学习伙伴（取数与呈现整体在 `continent-partners.tsx`；这里只要一个 id 来关键盘走位） */
-  const partners = useContinentPartners();
+  /**
+   * 学习伙伴（取数/呈现/选位态整体在 `continent-partners.tsx`；这里只要一个 id 来关键盘走位）。
+   * ★ 注入 `setNotice`：创建成功与失败的话都从这一条横幅说出去（伙伴那一族不自己造第二条通道）。
+   */
+  const partners = useContinentPartners(setNotice);
   const [npcOpenId, setNpcOpenId] = useState<string | null>(null);
   /** 「回到我身上」的计数（自增一次＝按了一次；相机规则在 `useContinentCamera`，页面不碰相机） */
   const [recenter, setRecenter] = useState(0);
@@ -91,6 +95,11 @@ export function ContinentPage() {
   const pick = useCallback(
     (row: number, col: number) => {
       setNotice(null);
+      // ★ 选位态优先于一切：这一下点击的意思是"把伙伴安置在这儿"（走位/打怪/看详情都让位）
+      if (partners.placing) {
+        void partners.placeAt(row, col);
+        return;
+      }
       const drop = drops.find((d) => d.row === row && d.col === col);
       if (drop) {
         // ★ 宝箱优先于伙伴：它是**一次性**的（开了就没了），而伙伴一直站在那儿。
@@ -126,7 +135,7 @@ export function ContinentPage() {
         setDetail(tile);
       }
     },
-    [drops, heroCtl, view, partners.partners],
+    [drops, heroCtl, view, partners.partners, partners.placing, partners.placeAt],
   );
 
   /** 「去救他」：★ **不代打**，只把人送到"一步能打到"的格（与「靠近才开打」同一条判据） */
@@ -213,8 +222,11 @@ export function ContinentPage() {
 
       <ContinentPartners
         partners={partners.partners} tokens={partners.tokens} distressed={partners.distressed}
-        npcOpenId={npcOpenId} total={view.total} onClose={() => setNpcOpenId(null)}
-        onRescue={rescue} onRename={partners.rename} onLibraryChanged={() => void load()} onNotice={setNotice}
+        npcOpenId={npcOpenId} placing={partners.placing}
+        onClose={() => setNpcOpenId(null)} onRescue={rescue}
+        onRename={partners.rename} onRemove={partners.remove}
+        onStartCreate={partners.startCreate} onCancelCreate={partners.cancelCreate}
+        onLibraryChanged={() => void load()} onNotice={setNotice}
       />
 
       {error && <p className="continent-banner warn">地图加载失败：{error}</p>}
@@ -236,6 +248,7 @@ export function ContinentPage() {
           heroStart={heroCtl.animStart}
           chests={drops}
           npcs={partners.marks}
+          placeSpots={partners.placeSpots}
           recenterToken={recenter}
           onPick={pick}
           burst={burst}
@@ -245,28 +258,13 @@ export function ContinentPage() {
         {showCodex && <CodexPanel found={view.codexFound} onClose={() => setShowCodex(false)} />}
       </div>
 
-      {/* D-pad：键盘之外的走位入口（触屏/鼠标玩家不该为了走一步去挂键盘） */}
-      <div className="continent-dpad" aria-label="走位">
-        <button className="continent-btn ghost" onClick={() => heroCtl.step(-1, 0)} aria-label="向上走">
-          ▲
-        </button>
-        <button className="continent-btn ghost" onClick={() => heroCtl.step(0, -1)} aria-label="向左走">
-          ◀
-        </button>
-        <button className="continent-btn ghost" onClick={heroCtl.halt} aria-label="停下">
-          停
-        </button>
-        <button className="continent-btn ghost" onClick={() => heroCtl.step(0, 1)} aria-label="向右走">
-          ▶
-        </button>
-        <button className="continent-btn ghost" onClick={() => heroCtl.step(1, 0)} aria-label="向下走">
-          ▼
-        </button>
-        <button className="continent-btn ghost" aria-label="回到我身上" onClick={() => setRecenter((n) => n + 1)}>
-          回到我身上
-        </button>
-        {heroCtl.queued > 0 && <span className="continent-dpad-queue">还要走 {heroCtl.queued} 步</span>}
-      </div>
+      {/* D-pad：键盘之外的走位入口（已拆成 `continent-dpad.tsx`——本文件贴 `.tsx ≤300` 红线） */}
+      <ContinentDpad
+        onStep={heroCtl.step}
+        onHalt={heroCtl.halt}
+        onRecenter={() => setRecenter((n) => n + 1)}
+        queued={heroCtl.queued}
+      />
 
       {hunting && (
         <MonsterDialog tile={hunting} pool={terms ?? []} onSolved={solve} onClose={() => setHunting(null)} />

@@ -1,122 +1,141 @@
 /**
- * shared/npc.test — 地图学习伙伴（NPC）的派生口径锁（契约 `docs/NPC-PARTNER-SPEC.md` §2/§5）。
+ * shared/npc.test — 学习伙伴（NPC）的跨端口径锁（契约 `docs/NPC-PARTNER-SPEC.md` §2/§5）。
  *
- * ★ 本文件锁的是「**同一份库必得同一群伙伴**」这条承诺：数量、位置、名字只要有一处随机，
- *   用户每次刷新都会看到伙伴换人，"创建你的 AI 学习伙伴"这句话当场作废。
- *   这类 bug 在 UI 上只表现为"好像换了个名字"，没有断言就会长期无人发现。
- * ★ 另一条容易写错的：**遇险半径 = 正相邻**（与 `canStrike` 同判据）——放宽到 2 会出现
- *   "他说被围住了，我却够不着"。
+ * ★ 本文件锁的是三件"两处各算一遍就会互相打脸"的事：
+ *   ① **花名册容错解析**（`parseNpcParty`）：坏 JSON／缺字段／重复格都要跳过而不抛，
+ *      否则一个脏字节会让整张花名册消失（或涌现出没有坐标的幽灵伙伴）；
+ *   ② **名额与门票两条纯公式**（`npcCapFor` / `npcTasksRequiredFor`）：它们决定"能不能再创建一位"，
+ *      算错了要么把用户挡在门外，要么让位子白送；
+ *   ③ **遇险半径 = 正相邻**（与 `canStrike` 同判据）——放宽到 2 会出现"他说被围住了，我却够不着"。
+ *      ★ 批 12 起 **距离 0 也是合法威胁**（怪压在他那一格上＝地被夺走了），故这里专门锁一条。
+ * ★ 零随机的判据（`npcNameFromPool` / `npcFallbackLine`）也在这里：名字一旦随机，刷新一次就换人。
  */
 import { describe, expect, it } from 'vitest';
 import {
+  NPC_BIO_MAX,
   NPC_DANGER_RANGE,
   NPC_MAX_CAP,
   NPC_MAX_MIN,
   NPC_NAME_MAX,
   NPC_NAME_POOL,
-  NPC_TERMS_PER_NPC,
+  NPC_TASKS_PER_PARTNER,
   NPC_TRADES_PER_DAY,
   npcCapFor,
-  npcCountFor,
   npcDistress,
   npcFallbackLine,
   npcIdOf,
-  npcNameFor,
+  npcNameFromPool,
   npcRescueDedupeKey,
-  npcTermsToNext,
+  npcTasksRequiredFor,
+  npcTemplateBio,
   npcTradesLeft,
+  normalizeNpcBio,
   normalizeNpcName,
-  placeNpcs,
-  type NpcCandidate,
+  parseNpcParty,
   type NpcMonster,
 } from './npc.js';
-// ★ 世界口径在 continent.ts（伙伴数量上限跟着它涨）——从那里引，不从 npc.ts 转出
+// ★ 世界口径在 continent.ts（名额上限跟着它涨）——从那里引，不从 npc.ts 转出
 import { WORLD_MAX_RADIUS, WORLD_MIN_RADIUS, worldRadiusFor } from './continent.js';
 
-const cand = (termId: string, row: number, col: number): NpcCandidate => ({
-  termId,
-  term: `词-${termId}`,
-  domain: '测试域',
-  row,
-  col,
-});
+const member = (termId: string, row: number, col: number, extra: Record<string, unknown> = {}): string =>
+  JSON.stringify({ id: `npc:${termId}`, name: `名-${termId}`, bio: '守着它', termId, row, col, ...extra });
 
-describe('npcCountFor — 每 8 条词条解锁一位伙伴，下限 1、上限 6', () => {
-  it('① 边界：0/7 条 → 1 位（下限）；8/9 条 → 1 位；16 条 → 2 位；封顶 6 位', () => {
-    expect(npcCountFor(0)).toBe(1);
-    expect(npcCountFor(7)).toBe(1);
-    expect(npcCountFor(NPC_TERMS_PER_NPC)).toBe(1);
-    expect(npcCountFor(NPC_TERMS_PER_NPC + 1)).toBe(1);
-    expect(npcCountFor(NPC_TERMS_PER_NPC * 2)).toBe(2);
-    // ★ 上限跟世界半径涨（开放世界批）：小世界仍是 6，世界撑大后跟着涨，到 40 半径封顶 24
+const party = (...members: string[]): string => `{"members":[${members.join(',')}]}`;
+
+describe('npcCapFor — 名额上限跟世界半径涨（下限 6、硬上限 24）', () => {
+  it('① 边界：小世界 6、本机 327 条的世界 9、半径封顶时 24', () => {
     expect(npcCapFor(WORLD_MIN_RADIUS)).toBe(NPC_MAX_MIN); // 225 格 ⇒ 落到下限 6
     expect(npcCapFor(9)).toBe(9); // ★ 361 格（本机 327 条词条的世界）⇒ 9 位
     expect(npcCapFor(WORLD_MAX_RADIUS)).toBe(NPC_MAX_CAP);
-    expect(npcCountFor(NPC_TERMS_PER_NPC * NPC_MAX_MIN)).toBe(NPC_MAX_MIN);
-    expect(npcCountFor(327)).toBe(9); // ★ 本机实测：327 条 ⇒ 6 → 9 位
-    expect(npcCountFor(9999)).toBe(NPC_MAX_CAP);
     expect(worldRadiusFor(327)).toBe(9); // 与上一条同源：上限不可能与地图大小打架
   });
 
   it('①b 脏输入不炸：负数 / 小数 / NaN 一律落到下限', () => {
-    expect(npcCountFor(-5)).toBe(1);
-    expect(npcCountFor(15.9)).toBe(1);
-    expect(npcCountFor(Number.NaN)).toBe(1);
-  });
-
-  it('①c 激励文案的差值：下限那一位是白送的，故 0 条时下一次要等到 16 条；封顶后为 null', () => {
-    // ★ 与「下限 1」一致：0～15 条都只有 1 位伙伴，加第 2 位要 16 条（说 8 就是骗人）
-    expect(npcTermsToNext(0)).toBe(NPC_TERMS_PER_NPC * 2);
-    expect(npcTermsToNext(NPC_TERMS_PER_NPC)).toBe(NPC_TERMS_PER_NPC);
-    expect(npcTermsToNext(NPC_TERMS_PER_NPC * 2 - 1)).toBe(1);
-    expect(npcTermsToNext(NPC_TERMS_PER_NPC * NPC_MAX_MIN)).toBeNull(); // 小世界 6 位就是顶
+    expect(npcCapFor(-5)).toBe(NPC_MAX_MIN);
+    expect(npcCapFor(0)).toBe(NPC_MAX_MIN);
+    expect(npcCapFor(Number.NaN)).toBe(NPC_MAX_MIN);
   });
 });
 
-describe('placeNpcs — 确定性落位，锚在词条上', () => {
-  const pool: NpcCandidate[] = [
-    cand('t1', 5, 7),
-    cand('t2', 0, 0),
-    cand('t3', 3, 3),
-    cand('t4', 9, 13),
-    cand('t5', 2, 9),
-  ];
-
-  it('② 同输入两次 ⇒ 逐字段完全相同（跨端一致的前提）', () => {
-    expect(placeNpcs(pool, 3)).toEqual(placeNpcs(pool, 3));
-    expect(placeNpcs(pool, 3)).toEqual(placeNpcs([...pool].reverse(), 3));
+describe('npcTasksRequiredFor — 创建第 N 位的门票（第 1 位无条件）', () => {
+  it('② 第 1 位 0 单、第 2 位 3 单、第 3 位 6 单（每多一位多 3 单）', () => {
+    expect(NPC_TASKS_PER_PARTNER).toBe(3);
+    expect(npcTasksRequiredFor(1)).toBe(0);
+    expect(npcTasksRequiredFor(2)).toBe(3);
+    expect(npcTasksRequiredFor(3)).toBe(6);
+    expect(npcTasksRequiredFor(9)).toBe(24);
   });
 
-  it('③ id 形状为 `npc:<termId>`、名字取自名字池、无重复且只落在候选格', () => {
-    const out = placeNpcs(pool, 3);
-    expect(out).toHaveLength(3);
-    const spots = new Set(pool.map((c) => `${c.termId}@${c.row},${c.col}`));
-    for (const n of out) {
-      expect(n.id).toBe(npcIdOf(n.termId));
-      expect(n.id.startsWith('npc:')).toBe(true);
-      expect(NPC_NAME_POOL).toContain(n.name);
-      expect(spots.has(`${n.termId}@${n.row},${n.col}`)).toBe(true);
-    }
-    expect(new Set(out.map((n) => n.id)).size).toBe(3);
-  });
-
-  it('④ 候选不足时返回实际条数；⑤ 空候选返回空数组（空库例外，UI 必须说实话）', () => {
-    expect(placeNpcs(pool, NPC_MAX_CAP)).toHaveLength(pool.length);
-    expect(placeNpcs([], 3)).toEqual([]);
-    expect(placeNpcs(pool, 0)).toEqual([]);
-  });
-
-  it('⑤b 同一 termId 的重复候选只落一位伙伴', () => {
-    const dupe = [cand('t1', 0, 0), cand('t1', 1, 1)];
-    expect(placeNpcs(dupe, 2)).toHaveLength(1);
-  });
-
-  it('⑤c 名字确定性：同一条词条任何端同名', () => {
-    expect(npcNameFor('t1')).toBe(npcNameFor('t1'));
+  it('②b 脏输入同样不炸：0 / 负数 / NaN / 小数都落到"第 1 位"（无条件，不把门锁死）', () => {
+    expect(npcTasksRequiredFor(0)).toBe(0);
+    expect(npcTasksRequiredFor(-4)).toBe(0);
+    expect(npcTasksRequiredFor(Number.NaN)).toBe(0);
+    expect(npcTasksRequiredFor(2.9)).toBe(3); // 截断成 2 位
+    expect(npcTasksRequiredFor(1.9)).toBe(0); // 截断成 1 位
   });
 });
 
-describe('npcDistress — 正相邻的怪才算威胁', () => {
+describe('parseNpcParty — 花名册容错解析（坏字节不许毁掉整张名册）', () => {
+  it('③ 正常解析：字段齐全并归一化名字', () => {
+    const got = parseNpcParty(party(member('t1', 5, 7, { name: '  小白  ' })));
+    expect(got).toEqual([{ id: 'npc:t1', name: '小白', bio: '守着它', termId: 't1', row: 5, col: 7 }]);
+  });
+
+  it('③b 坏 JSON / 非对象 / members 不是数组 ⇒ 一律空数组，不抛', () => {
+    expect(parseNpcParty('not-json{')).toEqual([]);
+    expect(parseNpcParty('')).toEqual([]);
+    expect(parseNpcParty('[]')).toEqual([]);
+    expect(parseNpcParty('{"members":{}}')).toEqual([]);
+    expect(parseNpcParty('{"members":[]}')).toEqual([]);
+  });
+
+  it('③c 坏条目逐条跳过：缺 termId／名字空／坐标不是有限数／id 与坐标重复', () => {
+    const raw = party(
+      member('t1', 0, 0),
+      JSON.stringify({ name: '没锚点', row: 1, col: 1 }),
+      member('t2', 1, 2, { name: '   ' }),
+      member('t3', 2, 3, { row: 'x', col: 3 }),
+      member('t1', 9, 9), // 同一条词条（id 撞）⇒ 丢
+      member('t4', 0, 0), // 同一格（坐标撞）⇒ 丢
+    );
+    const got = parseNpcParty(raw);
+    expect(got.map((m) => m.termId)).toEqual(['t1']);
+  });
+
+  it('③d 缺 id 时按 `npc:<termId>` 补齐；bio 缺失 ⇒ 空串；条数封顶 `NPC_MAX_CAP`', () => {
+    const noId = parseNpcParty(party(JSON.stringify({ name: '无 id', termId: 'tx', row: 3, col: 3 })));
+    expect(noId[0]?.id).toBe('npc:tx');
+    expect(noId[0]?.bio).toBe('');
+    const many = Array.from({ length: NPC_MAX_CAP + 5 }, (_, i) => member(`t${i}`, i, i));
+    expect(parseNpcParty(party(...many))).toHaveLength(NPC_MAX_CAP);
+  });
+});
+
+describe('名字与人设：归一化、本地兜底（全是零随机）', () => {
+  it('④ 名字按码点截到 12 字、去控制符；人设截到 40 字', () => {
+    expect(normalizeNpcName('  小 白  ')).toBe('小 白');
+    expect(normalizeNpcName('一二三四五六七八九十十一十二十三')).toHaveLength(NPC_NAME_MAX);
+    expect(normalizeNpcName('   ')).toBe('');
+    expect(normalizeNpcBio('一'.repeat(200))).toHaveLength(NPC_BIO_MAX);
+    expect(normalizeNpcBio('长'.repeat(99)).endsWith('…')).toBe(false); // 只截不补字符，不伪造省略号
+  });
+
+  it('④b 本地兜底名字取自名字池且确定性（同一条词条任何端同名）', () => {
+    expect(NPC_NAME_POOL).toContain(npcNameFromPool('t1'));
+    expect(npcNameFromPool('t1')).toBe(npcNameFromPool('t1'));
+    expect(npcNameFromPool('t2').length).toBeGreaterThan(0);
+  });
+
+  it('④c 本地兜底人设带**他守的那条词条**、不编造用户进度、长度合规', () => {
+    const bio = npcTemplateBio('主动回忆');
+    expect(bio).toContain('主动回忆');
+    expect(bio.length).toBeLessThanOrEqual(NPC_BIO_MAX);
+    expect(bio).not.toMatch(/\d/); // 任何数字都意味着偷偷编了进度
+    expect(npcTemplateBio('   ')).not.toContain('「」'); // 词条名缺失时不留空引号
+  });
+});
+
+describe('npcDistress — 正相邻（含距离 0）的怪才算威胁', () => {
   const npc = { row: 5, col: 5 };
   const body = (termId: string, row: number, col: number): NpcMonster => ({
     termId,
@@ -125,15 +144,20 @@ describe('npcDistress — 正相邻的怪才算威胁', () => {
     col,
   });
 
-  it('⑥ 曼哈顿 ≤1 才给威胁；斜对角（距离 2）不算', () => {
+  it('⑤ 曼哈顿 ≤1 才给威胁；斜对角（距离 2）不算', () => {
     expect(npcDistress(npc, [body('m1', 5, 6)])).toEqual({ termId: 'm1', term: '怪-m1', distance: 1 });
     expect(npcDistress(npc, [body('m1', 4, 6)])).toBeNull();
-    expect(npcDistress(npc, [body('m1', 5, 5)])?.distance).toBe(0);
     expect(npcDistress(npc, [])).toBeNull();
     expect(NPC_DANGER_RANGE).toBe(1);
   });
 
-  it('⑥b 多只怪时取最近的；同距按 termId 升序（确定性）', () => {
+  it('⑤b ★ 距离 0 也是威胁：怪正好压在他那一格上（"地被夺走了"，批 12 起允许）', () => {
+    expect(npcDistress(npc, [body('m1', 5, 5)])?.distance).toBe(0);
+    // ★ 距离 0 比距离 1 更近 ⇒ 两者都在时取 0 那只
+    expect(npcDistress(npc, [body('m1', 5, 6), body('m2', 5, 5)])?.termId).toBe('m2');
+  });
+
+  it('⑤c 多只怪时取最近的；同距按 termId 升序（确定性）', () => {
     const near = npcDistress(npc, [body('m2', 5, 6), body('m1', 4, 5), body('m3', 9, 9)]);
     expect(near?.distance).toBe(1);
     expect(near?.termId).toBe('m1');
@@ -141,23 +165,19 @@ describe('npcDistress — 正相邻的怪才算威胁', () => {
 });
 
 describe('键与读数', () => {
-  it('⑦ 求救单去重键不含会变的数：同一位伙伴恒同一键', () => {
-    const id = npcIdOf('t1');
-    expect(npcRescueDedupeKey(id)).toBe(npcRescueDedupeKey(id));
-    expect(npcRescueDedupeKey(id)).toBe('npc_rescue:npc:t1');
-    expect(npcRescueDedupeKey(id)).not.toMatch(/\d{4}-\d{2}-\d{2}|\d{10,}/);
+  it('⑥ 求救单去重键不含会变的数：同一位伙伴恒同一键', () => {
+    expect(npcRescueDedupeKey(npcIdOf('t1'))).toBe('npc_rescue:npc:t1');
+    expect(npcRescueDedupeKey(npcIdOf('t1'))).not.toMatch(/\d{4}-\d{2}-\d{2}|\d{10,}/);
   });
 
-  it('⑦b 每日交换余额与名字归一化', () => {
+  it('⑥b 每日交换余额夹在 0 与上限之间', () => {
     expect(npcTradesLeft(0)).toBe(NPC_TRADES_PER_DAY);
     expect(npcTradesLeft(NPC_TRADES_PER_DAY)).toBe(0);
     expect(npcTradesLeft(99)).toBe(0);
-    expect(normalizeNpcName('  小 白  ')).toBe('小 白');
-    expect(normalizeNpcName('一二三四五六七八九十十一十二十三').length).toBe(NPC_NAME_MAX);
-    expect(normalizeNpcName('   ')).toBe('');
+    expect(npcTradesLeft(-3)).toBe(NPC_TRADES_PER_DAY);
   });
 
-  it('⑦c 降级台词：永不空回，替换词条名，且确定性', () => {
+  it('⑥c 降级台词：永不空回，替换词条名，且确定性', () => {
     const line = npcFallbackLine(npcIdOf('t1'), 0, '主动回忆');
     expect(line).toContain('主动回忆');
     expect(line).toBe(npcFallbackLine(npcIdOf('t1'), 0, '主动回忆'));

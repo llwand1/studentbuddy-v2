@@ -14,7 +14,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { NPC_FALLBACK_NOTICE } from '@sb/shared';
 import type { NpcView } from '../../lib/api-npc';
 
-const apiMock = { talk: vi.fn(), trade: vi.fn(), renamePartner: vi.fn(), state: vi.fn() };
+const apiMock = { talk: vi.fn(), trade: vi.fn(), rename: vi.fn(), remove: vi.fn(), state: vi.fn() };
 const cardsMock = { acceptDraw: vi.fn() };
 vi.mock('../../lib/api', () => ({ api: { npc: apiMock } }));
 vi.mock('../../lib/api-cards', () => ({ cardsApi: cardsMock }));
@@ -31,6 +31,7 @@ function npcOf(over: Partial<NpcView> = {}): NpcView {
   return {
     id: 'npc:t1',
     name: '小满',
+    bio: '守着「主动回忆」的老手',
     termId: 't1',
     term: '主动回忆',
     domain: '记忆机制',
@@ -48,8 +49,8 @@ function open(props: Partial<Parameters<typeof NpcDialog>[0]> = {}) {
       npc={npcOf()}
       tokens={[{ termId: 't9', term: '我的信物', cards: 3 }]}
       tradesLeft={2}
-      isPartner
       onRename={vi.fn().mockResolvedValue(undefined)}
+      onRemove={vi.fn().mockResolvedValue(undefined)}
       onClose={vi.fn()}
       onRescue={vi.fn()}
       onLibraryChanged={vi.fn()}
@@ -81,5 +82,19 @@ describe('学习伙伴对话面板', () => {
     // ★ 代价那句话必须在场，且不许被改写成"消耗一张卡"
     expect(screen.getByText(/卡本身不会少/)).toBeTruthy();
     expect(apiMock.trade).not.toHaveBeenCalled();
+  });
+
+  it('③ 人设显示在标题旁；「让他回家」两段式：第一下只上膛，第二下才真的送走', async () => {
+    const onRemove = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    open({ onRemove, onClose });
+    expect(screen.getByText(/守着「主动回忆」的老手/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '让他回家' }));
+    // ★ 一个不可撤销的动作不该一键就发生（上膛态只改文案，不调服务端）
+    expect(onRemove).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '确认送他回家' }));
+    await waitFor(() => expect(onRemove).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 });

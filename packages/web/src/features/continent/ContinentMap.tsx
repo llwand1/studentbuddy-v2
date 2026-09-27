@@ -41,33 +41,20 @@ import {
 } from './continent-canvas';
 import { camAfterDrag, useContinentCamera, type ContinentCam } from './useContinentCamera';
 import { STEP_MS, type HeroCell } from './useContinentHero';
-import { cellHint, type ContinentLandCell, type ContinentTileView } from './continent-view';
+import {
+  NO_SPOTS,
+  cellHint,
+  type ContinentCell,
+  type ContinentChestDrop,
+  type ContinentLandCell,
+  type ContinentNpcMark,
+  type ContinentTileView,
+} from './continent-view';
 
-/** 地上的一只宝箱（打怪掉落；**只有位置与词条名，没有账**——开箱走既有每日宝箱账本） */
-export interface ContinentChestDrop {
-  row: number;
-  col: number;
-  term: string;
-}
-
-/** 一个格子（世界坐标，可为负；可能是真词条格、荒地上的领地格，或还没铺词条的空地） */
-export interface ContinentCell {
-  row: number;
-  col: number;
-}
-
-/**
- * 地图上的一位学习伙伴（★ 只有位置与名字，**遇险是服务端结论**）。
- * ★ 不让本层自己算"他危不危险"：那要重算铺格 + 领地 + 曼哈顿距离，即第二份口径
- *   （图上画着遇险、清单里没有那单）；结论由 `GET /api/npc` 给，这里只是读数。
- */
-export interface ContinentNpcMark {
-  id: string;
-  name: string;
-  row: number;
-  col: number;
-  distressed: boolean;
-}
+// ★ 地图的三个视图形状（宝箱 / 格子 / 伙伴标记）搬去了 `continent-view.ts`（与 `ContinentTileView` 同族，
+//   那里本来就是"地图的视图形状"的家）。批 12 加选位态时本文件 `.tsx ≤300` 已贴线，搬走腾出的行数正好用上。
+//   这里**原样再导出**一次：调用方（`ContinentPage` / `continent-partners`）的 import 一行未改。
+export type { ContinentCell, ContinentChestDrop, ContinentNpcMark };
 
 interface Props {
   tiles: ContinentTileView[];
@@ -75,6 +62,11 @@ interface Props {
   wildLands: readonly ContinentLandCell[];
   /** 世界半径（`continent-view` 给；相机夹取与"大陆多大"都用它） */
   radius: number;
+  /**
+   * 选位态的可落位格（**给了就是选位态**）：每一格画一个绿框，提示行也改口径。
+   * ★ 内容由服务端给（`GET /api/npc` 的 `spots`）：前端不重算铺格/领地，自己算就是第二份口径。
+   */
+  placeSpots?: readonly ContinentCell[];
   hero: HeroCell | null;
   heroFrom: { row: number; col: number } | null;
   /** 这一步的起始时刻（`performance.now()`），插值用 */
@@ -97,6 +89,7 @@ export function ContinentMap({
   tiles,
   wildLands,
   radius,
+  placeSpots = NO_SPOTS,
   hero,
   heroFrom,
   heroStart,
@@ -195,6 +188,9 @@ export function ContinentMap({
       }
       if (focus) drawFrame(ctx, focus, COLOR.gold, popAge);
       if (hoverRef.current) drawFrame(ctx, hoverRef.current, COLOR.hover, popAge);
+      // ★ 选位态：把**能站的格**逐格标出来（绿框，与悬停的白框、锁定的金框都不同色）。
+      //   这一笔是"玩家自己点格子放"唯一需要的新绘制——落在哪、哪不能落，一眼看得出来。
+      for (const s of placeSpots) if (shown(s.row, s.col)) drawFrame(ctx, s, COLOR.sprout, 1);
       ctx.restore();
 
       const bAge = burstRef.current ? now - burstRef.current.start : Number.POSITIVE_INFINITY;
@@ -204,7 +200,7 @@ export function ContinentMap({
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [tiles, wildLands, tilesKey, hover, focus, burst, hero, heroFrom, heroStart, chests, npcs, cam]);
+  }, [tiles, wildLands, tilesKey, hover, focus, burst, hero, heroFrom, heroStart, chests, npcs, cam, placeSpots]);
 
   /** 事件坐标 → **世界格**：视口比例换算 + 相机偏移（CSS 缩放后也准） */
   const at = (canvas: HTMLCanvasElement, clientX: number, clientY: number): ContinentCell => {
@@ -290,7 +286,9 @@ export function ContinentMap({
       />
       <p className={alert ? 'continent-map-hint warn' : 'continent-map-hint'}>
         {alert ??
-          hoverText ??
+          (placeSpots !== NO_SPOTS
+            ? `选位中：点一格把伙伴安置在那儿（绿框＝能站）${hoverText ? ` · ${hoverText}` : ''}`
+            : hoverText) ??
           `大陆 ${size}×${size} 格（共 ${worldCells(radius)} 格，视野内 ${inView} 格）· 拖拽看别处 · 方向键/WASD 或点地走位 · 走到怪旁边点它开打${
             npcs.length > 0 ? ' · 点伙伴跟他说句话' : ''
           }`}

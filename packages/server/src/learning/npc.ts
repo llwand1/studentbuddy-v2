@@ -1,128 +1,54 @@
 /**
- * learning/npc — 知识大陆上的学习伙伴（NPC）域层（契约 `docs/NPC-PARTNER-SPEC.md`）。
+ * learning/npc — 学习伙伴的**视图层**：他们的处境（在哪／守哪条／是否遇险）与交换
+ * （契约 `docs/NPC-PARTNER-SPEC.md`）。
  *
- * 本文件只做三件事：**派生伙伴**（谁、在哪、是否遇险）、**读写他的身份**（名字 KV）、
- * **交换**（信物卡 → 同领域新词条）。AI 对话在 `npc-talk.ts`，HTTP 在 `routes/npc.ts`。
+ * 本文件只做两件事：① **读花名册并算出处境**（含求救单的读口）；② **交换**（信物卡 → 同领域新词条）。
+ * 花名册的读写与创建／改名／解散在 `npc-party.ts`，起名在 `npc-genesis.ts`，AI 对话在 `npc-talk.ts`，
+ * HTTP 在 `routes/npc.ts`。
  *
- * ★★ **零迁移**：伙伴不占一行新账——位置由 `continent.ts` 的铺格 + `shared/npc.ts` 的哈希派生，
- *   身份落既有 `app_settings`，交换落既有 `chest_open`。任何"给伙伴建张表"的冲动都是走错了路。
- * ★ 位置与遇险结论**只在这里算一次**：前端不重算铺格/领地（双份口径 = 「图上画着伙伴遇险、
- *   任务清单里没有那单」的开端，判据同 `continent-view.ts` 头注）。
+ * ★★ **零迁移**：伙伴不占一行新账——花名册落既有 `app_settings`，求救单落既有 `study_task`，
+ *   交换落既有 `chest_open`。任何"给伙伴建张表"的冲动都是走错了路（§0 红线）。
+ * ★★ 2026-09-27 批 12（玩家创建制）：位置**改为存库**（玩家点的那一格）。存得起靠批 11 的
+ *   **有符号固定中心坐标**——世界半径只增不减 ⇒ 已存坐标永不失效。
+ * ★ 处境**只在这里算一次**：前端不重算铺格/领地（双份口径 = 「图上画着伙伴遇险、任务清单里没有那单」）。
  * ★ 伙伴**不占格**：不进 `spreadLands` 的 `blocked`、不改 `walkable` ⇒ 走位/领地/点击分流一行未改。
  */
 import { randomUUID } from 'node:crypto';
 import {
-  npcCapFor,
   NPC_TRADE_MIN_CARDS,
-  SETTING_KEY_NPC_PARTNER,
   continentHash,
-  layoutTiles,
   localDayKey,
-  monsterOccupies,
-  npcCountFor,
   npcDistress,
-  npcTermsToNext,
   npcTradesLeft,
-  normalizeNpcName,
-  placeNpcs,
-  worldRadiusFor,
-  type NpcCandidate,
-  type NpcMonster,
-  type NpcPlacement,
+  type NpcPartyMember,
+  type NpcSpot,
   type NpcThreat,
 } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
-import { continentMap } from './continent.js';
+import { scanMap } from './npc-map.js';
+import { npcQuotaFor, syncParty, type NpcQuota } from './npc-party.js';
 import { cardsByTerm } from './term-cards.js';
 import { drawablePool, type ChestDraw, type PoolItem } from './chest.js';
 
 /** 伙伴对外的形状（HTTP 一行）；`threat` 非空即**遇险**（`distressed` 只是给它一个布尔镜头） */
-export interface NpcView extends NpcPlacement {
+export interface NpcView extends NpcPartyMember {
+  /** 他守的那条词条名（锚点词条被删时他会被 `syncParty` 出册 ⇒ 这里几乎不会缺） */
+  term: string;
+  domain: string;
   distressed: boolean;
   threat: NpcThreat | null;
 }
 
-/** `GET /api/npc` 的响应：一次读全（含遇险结论与交换余额），前端不重算任何派生量 */
+/** `GET /api/npc` 的响应：一次读全（含遇险结论、名额门票、可落位格），前端不重算任何派生量 */
 export interface NpcState {
-  /** 主伙伴的显示名（用户起的名字或默认名）；空库时为 `''`（§7.4 空库文案要能说出来） */
+  /** 名册第 0 位的名字（还没有伙伴时 `''`） */
   partnerName: string;
   npcs: NpcView[];
-  /** 当前**该有**几位伙伴（可能多于 `npcs.length`：空库没格可落脚，§2.1 的空库例外） */
-  count: number;
-  max: number;
-  /** 还差几条词条多一位伙伴；已封顶为 `null`（§7.4 那句激励的数从这里来，UI 不自己算） */
-  termsToNext: number | null;
   tradesLeft: number;
-}
-
-interface MapScan {
-  candidates: NpcCandidate[];
-  monsters: NpcMonster[];
-  /** 词条总数（★ 数量派生读它，不读格子数：格子被 140 截断过） */
-  terms: number;
-}
-
-/**
- * 铺一次图，分出"能落脚的地块"与"怪的本体格"。
- * ⚠️ 先过滤怪再取哈希序（§2.2）：不过滤会出现"伙伴和怪站在同一格"。
- * ★ 领地格**可以**站（已占领的格仍是 `!hasMonster`）——伙伴站在怪的地盘上正是"他遇险了"的视觉前提。
- */
-function scanMap(ownerId: string | null): MapScan {
-  const list = continentMap(ownerId);
-  const tiles = layoutTiles(list);
-  const candidates: NpcCandidate[] = [];
-  const monsters: NpcMonster[] = [];
-  for (const t of tiles) {
-    const occupied = monsterOccupies(t.term.review.status, t.term.review_in_scope === 1);
-    if (occupied) monsters.push({ termId: t.term.id, term: t.term.term, row: t.row, col: t.col });
-    else {
-      candidates.push({
-        termId: t.term.id,
-        term: t.term.term,
-        domain: t.term.domain,
-        row: t.row,
-        col: t.col,
-      });
-    }
-  }
-  return { candidates, monsters, terms: list.length };
-}
-
-/** 读用户给主伙伴起的名字；未配过 / JSON 坏 / 名字已空 ⇒ `''`（= 用默认名，数据容错 ADR-6） */
-export function loadPartnerName(ownerId: string | null): string {
-  const row = getDb()
-    .prepare('SELECT value FROM app_settings WHERE owner_id = ? AND key = ?')
-    .get(ownerForWrite(ownerId), SETTING_KEY_NPC_PARTNER) as { value: string } | undefined;
-  if (!row) return '';
-  try {
-    const v = JSON.parse(row.value) as unknown;
-    const name = v && typeof v === 'object' ? (v as { name?: unknown }).name : undefined;
-    return typeof name === 'string' ? normalizeNpcName(name) : '';
-  } catch {
-    return '';
-  }
-}
-
-/**
- * 存用户给主伙伴起的名字。**空串 = 删键回默认**（同 `resetAnswerStyle` 的手法，契约 §3）。
- * 返回归一后实际生效的名字（`''` = 已恢复默认名）。
- */
-export function savePartnerName(ownerId: string | null, input: unknown): string {
-  const clean = normalizeNpcName(typeof input === 'string' ? input : '');
-  const owner = ownerForWrite(ownerId);
-  const db = getDb();
-  if (!clean) {
-    db.prepare('DELETE FROM app_settings WHERE owner_id = ? AND key = ?').run(owner, SETTING_KEY_NPC_PARTNER);
-    return '';
-  }
-  db.prepare(
-    // ★ `ON CONFLICT` 的目标必须带 `owner_id`：主键是 `(owner_id, key)`，只写 `key` 会在运行时
-    //   报"找不到匹配的唯一索引"（SQL 是字符串，编译期零信号，v30 迁移注释列过同型连带改动）
-    `INSERT INTO app_settings (owner_id, key, value) VALUES (?, ?, ?)
-     ON CONFLICT(owner_id, key) DO UPDATE SET value = excluded.value`,
-  ).run(owner, SETTING_KEY_NPC_PARTNER, JSON.stringify({ name: clean }));
-  return clean;
+  quota: NpcQuota;
+  /** 可落位的空格（选位态高亮用）；★ 由服务端算，前端不重算铺格/领地 */
+  spots: NpcSpot[];
 }
 
 /** 今天已经交换过几次：★ 读既有 `chest_open` 的 `source_kind + opened_day`，零迁移拿到日级闸门 */
@@ -137,33 +63,42 @@ export function tradesUsedToday(ownerId: string | null, now = new Date()): numbe
 }
 
 /**
- * 当前大陆上的伙伴（含遇险结论）。
- * ★ 名字覆盖只作用于**第 0 位**（主伙伴，契约 §3）：用户"创建"的是那一位，其余是大陆上别的居民。
- *   名字存在**单键**上而不按 `npcId` 分桶，正是为了加词换主伙伴时**它跟着「他的伙伴」走**。
+ * 当前大陆上的伙伴（含处境与名额读数）。
+ * ★ 名字与位置**一律读花名册**（玩家创建制）：这里不再有"第 0 位用另一个键覆盖名字"那套——
+ *   每位伙伴都有自己的名字（创建时 AI 起，可改），名册就是唯一真相。
  */
 export function npcList(ownerId: string | null): NpcState {
   const scan = scanMap(ownerId);
-  // ★ 世界半径与铺格同源（`layoutTiles` 内部也是 `worldRadiusFor(词条数)`）⇒ 上限不可能与地图大小打架
-  const radius = worldRadiusFor(scan.terms);
-  const count = npcCountFor(scan.terms, radius);
-  const placed = placeNpcs(scan.candidates, count);
-  const saved = loadPartnerName(ownerId);
-  const npcs: NpcView[] = placed.map((p, i) => {
-    const threat = npcDistress(p, scan.monsters);
+  const members = syncParty(ownerId, scan);
+  // ★ 锚点词条的名字/领域从**同一次扫描**里取（两个桶合起来就是全部词条格）：不额外查库、不铺第二遍图
+  const where = new Map<string, { term: string; domain: string }>();
+  for (const c of scan.candidates) where.set(c.termId, { term: c.term, domain: c.domain });
+  for (const m of scan.monsters) where.set(m.termId, { term: m.term, domain: m.domain });
+
+  const npcs: NpcView[] = members.map((m) => {
+    const threat = npcDistress(m, scan.monsters);
+    const info = where.get(m.termId);
     return {
-      ...p,
-      name: i === 0 && saved ? saved : p.name,
+      ...m,
+      term: info?.term ?? '这条词条',
+      domain: info?.domain ?? '',
       distressed: threat !== null,
       threat,
     };
   });
+  const takenCells = new Set(members.map((m) => `${m.row},${m.col}`));
+  const takenTerms = new Set(members.map((m) => m.termId));
+  const spots: NpcSpot[] = scan.candidates
+    .filter((c) => !takenCells.has(`${c.row},${c.col}`) && !takenTerms.has(c.termId))
+    .map((c) => ({ row: c.row, col: c.col }));
+
   return {
     partnerName: npcs[0]?.name ?? '',
     npcs,
-    count,
-    max: npcCapFor(radius),
-    termsToNext: npcTermsToNext(scan.terms, radius),
     tradesLeft: npcTradesLeft(tradesUsedToday(ownerId)),
+    // ★ 用**真在册数**（刚 `syncParty` 过）而不是那份便宜口径：两条路径在同一次响应里必须同一个数
+    quota: npcQuotaFor(ownerId, members.length),
+    spots,
   };
 }
 

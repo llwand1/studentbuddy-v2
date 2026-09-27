@@ -114,6 +114,41 @@ export interface ContinentLandCell {
   count: number;
 }
 
+/** 地上的一只宝箱（打怪掉落；**只有位置与词条名，没有账**——开箱走既有每日宝箱账本） */
+export interface ContinentChestDrop {
+  row: number;
+  col: number;
+  term: string;
+}
+
+/** 一个格子（世界坐标，可为负；可能是真词条格、荒地上的领地格，或还没铺词条的空地） */
+export interface ContinentCell {
+  row: number;
+  col: number;
+}
+
+/**
+ * 「不在选位态」的空可落位格（契约 `docs/NPC-PARTNER-SPEC.md` §7）。
+ * ★ 必须是**稳定引用**：`ContinentMap` 的绘制 effect 以它作默认值，每次渲染新建一个 `[]`
+ *   会让 effect 每帧重跑（"长出来"的铺格动画反复重播，且白烧一格 CPU）。
+ * ★ 放这里而不是 `ContinentMap.tsx`：那份文件贴 `.tsx ≤300` 红线，一个常量挤在那里不值当。
+ */
+export const NO_SPOTS: readonly ContinentCell[] = [];
+
+/**
+ * 地图上的一位学习伙伴（★ 只有位置与名字，**遇险是服务端结论**）。
+ * ★ 不让渲染层自己算"他危不危险"：那要重算铺格 + 领地 + 曼哈顿距离，即第二份口径
+ *   （图上画着遇险、清单里没有那单）；结论由 `GET /api/npc` 给，这里只是读数。
+ * ★ 批 12 从 `ContinentMap.tsx` 搬来这里：与 `ContinentTileView` 同族，都属"地图的视图形状"。
+ */
+export interface ContinentNpcMark {
+  id: string;
+  name: string;
+  row: number;
+  col: number;
+  distressed: boolean;
+}
+
 export interface ContinentViewOptions {
   /**
    * 英雄脚下的格。怪不会把这一格吞成领地（照抄 demo：扩张时跳过英雄所在格）。

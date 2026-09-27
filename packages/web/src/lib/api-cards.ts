@@ -14,7 +14,7 @@
  *   `routes/cards.test.ts`（它锁的是服务端发出的形状）＋ 这里的字段注释指名出处。
  */
 import { ApiError, request } from './api-request.js';
-import type { CardRarity } from '@sb/shared';
+import type { CardRarity, NpcQuota } from '@sb/shared';
 
 /** 一条词条的卡牌读数（= 服务端 `learning/term-cards.ts` 的 `TermCards`） */
 export interface CardReading {
@@ -115,6 +115,11 @@ export interface CardsStateResponse {
   chest: ChestState;
   tasks: StudyTask[];
   candidates: PoolCandidate[];
+  /**
+   * 学习伙伴的名额与门票（= 服务端 `routes/cards.ts` 的 `npc`；形状定义在 `@sb/shared/npc.ts`）。
+   * ★ 借 `/state` 一起回来，是为了让"清单说做完了 3 单"与"还差几单能建伙伴"来自**同一个瞬间**。
+   */
+  npc: NpcQuota;
 }
 
 export interface ChestOpenResult {

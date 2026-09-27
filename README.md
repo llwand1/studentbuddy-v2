@@ -87,7 +87,7 @@ Agent 在这条路上负责的是**把几件事接起来**：按对话内容决�
 | 检查理解，和朋友一起练 | 对话出题（当场判分 + 逐题解析）、AI 对战、邀请好友 PK |
 | 用自己的模型和数据环境 | 自定义 AI 服务商、本地运行或自行部署 |
 
-**已上线到 v0.2.137**。具体变化见[更新记录](https://11wand.com/changelog/index.html)；GitHub 主分支和开发分支可能包含尚未部署的改动。
+**已上线到 v0.2.139**。具体变化见[更新记录](https://11wand.com/changelog/index.html)；GitHub 主分支和开发分支可能包含尚未部署的改动。
 
 题库页面、笔记、今日总结已下线，出题能力保留在对话与对战里；这些已下线功能的设计存档仍在文档索引里可查。
 
@@ -230,7 +230,7 @@ node tools/metrics.mjs --tests --check
 <summary>更多设计文档与历史记录</summary>
 
 - 学习辅助：[记忆联动](docs/MEMORY-TREND-SPEC.md)、[学习督促](docs/COACH-SPEC.md)、[场景卡](docs/SCENARIO-SPEC.md)。
-- 练习设计：[出题配图](docs/QUIZ-IMAGE-SPEC.md)、[出题检索](docs/QUIZ-SEARCH-SPEC.md)、[薄弱点分析](docs/QUIZ-WEAK-SPEC.md)、[学习素材搜集](docs/RESOURCE-SPEC.md)。
+- 练习设计：[聊天生图](docs/IMAGE-GEN-SPEC.md)、[出题配图](docs/QUIZ-IMAGE-SPEC.md)、[出题检索](docs/QUIZ-SEARCH-SPEC.md)、[薄弱点分析](docs/QUIZ-WEAK-SPEC.md)、[学习素材搜集](docs/RESOURCE-SPEC.md)。
 - 工程与发布：[工具扩展](docs/TOOL-ECOSYSTEM-SPEC.md)、[SEO](docs/SEO-SPEC.md)、[GitHub 维护](docs/GITHUB-OPS-SPEC.md)、[上线记录](docs/dev/launch-plan.md)。
 - 产品记录：[产品度量](docs/metrics-product.md)、[项目增长](docs/project-growth.md)。
 - 已移除功能的设计存档：[学习流与知识图](docs/STUDY-FLOW-SPEC.md)、[深度理解](docs/DEEP-UNDERSTANDING-SPEC.md)、[刷题笔记](docs/QUIZ-NOTES-SPEC.md)、[题库与薄弱点](docs/QUIZ-WEAK-SPEC.md)。这些文档保留历史设计，不代表当前功能。

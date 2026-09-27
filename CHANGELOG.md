@@ -1,5 +1,7 @@
 # CHANGELOG — studentbuddy v2
 
+- 2026-09-27：v0.2.139 发布聊天内生图批（generate_image 工具／设置页生图模型绑定／平台每日张数闸）——老板真机验收「可以用」后逐次点名上线；更新公开更新记录、README 导语，tag 挂实际构建提交并出 Release；部署前两轮被本地校验闸拦停（生产零接触），第三轮全链绿并带库快照／旧代码回滚点及副本迁移预演。
+
 - 2026-09-27：v0.2.137 发布知识大陆优化批（走位／领地／宝箱联动／情景题／特效）——把桌面 demo 的细节补进线上版；更新公开更新记录、README 导语、实际构建 tag 与 Release，部署带代码与数据库回滚点及副本迁移预演。
 
 - 2026-09-27：GitHub About 与 README 将产品定位更新为“像素风的游戏化知识学习 Agent”，以知识大陆、词条、卡牌与挑战组织产品叙事；明确区分线上基础版、main 已合入的优化与规划中的历史副本/Boss 联动。本批仅文档与仓库描述，不部署、不发新版。
@@ -76,6 +78,22 @@
 ★ **仍未在真机复现的一条（登记不欠账）**：**求救单 `npc_rescue` 没能在真机看到**——本地库 327 条词条里「待收复的怪 = 0 / 被占领的地 = 0」（横幅原文：「还有 140 条到期词条没纳入复习范围……这里就会冒出来。」），伙伴因此全都不遇险。这条链路的判据只在单测里锁过（域层 ⑫ 派单幂等／⑬ 脱险翻 done 发钥匙／⑭ 怪还在时 `not_yet`）；真机要看它，得先在「词条」页把某些领域勾进复习范围，让怪真的冒出来。
 
 ★ **未做／未验证（登记不欠账）**：① ~~真机浏览器未验收~~（见上，已核销）；② `npm run metrics` 已复跑对账——README 手抄数字**全部 ✅**（217 文件／2926 例、REST 路由 **129→133**、契约类型 **136→141**，badge 与正文基线句已同步）；③ 伙伴未接语音、未做好感度养成、未做 NPC↔NPC 互动（`NPC-PARTNER-SPEC.md` §9 已登记为不做）。
+
+### 2026-09-27 · 聊天内生图接入批 · 已发版 v0.2.139
+
+按老板点单「让 studentbuddy 真正的接入生图模型」落地（范围四项拍板：聊天内画图／复用 BYOK-平台双通道／平台通道每日每用户限额／先契约再落码）。**零迁移、零 web 改动、前端渲染零改动**——生图产物落既有 `image-cache`、走既有 `GET /api/images/:name` 出口与正文 Markdown 渲染，历史回放天然可看。四件事：
+
+① **新工具 `generate_image`**（`chat/tools/generate-image.ts`）：文生图单张；`idempotent: false` 是**钱的声明**（每次调用真金白银出新图，挡掉 network 档的免费重试资格）；回灌口径同 `fetch_image`（站内地址 + `![说明](地址)` 用法示范 + 失败不许编造）。② **新角色 `image`**（`shared/domain.ts` + `llm/router.ts` 数组驱动，设置页/一键默认全自动）：仅 OpenAI 兼容服务商可绑（`PUT /roles/:role` 写口断言 + `RoutedTarget.type` 运行时二判，双闸）；**默认模型与聊天分家**——`defaultModelFor('image')` → env `SB_IMAGE_MODEL` > 常量 `agnes-image-2.5-flash`，绝不回落聊天默认（聊天名打生图端点必 404）。③ **平台张数闸**（`llm/image-quota.ts`）：每用户每日 N 张（env `SB_IMAGE_DAILY_LIMIT` 默认 15，0=关闭，非法值回落默认不拆闸）；计次落 `tool_stats`（event_log 无 owner 列），只数本人/今日/ok=1；日界按本地日历日（`localDayStartUtc`）；并发坑位每用户 1（封 check-then-act 竞态）；到顶**不发起上游请求**；本地单人模式不计（与 LLM 侧 meteredOwner 口径一致）；已知保守偏置＝混合通道时 BYOK 用量也占平台额度（宁紧勿松）。生图调用同时受 LLM 侧两层并发闸与 250 次/5h 次数表约束。④ **错误翻译器**（`llm/image-error.ts`，对齐 vision-error 口径）：七分支按「最具体的排前面」（内容拒绝在状态码前判），每条附上游原文（压平截 240），两条反向锁钉住。另：`chat/system-prompt.ts` 同批补「【生图有专用工具 generate_image】」引导段（B-006 纪律：漏写引导＝能力对模型不存在），含与 ```svg 的分工（结构示意用 svg 快、真实画面感用生图）。
+
+**同批补齐（老板点单「设置里生图模型绑定加上，不然没法测」）**：设置页绑定 UX 三件——`GET /providers` 出站加 `type`（shared `Provider` 加列，`getProviders` 唯一构造点）；`providersForRole()` 纯函数让「生图（画图）」行只列 OpenAI 兼容服务商（与服务端 PUT 断言同口径，缺 `type` 的旧响应形状按可绑处理）；分区提示语写明省路径＝**绑平台服务商 + 模型选「（用默认模型）」→ 自动落 `agnes-image-2.5-flash`**。测试 +4（RoleRow 3 ＋ image-gen 1）。
+
+**实现期逮到的真坑（已修并锁死）**：`Number('') === 0`——`SB_IMAGE_DAILY_LIMIT` 未配时被当成 0（平台生图整体关闭），零配置部署一行没跑就全灭；`normalizeImportance` 同族坑，`imageDailyLimit` 先拦空串。**新契约** `docs/IMAGE-GEN-SPEC.md` v1.0。验证：新增 4 测试文件 41 例全绿；`npm run check`（tsc×3+eslint+vitest+gates）**exit 0**；基线 **213 文件/2887 例 → 217 文件/2928 例（2925 passed + 3 skipped + 0 failed）**，README 徽章与 `metrics --tests --check` 同步 ✅；⚠️ **真机端到端（真 key 打真上游）未跑**，首张真机图出来前按「未真机验收」对待；施工在独立工作树 `feat/image-generation` 分支，主工作树零写入。
+
+**跟进（09-27 10:4x~11:1x · Qoder e23d47af · 老板点名「提 PR 走流程，先不发版」）**：① 分支合入 origin/main＝`9eafe1c`，唯一冲突 `docs/metrics.json`，解法＝合并树 `node tools/metrics.mjs --tests` 重算覆盖。② 按固定动作补 issue #48 ＋ 开 PR #50（Closes #48）。③ **CI 首跑红在 `metrics --tests --check`，且红得有价值**：上一段「2925+3」与本分支 README 的「2929+3」都是**未 build 的本地口径**；CI 多一步 `npm run build`，`public-hygiene` 两例从 skipped 转真跑通过 ⇒ CI 实测 **2931 passed + 1 skipped + 0 failed**。README 基线句随 main 既有惯例改回 CI 口径（main 同句亦为 build 后数），徽章总数 217/2932 两侧一致未动。⚠️ **过程如实记**：build 后本地全量连两例 `ContinentPage.test.tsx:183`（点怪开弹窗）红、第三次全绿，该文件单跑 9/9 两遍全绿＝并发计时抖动（main 的知识大陆批文件，非本批改动面）；本地与 CI 判据统一为「build 后全量」口径。上一段历史数字不回改。④ 发版仍未做、待老板逐次点名；真机首图欠账随批继承。
+
+**发版（09-27 11:2x~12:1x · 老板真机验收「可以用」＋逐次点名「上线」＝上一条 ④ 的前提就地回标，原句保留）：** 真机端到端**已验**——本工作树起服务（server 18795／web 5390 避开同伴实例），老板看得到设置页「生图（画图）」绑定行并确认可用，上一条「真机首图未跑」欠账结清。PR #50 合 main＝`2d21bfc` 后走 `tools/deploy.sh`：**前两轮被 ① 本地校验闸拦停**（正是 183 那例，红两次绿一次——排查中逮到诱因：我为验收起的 dev 服务抢 CPU 把 jsdom 计时拖过一帧；收掉服务后包装器全量 2931+1+0 全绿），**生产零接触（未走到 ③ 及以后）**；第三轮 12:12 全链绿＝回滚点 integrity ok→传输两端 sha256 一致（`041d3e…156`）→`.env` 带走一致→预演（库副本 18799）health ok／迁移水位 45→切换重启后 `studentbuddy: active`／health ok／`SB_PLATFORM_*` 命中 3→**线上＝本地 3 文件 sha256 全等**。tag `v0.2.139` 挂 `2d21bfc`（与打包树 `4ff80ba` 逐字节同＝`1011fe25` 双证）＋ GitHub Release＋本批对外更新表补行＋README「已上线到 v0.2.139」＝四件套同批。**⚠️ 移交观察项（诚实账）**：`ContinentPage.test.tsx:183` 系同步断言（`clickCell` 后无 `waitFor`），高负载机器上全量并发间歇红（本机 1/3 率）；本批未代改知识大陆批的测试面，后续动该文件的会话建议包一层 `waitFor` 并补回归锁。
+
+**补发（12:40~12:43 · 老板点名「再刷一次对外页」＝纯记账批二次部署，零运行时代码、不占新版本号）：** 上一段四件套里 `PUBLIC_RELEASES` 与 README 的回标是在 `2d21bfc` 构建部署**之后**才合 main（PR #52＝`7e81e13`），⇒ 线上**功能**已可用而对外那页**最高还停在 v0.2.137**。本批把记账内容单独构建上线一次：⓪ 树净＝main→① `npm run check`＋build→①b 28 个 public 文件全落 dist→①c 表头＝tag＝v0.2.139 sync→③ 回滚点 integrity ok／水位 45（TS=20260927-1240）→④ 两端 sha256 一致 `12c182f…0d18`→⑤ `.env` 一致→⑥ 预演（库副本）health ok／水位 45→⑦ `active`／health ok／`SB_PLATFORM_*` 命中 3→⑧ 线上＝本地 3 文件全等。**线上现查（带探针头）**：`/changelog/index.html` 与 `/atom.xml` 最高条目均＝**v0.2.139**。★ 版本口径照实记：本次**未另打 tag**——tag 是「这一版真的被构建并推上线了」的机械证据，功能面仍是 v0.2.139（同码），本批只多一页对外文本，故**不占新版本号**（对外表守门闸以既有 tag 为准，仍 sync）。
 
 ### 2026-09-27 · demo:e2e 题库断言跟上下线批（墓碑锁）
 

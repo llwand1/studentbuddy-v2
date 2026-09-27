@@ -20,6 +20,7 @@
  *   有列表时多一个「自定义…」选项。
  */
 import { useEffect, useState } from 'react';
+import type { ModelRole } from '@sb/shared';
 
 export type ProviderRow = {
   id: string;
@@ -27,6 +28,8 @@ export type ProviderRow = {
   baseUrl: string;
   enabled: boolean;
   streamMode?: 'stream' | 'once';
+  /** 协议族（v0.2.139 生图批）：「生图（画图）」行据此过滤——anthropic 原生协议没有生图端点 */
+  type?: 'openai' | 'anthropic';
   /**
    * 归属（M2c，契约 `docs/TENANCY-SPEC.md` §8.1）：`null` = **平台通道**（老板出的钱），
    * 非 null = 我自带的 key。★ 平台的 provider **必须可见**（否则没法把角色绑到免费额度上），
@@ -35,6 +38,18 @@ export type ProviderRow = {
    */
   ownerId?: string | null;
 };
+
+/**
+ * 每个角色可绑的服务商（v0.2.139 生图批）。
+ * ★ 过滤规则放**纯函数**而不写在 JSX 里：这是「谁能出现在下拉里」的唯一判定，
+ * 服务端 `PUT /roles/:role` 对 image 的类型断言是同一件事的另一半——两处口径必须一致
+ * （前端滤掉 ＋ 服务端 400 兜底），写在一起才可能被同一条测试锁住。
+ * ★ 只滤 anthropic 不挑 openai：将来出现第三种兼容协议时这里不必再改。
+ */
+export function providersForRole(role: ModelRole, providers: ProviderRow[]): ProviderRow[] {
+  if (role === 'image') return providers.filter((p) => p.type !== 'anthropic');
+  return providers;
+}
 
 /** 「自定义…」选项的哨兵值。用不可能撞上真实模型名的形态（真实模型名不会以 `__` 开头成对出现）。 */
 const CUSTOM = '__custom__';

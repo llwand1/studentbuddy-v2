@@ -131,7 +131,8 @@ async function verifySolve(q, useFake) {
   const opts = (q.options ?? []).map((o, i) => `${V_LETTERS[i]}. ${o}`);
   const ask = q.type === 'multiple' ? '这是多选题,只输出全部正确选项的字母(如 AC),不要任何解释。' : '只输出正确选项的字母,不要任何解释。';
   try {
-    return await llm([ask, '', `题干：${q.question}`, ...opts].join('\n'), { temperature: 0, maxTokens: 16 });
+    // maxTokens 512 不是浪费:agnes/gemini 系有隐藏思考 token,给 16 会把答案截成空串(真机踩坑)
+    return await llm([ask, '', `题干：${q.question}`, ...opts].join('\n'), { temperature: 0, maxTokens: 512 });
   } catch {
     return null;
   }

@@ -180,7 +180,7 @@ describe('ContinentPage 首屏与横幅', () => {
   it('取数成功：标题/统计/地图同屏，且范围外到期的词条单独给一句提示', async () => {
     apiMock.map.mockResolvedValue({ terms: [termOf('a', true), termOf('b', false)] });
     render(<ContinentPage />);
-    await waitFor(() => expect(apiMock.map).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(document.querySelector('.continent-map-hint')?.textContent).toMatch(/视野内 [1-9]/)); // ★ 等"铺好"再断言：mock 被调用 ≠ 已 resolve 并重渲染，紧跟的同步断言并发下会闪红
 
     expect(screen.getByRole('heading', { name: /知识大陆/ })).toBeTruthy();
     expect(screen.getByText('待收复的怪')).toBeTruthy();
@@ -211,7 +211,7 @@ describe('ContinentPage 交互', () => {
     apiMock.map.mockResolvedValue({ terms: [termOf('a', true)] });
     apiMock.mark.mockResolvedValue(termOf('a', true));
     render(<ContinentPage />);
-    await waitFor(() => expect(apiMock.map).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(document.querySelector('.continent-map-hint')?.textContent).toMatch(/视野内 [1-9]/)); // ★ 同前：铺好再点，否则相机还没对齐、这一下会落到别的格
 
     clickCell(CENTER_ROW, CENTER_COL); // 单条词条 ⇒ 世界中心 (0,0) 恒落在视口中心格
     expect(document.querySelector('.stub-monster-dialog')).toBeTruthy();
@@ -229,7 +229,7 @@ describe('ContinentPage 交互', () => {
     apiMock.map.mockResolvedValue({ terms: [termOf('a', true)] });
     apiMock.mark.mockRejectedValue(new Error('该词条未纳入复习范围'));
     render(<ContinentPage />);
-    await waitFor(() => expect(apiMock.map).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(document.querySelector('.continent-map-hint')?.textContent).toMatch(/视野内 [1-9]/)); // ★ 同前：铺好再点
 
     clickCell(CENTER_ROW, CENTER_COL);
     fireEvent.click(document.querySelector('.stub-solve') as HTMLButtonElement);
@@ -241,7 +241,7 @@ describe('ContinentPage 交互', () => {
     const terms = [...settledTerms(), beastTerm()];
     apiMock.map.mockResolvedValue({ terms });
     render(<ContinentPage />);
-    await waitFor(() => expect(apiMock.map).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(document.querySelector('.continent-map-hint')?.textContent).toMatch(/视野内 [1-9]/)); // ★ 同前：铺好再点
 
     const view = buildContinentView(terms);
     const beast = view.tiles.find((t) => t.id === 'm');
@@ -259,7 +259,7 @@ describe('ContinentPage 交互', () => {
     const terms = [loneBeastTerm()];
     apiMock.map.mockResolvedValue({ terms });
     render(<ContinentPage />);
-    await waitFor(() => expect(apiMock.map).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(document.querySelector('.continent-map-hint')?.textContent).toMatch(/视野内 [1-9]/)); // ★ 同前：铺好再点
 
     const view = buildContinentView(terms);
     // 这只怪把没铺过词条的荒地也吞了（`tiles` 里没有它们，单列在 `wildLands`）
@@ -276,7 +276,7 @@ describe('ContinentPage 交互', () => {
   it('点普通地块（范围外）→ 出详情卡并说明为什么没冒怪', async () => {
     apiMock.map.mockResolvedValue({ terms: [termOf('b', false)] });
     render(<ContinentPage />);
-    await waitFor(() => expect(apiMock.map).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(document.querySelector('.continent-map-hint')?.textContent).toMatch(/视野内 [1-9]/)); // ★ 同前：铺好再点
 
     clickCell(CENTER_ROW, CENTER_COL);
     const detail = document.querySelector('.continent-detail');

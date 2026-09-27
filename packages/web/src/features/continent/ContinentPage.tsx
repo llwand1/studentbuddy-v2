@@ -249,7 +249,7 @@ export function ContinentPage() {
           chests={drops}
           npcs={partners.marks}
           placeSpots={partners.placeSpots}
-          recenterToken={recenter}
+          recenterTick={recenter}
           onPick={pick}
           burst={burst}
           focus={hunting ?? detail}

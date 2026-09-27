@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-27T05:56:11.979Z",
+  "generatedAt": "2026-09-27T06:06:15.421Z",
   "code": {
     "rows": [
       {
@@ -86,16 +86,16 @@
     "probes": 15
   },
   "repo": {
-    "head": "2b8e457",
+    "head": "20f3bdf",
     "headDate": "2026-09-27",
-    "commitsLast14d": 267,
+    "commitsLast14d": 268,
     "branch": "feat/knowledge-continent-npc",
     "dirtyFiles": 3
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 49.7,
+    "wallSec": 65.3,
     "staleDays": 0,
     "files": 222,
     "cases": 2996,

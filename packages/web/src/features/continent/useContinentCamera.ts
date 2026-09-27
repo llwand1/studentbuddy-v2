@@ -9,7 +9,7 @@
  *   ① **相机必须夹在世界里**（`clampCam`）——不夹就能把视野拖到世界外，用户看到一片纯背景；
  *   ② **英雄走出视口 ⇒ 相机跟到"最小可见"**（`followCam`，每次只挪必要的那几格）——
  *      不跟的话英雄会从画面上消失，而键盘还能继续走，"我在哪"就此丢失（ADR-5 禁静默）；
- *   ③ **一键回到英雄**（`recenterToken` 变化 ⇒ `camFor` 居中）——拖远了要能一步回来。
+ *   ③ **一键回到英雄**（`recenterTick` 变化 ⇒ `camFor` 居中）——拖远了要能一步回来。
  * ⚠️ **不做**"相机跟随英雄平滑移动"：地图是常驻页，跟着英雄一直动会让远处的格永远看不清
  *   （见 `ContinentMap` 文件头"静止不开 rAF 循环"的同一条取舍：能不动就不动）。
  */
@@ -85,12 +85,12 @@ export function camAfterDrag(
 }
 
 /**
- * 相机状态。`recenterToken` 每次自增＝"回到我身上"被按了一次（★ 用计数而不是回调：地图是纯渲染层，"让相机做什么"由页面用数据表达，它不需要持有 setState）。
+ * 相机状态。`recenterTick` 每次自增＝"回到我身上"被按了一次（★ 用计数而不是回调：地图是纯渲染层，"让相机做什么"由页面用数据表达，它不需要持有 setState）。
  */
 export function useContinentCamera(
   radius: number,
   hero: CamTarget | null,
-  recenterToken: number,
+  recenterTick: number,
 ): { cam: ContinentCam; setCam: (next: ContinentCam) => void } {
   const [cam, setCam] = useState<ContinentCam>(() => camFor(null, radius));
   const hadHero = useRef(false);
@@ -115,7 +115,7 @@ export function useContinentCamera(
       const next = followCam(c, hero ?? { row: c.row, col: c.col }, radius);
       return next.row === c.row && next.col === c.col ? c : next;
     });
-    // ★ 只认这三样：hero 走一步、或世界半径变了（`recenterToken` 单独管）
+    // ★ 只认这三样：hero 走一步、或世界半径变了（`recenterTick` 单独管）
   }, [hero?.row, hero?.col, radius]);
 
   // ③ 世界半径变大（加了词条）⇒ 夹一次，避免相机停在已经不存在的边界上
@@ -127,7 +127,7 @@ export function useContinentCamera(
   useEffect(() => {
     if (hero) setCam(camFor(hero, radius));
     // ★ 只认 token：hero 走一步不该把用户手拖的视野收回去
-  }, [recenterToken]);
+  }, [recenterTick]);
 
   return { cam, setCam };
 }

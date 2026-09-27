@@ -75,7 +75,7 @@ interface Props {
   /** 大陆上的学习伙伴（含遇险标记；结论由服务端给） */
   npcs: readonly ContinentNpcMark[];
   /** 「回到我身上」的计数（页面自增一次 = 按了一次） */
-  recenterToken: number;
+  recenterTick: number;
   onPick: (row: number, col: number) => void;
   /** 击杀/收复特效：父组件每次换一个新对象（引用变 = 触发一次） */
   burst?: ContinentTileView | null;
@@ -95,7 +95,7 @@ export function ContinentMap({
   heroStart,
   chests,
   npcs,
-  recenterToken,
+  recenterTick,
   onPick,
   burst = null,
   focus = null,
@@ -107,7 +107,7 @@ export function ContinentMap({
   const [dragging, setDragging] = useState(false);
   const popRef = useRef({ key: '', start: 0 });
   const burstRef = useRef<{ start: number; tile: ContinentTileView } | null>(null);
-  const { cam, setCam } = useContinentCamera(radius, hero, recenterToken);
+  const { cam, setCam } = useContinentCamera(radius, hero, recenterTick);
   const camRef = useRef(cam);
   camRef.current = cam;
   /** 拖拽起点快照（起点像素 + 起点相机） */

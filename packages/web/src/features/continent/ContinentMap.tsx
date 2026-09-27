@@ -1,25 +1,29 @@
 /**
- * features/continent/ContinentMap — 知识大陆地图（canvas 像素，交互在本文件、绘制在 `continent-canvas.ts`）。
+ * features/continent/ContinentMap — 知识大陆地图（canvas 像素；交互在本文件、绘制在 `continent-canvas.ts`）。
  *
- * 三层分工：
- *   ① 口径层 `continent-view.ts`：谁有怪、几级、哪格是谁的领地、哪格能站人；
- *   ② 绘制层 `continent-canvas.ts`：给定状态画什么（纯 canvas 指令）；
- *   ③ 本文件：**命中换算 + 悬停 + 点击上报**（点击的语义分流在页面，因为那需要知道"英雄在哪"）。
+ * 三层分工：① `continent-view.ts` 出结论（谁有怪／谁的领地／哪格能站／世界多大）；
+ * ② `continent-canvas.ts` 只管"给定状态画什么"；③ 本文件＝**相机 + 命中 + 悬停 + 拖拽 + 点击上报**。
  *
- * ★ 命中判定用 `getBoundingClientRect` 的尺寸比例，**不写死 48px**：canvas 被 CSS 缩放
- *   （窄屏 `max-width:100%`）后，写死的坐标会把点击算到隔壁格。
- * ★ 命中只上报**格子坐标**（`onPick(row, col)`），不上报对象：怪的领地可能落在**没有词条的荒地**
- *   上（`view.wildLands`），那不是 `ContinentTileView`——上报坐标，调用方才能把两种格都接住。
- * ★ 抽帧粒度：只在「地形指纹变了 / 有击杀特效 / 英雄正在走」时开 requestAnimationFrame，
- *   静止时**不开循环**——地图是常驻页，一个白跑的空转循环等于持续耗电（同 `CardWall` 的取舍）。
- * ★ 重放「长出来」的判据是**地形指纹**（`tilesKey`，含领地归属）：点一下弹窗不该让整张图重长一遍。
+ * ★★ 2026-09-27（开放世界批）起**世界 ≠ 视口**：世界是以 `(0,0)` 为中心、半径 `radius` 的有符号网格，
+ *   视口只有 `CONTINENT_VIEW_COLS × ROWS`。于是本文件多了三件必须一起做的事（缺一件就出静默死路）：
+ *   ① 绘制前 `translate(-cam)`，且**背景铺底放在 translate 之外**（世界有负坐标，否则一拖就露缝）；
+ *   ② 命中换算**加上相机偏移**（漏了就是"点到的格 ≠ 画出来的格"）；
+ *   ③ **只画视口内的格**（世界 225 格起，全量逐格绘 + 全量"长出来"动画是白跑）。
+ *   相机的规则（夹取／最小可见跟随／回英雄／拖拽换算）整体在 `useContinentCamera.ts`。
+ *
+ * ★ 命中判定走 `getBoundingClientRect` 的比例，**不写死 48px**：canvas 被 CSS 缩放后写死会算到隔壁格。
+ * ★ 命中只上报**格子坐标**：领地可能落在没铺词条的荒地上（`view.wildLands`），报坐标两种格都接得住。
+ * ★ **拖过就不算点击**（`movedRef`）：否则"想看看远处"会顺手点开一个弹窗。
+ *   ⚠️ `click` 晚于 `mouseup`，故**不能**读 `dragRef`（那时已置空）——必须单独记一笔。
+ * ★ 抽帧：只在「地形指纹变了 / 有击杀特效 / 英雄在走」时开 rAF，静止不开循环；重放"长出来"只认地形指纹。
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CONTINENT_COLS, CONTINENT_ROWS } from '@sb/shared';
+import { CONTINENT_VIEW_COLS, CONTINENT_VIEW_ROWS, worldCells } from '@sb/shared';
 import {
   BURST_MS,
   CANVAS_H,
   CANVAS_W,
+  CELL,
   COLOR,
   POP_MS,
   STAGGER_CAP,
@@ -35,8 +39,9 @@ import {
   drawSprout,
   drawTile,
 } from './continent-canvas';
+import { camAfterDrag, useContinentCamera, type ContinentCam } from './useContinentCamera';
 import { STEP_MS, type HeroCell } from './useContinentHero';
-import { tileHint, type ContinentLandCell, type ContinentTileView } from './continent-view';
+import { cellHint, type ContinentLandCell, type ContinentTileView } from './continent-view';
 
 /** 地上的一只宝箱（打怪掉落；**只有位置与词条名，没有账**——开箱走既有每日宝箱账本） */
 export interface ContinentChestDrop {
@@ -45,7 +50,7 @@ export interface ContinentChestDrop {
   term: string;
 }
 
-/** 一个格子（可能是真词条格，也可能是荒地上的领地格） */
+/** 一个格子（世界坐标，可为负；可能是真词条格、荒地上的领地格，或还没铺词条的空地） */
 export interface ContinentCell {
   row: number;
   col: number;
@@ -53,8 +58,8 @@ export interface ContinentCell {
 
 /**
  * 地图上的一位学习伙伴（★ 只有位置与名字，**遇险是服务端结论**）。
- * ★ 为什么不让本层自己算"他危不危险"：那要重算铺格 + 领地 + 曼哈顿距离，
- *   即第二份口径（图上画着遇险、清单里没有那单）；结论由 `GET /api/npc` 给，这里只是读数。
+ * ★ 不让本层自己算"他危不危险"：那要重算铺格 + 领地 + 曼哈顿距离，即第二份口径
+ *   （图上画着遇险、清单里没有那单）；结论由 `GET /api/npc` 给，这里只是读数。
  */
 export interface ContinentNpcMark {
   id: string;
@@ -68,6 +73,8 @@ interface Props {
   tiles: ContinentTileView[];
   /** 荒地上的领地格（`tiles` 装不下的那些）——不画它们，一整片占领区就看不见 */
   wildLands: readonly ContinentLandCell[];
+  /** 世界半径（`continent-view` 给；相机夹取与"大陆多大"都用它） */
+  radius: number;
   hero: HeroCell | null;
   heroFrom: { row: number; col: number } | null;
   /** 这一步的起始时刻（`performance.now()`），插值用 */
@@ -75,6 +82,8 @@ interface Props {
   chests: readonly ContinentChestDrop[];
   /** 大陆上的学习伙伴（含遇险标记；结论由服务端给） */
   npcs: readonly ContinentNpcMark[];
+  /** 「回到我身上」的计数（页面自增一次 = 按了一次） */
+  recenterToken: number;
   onPick: (row: number, col: number) => void;
   /** 击杀/收复特效：父组件每次换一个新对象（引用变 = 触发一次） */
   burst?: ContinentTileView | null;
@@ -87,11 +96,13 @@ interface Props {
 export function ContinentMap({
   tiles,
   wildLands,
+  radius,
   hero,
   heroFrom,
   heroStart,
   chests,
   npcs,
+  recenterToken,
   onPick,
   burst = null,
   focus = null,
@@ -100,8 +111,16 @@ export function ContinentMap({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hoverRef = useRef<ContinentCell | null>(null);
   const [hover, setHover] = useState<ContinentCell | null>(null);
+  const [dragging, setDragging] = useState(false);
   const popRef = useRef({ key: '', start: 0 });
   const burstRef = useRef<{ start: number; tile: ContinentTileView } | null>(null);
+  const { cam, setCam } = useContinentCamera(radius, hero, recenterToken);
+  const camRef = useRef(cam);
+  camRef.current = cam;
+  /** 拖拽起点快照（起点像素 + 起点相机） */
+  const dragRef = useRef<{ x: number; y: number; cam: ContinentCam } | null>(null);
+  /** 这次拖拽真的移动过（click 晚于 mouseup ⇒ 不能读 `dragRef`，它是空的了） */
+  const movedRef = useRef(false);
 
   /** 地形指纹：含**领地归属**（怪被收复 ⇒ 整片领地易主 ⇒ 该重长一次，看得见"地回来了"） */
   const tilesKey = useMemo(
@@ -124,14 +143,24 @@ export function ContinentMap({
     let raf = 0;
     const step = (): void => {
       const now = performance.now();
+      const c = camRef.current;
       const popAge = reducedMotion ? Number.POSITIVE_INFINITY : now - popRef.current.start;
       const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(now / 620);
       const popAt = (delay: number): number =>
         Math.max(Math.min((popAge - Math.min(delay, STAGGER_CAP * STAGGER_MS)) / POP_MS, 1), 0.001);
       const popOf = (i: number): number => popAt(i * STAGGER_MS);
+      /** 视口内的格（±1 格余量：边缘那格的"长出来"缩放与怪角会溢出到界外） */
+      const shown = (row: number, col: number): boolean =>
+        row >= c.row - 1 &&
+        row <= c.row + CONTINENT_VIEW_ROWS &&
+        col >= c.col - 1 &&
+        col <= c.col + CONTINENT_VIEW_COLS;
 
-      drawBackground(ctx);
+      drawBackground(ctx); // ★ 在 translate 之外：世界有负坐标，铺在里面会留缝
+      ctx.save();
+      ctx.translate(-c.col * CELL, -c.row * CELL);
       tiles.forEach((t, i) => {
+        if (!shown(t.row, t.col)) return;
         const pop = popOf(i);
         drawTile(ctx, t, pop);
         if (t.isLand) drawLand(ctx, t, pop, pulse);
@@ -139,17 +168,25 @@ export function ContinentMap({
       });
       // 荒地上的领地：地块本身没铺词条（也就没有 tile），但仍要被占领、要挡路、要能点
       const wildPop = popAt(tiles.length * STAGGER_MS);
-      wildLands.forEach((l) => drawLand(ctx, l, wildPop, pulse));
+      for (const l of wildLands) if (shown(l.row, l.col)) drawLand(ctx, l, wildPop, pulse);
       // 宝箱画在怪下面：它是"地上的东西"，不该盖住怪的脸
       const bob = reducedMotion ? 0 : Math.round(Math.sin(now / 380) * 2);
-      chests.forEach((c, i) => drawChest(ctx, c.row, c.col, bob + (i % 2)));
+      chests.forEach((d, i) => {
+        if (shown(d.row, d.col)) drawChest(ctx, d.row, d.col, bob + (i % 2));
+      });
       tiles.forEach((t, i) => {
-        if (t.hasMonster) drawMonster(ctx, t, popOf(i));
+        if (t.hasMonster && shown(t.row, t.col)) drawMonster(ctx, t, popOf(i));
       });
       // ★ 伙伴画在**怪之上**（"他在怪的地盘上"要看得见）、**英雄之下**（玩家自己的角色永不被遮）
-      npcs.forEach((n, i) => drawNpc(ctx, n, reducedMotion ? 0 : Math.round(Math.sin(now / 520) * 1.5) + (i % 2), n.distressed, reducedMotion ? 1 : pulse));
-      if (hero) drawHero(ctx, hero, heroFrom, reducedMotion || !heroFrom ? 1 : Math.min((now - heroStart) / STEP_MS, 1));
-
+      npcs.forEach((n, i) => {
+        if (!shown(n.row, n.col)) return;
+        const idle = reducedMotion ? 0 : Math.round(Math.sin(now / 520) * 1.5) + (i % 2);
+        drawNpc(ctx, n, idle, n.distressed, reducedMotion ? 1 : pulse);
+      });
+      if (hero) {
+        const k = reducedMotion || !heroFrom ? 1 : Math.min((now - heroStart) / STEP_MS, 1);
+        drawHero(ctx, hero, heroFrom, k);
+      }
       const carried = burstRef.current;
       if (carried) {
         const age = now - carried.start;
@@ -158,6 +195,7 @@ export function ContinentMap({
       }
       if (focus) drawFrame(ctx, focus, COLOR.gold, popAge);
       if (hoverRef.current) drawFrame(ctx, hoverRef.current, COLOR.hover, popAge);
+      ctx.restore();
 
       const bAge = burstRef.current ? now - burstRef.current.start : Number.POSITIVE_INFINITY;
       if (popAge < STAGGER_CAP * STAGGER_MS + POP_MS + 40 || bAge < BURST_MS || now - heroStart < STEP_MS + 60) {
@@ -166,59 +204,94 @@ export function ContinentMap({
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [tiles, wildLands, tilesKey, hover, focus, burst, hero, heroFrom, heroStart, chests, npcs]);
+  }, [tiles, wildLands, tilesKey, hover, focus, burst, hero, heroFrom, heroStart, chests, npcs, cam]);
 
-  /** 事件坐标 → 格子；用 rect 比例换算，CSS 缩放后也准 */
-  const at = (canvas: HTMLCanvasElement, clientX: number, clientY: number): ContinentCell | null => {
+  /** 事件坐标 → **世界格**：视口比例换算 + 相机偏移（CSS 缩放后也准） */
+  const at = (canvas: HTMLCanvasElement, clientX: number, clientY: number): ContinentCell => {
     const rect = canvas.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return null;
-    const col = Math.floor(((clientX - rect.left) / rect.width) * CONTINENT_COLS);
-    const row = Math.floor(((clientY - rect.top) / rect.height) * CONTINENT_ROWS);
-    if (row < 0 || row >= CONTINENT_ROWS || col < 0 || col >= CONTINENT_COLS) return null;
+    if (rect.width === 0 || rect.height === 0) return { row: cam.row, col: cam.col };
+    const col = cam.col + Math.floor(((clientX - rect.left) / rect.width) * CONTINENT_VIEW_COLS);
+    const row = cam.row + Math.floor(((clientY - rect.top) / rect.height) * CONTINENT_VIEW_ROWS);
     return { row, col };
   };
 
-  /** 悬停文案：词条格走 `tileHint`（唯一文案源），荒地上的领地格单独说一句 */
-  const hintOf = (cell: ContinentCell | null): string | null => {
-    if (!cell) return null;
-    // ★ 伙伴优先于地块：他站在格子上，鼠标停上去该说的是"这是谁"，不是"这格什么状态"
-    const n = npcs.find((x) => x.row === cell.row && x.col === cell.col);
-    if (n) return `「${n.name}」你的学习伙伴${n.distressed ? '· 被怪堵住了，点他看看' : '· 点他跟他说句话'}`;
-    const t = tiles.find((x) => x.row === cell.row && x.col === cell.col);
-    if (t) return tileHint(t);
-    const w = wildLands.find((x) => x.row === cell.row && x.col === cell.col);
-    if (w) return `「${w.ownerTerm ?? ''}」怪的领地（荒地）· 领主共占 ${w.count} 格 · 点它复习领主`;
-    return '这一格还没铺上词条（走不过去）· 去「词条」页多存几条，它会从中心长出来';
+  /** 拖拽：纯换算在 `camAfterDrag`（可单测）；`moved` 决定这一下算拖拽还是点击 */
+  const dragTo = (canvas: HTMLCanvasElement, x: number, y: number): void => {
+    const d = dragRef.current;
+    if (!d) return;
+    const next = camAfterDrag(d, x, y, canvas.getBoundingClientRect(), radius);
+    if (!next) return;
+    movedRef.current = true;
+    setCam(next);
   };
 
-  const hoverText = hintOf(hover);
+  const beginDrag = (x: number, y: number): void => {
+    movedRef.current = false;
+    dragRef.current = { x, y, cam };
+    setDragging(true);
+  };
+  const endDrag = (): void => {
+    dragRef.current = null;
+    setDragging(false);
+  };
+
+  const hoverText = cellHint(hover, { tiles, wildLands, npcs });
+  const size = 2 * radius + 1;
+  const inView = tiles.filter(
+    (t) =>
+      t.row >= cam.row &&
+      t.row < cam.row + CONTINENT_VIEW_ROWS &&
+      t.col >= cam.col &&
+      t.col < cam.col + CONTINENT_VIEW_COLS,
+  ).length;
 
   return (
     <div className="continent-map-wrap">
       <canvas
         ref={canvasRef}
-        className="continent-map"
+        className={dragging ? 'continent-map dragging' : 'continent-map'}
         width={CANVAS_W}
         height={CANVAS_H}
         aria-label="知识大陆地图"
+        onMouseDown={(e) => beginDrag(e.clientX, e.clientY)}
         onMouseMove={(e) => {
+          if (dragRef.current) {
+            dragTo(e.currentTarget, e.clientX, e.clientY);
+            return; // 拖拽中不算悬停（否则镜头上移时高亮框会乱跳）
+          }
           const cell = at(e.currentTarget, e.clientX, e.clientY);
           hoverRef.current = cell;
-          if (cell?.row !== hover?.row || cell?.col !== hover?.col) setHover(cell);
+          if (cell.row !== hover?.row || cell.col !== hover?.col) setHover(cell);
         }}
+        onMouseUp={endDrag}
         onMouseLeave={() => {
+          endDrag();
           hoverRef.current = null;
           setHover(null);
         }}
         onClick={(e) => {
+          if (movedRef.current) {
+            movedRef.current = false; // ★ 拖过就不算点击，且只吞这一次
+            return;
+          }
           const cell = at(e.currentTarget, e.clientX, e.clientY);
-          if (cell) onPick(cell.row, cell.col);
+          onPick(cell.row, cell.col);
         }}
+        // 触屏同样能拖（窄屏也开着地图；`touch-action` 在 CSS 里已设 none）
+        onTouchStart={(e) => {
+          const t = e.touches[0];
+          if (t) beginDrag(t.clientX, t.clientY);
+        }}
+        onTouchMove={(e) => {
+          const t = e.touches[0];
+          if (t) dragTo(e.currentTarget, t.clientX, t.clientY);
+        }}
+        onTouchEnd={endDrag}
       />
       <p className={alert ? 'continent-map-hint warn' : 'continent-map-hint'}>
         {alert ??
           hoverText ??
-          `共 ${tiles.length} 格 · 方向键/WASD 或点地走位 · 走到怪旁边点它开打 · 点领地复习领主${
+          `大陆 ${size}×${size} 格（共 ${worldCells(radius)} 格，视野内 ${inView} 格）· 拖拽看别处 · 方向键/WASD 或点地走位 · 走到怪旁边点它开打${
             npcs.length > 0 ? ' · 点伙伴跟他说句话' : ''
           }`}
       </p>

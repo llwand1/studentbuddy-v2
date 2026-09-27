@@ -12,7 +12,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import {
-  NPC_MAX,
+  npcCapFor,
   NPC_TRADE_MIN_CARDS,
   SETTING_KEY_NPC_PARTNER,
   continentHash,
@@ -25,6 +25,7 @@ import {
   npcTradesLeft,
   normalizeNpcName,
   placeNpcs,
+  worldRadiusFor,
   type NpcCandidate,
   type NpcMonster,
   type NpcPlacement,
@@ -142,7 +143,9 @@ export function tradesUsedToday(ownerId: string | null, now = new Date()): numbe
  */
 export function npcList(ownerId: string | null): NpcState {
   const scan = scanMap(ownerId);
-  const count = npcCountFor(scan.terms);
+  // ★ 世界半径与铺格同源（`layoutTiles` 内部也是 `worldRadiusFor(词条数)`）⇒ 上限不可能与地图大小打架
+  const radius = worldRadiusFor(scan.terms);
+  const count = npcCountFor(scan.terms, radius);
   const placed = placeNpcs(scan.candidates, count);
   const saved = loadPartnerName(ownerId);
   const npcs: NpcView[] = placed.map((p, i) => {
@@ -158,8 +161,8 @@ export function npcList(ownerId: string | null): NpcState {
     partnerName: npcs[0]?.name ?? '',
     npcs,
     count,
-    max: NPC_MAX,
-    termsToNext: npcTermsToNext(scan.terms),
+    max: npcCapFor(radius),
+    termsToNext: npcTermsToNext(scan.terms, radius),
     tradesLeft: npcTradesLeft(tradesUsedToday(ownerId)),
   };
 }

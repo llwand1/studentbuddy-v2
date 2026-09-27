@@ -9,10 +9,23 @@
  * ★★ 零随机：本文件不许出现 `Math.random` / `Date.now`。伙伴的位置与名字一旦随机，刷新一次就换人，
  *   「他」这个身份（以及用户给他起的名字）立刻失去意义——这是全册最重要的一条实现纪律。
  */
-import { continentHash } from './continent.js';
+import { continentHash, worldCells, worldRadiusFor } from './continent.js';
 
-/** 伙伴数量上限（地图 140 格；伙伴不占格，6 是"看得出多了人"的密度上界） */
-export const NPC_MAX = 6;
+/**
+ * 伙伴数量上限的**上下界**（2026-09-27 开放世界批改：上限不再写死，跟世界半径涨）。
+ * ★ `NPC_MAX_MIN = 6`：世界再小也"看得出多了人"的密度底（也是旧口径的那个 6）。
+ * ★ `NPC_MAX_CAP = 24`：硬上限——再多就"人挤人"，且地图本身也装不下。
+ * ⚠️ 密度口径（每 40 格站 1 位）是**产品感受值**，把握度中；要调只改 `npcCapFor` 一处。
+ */
+export const NPC_MAX_MIN = 6;
+export const NPC_MAX_CAP = 24;
+
+/** 世界半径 → 伙伴上限：`clamp(floor(世界格数 / 40), 6, 24)` ≈ 每 40 格站 1 位 */
+export function npcCapFor(radius: number): number {
+  const r = Math.max(Math.trunc(radius) || 0, 0);
+  const byArea = Math.floor(worldCells(r) / 40);
+  return Math.min(Math.max(byArea, NPC_MAX_MIN), NPC_MAX_CAP);
+}
 
 /** 每 8 条词条解锁一位伙伴（★ 按「词条数」不按「领地格数」，理由见 SPEC §2.1） */
 export const NPC_TERMS_PER_NPC = 8;
@@ -79,17 +92,24 @@ export const NPC_FALLBACK_LINES: readonly string[] = [
   '路过帮我瞅一眼，「{{term}}」还在不在？',
 ];
 
-/** 伙伴数量：`clamp(floor(词条数 / 8), 1, 6)`（★ 下限 1：空大陆也该有一位伙伴在场） */
-export function npcCountFor(termCount: number): number {
+/**
+ * 伙伴数量：`clamp(floor(词条数 / 8), 1, npcCapFor(世界半径))`。
+ * ★ 下限 1：空大陆也该有一位伙伴在场（宣传点是「创建你的 AI 学习伙伴」）。
+ * ★★ 上限**跟世界半径涨**（老板 2026-09-27 裁定「跟着世界涨」）：世界开放后地图不再封在 140 格，
+ *   若上限写死，327 条词条就顶死、"开疆拓土"没有奖励感（与 ⑦ 那条相悖）。
+ * ★ `radius` **可省**：省了就用 `worldRadiusFor(termCount)` —— 单一入口，调用方传不出"配不上词条数"
+ *   的半径（要测边界就显式传，那就是刻意的）。
+ */
+export function npcCountFor(termCount: number, radius: number = worldRadiusFor(termCount)): number {
   const n = Math.max(0, Math.trunc(termCount) || 0);
-  return Math.min(Math.max(Math.floor(n / NPC_TERMS_PER_NPC), 1), NPC_MAX);
+  return Math.min(Math.max(Math.floor(n / NPC_TERMS_PER_NPC), 1), npcCapFor(radius));
 }
 
 /** 还差几条词条才多一位伙伴；已封顶 ⇒ `null`（UI 用它说 ⑦ 那句激励，不自己算） */
-export function npcTermsToNext(termCount: number): number | null {
+export function npcTermsToNext(termCount: number, radius: number = worldRadiusFor(termCount)): number | null {
   const n = Math.max(0, Math.trunc(termCount) || 0);
-  if (npcCountFor(n) >= NPC_MAX) return null;
-  const target = (npcCountFor(n) + 1) * NPC_TERMS_PER_NPC;
+  if (npcCountFor(n, radius) >= npcCapFor(radius)) return null;
+  const target = (npcCountFor(n, radius) + 1) * NPC_TERMS_PER_NPC;
   return Math.max(target - n, 1);
 }
 
@@ -130,7 +150,7 @@ export interface NpcPlacement {
  * ⚠️ 调用方必须**先过滤 `!hasMonster`**：不过滤会出现"伙伴和怪站在同一格"。
  */
 export function placeNpcs(candidates: readonly NpcCandidate[], count: number): NpcPlacement[] {
-  const want = Math.min(Math.max(Math.trunc(count) || 0, 0), NPC_MAX);
+  const want = Math.min(Math.max(Math.trunc(count) || 0, 0), NPC_MAX_CAP);
   if (want <= 0) return [];
   const ranked = [...candidates].sort((a, b) => {
     const ha = continentHash(`npc|${a.termId}`);

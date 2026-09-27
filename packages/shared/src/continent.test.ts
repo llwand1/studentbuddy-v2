@@ -9,15 +9,15 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  CONTINENT_CELLS,
+  CONTINENT_VIEW_CELLS,
   CONTINENT_CODEX_SLOTS,
-  CONTINENT_COLS,
   CONTINENT_LAND_DAY_STEP,
   CONTINENT_MAX_LANDS,
   CONTINENT_MAX_LEVEL,
   CONTINENT_PLAYABLE_QTYPES,
-  CONTINENT_ROWS,
   CONTINENT_SCENE_FRAMES,
+  WORLD_MAX_RADIUS,
+  WORLD_MIN_RADIUS,
   buildMonsterQuestions,
   buildQuestion,
   cellKey,
@@ -37,6 +37,8 @@ import {
   speciesTypes,
   spiralCells,
   spreadLands,
+  worldCells,
+  worldRadiusFor,
 } from './continent.js';
 
 interface T {
@@ -57,22 +59,30 @@ const term = (n: number, createdAt = `2026-09-${`${n}`.padStart(2, '0')} 00:00:0
 const pool: T[] = Array.from({ length: 8 }, (_, i) => term(i + 1));
 
 describe('continent / 铺格', () => {
-  it('螺旋格子数 = 网格格数，且**无重复无越界**', () => {
-    const cells = spiralCells(CONTINENT_COLS, CONTINENT_ROWS);
-    expect(cells).toHaveLength(CONTINENT_CELLS);
+  it('螺旋格子数 = (2R+1)²，且**无重复无越界**（世界以 (0,0) 为中心、坐标有符号）', () => {
+    const R = WORLD_MIN_RADIUS;
+    const cells = spiralCells(R);
+    expect(cells).toHaveLength(worldCells(R));
+    expect(worldCells(R)).toBe((2 * R + 1) ** 2);
     const keys = new Set(cells.map((c) => `${c.row},${c.col}`));
-    expect(keys.size).toBe(CONTINENT_CELLS);
+    expect(keys.size).toBe(worldCells(R));
     for (const c of cells) {
-      expect(c.row).toBeGreaterThanOrEqual(0);
-      expect(c.row).toBeLessThan(CONTINENT_ROWS);
-      expect(c.col).toBeGreaterThanOrEqual(0);
-      expect(c.col).toBeLessThan(CONTINENT_COLS);
+      expect(c.row).toBeGreaterThanOrEqual(-R);
+      expect(c.row).toBeLessThanOrEqual(R);
+      expect(c.col).toBeGreaterThanOrEqual(-R);
+      expect(c.col).toBeLessThanOrEqual(R);
     }
   });
 
-  it('第一个格子是网格中心（知识从中心长出来）', () => {
-    const [first] = spiralCells(CONTINENT_COLS, CONTINENT_ROWS);
-    expect(first).toEqual({ row: Math.floor(CONTINENT_ROWS / 2), col: Math.floor(CONTINENT_COLS / 2) });
+  it('第一个格子是世界中心 (0,0)（知识从中心长出来）', () => {
+    expect(spiralCells(WORLD_MIN_RADIUS)[0]).toEqual({ row: 0, col: 0 });
+  });
+
+  it('★★ 前缀稳定（开放世界的地基）：半径只增时前 k 格**逐格相同** ⇒ 加词永不挪旧格', () => {
+    const small = spiralCells(WORLD_MIN_RADIUS);
+    const big = spiralCells(WORLD_MIN_RADIUS + 3);
+    expect(big).toHaveLength(worldCells(WORLD_MIN_RADIUS + 3));
+    expect(big.slice(0, small.length)).toEqual(small);
   });
 
   it('铺格确定性：同输入两次结果一致，且**与输入数组顺序无关**', () => {
@@ -88,9 +98,19 @@ describe('continent / 铺格', () => {
     expect(first?.term.id).toBe('t1');
   });
 
-  it('超格截断：141 条只铺 140 格', () => {
-    const many = Array.from({ length: 141 }, (_, i) => term(i + 1));
-    expect(layoutTiles(many)).toHaveLength(CONTINENT_CELLS);
+  it('世界半径由词条数现算且**只增不减**；容量恒够 ⇒ 旧的 140 格截断不复存在', () => {
+    expect(worldRadiusFor(0)).toBe(WORLD_MIN_RADIUS);
+    expect(worldRadiusFor(CONTINENT_VIEW_CELLS)).toBe(WORLD_MIN_RADIUS); // 140 条仍在最小世界里
+    expect(worldRadiusFor(327)).toBe(9); // ★ 本机实测：327 条 ⇒ 19×19＝361 格
+    expect(worldRadiusFor(100_000)).toBe(WORLD_MAX_RADIUS);
+    for (const n of [0, 1, 50, 225, 226, 900, 3000]) {
+      expect(worldRadiusFor(n + 1)).toBeGreaterThanOrEqual(worldRadiusFor(n));
+    }
+    // 327 条全都铺得下（旧口径只铺 140 格，剩下的靠一条横幅"暂未铺上图"糊过去）
+    const many = Array.from({ length: 327 }, (_, i) => term(i + 1));
+    const tiles = layoutTiles(many);
+    expect(tiles).toHaveLength(327);
+    expect(worldCells(worldRadiusFor(327))).toBeGreaterThanOrEqual(327);
   });
 });
 
@@ -191,21 +211,22 @@ describe('continent / 领地扩散（派生量，不是存储量）', () => {
   });
 
   it('逾期越久吞得越多，且**封顶 6 格**、本体那一格不算领地', () => {
-    const long = spreadLands([{ id: 'a', row: 5, col: 7, overdueDays: 30 }]);
+    // ★ 世界中心是 (0,0)（开放世界批起坐标有符号）；离中心足够远 ⇒ 吞得满、够得到封顶
+    const long = spreadLands([{ id: 'a', row: 0, col: 0, overdueDays: 30 }]);
     expect(long.countOf.get('a')).toBe(CONTINENT_MAX_LANDS);
     expect(long.lands.size).toBe(CONTINENT_MAX_LANDS - 1);
-    expect(long.lands.has(cellKey(5, 7))).toBe(false);
+    expect(long.lands.has(cellKey(0, 0))).toBe(false);
   });
 
   it('★ 确定性：同一份输入必得同一片地（否则每次刷新大陆都在重排）', () => {
-    const src = [{ id: 'a', row: 5, col: 7, overdueDays: 6 }];
+    const src = [{ id: 'a', row: 0, col: 0, overdueDays: 6 }];
     expect(spreadLands(src)).toEqual(spreadLands(src));
   });
 
   it('先占先得：两只怪相邻时不会吞到同一格（每格只有一个主人）', () => {
     const r = spreadLands([
-      { id: 'a', row: 5, col: 7, overdueDays: 30 },
-      { id: 'b', row: 5, col: 8, overdueDays: 30 },
+      { id: 'a', row: 0, col: 0, overdueDays: 30 },
+      { id: 'b', row: 0, col: 1, overdueDays: 30 },
     ]);
     const owned = (id: string): number => [...r.lands.values()].filter((v) => v === id).length;
     // 领地格数 = 本体 1 + 实际吞到的格（相邻格可能被另一只的**本体**占掉，所以不保证等于 landCountFor）
@@ -233,13 +254,16 @@ describe('continent / 领地扩散（派生量，不是存储量）', () => {
     expect(r.lands.has(cellKey(1, 0))).toBe(false);
   });
 
-  it('越界不吞（贴着边界长出来的地不会绕到另一侧）', () => {
-    for (const key of spreadLands([{ id: 'a', row: 0, col: 0, overdueDays: 30 }]).lands.keys()) {
+  it('越界不吞（把本体放在世界角上，领地不会绕到"另一侧"）', () => {
+    const R = WORLD_MIN_RADIUS;
+    const r = spreadLands([{ id: 'a', row: -R, col: -R, overdueDays: 30 }], { radius: R });
+    expect(r.lands.size).toBeGreaterThan(0);
+    for (const key of r.lands.keys()) {
       const [row, col] = key.split(',').map(Number);
-      expect(row).toBeGreaterThanOrEqual(0);
-      expect(row).toBeLessThan(CONTINENT_ROWS);
-      expect(col).toBeGreaterThanOrEqual(0);
-      expect(col).toBeLessThan(CONTINENT_COLS);
+      expect(row).toBeGreaterThanOrEqual(-R);
+      expect(row).toBeLessThanOrEqual(R);
+      expect(col).toBeGreaterThanOrEqual(-R);
+      expect(col).toBeLessThanOrEqual(R);
     }
   });
 });

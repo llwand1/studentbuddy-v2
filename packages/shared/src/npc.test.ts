@@ -10,11 +10,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   NPC_DANGER_RANGE,
-  NPC_MAX,
+  NPC_MAX_CAP,
+  NPC_MAX_MIN,
   NPC_NAME_MAX,
   NPC_NAME_POOL,
   NPC_TERMS_PER_NPC,
   NPC_TRADES_PER_DAY,
+  npcCapFor,
   npcCountFor,
   npcDistress,
   npcFallbackLine,
@@ -28,6 +30,8 @@ import {
   type NpcCandidate,
   type NpcMonster,
 } from './npc.js';
+// ★ 世界口径在 continent.ts（伙伴数量上限跟着它涨）——从那里引，不从 npc.ts 转出
+import { WORLD_MAX_RADIUS, WORLD_MIN_RADIUS, worldRadiusFor } from './continent.js';
 
 const cand = (termId: string, row: number, col: number): NpcCandidate => ({
   termId,
@@ -44,8 +48,14 @@ describe('npcCountFor — 每 8 条词条解锁一位伙伴，下限 1、上限 
     expect(npcCountFor(NPC_TERMS_PER_NPC)).toBe(1);
     expect(npcCountFor(NPC_TERMS_PER_NPC + 1)).toBe(1);
     expect(npcCountFor(NPC_TERMS_PER_NPC * 2)).toBe(2);
-    expect(npcCountFor(NPC_TERMS_PER_NPC * NPC_MAX)).toBe(NPC_MAX);
-    expect(npcCountFor(9999)).toBe(NPC_MAX);
+    // ★ 上限跟世界半径涨（开放世界批）：小世界仍是 6，世界撑大后跟着涨，到 40 半径封顶 24
+    expect(npcCapFor(WORLD_MIN_RADIUS)).toBe(NPC_MAX_MIN); // 225 格 ⇒ 落到下限 6
+    expect(npcCapFor(9)).toBe(9); // ★ 361 格（本机 327 条词条的世界）⇒ 9 位
+    expect(npcCapFor(WORLD_MAX_RADIUS)).toBe(NPC_MAX_CAP);
+    expect(npcCountFor(NPC_TERMS_PER_NPC * NPC_MAX_MIN)).toBe(NPC_MAX_MIN);
+    expect(npcCountFor(327)).toBe(9); // ★ 本机实测：327 条 ⇒ 6 → 9 位
+    expect(npcCountFor(9999)).toBe(NPC_MAX_CAP);
+    expect(worldRadiusFor(327)).toBe(9); // 与上一条同源：上限不可能与地图大小打架
   });
 
   it('①b 脏输入不炸：负数 / 小数 / NaN 一律落到下限', () => {
@@ -59,7 +69,7 @@ describe('npcCountFor — 每 8 条词条解锁一位伙伴，下限 1、上限 
     expect(npcTermsToNext(0)).toBe(NPC_TERMS_PER_NPC * 2);
     expect(npcTermsToNext(NPC_TERMS_PER_NPC)).toBe(NPC_TERMS_PER_NPC);
     expect(npcTermsToNext(NPC_TERMS_PER_NPC * 2 - 1)).toBe(1);
-    expect(npcTermsToNext(NPC_TERMS_PER_NPC * NPC_MAX)).toBeNull();
+    expect(npcTermsToNext(NPC_TERMS_PER_NPC * NPC_MAX_MIN)).toBeNull(); // 小世界 6 位就是顶
   });
 });
 
@@ -91,7 +101,7 @@ describe('placeNpcs — 确定性落位，锚在词条上', () => {
   });
 
   it('④ 候选不足时返回实际条数；⑤ 空候选返回空数组（空库例外，UI 必须说实话）', () => {
-    expect(placeNpcs(pool, NPC_MAX)).toHaveLength(pool.length);
+    expect(placeNpcs(pool, NPC_MAX_CAP)).toHaveLength(pool.length);
     expect(placeNpcs([], 3)).toEqual([]);
     expect(placeNpcs(pool, 0)).toEqual([]);
   });

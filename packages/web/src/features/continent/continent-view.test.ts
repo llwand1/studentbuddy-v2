@@ -9,7 +9,7 @@
  *   ——本文件若手写 `review` 对象，锁的就是"我以为是的样子"，而不是系统真正会给出的状态。
  */
 import { describe, it, expect } from 'vitest';
-import { CONTINENT_CELLS, CONTINENT_CODEX_SLOTS, codexSlotsForTerm, computeReviewState } from '@sb/shared';
+import { CONTINENT_CODEX_SLOTS, codexSlotsForTerm, computeReviewState, worldCells, worldRadiusFor } from '@sb/shared';
 import type { ContinentMapTerm } from '../../lib/api-terms-continent';
 import {
   buildContinentView,
@@ -91,19 +91,21 @@ describe('buildContinentView 铺格', () => {
       termOf('c', daysAgo(0)),
     ]);
     expect(view.tiles).toHaveLength(3);
-    // 中心 = floor(rows/2)=5 行、floor(cols/2)=7 列（14×10）
+    // ★ 开放世界批起中心恒为世界原点 (0,0)，**与视口大小无关**——这正是"加词不挪旧格"的前提
     expect(view.tiles[0]?.id).toBe('a');
-    expect(view.tiles[0]).toMatchObject({ row: 5, col: 7 });
+    expect(view.tiles[0]).toMatchObject({ row: 0, col: 0 });
     // 同为 0 行 0 列不可能；三格互不重叠（铺格是螺旋次序而非覆盖）
     expect(new Set(view.tiles.map((t) => `${t.row}:${t.col}`)).size).toBe(3);
   });
 
-  it('超过 140 格截断：只图上 140 格，其余进 truncated 计数', () => {
-    const many = Array.from({ length: CONTINENT_CELLS + 7 }, (_, i) => termOf(`t${i}`, daysAgo(i)));
+  it('★ 开放世界：不再有 140 格截断——327 条全上地图，半径与格数由词条数派生', () => {
+    const many = Array.from({ length: 327 }, (_, i) => termOf(`t${i}`, daysAgo(i)));
     const view = buildContinentView(many);
-    expect(view.tiles).toHaveLength(CONTINENT_CELLS);
-    expect(view.truncated).toBe(7);
-    expect(view.total).toBe(CONTINENT_CELLS + 7);
+    expect(view.tiles).toHaveLength(327);
+    expect(view.total).toBe(327);
+    expect(view.radius).toBe(9);
+    expect(worldCells(view.radius)).toBe(361);
+    expect(worldRadiusFor(327)).toBe(view.radius);
   });
 
   it('空库不炸：零格、零怪、图鉴总数仍由题型表派生', () => {

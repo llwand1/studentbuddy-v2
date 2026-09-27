@@ -20,7 +20,8 @@ import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vite
 import { render, fireEvent, cleanup, waitFor, screen, within } from '@testing-library/react';
 import { CONTINENT_CODEX_SLOTS, computeReviewState } from '@sb/shared';
 import type { ContinentMapTerm } from '../../lib/api-terms-continent';
-import { buildContinentView } from './continent-view';
+import { buildContinentView, initialHeroCell } from './continent-view';
+import { camFor } from './useContinentCamera';
 
 const apiMock = { map: vi.fn(), mark: vi.fn() };
 /**
@@ -108,10 +109,23 @@ function loneBeastTerm(): ContinentMapTerm {
   return termOf('solo', true, { created_at: daysAgo(30) });
 }
 
-/** 地图尺寸（与 ContinentMap 的 CONTINENT_COLS×ROWS×CELL 一致） */
+/** 地图尺寸 = **视口**大小（14×10 格 × 48px；世界比它大，故点击坐标要先过相机） */
 const MAP_W = 672;
 const MAP_H = 480;
 const CELL = 48;
+
+/** 世界格 → 视口格；★ 初始相机＝"英雄居中"（用同一个 `camFor` 现算，**不写死偏移**：写死会在相机口径改动后静默错位） */
+function viewportOf(view: ReturnType<typeof buildContinentView>, row: number, col: number) {
+  const hero = initialHeroCell(view.tiles);
+  const cam = camFor(hero, view.radius);
+  return { row: row - cam.row, col: col - cam.col };
+}
+
+/** 点某一格（世界坐标进，内部换算成视口坐标） */
+function clickWorld(view: ReturnType<typeof buildContinentView>, row: number, col: number): void {
+  const vp = viewportOf(view, row, col);
+  clickCell(vp.row, vp.col);
+}
 
 /** 给 canvas 一个真矩形，并按比例喂一个坐标（命中换算与真实浏览器同一路径） */
 function clickAt(x: number, y: number): void {
@@ -199,7 +213,7 @@ describe('ContinentPage 交互', () => {
     render(<ContinentPage />);
     await waitFor(() => expect(apiMock.map).toHaveBeenCalledTimes(1));
 
-    clickCell(CENTER_ROW, CENTER_COL);
+    clickCell(CENTER_ROW, CENTER_COL); // 单条词条 ⇒ 世界中心 (0,0) 恒落在视口中心格
     expect(document.querySelector('.stub-monster-dialog')).toBeTruthy();
 
     fireEvent.click(document.querySelector('.stub-solve') as HTMLButtonElement);
@@ -233,9 +247,10 @@ describe('ContinentPage 交互', () => {
     const beast = view.tiles.find((t) => t.id === 'm');
     if (!beast) throw new Error('地图上应该有这只怪');
     expect(beast.hasMonster).toBe(true);
-    expect(beast.row).toBe(CENTER_ROW - 1); // 铺在中心外一圈 ⇒ 与英雄（中心）隔着两格
+    // 铺在中心外一圈 ⇒ **视口里**与英雄（视口中心）隔着两格（世界坐标已改成有符号，故比的是视口格）
+    expect(viewportOf(view, beast.row, beast.col).row).toBe(CENTER_ROW - 1);
 
-    clickCell(beast.row, beast.col);
+    clickWorld(view, beast.row, beast.col);
     expect(screen.getByText(/先走到「词条m」旁边再点它开打/)).toBeTruthy();
     expect(document.querySelector('.stub-monster-dialog')).toBeNull(); // 没开打 ⇒ 没弹窗
   });
@@ -252,7 +267,7 @@ describe('ContinentPage 交互', () => {
     const land = view.wildLands[0];
     if (!land) throw new Error('应该有落在荒地上的领地');
 
-    clickCell(land.row, land.col);
+    clickWorld(view, land.row, land.col);
     // ★ 点领地＝复习领主，且**不要求相邻**（照抄 demo 的 `review_unlock`：那是解除占领的唯一路径）
     expect(screen.getByText(/这是「词条solo」的领地/)).toBeTruthy();
     expect(document.querySelector('.stub-monster-dialog')).toBeTruthy();

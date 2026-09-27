@@ -2,17 +2,14 @@
  * features/continent/ContinentPage — 知识大陆独立页（侧栏一级入口）。
  *
  * 页面只做四件事：**取数 → 派生视图 → 画地图 → 派发交互**。口径全在别处：
- *   取数 `api.terms.map()`（只读端点）、派生 `continent-view.ts`、出题/判分 `shared/continent.ts`、
- *   走位 `useContinentHero.ts`、绘制 `continent-canvas.ts`、答题 `MonsterDialog.tsx`、
- *   图鉴 `CodexPanel.tsx`、宝箱 `ContinentChest.tsx`。
+ *   取数 `api.terms.map()`、派生 `continent-view.ts`、出题/判分 `shared/continent.ts`、走位 `useContinentHero.ts`、
+ *   绘制 `continent-canvas.ts`、相机 `useContinentCamera.ts`、答题 `MonsterDialog.tsx`、图鉴 `CodexPanel.tsx`、宝箱 `ContinentChest.tsx`。
  *
- * ★ **只新增一个写口，而且是既有端点**：解锁/收复一律走 `api.terms.mark(id, true)`。
- *   答对 ⇒ 阶段推进 ⇒ 状态离开 due/overdue ⇒ 怪消失、领地回归（SPEC §4.2 零新表零迁移）。
- *   宝箱也不是新写口：`ContinentChest` 调的是 `POST /api/cards/chest/open`（既有每日宝箱账本）。
+ * ★ **只新增一个写口，而且是既有端点**：解锁/收复一律走 `api.terms.mark(id, true)`。答对 ⇒ 阶段推进 ⇒
+ *   状态离开 due/overdue ⇒ 怪消失、领地回归；宝箱也走 `POST /api/cards/chest/open`（SPEC §4.2 零新表零迁移）。
  * ★ 打卡失败**不吞**：`mark` 对范围外词条会 409，虽然地图已按服务端结论不画这类怪，
  *   但真出现（数据刚好在两次请求间被改）也要把话念出来，而不是"点了没反应"。
- * ★ **点地走位**与**打怪**共用一次点击：够得着就开打，够不着就先走过去（老板点单的"靠近才开打"）。
- *   走位是被挡也要说话的（`useContinentHero.blocked` → 地图提示行），不许静默。
+ * ★ **点地走位**与**打怪**共用一次点击（够得着开打、够不着先走过去）；被挡也要说话（`heroCtl.blocked`），不许静默。
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
@@ -42,6 +39,8 @@ export function ContinentPage() {
   /** 学习伙伴（取数与呈现整体在 `continent-partners.tsx`；这里只要一个 id 来关键盘走位） */
   const partners = useContinentPartners();
   const [npcOpenId, setNpcOpenId] = useState<string | null>(null);
+  /** 「回到我身上」的计数（自增一次＝按了一次；相机规则在 `useContinentCamera`，页面不碰相机） */
+  const [recenter, setRecenter] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -205,9 +204,7 @@ export function ContinentPage() {
           在「词条」页把它们或所属领域勾进复习范围后，这里就会冒出来。
         </p>
       )}
-      {view.truncated > 0 && (
-        <p className="continent-banner dim">地图满 140 格，另有 {view.truncated} 条词条暂未铺上图。</p>
-      )}
+
       {drops.length > 0 && (
         <p className="continent-banner dim">
           地上有 {drops.length} 个宝箱（打怪留下的）——点地图上的宝箱就能开，花的是「每日宝箱」那本钥匙账。
@@ -233,11 +230,13 @@ export function ContinentPage() {
         <ContinentMap
           tiles={view.tiles}
           wildLands={view.wildLands}
+          radius={view.radius}
           hero={heroCtl.hero}
           heroFrom={heroCtl.animFrom}
           heroStart={heroCtl.animStart}
           chests={drops}
           npcs={partners.marks}
+          recenterToken={recenter}
           onPick={pick}
           burst={burst}
           focus={hunting ?? detail}
@@ -262,6 +261,9 @@ export function ContinentPage() {
         </button>
         <button className="continent-btn ghost" onClick={() => heroCtl.step(1, 0)} aria-label="向下走">
           ▼
+        </button>
+        <button className="continent-btn ghost" aria-label="回到我身上" onClick={() => setRecenter((n) => n + 1)}>
+          回到我身上
         </button>
         {heroCtl.queued > 0 && <span className="continent-dpad-queue">还要走 {heroCtl.queued} 步</span>}
       </div>

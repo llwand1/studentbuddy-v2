@@ -12,7 +12,7 @@
  *   `prefers-reduced-motion` 由组件层处理（传 `k = 1` / `pulse = 0.5` / `bob = 0`），
  *   本层不做媒体查询——同一份指令在两种模式下都可执行。
  */
-import { CONTINENT_COLS, CONTINENT_QCOLOR, CONTINENT_ROWS, type ContinentQType } from '@sb/shared';
+import { CONTINENT_VIEW_COLS, CONTINENT_QCOLOR, CONTINENT_VIEW_ROWS, type ContinentQType } from '@sb/shared';
 import type { ContinentTileView } from './continent-view';
 import type { HeroCell } from './useContinentHero';
 
@@ -24,8 +24,12 @@ export const STAGGER_MS = 9;
 export const STAGGER_CAP = 60;
 /** 击杀/收复特效时长（压在 1 秒内：地图是常驻页，动画长了会挡住下一次点击） */
 export const BURST_MS = 560;
-export const CANVAS_W = CONTINENT_COLS * CELL;
-export const CANVAS_H = CONTINENT_ROWS * CELL;
+/**
+ * 画布像素尺寸 ＝ **视口**大小（世界比它大；相机由 `ContinentMap`／`useContinentCamera` 管）。
+ * ★ 2026-09-27 开放世界批起，这两个数只表示"看得见多大"，**不再**表示"世界多大"。
+ */
+export const CANVAS_W = CONTINENT_VIEW_COLS * CELL;
+export const CANVAS_H = CONTINENT_VIEW_ROWS * CELL;
 
 export const COLOR = {
   bg: '#0a0a0f',
@@ -53,6 +57,10 @@ export const COLOR = {
   npcAlert: '#ff5f5f',
 };
 
+/**
+ * 铺底。★ 开放世界批起它**必须画在相机 `translate` 之外**：世界是以 `(0,0)` 为中心的有符号坐标，
+ *   背景若跟着平移，拖到世界负半边就会露出没铺底的缝隙（见 `ContinentMap` 里那句顺序）。
+ */
 export function drawBackground(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = COLOR.bg;
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);

@@ -1,6 +1,7 @@
 # studentbuddy v2 · 测试方案（test-plan）
 
-> 2026-09-27 学习伙伴（NPC）批：新增 4 个测试文件 **39 例**（`src/npc.test.ts` 13／`src/learning/npc.test.ts` 15／`src/routes/npc.test.ts` 9／`src/features/continent/NpcDialog.test.tsx` 2）；`ContinentPage.test.tsx` 因页面取数改成「地图 + 卡墙 + 伙伴」三个只读口并发，同步补了另外两个口的桩（不补则每个用例都只看到错误横幅，红得指向错误方向）。完整实跑基线 **217 文件 / 2926 例**（2925 通过 + 1 跳过），验证记录与 README 由实测指标核对。
+> 2026-09-27 学习伙伴（NPC）批：新增 4 个测试文件 **39 例**（`src/npc.test.ts` 13／`src/learning/npc.test.ts` 15／`src/routes/npc.test.ts` 9／`src/features/continent/NpcDialog.test.tsx` 2）；`ContinentPage.test.tsx` 因页面取数改成「地图 + 卡墙 + 伙伴」三个只读口并发，同步补了另外两个口的桩（不补则每个用例都只看到错误横幅，红得指向错误方向）。
+> 2026-09-27 开放世界批：**不改文件数**（用例改写为主）——`src/continent.test.ts` 33→**34**（新增「**螺旋前缀稳定**：半径只增时前 k 格逐格相同」「半径只增不减且容量恒够」两条，把旧的"140 格截断"改写掉）、`src/npc.test.ts` 13（上限改 `npcCapFor` 后本机数字 327 条 ⇒ **9 位**）、`src/features/continent/continent-view.test.ts` 23（旧截断用例改为世界半径/格数派生）、`ContinentPage.test.tsx` 9（点击坐标改走"世界 → 视口"换算，新增 `viewportOf`／`clickWorld` 两个 helper）。完整实跑基线 **217 文件 / 2927 例**（2926 通过 + 1 跳过），验证记录与 README 由实测指标核对。
 
 | 像素合流新增回归 | 用例 | 不变量 |
 |---|---:|---|

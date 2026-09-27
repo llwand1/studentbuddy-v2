@@ -1,33 +1,33 @@
 {
-  "generatedAt": "2026-09-27T02:41:24.547Z",
+  "generatedAt": "2026-09-27T04:31:42.684Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
         "srcFiles": 31,
         "testFiles": 19,
-        "srcLines": 5097,
-        "testLines": 2731
+        "srcLines": 5168,
+        "testLines": 2765
       },
       {
         "pkg": "server",
         "srcFiles": 175,
         "testFiles": 123,
-        "srcLines": 26960,
+        "srcLines": 26963,
         "testLines": 27091
       },
       {
         "pkg": "web",
-        "srcFiles": 198,
+        "srcFiles": 199,
         "testFiles": 75,
-        "srcLines": 26481,
-        "testLines": 11374
+        "srcLines": 26732,
+        "testLines": 11391
       }
     ],
-    "srcFiles": 404,
+    "srcFiles": 405,
     "testFiles": 217,
-    "srcLines": 58538,
-    "testLines": 41196,
+    "srcLines": 58863,
+    "testLines": 41247,
     "tsxTestFiles": 29
   },
   "routes": {
@@ -86,11 +86,11 @@
     "probes": 15
   },
   "repo": {
-    "head": "8485c48",
+    "head": "8fe1a93",
     "headDate": "2026-09-27",
-    "commitsLast14d": 252,
+    "commitsLast14d": 254,
     "branch": "feat/knowledge-continent-npc",
-    "dirtyFiles": 32
+    "dirtyFiles": 18
   },
   "tests": {
     "available": true,
@@ -98,8 +98,8 @@
     "wallSec": 0,
     "staleDays": 0,
     "files": 217,
-    "cases": 2926,
-    "passed": 2925,
+    "cases": 2927,
+    "passed": 2926,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -116,8 +116,8 @@
     },
     {
       "label": "badge 测试用例",
-      "claimed": "2926",
-      "measured": "2926",
+      "claimed": "2927",
+      "measured": "2927",
       "ok": true
     },
     {
@@ -158,14 +158,14 @@
     },
     {
       "label": "正文 passed 口径",
-      "claimed": "2925 passed + 1 skipped + 0 failed",
-      "measured": "2925 passed + 1 skipped + 0 failed",
+      "claimed": "2926 passed + 1 skipped + 0 failed",
+      "measured": "2926 passed + 1 skipped + 0 failed",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "217 文件 / 2926 例",
-      "measured": "217 文件 / 2926 例",
+      "claimed": "217 文件 / 2927 例",
+      "measured": "217 文件 / 2927 例",
       "ok": true
     }
   ],

@@ -59,7 +59,8 @@ export interface ChestDraw {
   term: string;
   domain: string;
   definition: string;
-  source: 'seed' | 'candidate';
+  /** ★ 2026-09-27 加 `'npc'`：与地图伙伴交换来的那张（服务端 `PoolSource` 的第三个值） */
+  source: 'seed' | 'candidate' | 'npc';
   cost: 'free' | 'earned' | null;
 }
 
@@ -75,10 +76,14 @@ export interface ChestState {
   pending: ChestDraw | null;
 }
 
-/** 任务清单一行（= 服务端 `StudyTask`；`kind` 三值见 `learning/tasks.ts`） */
+/**
+ * 任务清单一行（= 服务端 `StudyTask`；四值见 `learning/tasks.ts`）。
+ * ★ `'npc_rescue'`（2026-09-27）：伙伴被怪堵住时的求救单——点进地图去救他
+ *   （契约 `docs/NPC-PARTNER-SPEC.md` §5）。
+ */
 export interface StudyTask {
   id: string;
-  kind: 'advance' | 'unstall' | 'review_pool';
+  kind: 'advance' | 'unstall' | 'review_pool' | 'npc_rescue';
   title: string;
   why: string;
   termId: string | null;

@@ -1,10 +1,14 @@
 # studentbuddy v2 · 测试方案（test-plan）
 
-> 2026-09-26 像素统一合流：保存失败重试新增 `src/features/continent/MonsterDialog.test.tsx` 1 例；Landing、PK 演示登记与大陆图鉴已有用例更新，锁住已下线功能不再宣传、地图宝箱不冒称联动。完整实跑基线 213 文件 / 2887 例（2026-09-26 知识大陆优化批后复跑），验证记录与 README 由实测指标核对。
+> 2026-09-27 学习伙伴（NPC）批：新增 4 个测试文件 **39 例**（`src/npc.test.ts` 13／`src/learning/npc.test.ts` 15／`src/routes/npc.test.ts` 9／`src/features/continent/NpcDialog.test.tsx` 2）；`ContinentPage.test.tsx` 因页面取数改成「地图 + 卡墙 + 伙伴」三个只读口并发，同步补了另外两个口的桩（不补则每个用例都只看到错误横幅，红得指向错误方向）。完整实跑基线 **217 文件 / 2926 例**（2925 通过 + 1 跳过），验证记录与 README 由实测指标核对。
 
 | 像素合流新增回归 | 用例 | 不变量 |
 |---|---:|---|
 | `src/features/continent/MonsterDialog.test.tsx` | 2 | ① 最后一题保存失败后允许重试、保存中禁止重复提交；② 情景题渲染出情境框与题型标签、答对即收复（2026-09-26 优化批 **1→2**） |
+| `src/npc.test.ts` | 13 | 学习伙伴派生（2026-09-27 NPC 批）：① `npcCountFor` 的下限 1／每 8 条 +1／上限 6 三个边界（含负数/小数/NaN 不炸）；② `placeNpcs` 确定性（同输入两次、乱序输入都逐字段相同）；③ 只落在候选格、`npc:<termId>` 形状、名字取自名字池且不重复；④ 候选不足返回实际条数、同 termId 去重；⑤ 空候选返回 `[]`；⑥ `npcDistress` 只在曼哈顿 ≤1 时给威胁、多怪取最近且同距按 termId 定序；⑦ `npcRescueDedupeKey` 不含会变的数；⑧ `npcTradesLeft`／`normalizeNpcName`（码点截断）／`npcFallbackLine`（永不空回、确定性、替换词条名） |
+| `src/learning/npc.test.ts` | 15 | 服务端伙伴域（2026-09-27 NPC 批）：① `npcList` 位置/名字/遇险与 shared 纯函数逐字段同源、伙伴不落在怪的本体格；② 相邻怪 ⇒ 遇险结论等于 `npcDistress`；③ 范围外词条永不冒怪 ⇒ 不遇险；④ 空库 count=1 但 npcs=[]；⑤ 名字 KV（坏 JSON／空串删键、只覆盖第 0 位）；⑥ 信物 `cards=1` 拒绝、补到 ★1 放行；⑦ 三种拒绝各一句（未知伙伴 404／信物不在库 409／信物不是自己的 409）；⑧ 交换同领域新词 + 只落一行 `chest_open(source_kind='npc')` + 不花钥匙 + 收下后 ★1；⑨ 领域无词回落全池并标 `domainMatched=false`；⑩ 池空 409；⑪ 每日 2 次闸门与跨日恢复、信物不被消耗；⑫ 求救单派单置首、字段齐全、连跑两次幂等；⑬ 脱险 ⇒ 翻 done 并发一把钥匙；⑭ 怪还在时 `completeTask` 必须 `not_yet` |
+| `src/routes/npc.test.ts` | 9 | 伙伴 HTTP（2026-09-27 NPC 批，supertest）：① `GET /api/npc` 形状与激励差值；② 空库 count=1 但 npcs=[] 且名字为空；③ `PUT /partner` 改名与空串回默认（回默认时顺手回默认名）；④ 名字非字符串 400、超长按码点截到 12 字；⑤ `talk` 无 key ⇒ `200 + source='fallback'`（不 5xx／不空串／带词条名）；⑥ `talk` 空文本与非字符串 400、伙伴不存在 404；⑦ `trade` 未知 id 404、缺参 400；⑧ 信物 ★0 ⇒ 409；⑨ 归属隔离（B 拿到空、B 改不到 A 的名字） |
+| `src/features/continent/NpcDialog.test.tsx` | 2 | 伙伴对话面板（2026-09-27 NPC 批）：① `source='fallback'` 时显示「靠固定台词应答」并给设置指引；② 无 `cards>=2` 的词条时交换按钮禁用且文案说明门槛 |
 
 > 2026-09-26 像素 UI：本批以 `origin/main @ 60dacb2` 为基线，开工 build/check 实测 204 文件、2765 passed＋1 skipped。仅加入前端视觉与交互回归，不改游戏数值、数据库、服务端测试结构；本批最终 build/check 实测 207 文件、2774 passed＋1 skipped（2775 例），tsc/eslint/gates 全绿；OG 22 张重建通过；完整指标对账另见 CHANGELOG 对应行。
 

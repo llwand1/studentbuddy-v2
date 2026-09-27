@@ -48,6 +48,10 @@ export const MODEL_ROLES: Array<{ role: ModelRole; label: string }> = [
   //   会回退讲解模型——督促本质是日常对话，而老库升级后 role_bindings 里本来就没有这一行，
   //   若按「必须绑定」处理，用户看到的是「该角色还没绑定模型」而他从没改过任何设置。
   { role: 'coach', label: '督促（复习陪练）' },
+  // 2026-09-27 新增：知识大陆上的学习伙伴（NPC）。
+  // ★ 与 coach 同一条降级链：未绑定 ⇒ 回退 explain；连 key 都没有 ⇒ 本地台词（`learning/npc-talk.ts`）。
+  //   数组驱动 ⇒ 默认绑定 INSERT 与设置页渲染自动带上，无需迁移。
+  { role: 'npc', label: '学习伙伴（大陆 NPC）' },
 ];
 
 const adapters: Record<'openai' | 'anthropic', LLMAdapter> = {

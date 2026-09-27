@@ -35,8 +35,9 @@ export interface ToolCall {
 
 /** 学习角色（演进①）：各环节独立绑定 provider+model，未配置落默认。
  * v17 新增 'vision'：纯文本主模型借它「读图」（图→视觉模型→文字描述→塞回主模型上下文）
- * v25 新增 'coach'：复习督促小窗的陪练人格（未单独绑定时回退 explain，见 learning/coach.ts） */
-export type ModelRole = 'explain' | 'quiz-generator' | 'solver' | 'analyzer' | 'summarizer' | 'judge' | 'vision' | 'coach';
+ * v25 新增 'coach'：复习督促小窗的陪练人格（未单独绑定时回退 explain，见 learning/coach.ts）
+ * 2026-09-27 新增 'npc'：知识大陆上的学习伙伴人格（未单独绑定时同样回退 explain，见 learning/npc-talk.ts） */
+export type ModelRole = 'explain' | 'quiz-generator' | 'solver' | 'analyzer' | 'summarizer' | 'judge' | 'vision' | 'coach' | 'npc';
 
 export interface RoleBinding {
   role: ModelRole;

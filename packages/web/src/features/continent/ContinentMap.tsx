@@ -31,6 +31,7 @@ import {
   drawHero,
   drawLand,
   drawMonster,
+  drawNpc,
   drawSprout,
   drawTile,
 } from './continent-canvas';
@@ -50,6 +51,19 @@ export interface ContinentCell {
   col: number;
 }
 
+/**
+ * 地图上的一位学习伙伴（★ 只有位置与名字，**遇险是服务端结论**）。
+ * ★ 为什么不让本层自己算"他危不危险"：那要重算铺格 + 领地 + 曼哈顿距离，
+ *   即第二份口径（图上画着遇险、清单里没有那单）；结论由 `GET /api/npc` 给，这里只是读数。
+ */
+export interface ContinentNpcMark {
+  id: string;
+  name: string;
+  row: number;
+  col: number;
+  distressed: boolean;
+}
+
 interface Props {
   tiles: ContinentTileView[];
   /** 荒地上的领地格（`tiles` 装不下的那些）——不画它们，一整片占领区就看不见 */
@@ -59,6 +73,8 @@ interface Props {
   /** 这一步的起始时刻（`performance.now()`），插值用 */
   heroStart: number;
   chests: readonly ContinentChestDrop[];
+  /** 大陆上的学习伙伴（含遇险标记；结论由服务端给） */
+  npcs: readonly ContinentNpcMark[];
   onPick: (row: number, col: number) => void;
   /** 击杀/收复特效：父组件每次换一个新对象（引用变 = 触发一次） */
   burst?: ContinentTileView | null;
@@ -75,6 +91,7 @@ export function ContinentMap({
   heroFrom,
   heroStart,
   chests,
+  npcs,
   onPick,
   burst = null,
   focus = null,
@@ -129,6 +146,8 @@ export function ContinentMap({
       tiles.forEach((t, i) => {
         if (t.hasMonster) drawMonster(ctx, t, popOf(i));
       });
+      // ★ 伙伴画在**怪之上**（"他在怪的地盘上"要看得见）、**英雄之下**（玩家自己的角色永不被遮）
+      npcs.forEach((n, i) => drawNpc(ctx, n, reducedMotion ? 0 : Math.round(Math.sin(now / 520) * 1.5) + (i % 2), n.distressed, reducedMotion ? 1 : pulse));
       if (hero) drawHero(ctx, hero, heroFrom, reducedMotion || !heroFrom ? 1 : Math.min((now - heroStart) / STEP_MS, 1));
 
       const carried = burstRef.current;
@@ -147,7 +166,7 @@ export function ContinentMap({
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [tiles, wildLands, tilesKey, hover, focus, burst, hero, heroFrom, heroStart, chests]);
+  }, [tiles, wildLands, tilesKey, hover, focus, burst, hero, heroFrom, heroStart, chests, npcs]);
 
   /** 事件坐标 → 格子；用 rect 比例换算，CSS 缩放后也准 */
   const at = (canvas: HTMLCanvasElement, clientX: number, clientY: number): ContinentCell | null => {
@@ -162,6 +181,9 @@ export function ContinentMap({
   /** 悬停文案：词条格走 `tileHint`（唯一文案源），荒地上的领地格单独说一句 */
   const hintOf = (cell: ContinentCell | null): string | null => {
     if (!cell) return null;
+    // ★ 伙伴优先于地块：他站在格子上，鼠标停上去该说的是"这是谁"，不是"这格什么状态"
+    const n = npcs.find((x) => x.row === cell.row && x.col === cell.col);
+    if (n) return `「${n.name}」你的学习伙伴${n.distressed ? '· 被怪堵住了，点他看看' : '· 点他跟他说句话'}`;
     const t = tiles.find((x) => x.row === cell.row && x.col === cell.col);
     if (t) return tileHint(t);
     const w = wildLands.find((x) => x.row === cell.row && x.col === cell.col);
@@ -196,7 +218,9 @@ export function ContinentMap({
       <p className={alert ? 'continent-map-hint warn' : 'continent-map-hint'}>
         {alert ??
           hoverText ??
-          `共 ${tiles.length} 格 · 方向键/WASD 或点地走位 · 走到怪旁边点它开打 · 点领地复习领主`}
+          `共 ${tiles.length} 格 · 方向键/WASD 或点地走位 · 走到怪旁边点它开打 · 点领地复习领主${
+            npcs.length > 0 ? ' · 点伙伴跟他说句话' : ''
+          }`}
       </p>
     </div>
   );

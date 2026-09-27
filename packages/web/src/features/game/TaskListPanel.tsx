@@ -26,6 +26,10 @@ const KIND_LABEL: Record<StudyTask['kind'], string> = {
   advance: '推进',
   unstall: '破停滞',
   review_pool: '补池',
+  // 2026-09-27 NPC 批：伙伴被怪堵住时的求救单（`docs/NPC-PARTNER-SPEC.md` §5）。
+  // ★ 这是四值联合类型带来的**必须同步的一处**：漏了它 TS 当场报"属性缺失"——
+  //   这正是把 kind 写成联合类型而不是 string 的价值（新增 kind 时不会静默显示成别的标签）。
+  npc_rescue: '救伙伴',
 };
 
 interface Banner {

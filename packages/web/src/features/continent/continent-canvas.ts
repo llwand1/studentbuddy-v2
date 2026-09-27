@@ -45,6 +45,12 @@ export const COLOR = {
   chest: '#c98a33',
   chestDark: '#6b4318',
   hover: '#e8e9ee',
+  /** 学习伙伴（2026-09-27）：蓝衣橙帽——与英雄（白/深蓝）、怪（紫）都拉开，一眼认得出"那是人" */
+  npcBody: '#3f6d8f',
+  npcFace: '#e8d5c0',
+  npcHat: '#d98a4a',
+  /** 遇险时头顶的红惊叹块。★ 与领地红（landLine）刻意不同色：一个是"地丢了"，一个是"人在喊" */
+  npcAlert: '#ff5f5f',
 };
 
 export function drawBackground(ctx: CanvasRenderingContext2D): void {
@@ -216,6 +222,49 @@ export function drawHero(
   else if (hero.face === 'down') ctx.fillRect(cx - 2, cy + 11, 4, 3);
   else if (hero.face === 'left') ctx.fillRect(cx - 10, cy - 9, 3, 4);
   else ctx.fillRect(cx + 7, cy - 9, 3, 4);
+}
+
+/**
+ * 学习伙伴（NPC）——**像素小人**：比英雄矮一头、戴一顶橙帽，一眼分得清"哪个是我"。
+ *
+ * ★ 与英雄的区别做在两处而不是配色一处：**高度**（少 4px）与**帽檐**（英雄没有帽）。
+ *   像素风里颜色是最不可靠的区分手段（色弱、小屏、压暗的领地格都会吃掉它）。
+ * ★ `bob`：待机时轻轻起伏的整数像素（照宝箱那条口径：整数像素，不然像素格会糊）。
+ * ★ `pulse`（0~1）：遇险时红惊叹块的呼吸强弱。★ 它**不是独立动画循环**——地图静止时
+ *   停在当前相位（与领地边界的"常驻呼吸"同一取舍：地图是常驻页，空转 rAF 等于持续耗电）。
+ * `prefers-reduced-motion` 由组件传固定 `bob=0` / `pulse=1`（常亮），本层不做媒体查询。
+ */
+export function drawNpc(
+  ctx: CanvasRenderingContext2D,
+  spot: CellRef,
+  bob: number,
+  distressed: boolean,
+  pulse = 0.5,
+): void {
+  const cx = Math.round(spot.col * CELL + CELL / 2);
+  const cy = Math.round(spot.row * CELL + CELL / 2 + bob);
+  ctx.globalAlpha = 1;
+  // 影子 → 身子 → 头 → 帽（自下而上，后画的盖住先画的）
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(cx - 7, cy + 10, 14, 3);
+  ctx.fillStyle = COLOR.npcBody;
+  ctx.fillRect(cx - 5, cy - 1, 10, 11);
+  ctx.fillStyle = COLOR.npcFace;
+  ctx.fillRect(cx - 5, cy - 12, 10, 11);
+  ctx.fillStyle = COLOR.bg;
+  ctx.fillRect(cx - 3, cy - 8, 2, 2);
+  ctx.fillRect(cx + 1, cy - 8, 2, 2);
+  ctx.fillStyle = COLOR.npcHat;
+  ctx.fillRect(cx - 8, cy - 15, 16, 4); // 帽檐
+  ctx.fillRect(cx - 4, cy - 18, 8, 3); // 帽顶
+  if (distressed) {
+    // 只动 opacity（契约 §7.2）：一个竖条 + 一个点 = 喊得出的那个「！」
+    ctx.globalAlpha = 0.55 + 0.45 * Math.max(Math.min(pulse, 1), 0);
+    ctx.fillStyle = COLOR.npcAlert;
+    ctx.fillRect(cx - 1, cy - 28, 3, 6);
+    ctx.fillRect(cx - 1, cy - 20, 3, 3);
+    ctx.globalAlpha = 1;
+  }
 }
 
 /** 高亮框（悬停 / 弹窗锁定的那一格） */

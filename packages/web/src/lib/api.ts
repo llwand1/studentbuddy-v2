@@ -27,6 +27,8 @@ import { toolsApi, termsUndoApi } from './api-tools.js';
 import { searchApi } from './api-search.js';
 import { pkInviteApi } from './api-pk-invite.js';
 import { cardsApi } from './api-cards.js';
+// ★ NPC 批（2026-09-27）：学习伙伴（知识大陆上的常驻元素）——形状与端点整体在 api-npc.ts
+import { npcApi } from './api-npc.js';
 
 // 领域的类型**转出**给调用方（形状定义在 `api-terms-domain.ts`，那里承担行数红线的解释）。
 export type { DomainRow, DomainsResponse, RenameDomainResult, RemoveDomainResult } from './api-terms-domain.js';
@@ -43,6 +45,8 @@ export type {
   PoolCandidate,
   StudyTask,
 } from './api-cards.js';
+// 学习伙伴的类型同源转出（形状定义在 `api-npc.ts`，那里写明它是服务端形状的镜像）。
+export type { NpcState, NpcThreat, NpcView, NpcTalkResult, NpcTradeResult } from './api-npc.js';
 
 // `ApiError` 已抽到 api-request.ts（行数红线 + 断环，见该文件头注释）。
 // 此处**转出**以保持既有调用方 `import { api, ApiError } from '../../lib/api'` 零改动。
@@ -74,6 +78,13 @@ export const api = {
    * ★ 形状与为什么在这里重写一遍，见 `api-cards.ts` 文件头。
    */
   cards: cardsApi,
+
+  /**
+   * 学习伙伴（契约 docs/NPC-PARTNER-SPEC.md §7）。
+   * ★ 独立前缀 `/api/npc`、**一次 `GET /` 读全**：伙伴的数量/位置/遇险结论是跨表的派生量，
+   *   前端算不了也不能算——自己算一遍就是「图上画着伙伴遇险、任务清单里没有那单」的开端。
+   */
+  npc: npcApi,
 
   /**
    * 账号（契约 docs/AUTH-SPEC.md §2）。

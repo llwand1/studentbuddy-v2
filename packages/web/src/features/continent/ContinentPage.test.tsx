@@ -16,14 +16,22 @@
  * ★ 点击**按格子坐标**触发：地图只上报 `(row, col)`（领地可能落在没铺词条的荒地上），
  *   故这里的 `clickCell` 也必须按格子走——这正是"点击语义分流在页面"这条设计的接口面。
  */
-import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent, cleanup, waitFor, screen, within } from '@testing-library/react';
 import { CONTINENT_CODEX_SLOTS, computeReviewState } from '@sb/shared';
 import type { ContinentMapTerm } from '../../lib/api-terms-continent';
 import { buildContinentView } from './continent-view';
 
 const apiMock = { map: vi.fn(), mark: vi.fn() };
-vi.mock('../../lib/api', () => ({ api: { terms: apiMock } }));
+/**
+ * 2026-09-27 NPC 批：页面取数变成**三个只读口并发**（地图 + 卡墙 + 伙伴）。
+ * ★ 这里必须一起桩掉，否则 `Promise.all` 会因 `undefined.state()` 整体 reject，
+ *   表现成"每个用例都只看到错误横幅"——那种红会把人引向"地图坏了"的错误方向。
+ * ★ 默认给"没有伙伴、没有卡"的中性值：本文件锁的是**地图接线**，伙伴交互自己有一份用例。
+ */
+const cardsMock = { state: vi.fn() };
+const npcMock = { state: vi.fn() };
+vi.mock('../../lib/api', () => ({ api: { terms: apiMock, cards: cardsMock, npc: npcMock } }));
 vi.mock('./MonsterDialog', () => ({
   MonsterDialog: (props: {
     tile: { id: string; term: string };
@@ -135,6 +143,18 @@ const CENTER_COL = 7;
 beforeAll(() => {
   // jsdom 不实现 canvas 2d：返回 null 让地图组件直接退出绘制（渲染不参与本文件的断言）
   HTMLCanvasElement.prototype.getContext = (() => null) as typeof HTMLCanvasElement.prototype.getContext;
+});
+
+beforeEach(() => {
+  cardsMock.state.mockResolvedValue({ wall: [] });
+  npcMock.state.mockResolvedValue({
+    partnerName: '',
+    npcs: [],
+    count: 1,
+    max: 6,
+    termsToNext: 16,
+    tradesLeft: 2,
+  });
 });
 
 afterEach(() => {

@@ -15,6 +15,22 @@
 
 ## 未发布
 
+### 2026-09-27 · 学习伙伴（NPC）批 · 未发版
+
+按老板之意「项目 AI 含量太少」立项，把**一个会说人话、会求救、能拿词条等你来换的 AI 学习伙伴**放到知识大陆上。七元素全部落地：① **接入 AI**——新增 `npc` 模型角色（未绑定回退讲解），无 key 时**降级到本地台词**并在响应里标 `source:'fallback'`（降级可以，假装没降级不行）；② **辅助学习**——对话上下文只含「他是谁／他守哪条词条／他是否遇险」，交换直接送没见过的词条；③ **宣传点「创建你的 AI 学习伙伴」**——伙伴可命名，落 `app_settings` 的 `npc_partner` 键；④ **与任务清单联动**——伙伴被怪堵住（曼哈顿距离 ≤ 1）⇒ 派第 4 种 `kind` **`npc_rescue`** 求救单并**置首**（有时效），完成 = 伙伴脱险，发钥匙仍走 `reconcileTasks` **唯一那处翻转**；⑤ **对话交互**——`POST /api/npc/:id/talk`；⑥ **卡牌交换**——拿一张 `cards>=2` 的信物卡换回**同领域没见过的**新词条；⑦ **数量受地图大小限制**——`npcCountFor`＝`clamp(floor(词条数/8),1,6)`，上限 6。
+
+★ **零新表、零新迁移**：求救单是 `study_task` 的第 4 种 `kind`、交换流水是 `chest_open` 的第 3 种 `source_kind`、伙伴名字是 `app_settings` 的一个键——`git diff` 不含任何 `migrations-list-*.ts`。★ **伙伴不占格**：不进领地扩散的 `blocked`、不改 `walkable`，走位／领地／点击分流的既有逻辑一行未改（"接入而非改造"）。
+
+★★ **两处如实登记的代价**：① 交换的**信物卡不能被消耗**——`TERM-CARDS-SPEC` §1 边界① 钉死了「卡数是流水派生，库里没有可扣的库存」，扣它就要么伪造流水、要么开旁路账（两者都被明令禁止）⇒ 真实约束改落在**每日 2 次**（按既有列 `chest_open.opened_day` 判日闸门）＋**信物门槛 `cards>=2`** 上，UI 原话是「卡本身不会少，但每天只换得动两次」；② 信物卡**不落 `pool_slug`**——那是抽卡去重集的键（`ux_chest_open_pool`），兼存会**破坏抽卡去重**（实测纠正），故信物只作**领域定向**。③ 伙伴位置与遇险结论**一律由服务端给**（`GET /api/npc`），前端不重算铺格/领地，避免「图上画着伙伴遇险、日志里没有那单」。
+
+契约：新增 `docs/NPC-PARTNER-SPEC.md`；`docs/KNOWLEDGE-CONTINENT-SPEC.md` 加「学习伙伴」段；`docs/TERM-CARDS-SPEC.md` §4／§5 登记 `npc_rescue` 为第 4 种 kind 与第 4 类派单意图。**未发版**，等待真机验收（Canvas 上的伙伴绘制与遇险呼吸只在 jsdom 下用 canvas 打桩验证过）。
+
+★ **落地清单（2026-09-27 实跑，已复核）**：新增 `packages/shared/src/npc.ts`、`packages/server/src/learning/npc.ts`＋`npc-talk.ts`、`packages/server/src/routes/npc.ts`、`packages/web/src/lib/api-npc.ts`、`packages/web/src/features/continent/continent-partners.tsx`＋`NpcDialog.tsx`；改动 `shared/domain.ts`（`ModelRole` 加 `npc`）、`llm/router.ts`（`MODEL_ROLES` 加一行，数组驱动 ⇒ 设置页与默认种子自动带上，**无迁移**）、`learning/tasks.ts`（`npc_rescue` 置首派单 + `isDone` 读遇险集）、`learning/chest.ts`（`PoolSource` 加 `npc`）、`routes/index.ts`（挂 `/api/npc`）、`continent-canvas.ts`（`drawNpc`）、`ContinentMap.tsx`（`npcs` 位与画序）、`ContinentPage.tsx`（点击分流 + `frozen`）、`api-cards.ts`／`TaskListPanel.tsx`（两处值联合跟着扩，漏一处 TS 当场报错）。
+
+★ **门禁实测**：`npm run check` 四连全绿——`tsc`+eslint 无告警、**217 文件 / 2926 例**（2925 通过 + 1 跳过）、`gates` 行数红线全绿。两条红线是被**拆文件**解决的（不是删注释）：`learning/chest.ts` 431→398 行（交换落账写口移入 `learning/npc.ts:grantTradeDraw`）、`ContinentPage.tsx` 368→299 行（伙伴取数/横幅/接线移入 `continent-partners.tsx`）。
+
+★ **未做／未验证（登记不欠账）**：① 真机浏览器未验收——伙伴的像素绘制、遇险惊叹块呼吸、点他开面板这三件事在 jsdom 下用 canvas 打桩（`getContext → null`）验证过**接线**，未在真机看过**画面**；② `npm run metrics` 已复跑对账——README 手抄数字**全部 ✅**（217 文件／2926 例、REST 路由 **129→133**、契约类型 **136→141**，badge 与正文基线句已同步）；③ 伙伴未接语音、未做好感度养成、未做 NPC↔NPC 互动（`NPC-PARTNER-SPEC.md` §9 已登记为不做）。
+
 ### 2026-09-27 · demo:e2e 题库断言跟上下线批（墓碑锁）
 
 修掉 README 记录的那笔脚本技术债：`tools/e2e/demo-e2e.mjs` 步骤 6/7/9 仍在断言随题库整族下线的 `GET /api/quiz/bank/:id` 与 `POST /api/quiz/stats/record`（本机实跑 28 通过 / 8 失败，2026-09-26 记录在案）。改写为对准**新持久化边界**：① 出题纵切改带 `sessionId`，断言 `[QUIZ]…[/QUIZ]` 登记行进会话消息（同一 quizId、4 题齐全）——这是「重开会话可还原」的真实载体（messages 表），顺带删掉路由已不读的 `save` 死参数；② 逐题统计步骤改为断言「答案随题下发」（题卡当场判分的前提）；③ 为两条下线路由加**墓碑锁**（断言 404——功能若被悄悄复活，脚本立即报警，而非无人知晓）；④ 重启存活改断登记行仍在会话里。验证：`npm run demo:e2e` 实跑 **34 通过 / 0 失败（9.6s）**，全程零真实外呼；README 两处「28/8 脚本债」过期表述同步改写（「还没做的」「快速开始」）。纯脚本与文档改动，零产品代码；未发版。

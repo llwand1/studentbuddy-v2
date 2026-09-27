@@ -19,6 +19,7 @@ import { api } from '../../lib/api';
 import type { ContinentMapTerm } from '../../lib/api-terms-continent';
 import { ContinentChest } from './ContinentChest';
 import { ContinentMap, type ContinentChestDrop } from './ContinentMap';
+import { ContinentPartners, useContinentPartners } from './continent-partners';
 import { MonsterDialog } from './MonsterDialog';
 import { CodexPanel } from './CodexPanel';
 import { buildContinentView, canStrike, tileStatusText, type ContinentTileView } from './continent-view';
@@ -38,16 +39,20 @@ export function ContinentPage() {
   /** 地上掉落的宝箱（本局打怪留下的位置；**不落库**——开箱走既有账本） */
   const [drops, setDrops] = useState<ContinentChestDrop[]>([]);
   const [chestAt, setChestAt] = useState<ContinentChestDrop | null>(null);
+  /** 学习伙伴（取数与呈现整体在 `continent-partners.tsx`；这里只要一个 id 来关键盘走位） */
+  const partners = useContinentPartners();
+  const [npcOpenId, setNpcOpenId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const r = await api.terms.map();
-      setTerms(r.terms);
+      // ★ 地图与伙伴并发取（伙伴那一口自己并发取两处，见 `continent-partners.tsx`）
+      const [map] = await Promise.all([api.terms.map(), partners.refresh()]);
+      setTerms(map.terms);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, []);
+  }, [partners.refresh]);
 
   useEffect(() => {
     void load();
@@ -89,9 +94,13 @@ export function ContinentPage() {
       setNotice(null);
       const drop = drops.find((d) => d.row === row && d.col === col);
       if (drop) {
+        // ★ 宝箱优先于伙伴：它是**一次性**的（开了就没了），而伙伴一直站在那儿。
+        //   两者同格是极小概率（怪死后那格才变成候选落位），但真撞上时先给一次性那个。
         setChestAt(drop);
         return;
       }
+      const mate = partners.partners?.npcs.find((n) => n.row === row && n.col === col);
+      if (mate) return setNpcOpenId(mate.id);
       const tile = view.tiles.find((t) => t.row === row && t.col === col);
       if (tile?.hasMonster) {
         if (canStrike(heroCtl.hero, tile)) {
@@ -118,12 +127,21 @@ export function ContinentPage() {
         setDetail(tile);
       }
     },
-    [drops, heroCtl, view],
+    [drops, heroCtl, view, partners.partners],
   );
+
+  /** 「去救他」：★ **不代打**，只把人送到"一步能打到"的格（与「靠近才开打」同一条判据） */
+  const rescue = useCallback((threatTermId: string) => {
+    setNpcOpenId(null);
+    const t = view.tiles.find((x) => x.id === threatTermId);
+    if (!t) return setNotice('那只怪已经不在了——地回来了，他也就脱险了。');
+    heroCtl.walkTo(t.row, t.col);
+    setNotice(`走到「${t.term}」旁边再点它开打——答对那道题，伙伴也就脱险了。`);
+  }, [view.tiles, heroCtl]);
 
   /** 键盘走位（方向键 / WASD）。弹窗开着时让位——不然打字会变成走路 */
   const stepHero = heroCtl.step;
-  const frozen = hunting !== null || chestAt !== null;
+  const frozen = hunting !== null || chestAt !== null || npcOpenId !== null;
   useEffect(() => {
     if (frozen) return;
     const dirs: Record<string, [number, number]> = {
@@ -196,11 +214,18 @@ export function ContinentPage() {
         </p>
       )}
 
+      <ContinentPartners
+        partners={partners.partners} tokens={partners.tokens} distressed={partners.distressed}
+        npcOpenId={npcOpenId} total={view.total} onClose={() => setNpcOpenId(null)}
+        onRescue={rescue} onRename={partners.rename} onLibraryChanged={() => void load()} onNotice={setNotice}
+      />
+
       {error && <p className="continent-banner warn">地图加载失败：{error}</p>}
       {terms === null && !error && <p className="continent-banner dim">正在展开大陆…</p>}
       {terms !== null && view.total === 0 && (
         <p className="continent-banner dim">
-          大陆还是一片空地。先去「词条」页添加，或在对话里存几条词条——它们会从中心长出来。
+          大陆还是一片空地。先去「词条」页添加，或在对话里存几条词条——它们会从中心长出来，
+          你那位学习伙伴也在等它的第一条词条。
         </p>
       )}
 
@@ -212,6 +237,7 @@ export function ContinentPage() {
           heroFrom={heroCtl.animFrom}
           heroStart={heroCtl.animStart}
           chests={drops}
+          npcs={partners.marks}
           onPick={pick}
           burst={burst}
           focus={hunting ?? detail}

@@ -165,7 +165,8 @@ describe('AI 出题（ticker 到点触发，与人同口径）', () => {
     // ★ 第 7 参 ownerId = **null（平台通道）**：AI 对手是平台扮演的角色、不是任何用户的请求，
     //   且一房两名玩家 ⇒ 不存在唯一 owner（契约 TENANCY-SPEC §8.1.4 后台路径表）。
     //   这笔钱明确记在平台上，受 §8.1.3.1 的两层并发闸门约束——不是"漏传"。
-    expect(vi.mocked(generateQuiz)).toHaveBeenCalledWith('历史', undefined, PK_QUIZ_MIX, undefined, undefined, true, null);
+    // 末参 true＝盲解验算（issue #71）：PK 三味出题必须过验算,此断言同步锁住「对战不许裸出题」
+    expect(vi.mocked(generateQuiz)).toHaveBeenCalledWith('历史', undefined, PK_QUIZ_MIX, undefined, undefined, true, null, true);
     expect(room.aiBusy).toBe(false); // 进行中结束
     const now = Date.now();
     expect(room.aiNextQuizAt).toBeLessThanOrEqual(now + 60_000);

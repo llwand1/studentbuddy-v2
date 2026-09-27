@@ -32,6 +32,7 @@ import { loadAnswerStyle } from '../storage/answer-style.js';
 import { routeRole } from '../llm/router.js';
 import { QUIZ_TEMPERATURE, getQuizMaxOutputTokens } from '../llm/model-limits.js';
 import { repairJsonBrackets, repairJsonEscapes } from './quiz-json-repair.js';
+import { defaultSolver, verifyQuiz } from './quiz-verify.js';
 import { loadQuizImage, buildImageInstruction } from './quiz-image.js';
 import { buildQuizSearchBlock, mapQuizSources } from './quiz-search.js';
 
@@ -282,6 +283,7 @@ export async function generateQuiz(
   styleArg?: AnswerStyle, // 省略＝读库内回答方式偏好（契约 ANSWER-STYLE §3；本行不留余量，故不另起一段注释）
   online = false,
   ownerId?: string | null, // 归属（契约 TENANCY-SPEC §8.1.4）；尾参可选，见下
+  verify = false, // 盲解验算（issue #71）：solver 角色对选择类题验答案，不一致丢题。默认 false＝历史调用点行为不变；PK 三味显式开
 ): Promise<QuizPayload | null> {
   // ★ 出题是**本仓最贵的 LLM 调用之一**（还带联网检索），归属不能含糊。
   //   尾参放最后且可选：本函数的调用点有 6 处（chat 工具循环 / REST / PK 人出题 / PK AI 出题 /
@@ -330,7 +332,12 @@ export async function generateQuiz(
   if (!parsed && report) report.failure = 'parse';
   // 来源标注（契约 QUIZ-SEARCH-SPEC §2.8）：把模型给的编号翻译成真实 title/url 填 source。
   // 网址一律取自 found.refs（真实检索结果），模型写什么都丢——这是「来源不可幻觉」的唯一保证。
-  return parsed ? mapQuizSources(parsed, found.refs) : null;
+  const mapped = parsed ? mapQuizSources(parsed, found.refs) : null;
+  if (!mapped || !verify) return mapped;
+  // 盲解验算（issue #71，实现与三条保守纪律全在 quiz-verify.ts）：
+  // solver 未绑定 → 原样放行（零行为变化）；全部被拦 → null（与配比裁到 0 题同一条降级路）
+  const solve = defaultSolver(owner);
+  return solve ? verifyQuiz(mapped, solve) : mapped;
 }
 
 // ── 题库段已整族删除（2026-09-26）──

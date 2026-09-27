@@ -56,6 +56,9 @@ export interface Provider {
   /** 密文（DPAPI+AES-GCM），永不出现在 API 响应中 */
   apiKeyCipher?: string;
   enabled: boolean;
+  /** 协议族（v0.2.139 生图批出站）：设置页「生图（画图）」行据此只给 OpenAI 兼容服务商
+   * （anthropic 原生协议没有 /images/generations，绑了必挂）；与 chat 调用无涉 */
+  type: 'openai' | 'anthropic';
   /** v13 起随 provider 落库；缺省按 type：anthropic=stream，openai=once */
   streamMode?: StreamMode;
   /**

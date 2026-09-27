@@ -123,6 +123,8 @@ export function getProviders(ownerId: string | null = null): Provider[] {
     enabled: r.enabled === 1,
     streamMode: normalizeStreamMode(r.stream_mode, r.type),
     ownerId: r.owner_id,
+    // v0.2.139 出站：生图角色的前端过滤读它（ anthropic 行没有生图端点）
+    type: r.type === 'anthropic' ? ('anthropic' as const) : ('openai' as const),
   }));
 }
 

@@ -83,13 +83,13 @@ Body: { model, prompt, n: 1, size, response_format: 'b64_json' }
 
 `explainImageGenerationFailure(status, body, model)` 纯函数，分支**最具体的排前面**：内容策略拒绝（可包在任何状态码里，故在状态码前判）＞ 模型不像生图模型（model 特征 + 404/400 → 指去设置页换绑）＞ 401（密钥失效）＞ 403（欠费/无权限）＞ 429（等十几秒）＞ 404（地址没生图接口）＞ 5xx（他们的问题）＞ 兜底不猜病因。每条末行附 `上游原文：`（压平、截 240 字）——翻译不是掩埋。反向锁（遮特征不得误判）由测试钉住。
 
-## 7. 前端影响面（≈零）
+## 7. 前端影响面
 
-渲染零改动；设置页角色行数组驱动自动出现。⚠️ **本批未做**：「生图角色下拉仅列 OpenAI 兼容服务商」的前端过滤——`GET /providers` 不回 `type` 字段，改响应形状扩面，服务端写口已硬断言（误绑得可读 400），过滤留给后续批次。
+渲染零改动；设置页角色行数组驱动自动出现「生图（画图）」行。**绑定 UX 三件**（老板点单补齐，否则没法测）：① `GET /providers` 出站加 `type` 字段（shared `Provider` 同批加列，`getProviders` 唯一构造点）；② `providersForRole()` 纯函数——image 角色只给 OpenAI 兼容服务商（与服务端 `PUT` 断言同口径，缺 `type` 的旧形状按可绑处理向后兼容）；③ 分区提示语写明"生图只能绑 OpenAI 兼容服务商，绑平台留空模型即用平台默认生图"。**最省的测试路径＝生图行绑平台服务商 + 模型选「（用默认模型）」→ 自动落到 `agnes-image-2.5-flash`。**
 
 ## 8. 测试与验收
 
-41 例新锁：image-quota 8（env 解析含 `Number('')` 陷阱／日界边界／计数四则／并发坑）、image-error 11（七分支＋截断＋两条反向锁）、image-gen 15（b64/url 双路径真落盘／size 回落／env 优先／BYOK 豁免／到顶不发上游／limit0／并发 busy／429 翻译／anthropic 挡下／没绑定／坏响应／嗅探丢弃）、generate-image 7（元数据／B-006 提示词锁／description 用法锁／回灌与事件序列）。
+45 例新锁（后 +4＝设置页过滤批）：image-quota 8（env 解析含 `Number('')` 陷阱／日界边界／计数四则／并发坑）、image-error 11（七分支＋截断＋两条反向锁）、image-gen 15（b64/url 双路径真落盘／size 回落／env 优先／BYOK 豁免／到顶不发上游／limit0／并发 busy／429 翻译／anthropic 挡下／没绑定／坏响应／嗅探丢弃）、generate-image 7（元数据／B-006 提示词锁／description 用法锁／回灌与事件序列）、RoleRow.test +3 与 image-gen.test +1（providersForRole 过滤／type 出站／缺 type 向后兼容）。
 
 **实现期逮到的真坑（已修并锁死）**：`Number('') === 0`——`SB_IMAGE_DAILY_LIMIT` 未配时被当成 `0`（整体关闭），零配置部署的生图会一行没跑就全灭。`normalizeImportance` 同族（AGENTS.md 记过），`imageDailyLimit` 先拦空串。
 

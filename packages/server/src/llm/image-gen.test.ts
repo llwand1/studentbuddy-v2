@@ -13,6 +13,7 @@ import { openIsolated, closeDb, getDb } from '../storage/db.js';
 import { imagesDir } from '../storage/image-cache.js';
 import { resetUpstreamGates } from './upstream-gate.js';
 import { generateImageForOwner, IMAGE_PROMPT_MAX_CHARS, normalizeImageSize } from './image-gen.js';
+import { getProviders } from './router.js';
 
 vi.mock('node:dns/promises', () => ({
   // fetchSafe 的逐跳复检要解析主机名——桩成恒公网 IP，测试不碰真网络
@@ -229,5 +230,15 @@ describe('纯件', () => {
   });
   it('prompt 截断常量已声明（工具层消费）', () => {
     expect(IMAGE_PROMPT_MAX_CHARS).toBe(1000);
+  });
+});
+
+describe('getProviders — type 出站（设置页生图过滤的数据源）', () => {
+  it('openai/anthropic 行都带协议族出站，前端据此过滤生图角色', async () => {
+    getDb().prepare(`INSERT INTO providers (id, name, base_url, api_key, type, enabled, owner_id) VALUES ('p-ant', 'p-ant', 'https://anth.example/v1', '', 'anthropic', 1, 'u1')`).run();
+    const rows = getProviders('u1');
+    const byId = new Map(rows.map((r) => [r.id, r.type]));
+    expect(byId.get('openai-default')).toBe('openai');
+    expect(byId.get('p-ant')).toBe('anthropic');
   });
 });

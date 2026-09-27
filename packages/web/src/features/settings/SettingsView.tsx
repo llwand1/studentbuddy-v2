@@ -18,7 +18,7 @@ import { AnswerStyleCard } from './AnswerStyleCard';
 import { ToolsCard } from './ToolsCard';
 import { SpeechCard } from './SpeechCard';
 import { PlatformChannelCard } from './PlatformChannelCard';
-import { RoleRow } from './RoleRow';
+import { RoleRow, providersForRole } from './RoleRow';
 import type { ProviderRow } from './RoleRow';
 
 type RoleBindingRow = { role: string; provider_id: string; model: string };
@@ -219,7 +219,7 @@ export function SettingsView() {
 
       <section className="settings-sec">
         <h3>角色模型绑定</h3>
-        <p className="settings-hint">每个学习环节可独立选模型（未绑定的环节走默认服务商）；出题建议强模型、总结可用便宜模型。</p>
+        <p className="settings-hint">每个学习环节可独立选模型（未绑定的环节走默认服务商）；出题建议强模型、总结可用便宜模型。生图（画图）只能绑 OpenAI 兼容服务商的生图模型（如 agnes-image-2.5-flash），绑平台服务商并留空模型即用平台默认生图。</p>
         <table className="settings-table">
           <thead>
             <tr>
@@ -236,7 +236,7 @@ export function SettingsView() {
                 <RoleRow
                   key={r.role}
                   label={r.label}
-                  providers={providers}
+                  providers={providersForRole(r.role, providers)}
                   modelsMap={modelsMap}
                   initialProvider={b?.provider_id ?? ''}
                   initialModel={b?.model ?? ''}

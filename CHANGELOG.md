@@ -25,6 +25,8 @@
 
 **实现期逮到的真坑（已修并锁死）**：`Number('') === 0`——`SB_IMAGE_DAILY_LIMIT` 未配时被当成 0（平台生图整体关闭），零配置部署一行没跑就全灭；`normalizeImportance` 同族坑，`imageDailyLimit` 先拦空串。**新契约** `docs/IMAGE-GEN-SPEC.md` v1.0。验证：新增 4 测试文件 41 例全绿；`npm run check`（tsc×3+eslint+vitest+gates）**exit 0**；基线 **213 文件/2887 例 → 217 文件/2928 例（2925 passed + 3 skipped + 0 failed）**，README 徽章与 `metrics --tests --check` 同步 ✅；⚠️ **真机端到端（真 key 打真上游）未跑**，首张真机图出来前按「未真机验收」对待；施工在独立工作树 `feat/image-generation` 分支，主工作树零写入。
 
+**跟进（09-27 10:4x~11:1x · Qoder e23d47af · 老板点名「提 PR 走流程，先不发版」）**：① 分支合入 origin/main＝`9eafe1c`，唯一冲突 `docs/metrics.json`，解法＝合并树 `node tools/metrics.mjs --tests` 重算覆盖。② 按固定动作补 issue #48 ＋ 开 PR #50（Closes #48）。③ **CI 首跑红在 `metrics --tests --check`，且红得有价值**：上一段「2925+3」与本分支 README 的「2929+3」都是**未 build 的本地口径**；CI 多一步 `npm run build`，`public-hygiene` 两例从 skipped 转真跑通过 ⇒ CI 实测 **2931 passed + 1 skipped + 0 failed**。README 基线句随 main 既有惯例改回 CI 口径（main 同句亦为 build 后数），徽章总数 217/2932 两侧一致未动。⚠️ **过程如实记**：build 后本地全量连两例 `ContinentPage.test.tsx:183`（点怪开弹窗）红、第三次全绿，该文件单跑 9/9 两遍全绿＝并发计时抖动（main 的知识大陆批文件，非本批改动面）；本地与 CI 判据统一为「build 后全量」口径。上一段历史数字不回改。④ 发版仍未做、待老板逐次点名；真机首图欠账随批继承。
+
 ### 2026-09-27 · demo:e2e 题库断言跟上下线批（墓碑锁）
 
 修掉 README 记录的那笔脚本技术债：`tools/e2e/demo-e2e.mjs` 步骤 6/7/9 仍在断言随题库整族下线的 `GET /api/quiz/bank/:id` 与 `POST /api/quiz/stats/record`（本机实跑 28 通过 / 8 失败，2026-09-26 记录在案）。改写为对准**新持久化边界**：① 出题纵切改带 `sessionId`，断言 `[QUIZ]…[/QUIZ]` 登记行进会话消息（同一 quizId、4 题齐全）——这是「重开会话可还原」的真实载体（messages 表），顺带删掉路由已不读的 `save` 死参数；② 逐题统计步骤改为断言「答案随题下发」（题卡当场判分的前提）；③ 为两条下线路由加**墓碑锁**（断言 404——功能若被悄悄复活，脚本立即报警，而非无人知晓）；④ 重启存活改断登记行仍在会话里。验证：`npm run demo:e2e` 实跑 **34 通过 / 0 失败（9.6s）**，全程零真实外呼；README 两处「28/8 脚本债」过期表述同步改写（「还没做的」「快速开始」）。纯脚本与文档改动，零产品代码；未发版。

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-27T02:55:21.419Z",
+  "generatedAt": "2026-09-27T03:07:07.969Z",
   "code": {
     "rows": [
       {
@@ -86,21 +86,21 @@
     "probes": 15
   },
   "repo": {
-    "head": "917aac1",
+    "head": "9eafe1c",
     "headDate": "2026-09-27",
-    "commitsLast14d": 252,
+    "commitsLast14d": 255,
     "branch": "feat/image-generation",
-    "dirtyFiles": 7
+    "dirtyFiles": 1
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 91.3,
+    "wallSec": 53.4,
     "staleDays": 0,
     "files": 217,
     "cases": 2932,
-    "passed": 2929,
-    "skipped": 3,
+    "passed": 2931,
+    "skipped": 1,
     "failed": 0,
     "success": true
   },
@@ -159,8 +159,8 @@
     {
       "label": "正文 passed 口径",
       "claimed": "2929 passed + 3 skipped + 0 failed",
-      "measured": "2929 passed + 3 skipped + 0 failed",
-      "ok": true
+      "measured": "2931 passed + 1 skipped + 0 failed",
+      "ok": false
     },
     {
       "label": "正文基线句",

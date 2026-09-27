@@ -30,7 +30,7 @@ import type { LLMAdapter, UpstreamQuota } from './types.js';
 import { OpenAICompatibleAdapter } from './openai.js';
 import { AnthropicAdapter } from './anthropic.js';
 import { bindQuota } from './upstream-gate.js';
-import { firstPlatformProviderId, platformDefaultModel, resolveProviderCredentials } from './platform-channel.js';
+import { firstPlatformProviderId, imagePlatformDefaultModel, platformDefaultModel, resolveProviderCredentials } from './platform-channel.js';
 
 export const MODEL_ROLES: Array<{ role: ModelRole; label: string }> = [
   { role: 'explain', label: '讲解（日常对话）' },
@@ -48,6 +48,11 @@ export const MODEL_ROLES: Array<{ role: ModelRole; label: string }> = [
   //   会回退讲解模型——督促本质是日常对话，而老库升级后 role_bindings 里本来就没有这一行，
   //   若按「必须绑定」处理，用户看到的是「该角色还没绑定模型」而他从没改过任何设置。
   { role: 'coach', label: '督促（复习陪练）' },
+  // v0.2.139 新增：生图（画图）。`generate_image` 工具的落点——绑定的模型打 OpenAI 兼容的
+  // `/images/generations`，与聊天模型不同池，故默认模型走 `imagePlatformDefaultModel()`
+  // （SB_IMAGE_MODEL > agnes-image-2.5-flash），**绝不回落**聊天默认（见 platform-channel.ts）。
+  // ★ 数组驱动 ⇒ 设置页自动多一行、一键默认自动带上；未绑定不是错误——工具回可读文案。
+  { role: 'image', label: '生图（画图）' },
 ];
 
 const adapters: Record<'openai' | 'anthropic', LLMAdapter> = {
@@ -69,6 +74,12 @@ export interface RoutedTarget {
   streamMode: 'stream' | 'once';
   /** 上游配额的归属维度（M2c）。★ 同时暴露出来供诊断/测试断言，正常路径不必读它 */
   quota: UpstreamQuota;
+  /**
+   * provider 协议族（v0.2.139 生图批加的**读口**）：chat 调用方用不着（adapter 已按它选好），
+   * 但生图要走 `/images/generations`——anthropic 行没有这个端点，`image-gen.ts` 据此
+   * 在发请求**之前**给可读报错，而不是放出去撞一个必然 404。
+   */
+  type: 'openai' | 'anthropic';
 }
 
 /** stream_mode 缺省按 type 定位：anthropic 原生协议=流式；openai 兼容（中转池）=一次性 */
@@ -112,6 +123,8 @@ export function getProviders(ownerId: string | null = null): Provider[] {
     enabled: r.enabled === 1,
     streamMode: normalizeStreamMode(r.stream_mode, r.type),
     ownerId: r.owner_id,
+    // v0.2.139 出站：生图角色的前端过滤读它（ anthropic 行没有生图端点）
+    type: r.type === 'anthropic' ? ('anthropic' as const) : ('openai' as const),
   }));
 }
 
@@ -191,6 +204,7 @@ function targetFromProvider(providerId: string, owner: string | null, requesterI
     baseUrl: creds.baseUrl,
     streamMode: normalizeStreamMode(p.stream_mode, p.type),
     quota,
+    type,
   };
 }
 
@@ -199,6 +213,16 @@ function bindingFor(role: ModelRole, owner: string | null): { provider_id: strin
   return getDb()
     .prepare('SELECT provider_id, model FROM role_bindings WHERE role = ? AND owner_id IS ?')
     .get(role, owner) as { provider_id: string; model: string } | undefined;
+}
+
+/**
+ * 角色感知的平台默认模型（**绑定行 model 为空时**的兜底，三档查序 ①②③ 同用这一份）。
+ * ★ 不能直接写 `platformDefaultModel()`：生图模型与聊天模型不同池——把聊天默认
+ * `agnes-2.5-flash` 填给 `image` 角色去打 `/images/generations` 必 404，且是
+ * 「零配置就挂、报错全是上游英文」的最难查形态。分支规则见 `platform-channel.ts`。
+ */
+function defaultModelFor(role: ModelRole): string {
+  return role === 'image' ? imagePlatformDefaultModel() : platformDefaultModel();
 }
 
 /**
@@ -229,7 +253,7 @@ export function routeRole(
         // ★ 绑定行 model 为空 ⇒ 走与 ② 同一条回落链（env > 常量）。
         //   不兜这一层的话，「一键默认」把 8 个角色绑好、model 留空之后，
         //   `roleReady` 会判「该角色还没绑定模型」——配了却不可用。
-        return { ...t, model: mine.model || (t.quota.platform ? platformDefaultModel() : '') };
+        return { ...t, model: mine.model || (t.quota.platform ? defaultModelFor(role) : '') };
       }
     }
   }
@@ -243,7 +267,7 @@ export function routeRole(
     //   AI 依然不可用（线上 2026-09-21 就是这个状态：`role_bindings.model` 八行全空）。
     //   故绑定表 model 为空时用平台默认模型兜底。优先级＝**绑定表 > env > 常量**：
     //   设置页配的是"这台部署要用的模型"（可随时改），env 只是部署默认值。
-    if (t) return { ...t, model: platform.model || platformDefaultModel() };
+    if (t) return { ...t, model: platform.model || defaultModelFor(role) };
   }
 
   const def = defaultTarget(owner);
@@ -256,7 +280,7 @@ export function routeRole(
   // ★ 2026-09-21：`platformDefaultModel()` 现在恒返回非空（末位兜 `DEFAULT_PLATFORM_MODEL`），
   //   故 `|| fallbackModel || ''` 两段实际已不可达。**保留而不删**：删掉要动 16 处调用点的
   //   签名（第 2 参一去掉，第 3 参就错位），收益不抵风险。留作后续清理项。
-  return { ...def, model: platform?.model || platformDefaultModel() || fallbackModel || '' };
+  return { ...def, model: platform?.model || defaultModelFor(role) || fallbackModel || '' };
 }
 
 /**

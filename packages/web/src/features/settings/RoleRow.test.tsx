@@ -25,7 +25,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { RoleRow } from './RoleRow';
+import { RoleRow, providersForRole } from './RoleRow';
 import type { ProviderRow } from './RoleRow';
 
 const PROVIDERS: ProviderRow[] = [
@@ -199,5 +199,26 @@ describe('RoleRow — ★★ 服务端值变了要跟着走（真机探针逮到
     });
     rerender({ modelsMap: MODELS, initialProvider: '', initialModel: '' });
     expect(providerSelect().value).toBe('p-mine');
+  });
+});
+
+describe('providersForRole — 生图角色的服务商过滤（v0.2.139）', () => {
+  const ALL: ProviderRow[] = [
+    { id: 'plat', name: '平台', baseUrl: 'https://x/v1', enabled: true, type: 'openai', ownerId: null },
+    { id: 'mine-oai', name: '我的兼容', baseUrl: 'https://y/v1', enabled: true, type: 'openai', ownerId: 'uA' },
+    { id: 'mine-ant', name: '我的 Anthropic', baseUrl: 'https://z/v1', enabled: true, type: 'anthropic', ownerId: 'uA' },
+  ];
+
+  it('image 角色滤掉 anthropic 行（绑了必挂，写口与服务端 400 断言同口径）', () => {
+    const out = providersForRole('image', ALL);
+    expect(out.map((p) => p.id)).toEqual(['plat', 'mine-oai']);
+  });
+  it('其余角色一个不滤', () => {
+    expect(providersForRole('explain', ALL)).toHaveLength(3);
+    expect(providersForRole('vision', ALL)).toHaveLength(3);
+  });
+  it('缺 type 字段的行按可绑处理（向后兼容旧响应形状）', () => {
+    const legacy: ProviderRow[] = [{ id: 'a', name: 'a', baseUrl: 'https://a/v1', enabled: true }];
+    expect(providersForRole('image', legacy)).toHaveLength(1);
   });
 });

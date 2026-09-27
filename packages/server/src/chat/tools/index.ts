@@ -14,6 +14,9 @@ import { registerTool } from './registry.js';
 import './web-search.js';
 import './fetch-page.js';
 import './fetch-image.js';
+// 生图（2026-09-27 v0.2.139，契约 docs/IMAGE-GEN-SPEC.md）：模型凭空造学习示意图，
+// 产物与 fetch_image 同落 image-cache、同走 /api/images 出口
+import './generate-image.js';
 import './term-tidy.js';
 // 出题工具化（2026-09-23）：把 `routes/quiz.ts` 那条 REST 引擎接进模型手里
 import './generate-quiz.js';

@@ -1,3 +1,13 @@
+> 2026-09-27 生图接入批（v0.2.139，ZCode）：聊天内生图——`generate_image` 工具 + `image` 角色 + 平台日张数闸 + `image-error` 翻译器。零迁移、零 web 改动、前端渲染零改动。完整实跑基线 217 文件 / 2932 例（2929 passed + 3 skipped + 0 failed），README 徽章与 `metrics --tests --check` 已同步。⚠️ 真机端到端（真 key 打真上游）未跑，如实登记为欠账。
+
+| 本批测试文件 | 用例 | 不变量 |
+|---|---:|---|
+| `src/llm/image-quota.test.ts` | 8 | env 非法值不拆闸（含 `Number('')` 陷阱：未配 ≠ 0/关闭）；日界按本地日历日；计数只数本人/今日/ok=1；并发坑互斥 |
+| `src/llm/image-error.test.ts` | 11 | 七分支按「最具体的排前面」定序；上游原文必附且截 240；两条反向锁（遮特征不得误判） |
+| `src/llm/image-gen.test.ts` | 15 | b64/url 双路径真落盘进 image-cache；size 白名单回落；平台到顶不发上游；并发 busy；anthropic 发请求前挡下；没绑定可读文案 |
+| `src/chat/tools/generate-image.test.ts` | 7 | kind=network + idempotent=false（钱的声明）；B-006 锁（提示词必含 generate_image）；回灌含 `![说明](地址)` 用法示范；onStep 序列 |
+| `src/llm/image-gen.test.ts`（+1）／`features/settings/RoleRow.test.tsx`（+3） | 4 | 设置页生图绑定批（老板点单）：`getProviders` 出站带 `type`；`providersForRole` 只滤 anthropic、缺 type 向后兼容 |
+
 # studentbuddy v2 · 测试方案（test-plan）
 
 > 2026-09-26 像素统一合流：保存失败重试新增 `src/features/continent/MonsterDialog.test.tsx` 1 例；Landing、PK 演示登记与大陆图鉴已有用例更新，锁住已下线功能不再宣传、地图宝箱不冒称联动。完整实跑基线 213 文件 / 2887 例（2026-09-26 知识大陆优化批后复跑），验证记录与 README 由实测指标核对。

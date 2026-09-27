@@ -1,33 +1,33 @@
 {
-  "generatedAt": "2026-09-27T01:06:40.743Z",
+  "generatedAt": "2026-09-27T03:07:07.969Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
         "srcFiles": 30,
         "testFiles": 18,
-        "srcLines": 4852,
+        "srcLines": 4857,
         "testLines": 2574
       },
       {
         "pkg": "server",
-        "srcFiles": 172,
-        "testFiles": 121,
-        "srcLines": 26451,
-        "testLines": 26500
+        "srcFiles": 176,
+        "testFiles": 125,
+        "srcLines": 26986,
+        "testLines": 27040
       },
       {
         "pkg": "web",
         "srcFiles": 195,
         "testFiles": 74,
-        "srcLines": 25898,
-        "testLines": 11269
+        "srcLines": 25913,
+        "testLines": 11290
       }
     ],
-    "srcFiles": 397,
-    "testFiles": 213,
-    "srcLines": 57201,
-    "testLines": 40343,
+    "srcFiles": 401,
+    "testFiles": 217,
+    "srcLines": 57756,
+    "testLines": 40904,
     "tsxTestFiles": 28
   },
   "routes": {
@@ -80,26 +80,26 @@
     ]
   },
   "docs": {
-    "specs": 33,
-    "all": 47,
+    "specs": 34,
+    "all": 48,
     "dev": 5,
     "probes": 15
   },
   "repo": {
-    "head": "c0f7683",
+    "head": "9eafe1c",
     "headDate": "2026-09-27",
-    "commitsLast14d": 278,
-    "branch": "chore/release-v0.2.137",
-    "dirtyFiles": 6
+    "commitsLast14d": 255,
+    "branch": "feat/image-generation",
+    "dirtyFiles": 1
   },
   "tests": {
     "available": true,
-    "ranNow": false,
-    "wallSec": 0,
+    "ranNow": true,
+    "wallSec": 53.4,
     "staleDays": 0,
-    "files": 213,
-    "cases": 2887,
-    "passed": 2886,
+    "files": 217,
+    "cases": 2932,
+    "passed": 2931,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -110,14 +110,14 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "213",
-      "measured": "213",
+      "claimed": "217",
+      "measured": "217",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "2887",
-      "measured": "2887",
+      "claimed": "2932",
+      "measured": "2932",
       "ok": true
     },
     {
@@ -158,14 +158,14 @@
     },
     {
       "label": "正文 passed 口径",
-      "claimed": "2886 passed + 1 skipped + 0 failed",
-      "measured": "2886 passed + 1 skipped + 0 failed",
-      "ok": true
+      "claimed": "2929 passed + 3 skipped + 0 failed",
+      "measured": "2931 passed + 1 skipped + 0 failed",
+      "ok": false
     },
     {
       "label": "正文基线句",
-      "claimed": "213 文件 / 2887 例",
-      "measured": "213 文件 / 2887 例",
+      "claimed": "217 文件 / 2932 例",
+      "measured": "217 文件 / 2932 例",
       "ok": true
     }
   ],

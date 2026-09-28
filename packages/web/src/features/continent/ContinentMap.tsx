@@ -36,6 +36,7 @@ import {
   drawLand,
   drawMonster,
   drawNpc,
+  drawNpcBubble,
   drawSprout,
   drawTile,
 } from './continent-canvas';
@@ -75,6 +76,12 @@ interface Props {
   chests: readonly ContinentChestDrop[];
   /** 大陆上的学习伙伴（含遇险标记；结论由服务端给） */
   npcs: readonly ContinentNpcMark[];
+  /**
+   * 谁在主动说话（服务端节流后只会有一个）。
+   * ★ 只给 id + 一句话：位置从 `npcs` 里现取，**不自带坐标** ——
+   *   自带就会和走位脱节，气泡飘在他半格前面。
+   */
+  npcBubble: { npcId: string; name: string; text: string } | null;
   /** 「回到我身上」的计数（页面自增一次 = 按了一次） */
   recenterTick: number;
   onPick: (row: number, col: number) => void;
@@ -96,6 +103,7 @@ export function ContinentMap({
   heroStart,
   chests,
   npcs,
+  npcBubble,
   recenterTick,
   onPick,
   burst = null,
@@ -177,6 +185,11 @@ export function ContinentMap({
         const idle = reducedMotion ? 0 : Math.round(Math.sin(now / 520) * 1.5) + (i % 2);
         drawNpc(ctx, n, idle, n.distressed, reducedMotion ? 1 : pulse);
       });
+      // 话泡最后画：它必须压在所有立绘之上，否则会被旁边那一格的人物盖住半句
+      if (npcBubble) {
+        const who = npcs.find((n) => n.id === npcBubble.npcId);
+        if (who && shown(who.row, who.col)) drawNpcBubble(ctx, who, npcBubble.text, npcBubble.name);
+      }
       if (hero) {
         const k = reducedMotion || !heroFrom ? 1 : Math.min((now - heroStart) / STEP_MS, 1);
         drawHero(ctx, hero, heroFrom, k);
@@ -201,7 +214,7 @@ export function ContinentMap({
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [tiles, wildLands, tilesKey, hover, focus, burst, hero, heroFrom, heroStart, chests, npcs, cam, placeSpots]);
+  }, [tiles, wildLands, tilesKey, hover, focus, burst, hero, heroFrom, heroStart, chests, npcs, npcBubble, cam, placeSpots]);
 
   /** 事件坐标 → **世界格**：视口比例换算 + 相机偏移（CSS 缩放后也准） */
   const at = (canvas: HTMLCanvasElement, clientX: number, clientY: number): ContinentCell => {

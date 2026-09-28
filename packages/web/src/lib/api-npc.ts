@@ -34,8 +34,12 @@ export interface NpcView {
   termId: string;
   term: string;
   domain: string;
+  /** 他**此刻**站的格（伙伴会游走，这两个数每 45 秒可能变一次） */
   row: number;
   col: number;
+  /** 家（玩家当初安置他的那一格）；游走以它为圆心 */
+  homeRow: number;
+  homeCol: number;
   distressed: boolean;
   threat: NpcThreat | null;
 }
@@ -49,6 +53,8 @@ export interface NpcState {
   quota: NpcQuota;
   /** 可落位的空格（选位态高亮用）；★ 服务端给，前端不重算铺格 */
   spots: Array<{ row: number; col: number }>;
+  /** 全部词条格：伙伴走到哪一格 = 他此刻想聊哪条词条（服务端给，前端不重铺图） */
+  cells: Array<{ termId: string; term: string; domain: string; row: number; col: number }>;
 }
 
 /** `POST /`：创建成功回**整份新状态**（名额、可落位格都变了）+ 新伙伴 id 与起名来源 */
@@ -62,6 +68,32 @@ export interface NpcCreateResult {
 /** `POST /:id/talk`：★ `fallback` 不是"失败了"，是"现在只能这样"——UI 必须说真话 */
 export interface NpcTalkResult {
   reply: string;
+  source: 'ai' | 'fallback';
+  /** 他在这一轮对话里**真的**掏出了一条新词（模型自己决定的）⇒ 面板上出"收下" */
+  draw?: ChestDraw | null;
+  /** 想换但没换成时的那句人话（额度用完／这块地还没练熟） */
+  tradeNote?: string | null;
+}
+
+/** 一条历史消息（伙伴会话回显；`GET /:id/history`） */
+export interface NpcMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/**
+ * 地图上那个"他想跟你说话"的气泡（`GET /ping`）。
+ * ★ `term` 是他**此刻站的那一格**上的词条 —— 话题由脚下这块地决定。
+ */
+export interface NpcBubble {
+  npcId: string;
+  name: string;
+  text: string;
+  termId: string;
+  term: string;
+  row: number;
+  col: number;
+  at: number;
   source: 'ai' | 'fallback';
 }
 
@@ -94,10 +126,26 @@ export const npcApi = {
       method: 'POST',
       body: JSON.stringify({ text }),
     }),
-  /** 交换：信物必须是**自己的**、卡数 ≥2 的词条（服务端判，前端只管禁用态） */
+  /**
+   * 交换：信物必须是**自己的**、卡数 ≥2 的词条。
+   * ⚠️ 2026-09-28 起交换的**主路径是对话**（跟他说"教我点新的"，他自己会掏）——
+   *    这个端点留作显式入口与既有测试的锚点，UI 上不再有下拉框。
+   */
   trade: (id: string, termId: string) =>
     request<NpcTradeResult>(`/api/npc/${encodeURIComponent(id)}/trade`, {
       method: 'POST',
       body: JSON.stringify({ termId }),
     }),
+  /** 这位伙伴的对话史（面板打开时回显；读的是既有 messages 表） */
+  history: (id: string) =>
+    request<{ messages: NpcMessage[] }>(`/api/npc/${encodeURIComponent(id)}/history`),
+  /**
+   * 轮询口：顺带推进走位，并问"这一轮有没有人想主动说话"。
+   * ★★ 只在**大陆页可见**时调（见 `continent-partners.tsx`）：它是全仓唯一会自己花钱的轮询。
+   */
+  ping: () => request<{ bubble: NpcBubble | null; npcs: Array<{ id: string; row: number; col: number }> }>(
+    '/api/npc/ping',
+  ),
+  /** 领走/关掉气泡（幂等） */
+  dismissBubble: () => request<{ ok: true }>('/api/npc/bubble/dismiss', { method: 'POST' }),
 };

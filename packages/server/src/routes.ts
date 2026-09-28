@@ -26,7 +26,12 @@ sessionsRouter.get('/', (req: Request, res: Response) => {
   const f = ownerFilter(ownerIdOf(req));
   const rows = getDb()
     .prepare(
-      `SELECT id, title, pinned, created_at, updated_at FROM sessions WHERE deleted_at IS NULL${f.sql} ORDER BY pinned DESC, updated_at DESC`,
+      // ★ 排除伙伴会话（`npc:%`）：每位学习伙伴有一条属于自己的会话（`learning/npc-session.ts`，
+      //   伙伴 id 直接当 `sessions.id`，这是"零新表"的做法），但那是**地图上的人**，
+      //   不是用户的聊天记录 —— 混进列表里，用户会看到一堆自己没开过的对话。
+      //   伙伴对话的入口只有一个：大陆页点开那位伙伴。
+      `SELECT id, title, pinned, created_at, updated_at FROM sessions
+         WHERE deleted_at IS NULL AND id NOT LIKE 'npc:%'${f.sql} ORDER BY pinned DESC, updated_at DESC`,
     )
     .all(...f.params);
   res.json(rows);

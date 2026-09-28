@@ -12,7 +12,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, cleanup, renderHook } from '@testing-library/react';
 
-const npcMock = { state: vi.fn(), create: vi.fn(), rename: vi.fn(), remove: vi.fn() };
+const npcMock = {
+  state: vi.fn(),
+  create: vi.fn(),
+  rename: vi.fn(),
+  remove: vi.fn(),
+  // 伙伴会游走那次改动新增：心跳与气泡。默认回"没人想说话"，
+  // 免得每个既有用例都要处理轮询（轮询本身另有专门用例）
+  ping: vi.fn(async () => ({ bubble: null, npcs: [] })),
+  dismissBubble: vi.fn(async () => ({ ok: true as const })),
+};
 const cardsMock = { state: vi.fn() };
 vi.mock('../../lib/api', () => ({ api: { npc: npcMock, cards: cardsMock } }));
 
@@ -26,6 +35,7 @@ function stateOf(over: Record<string, unknown> = {}) {
     tradesLeft: 2,
     quota: { count: 0, max: 6, doneTasks: 0, needTasks: 0, canCreate: true, blockedBy: '' },
     spots: [{ row: 5, col: 7 }],
+    cells: [{ termId: 't1', term: '主动回忆', domain: '记忆机制', row: 5, col: 7 }],
     ...over,
   };
 }
@@ -39,6 +49,8 @@ const oneNpc = {
   domain: '记忆机制',
   row: 5,
   col: 7,
+  homeRow: 5,
+  homeCol: 7,
   distressed: false,
   threat: null,
 };

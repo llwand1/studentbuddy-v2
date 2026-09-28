@@ -285,6 +285,57 @@ export function drawNpc(
   }
 }
 
+/**
+ * 伙伴头顶的话泡：**他主动开口**时才画（`GET /api/npc/ping` 给的那一条）。
+ *
+ * ★★ 为什么画在 canvas 上、而不是浮一个 HTML 气泡：它必须**跟着人走**。
+ *   伙伴每 45 秒换一格，HTML 气泡要么另算一套坐标（第二份口径，必然错位），
+ *   要么每帧改 style（抖动）。画在同一张画布上，位置天然和立绘同源。
+ * ★ 文本**按字数硬截**（`BUBBLE_MAX_CH`）而不是按像素测量换行：
+ *   `measureText` 在每帧循环里是实打实的开销，而这条泡本来就只该是**一句勾子**，
+ *   长内容进面板看 —— 截断反而是对的产品行为。
+ * ★ 泡尖朝下指向头顶；贴到地图顶边时自动把泡翻到人物**下方**（否则被裁掉，用户只看到半条字）。
+ */
+const BUBBLE_MAX_CH = 18;
+
+export function drawNpcBubble(
+  ctx: CanvasRenderingContext2D,
+  spot: CellRef,
+  text: string,
+  name: string,
+): void {
+  const line = text.length > BUBBLE_MAX_CH ? `${text.slice(0, BUBBLE_MAX_CH)}…` : text;
+  const cx = Math.round(spot.col * CELL + CELL / 2);
+  const cy = Math.round(spot.row * CELL + CELL / 2);
+  ctx.font = '11px ui-monospace, monospace';
+  const w = Math.ceil(ctx.measureText(line).width) + 14;
+  const h = 22;
+  const below = cy - 30 - h < 0; // 顶边贴边 ⇒ 翻到下面
+  const bx = Math.round(cx - w / 2);
+  const by = below ? cy + 22 : cy - 30 - h;
+
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = 'rgba(7,5,10,0.92)';
+  ctx.fillRect(bx, by, w, h);
+  ctx.strokeStyle = COLOR.gold;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(bx + 0.5, by + 0.5, w - 1, h - 1);
+  // 泡尖：朝人物那一侧
+  ctx.fillStyle = 'rgba(7,5,10,0.92)';
+  const ty = below ? by : by + h;
+  ctx.beginPath();
+  ctx.moveTo(cx - 4, ty);
+  ctx.lineTo(cx + 4, ty);
+  ctx.lineTo(cx, below ? ty - 5 : ty + 5);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = COLOR.gold;
+  ctx.fillText(name, bx + 7, by + 9);
+  ctx.fillStyle = '#e8e2f0';
+  ctx.fillText(line, bx + 7, by + 19);
+}
+
 /** 高亮框（悬停 / 弹窗锁定的那一格） */
 export function drawFrame(ctx: CanvasRenderingContext2D, t: CellRef, color: string, pop: number): void {
   ctx.globalAlpha = Math.max(pop, 0.9);

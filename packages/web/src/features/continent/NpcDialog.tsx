@@ -15,12 +15,12 @@
  * ★ 交换**不花钥匙、不扣卡**（卡是流水派生的读数，见 SPEC §6.3）：所以本面板呈现的代价是
  *   "今天还能换 N 次"+ 信物门槛（★1 以上），并把那句话原样说出来，不许写成"消耗一张卡"。
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NPC_FALLBACK_NOTICE, NPC_TRADE_COST_LINE } from '@sb/shared';
 import { api } from '../../lib/api';
 import { cardsApi } from '../../lib/api-cards';
 import type { ChestDraw } from '../../lib/api-cards';
-import type { NpcView } from '../../lib/api-npc';
+import type { NpcMessage, NpcView } from '../../lib/api-npc';
 import { RitualOverlay } from '../game/ChestPanel';
 
 /** 可当信物的一条词条（★ 卡数由服务端给：它是两张流水的聚合，前端算不了） */
@@ -57,8 +57,9 @@ export function NpcDialog({
   const [text, setText] = useState('');
   const [reply, setReply] = useState('');
   const [source, setSource] = useState<'ai' | 'fallback' | null>(null);
+  /** 这位伙伴的对话史（进面板时从服务端回显——他记得上次聊过什么） */
+  const [log, setLog] = useState<NpcMessage[]>([]);
   const [name, setName] = useState(npc.name);
-  const [tokenId, setTokenId] = useState('');
   const [trades, setTrades] = useState(tradesLeft);
   const [draw, setDraw] = useState<ChestDraw | null>(null);
   const [note, setNote] = useState('');
@@ -68,18 +69,46 @@ export function NpcDialog({
 
   const threat = npc.threat;
 
+  /**
+   * 打开面板 ⇒ 回显他记得的对话。
+   * ★ 失败不报错：历史是锦上添花，拉不到就当新对话开始，
+   *   为它弹一条红字反而把"他记得你"变成"他坏了"。
+   */
+  useEffect(() => {
+    let alive = true;
+    void api.npc
+      .history(npc.id)
+      .then((r) => {
+        if (alive) setLog(r.messages);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [npc.id]);
+
   const ask = async (): Promise<void> => {
     const said = text.trim();
     if (!said || busy) return;
     setBusy(true);
     setNote('');
+    setLog((prev) => [...prev, { role: 'user', content: said }]);
+    setText('');
     try {
       const r = await api.npc.talk(npc.id, said);
       setReply(r.reply);
       setSource(r.source);
-      setText('');
+      setLog((prev) => [...prev, { role: 'assistant', content: r.reply }]);
+      // ★★ 交换现在是**他在对话里自己决定**的：模型调了工具，服务端就真换了一条，
+      //    这里只负责把开盒仪式抬出来。UI 上没有"换一条"按钮——因为那不是一个按钮该干的事。
+      if (r.draw) {
+        setDraw(r.draw);
+        setTrades((n) => Math.max(0, n - 1));
+      }
+      if (r.tradeNote) setNote(r.tradeNote);
     } catch (e) {
       setNote(e instanceof Error ? e.message : '这句话没送出去，再试一次');
+      setLog((prev) => prev.slice(0, -1)); // 没送出去就别在记录里留一句假的
     } finally {
       setBusy(false);
     }
@@ -108,23 +137,6 @@ export function NpcDialog({
       onClose();
     } catch (e) {
       setNote(e instanceof Error ? e.message : '没送走，再试一次');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const trade = async (): Promise<void> => {
-    if (!tokenId || trades <= 0 || busy) return;
-    setBusy(true);
-    setNote('');
-    try {
-      const r = await api.npc.trade(npc.id, tokenId);
-      setDraw(r.draw);
-      setTrades(r.tradesLeft);
-      // ★ 领域里没得换就回落全池——如实说一句，别让用户以为"他给错东西了"
-      if (!r.domainMatched) setNote('你那个领域暂时没新词了，他给你挑了别的领域的。');
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : '这次没换成');
     } finally {
       setBusy(false);
     }
@@ -213,7 +225,18 @@ export function NpcDialog({
         </div>
 
         <div className="continent-npc-say">
-          <p>{reply || `说句话吧——他只聊「${npc.term}」和他守的这块地。`}</p>
+          {log.length === 0 ? (
+            <p>{reply || `说句话吧——他记得你们聊过什么，也会到处走走。`}</p>
+          ) : (
+            <ul className="continent-npc-log">
+              {log.map((m, i) => (
+                <li key={i} className={m.role === 'user' ? 'me' : 'him'}>
+                  <b>{m.role === 'user' ? '你' : npc.name}</b>：{m.content}
+                </li>
+              ))}
+            </ul>
+          )}
+          {busy && <p className="continent-note">……</p>}
           {source === 'fallback' && <p className="continent-note">{NPC_FALLBACK_NOTICE}</p>}
         </div>
 
@@ -235,35 +258,11 @@ export function NpcDialog({
 
         <div className="continent-npc-trade">
           <p className="continent-hint-line">
-            今天还能跟他换 <b>{trades}</b> 次。
+            想要点新东西，<b>直接跟他说</b>——比如「教我点没见过的」。他今天还能给你 <b>{trades}</b> 次。
           </p>
-          <div className="continent-npc-line">
-            <select
-              className="continent-input"
-              value={tokenId}
-              aria-label="信物词条"
-              disabled={tokens.length === 0}
-              onChange={(e) => setTokenId(e.target.value)}
-            >
-              <option value="">挑一条信物…</option>
-              {tokens.map((t) => (
-                <option key={t.termId} value={t.termId}>
-                  {t.term}（{t.cards} 张）
-                </option>
-              ))}
-            </select>
-            <button
-              className="continent-btn primary"
-              disabled={busy || !tokenId || trades <= 0 || tokens.length === 0}
-              onClick={() => void trade()}
-            >
-              换一条新词
-            </button>
-          </div>
           {tokens.length === 0 && (
             <p className="continent-hint-line">
-              你还没有能当信物的词条——要 ★1 以上（至少 2 张卡）：把某条词条复习一次、或者在对话里聊到它，
-              卡就会涨。
+              不过你现在还没有 ★1 以上的词条——他会婉拒。先把某条词条复习一次、或在对话里聊到它，卡就会涨。
             </p>
           )}
           <p className="continent-note">{NPC_TRADE_COST_LINE}</p>

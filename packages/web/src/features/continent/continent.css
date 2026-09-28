@@ -497,6 +497,35 @@
   color: var(--sb-ink);
 }
 
+/* 对话记录：他记得上次聊过什么 ⇒ 面板里要能翻回去看。
+   ★ 定高 + 滚动，而不是撑开面板：面板本身是浮层，撑开会顶出屏幕。 */
+.continent-npc-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 168px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.continent-npc-log li {
+  font-size: var(--sb-fs-sm);
+  line-height: var(--sb-lh);
+  color: var(--sb-ink);
+}
+
+/* 自己说的话压暗一档：一眼分得出谁在说，不靠左右对齐（对齐在窄屏上会碎） */
+.continent-npc-log li.me {
+  color: var(--sb-ink-dim, rgba(255, 255, 255, 0.62));
+}
+
+.continent-npc-log li b {
+  color: var(--sb-gold, #d9b25a);
+  font-weight: 600;
+}
+
 /* 交换区：与对话区拉开一层（它是**另一件事**，不是又一轮聊天） */
 .continent-npc-trade {
   border-top: 1px dashed var(--sb-line);

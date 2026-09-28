@@ -21,6 +21,7 @@ export * from './ebbinghaus.js';
 export * from './review-goal.js';
 export * from './continent.js';
 export * from './npc.js';
+export * from './npc-life.js';
 export * from './term-highlight.js';
 export * from './coach.js';
 export * from './term-cards.js';

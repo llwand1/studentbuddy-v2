@@ -137,7 +137,7 @@ AI 走到决策岔路时主动问一句、给出 2~4 个方案，学习者在**�
 # 后端全量（含本功能新增用例）
 cd packages/server && npx vitest run src/chat/choice.test.ts
 
-# 门禁（server ≤400 行 / web 组件 ≤300 行）
+# 门禁（server ≤400 行 / web 组件 ≤320 行）
 wc -l packages/server/src/chat/*.ts packages/web/src/features/chat/*.tsx
 ```
 

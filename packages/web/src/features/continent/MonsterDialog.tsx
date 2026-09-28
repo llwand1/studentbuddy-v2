@@ -11,6 +11,10 @@
  *   - **题数 = 等级 = 血量**：一型一道，答对掉 1 滴血，掉光即收复。
  *   - **答错不扣分、可重试**：只把正确答案亮出来 ⊂ 这是"复习"不是"考试"，惩罚会把人赶走。
  *   - 全部答对才调 `onSolved` → 父组件走**既有** `terms.mark(id, true)` 推进阶段 ⇒ 怪自然消失。
+ *
+ * ★ 魔法吟唱（契约 `docs/SPELL-CHANT-SPEC.md`）：每次开怪**一次**机会——翻咒语书选一段历史对话吟唱，
+ *   伤害 `damage`（shared 口径）= 掉 `damage` 滴血 = 替你答掉 `damage` 道题（「题数 = 血量」不破）。
+ *   血掉光 ⇒ `onSolved(tile, 'spell')` ⇒ 父组件放咒语版特效。中断 / 哑火都算用掉，不能翻书试到共鸣为止。
  */
 import { useMemo, useState } from 'react';
 import {
@@ -22,15 +26,25 @@ import {
 } from '@sb/shared';
 import type { ContinentMapTerm } from '../../lib/api-terms-continent';
 import { cellLabel, tileStatusText, type ContinentTileView } from './continent-view';
+import { SpellBook } from './SpellBook';
+import { SpellChant } from './SpellChant';
+import type { SpellPlan } from './spell-chant-view';
+import './spell-chant.css';
+
+/** 收复方式：`strike` = 常规答题；`spell` = 魔法吟唱补上最后一击（父组件据此换特效） */
+export type SolveVia = 'strike' | 'spell';
 
 interface Props {
   tile: ContinentTileView;
   /** 干扰项池（地图上全部词条） */
   pool: readonly ContinentMapTerm[];
-  /** 全部答对：父组件负责打卡 + 刷新 + 特效 */
-  onSolved: (tile: ContinentTileView) => Promise<void> | void;
+  /** 全部答对：父组件负责打卡 + 刷新 + 特效（`via` 省略即常规答题） */
+  onSolved: (tile: ContinentTileView, via?: SolveVia) => Promise<void> | void;
   onClose: () => void;
 }
+
+/** 吟唱状态机：`idle` 可翻书 → `book` 选咒语 → `chant` 吟唱中 → `used` 本次开怪已用掉 */
+type SpellState = 'idle' | 'book' | 'chant' | 'used';
 
 /** 正确答案的可读文本（答错时亮出来——比"再想想"有用） */
 function correctText(q: ContinentQuestion): string {
@@ -65,6 +79,8 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
   const [fillText, setFillText] = useState('');
   const [matchPick, setMatchPick] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
+  const [spell, setSpell] = useState<SpellState>('idle');
+  const [spellPlan, setSpellPlan] = useState<{ plan: SpellPlan; title: string } | null>(null);
 
   const current = questions[qi];
   const answered = gradeAnswer(
@@ -72,16 +88,12 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
     buildAnswer(current, judge, choice, fillText, matchPick),
   );
 
-  const submit = async (): Promise<void> => {
-    if (!current || busy) return;
-    if (!answered) {
-      setNote(`还不对。${correctText(current)}`);
-      return;
-    }
-    const left = hp - 1;
+  /** 掉 `damage` 滴血 = 往后跳 `damage` 道题；掉光即收复（常规打完不传 `via`，保持既有调用形状） */
+  const hurt = async (damage: number, via: SolveVia): Promise<void> => {
+    const left = hp - damage;
     if (left > 0) {
       setHp(left);
-      setQi(qi + 1);
+      setQi(qi + damage);
       setNote(null);
       setJudge(null);
       setChoice(null);
@@ -91,13 +103,54 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
     }
     setBusy(true);
     try {
-      await onSolved(tile);
+      await (via === 'spell' ? onSolved(tile, 'spell') : onSolved(tile));
     } catch (e) {
       setNote(`保存复习记录失败：${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
   };
+
+  const submit = async (): Promise<void> => {
+    if (!current || busy) return;
+    if (!answered) {
+      setNote(`还不对。${correctText(current)}`);
+      return;
+    }
+    await hurt(1, 'strike');
+  };
+
+  /** 吟唱收尾：命中即掉血；哑火 / 中断只留一句话——但都算用掉这次机会 */
+  const endSpell = (damage: number, why: string): void => {
+    setSpell('used');
+    setSpellPlan(null);
+    if (damage > 0) void hurt(damage, 'spell');
+    else setNote(why);
+  };
+
+  if (spell === 'book') {
+    return (
+      <SpellBook
+        term={tile.term}
+        onPick={(plan, session) => {
+          setSpellPlan({ plan, title: session.title || '未命名对话' });
+          setSpell('chant');
+        }}
+        onClose={() => setSpell('idle')}
+      />
+    );
+  }
+  if (spell === 'chant' && spellPlan) {
+    return (
+      <SpellChant
+        term={tile.term}
+        title={spellPlan.title}
+        plan={spellPlan.plan}
+        onCast={(damage) => endSpell(damage, '咒语哑火了——这只怪没掉血，继续答题吧。')}
+        onClose={() => endSpell(0, '吟唱中断——这次开怪的吟唱机会已用掉，剩下的血靠答题。')}
+      />
+    );
+  }
 
   return (
     <div className="continent-modal" role="dialog" aria-modal="true" aria-label={`复习 ${tile.term}`}>
@@ -202,7 +255,15 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
 
         {note && <p className="continent-note">{note}</p>}
 
-        <footer className="continent-modal-foot">
+        <footer className="continent-modal-foot spell-foot">
+          <button
+            className="continent-btn ghost"
+            disabled={busy || spell === 'used'}
+            title={spell === 'used' ? '这次开怪的吟唱机会已用掉' : '翻开咒语书：用一段聊过的对话对它施法'}
+            onClick={() => setSpell('book')}
+          >
+            {spell === 'used' ? '吟唱已用' : '魔法吟唱'}
+          </button>
           <button className="continent-btn primary" disabled={busy} onClick={() => void submit()}>
             {hp <= 1 ? '最后一击' : '提交'}
           </button>

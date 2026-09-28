@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-09-28T05:56:33.413Z",
+  "generatedAt": "2026-09-28T06:33:32.433Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
-        "srcFiles": 33,
-        "testFiles": 20,
-        "srcLines": 5517,
-        "testLines": 3023
+        "srcFiles": 34,
+        "testFiles": 21,
+        "srcLines": 5737,
+        "testLines": 3199
       },
       {
         "pkg": "server",
@@ -18,17 +18,17 @@
       },
       {
         "pkg": "web",
-        "srcFiles": 218,
-        "testFiles": 78,
-        "srcLines": 28726,
-        "testLines": 11645
+        "srcFiles": 222,
+        "testFiles": 81,
+        "srcLines": 29337,
+        "testLines": 11993
       }
     ],
-    "srcFiles": 440,
-    "testFiles": 230,
-    "srcLines": 63570,
-    "testLines": 43215,
-    "tsxTestFiles": 32
+    "srcFiles": 445,
+    "testFiles": 234,
+    "srcLines": 64401,
+    "testLines": 43739,
+    "tsxTestFiles": 34
   },
   "routes": {
     "total": 139,
@@ -42,9 +42,9 @@
     "apiMounts": 28
   },
   "contracts": {
-    "iface": 97,
-    "type": 51,
-    "total": 148
+    "iface": 99,
+    "type": 53,
+    "total": 152
   },
   "migrations": {
     "count": 45,
@@ -80,26 +80,26 @@
     ]
   },
   "docs": {
-    "specs": 36,
-    "all": 48,
+    "specs": 37,
+    "all": 49,
     "probes": 15
   },
   "repo": {
-    "head": "f4d1481",
+    "head": "c94ac6a",
     "headDate": "2026-09-28",
-    "commitsLast14d": 57,
-    "branch": "feat/npc-resident-v2",
-    "dirtyFiles": 3
+    "commitsLast14d": 62,
+    "branch": "feat/spell-chant",
+    "dirtyFiles": 2
   },
   "tests": {
     "available": true,
     "ranNow": false,
     "wallSec": 0,
     "staleDays": 0,
-    "files": 230,
-    "cases": 3110,
-    "passed": 3109,
-    "skipped": 1,
+    "files": 234,
+    "cases": 3136,
+    "passed": 3133,
+    "skipped": 3,
     "failed": 0,
     "success": true
   },
@@ -109,14 +109,14 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "230",
-      "measured": "230",
+      "claimed": "234",
+      "measured": "234",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "3110",
-      "measured": "3110",
+      "claimed": "3136",
+      "measured": "3136",
       "ok": true
     },
     {
@@ -127,8 +127,8 @@
     },
     {
       "label": "badge 契约类型",
-      "claimed": "148",
-      "measured": "148",
+      "claimed": "152",
+      "measured": "152",
       "ok": true
     },
     {
@@ -157,8 +157,8 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "230 文件 / 3110 例",
-      "measured": "230 文件 / 3110 例",
+      "claimed": "234 文件 / 3136 例",
+      "measured": "234 文件 / 3136 例",
       "ok": true
     }
   ],

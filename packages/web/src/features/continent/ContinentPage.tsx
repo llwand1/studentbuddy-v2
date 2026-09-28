@@ -18,9 +18,9 @@ import { ContinentChest } from './ContinentChest';
 import { ContinentMap, type ContinentChestDrop } from './ContinentMap';
 import { ContinentPartners, useContinentPartners } from './continent-partners';
 import { ContinentDpad } from './continent-dpad';
-import { MonsterDialog } from './MonsterDialog';
+import { MonsterDialog, type SolveVia } from './MonsterDialog';
 import { CodexPanel } from './CodexPanel';
-import { buildContinentView, canStrike, tileStatusText, type ContinentTileView } from './continent-view';
+import { buildContinentView, canStrike, tileStatusText, type ContinentBurst, type ContinentTileView } from './continent-view';
 import { useContinentHero } from './useContinentHero';
 import './continent.css';
 
@@ -32,7 +32,7 @@ export function ContinentPage() {
   /** 普通地块的详情卡（已收复 / 范围外） */
   const [detail, setDetail] = useState<ContinentTileView | null>(null);
   const [showCodex, setShowCodex] = useState(false);
-  const [burst, setBurst] = useState<ContinentTileView | null>(null);
+  const [burst, setBurst] = useState<ContinentBurst | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   /** 地上掉落的宝箱（本局打怪留下的位置；**不落库**——开箱走既有账本） */
   const [drops, setDrops] = useState<ContinentChestDrop[]>([]);
@@ -72,17 +72,17 @@ export function ContinentPage() {
   const heroCtl = useContinentHero(baseView.tiles);
   const view = useMemo(() => buildContinentView(terms ?? [], { hero: heroCtl.hero }), [terms, heroCtl.hero]);
 
-  /** 全部答对：打卡 → 关弹窗 → 播特效 → 地上留一箱 → 重取地图（怪随之消失、领地回归） */
+  /** 全部答对：打卡 → 关弹窗 → 播特效（咒语补刀放咒语版）→ 地上留一箱 → 重取地图（怪随之消失、领地回归） */
   const solve = useCallback(
-    async (tile: ContinentTileView) => {
+    async (tile: ContinentTileView, via: SolveVia = 'strike') => {
       try {
         await api.terms.mark(tile.id, true);
         setHunting(null);
-        setBurst({ ...tile });
+        setBurst({ ...tile, spell: via === 'spell' });
         setDrops((d) =>
           d.some((x) => x.row === tile.row && x.col === tile.col) ? d : [...d, { row: tile.row, col: tile.col, term: tile.term }],
         );
-        setNotice(`收复了「${tile.term}」——复习阶段推进，这块地回到你手里，地上留下一个宝箱。`);
+        setNotice(`${via === 'spell' ? '咒语命中，' : ''}收复了「${tile.term}」——复习阶段推进，这块地回到你手里，地上留下一个宝箱。`);
         await load();
       } catch (e) {
         setNotice(`${e instanceof Error ? e.message : String(e)}`);

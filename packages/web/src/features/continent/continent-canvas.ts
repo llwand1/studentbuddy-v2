@@ -61,6 +61,8 @@ export const COLOR = {
   npcHat: '#d98a4a',
   /** 遇险时头顶的红惊叹块。★ 与领地红（landLine）刻意不同色：一个是"地丢了"，一个是"人在喊" */
   npcAlert: '#ff5f5f',
+  /** 魔法吟唱（2026-09-28）：咒语的金比收复金更亮更白——同是"赢了"，但这次是用回忆赢的 */
+  spell: '#fff1b8',
 };
 
 /**
@@ -343,21 +345,40 @@ export function drawFrame(ctx: CanvasRenderingContext2D, t: CellRef, color: stri
   ctx.globalAlpha = 1;
 }
 
-/** 收复特效：扩散环 + 爆散粒子（打怪）与领地回归共用 */
-export function drawBurst(ctx: CanvasRenderingContext2D, t: CellRef, age: number, color = COLOR.gold): void {
+/**
+ * 收复特效：扩散环 + 爆散粒子（打怪）与领地回归共用。
+ * `spell = true`（魔法吟唱补刀，契约 `docs/SPELL-CHANT-SPEC.md` §3.4）：三圈错相扩散环 + 16 粒火花 + 旋转符文方——
+ * 明显比常规一击「更大一号」，但时长不变（仍受 `BURST_MS` ≤1 秒预算约束）。
+ */
+export function drawBurst(ctx: CanvasRenderingContext2D, t: CellRef, age: number, spell = false): void {
   const p = Math.min(age / BURST_MS, 1);
   const cx = t.col * CELL + CELL / 2;
   const cy = t.row * CELL + CELL / 2;
-  ctx.globalAlpha = 1 - p;
-  ctx.strokeStyle = color;
+  const rings = spell ? 3 : 1;
+  const sparks = spell ? 16 : 8;
+  ctx.strokeStyle = spell ? COLOR.spell : COLOR.gold;
   ctx.lineWidth = 3;
-  const ring = Math.round(8 + p * 26);
-  ctx.strokeRect(cx - ring, cy - ring, ring * 2, ring * 2);
-  ctx.fillStyle = '#ffe9a8';
-  for (let i = 0; i < 8; i += 1) {
-    const ang = (Math.PI * 2 * i) / 8;
-    const d = 6 + p * 24;
+  for (let r = 0; r < rings; r += 1) {
+    const q = Math.max(0, Math.min(1, p * (1 + r * 0.35) - r * 0.18));
+    ctx.globalAlpha = 1 - q;
+    const ring = Math.round(8 + q * (spell ? 40 : 26));
+    ctx.strokeRect(cx - ring, cy - ring, ring * 2, ring * 2);
+  }
+  ctx.globalAlpha = 1 - p;
+  ctx.fillStyle = spell ? COLOR.spell : '#ffe9a8';
+  for (let i = 0; i < sparks; i += 1) {
+    const ang = (Math.PI * 2 * i) / sparks;
+    const d = 6 + p * (spell ? 36 : 24);
     ctx.fillRect(Math.round(cx + Math.cos(ang) * d), Math.round(cy + Math.sin(ang) * d), 3, 3);
+  }
+  if (spell) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(Math.PI / 4 + p * Math.PI);
+    ctx.lineWidth = 2;
+    const half = Math.round(6 + p * 18);
+    ctx.strokeRect(-half, -half, half * 2, half * 2);
+    ctx.restore();
   }
   ctx.globalAlpha = 1;
 }

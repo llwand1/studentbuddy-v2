@@ -1,0 +1,440 @@
+/* spell-chant.css — 魔法吟唱（咒语书 / 吟唱框 / 释放特效），契约 docs/SPELL-CHANT-SPEC.md §3.4
+   视觉约定：沿用 continent.css 的弹窗骨架（.continent-modal / -card / -btn / -note），本文件只加「法阵」层：
+   金色（--sb-gold）为咒语色、血红（--sb-primary）为怪物色；动效**只动 transform / opacity**，
+   节奏用 steps()（像素风一贯口径），文件末尾按 prefers-reduced-motion 逐条降级。 */
+
+/* ── 弹窗骨架增补 ─────────────────────────────────────────── */
+.spell-modal {
+  background: rgba(6, 3, 8, 0.72);
+}
+
+.spell-card {
+  position: relative;
+  max-width: 520px;
+  border: 2px solid var(--sb-gold-edge);
+  box-shadow: 0 0 0 2px #000, 0 0 28px rgba(255, 210, 122, 0.18), var(--sb-shadow-2);
+  overflow: hidden;
+}
+
+.spell-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* 头部按钮不许被长副标题挤成竖排 */
+.spell-card .continent-modal-head .continent-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.spell-dim {
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-tertiary);
+}
+
+.spell-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  font-size: var(--sb-fs-xs);
+  font-weight: 700;
+  color: #1a1207;
+  background: var(--sb-gold);
+  border: 1px solid var(--sb-gold-edge);
+}
+
+/* ── 咒语书 ────────────────────────────────────────────────── */
+.spell-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 52vh;
+  overflow: auto;
+}
+
+.spell-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  text-align: left;
+  font: inherit;
+  color: var(--sb-ink);
+  background: var(--sb-sidebar);
+  border: 1px solid var(--sb-line);
+  cursor: pointer;
+  transition: transform var(--sb-motion-fast) steps(2, end), border-color var(--sb-motion-fast);
+}
+
+.spell-item:hover:not(:disabled) {
+  border-color: var(--sb-gold-edge);
+  transform: translateX(2px);
+}
+
+.spell-item:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.spell-item.empty .spell-item-rune {
+  background: var(--sb-line);
+  box-shadow: none;
+}
+
+.spell-item-rune {
+  width: 10px;
+  height: 10px;
+  background: var(--sb-gold);
+  box-shadow: 0 0 6px rgba(255, 210, 122, 0.6);
+  transform: rotate(45deg);
+}
+
+.spell-item-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--sb-fs-md);
+}
+
+.spell-item-meta {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+/* ── 法阵：两圈旋转的符文环（纯装饰，aria-hidden） ───────────── */
+.spell-circle {
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  top: 50%;
+  width: 520px;
+  height: 520px;
+  margin: -260px 0 0 -260px;
+  border: 2px dashed rgba(255, 210, 122, 0.22);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: spell-spin 24s steps(48, end) infinite;
+}
+
+.spell-circle.inner {
+  width: 340px;
+  height: 340px;
+  margin: -170px 0 0 -170px;
+  border-style: dotted;
+  border-color: rgba(217, 67, 79, 0.28);
+  animation-direction: reverse;
+  animation-duration: 16s;
+}
+
+.spell-card.resonant .spell-circle {
+  border-color: rgba(255, 210, 122, 0.42);
+}
+
+@keyframes spell-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── 吟唱进度：一节一枚符文 ───────────────────────────────── */
+.spell-runes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.spell-rune {
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--sb-gold-edge);
+  background: transparent;
+  transform: rotate(45deg);
+}
+
+.spell-rune.hit {
+  background: var(--sb-gold);
+  box-shadow: 0 0 6px rgba(255, 210, 122, 0.7);
+}
+
+.spell-rune.miss {
+  border-color: var(--sb-line);
+  background: var(--sb-line);
+}
+
+.spell-rune.now {
+  background: var(--sb-primary);
+  animation: spell-pulse 900ms steps(3, end) infinite alternate;
+}
+
+.spell-runes em {
+  margin-left: var(--sb-sp-2);
+  font-style: normal;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+@keyframes spell-pulse {
+  from {
+    transform: rotate(45deg) scale(0.8);
+    opacity: 0.6;
+  }
+
+  to {
+    transform: rotate(45deg) scale(1.15);
+    opacity: 1;
+  }
+}
+
+/* ── 一节 ─────────────────────────────────────────────────── */
+.spell-verse {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+  animation: spell-verse-in var(--sb-motion-base) steps(4, end);
+}
+
+@keyframes spell-verse-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.spell-echo-label {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+  letter-spacing: 0.04em;
+}
+
+.spell-echo {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: var(--sb-fs-sm);
+  line-height: var(--sb-lh);
+  color: var(--sb-ink-secondary);
+  background: var(--sb-sidebar);
+  border-left: 3px solid var(--sb-gold-edge);
+}
+
+.spell-mask {
+  font-family: var(--sb-font-display);
+  font-size: var(--sb-fs-lg);
+  letter-spacing: 0.08em;
+  line-height: 1.7;
+  color: var(--sb-gold);
+  word-break: break-all;
+}
+
+.spell-input {
+  font-size: var(--sb-fs-md);
+}
+
+/* 共鸣条：宽度 = 相似度（数据驱动，组件内联宽度已豁免） */
+.spell-meter {
+  position: relative;
+  height: 14px;
+  background: var(--sb-sidebar);
+  border: 1px solid var(--sb-line);
+  overflow: hidden;
+}
+
+.spell-meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--sb-primary);
+  transition: width var(--sb-motion-fast) steps(3, end);
+}
+
+.spell-meter.ok .spell-meter-fill {
+  background: var(--sb-gold);
+}
+
+/* 读数放在一枚深色小牌上：金色填充盖过来时字仍读得清 */
+.spell-meter em {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0 6px;
+  font-style: normal;
+  font-size: 10px;
+  line-height: 12px;
+  white-space: nowrap;
+  color: var(--sb-ink);
+  background: rgba(10, 7, 11, 0.72);
+}
+
+.spell-verse .continent-modal-foot {
+  gap: var(--sb-sp-2);
+}
+
+/* 两个类名叠加：本文件可能先于 continent.css 注入，单类会输给 .continent-note */
+.spell-quiz .continent-note.spell-hit {
+  color: var(--sb-gold);
+  background: rgba(255, 210, 122, 0.1);
+}
+
+.spell-quiz .continent-note.spell-miss {
+  color: var(--sb-ink-secondary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ── 释放 ─────────────────────────────────────────────────── */
+.spell-cast-btn {
+  animation: spell-pulse-btn 1s steps(3, end) infinite alternate;
+}
+
+@keyframes spell-pulse-btn {
+  from {
+    transform: scale(1);
+  }
+
+  to {
+    transform: scale(1.05);
+  }
+}
+
+.spell-modal.casting .spell-circle {
+  animation-duration: 1.2s;
+  border-color: var(--sb-gold);
+}
+
+/* 释放时正文已卸下，给法阵与伤害数字留出舞台 */
+.spell-card.phase-cast {
+  min-height: 320px;
+}
+
+.spell-cast-fx {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.spell-ring {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border: 3px solid var(--sb-gold);
+  border-radius: 50%;
+  opacity: 0;
+  animation: spell-ring 1100ms steps(10, end) forwards;
+}
+
+.spell-ring.r2 {
+  border-color: var(--sb-primary);
+  animation-delay: 140ms;
+}
+
+.spell-ring.r3 {
+  border-width: 2px;
+  animation-delay: 280ms;
+}
+
+@keyframes spell-ring {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(6);
+  }
+}
+
+.spell-flash {
+  position: absolute;
+  inset: 0;
+  background: var(--sb-gold);
+  opacity: 0;
+  animation: spell-flash 1100ms steps(6, end) forwards;
+}
+
+@keyframes spell-flash {
+  0% {
+    opacity: 0;
+  }
+
+  30% {
+    opacity: 0.55;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+.spell-cast-num {
+  position: relative;
+  font-family: var(--sb-font-display);
+  font-size: 56px;
+  font-weight: 700;
+  color: var(--sb-gold);
+  text-shadow: 3px 3px 0 #000, 0 0 18px rgba(255, 210, 122, 0.9);
+  animation: spell-num 1100ms steps(8, end) forwards;
+}
+
+@keyframes spell-num {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) translateY(20px);
+  }
+
+  35% {
+    opacity: 1;
+    transform: scale(1.2) translateY(0);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(-6px);
+  }
+}
+
+.spell-done .continent-q-prompt {
+  color: var(--sb-gold);
+}
+
+/* ── reduced-motion：逐条降级（去位移/旋转，保透明度与信息） ─── */
+@media (prefers-reduced-motion: reduce) {
+  .spell-circle,
+  .spell-circle.inner,
+  .spell-rune.now,
+  .spell-cast-btn,
+  .spell-verse,
+  .spell-ring,
+  .spell-flash,
+  .spell-cast-num {
+    animation: none;
+  }
+
+  .spell-item,
+  .spell-meter-fill {
+    transition: none;
+  }
+
+  .spell-item:hover:not(:disabled) {
+    transform: none;
+  }
+}

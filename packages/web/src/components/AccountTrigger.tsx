@@ -11,6 +11,8 @@
  */
 import type { AuthUser } from '@sb/shared';
 import { UserIcon } from './icons';
+import { useLandingLang } from '../app/landing-lang';
+import { SHELL } from '../app/shell-copy';
 
 export function AccountTrigger({
   user,
@@ -22,6 +24,8 @@ export function AccountTrigger({
   collapsed: boolean;
   onToggle: () => void;
 }) {
+  /** 收起态的四处文案跟着全局语言走（词表见 app/shell-copy.ts 的 account 子表） */
+  const { lang } = useLandingLang();
   return (
     <>
       <span
@@ -35,13 +39,13 @@ export function AccountTrigger({
       </span>
       {collapsed && (
         <span className="sb-user-meta" onClick={onToggle}>
-          <span className="sb-user-name">{user ? user.nickname || user.email : '未登录'}</span>
-          <span className="sb-user-hint">{user ? user.email : '点击登录 / 注册'}</span>
+          <span className="sb-user-name">{user ? user.nickname || user.email : SHELL.account.notLoggedIn[lang]}</span>
+          <span className="sb-user-hint">{user ? user.email : SHELL.account.clickToLogin[lang]}</span>
         </span>
       )}
       {collapsed && (
-        <span className="sb-login-tag" title="邮箱账号：登录后会话只属于你自己">
-          账号
+        <span className="sb-login-tag" title={SHELL.account.tagTitle[lang]}>
+          {SHELL.account.tag[lang]}
         </span>
       )}
     </>

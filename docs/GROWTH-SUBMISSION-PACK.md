@@ -36,7 +36,7 @@
 | 维护者 | **一个人**（llwan），非企业、无公司主体 | 事实；表单问 `company` 就填 solo developer | 高 |
 | 首次公开上线 | 2026-09-19（11wand.com 上线日） | README §当前状态 M3 行 | 高 |
 | 当前版本 | `2.0.0-alpha.0`（★ 诚实标：alpha 不是 stable） | `package.json` `version` | 高 |
-| 语言 | 落地页中英双语；**应用壳与词条页目前只有中文** | `landing-copy.ts`／`landing-data.ts`（双语）；`FOOT_TERMS.en` 明写 `Glossary (Chinese only)`；应用内 `App.tsx` 文案为中文 | 高 |
+| 语言 | 落地页中英双语；**应用壳的框架文案（侧栏导航／新对话／历史对话／会话搜索／会话列表／账号区／试用提醒／移动端抽屉）自 2026-09-28 起也已双语**（页眉与侧栏各一枚「中文 ｜ EN」切换键，共用同一份状态＋localStorage 记忆）；**功能页正文（对话／设置／词条／卡牌／知识大陆）仍只有中文**，分批推进；词条页只有中文 | `landing-copy.ts`／`landing-data.ts`／`shell-copy.ts`（双语）；`FOOT_TERMS.en` 明写 `Glossary (Chinese only)`；功能页文案仍为中文 | 高 |
 | ⚠️ 我们**没有**的 | 隐私政策页、服务条款页、状态页、邮件列表、移动端原生 app | ★ **判断标准是「响应里没有那一页该有的正文」，不是状态码也不是字节数**（本站对不存在的地址一律兜回首页壳并返 200；09-24 现读 `/privacy`、`/terms-of-service`、`/legal` 各 2548 B，⚠️ 这个数随首页壳改动而变，别拿它当凭据） | 高 |
 
 ---

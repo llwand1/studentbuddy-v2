@@ -13,6 +13,8 @@
  */
 import type { Session } from '@sb/shared';
 import { PinIcon } from '../components/icons';
+import { useLandingLang } from './landing-lang';
+import { SHELL } from './shell-copy';
 
 export function SessionList({
   sessions,
@@ -37,6 +39,8 @@ export function SessionList({
   onTogglePin: (session: Session) => void;
   onRemove: (id: string) => void;
 }) {
+  /** 列表里的占位标题 / 徽标 / 按钮提示跟着全局语言走（词表见 app/shell-copy.ts） */
+  const { lang } = useLandingLang();
   return (
     <div className={collapsed ? 'sb-session-list collapsed' : 'sb-session-list'}>
       {sessions.map((s) => (
@@ -48,17 +52,17 @@ export function SessionList({
           tabIndex={0}
           onKeyDown={(e) => e.key === 'Enter' && onOpen(s.id)}
         >
-          <span className="sb-session-title">{s.title || '新对话'}</span>
+          <span className="sb-session-title">{s.title || SHELL.untitled[lang]}</span>
           {/* 「回复中」有两个信号源（本地流 token 级 + 服务端 2s 轮询），并集见 useActiveSessions */}
           {busy.has(s.id) && (
             <span className="sb-session-busy" role="status">
               <span className="sb-session-busy-dot" />
-              回复中
+              {SHELL.replying[lang]}
             </span>
           )}
           <button
             className={s.pinned ? 'sb-session-pin pinned' : 'sb-session-pin'}
-            title={s.pinned ? '取消置顶' : '置顶'}
+            title={s.pinned ? SHELL.unpin[lang] : SHELL.pin[lang]}
             onClick={(e) => {
               // stopPropagation 必做：不加就同时触发外层行的 openSession（既置顶又切会话）
               e.stopPropagation();
@@ -69,7 +73,7 @@ export function SessionList({
           </button>
           <button
             className="sb-session-del"
-            title="删除"
+            title={SHELL.remove[lang]}
             onClick={(e) => {
               e.stopPropagation();
               onRemove(s.id);

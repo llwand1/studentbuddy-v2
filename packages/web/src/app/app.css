@@ -400,3 +400,13 @@
 .mascot-px .px-glint {
   fill: #ffffff;
 }
+
+/* ===== 全局语言切换（2026-09-28）：侧栏最底一行，任何视图下都在 =====
+   按钮本体复用 .landing-lang*（见 app/landing-lang.tsx 的命名债注释）：那四组规则由 main.tsx
+   的静态 import 链打进同一份 bundle，运行时可确定生效，故这里只补布局、不搬一份 CSS。 */
+.sb-lang-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 var(--sb-sp-1) var(--sb-sp-1);
+  flex-shrink: 0;
+}

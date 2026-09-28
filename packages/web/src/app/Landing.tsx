@@ -29,7 +29,7 @@ import { ChapterCards } from './world/ChapterCards';
 import { ChapterBoss } from './world/ChapterBoss';
 import { ChapterFinale } from './world/ChapterFinale';
 import { AUTH, FOOT, FOOT_CHANGELOG, FOOT_TERMS, HERO, HERO_TAGS, TOP } from './landing-copy';
-import { LangToggle, LandingLangProvider, useLandingLang } from './landing-lang';
+import { LangToggle, useLandingLang } from './landing-lang';
 import { CATALOG_PATH, CHANGELOG_PATH } from '../seo/paths';
 import { useLandingAtmos } from './useLandingAtmos';
 import './landing.css';
@@ -38,15 +38,8 @@ import './world/world.css';
 
 type AuthCard = 'closed' | 'register' | 'login';
 
-export function Landing(props: { onAuthed: (u: AuthUser) => void }) {
-  return (
-    <LandingLangProvider>
-      <LandingPage {...props} />
-    </LandingLangProvider>
-  );
-}
-
-function LandingPage({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
+/** 语言状态不自带 Provider：根上那一层（`main.tsx`）罩着本页与应用壳，两边共用同一份（见 landing-lang 头注）。 */
+export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
   const { lang } = useLandingLang();
   const [card, setCard] = useState<AuthCard>('closed');
   const rootRef = useRef<HTMLDivElement>(null);

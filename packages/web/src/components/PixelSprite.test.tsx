@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
-import { PixelSprite, spriteRuns } from './PixelSprite';
+import { PixelSpriteDefs, PixelSpriteUse, spriteRuns } from './PixelSprite';
 import { HERO_MAP, HERO_PAL } from '../app/hero/hero-sprites';
 
 afterEach(cleanup);
@@ -35,16 +35,35 @@ describe('spriteRuns', () => {
   });
 });
 
-describe('<PixelSprite>', () => {
-  it('renders one crisp rect per run, sized to the map, hidden from assistive tech, colours as fill attributes', () => {
-    const { container } = render(<PixelSprite map={HERO_MAP} pal={HERO_PAL} className="chat-hero-px" />);
-    const svg = container.querySelector('svg.chat-hero-px');
-    expect(svg?.getAttribute('aria-hidden')).toBe('true');
-    expect(svg?.getAttribute('viewBox')).toBe(`0 0 ${HERO_MAP[0]!.length} ${HERO_MAP.length}`);
-    expect(svg?.getAttribute('shape-rendering')).toBe('crispEdges');
-    const rects = svg?.querySelectorAll('rect') ?? [];
+describe('<PixelSpriteDefs> + <PixelSpriteUse>', () => {
+  it('defines the sprite once as a zero-size, hidden <symbol>: one crisp rect per run, colours as fill attributes', () => {
+    const { container } = render(<PixelSpriteDefs id="t-hero" map={HERO_MAP} pal={HERO_PAL} />);
+    const defs = container.querySelector('svg.px-sprite-defs');
+    expect(defs?.getAttribute('aria-hidden')).toBe('true');
+    const sym = defs?.querySelector('symbol#t-hero');
+    expect(sym?.getAttribute('viewBox')).toBe(`0 0 ${HERO_MAP[0]!.length} ${HERO_MAP.length}`);
+    expect(sym?.getAttribute('shape-rendering')).toBe('crispEdges');
+    const rects = sym?.querySelectorAll('rect') ?? [];
     expect(rects).toHaveLength(spriteRuns(HERO_MAP, HERO_PAL).length);
     expect(rects[0]?.getAttribute('fill')).toMatch(/^#/);
     expect(container.querySelector('[style]')).toBeNull();
+  });
+  it('each use is two nodes pointing at that symbol — no rect copies, hidden from assistive tech', () => {
+    const { container } = render(
+      <>
+        <PixelSpriteDefs id="t-hero" map={HERO_MAP} pal={HERO_PAL} />
+        <PixelSpriteUse id="t-hero" className="chat-hero-px" />
+        <PixelSpriteUse id="t-hero" className="chat-hero-px" />
+      </>,
+    );
+    const uses = container.querySelectorAll('svg.chat-hero-px');
+    expect(uses).toHaveLength(2);
+    uses.forEach((svg) => {
+      expect(svg.getAttribute('aria-hidden')).toBe('true');
+      expect(svg.children).toHaveLength(1);
+      expect(svg.querySelector('use')?.getAttribute('href')).toBe('#t-hero');
+      expect(svg.querySelectorAll('rect')).toHaveLength(0);
+    });
+    expect(container.querySelectorAll('symbol#t-hero')).toHaveLength(1);
   });
 });

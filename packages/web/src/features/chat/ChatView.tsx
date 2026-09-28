@@ -16,7 +16,7 @@ import { ThoughtPanel } from './ThoughtPanel';
 import { ToolSteps } from './ToolSteps';
 import { TaskPanel } from './TaskPanel';
 import { MessageRow } from './MessageRow';
-import { ChatSpeaker } from './ChatSpeaker';
+import { ChatSpeaker, ChatSpeakerDefs } from './ChatSpeaker';
 import { formatRoundMeta } from './chat-meta';
 import { buildExportMarkdown, downloadText, exportFilename } from './chat-export';
 import { mixTipText } from '../quiz/mix-report';
@@ -104,6 +104,8 @@ export function ChatView({
   /** 滚动锚定：贴底才跟随流式输出；离底时不打断用户上翻，改显示「回到底部」。
       来源清单也算锚：它随本轮落屏，贴底时该被带进视野 */
   const isEmpty = messages.length === 0 && steps.length === 0 && tasks.length === 0 && !streamingText;
+  /** 轮数＝用户提问条数；只有题卡没有提问的会话不挂「0 轮」 */
+  const rounds = messages.filter((x) => x.role === 'user').length;
   const { scrollRef, showJump, onScroll, jumpToBottom } = useScrollAnchor([
     messages.length,
     steps.length,
@@ -196,12 +198,13 @@ export function ChatView({
 
   return (
     <div className="chat-view">
+      <ChatSpeakerDefs />
       {/* 会话铭牌条（与其它页面的页标题同一套：角标 + 压印标题 + 荆棘分隔）；空会话由欢迎页自带角标，不重复 */}
       {!isEmpty && (
         <header className="chat-head">
           <span className="chat-head-eyebrow">CAMPFIRE · 篝火对谈</span>
           <h2 className="chat-head-title">{sessionTitle?.trim() || '新对话'}</h2>
-          <span className="chat-head-rounds">{messages.filter((x) => x.role === 'user').length} 轮</span>
+          {rounds > 0 && <span className="chat-head-rounds">{rounds} 轮</span>}
         </header>
       )}
       <div className="chat-scroll" ref={scrollRef} onScroll={onScroll} role="log" aria-live="polite" aria-busy={busy}>

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
-import { ChatSpeaker, SPEAKER_LABEL } from './ChatSpeaker';
+import { ChatSpeaker, ChatSpeakerDefs, HERO_SPRITE_ID, SPEAKER_LABEL } from './ChatSpeaker';
 
 afterEach(cleanup);
 
@@ -15,14 +15,23 @@ describe('<ChatSpeaker>', () => {
     expect(root?.querySelector('.chat-speaker-avatar .welcome-mascot')).not.toBeNull();
     expect(root?.querySelector('.chat-hero-px')).toBeNull();
   });
-  it('names the user 你 with the shared hero sprite and the HERO tag', () => {
-    const { container } = render(<ChatSpeaker role="user" />);
+  it('names the user 你 with the shared hero sprite and the HERO tag; the sprite is a <use> of the one Defs symbol', () => {
+    const { container } = render(
+      <>
+        <ChatSpeakerDefs />
+        <ChatSpeaker role="user" />
+        <ChatSpeaker role="user" />
+      </>,
+    );
     const root = container.querySelector('.chat-speaker');
     expect(root?.className).toBe('chat-speaker user');
     expect(root?.querySelector('.chat-speaker-name')?.textContent).toBe('你');
     expect(root?.querySelector('.chat-speaker-tag')?.textContent).toBe('HERO');
-    expect(root?.querySelector('.chat-speaker-avatar svg.chat-hero-px')).not.toBeNull();
+    expect(root?.querySelector('.chat-speaker-avatar svg.chat-hero-px use')?.getAttribute('href')).toBe(`#${HERO_SPRITE_ID}`);
     expect(root?.querySelector('.welcome-mascot')).toBeNull();
+    // 两枚铭牌共用一份点阵：symbol 只有一个，铭牌里零 rect
+    expect(container.querySelectorAll(`symbol#${HERO_SPRITE_ID}`)).toHaveLength(1);
+    expect(container.querySelectorAll('.chat-speaker rect')).toHaveLength(0);
   });
   it('keeps avatar and tags decorative: only the name is exposed to assistive tech', () => {
     const { container } = render(<ChatSpeaker role="assistant" live />);

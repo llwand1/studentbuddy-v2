@@ -186,3 +186,48 @@ describe('对战邀请卡在 ChatView 的挂线', () => {
     expect(wraps[1]?.contains(container.querySelector('.chat-composer'))).toBe(true);
   });
 });
+
+// ── 篝火对谈换装的挂线（2026-09-28）──────────────────────────────────
+// 皮全在 CSS，这里只锁「结构真的挂上了」：铭牌头 / 说话者铭牌 / 勇者 symbol 只定义一份——
+// 少写一行 <ChatSpeakerDefs/>，铭牌、样式、测试全绿，只有勇者头像是空框。
+
+describe('篝火对谈：铭牌头与说话者铭牌在 ChatView 的挂线', () => {
+  const msgs = [
+    { role: 'user' as const, content: '闭包是什么' },
+    { role: 'assistant' as const, content: '闭包＝函数 + 词法环境。' },
+  ];
+
+  it('空会话：不挂铭牌头（欢迎页自带角标），但勇者 symbol 已经定义好一份', () => {
+    const { container } = setup();
+    expect(container.querySelector('.chat-head')).toBeNull();
+    expect(container.querySelectorAll('symbol#ch-hero-sprite')).toHaveLength(1);
+  });
+
+  it('有消息：铭牌头带会话标题与轮数；每条消息一枚铭牌，用户侧只 <use> 那一份勇者', () => {
+    stream.current = { ...emptyStream, messages: msgs };
+    const { container } = render(
+      <ChatView sessionId="s1" sessionTitle="闭包是什么" onNewSession={vi.fn()} onRoundDone={() => {}} onBusyChange={() => {}} />,
+    );
+    const head = container.querySelector('.chat-head');
+    expect(head?.querySelector('.chat-head-title')?.textContent).toBe('闭包是什么');
+    expect(head?.querySelector('.chat-head-rounds')?.textContent).toBe('1 轮');
+    expect(container.querySelectorAll('.chat-speaker.user')).toHaveLength(1);
+    expect(container.querySelectorAll('.chat-speaker.assistant')).toHaveLength(1);
+    expect(container.querySelectorAll('symbol#ch-hero-sprite')).toHaveLength(1);
+    expect(container.querySelector('.chat-speaker.user use')?.getAttribute('href')).toBe('#ch-hero-sprite');
+    // 勇者的 104 个 rect 只存在于 symbol 里，铭牌里不再复制一份
+    expect(container.querySelectorAll('.chat-speaker.user rect')).toHaveLength(0);
+  });
+
+  it('没有标题的会话回落「新对话」；只有题卡没有提问时不挂「0 轮」', () => {
+    stream.current = {
+      ...emptyStream,
+      messages: [{ role: 'assistant' as const, content: '', quizBlock: { blockId: 'b1', quiz: { title: '练习', questions: [] } } }],
+    };
+    const { container } = render(
+      <ChatView sessionId="s1" onNewSession={vi.fn()} onRoundDone={() => {}} onBusyChange={() => {}} />,
+    );
+    expect(container.querySelector('.chat-head-title')?.textContent).toBe('新对话');
+    expect(container.querySelector('.chat-head-rounds')).toBeNull();
+  });
+});

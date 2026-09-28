@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-28T13:03:12.175Z",
+  "generatedAt": "2026-09-28T13:44:12.534Z",
   "code": {
     "rows": [
       {
@@ -20,14 +20,14 @@
         "pkg": "web",
         "srcFiles": 234,
         "testFiles": 86,
-        "srcLines": 31185,
-        "testLines": 12581
+        "srcLines": 31207,
+        "testLines": 12654
       }
     ],
     "srcFiles": 458,
     "testFiles": 240,
-    "srcLines": 66298,
-    "testLines": 44386,
+    "srcLines": 66320,
+    "testLines": 44459,
     "tsxTestFiles": 38
   },
   "routes": {
@@ -85,20 +85,20 @@
     "probes": 15
   },
   "repo": {
-    "head": "fb358ca",
+    "head": "f3ba4cf",
     "headDate": "2026-09-28",
-    "commitsLast14d": 74,
-    "branch": "merge/chat-grimoire-ui",
-    "dirtyFiles": 0
+    "commitsLast14d": 77,
+    "branch": "fix/chat-grimoire-review",
+    "dirtyFiles": 1
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 51,
+    "wallSec": 181.4,
     "staleDays": 0,
     "files": 240,
-    "cases": 3169,
-    "passed": 3168,
+    "cases": 3173,
+    "passed": 3172,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -115,8 +115,8 @@
     },
     {
       "label": "badge 测试用例",
-      "claimed": "3169",
-      "measured": "3169",
+      "claimed": "3173",
+      "measured": "3173",
       "ok": true
     },
     {
@@ -157,8 +157,8 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "240 文件 / 3169 例",
-      "measured": "240 文件 / 3169 例",
+      "claimed": "240 文件 / 3173 例",
+      "measured": "240 文件 / 3173 例",
       "ok": true
     }
   ],

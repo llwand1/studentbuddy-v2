@@ -3,6 +3,8 @@
    这里把它并进 grimoire.css 那套语言：黑铁框 + 双金线、血红锻铁、压印标题、荆棘分隔；
    动效遵守 pixel-motion.css 的四条口径——只用 steps()、只动 transform/opacity/clip-path、
    默认态即终态（prefers-reduced-motion 下 pixel-ui.css 关掉全部动画后不留任何遮挡）、纯装饰 pointer-events:none。
+   装饰性的字符伪元素（角标两侧的 +、印章的 ✦、h2 的 ◆）一律写成 `content: 'x' / ''`——读屏器不念它们；
+   不认这个语法的老浏览器会整条忽略 ⇒ 少一个装饰字符，而不是多念一个。
    只改外观与动效，不动一行数据流；结构上的头像 / 铭牌 / 会话条见 chat/ChatSpeaker.tsx 与 ChatView.tsx。 */
 
 .chat-view {
@@ -79,7 +81,7 @@
   color: var(--sb-primary);
 }
 .chat-head-eyebrow::before,
-.chat-head-eyebrow::after { content: ' + '; color: var(--sb-ink-tertiary); }
+.chat-head-eyebrow::after { content: ' + ' / ''; color: var(--sb-ink-tertiary); }
 .chat-head-title {
   flex: 1;
   min-width: 0;
@@ -102,7 +104,9 @@
   color: var(--ch-gold);
 }
 
-/* ===== 铭牌（ChatSpeaker）：36px 铁框头像 + 名字 + 英文角标；用户侧整体右对齐、头像在最外 ===== */
+/* ===== 铭牌（ChatSpeaker）：36px 铁框头像 + 名字 + 英文角标；用户侧整体右对齐、头像在最外 =====
+   铭牌靠 flex-basis:100% 独占一行——依赖 .chat-row 可换行（chat-extras.css 为脚注已开 wrap），这里再钉一次不留隐式前提 */
+body .chat-row { flex-wrap: wrap; }
 .chat-speaker {
   flex: 0 0 100%;
   display: flex;
@@ -311,7 +315,14 @@ body :is(.chat-thought, .chat-tasks) {
 body :is(.chat-thought-head, .chat-tasks-head) { font-family: var(--sb-font-display); letter-spacing: 1px; }
 body :is(.chat-thought-dot, .chat-tasks-dot) { border-radius: 0; }
 body :is(.chat-thought-dot.live, .chat-tasks-dot.live) { animation: ch-blink 0.8s steps(1) infinite; }
+/* 消息内的过程面板各占一行（与流式期挂在页面级时的纵向堆叠一致）：
+   .chat-row 是可换行 flex，思考牌 + 任务牌并排时会被 align-items:stretch 拉成等高——
+   收起的思考牌就成了一只只有头行的空盒 */
+body .chat-row > :is(.chat-thought, .chat-tasks, .chat-steps) { flex: 0 0 100%; }
 body .chat-step {
+  /* chat.css 的 .chat-step{display:flex} 在打包顺序上排在 chat-extras 的 display:block 之后，
+     展开的载荷会跑到行头右侧、行头被垂直居中——这里钉回块布局 */
+  display: block;
   border: 2px solid var(--ch-iron);
   border-radius: 0;
   background: var(--ch-panel);
@@ -319,7 +330,16 @@ body .chat-step {
   font-family: var(--sb-font-display);
   color: var(--sb-ink-secondary);
 }
-body .chat-step.running { color: var(--ch-gold); box-shadow: inset 0 0 0 1px var(--ch-gold), 2px 2px 0 #000; }
+body .chat-step-payload { border-top: 1px dashed var(--ch-gold-dim); color: var(--sb-ink-secondary); }
+body .chat-step-payload-label { color: var(--ch-gold); font-family: var(--sb-font-display); letter-spacing: 1px; }
+body .chat-step-payload pre {
+  /* 旧值 rgba(0,0,0,.03) 是亮底时代的残留，黑铁面板上等于没有底色 */
+  background: #000;
+  border: 1px solid var(--ch-gold-dim);
+  border-radius: 0;
+  color: var(--sb-ink);
+}
+body .chat-step.running { color: var(--ch-gold); border-color: var(--ch-gold); box-shadow: inset 0 0 0 1px var(--ch-gold), 2px 2px 0 #000; }
 body .chat-step.done { color: var(--sb-success); }
 body .chat-step.error { color: var(--sb-danger); }
 body .chat-step-icon { border: 1px solid currentColor; width: 14px; height: 14px; font-size: 10px; }
@@ -349,10 +369,17 @@ body .chat-round-meta {
   color: var(--ch-gold);
   animation: sb-pop var(--sb-motion-base) steps(3, end);
 }
-body .chat-round-meta::before { content: '✦'; color: var(--sb-primary); }
+body .chat-round-meta::before { content: '✦' / ''; color: var(--sb-primary); }
 
 /* ===== 消息脚注：时间戳金暗色、操作做成悬停才现身的像素小牌 ===== */
-body .msg-foot { font-family: var(--sb-font-display); letter-spacing: 0.5px; }
+body .msg-foot {
+  /* 面板是 position:relative 且带 5px 黑色偏移投影，会盖在紧贴其下的脚注上（按钮顶边被吃掉）——
+     让出投影那几像素，并把脚注自己也放进定位层，绘制顺序排在面板之后 */
+  position: relative;
+  margin-top: 6px;
+  font-family: var(--sb-font-display);
+  letter-spacing: 0.5px;
+}
 body .msg-time { color: var(--ch-gold-dim); }
 body .msg-act {
   padding: 0 6px;
@@ -370,7 +397,7 @@ body .chat-jump {
   font-family: var(--sb-font-display);
   letter-spacing: 1px;
 }
-body :is(.chat-error, .chat-remember-msg, .chat-quiz-note, .chat-quiz-mix, .chat-grill-pill) {
+body :is(.chat-error, .chat-remember-msg, .chat-quiz-mix, .chat-grill-pill) {
   border-radius: 0;
   border: 2px solid var(--ch-iron);
   box-shadow: inset 0 0 0 1px var(--ch-gold-dim), 2px 2px 0 #000;
@@ -432,7 +459,7 @@ body :is(.md-h1, .md-h2) {
   letter-spacing: 0.04em;
   text-shadow: 2px 2px 0 #000;
 }
-body .md-h2::before { content: '◆ '; color: var(--ch-gold); font-size: 0.72em; vertical-align: 2px; }
+body .md-h2::before { content: '◆ ' / ''; color: var(--ch-gold); font-size: 0.72em; vertical-align: 2px; }
 body .md-h3 { color: var(--ch-gold); }
 body .md-pre {
   border: 2px solid var(--ch-iron);

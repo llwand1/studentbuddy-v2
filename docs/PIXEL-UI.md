@@ -59,7 +59,7 @@
   - 输入框 `.chat-composer`：铁框 + 双金线 + 两枚角饰；`.busy`（生成中）两枚角饰一明一暗交替呼吸（`ch-charge` 只动 opacity），停止键血红。
   - Markdown 覆盖：`h1/h2` 走显示字体 + 压印阴影、`h2` 前缀 ◆、代码块改成像素窗（标题栏三粒色块 + 语言名 + 铁框）、表格金字表头、引用块红边、行内代码铁底。题卡 / 情景卡进场 `ch-unroll`（clip-path 自上而下展开）。
   - 底部一层篝火余光 + 六粒余烬 7s 一循环上飘：压在 `z-index:-1`（`.chat-view` 自成层叠上下文），飘在面板**背后**、只从缝隙露出，不压字。
-- `components/PixelSprite.tsx`（新，通用）：字符画 + 调色板 → 内联 SVG，同行同色合并成一个 `<rect>`，`crispEdges`，`aria-hidden`，颜色走 `fill` 属性（不是内联 style）。只在整数倍尺寸下用。
+- `components/PixelSprite.tsx`（新，通用）：字符画 + 调色板 → SVG，同行同色合并成一个 `<rect>`，`crispEdges`，`aria-hidden`，颜色走 `fill` 属性（不是内联 style）。只在整数倍尺寸下用。**定义与引用分家**：`PixelSpriteDefs` 把点阵画进一份零尺寸的 `<symbol id>`（挂一次即可，对话页由 `ChatSpeakerDefs` 挂在 `.chat-view` 顶部），`PixelSpriteUse` 每处只出 `<svg><use href="#id"/></svg>` 两个节点——勇者 104 个色块不再随每条用户消息复制一遍。团子（`Mascot`）仍每条实体渲染：它有自己的眨眼动画，`<use>` 的影子树里动不了。
 - `features/chat/ChatSpeaker.tsx`（新）：铭牌组件，`role` + `live` 两个 prop；名字对辅助技术可读，头像 / 角标 / 「吟唱中」装饰隐藏。挂在 `MessageRow`（两种角色）、`ChatView` 流式行、`Thinking` 等待行三处。
 - `ChatView.tsx` 多一个 `.chat-head`（302 行，门禁 ≤320）；`ChatComposer.tsx` 根节点多一个 `busy` class。
 
@@ -67,4 +67,6 @@
 
 文案仍全中文：功能页不双语是 `app/landing-lang.tsx` 头注范围决策 ① 的知情选择，铭牌上的 `BUDDY` / `HERO` / `CAMPFIRE` 是角标不是文案（与大陆 HUD 同款），不算半中半英。
 
-回归：`src/components/PixelSprite.test.tsx`（4 例）、`src/features/chat/ChatSpeaker.test.tsx`（4 例），登记见 TEST-PLAN §3 顶部；`ChatView.test.tsx` / `ChatComposer.test.tsx` / `Markdown.test.tsx` 例数不变。视觉属真机目检，已在无头 Chromium 1360×860（含 `prefers-reduced-motion: reduce` 一档）与 390×844 @2x 连拍核对：发送 → 等待（符文轮亮）→ 流式（扫描线 + 光标 + 吟唱中）→ 落成（印章 pop）→ 悬停脚注 → 编辑重发 → 出题（题卡展开）→ 回到顶部；减少动态效果档零残留遮挡；窄屏隐藏角标与角饰、铭牌与面板不溢出。
+回归：`src/components/PixelSprite.test.tsx`（5 例）、`src/features/chat/ChatSpeaker.test.tsx`（4 例）、`ChatView.test.tsx`（＋3 例：铭牌头／铭牌／符号定义的挂线），登记见 TEST-PLAN §3 顶部；`ChatComposer.test.tsx` / `Markdown.test.tsx` 例数不变。视觉属真机目检，已在无头 Chromium 1360×860（含 `prefers-reduced-motion: reduce` 一档）与 390×844 @2x 连拍核对：发送 → 等待（符文轮亮）→ 流式（扫描线 + 光标 + 吟唱中）→ 落成（印章 pop）→ 悬停脚注 → 编辑重发 → 出题（题卡展开）→ 回到顶部；减少动态效果档零残留遮挡；窄屏隐藏角标与角饰、铭牌与面板不溢出。
+
+复查修补（同日，真机连拍第二轮，覆盖此前没走到的态：思考面板 → 任务清单 → 工具步骤（running／done／展开载荷）→ 选择卡 → 确认卡 → 生成失败 → 中途停止 → 题卡作答／复盘；390 与 700 两档窄屏；`prefers-reduced-motion`）：① 装饰性伪元素字符一律 `content: 'x' / ''`（读屏不念 `+`／`✦`／`◆`）；② `N 轮` 铁牌无用户消息时不渲染；③ 消息内过程面板各占一行——此前思考牌与任务牌并排、被 `align-items: stretch` 拉成一只只有头行的空盒；④ `.chat-step` 钉回 `display: block`：`chat.css` 的 `display: flex` 在打包顺序上排在 `chat-extras.css` 之后，展开的工具载荷会跑到行头右侧、行头被垂直居中（主干既有账，被新皮肤的粗框放大了，在本层顺手钉住），载荷 `<pre>` 亮底残留 `rgba(0,0,0,.03)` 换成黑底金暗线；⑤ 消息脚注 `margin-top: 6px` 并进定位层——面板是 `position: relative` 带 5px 黑色偏移投影，会盖住紧贴其下的脚注按钮顶边；⑥ running 工具步骤边线改金（此前被 `chat.css` 的主色红压着，与「吟唱中」的金色 live 语义打架）。实测：减少动态档 `document.getAnimations()` 全程为 0；正常档流式期 10 条动画（团子眨眼／跳、火星、扫描线、光标、充能、停止键脉冲等），落成 3 秒后只剩团子眨眼与背景余烬两条闲置循环；`<use>` 勇者在 DPR 1／2 下均为整像素边（与实体 rect 渲染逐像素一致）。

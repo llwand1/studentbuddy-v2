@@ -88,6 +88,21 @@ function replaceNth(text, re, nth, fn) {
 /** 把 `N` 挪成 `N+delta`（字符串形态，保留原样） */
 const shift = (n, delta) => String(Number(n) + delta);
 
+/**
+ * 从 `tools/gates/check.mjs` 现读 web `.tsx` 的行数上限。
+ * ★ 2026-09-28 事故：上限由 300 提到 320 时，本脚本里那条「造 306 行看门禁红不红」的
+ *   样例不再越线 ⇒ 被判「无判别力」，而它判的正是**本脚本自己**。阈值写死在两处必然再漂，
+ *   故改成一处在源头（gates）、一处在本次现读。
+ */
+function webTsxLimit() {
+  const src = fs.readFileSync(path.join(ROOT, 'tools', 'gates', 'check.mjs'), 'utf8');
+  const m = /ext === '\.tsx' \? (\d+)/.exec(src);
+  if (!m) throw new Error('从 gates/check.mjs 读不到 web .tsx 行数上限');
+  return Number(m[1]);
+}
+/** web `.tsx` 行数上限（运行期取一次，供改坏样例与自测共用） */
+const WEB_TSX_LIMIT = webTsxLimit();
+
 /** 首屏文案源（与 `tools/metrics.mjs#landingCopyBlocks` 同一份） */
 const LANDING_COPY = 'packages/web/src/app/landing-copy.ts';
 const LANDING_TSX = 'packages/web/src/app/Landing.tsx';
@@ -231,10 +246,12 @@ const METRICS_CASES = [
 
 const GATES_CASES = [
   {
-    name: '① 行数红线（web .tsx 306 行）',
+    name: `① 行数红线（web .tsx ${WEB_TSX_LIMIT + 6} 行，上限 ${WEB_TSX_LIMIT}）`,
     expect: '[行数]',
     probe: 'packages/web/src/__guard_audit_long.tsx',
-    content: () => ['export const A = () => <div />;', ...Array.from({ length: 305 }, (_, i) => `// pad ${i + 1}`)].join('\n'),
+    // ★ 行数由 gates 现读的上限现算（超 6 行）⇒ 阈值一改本样例自己跟上，不会再失去判别力。
+    content: () =>
+      ['export const A = () => <div />;', ...Array.from({ length: WEB_TSX_LIMIT + 5 }, (_, i) => `// pad ${i + 1}`)].join('\n'),
   },
   {
     name: '② 内联样式红线（style={{）',
@@ -337,10 +354,13 @@ if (argv.has('--selftest')) {
       expectName: 'badge 版本',
     },
     {
-      name: '把 gates 的行数红线放宽到 9999',
+      // ★ 2026-09-28 换枪口：原来打「把上限放宽到 9999」——但行数样例现在**跟着上限现读**
+      //   ⇒ 上限一抬、样例也抬，反而判不出（实测：漏报）。改打「越线也不推违规」这种**真正的空气**：
+      //   它不依赖任何阈值，上限怎么改都拦得住。
+      name: '把 gates 的行数红线改成永不触发（越线也不报）',
       file: 'tools/gates/check.mjs',
-      from: "ext === '.tsx' ? 300 :",
-      to: "ext === '.tsx' ? 9999 :",
+      from: 'if (lines > max) violations.push(',
+      to: 'if (lines > 999999) violations.push(',
       args: ['--gates'],
       expect: '无判别力',
       expectName: '行数红线',

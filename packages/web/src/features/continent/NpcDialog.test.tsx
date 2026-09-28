@@ -11,10 +11,13 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { NPC_FALLBACK_NOTICE } from '@sb/shared';
+import { NPC_FALLBACK_NOTICE, NPC_TRADE_COST_LINE } from '@sb/shared';
 import type { NpcView } from '../../lib/api-npc';
 
-const apiMock = { talk: vi.fn(), trade: vi.fn(), rename: vi.fn(), remove: vi.fn(), state: vi.fn() };
+const apiMock = { talk: vi.fn(), trade: vi.fn(), rename: vi.fn(), remove: vi.fn(), state: vi.fn(), history: vi.fn() };
+// ★ v2 面板一挂载就回显对话史；桩上不给 history 或不给 resolved 值，
+//   .then 会在 useEffect 里炸掉整棵树（三例一起红，且红得指向组件而不是桩）。
+apiMock.history.mockResolvedValue({ messages: [] });
 const cardsMock = { acceptDraw: vi.fn() };
 vi.mock('../../lib/api', () => ({ api: { npc: apiMock } }));
 vi.mock('../../lib/api-cards', () => ({ cardsApi: cardsMock }));
@@ -37,6 +40,8 @@ function npcOf(over: Partial<NpcView> = {}): NpcView {
     domain: '记忆机制',
     row: 5,
     col: 7,
+    homeRow: 5,
+    homeCol: 7,
     distressed: false,
     threat: null,
     ...over,
@@ -74,13 +79,14 @@ describe('学习伙伴对话面板', () => {
     expect(screen.getByText(NPC_FALLBACK_NOTICE)).toBeTruthy();
   });
 
-  it('② 没有能当信物的词条 ⇒ 交换按钮禁用，且文案把门槛（★1／2 张）说出来', () => {
+  it('② 没有能当信物的词条 ⇒ 说清他为什么婉拒，且面板上不该再有「换一条」按钮', () => {
     open({ tokens: [] });
-    const button = screen.getByRole('button', { name: '换一条新词' }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
-    expect(screen.getByText(/要 ★1 以上（至少 2 张卡）/)).toBeTruthy();
+    // ★ v2 起交换改走对话（「教我点没见过的」→ 模型调工具 → 服务端真换一条），
+    //   所以「换一条新词」这个按钮不存在了；门槛反而更要说清楚：没信物他只会婉拒。
+    expect(screen.queryByRole('button', { name: '换一条新词' })).toBeNull();
+    expect(screen.getByText(/还没有 ★1 以上的词条/)).toBeTruthy();
     // ★ 代价那句话必须在场，且不许被改写成"消耗一张卡"
-    expect(screen.getByText(/卡本身不会少/)).toBeTruthy();
+    expect(screen.getByText(NPC_TRADE_COST_LINE)).toBeTruthy();
     expect(apiMock.trade).not.toHaveBeenCalled();
   });
 

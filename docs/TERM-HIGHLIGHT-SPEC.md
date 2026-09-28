@@ -190,7 +190,7 @@ TermIndexProvider（对话页挂载）
 ChatView 不必知道这件事。这是接线点选择带来的直接收益：改一处 App，而不是穿透
 `ChatView → MessageRow → Markdown` 三层 props。
 
-★ 行数红线是**硬门禁**（`tools/gates`）：server/shared 非 web 包一律 ≤400，web 组件 ≤300。**贴线时按仓规拆文件，不压注释换行数**。
+★ 行数红线是**硬门禁**（`tools/gates`）：server/shared 非 web 包一律 ≤400，web 组件 ≤320（2026-09-28 由 300 放宽）。**贴线时按仓规拆文件，不压注释换行数**。
 
 ---
 

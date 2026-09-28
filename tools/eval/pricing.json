@@ -1,0 +1,57 @@
+{
+  "version": "2026-09-28",
+  "currency": "USD",
+  "unit": "per-1M-tokens",
+  "discipline": [
+    "这张表是**手填的外部事实**，跟仓里其他数字不同——它对不上任何一处可运行的代码，只能靠人对账。",
+    "所以每条都必须带 source（可点开的官方价格页）与 asOf（抄它的那天）；缺任一项，pricing.mjs 直接拒绝加载。",
+    "过期判定：asOf 超过 staleAfterDays 天，报告里该模型的成本一律带「⚠ 价表过期」标记 —— 不静默按旧价算。",
+    "查不到的模型：成本记 null，报告写「—（价表无此模型）」。**绝不记 0** —— 0 的意思是「不花钱」，— 的意思是「不知道」，两者的行动指引相反（同 render.mts 的无分母纪律）。",
+    "自建/聚合网关按量计价与官方价不同：用 EVAL_PRICE_IN / EVAL_PRICE_OUT 现场覆盖（单位同样是每 1M token 的美元），报告会标注「env 覆盖」。"
+  ],
+  "staleAfterDays": 120,
+  "models": [
+    {
+      "match": "gpt-4o-mini",
+      "in": 0.15,
+      "out": 0.6,
+      "asOf": "2026-09-28",
+      "source": "https://openai.com/api/pricing/"
+    },
+    {
+      "match": "gpt-4.1-mini",
+      "in": 0.4,
+      "out": 1.6,
+      "asOf": "2026-09-28",
+      "source": "https://openai.com/api/pricing/"
+    },
+    {
+      "match": "gpt-4.1-nano",
+      "in": 0.1,
+      "out": 0.4,
+      "asOf": "2026-09-28",
+      "source": "https://openai.com/api/pricing/"
+    },
+    {
+      "match": "gpt-4.1",
+      "in": 2.0,
+      "out": 8.0,
+      "asOf": "2026-09-28",
+      "source": "https://openai.com/api/pricing/"
+    },
+    {
+      "match": "deepseek-chat",
+      "in": 0.27,
+      "out": 1.1,
+      "asOf": "2026-09-28",
+      "source": "https://api-docs.deepseek.com/quick_start/pricing"
+    },
+    {
+      "match": "deepseek-reasoner",
+      "in": 0.55,
+      "out": 2.19,
+      "asOf": "2026-09-28",
+      "source": "https://api-docs.deepseek.com/quick_start/pricing"
+    }
+  ]
+}

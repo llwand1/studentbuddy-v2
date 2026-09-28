@@ -20,6 +20,8 @@ export * from './auth.js';
 export * from './ebbinghaus.js';
 export * from './review-goal.js';
 export * from './continent.js';
+export * from './continent-terrain.js';
+export * from './continent-world.js';
 export * from './npc.js';
 export * from './term-highlight.js';
 export * from './coach.js';

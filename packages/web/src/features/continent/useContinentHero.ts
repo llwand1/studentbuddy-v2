@@ -109,7 +109,7 @@ export function useContinentHero(tiles: readonly ContinentTileView[]): Continent
       if (!walkableAt(row, col)) {
         queueRef.current = [];
         setQueued(0);
-        setBlocked('前面走不过去——荒地和怪的领地都挡路，先清怪或者绕开。');
+        setBlocked('前面是迷雾或怪——站在边上点它：迷雾就开拓，怪就开打。');
         return;
       }
       setAnim({ from: { row: cur.row, col: cur.col }, at: performance.now() });
@@ -133,40 +133,35 @@ export function useContinentHero(tiles: readonly ContinentTileView[]): Continent
       const cur = heroRef.current;
       if (!cur) return;
       if (cur.row === targetRow && cur.col === targetCol) return;
-      const steps: Array<[number, number]> = [];
-      let row = cur.row;
-      let col = cur.col;
-      let guard = 0;
-      while ((row !== targetRow || col !== targetCol) && guard < PATH_GUARD) {
-        guard += 1;
-        const dr = targetRow - row;
-        const dc = targetCol - col;
-        // 先走位移大的那根轴；该轴被挡就试另一根（demo 的 tryOrder 同款）
-        const order: Array<[number, number]> =
-          Math.abs(dr) >= Math.abs(dc)
-            ? [
-                [Math.sign(dr), 0],
-                [0, Math.sign(dc)],
-              ]
-            : [
-                [0, Math.sign(dc)],
-                [Math.sign(dr), 0],
-              ];
-        let moved = false;
-        for (const [sr, sc] of order) {
-          if (!sr && !sc) continue;
-          if (walkableAt(row + sr, col + sc)) {
-            steps.push([sr, sc]);
-            row += sr;
-            col += sc;
-            moved = true;
-            break;
-          }
+      // ★ 广度优先寻路（开拓出来的地形状不规则，贪心走法常被凹口卡住）；上限防呆
+      const key = (r: number, c: number): string => `${r},${c}`;
+      const prev = new Map<string, [number, number, number, number] | null>([[key(cur.row, cur.col), null]]);
+      const queue: Array<[number, number]> = [[cur.row, cur.col]];
+      let found = false;
+      while (queue.length && prev.size < 4000) {
+        const [r, c] = queue.shift()!;
+        if (r === targetRow && c === targetCol) {
+          found = true;
+          break;
         }
-        if (!moved) break;
+        for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+          const nr = r + dr;
+          const nc = c + dc;
+          if (prev.has(key(nr, nc)) || !walkableAt(nr, nc)) continue;
+          prev.set(key(nr, nc), [r, c, dr, dc]);
+          queue.push([nr, nc]);
+        }
+      }
+      const steps: Array<[number, number]> = [];
+      if (found) {
+        let at = prev.get(key(targetRow, targetCol));
+        while (at && steps.length <= PATH_GUARD * 4) {
+          steps.unshift([at[2], at[3]]);
+          at = prev.get(key(at[0], at[1]));
+        }
       }
       if (!steps.length) {
-        setBlocked('走不到那一格——荒地或怪的领地挡着，先清怪再过去。');
+        setBlocked('走不到那一格——只能走在已开拓的地上，怪站着的格也过不去。');
         return;
       }
       setBlocked(null);

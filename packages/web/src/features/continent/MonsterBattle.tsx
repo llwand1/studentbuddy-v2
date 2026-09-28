@@ -10,7 +10,9 @@
  */
 import { useEffect, useRef } from 'react';
 import { GROUND_Y, Scenery } from '../../app/hero/hero-scene';
+import type { ContinentQType } from '@sb/shared';
 import { HERO_MAP, HERO_PAL, WRAITH_MAP, WRAITH_PAL, drawSprite } from '../../app/hero/hero-sprites';
+import { monsterName, monsterSprite } from './monster-art';
 
 const W = 320;
 const H = 180;
@@ -25,9 +27,12 @@ interface Props {
   /** 已答错的次数（只做怪物嘲讽的演出） */
   misses: number;
   term: string;
+  /** 野怪的怪种（给了就按组合画对应外观；不给＝遗忘之影） */
+  species?: readonly ContinentQType[];
 }
 
-export function MonsterBattle({ maxHp, hits, misses, term }: Props) {
+export function MonsterBattle({ maxHp, hits, misses, term, species }: Props) {
+  const speciesKey = species?.join('+') ?? '';
   const ref = useRef<HTMLCanvasElement>(null);
   const live = useRef({ hits, misses, hitAt: -1e9, missAt: -1e9 });
 
@@ -48,7 +53,8 @@ export function MonsterBattle({ maxHp, hits, misses, term }: Props) {
     const scene = new Scenery(W, H);
     const start = performance.now();
     let raf = 0;
-    const foeScale = 2 + Math.min(2, Math.floor(maxHp / 2));
+    const art = speciesKey ? monsterSprite(speciesKey.split('+') as ContinentQType[]) : { map: WRAITH_MAP, pal: WRAITH_PAL };
+    const foeScale = (speciesKey ? 3 : 2) + Math.min(2, Math.floor(maxHp / 3));
 
     const frame = (now: number) => {
       const t = calm ? 0 : (now - start) / 1000;
@@ -70,11 +76,11 @@ export function MonsterBattle({ maxHp, hits, misses, term }: Props) {
       const dead = s.hits >= maxHp;
       const flash = !calm && now - s.hitAt < 160 + LUNGE_MS / 2 && now - s.hitAt > LUNGE_MS / 2 - 40;
       const mock = calm ? 0 : now - s.missAt < 500 ? Math.round(Math.sin((now - s.missAt) / 40) * 3) : 0;
-      const fw = 16 * foeScale;
-      const fh = 15 * foeScale;
+      const fw = (art.map[0]?.length ?? 16) * foeScale;
+      const fh = art.map.length * foeScale;
       const foeX = W - 40 - fw + mock;
       const foeY = GROUND_Y - fh + (dead ? Math.round(fh * 0.5) : 0) - (calm ? 0 : Math.round(Math.sin(t * 2) * 2));
-      drawSprite(ctx, WRAITH_MAP, WRAITH_PAL, foeX, foeY, { scale: foeScale, flip: true, flash, alpha: dead ? 0.35 : 1 });
+      drawSprite(ctx, art.map, art.pal, foeX, foeY, { scale: foeScale, flip: true, flash, alpha: dead ? 0.35 : 1 });
       ctx.globalAlpha = 1;
 
       // 斩击弧光（冲刺到最远处时）
@@ -84,14 +90,15 @@ export function MonsterBattle({ maxHp, hits, misses, term }: Props) {
       }
 
       // 血条（怪头顶）：题数 = 血量
-      const bw = 8 * maxHp + 2;
+      const seg = maxHp > 12 ? 4 : 8;
+      const bw = seg * maxHp + 2;
       const bx = Math.round(foeX + fw / 2 - bw / 2);
       const by = Math.max(4, foeY - 10);
       ctx.fillStyle = '#000';
       ctx.fillRect(bx - 1, by - 1, bw + 2, 7);
       for (let i = 0; i < maxHp; i++) {
         ctx.fillStyle = i < maxHp - s.hits ? '#d9434f' : '#2a1116';
-        ctx.fillRect(bx + 1 + i * 8, by + 1, 6, 3);
+        ctx.fillRect(bx + 1 + i * seg, by + 1, seg - 2, 3);
       }
 
       // 勇者脚下的名牌与怪物名牌
@@ -122,12 +129,12 @@ export function MonsterBattle({ maxHp, hits, misses, term }: Props) {
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [maxHp]);
+  }, [maxHp, speciesKey]);
 
   return (
     <div className="continent-battle">
       <canvas ref={ref} width={W} height={H} className="continent-battle-canvas" aria-hidden="true" />
-      <p className="continent-battle-cap">讨伐战 · 遗忘之影「{term}」—— 答对一题就是一次斩击</p>
+      <p className="continent-battle-cap">讨伐战 · {species?.length ? `${monsterName(species)}（考「${term}」）` : `遗忘之影「${term}」`} —— 答对一题就是一次斩击</p>
     </div>
   );
 }

@@ -139,7 +139,7 @@ export function EmberDialog(props: {
 }
 
 /** 地块详情 + 写余烬笺 */
-export function TileDetail({ tile, onClose, onNotice }: { tile: ContinentTileView; onClose: () => void; onNotice: (t: string) => void }) {
+export function TileDetail({ tile, onClose, onNotice, onDelve }: { tile: ContinentTileView; onClose: () => void; onNotice: (t: string) => void; onDelve?: () => void }) {
   const [mine, setMine] = useState<EmberNote | null>(null);
   const [writing, setWriting] = useState(false);
   const [body, setBody] = useState('');
@@ -208,6 +208,11 @@ export function TileDetail({ tile, onClose, onNotice }: { tile: ContinentTileVie
         </div>
       )}
       <div className="continent-detail-acts">
+        {onDelve && !writing && tile.lv < 3 && (
+          <button className="continent-btn primary" onClick={onDelve}>
+            追问升级（{tile.lv}→{tile.lv + 1} 级）
+          </button>
+        )}
         {writing ? (
           <button className="continent-btn primary" disabled={busy} onClick={() => void save()}>
             点燃余烬笺

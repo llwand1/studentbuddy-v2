@@ -16,6 +16,7 @@ import { useMemo, useState } from 'react';
 import {
   CONTINENT_QLABEL,
   buildMonsterQuestions,
+  buildSpeciesQuestions,
   gradeAnswer,
   type ContinentAnswer,
   type ContinentQuestion,
@@ -51,12 +52,10 @@ function correctText(q: ContinentQuestion): string {
 export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
   const questions = useMemo(
     () =>
-      buildMonsterQuestions(
-        { id: tile.id, term: tile.term, definition: tile.definition },
-        Math.max(tile.level, 1),
-        pool,
-      ),
-    [tile.id, tile.term, tile.definition, tile.level, pool],
+      tile.wild
+        ? buildSpeciesQuestions({ id: tile.termId ?? tile.id, term: tile.term, definition: tile.definition }, tile.species, tile.hp, pool)
+        : buildMonsterQuestions({ id: tile.id, term: tile.term, definition: tile.definition }, Math.max(tile.level, 1), pool),
+    [tile.id, tile.termId, tile.wild, tile.species, tile.hp, tile.term, tile.definition, tile.level, pool],
   );
   const [qi, setQi] = useState(0);
   const [hp, setHp] = useState(questions.length);
@@ -120,7 +119,7 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
           </button>
         </header>
 
-        <MonsterBattle maxHp={questions.length} hits={questions.length - hp + (finished ? 1 : 0)} misses={misses} term={tile.term} />
+        <MonsterBattle maxHp={questions.length} hits={questions.length - hp + (finished ? 1 : 0)} misses={misses} term={tile.term} species={tile.wild ? tile.species : undefined} />
 
         {/* 血条：题数 = 血量（每答对一道掉一滴） */}
         <div className="continent-hp">

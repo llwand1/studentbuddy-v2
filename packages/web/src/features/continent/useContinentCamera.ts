@@ -104,10 +104,12 @@ export function useContinentCamera(
    *   React 官方允许"渲染期按 props 调整 state"（同一组件、带守卫 ⇒ 不会死循环），
    *   这里就是那个模式：`hadHero` 守卫使它每个会话只跑一次。
    */
-  if (!hadHero.current && hero) {
+  // ① 英雄第一次出现（地图取数完成）⇒ 镜头对准他。★ 放在 effect 里：渲染期 setState 会被随后的夹取 effect 覆盖
+  useEffect(() => {
+    if (hadHero.current || !hero) return;
     hadHero.current = true;
     setCam(camFor(hero, radius));
-  }
+  }, [hero, radius]);
 
   // ② 此后只在英雄**走出视口**时跟（最小可见）；值没变就不写 state，免得每一步都多余重渲染
   useEffect(() => {

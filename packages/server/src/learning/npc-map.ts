@@ -8,8 +8,8 @@
  *   领地格算在 `candidates` 里（已占领的格仍然 `!hasMonster`）——伙伴站在怪的地盘上正是"他遇险了"
  *   的视觉前提（SPEC §2.2）。
  */
-import { layoutTiles, monsterOccupies } from '@sb/shared';
-import { continentMap } from './continent.js';
+import { monsterOccupies, parseKey } from '@sb/shared';
+import { loadWorld } from './continent-world.js';
 
 /** 图上的一个词条格（`candidates` 与 `monsters` 是同一个形状的两桶） */
 export interface NpcCell {
@@ -29,21 +29,22 @@ export interface MapScan {
   terms: number;
 }
 
-/** 铺一次图。★ 半径由 `layoutTiles` 自己现算（`worldRadiusFor(词条数)`），调用方传不出错的半径 */
+/**
+ * 扫一次图。★ 2026-09-28 起地图是**玩家开拓**的：只有已开拓且有词条落户的格才算地块
+ *   （`loadWorld` 顺手把空闲词条绑上荒地），迷雾里的词条还没有位置。
+ */
 export function scanMap(ownerId: string | null): MapScan {
-  const list = continentMap(ownerId);
-  const tiles = layoutTiles(list);
+  const { world, terms: list } = loadWorld(ownerId);
+  const byId = new Map(list.map((t) => [t.id, t]));
   const candidates: NpcCell[] = [];
   const monsters: NpcCell[] = [];
-  for (const t of tiles) {
-    const cell: NpcCell = {
-      termId: t.term.id,
-      term: t.term.term,
-      domain: t.term.domain,
-      row: t.row,
-      col: t.col,
-    };
-    if (monsterOccupies(t.term.review.status, t.term.review_in_scope === 1)) monsters.push(cell);
+  const cells = Object.entries(world.cells).sort((a, b) => a[1].n - b[1].n);
+  for (const [key, c] of cells) {
+    const term = c.t ? byId.get(c.t) : undefined;
+    if (!term) continue;
+    const { row, col } = parseKey(key);
+    const cell: NpcCell = { termId: term.id, term: term.term, domain: term.domain, row, col };
+    if (monsterOccupies(term.review.status, term.review_in_scope === 1)) monsters.push(cell);
     else candidates.push(cell);
   }
   return { candidates, monsters, terms: list.length };

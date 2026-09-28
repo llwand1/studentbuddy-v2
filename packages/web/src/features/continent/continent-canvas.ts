@@ -18,9 +18,9 @@ import { CONTINENT_VIEW_COLS, CONTINENT_QCOLOR, CONTINENT_VIEW_ROWS, type Contin
 import type { ContinentTileView } from './continent-view';
 import type { HeroCell } from './useContinentHero';
 import { drawSprite } from '../../app/hero/hero-sprites';
-import { CHIBI_MAP, CHIBI_PAL, SHADE_MAP, SHADE_PAL, TILE_PAL, drawProp, drawSigil, drawTile as drawArtTile, type TilePal } from '../../app/world/continent-art';
+import { CHIBI_MAP, CHIBI_PAL, SHADE_MAP, SHADE_PAL, drawSigil } from '../../app/world/continent-art';
+import { monsterSprite } from './monster-art';
 import { NPC_ART } from '../../app/world/npc-art';
-import type { Domain } from '../../app/world/world-copy';
 
 /** 格子边长（逻辑像素；CSS 再缩放，故命中判定必须走比例换算而不是写死这个数） */
 export const CELL = 48;
@@ -88,94 +88,11 @@ export interface CellRef {
 /** 像素倍率：落地页美术按 16px 一格绘制，这里放大到 CELL */
 const PX = CELL / 16;
 
-/** 领域 → 地砖风土（关键字优先，其余按字符串散列落到四种之一，同一领域永远同一种地） */
-export function domainOf(domain: string): Domain {
-  const d = domain.toLowerCase();
-  if (/生物|医|生命|bio|life|med/.test(d)) return 'bio';
-  if (/化学|chem/.test(d)) return 'chem';
-  if (/物理|数学|工程|计算|机器|算法|phy|math|comput|machine|engineer/.test(d)) return 'phy';
-  if (/学习|方法|心理|教育|learn|method|psych/.test(d)) return 'learn';
-  let h = 0;
-  for (const ch of d) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return (['bio', 'phy', 'learn', 'chem'] as const)[h % 4]!;
-}
-
-function seedOf(row: number, col: number): number {
-  return (((row * 73856093) ^ (col * 19349663)) >>> 0) % 1021 + 1;
-}
-
-/** 在「格内 16px 逻辑坐标」里作画：进入 → 画 → 复原 */
-function inCell(ctx: CanvasRenderingContext2D, row: number, col: number, pop: number, draw: () => void): void {
-  const size = 0.7 + 0.3 * pop;
-  ctx.save();
-  ctx.translate(col * CELL + (CELL * (1 - size)) / 2, row * CELL + (CELL * (1 - size)) / 2);
-  ctx.scale(PX * size, PX * size);
-  draw();
-  ctx.restore();
-}
-
-function artTile(ctx: CanvasRenderingContext2D, row: number, col: number, pop: number, pal: TilePal, glow = 0): void {
-  inCell(ctx, row, col, pop, () => drawArtTile(ctx, 0, 0, 16, pal, seedOf(row, col), glow));
-}
-
-/** 地块：落地页同款带厚度的地砖；越久没碰越暗（时间看得见），逾期 3 天起裂、7 天起裂第二道 */
-export function drawTile(ctx: CanvasRenderingContext2D, t: ContinentTileView, pop: number): void {
-  ctx.globalAlpha = pop;
-  artTile(ctx, t.row, t.col, pop, TILE_PAL[domainOf(t.domain)]);
-  const dim = Math.min(t.overdueDays / 14, 0.6);
-  if (dim > 0) {
-    ctx.globalAlpha = pop * dim;
-    ctx.fillStyle = '#07050a';
-    ctx.fillRect(t.col * CELL, t.row * CELL, CELL, CELL);
-  }
-  ctx.globalAlpha = 1;
-  if (t.overdueDays >= 3 && pop > 0.9) {
-    const cx = t.col * CELL + CELL / 2;
-    const cy = t.row * CELL + CELL / 2 - 6;
-    ctx.fillStyle = COLOR.crack;
-    for (const [dx, dy] of [[-9, -6], [-6, -3], [-3, 0], [-6, 3], [-9, 6]]) ctx.fillRect(cx + dx!, cy + dy!, 3, 3);
-    if (t.overdueDays >= 7) for (const [dx, dy] of [[9, -6], [6, -3], [3, 0]]) ctx.fillRect(cx + dx!, cy + dy!, 3, 3);
-  }
-}
-
 /**
- * 地上的道具（饥荒式竖立纸片：树 / 石 / 蘑菇 / 草丛）。已复习过的地完整显形，
- * 从没复习过的压暗——「收复进度」靠这个对比（原来的菱形草苗换成了道具，语义不变）。
+ * 怪：脚下魔法阵 + **按怪种生成的外观**（`monster-art.ts`：一种题型组合一种样子），
+ * 头顶血量格（每格＝一道题），脚下题型方块。野怪多一圈迷雾色光晕；遗忘之影脚下是血红魔法阵。
+ * `pop`（0~1）＝刷出时的淡入与落地。
  */
-export function drawSprout(ctx: CanvasRenderingContext2D, t: ContinentTileView, pop: number): void {
-  ctx.globalAlpha = pop * (t.discovered ? 1 : 0.45);
-  inCell(ctx, t.row, t.col, pop, () => drawProp(ctx, 3, 12, seedOf(t.row, t.col), domainOf(t.domain), 0));
-  if (t.discovered) {
-    // 一粒余烬金：这块地你亲手打理过
-    ctx.globalAlpha = pop;
-    ctx.fillStyle = COLOR.gold;
-    ctx.fillRect(t.col * CELL + CELL - 12, t.row * CELL + 6, 3, 3);
-  }
-  ctx.globalAlpha = 1;
-}
-
-/**
- * 领地：紫黑侵蚀地砖 + 血色边界呼吸。
- * ★ `pulse`（0~1）由组件按时间给——**常驻**的缓慢呼吸，不是过渡动画；怪永远画在它上面。
- */
-export function drawLand(ctx: CanvasRenderingContext2D, t: CellRef, pop: number, pulse: number): void {
-  ctx.globalAlpha = pop;
-  artTile(ctx, t.row, t.col, pop, TILE_PAL.corrupt);
-  const x = t.col * CELL;
-  const y = t.row * CELL;
-  ctx.globalAlpha = pop * (0.3 + 0.45 * pulse);
-  ctx.fillStyle = COLOR.landLine;
-  ctx.fillRect(x + 3, y + 3, CELL - 6, 3);
-  ctx.fillRect(x + 3, y + CELL - 12, CELL - 6, 3);
-  ctx.fillRect(x + 3, y + 3, 3, CELL - 12);
-  ctx.fillRect(x + CELL - 6, y + 3, 3, CELL - 12);
-  ctx.globalAlpha = pop * 0.5;
-  ctx.fillStyle = '#8a2a6a';
-  for (let i = 0; i < 4; i += 1) ctx.fillRect(x + 10 + i * 8, y + CELL - 16 - i * 6, 3, 3);
-  ctx.globalAlpha = 1;
-}
-
-/** 怪：脚下旋转魔法阵 + 遗忘之影；头顶金色等级角，脚下题型方块 */
 export function drawMonster(ctx: CanvasRenderingContext2D, t: ContinentTileView, pop: number, now = 0): void {
   const x = t.col * CELL;
   const y = t.row * CELL;
@@ -183,21 +100,29 @@ export function drawMonster(ctx: CanvasRenderingContext2D, t: ContinentTileView,
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(PX, PX);
-  drawSigil(ctx, 8, 9, 7 + Math.min(t.level, 4), now / 1000);
+  drawSigil(ctx, 8, 10, 6 + Math.min(t.level, 3), now / 1000);
   ctx.restore();
-  const s = Math.max(2, Math.round(PX * (0.6 + 0.4 * pop)));
-  drawSprite(ctx, SHADE_MAP, SHADE_PAL, Math.round(x + CELL / 2 - 5 * s), Math.round(y + CELL / 2 - 6 * s), { scale: s, flip: true, alpha: pop });
+  const art = t.wild ? monsterSprite(t.species) : { map: SHADE_MAP, pal: SHADE_PAL };
+  const s = t.wild ? (t.level >= 3 ? 4 : 3) : Math.max(2, Math.round(PX * (0.6 + 0.4 * pop)));
+  const w = (art.map[0]?.length ?? 12) * s;
+  const hh = art.map.length * s;
+  const bob = Math.round(Math.sin(now / 400 + t.row + t.col) * 1.5);
+  const drop = Math.round((1 - pop) * -18);
+  drawSprite(ctx, art.map, art.pal, Math.round(x + CELL / 2 - w / 2), Math.round(y + CELL - hh - 4 + bob + drop), { scale: s, flip: true, alpha: pop });
   ctx.globalAlpha = pop;
-  ctx.fillStyle = COLOR.horn;
-  for (let i = 0; i < t.level; i += 1) {
-    const hx = Math.round(x + CELL / 2 + (i - (t.level - 1) / 2) * 7);
-    ctx.fillRect(hx - 2, y + 1, 4, 4);
+  const pips = Math.min(t.hp, 9);
+  for (let i = 0; i < pips; i += 1) {
+    const hx = Math.round(x + CELL / 2 + (i - (pips - 1) / 2) * 5);
+    ctx.fillStyle = '#07050a';
+    ctx.fillRect(hx - 2, y - 4, 5, 5);
+    ctx.fillStyle = t.wild ? '#ff5f5f' : COLOR.horn;
+    ctx.fillRect(hx - 1, y - 3, 3, 3);
   }
   t.species.forEach((species: ContinentQType, i: number) => {
     ctx.fillStyle = COLOR.bodyLine;
-    ctx.fillRect(Math.round(x + CELL / 2 + (i - (t.species.length - 1) / 2) * 7) - 3, y + CELL - 9, 6, 6);
+    ctx.fillRect(Math.round(x + CELL / 2 + (i - (t.species.length - 1) / 2) * 7) - 3, y + CELL - 7, 6, 6);
     ctx.fillStyle = CONTINENT_QCOLOR[species];
-    ctx.fillRect(Math.round(x + CELL / 2 + (i - (t.species.length - 1) / 2) * 7) - 2, y + CELL - 8, 4, 4);
+    ctx.fillRect(Math.round(x + CELL / 2 + (i - (t.species.length - 1) / 2) * 7) - 2, y + CELL - 6, 4, 4);
   });
   ctx.globalAlpha = 1;
 }

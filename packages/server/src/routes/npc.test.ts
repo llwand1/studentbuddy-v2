@@ -18,7 +18,7 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { AUTH_COOKIE_NAME, npcNameFromPool } from '@sb/shared';
+import { AUTH_COOKIE_NAME, cellKey, newWorld, npcNameFromPool, spiralCells } from '@sb/shared';
 import type { NpcState } from '../learning/npc.js';
 
 process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-routes-npc-'));
@@ -28,6 +28,7 @@ const { resetRateLimits } = await import('../auth/rate-limit.js');
 const { resetAuthCaches, createUser } = await import('../auth/users.js');
 const { createSession: issueSession } = await import('../auth/session.js');
 const request = (await import('supertest')).default;
+const { saveWorld } = await import('../learning/continent-world.js');
 
 const origin = 'http://localhost:5173';
 
@@ -56,7 +57,13 @@ beforeEach(() => {
   for (const t of ['term_library', 'term_mention_log', 'term_review_log', 'chest_keys', 'chest_open', 'study_task']) {
     db.prepare(`DELETE FROM ${t}`).run();
   }
-  db.prepare(`DELETE FROM app_settings WHERE key = 'npc_party'`).run();
+  db.prepare(`DELETE FROM app_settings WHERE key IN ('npc_party', 'continent_world')`).run();
+  // ★ 开拓制：先把螺旋铺格序整片视为已开拓（本文件锁伙伴，不锁开拓）
+  for (const u of [A.id, B.id]) {
+    const w = newWorld(1);
+    spiralCells(9).forEach((c, i) => (w.cells[cellKey(c.row, c.col)] = { t: null, lv: 0, n: i }));
+    saveWorld(u, w);
+  }
 });
 
 afterAll(() => closeDb());

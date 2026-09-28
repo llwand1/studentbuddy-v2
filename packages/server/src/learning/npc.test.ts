@@ -42,11 +42,26 @@ import {
 } from './npc-party.js';
 import { distressedNpcIds, distressedNpcs, npcList, npcTrade } from './npc.js';
 
+import { cellKey, newWorld, spiralCells } from '@sb/shared';
+import { saveWorld } from './continent-world.js';
+
+/**
+ * ★ 2026-09-28 大陆改成「开拓制」：词条只落在**已开拓**的格上。本文件锁的是伙伴规则而不是开拓，
+ *   故每个用例先把旧的螺旋铺格序整片视为已开拓（顺序同 `spiralCells` ⇒ 词条落位与旧口径一致）。
+ */
+function openSpiral(ownerId: string | null = null): void {
+  const w = newWorld(1);
+  spiralCells(9).forEach((c, i) => (w.cells[cellKey(c.row, c.col)] = { t: null, lv: 0, n: i }));
+  saveWorld(ownerId, w);
+}
+
 let dir: string;
 
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-npc-'));
   openIsolated(dir);
+  openSpiral(null);
+  openSpiral('u2');
 });
 
 afterEach(() => {

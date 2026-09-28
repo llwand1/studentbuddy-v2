@@ -1,15 +1,12 @@
 /**
  * features/continent/ContinentPage — 知识大陆独立页（侧栏一级入口）。
  *
- * 页面只做四件事：**取数 → 派生视图 → 画地图 → 派发交互**。口径全在别处：
- *   取数 `api.terms.map()`、派生 `continent-view.ts`、出题/判分 `shared/continent.ts`、走位 `useContinentHero.ts`、
- *   绘制 `continent-canvas.ts`、相机 `useContinentCamera.ts`、答题 `MonsterDialog.tsx`、图鉴 `CodexPanel.tsx`、宝箱 `ContinentChest.tsx`。
- *
- * ★ **只新增一个写口，而且是既有端点**：解锁/收复一律走 `api.terms.mark(id, true)`。答对 ⇒ 阶段推进 ⇒
- *   状态离开 due/overdue ⇒ 怪消失、领地回归；宝箱也走 `POST /api/cards/chest/open`（SPEC §4.2 零新表零迁移）。
- * ★ 打卡失败**不吞**：`mark` 对范围外词条会 409，虽然地图已按服务端结论不画这类怪，
- *   但真出现（数据刚好在两次请求间被改）也要把话念出来，而不是"点了没反应"。
- * ★ **点地走位**与**打怪**共用一次点击（够得着开打、够不着先走过去）；被挡也要说话（`heroCtl.blocked`），不许静默。
+ * 2026-09-28 起是**开拓制**：大陆从出生点一格开始，玩家站到迷雾边上点它开拓（花开拓令），
+ * 打败迷雾边上的野怪一次开一片；在有词条的地块上追问升级；升级地块按形状相连合成建筑。
+ * 页面只做：取数 → 派生视图 → 画地图 → 派发交互。口径全在别处：
+ *   规则 `shared/continent-world.ts`、地貌 `shared/continent-terrain.ts`、视图 `continent-view.ts`、
+ *   存档与写口 `useContinentWorld.ts`、走位 `useContinentHero.ts`、答题 `MonsterDialog.tsx`、追问 `DelveDialog.tsx`。
+ * ★ 词条逾期时，它落户的地块冒出「遗忘之影」——答对走既有 `api.terms.mark(id, true)`（老规则不变）。
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
@@ -20,150 +17,142 @@ import { ContinentPartners, useContinentPartners } from './continent-partners';
 import { ContinentDpad } from './continent-dpad';
 import { EmberBanner, EmberDialog, TileDetail, useContinentEmber } from './continent-ember';
 import { MonsterDialog } from './MonsterDialog';
+import { DelveDialog } from './DelveDialog';
 import { CodexPanel } from './CodexPanel';
-import { buildContinentView, canStrike, type ContinentTileView } from './continent-view';
+import { BuildingGuide } from './BuildingGuide';
+import { monsterName } from './monster-art';
+import { buildContinentView, canStrike, manhattan, type ContinentTileView } from './continent-view';
 import { useContinentHero } from './useContinentHero';
+import { useContinentWorld } from './useContinentWorld';
 import './continent.css';
 
 export function ContinentPage() {
   const [terms, setTerms] = useState<ContinentMapTerm[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  /** 打怪弹窗（有怪的地块，或"点领地 → 打领主"） */
   const [hunting, setHunting] = useState<ContinentTileView | null>(null);
-  /** 普通地块的详情卡（已收复 / 范围外） */
   const [detail, setDetail] = useState<ContinentTileView | null>(null);
-  const [showCodex, setShowCodex] = useState(false);
-  const [burst, setBurst] = useState<ContinentTileView | null>(null);
+  const [delving, setDelving] = useState<ContinentTileView | null>(null);
+  const [panel, setPanel] = useState<'codex' | 'guide' | null>(null);
+  const [burst, setBurst] = useState<{ row: number; col: number } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  /** 地上掉落的宝箱（本局打怪留下的位置；**不落库**——开箱走既有账本） */
   const [drops, setDrops] = useState<ContinentChestDrop[]>([]);
   const [chestAt, setChestAt] = useState<ContinentChestDrop | null>(null);
-  /**
-   * 学习伙伴（取数/呈现/选位态整体在 `continent-partners.tsx`；这里只要一个 id 来关键盘走位）。
-   * ★ 注入 `setNotice`：创建成功与失败的话都从这一条横幅说出去（伙伴那一族不自己造第二条通道）。
-   */
   const partners = useContinentPartners(setNotice);
+  const world = useContinentWorld(setNotice);
   const [npcOpenId, setNpcOpenId] = useState<string | null>(null);
-  /** 「回到我身上」的计数（自增一次＝按了一次；相机规则在 `useContinentCamera`，页面不碰相机） */
   const [recenter, setRecenter] = useState(0);
 
   const load = useCallback(async () => {
     try {
-      // ★ 地图与伙伴并发取（伙伴那一口自己并发取两处，见 `continent-partners.tsx`）
-      const [map] = await Promise.all([api.terms.map(), partners.refresh()]);
+      const [map] = await Promise.all([api.terms.map(), world.refresh(), partners.refresh()]);
       setTerms(map.terms);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [partners.refresh]);
+  }, [partners.refresh, world.refresh]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  /**
-   * 派生**两次**，这一次先后是刻意的：
-   * ① 不带英雄 —— 走位 hook 需要 `tiles` 才知道英雄能站哪，而英雄位置又是领地扩散的输入；
-   * ② 带英雄 —— 怪不吞英雄脚下那格（`spreadLands` 的 `blocked`），于是"站在哪"看得见后果。
-   * ★ 收敛性：英雄起点取自 ① 里第一格可通行的地块；它在 ② 里正好被记为"英雄格"而不会被占，
-   *   所以起点稳定、不会两次派生来回抖（这条不稳就会表现为"英雄每帧都在跳"）。
-   */
-  const baseView = useMemo(() => buildContinentView(terms ?? []), [terms]);
-  const heroCtl = useContinentHero(baseView.tiles);
-  const view = useMemo(() => buildContinentView(terms ?? [], { hero: heroCtl.hero }), [terms, heroCtl.hero]);
+  const view = useMemo(
+    () => buildContinentView(terms ?? [], world.payload?.world ?? null, world.payload?.day ?? 0),
+    [terms, world.payload],
+  );
+  const heroCtl = useContinentHero(view.tiles);
   const ember = useContinentEmber(heroCtl.hero, setNotice, () => void load());
 
-  /** 全部答对：打卡 → 关弹窗 → 播特效 → 地上留一箱 → 重取地图（怪随之消失、领地回归） */
+  /** 走到目标旁边（目标本身不可站：怪 / 迷雾）——挑离英雄最近的那块相邻可站地 */
+  const approach = useCallback(
+    (row: number, col: number, why: string) => {
+      const hero = heroCtl.hero;
+      const spots = view.tiles.filter((t) => t.walkable && manhattan(t, { row, col }) === 1);
+      spots.sort((a, b) => (hero ? manhattan(a, hero) - manhattan(b, hero) : 0));
+      const s = spots[0];
+      if (!s) return setNotice('那边还没有能站的地——先把中间的迷雾开出来。');
+      heroCtl.walkTo(s.row, s.col);
+      setNotice(why);
+    },
+    [heroCtl, view.tiles],
+  );
+
   const solve = useCallback(
     async (tile: ContinentTileView) => {
       try {
-        await api.terms.mark(tile.id, true);
+        let msg: string;
+        if (tile.wild) {
+          const r = await world.slay(tile.row, tile.col);
+          msg = `击败了「${monsterName(tile.species)}」——一口气开拓了 ${r?.fresh ?? 0} 块地，迷雾那头又有新的怪在游荡。`;
+        } else {
+          await api.terms.mark(tile.id, true);
+          msg = `驱散了「${tile.term}」的遗忘之影——复习阶段推进，地上留下一个宝箱。`;
+          setDrops((d) => (d.some((x) => x.row === tile.row && x.col === tile.col) ? d : [...d, { row: tile.row, col: tile.col, term: tile.term }]));
+          const map = await api.terms.map();
+          setTerms(map.terms);
+        }
         setHunting(null);
-        setBurst({ ...tile });
-        setDrops((d) =>
-          d.some((x) => x.row === tile.row && x.col === tile.col) ? d : [...d, { row: tile.row, col: tile.col, term: tile.term }],
-        );
-        setNotice(`收复了「${tile.term}」——复习阶段推进，这块地回到你手里，地上留下一个宝箱。`);
-        await load();
+        setBurst({ row: tile.row, col: tile.col });
+        setNotice(msg);
       } catch (e) {
-        setNotice(`${e instanceof Error ? e.message : String(e)}`);
+        setNotice(e instanceof Error ? e.message : String(e));
       }
     },
-    [load],
+    [world],
   );
 
-  /** 点击分流：宝箱 → 打怪（够得着才开打）→ 领地（打领主）→ 空地（走过去 + 看详情） */
   const pick = useCallback(
     (row: number, col: number) => {
       setNotice(null);
-      // ★ 选位态优先于一切：这一下点击的意思是"把伙伴安置在这儿"（走位/打怪/看详情都让位）
       if (partners.placing) {
         void partners.placeAt(row, col);
         return;
       }
       if (ember.pickCell(row, col)) return;
       const drop = drops.find((d) => d.row === row && d.col === col);
-      if (drop) {
-        // ★ 宝箱优先于伙伴：它是**一次性**的（开了就没了），而伙伴一直站在那儿。
-        //   两者同格是极小概率（怪死后那格才变成候选落位），但真撞上时先给一次性那个。
-        setChestAt(drop);
-        return;
-      }
+      if (drop) return setChestAt(drop);
       const mate = partners.partners?.npcs.find((n) => n.row === row && n.col === col);
       if (mate) return setNpcOpenId(mate.id);
+      const foe = view.monsters.find((m) => m.row === row && m.col === col) ?? view.tiles.find((t) => t.hasMonster && t.row === row && t.col === col);
+      if (foe) {
+        if (canStrike(heroCtl.hero, foe)) return setHunting(foe);
+        return approach(row, col, '先走到怪旁边再点它开打——隔空打怪不算复习。');
+      }
       const tile = view.tiles.find((t) => t.row === row && t.col === col);
-      if (tile?.hasMonster) {
-        if (canStrike(heroCtl.hero, tile)) {
-          setHunting(tile);
-          return;
-        }
-        heroCtl.walkTo(row, col);
-        setNotice(`先走到「${tile.term}」旁边再点它开打——隔空打怪不算复习。`);
-        return;
-      }
-      // ★ 领地格上站着的不是怪，是**领主的地**：点它就打领主（照抄 demo 的 `review_unlock`：不要求相邻）
-      //   领地可能压在词条格上（`tile.isLand`），也可能落在没铺词条的荒地上（查不到 tile）
-      const ownerId = tile?.isLand ? tile.landOwner : view.wildLands.find((l) => l.row === row && l.col === col)?.owner;
-      if (ownerId) {
-        const owner = view.tiles.find((t) => t.id === ownerId);
-        if (owner) {
-          setHunting(owner);
-          setNotice(`这是「${owner.term}」的领地——答对它，这片地就回来了。`);
-        }
-        return;
-      }
       if (tile) {
         heroCtl.walkTo(row, col);
-        setDetail(tile);
+        if (tile.hasTerm) setDetail(tile);
+        else setNotice('荒地：还没有词条落户。多学一条词条，它就会落在最早开拓的荒地上。');
+        return;
       }
+      if (view.frontier.some((f) => f.row === row && f.col === col)) {
+        if (canStrike(heroCtl.hero, { row, col })) {
+          void world.explore(row, col);
+          return;
+        }
+        return approach(row, col, '走到迷雾旁边了——再点一次那格就开拓它。');
+      }
+      setNotice('迷雾太深了——只能开拓紧挨着你领土的格子。');
     },
-    [drops, heroCtl, view, partners.partners, partners.placing, partners.placeAt, ember],
+    [drops, heroCtl, view, partners.partners, partners.placing, partners.placeAt, ember, approach, world],
   );
 
-  /** 「去救他」：★ **不代打**，只把人送到"一步能打到"的格（与「靠近才开打」同一条判断标准） */
-  const rescue = useCallback((threatTermId: string) => {
-    setNpcOpenId(null);
-    const t = view.tiles.find((x) => x.id === threatTermId);
-    if (!t) return setNotice('那只怪已经不在了——地回来了，他也就脱险了。');
-    heroCtl.walkTo(t.row, t.col);
-    setNotice(`走到「${t.term}」旁边再点它开打——答对那道题，伙伴也就脱险了。`);
-  }, [view.tiles, heroCtl]);
+  const rescue = useCallback(
+    (threatTermId: string) => {
+      setNpcOpenId(null);
+      const t = view.tiles.find((x) => x.id === threatTermId);
+      if (!t) return setNotice('那只怪已经不在了——他也就脱险了。');
+      approach(t.row, t.col, `走到「${t.term}」旁边再点它开打——答对那道题，伙伴也就脱险了。`);
+    },
+    [view.tiles, approach],
+  );
 
-  /** 键盘走位（方向键 / WASD）。弹窗开着时让位——不然打字会变成走路 */
   const stepHero = heroCtl.step;
-  const frozen = hunting !== null || chestAt !== null || npcOpenId !== null;
+  const frozen = hunting !== null || chestAt !== null || npcOpenId !== null || delving !== null;
   useEffect(() => {
     if (frozen) return;
     const dirs: Record<string, [number, number]> = {
-      arrowup: [-1, 0],
-      arrowdown: [1, 0],
-      arrowleft: [0, -1],
-      arrowright: [0, 1],
-      w: [-1, 0],
-      s: [1, 0],
-      a: [0, -1],
-      d: [0, 1],
+      arrowup: [-1, 0], arrowdown: [1, 0], arrowleft: [0, -1], arrowright: [0, 1], w: [-1, 0], s: [1, 0], a: [0, -1], d: [0, 1],
     };
     const onKey = (e: KeyboardEvent): void => {
       const dir = dirs[e.key.toLowerCase()];
@@ -180,48 +169,35 @@ export function ContinentPage() {
       <header className="continent-head">
         <h1>
           知识大陆
-          <small>
-            词条从中心长出来；逾期未复习的会被怪占领并向外扩地——走过它们旁边开打，答对就把地收回来
-          </small>
+          <small>从一块地开始：站到迷雾边上开拓，打倒迷雾里的怪一次开一片；在地块上追问升级，升级地连成形就能合成建筑</small>
         </h1>
         <div className="continent-stats">
-          <span>
-            词条 <b>{view.total}</b>
-          </span>
-          <span>
-            已纳入复习 <b>{view.inScopeCount}</b>
-          </span>
-          <span className={view.monsterCount > 0 ? 'continent-stat-warn' : ''}>
-            待收复的怪 <b>{view.monsterCount}</b>
-          </span>
-          <span className={view.landCount > 0 ? 'continent-stat-warn' : ''}>
-            被占领的地 <b>{view.landCount}</b>
-          </span>
-          <span>
-            图鉴 <b>{view.codexFound.size}</b>/{view.codexTotal}
-          </span>
-          <button className="continent-btn" onClick={() => setShowCodex((v) => !v)}>
-            {showCodex ? '收起图鉴' : '看图鉴'}
+          <span>已开拓 <b>{view.explored}</b></span>
+          <span className={view.tokens === 0 ? 'continent-stat-warn' : ''}>开拓令 <b>{view.tokens}</b></span>
+          <span>难度 <b>{view.tier}</b> 档</span>
+          <span className={view.monsterCount > 0 ? 'continent-stat-warn' : ''}>怪 <b>{view.monsterCount}</b></span>
+          <span>建筑 <b>{view.buildings.length}</b></span>
+          <span>图鉴 <b>{view.codexFound.size}</b>/{view.codexTotal}</span>
+          <button className="continent-btn" onClick={() => setPanel((p) => (p === 'codex' ? null : 'codex'))}>
+            {panel === 'codex' ? '收起图鉴' : '看图鉴'}
           </button>
-          <button className="continent-btn ghost" onClick={() => void load()}>
-            刷新
+          <button className="continent-btn" onClick={() => setPanel((p) => (p === 'guide' ? null : 'guide'))}>
+            建筑图谱
           </button>
+          <button className="continent-btn ghost" onClick={() => void load()}>刷新</button>
         </div>
       </header>
 
       {notice && <p className="continent-banner">{notice}</p>}
+      {view.tokens === 0 && view.explored > 0 && (
+        <p className="continent-banner dim">开拓令用完了：每存一条新词条 +1 枚；打倒迷雾边上的怪不花开拓令，还能一次开一片。</p>
+      )}
       {view.dueOutOfScope > 0 && (
         <p className="continent-banner dim">
-          还有 {view.dueOutOfScope} 条到期词条没纳入复习范围，它们只铺地、不冒怪——
-          在「词条」页把它们或所属领域勾进复习范围后，这里就会冒出来。
+          还有 {view.dueOutOfScope} 条到期词条没纳入复习范围，它们的地块不冒遗忘之影——在「词条」页勾进复习范围后就会出现。
         </p>
       )}
-
-      {drops.length > 0 && (
-        <p className="continent-banner dim">
-          地上有 {drops.length} 个宝箱（打怪留下的）——点地图上的宝箱就能开，花的是「每日宝箱」那本钥匙账。
-        </p>
-      )}
+      {drops.length > 0 && <p className="continent-banner dim">地上有 {drops.length} 个宝箱——点地图上的宝箱就能开（花「每日宝箱」钥匙）。</p>}
 
       <EmberBanner ember={ember} />
       <ContinentPartners
@@ -237,16 +213,13 @@ export function ContinentPage() {
       {terms === null && !error && <p className="continent-banner dim">正在展开大陆…</p>}
       {terms !== null && view.total === 0 && (
         <p className="continent-banner dim">
-          大陆还是一片空地。先去「词条」页添加，或在对话里存几条词条——它们会从中心长出来，
-          你那位学习伙伴也在等它的第一条词条。
+          你站在大陆的第一块地上，四周都是迷雾。先去「词条」页或在对话里存几条词条——每条词条 = 1 枚开拓令，迷雾里的怪也要靠词条出题才会现身。
         </p>
       )}
 
-      <div className={showCodex ? 'continent-body with-codex' : 'continent-body'}>
+      <div className={panel ? 'continent-body with-codex' : 'continent-body'}>
         <ContinentMap
-          tiles={view.tiles}
-          wildLands={view.wildLands}
-          radius={view.radius}
+          view={view}
           hero={heroCtl.hero}
           heroFrom={heroCtl.animFrom}
           heroStart={heroCtl.animStart}
@@ -259,27 +232,42 @@ export function ContinentPage() {
           burst={burst}
           focus={hunting ?? detail}
           alert={heroCtl.blocked}
+          fresh={world.fresh}
+          glow={world.glow}
         />
-        {showCodex && <CodexPanel found={view.codexFound} onClose={() => setShowCodex(false)} />}
+        {panel === 'codex' && <CodexPanel found={view.codexFound} onClose={() => setPanel(null)} />}
+        {panel === 'guide' && (
+          <BuildingGuide buildings={view.buildings} tier={view.tier} nextTier={view.nextTier} explored={view.explored} onClose={() => setPanel(null)} />
+        )}
       </div>
 
-      {/* D-pad：键盘之外的走位入口（已拆成 `continent-dpad.tsx`——本文件贴 `.tsx ≤300` 红线） */}
-      <ContinentDpad
-        onStep={heroCtl.step}
-        onHalt={heroCtl.halt}
-        onRecenter={() => setRecenter((n) => n + 1)}
-        queued={heroCtl.queued}
-      />
+      <ContinentDpad onStep={heroCtl.step} onHalt={heroCtl.halt} onRecenter={() => setRecenter((n) => n + 1)} queued={heroCtl.queued} />
 
-      {hunting && (
-        <MonsterDialog tile={hunting} pool={terms ?? []} onSolved={solve} onClose={() => setHunting(null)} />
+      {hunting && <MonsterDialog tile={hunting} pool={terms ?? []} onSolved={solve} onClose={() => setHunting(null)} />}
+      {detail && (
+        <TileDetail
+          tile={detail}
+          onClose={() => setDetail(null)}
+          onNotice={setNotice}
+          onDelve={() => {
+            setDelving(detail);
+            setDetail(null);
+          }}
+        />
       )}
-
-      {detail && <TileDetail tile={detail} onClose={() => setDetail(null)} onNotice={setNotice} />}
+      {delving && (
+        <DelveDialog
+          tile={delving}
+          onClose={() => setDelving(null)}
+          onLeveled={(lv, w) => {
+            world.leveled(delving.row, delving.col, lv, w);
+            setDelving(null);
+          }}
+        />
+      )}
       {ember.open && ember.spot && (
         <EmberDialog spot={ember.spot} onKeep={ember.keep} onThank={ember.thank} onHide={ember.hide} onClose={ember.close} />
       )}
-
       {chestAt && (
         <ContinentChest
           drop={chestAt}

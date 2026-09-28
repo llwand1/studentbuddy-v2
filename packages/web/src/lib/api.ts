@@ -30,6 +30,7 @@ import { cardsApi } from './api-cards.js';
 // ★ 2026-09-27：学习伙伴（知识大陆上的常驻元素）——形状与端点整体在 api-npc.ts
 import { npcApi } from './api-npc.js';
 import { emberApi } from './api-ember.js';
+import { continentApi } from './api-continent.js';
 
 // 领域的类型**转出**给调用方（形状定义在 `api-terms-domain.ts`，那里承担行数红线的解释）。
 export type { DomainRow, DomainsResponse, RenameDomainResult, RemoveDomainResult } from './api-terms-domain.js';
@@ -87,6 +88,7 @@ export const api = {
    */
   npc: npcApi,
   ember: emberApi,
+  continent: continentApi,
 
   /**
    * 账号（契约 docs/AUTH-SPEC.md §2）。

@@ -29,6 +29,7 @@ import { coachRouter } from './routes/coach.js';
 import { cardsRouter } from './routes/cards.js';
 import { emberRouter } from './routes/ember.js';
 import { npcRouter } from './routes/npc.js';
+import { continentWorldRouter } from './routes/continent-world.js';
 import { toolsRouter } from './routes/tools.js';
 import { searchRouter } from './routes/search.js';
 import { ensureSearchIndex } from './search/fts-index.js';
@@ -166,6 +167,8 @@ app.use('/api/cards', cardsRouter);
 app.use('/api/npc', npcRouter);
 // 余烬笺 · 意外发现（2026-09-28）：写笺 / 今日异火 / 收入卡册 / 添柴致谢
 app.use('/api/ember', emberRouter);
+// 开拓制知识大陆（2026-09-28）：开拓 / 打野怪开一片 / 追问升级地块
+app.use('/api/continent', continentWorldRouter);
 // 设置页「工具」卡（契约 TOOL-ECOSYSTEM-SPEC §6.3-4/§4.5）：阈值 + 30 天统计；grants 同挂这里
 app.use('/api/tools', toolsRouter);
 // 全站全文搜索（契约 docs/FTS-SPEC.md §3.4）：本地库 fts5 检索。

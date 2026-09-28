@@ -14,6 +14,11 @@ import './chat.css';
 import { useEffect, useRef, useState } from 'react';
 import { useChatStream } from './useChatStream';
 import { useScrollAnchor } from './useScrollAnchor';
+import { useSessionDraft } from './useSessionDraft';
+import { useBusyTitle } from './useBusyTitle';
+import { QuoteAsk } from './QuoteAsk';
+import { ChatErrorBar } from './ChatErrorBar';
+import { buildQuote, mergeQuoteIntoInput } from './quote-ask';
 import { ThoughtPanel } from './ThoughtPanel';
 import { ToolSteps } from './ToolSteps';
 import { TaskPanel } from './TaskPanel';
@@ -129,6 +134,9 @@ export function ChatView({
     setDocOpen(false);
     setAttachments([]);
   }, [sessionId]);
+  /** 草稿按会话各记各的（切走存、切回取）；生成中把「● 回复中」写进标签页标题 */
+  useSessionDraft(sessionId, input, setInput);
+  useBusyTitle(busy);
 
   const blocked = ready !== 'open' || busy;
   /** 轮次元信息只在收口后显示：生成过程中显示「已用 x tokens」会随流式跳动，且中途的数没有意义 */
@@ -170,6 +178,7 @@ export function ChatView({
     setInput('');
     setAttachments([]);
     setSendError('');
+    inputRef.current?.focus(); // 点按钮发送后焦点留在输入框，下一句直接打
     // 上一轮的来源清单随本轮提问退场：它是**那一轮**的产物，留着会让人以为这一轮也查了网
     quiz.resetRound();
     const r = await sendWithGrill(text, imgs.length > 0 ? imgs : undefined);
@@ -240,7 +249,8 @@ export function ChatView({
             </div>
           </div>
         )}
-        {(error || sendError) && <div className="chat-error">⚠ {error || sendError}</div>}
+        {/* 流式中断给「↻ 重试」（＝对最后一问重新生成）；发送失败不给——那条提问没进会话（见 ChatErrorBar） */}
+        {(error || sendError) && <ChatErrorBar text={error || sendError} onRetry={error && !busy && lastUserIdx >= 0 ? () => void doRegen() : undefined} />}
         {rememberMsg && <div className="chat-remember-msg">{rememberMsg}</div>}
         {/* 本轮出题的补白与来源清单：都进消息流，跟这一轮一起滚走（改版前钉在输入框上方，
             会一直留着像全局状态）。有来源清单时由清单承担告知，`quizNote` 只留「图/联网没成」 */}
@@ -249,6 +259,8 @@ export function ChatView({
         {roundMeta && <div className="chat-round-meta">{roundMeta}</div>}
         {grillNode}
       </div>
+      {/* 选中回答里的一句 → 「引用追问」：引用块并进输入框（函数式更新，不覆盖已打的字）、焦点回输入框 */}
+      <QuoteAsk rootRef={scrollRef} onQuote={(t) => { setInput((v) => mergeQuoteIntoInput(v, buildQuote(t))); inputRef.current?.focus(); }} />
 
       {/* AI 主动发起对战的邀请卡（PK-SPEC §16）。挂在这里而不是 ChatComposer 内部：
           那张卡要吃的是一整个 queue（十个回调），composer 已经贴着 300 行门禁，

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-28T14:55:23.158Z",
+  "generatedAt": "2026-09-28T15:08:04.075Z",
   "code": {
     "rows": [
       {
@@ -18,17 +18,17 @@
       },
       {
         "pkg": "web",
-        "srcFiles": 234,
-        "testFiles": 87,
-        "srcLines": 31220,
-        "testLines": 12756
+        "srcFiles": 239,
+        "testFiles": 91,
+        "srcLines": 31491,
+        "testLines": 13120
       }
     ],
-    "srcFiles": 458,
-    "testFiles": 241,
-    "srcLines": 66333,
-    "testLines": 44561,
-    "tsxTestFiles": 38
+    "srcFiles": 463,
+    "testFiles": 245,
+    "srcLines": 66604,
+    "testLines": 44925,
+    "tsxTestFiles": 39
   },
   "routes": {
     "total": 139,
@@ -80,25 +80,25 @@
     ]
   },
   "docs": {
-    "specs": 37,
-    "all": 49,
+    "specs": 38,
+    "all": 50,
     "probes": 15
   },
   "repo": {
-    "head": "5da228c",
+    "head": "7b50954",
     "headDate": "2026-09-28",
-    "commitsLast14d": 79,
-    "branch": "fix/chat-grimoire-review",
-    "dirtyFiles": 8
+    "commitsLast14d": 80,
+    "branch": "feat/chat-ux-polish",
+    "dirtyFiles": 20
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 170,
+    "wallSec": 183.6,
     "staleDays": 0,
-    "files": 241,
-    "cases": 3177,
-    "passed": 3176,
+    "files": 245,
+    "cases": 3206,
+    "passed": 3205,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -109,15 +109,15 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "240",
-      "measured": "241",
-      "ok": false
+      "claimed": "245",
+      "measured": "245",
+      "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "3173",
-      "measured": "3177",
-      "ok": false
+      "claimed": "3206",
+      "measured": "3206",
+      "ok": true
     },
     {
       "label": "badge REST 路由",
@@ -157,9 +157,9 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "240 文件 / 3173 例",
-      "measured": "241 文件 / 3177 例",
-      "ok": false
+      "claimed": "245 文件 / 3206 例",
+      "measured": "245 文件 / 3206 例",
+      "ok": true
     }
   ],
   "landingDrift": [

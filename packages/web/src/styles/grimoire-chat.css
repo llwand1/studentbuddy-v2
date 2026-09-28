@@ -401,6 +401,22 @@ body :is(.chat-error, .chat-remember-msg, .chat-quiz-mix, .chat-grill-pill) {
   background: var(--ch-panel);
 }
 body .chat-error { box-shadow: inset 0 0 0 1px #8e1c28, 2px 2px 0 #000; }
+/* 错误条上的「↻ 重试」与选中正文浮出的「↩ 引用追问」：同款小铁牌（方角、金暗描边、硬投影） */
+body :is(.chat-error-retry, .chat-quote-btn) {
+  border-radius: 0;
+  border: 2px solid var(--ch-iron);
+  background: var(--ch-tile);
+  box-shadow: inset 0 0 0 1px var(--ch-gold-dim), 2px 2px 0 #000;
+  color: var(--ch-gold);
+  font-family: var(--sb-font-display);
+  letter-spacing: 1px;
+}
+body :is(.chat-error-retry, .chat-quote-btn):hover {
+  color: var(--sb-ink);
+  box-shadow: inset 0 0 0 1px var(--ch-gold), 2px 2px 0 #000;
+}
+body .chat-jump.live { color: var(--ch-gold); box-shadow: inset 0 0 0 1px var(--ch-gold), 3px 3px 0 #000; }
+body .chat-jump.live::before { background: var(--ch-ember); border-radius: 0; }
 
 /* ===== 输入法阵：厚双金框 + 两角荆棘（与大陆弹窗同款），聚焦泛余烬光，生成中两枚角饰一明一暗地「蓄力」 ===== */
 body .chat-composer {

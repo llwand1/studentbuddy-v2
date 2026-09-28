@@ -196,9 +196,10 @@ export function ChatComposer({
 
   return (
     <div className="chat-composer-wrap">
+      {/* 生成中离底：按钮点亮成「新内容」——提示底下还在长，而不只是「你滚上来了」 */}
       {showJump && (
-        <button type="button" className="chat-jump" onClick={onJump}>
-          ↓ 回到最新
+        <button type="button" className={busy ? 'chat-jump live' : 'chat-jump'} onClick={onJump}>
+          {busy ? '↓ 新内容' : '↓ 回到最新'}
         </button>
       )}
       {statusHint && <div className="chat-conn-hint">{statusHint}</div>}
@@ -241,7 +242,7 @@ export function ChatComposer({
               ? '点一张建议卡先起个头（会自动开新会话）'
               : blocked
                 ? busy
-                  ? '生成中…'
+                  ? '生成中…（Esc 停止）'
                   : '连接未就绪…'
                 : '问点什么（Enter 发送 / Shift+Enter 换行，可直接粘贴图片）'
           }
@@ -264,6 +265,11 @@ export function ChatComposer({
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               onSubmit();
+            }
+            // 生成中按 Esc ＝ 点「停止」：焦点本来就在输入框，不用挪鼠标去够按钮
+            if (e.key === 'Escape' && busy) {
+              e.preventDefault();
+              onStop();
             }
           }}
         />

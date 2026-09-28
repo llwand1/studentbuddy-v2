@@ -44,6 +44,12 @@ export interface Recorder {
   count(): number;
   /** 最近一笔；没有则 null */
   last(): RecordedCall | null;
+  /**
+   * 第 `from` 笔（含）之后的所有录制件。
+   * `last()` 不够用的场合：一次出题可能打**多次**上游（配比补跑、图片二次调用），
+   * 只按最后一笔算钱会把账少记一大截 —— 成本要按这一组的全部调用求和。
+   */
+  since(from: number): RecordedCall[];
   close(): Promise<void>;
 }
 
@@ -115,6 +121,7 @@ export async function startRecorder(upstreamBaseUrl: string, rawDir: string): Pr
     rawDir,
     count: () => records.length,
     last: () => records[records.length - 1] ?? null,
+    since: (from: number) => records.slice(Math.max(0, from)),
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.closeAllConnections?.();

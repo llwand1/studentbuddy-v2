@@ -7,10 +7,14 @@
  *      两者的行动指引完全相反；
  *   ③ 传输层失败（429/超时）单独一列摆在最上面——它决定其余所有比率的可信度。
  *      补跑过几次的词条也照实列出来，读的人才知道这轮跑得干不干净。
+ *   ④ 报告头必须能**复现这一轮**：代码版本、采样参数、随机种子、花了多少钱。
+ *      缺哪项就写「—」并说明拿不到的**原因**——`docs/eval/quiz.md` §1 把这四项登记为欠账，
+ *      就是因为「一份看不出是哪版代码跑的报告，过两周谁也不敢引用」。
  */
 import path from 'node:path';
 import type { QuizEvalSummary } from '../../../packages/server/src/learning/quiz-eval-metrics.js';
-import type { QuizRunRecord, RunResult } from '../runners/quiz.mts';
+import type { QuizRunRecord, RunProvenance, RunResult } from '../runners/quiz.mts';
+import { fmtUsd } from './pricing.mjs';
 
 const ARM_TITLES: Record<string, string> = {
   base: 'arm `base`（关配图）——量纯出题链',
@@ -94,6 +98,32 @@ function failureList(records: QuizRunRecord[]): string {
   ].join('\n');
 }
 
+/**
+ * 报告头的可复现七项。
+ * 每一项拿不到都写「—（原因）」：读的人要能分清「这轮没花钱」和「这轮没记账」。
+ */
+function provenanceTable(p: RunProvenance | undefined, model: string): string {
+  if (!p) return '_本轮无出处记录（录制件早于本功能）。_';
+  const dash = (why: string) => `— <sub>${why}</sub>`;
+  const temp =
+    p.tempSpread ? `${p.tempSpread.join(' / ')} <sub>（同轮多档，按场景分）</sub>` : p.temperature != null ? String(p.temperature) : dash('请求体里没有该字段');
+  const costCell =
+    p.costUsd == null
+      ? dash(p.totalRuns > 0 ? '上游没回 usage，或价表无此模型 —— 不是 0' : '本轮没有调用')
+      : `${fmtUsd(p.costUsd)} <sub>（记账 ${p.costedRuns}/${p.totalRuns} 组${p.costedRuns < p.totalRuns ? '，**未覆盖全部**，实际花费更高' : ''}）</sub>`;
+  const rows: Array<[string, string]> = [
+    ['代码版本', p.gitSha ? `\`${p.gitSha}\`${p.gitSha.endsWith('-dirty') ? ' ⚠ **工作区有未提交改动，这一轮别人还原不了**' : ''}` : dash('不在 git 工作树里')],
+    ['模型', `\`${p.requestedModel ?? model}\``],
+    ['temperature', temp],
+    ['max_tokens', p.maxTokens != null ? String(p.maxTokens) : dash('请求体里没有该字段')],
+    ['随机种子', p.seed != null ? String(p.seed) : dash('产品不传 seed —— 本评测**不可逐位复现**，只可统计复现')],
+    ['token（prompt/completion）', p.promptTokens || p.completionTokens ? `${p.promptTokens} / ${p.completionTokens}` : dash('上游没回 usage')],
+    ['本轮成本', costCell],
+    ['价表', p.priceNote],
+  ];
+  return ['| 出处项 | 值 |', '| --- | --- |', ...rows.map(([k, v]) => `| ${k} | ${v} |`)].join('\n');
+}
+
 export function renderQuizDoc(
   result: RunResult,
   meta: { writeAt: string; replay: boolean; datasetFile: string },
@@ -105,6 +135,10 @@ export function renderQuizDoc(
     `> 本块由 \`npm run eval -- quiz\` 生成于 ${meta.writeAt}${meta.replay ? '（**离线重算**，未调模型）' : ''}。`,
     `> 数据集 \`${result.dataset}\`${meta.datasetFile ? `（\`${path.basename(meta.datasetFile)}\`，provenance=dev-hand）` : ''}／模型 \`${result.model}\`／`,
     `> 组数 ${result.records.length}／上游实际调用 ${attempts} 次／每组请求 ${requestedPerRun} 题／传输层失败 ${transport} 组。`,
+    '',
+    '### 这一轮是怎么跑出来的（出处）',
+    '',
+    provenanceTable(result.provenance, result.model),
     '',
     ...result.summaries.map(({ arm, summary }) => [
       `### ${ARM_TITLES[arm] ?? `\`arm ${arm}\`（${summary.runs} 组）`}`,

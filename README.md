@@ -4,9 +4,9 @@
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-234%20files%20%2F%203136%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-236%20files%20%2F%203148%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-139-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-152%20types-8a63f6)
+![contracts](https://img.shields.io/badge/shared%20contracts-154%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -137,6 +137,7 @@ flowchart TD
 - **词条即地块**：学过的词条从中心往外铺成地图，越靠中心学得越早；地图**只增不减**，到期只是褪色长草、长出怪物，复习打败它就把地块收复——「我学过什么、哪些该复习」变成一张一眼看得懂、并且想继续铺下去的地图
 - **五题型挑战**：收复战斗就是出题引擎题型的实战场，当场判分
 - **英雄走位 · 领地扩散 · 每日宝箱 · 图鉴**：走位与领地由学习行为驱动，宝箱由打卡开出——数值全部由学习行为解释
+- **魔法吟唱**：把一段聊过的对话当「咒语」对怪施法——复述当初的提问、重做当初的题，命中几节打几点，咒语正文提到这块地的词条则威力加倍；每次吟唱掷骰化作五款像素释放特效之一（无光斩 / 悔罪光柱 / 月下叶舞 / 风灵旋刃 / 炎蛇，canvas 低清逐帧编排，款式只改画面不改数值），口径见 `docs/SPELL-CHANT-SPEC.md`
 - **开放世界 + 玩家创建 NPC 学习伙伴**（v0.2.140）：地图比屏幕大、视口相机拖拽与「回到我身上」；学习伙伴由玩家在地图上点格创建、自带起名与人设（`npc` 模型角色，未单独绑定时回退讲解角色）
 - **验证方式如实说**：走位 / 领地 / 宝箱 / 情景题这几项是用**真机 CDP 探针**验的（`tools/probes/continent-cdp.mjs`：跑真页面 + 真接口，五组断言连续两轮 PASS），**不是人工目检**；两条已知待办（地图静止后常驻演出停帧、寻路遇障不绕路）列在本文「已知限制」一节
 
@@ -166,7 +167,7 @@ flowchart TD
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼；对已下线路由（`/bank/:id` 等）有**墓碑锁**（断言 404，防止功能悄悄复活没人知道） |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **234 文件 / 3136 例**，全绿；passed/skipped 明细随平台略有差异（skipped 数分平台不同），**不进本文手抄**——实跑明细由 `node tools/metrics.mjs --tests` 当场产出。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3。
+当前测试基线 **236 文件 / 3148 例**，全绿；passed/skipped 明细随平台略有差异（skipped 数分平台不同），**不进本文手抄**——实跑明细由 `node tools/metrics.mjs --tests` 当场产出。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3。
 
 **四项门禁由 CI 强制**：server 单文件 ≤400 行、web 组件 ≤320 行（逼着功能拆文件，`flow.ts` 贴线开新文件就是常态）；全仓禁 `any`；web 禁内联 `style={{`（一律走 tokens.css token）；每个测试文件必须在测试清单登记。`metrics.mjs` 负责另一类腐烂：数字由脚本产出落 `docs/metrics.md` 标记区，README 徽章、正文基线、线上版本号与首屏统计全部进 `--check` 对账——手抄的数字必然腐烂，这一课在本文自己的历史里发生过不止一次。
 

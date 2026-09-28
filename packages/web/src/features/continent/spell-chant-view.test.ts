@@ -74,6 +74,9 @@ describe('文案：由数字组句', () => {
     expect(castText(0, 0, 3, false)).toContain('哑火');
     expect(castText(3, 3, 3, false)).toBe('3 节里命中 3 节：造成 3 点伤害。');
     expect(castText(6, 3, 4, true)).toContain('威力加倍：造成 6 点伤害');
+    expect(castText(6, 3, 4, true, '炎蛇')).toBe('4 节里命中 3 节，咒语与这块地共鸣，威力加倍，化作「炎蛇」：造成 6 点伤害！');
+    expect(castText(2, 2, 3, false, '无光斩')).toBe('3 节里命中 2 节，化作「无光斩」：造成 2 点伤害。');
+    expect(castText(0, 0, 3, false, '无光斩')).not.toContain('无光斩');
   });
 
   it('spellTimeText：SQLite UTC 串按本地日历说人话；解析不出为空', () => {

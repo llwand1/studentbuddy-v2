@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-09-28T06:33:32.433Z",
+  "generatedAt": "2026-09-28T08:38:08.367Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
-        "srcFiles": 34,
-        "testFiles": 21,
-        "srcLines": 5737,
-        "testLines": 3199
+        "srcFiles": 35,
+        "testFiles": 22,
+        "srcLines": 5786,
+        "testLines": 3258
       },
       {
         "pkg": "server",
@@ -18,16 +18,16 @@
       },
       {
         "pkg": "web",
-        "srcFiles": 222,
-        "testFiles": 81,
-        "srcLines": 29337,
-        "testLines": 11993
+        "srcFiles": 230,
+        "testFiles": 82,
+        "srcLines": 30844,
+        "testLines": 12185
       }
     ],
-    "srcFiles": 445,
-    "testFiles": 234,
-    "srcLines": 64401,
-    "testLines": 43739,
+    "srcFiles": 454,
+    "testFiles": 236,
+    "srcLines": 65957,
+    "testLines": 43990,
     "tsxTestFiles": 34
   },
   "routes": {
@@ -42,9 +42,9 @@
     "apiMounts": 28
   },
   "contracts": {
-    "iface": 99,
-    "type": 53,
-    "total": 152
+    "iface": 100,
+    "type": 54,
+    "total": 154
   },
   "migrations": {
     "count": 45,
@@ -85,21 +85,21 @@
     "probes": 15
   },
   "repo": {
-    "head": "c94ac6a",
+    "head": "a548ef0",
     "headDate": "2026-09-28",
-    "commitsLast14d": 62,
-    "branch": "feat/spell-chant",
-    "dirtyFiles": 2
+    "commitsLast14d": 67,
+    "branch": "feat/spell-fx-kinds",
+    "dirtyFiles": 1
   },
   "tests": {
     "available": true,
-    "ranNow": false,
-    "wallSec": 0,
+    "ranNow": true,
+    "wallSec": 142.5,
     "staleDays": 0,
-    "files": 234,
-    "cases": 3136,
-    "passed": 3133,
-    "skipped": 3,
+    "files": 236,
+    "cases": 3148,
+    "passed": 3147,
+    "skipped": 1,
     "failed": 0,
     "success": true
   },
@@ -110,14 +110,14 @@
     {
       "label": "badge 测试文件",
       "claimed": "234",
-      "measured": "234",
-      "ok": true
+      "measured": "236",
+      "ok": false
     },
     {
       "label": "badge 测试用例",
       "claimed": "3136",
-      "measured": "3136",
-      "ok": true
+      "measured": "3148",
+      "ok": false
     },
     {
       "label": "badge REST 路由",
@@ -128,8 +128,8 @@
     {
       "label": "badge 契约类型",
       "claimed": "152",
-      "measured": "152",
-      "ok": true
+      "measured": "154",
+      "ok": false
     },
     {
       "label": "badge 外部运行时依赖",
@@ -158,8 +158,8 @@
     {
       "label": "正文基线句",
       "claimed": "234 文件 / 3136 例",
-      "measured": "234 文件 / 3136 例",
-      "ok": true
+      "measured": "236 文件 / 3148 例",
+      "ok": false
     }
   ],
   "landingDrift": [

@@ -18,11 +18,11 @@ vi.mock('./SpellBook', () => ({
   ),
 }));
 vi.mock('./SpellChant', () => ({
-  SpellChant: (props: { title: string; onCast: (damage: number) => void; onClose: () => void }) => (
+  SpellChant: (props: { title: string; onCast: (damage: number, detail: { kind: string }) => void; onClose: () => void }) => (
     <div className="stub-spell-chant">
       <span>吟唱中：{props.title}</span>
-      <button onClick={() => props.onCast(2)}>释放二点</button>
-      <button onClick={() => props.onCast(0)}>哑火</button>
+      <button onClick={() => props.onCast(2, { kind: 'dusk' })}>释放二点</button>
+      <button onClick={() => props.onCast(0, { kind: 'dusk' })}>哑火</button>
       <button onClick={props.onClose}>中断</button>
     </div>
   ),
@@ -130,7 +130,7 @@ describe('知识大陆情景题', () => {
 });
 
 describe('知识大陆魔法吟唱', () => {
-  it('伤害够就收复：onSolved 带 spell 标记，父组件据此换特效', async () => {
+  it('伤害够就收复：onSolved 带这次释放的款式，父组件据此放该款的咒语版特效', async () => {
     const tile = tileOf('spell-1', { species: ['fill'] });
     const onSolved = vi.fn().mockResolvedValue(undefined);
     render(<MonsterDialog tile={tile} pool={[]} onSolved={onSolved} onClose={() => undefined} />);
@@ -139,7 +139,7 @@ describe('知识大陆魔法吟唱', () => {
     expect(screen.getByText('吟唱中：闭包那次')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '释放二点' }));
     await waitFor(() => expect(onSolved).toHaveBeenCalledTimes(1));
-    expect(onSolved).toHaveBeenLastCalledWith(tile, 'spell');
+    expect(onSolved).toHaveBeenLastCalledWith(tile, 'dusk');
   });
 
   it('伤害不够就掉血继续答题，且本次开怪只能吟唱一次', () => {

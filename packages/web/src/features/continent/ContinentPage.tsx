@@ -12,13 +12,14 @@
  * ★ **点地走位**与**打怪**共用一次点击（够得着开打、够不着先走过去）；被挡也要说话（`heroCtl.blocked`），不许静默。
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { SPELL_KIND_META, type SpellKind } from '@sb/shared';
 import { api } from '../../lib/api';
 import type { ContinentMapTerm } from '../../lib/api-terms-continent';
 import { ContinentChest } from './ContinentChest';
 import { ContinentMap, type ContinentChestDrop } from './ContinentMap';
 import { ContinentPartners, useContinentPartners } from './continent-partners';
 import { ContinentDpad } from './continent-dpad';
-import { MonsterDialog, type SolveVia } from './MonsterDialog';
+import { MonsterDialog } from './MonsterDialog';
 import { CodexPanel } from './CodexPanel';
 import { buildContinentView, canStrike, tileStatusText, type ContinentBurst, type ContinentTileView } from './continent-view';
 import { useContinentHero } from './useContinentHero';
@@ -72,17 +73,17 @@ export function ContinentPage() {
   const heroCtl = useContinentHero(baseView.tiles);
   const view = useMemo(() => buildContinentView(terms ?? [], { hero: heroCtl.hero }), [terms, heroCtl.hero]);
 
-  /** 全部答对：打卡 → 关弹窗 → 播特效（咒语补刀放咒语版）→ 地上留一箱 → 重取地图（怪随之消失、领地回归） */
+  /** 全部答对：打卡 → 关弹窗 → 播特效（咒语补刀放该款式的咒语版）→ 地上留一箱 → 重取地图（怪随之消失、领地回归） */
   const solve = useCallback(
-    async (tile: ContinentTileView, via: SolveVia = 'strike') => {
+    async (tile: ContinentTileView, spell?: SpellKind) => {
       try {
         await api.terms.mark(tile.id, true);
         setHunting(null);
-        setBurst({ ...tile, spell: via === 'spell' });
+        setBurst({ ...tile, spell });
         setDrops((d) =>
           d.some((x) => x.row === tile.row && x.col === tile.col) ? d : [...d, { row: tile.row, col: tile.col, term: tile.term }],
         );
-        setNotice(`${via === 'spell' ? '咒语命中，' : ''}收复了「${tile.term}」——复习阶段推进，这块地回到你手里，地上留下一个宝箱。`);
+        setNotice(`${spell ? `「${SPELL_KIND_META[spell].name}」命中，` : ''}收复了「${tile.term}」——复习阶段推进，这块地回到你手里，地上留下一个宝箱。`);
         await load();
       } catch (e) {
         setNotice(`${e instanceof Error ? e.message : String(e)}`);

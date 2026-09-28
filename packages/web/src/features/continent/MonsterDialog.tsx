@@ -14,7 +14,7 @@
  *
  * ★ 魔法吟唱（契约 `docs/SPELL-CHANT-SPEC.md`）：每次开怪**一次**机会——翻咒语书选一段历史对话吟唱，
  *   伤害 `damage`（shared 口径）= 掉 `damage` 滴血 = 替你答掉 `damage` 道题（「题数 = 血量」不破）。
- *   血掉光 ⇒ `onSolved(tile, 'spell')` ⇒ 父组件放咒语版特效。中断 / 哑火都算用掉，不能翻书试到共鸣为止。
+ *   血掉光 ⇒ `onSolved(tile, kind)`（这次释放化作的款式）⇒ 父组件放该款的咒语版特效。中断 / 哑火都算用掉，不能翻书试到共鸣为止。
  */
 import { useMemo, useState } from 'react';
 import {
@@ -23,6 +23,7 @@ import {
   gradeAnswer,
   type ContinentAnswer,
   type ContinentQuestion,
+  type SpellKind,
 } from '@sb/shared';
 import type { ContinentMapTerm } from '../../lib/api-terms-continent';
 import { cellLabel, tileStatusText, type ContinentTileView } from './continent-view';
@@ -31,15 +32,12 @@ import { SpellChant } from './SpellChant';
 import type { SpellPlan } from './spell-chant-view';
 import './spell-chant.css';
 
-/** 收复方式：`strike` = 常规答题；`spell` = 魔法吟唱补上最后一击（父组件据此换特效） */
-export type SolveVia = 'strike' | 'spell';
-
 interface Props {
   tile: ContinentTileView;
   /** 干扰项池（地图上全部词条） */
   pool: readonly ContinentMapTerm[];
-  /** 全部答对：父组件负责打卡 + 刷新 + 特效（`via` 省略即常规答题） */
-  onSolved: (tile: ContinentTileView, via?: SolveVia) => Promise<void> | void;
+  /** 全部答对：父组件负责打卡 + 刷新 + 特效（`spell` 省略即常规答题；给了就是魔法吟唱补刀的款式） */
+  onSolved: (tile: ContinentTileView, spell?: SpellKind) => Promise<void> | void;
   onClose: () => void;
 }
 
@@ -88,8 +86,8 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
     buildAnswer(current, judge, choice, fillText, matchPick),
   );
 
-  /** 掉 `damage` 滴血 = 往后跳 `damage` 道题；掉光即收复（常规打完不传 `via`，保持既有调用形状） */
-  const hurt = async (damage: number, via: SolveVia): Promise<void> => {
+  /** 掉 `damage` 滴血 = 往后跳 `damage` 道题；掉光即收复（常规打完不传 `spell`，保持既有调用形状） */
+  const hurt = async (damage: number, spell?: SpellKind): Promise<void> => {
     const left = hp - damage;
     if (left > 0) {
       setHp(left);
@@ -103,7 +101,7 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
     }
     setBusy(true);
     try {
-      await (via === 'spell' ? onSolved(tile, 'spell') : onSolved(tile));
+      await (spell ? onSolved(tile, spell) : onSolved(tile));
     } catch (e) {
       setNote(`保存复习记录失败：${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -117,14 +115,14 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
       setNote(`还不对。${correctText(current)}`);
       return;
     }
-    await hurt(1, 'strike');
+    await hurt(1);
   };
 
   /** 吟唱收尾：命中即掉血；哑火 / 中断只留一句话——但都算用掉这次机会 */
-  const endSpell = (damage: number, why: string): void => {
+  const endSpell = (why: string, cast?: { damage: number; kind: SpellKind }): void => {
     setSpell('used');
     setSpellPlan(null);
-    if (damage > 0) void hurt(damage, 'spell');
+    if (cast && cast.damage > 0) void hurt(cast.damage, cast.kind);
     else setNote(why);
   };
 
@@ -146,8 +144,8 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
         term={tile.term}
         title={spellPlan.title}
         plan={spellPlan.plan}
-        onCast={(damage) => endSpell(damage, '咒语哑火了——这只怪没掉血，继续答题吧。')}
-        onClose={() => endSpell(0, '吟唱中断——这次开怪的吟唱机会已用掉，剩下的血靠答题。')}
+        onCast={(damage, detail) => endSpell('咒语哑火了——这只怪没掉血，继续答题吧。', { damage, kind: detail.kind })}
+        onClose={() => endSpell('吟唱中断——这次开怪的吟唱机会已用掉，剩下的血靠答题。')}
       />
     );
   }

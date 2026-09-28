@@ -25,6 +25,7 @@ import {
   type ContinentLandSource,
   type ContinentQType,
   type ReviewStatus,
+  type SpellKind,
 } from '@sb/shared';
 import type { ContinentMapTerm } from '../../lib/api-terms-continent';
 
@@ -68,8 +69,8 @@ export interface ContinentTileView {
   isLand: boolean;
 }
 
-/** 收复特效的入参：那一格 + 是否由魔法吟唱补刀（`spell` ⇒ canvas 放三环十六火花的咒语版，契约 SPELL-CHANT §3.4） */
-export type ContinentBurst = ContinentTileView & { spell?: boolean };
+/** 收复特效的入参：那一格 + 若由魔法吟唱补刀则带上款式（`spell` ⇒ canvas 放该款的咒语版特效，契约 SPELL-CHANT §3.4） */
+export type ContinentBurst = ContinentTileView & { spell?: SpellKind };
 
 export interface ContinentView {
   tiles: ContinentTileView[];

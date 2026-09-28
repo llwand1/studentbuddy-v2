@@ -4,13 +4,18 @@
  * ★ 组件**不算口径**：像不像（`resonates` / `promptSimilarity` / `resonanceThreshold`）、遮多少（`maskPrompt`）、
  *   打多少（`chantPower` / `spellDamage`）全在 `shared/spell-chant.ts`；题目判分在 `SpellQuizVerse`（复用对话页判分）。
  * ★ 四个阶段：`chant`（逐节）→ `ready`（全部节完成，等一下「释放」）→ `cast`（释放动画）→ `done`（结算，回到战斗）。
- * ★ 动效纪律：法阵 / 光环全是 transform + opacity，`prefers-reduced-motion` 下跳过 `cast` 阶段直接结算。
+ * ★ 款式：吟唱开始时掷一次骰（`pickSpellKind`）决定这道咒语释放时化作五款里的哪一款——款式只改画面不改数值；
+ *   吟唱框按款式换色（`kind-*` class）并在头部亮出招式名，让人从第一节就知道自己在酿哪一招。
+ * ★ 动效纪律：法阵 / 光环全是 transform + opacity；释放特效是 `SpellFx` 的低清像素画布；命中帧（shared 表里的
+ *   `impactMs`）同时弹伤害数字 + 卡片震动；`prefers-reduced-motion` 下跳过 `cast` 阶段直接结算。
  * ★ 跳过 = 失谐、答错 = 失谐；哑火（0 伤害）也如实结算并交给父组件——不静默、不白送。
  */
 import { useEffect, useMemo, useState } from 'react';
 import {
+  SPELL_KIND_META,
   chantPower,
   maskPrompt,
+  pickSpellKind,
   promptSimilarity,
   resonanceThreshold,
   resonates,
@@ -18,17 +23,18 @@ import {
   spellDamage,
   type ChantVerse,
   type ChantVerseResult,
+  type SpellKind,
 } from '@sb/shared';
 import { castText, truncatedText, verseTitle, type SpellPlan } from './spell-chant-view';
+import { SpellFx } from './SpellFx';
 import { SpellQuizVerse } from './SpellQuizVerse';
-
-/** 释放动画时长（与 canvas 侧 `BURST_MS` 同量级；减少动态效果时为 0） */
-export const SPELL_CAST_MS = 1100;
 
 export interface SpellCastDetail {
   power: number;
   total: number;
   resonant: boolean;
+  /** 这次释放化作的款式（父组件据此换地图上的收复特效） */
+  kind: SpellKind;
 }
 
 interface Props {
@@ -37,6 +43,10 @@ interface Props {
   /** 咒语名（会话标题） */
   title: string;
   plan: SpellPlan;
+  /** 指定款式（缺省掷骰；测试与截图脚本用） */
+  kind?: SpellKind;
+  /** 特效种子（缺省随机；同 seed 同画面） */
+  seed?: number;
   /** 释放完成：`damage` 已按 shared 口径算好（可能为 0 = 哑火） */
   onCast: (damage: number, detail: SpellCastDetail) => void;
   /** 中断吟唱（本次开怪的机会已用掉，父组件负责说明） */
@@ -49,10 +59,17 @@ function calmMotion(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-export function SpellChant({ term, title, plan, onCast, onClose }: Props) {
+export function SpellChant({ term, title, plan, kind, seed, onCast, onClose }: Props) {
   const { verses, truncated, resonant } = plan;
   const [results, setResults] = useState<ChantVerseResult[]>([]);
   const [phase, setPhase] = useState<Phase>(verses.length ? 'chant' : 'ready');
+  /** 掷骰只掷一次：整段吟唱都是同一款 */
+  const [rolled] = useState(() => ({ kind: pickSpellKind(), seed: Math.floor(Math.random() * 2 ** 31) }));
+  const spellKind = kind ?? rolled.kind;
+  const fxSeed = seed ?? rolled.seed;
+  const meta = SPELL_KIND_META[spellKind];
+  /** 命中帧已到：伤害数字弹出 + 卡片震动 */
+  const [struck, setStruck] = useState(false);
 
   const vi = results.length;
   const current: ChantVerse | undefined = verses[vi];
@@ -73,16 +90,20 @@ export function SpellChant({ term, title, plan, onCast, onClose }: Props) {
 
   useEffect(() => {
     if (phase !== 'cast') return;
-    const id = window.setTimeout(() => setPhase('done'), SPELL_CAST_MS);
-    return () => window.clearTimeout(id);
-  }, [phase]);
+    const hit = window.setTimeout(() => setStruck(true), meta.impactMs);
+    const end = window.setTimeout(() => setPhase('done'), meta.durationMs);
+    return () => {
+      window.clearTimeout(hit);
+      window.clearTimeout(end);
+    };
+  }, [phase, meta]);
 
   const casting = phase === 'cast';
-  const detail: SpellCastDetail = { power, total: verses.length, resonant };
+  const detail: SpellCastDetail = { power, total: verses.length, resonant, kind: spellKind };
 
   return (
     <div className={casting ? 'continent-modal spell-modal casting' : 'continent-modal spell-modal'} role="dialog" aria-modal="true" aria-label={`吟唱 ${title}`}>
-      <div className={`continent-modal-card spell-card spell-chant phase-${phase}${resonant ? ' resonant' : ''}`}>
+      <div className={`continent-modal-card spell-card spell-chant phase-${phase} kind-${spellKind}${resonant ? ' resonant' : ''}${struck ? ' struck' : ''}`}>
         <i className="spell-circle" aria-hidden="true" />
         <i className="spell-circle inner" aria-hidden="true" />
 
@@ -91,6 +112,9 @@ export function SpellChant({ term, title, plan, onCast, onClose }: Props) {
             魔法吟唱
             <small>
               咒语「{title}」→ {term}
+              <b className="spell-tag spell-kind-tag" title={meta.blurb}>
+                {meta.name}
+              </b>
               {resonant && <b className="spell-tag">共鸣 ×2</b>}
             </small>
           </span>
@@ -127,7 +151,9 @@ export function SpellChant({ term, title, plan, onCast, onClose }: Props) {
         {phase === 'ready' && (
           <section className="spell-verse spell-ready">
             <p className="continent-q-prompt">
-              {power > 0 ? `咒语已成：${verses.length} 节里命中 ${power} 节${resonant ? '，且与这块地共鸣' : ''}。` : '咒语没有一节共鸣——释放出去也只会哑火。'}
+              {power > 0
+                ? `咒语已成：${verses.length} 节里命中 ${power} 节${resonant ? '，且与这块地共鸣' : ''}。这一次它会化作「${meta.name}」——${meta.blurb}。`
+                : '咒语没有一节共鸣——释放出去也只会哑火。'}
             </p>
             <footer className="continent-modal-foot">
               <button className="continent-btn primary spell-cast-btn" onClick={cast}>
@@ -139,17 +165,14 @@ export function SpellChant({ term, title, plan, onCast, onClose }: Props) {
 
         {casting && (
           <div className="spell-cast-fx" aria-hidden="true">
-            <i className="spell-ring r1" />
-            <i className="spell-ring r2" />
-            <i className="spell-ring r3" />
-            <i className="spell-flash" />
-            <b className="spell-cast-num">{damage}</b>
+            <SpellFx kind={spellKind} seed={fxSeed} />
+            {struck && <b className="spell-cast-num">{damage}</b>}
           </div>
         )}
 
         {phase === 'done' && (
           <section className="spell-verse spell-done" role="status">
-            <p className="continent-q-prompt">{castText(damage, power, verses.length, resonant)}</p>
+            <p className="continent-q-prompt">{castText(damage, power, verses.length, resonant, meta.name)}</p>
             <footer className="continent-modal-foot">
               <button className="continent-btn primary" onClick={() => onCast(damage, detail)}>
                 回到战斗

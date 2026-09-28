@@ -1,6 +1,7 @@
 /* spell-chant.css — 魔法吟唱（咒语书 / 吟唱框 / 释放特效），契约 docs/SPELL-CHANT-SPEC.md §3.4
    视觉约定：沿用 continent.css 的弹窗骨架（.continent-modal / -card / -btn / -note），本文件只加「法阵」层：
-   金色（--sb-gold）为咒语色、血红（--sb-primary）为怪物色；动效**只动 transform / opacity**，
+   金色（--sb-gold）为咒语色、血红（--sb-primary）为怪物色，掷到的款式再给卡片染一层 --spell-accent；
+   释放特效本体在 canvas（spell-fx-*.ts），CSS 只管舞台、伤害数字与卡片震动；动效**只动 transform / opacity**，
    节奏用 steps()（像素风一贯口径），文件末尾按 prefers-reduced-motion 逐条降级。 */
 
 /* ── 弹窗骨架增补 ─────────────────────────────────────────── */
@@ -41,6 +42,54 @@
   color: #1a1207;
   background: var(--sb-gold);
   border: 1px solid var(--sb-gold-edge);
+}
+
+/* ── 款式主题：掷到哪款，卡片就染哪款的色（边框光晕 / 内圈 / 款式标签 / 伤害数字同一色）──
+   色值 = 各款调色板里最亮的主色（packages/web/src/features/continent/spell-fx-art.ts FX_PAL），
+   咒语书与未掷骰的卡片落回金色。 */
+.spell-card {
+  --spell-accent: var(--sb-gold);
+  --spell-accent-soft: rgba(255, 210, 122, 0.32);
+}
+
+.spell-card.kind-dusk {
+  --spell-accent: #ff2a3c;
+  --spell-accent-soft: rgba(255, 42, 60, 0.36);
+}
+
+.spell-card.kind-grace {
+  --spell-accent: #f2b632;
+  --spell-accent-soft: rgba(242, 182, 50, 0.36);
+}
+
+.spell-card.kind-leaf {
+  --spell-accent: #e8567a;
+  --spell-accent-soft: rgba(232, 86, 122, 0.36);
+}
+
+.spell-card.kind-sylph {
+  --spell-accent: #3ddc84;
+  --spell-accent-soft: rgba(61, 220, 132, 0.36);
+}
+
+.spell-card.kind-salamander {
+  --spell-accent: #ff5e1a;
+  --spell-accent-soft: rgba(255, 94, 26, 0.36);
+}
+
+.spell-card.spell-chant {
+  border-color: var(--spell-accent);
+  box-shadow: 0 0 0 2px #000, 0 0 28px var(--spell-accent-soft), var(--sb-shadow-2);
+}
+
+.spell-card.spell-chant .spell-circle.inner {
+  border-color: var(--spell-accent-soft);
+}
+
+.spell-kind-tag {
+  color: #120b12;
+  background: var(--spell-accent);
+  border-color: #000;
 }
 
 /* ── 咒语书 ────────────────────────────────────────────────── */
@@ -309,106 +358,97 @@
 
 .spell-modal.casting .spell-circle {
   animation-duration: 1.2s;
-  border-color: var(--sb-gold);
+  border-color: var(--spell-accent);
 }
 
-/* 释放时正文已卸下，给法阵与伤害数字留出舞台 */
+/* 释放时正文已卸下，整张卡片就是舞台 */
 .spell-card.phase-cast {
-  min-height: 320px;
+  min-height: 340px;
 }
 
+/* 舞台自带底色（与 tools/probes/spell-fx-sheet.mts 的底色一致）：低清画布铺满，不让底下的头部透出来 */
 .spell-cast-fx {
   position: absolute;
   z-index: 2;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: #120b12;
   pointer-events: none;
 }
 
-.spell-ring {
-  position: absolute;
-  width: 80px;
-  height: 80px;
-  border: 3px solid var(--sb-gold);
-  border-radius: 50%;
-  opacity: 0;
-  animation: spell-ring 1100ms steps(10, end) forwards;
-}
-
-.spell-ring.r2 {
-  border-color: var(--sb-primary);
-  animation-delay: 140ms;
-}
-
-.spell-ring.r3 {
-  border-width: 2px;
-  animation-delay: 280ms;
-}
-
-@keyframes spell-ring {
-  0% {
-    opacity: 0;
-    transform: scale(0.2);
-  }
-
-  20% {
-    opacity: 1;
-  }
-
-  100% {
-    opacity: 0;
-    transform: scale(6);
-  }
-}
-
-.spell-flash {
+/* 低清画布（高 120 像素）靠 CSS 拉满：必须 pixelated，否则浏览器会把像素块抹成糊 */
+.spell-fx {
   position: absolute;
   inset: 0;
-  background: var(--sb-gold);
-  opacity: 0;
-  animation: spell-flash 1100ms steps(6, end) forwards;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
 }
 
-@keyframes spell-flash {
-  0% {
-    opacity: 0;
-  }
-
-  30% {
-    opacity: 0.55;
-  }
-
-  100% {
-    opacity: 0;
-  }
-}
-
+/* 伤害数字：命中帧一到才挂上（与 canvas 的命中帧同一张表），落在靶子上方——数字不压怪 */
 .spell-cast-num {
-  position: relative;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 18%;
+  text-align: center;
   font-family: var(--sb-font-display);
   font-size: 56px;
   font-weight: 700;
-  color: var(--sb-gold);
-  text-shadow: 3px 3px 0 #000, 0 0 18px rgba(255, 210, 122, 0.9);
-  animation: spell-num 1100ms steps(8, end) forwards;
+  line-height: 1;
+  color: var(--spell-accent);
+  text-shadow: 3px 3px 0 #000, -2px 0 0 #000, 0 -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 0 0 18px var(--spell-accent-soft);
+  animation: spell-num 700ms steps(6, end) forwards;
 }
 
 @keyframes spell-num {
   0% {
     opacity: 0;
-    transform: scale(0.4) translateY(20px);
+    transform: scale(0.4) translateY(14px);
   }
 
-  35% {
+  40% {
     opacity: 1;
-    transform: scale(1.2) translateY(0);
+    transform: scale(1.25) translateY(0);
   }
 
   100% {
     opacity: 1;
-    transform: scale(1) translateY(-6px);
+    transform: scale(1) translateY(-4px);
+  }
+}
+
+/* 命中帧：整张卡片按帧抖几下（steps(1) = 每段直接跳、不插值）；canvas 内的震屏由引擎自己按帧给 */
+.spell-card.struck {
+  animation: spell-shake 400ms steps(1, end);
+}
+
+@keyframes spell-shake {
+  0% {
+    transform: translate(-6px, 3px);
+  }
+
+  17% {
+    transform: translate(5px, -4px);
+  }
+
+  34% {
+    transform: translate(-4px, 2px);
+  }
+
+  51% {
+    transform: translate(3px, 2px);
+  }
+
+  68% {
+    transform: translate(-2px, -1px);
+  }
+
+  85% {
+    transform: translate(1px, 1px);
+  }
+
+  100% {
+    transform: translate(0, 0);
   }
 }
 
@@ -423,8 +463,7 @@
   .spell-rune.now,
   .spell-cast-btn,
   .spell-verse,
-  .spell-ring,
-  .spell-flash,
+  .spell-card.struck,
   .spell-cast-num {
     animation: none;
   }

@@ -21,6 +21,7 @@ import {
   type ContinentQuestion,
 } from '@sb/shared';
 import type { ContinentMapTerm } from '../../lib/api-terms-continent';
+import { MonsterBattle } from './MonsterBattle';
 import { cellLabel, tileStatusText, type ContinentTileView } from './continent-view';
 
 interface Props {
@@ -65,6 +66,9 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
   const [fillText, setFillText] = useState('');
   const [matchPick, setMatchPick] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
+  /** 横版演出用：答错次数 + 是否已打出最后一击（答对数由 hp 推出） */
+  const [misses, setMisses] = useState(0);
+  const [finished, setFinished] = useState(false);
 
   const current = questions[qi];
   const answered = gradeAnswer(
@@ -76,6 +80,7 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
     if (!current || busy) return;
     if (!answered) {
       setNote(`还不对。${correctText(current)}`);
+      setMisses((m) => m + 1);
       return;
     }
     const left = hp - 1;
@@ -90,6 +95,7 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
       return;
     }
     setBusy(true);
+    setFinished(true);
     try {
       await onSolved(tile);
     } catch (e) {
@@ -113,6 +119,8 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
             关闭
           </button>
         </header>
+
+        <MonsterBattle maxHp={questions.length} hits={questions.length - hp + (finished ? 1 : 0)} misses={misses} term={tile.term} />
 
         {/* 血条：题数 = 血量（每答对一道掉一滴） */}
         <div className="continent-hp">

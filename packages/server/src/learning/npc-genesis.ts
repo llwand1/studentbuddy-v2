@@ -20,6 +20,12 @@ import {
   normalizeNpcName,
   npcNameFromPool,
   npcTemplateBio,
+  NPC_JOB_LABEL,
+  NPC_JOB_STYLE,
+  NPC_MOOD_LABEL,
+  NPC_MOOD_STYLE,
+  type NpcJob,
+  type NpcMood,
 } from '@sb/shared';
 import { routeRole } from '../llm/router.js';
 import type { ChatMessage } from '../llm/types.js';
@@ -43,16 +49,18 @@ export function resolveNpcTarget(ownerId: string | null) {
   return routeRole('explain', undefined, ownerId) ?? own;
 }
 
-function buildGenesisPrompt(term: string, domain: string): string {
+function buildGenesisPrompt(term: string, domain: string, job?: NpcJob, mood?: NpcMood): string {
   return [
     `你在给知识大陆上的一位新学习伙伴写"身份卡"。他守的词条是「${term}」，领域是「${domain}」。`,
+    job ? `他的职业是${NPC_JOB_LABEL[job]}（古典剑与魔法世界）。${NPC_JOB_STYLE[job]}` : '',
+    mood ? `他的性格是「${NPC_MOOD_LABEL[mood]}」。${NPC_MOOD_STYLE[mood]}` : '',
     '严格只回一个 JSON 对象，不要代码块、不要解释、不要多余的字：',
     '{"name":"名字","bio":"一句自我介绍"}',
     'name 要求：2~6 个字，像一个住在附近的人的名字或绰号；不要「助手」「AI」「小助手」这类词。',
     `bio 要求：不超过 ${NPC_BIO_MAX} 字，第一人称，一句话，带一点脾气或习惯（例：爱较真、说话慢、总忘事）。`,
     `只许谈「${term}」和「${domain}」这一块。`,
     '★ 不要编造用户的学习进度、复习数字、卡牌数量、欠账——那些由别的面板说，你说了就会和它们对不上。',
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 /**
@@ -80,6 +88,8 @@ export async function generateNpcIdentity(opts: {
   termId: string;
   term: string;
   domain: string;
+  job?: NpcJob;
+  mood?: NpcMood;
   signal?: AbortSignal;
 }): Promise<NpcIdentity> {
   const fallback = (): NpcIdentity => ({
@@ -91,7 +101,7 @@ export async function generateNpcIdentity(opts: {
   if (!target?.model || !target.apiKey) return fallback();
 
   const messages: ChatMessage[] = [
-    { role: 'system', content: buildGenesisPrompt(opts.term, opts.domain) },
+    { role: 'system', content: buildGenesisPrompt(opts.term, opts.domain, opts.job, opts.mood) },
     { role: 'user', content: '给他起个名字和一句自我介绍。' },
   ];
   let acc = '';

@@ -107,7 +107,7 @@ interface TermIndex {
   add(term: string, domain: string, id: string, aliases?: string[]): void;
 }
 
-function buildTermIndex(ownerId: string | null): TermIndex {
+export function buildTermIndex(ownerId: string | null): TermIndex {
   const rows = getDb()
     .prepare('SELECT id, term, domain, aliases FROM term_library WHERE owner_id = ?')
     .all(ownerForWrite(ownerId)) as Array<Pick<TermRow, 'id' | 'term' | 'domain' | 'aliases'>>;

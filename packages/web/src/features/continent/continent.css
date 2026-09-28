@@ -534,3 +534,29 @@
 .continent-detail .continent-btn {
   align-self: flex-start;
 }
+/* 招募面板（2026-09-28）：职业 / 性格两排选项 + 守护词条说明 */
+.continent-recruit { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.continent-recruit-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.continent-recruit-label { min-width: 3em; font-weight: 700; color: var(--sb-gold, #c9a24a); }
+.continent-recruit-hint { margin: 0; font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary); }
+.continent-recruit-on { color: var(--sb-gold, #c9a24a) !important; box-shadow: inset 0 0 0 2px var(--sb-gold, #c9a24a), 3px 3px 0 #000 !important; }
+
+/* 横版讨伐战（2026-09-28）：打怪弹窗顶部的战场画面 */
+.continent-battle { margin: 0 0 12px; }
+.continent-battle-canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; image-rendering: pixelated; background: #07050a; box-shadow: inset 0 0 0 2px #000, 0 0 0 1px #5a4420; }
+.continent-battle-cap { margin: 6px 0 0; font-size: var(--sb-fs-sm); color: var(--sb-ink-tertiary); text-align: center; }
+
+/* 余烬笺（2026-09-28）：异色篝火里浮出的那张笺 + 地块详情里的写笺面板 */
+.continent-ember-card { --eh1: #7ff0ff; --eh2: #1aa3c2; }
+.ember-hue-violet { --eh1: #d6a8ff; --eh2: #7a3cc9; }
+.ember-hue-gold { --eh1: #ffe08a; --eh2: #c98a1a; }
+.ember-hue-green { --eh1: #a8ffb0; --eh2: #2f9e48; }
+.continent-ember-term { margin: 4px 0 10px; font: 800 24px/1.3 var(--sb-font-display, inherit); color: var(--sb-ink); text-shadow: 0 0 16px var(--eh2), 2px 2px 0 #000; }
+.continent-ember-body { margin: 0 0 10px; padding: 12px 14px; line-height: 1.9; color: #e9dcc4; background: linear-gradient(#2a1f18, #1e1612); box-shadow: inset 0 0 0 1px #5a4420, 3px 3px 0 #000; }
+.continent-ember-sign { margin: 0 0 12px; text-align: right; font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary); }
+.continent-ember-sign b { color: var(--eh1); }
+.continent-ember-mine { margin: 8px 0; padding: 8px 10px; font-size: var(--sb-fs-sm); color: #e9dcc4; background: rgba(0, 0, 0, .35); box-shadow: inset 0 0 0 1px #5a4420; }
+.continent-ember-write { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.continent-ember-hint { margin: 0; font-size: 11px; color: var(--sb-ink-tertiary); }
+.continent-detail-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.continent-ember-banner { box-shadow: inset 3px 0 0 #7ff0ff, var(--gr-frame, none) !important; }

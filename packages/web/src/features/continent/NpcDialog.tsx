@@ -15,6 +15,7 @@
  * ★ 交换**不花钥匙、不扣卡**（卡是流水派生的读数，见 SPEC §6.3）：所以本面板呈现的代价是
  *   "今天还能换 N 次"+ 信物门槛（★1 以上），并把那句话原样说出来，不许写成"消耗一张卡"。
  */
+import { NPC_JOB_LABEL, NPC_MOOD_LABEL } from '@sb/shared';
 import { useState } from 'react';
 import { NPC_FALLBACK_NOTICE, NPC_TRADE_COST_LINE } from '@sb/shared';
 import { api } from '../../lib/api';
@@ -158,6 +159,8 @@ export function NpcDialog({
           <span className="continent-modal-title">
             {npc.name}
             <small>
+              {npc.job ? `${NPC_JOB_LABEL[npc.job]} · ` : ''}
+              {npc.mood ? `${NPC_MOOD_LABEL[npc.mood]} · ` : ''}
               守「{npc.term}」· {npc.domain}
               {npc.bio ? ` · ${npc.bio}` : ''}
             </small>

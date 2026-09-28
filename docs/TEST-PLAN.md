@@ -46,6 +46,8 @@
 | `src/routes/npc.test.ts` | 12 | **伙伴 HTTP（第 12 次改动时改写，supertest）**：① `GET /api/npc` 一次读全（`quota`/`spots`/`tradesLeft`/`npcs[].bio`）；② 空库固化空册且加词条也不凭空冒人；③ `POST /api/npc` 首位无条件创建（回整份新状态 + `memberId` + `source`）、逐格 409、非整数 400、第 2 位门票 409；④ `PUT /:id` 改名（成功/空串 400/未知 404）；⑤ `DELETE /:id` 真删且位置与名额都空出来；⑥ `talk` 无 key ⇒ 200+`fallback`；⑦ `trade` 未知 404／缺参 400／★0 409；⑧ 归属隔离（B 拿到空、改不到 A） |
 | `src/features/continent/NpcDialog.test.tsx` | 3 | 伙伴对话面板（第 12 次改动）：① `source='fallback'` 时显示「靠固定台词应答」并给设置指引；② 无 `cards>=2` 的词条时交换按钮禁用且文案说明门槛；③ 人设显示在标题旁；「让他回家」**两段式**（第一下只上膛不调服务端、第二下才真送走） |
 | `src/features/continent/continent-partners.test.tsx` | 7 | **伙伴取数与写口（第 12 次改动时新增）**：① 两个只读口并发读一次、信物只留 `cards>=2`；② 不能创建 ⇒ 只说 `blockedBy`、**不进**选位态；③ 能创建 ⇒ 进选位态并把 `spots` 交给地图；④ 创建成功 ⇒ 退出选位态 + 换上新状态 + `fallback` 时补一句"名字是本地起的"；⑤ 名字是 AI 起的时不多嘴；⑥ 失败**留在选位态**并原样说服务端那句（不许换成"创建失败"）；⑦ 改名与解散换上整份新状态 |
+| `src/routes/ember.test.ts` | 3 | **余烬笺路由（2026-09-28 新增）**：写笺须署名并明示公开；别人地块上的笺才会被揭开；收入卡册/致谢一人一次；撤回后不再可见；自己的笺不给自己揭 |
+| `src/features/continent/continent-ember.test.tsx` | 2 | **余烬笺前端**：① 揭开的笺显示作者署名与致谢数、收入卡册/添柴各自回调；② 地块详情写笺（带署名、写前提示同意公开）后切到「你的余烬笺」 |
 
 > 2026-09-26 像素 UI：本次以 `origin/main @ 60dacb2` 为基线，开工 build/check 实测 204 文件、2765 passed＋1 skipped。仅加入前端视觉与交互回归，不改游戏数值、数据库、服务端测试结构；本次最终 build/check 实测 207 文件、2774 passed＋1 skipped（2775 例），tsc/eslint/gates 全绿；OG 22 张重建通过；完整指标对账另见 CHANGELOG 对应行。
 

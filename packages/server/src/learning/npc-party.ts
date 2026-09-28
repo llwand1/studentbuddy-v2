@@ -19,6 +19,8 @@ import {
   continentHash,
   npcCapFor,
   npcIdOf,
+  npcJobOf,
+  npcMoodOf,
   npcNameFromPool,
   npcTasksRequiredFor,
   npcTemplateBio,
@@ -26,6 +28,8 @@ import {
   parseNpcParty,
   worldRadiusFor,
   type NpcPartyMember,
+  type NpcJob,
+  type NpcMood,
   // ★ `NpcQuota` 的形状定义在 `@sb/shared`（两端都要读它：地图页说"能不能创建"、任务清单说
   //   "还差几单"）；本文件只负责**算**它。定义与计算分家，是为了不让 web 再写一份镜像。
   type NpcQuota,
@@ -152,6 +156,8 @@ function starterMember(scan: MapScan): NpcPartyMember | null {
     termId: first.termId,
     row: first.row,
     col: first.col,
+    job: npcJobOf({ termId: first.termId }),
+    mood: npcMoodOf({ termId: first.termId }),
   };
 }
 
@@ -198,6 +204,8 @@ export async function createPartner(
   ownerId: string | null,
   row: number,
   col: number,
+  /** 玩家在招募面板里选的职业与性格（缺省/非法 ⇒ 按词条散列的稳定默认，不报错） */
+  pick: { job?: unknown; mood?: unknown } = {},
 ): Promise<NpcCreateResult> {
   const scan = scanMap(ownerId);
   const members = syncParty(ownerId, scan);
@@ -229,11 +237,15 @@ export async function createPartner(
     }
   }
 
+  const job: NpcJob = npcJobOf({ job: pick.job, termId: cell.termId });
+  const mood: NpcMood = npcMoodOf({ mood: pick.mood, termId: cell.termId });
   const identity = await generateNpcIdentity({
     ownerId,
     termId: cell.termId,
     term: cell.term,
     domain: cell.domain,
+    job,
+    mood,
   });
   const member: NpcPartyMember = {
     id: npcIdOf(cell.termId),
@@ -242,6 +254,8 @@ export async function createPartner(
     termId: cell.termId,
     row: cell.row,
     col: cell.col,
+    job,
+    mood,
   };
   saveParty(ownerId, [...members, member]);
   return { ok: true, member, source: identity.source };

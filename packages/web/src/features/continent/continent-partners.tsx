@@ -21,7 +21,7 @@
  *   不是第二份结论；`NpcDialog` 打开的是 `id` 而不是对象，故地图刷新后名字/处境永远是最新的。
  */
 import { useCallback, useMemo, useState } from 'react';
-import { NPC_TRADE_MIN_CARDS } from '@sb/shared';
+import { NPC_JOBS, NPC_JOB_LABEL, NPC_MOODS, NPC_MOOD_LABEL, NPC_TRADE_MIN_CARDS, type NpcJob, type NpcMood } from '@sb/shared';
 import { api } from '../../lib/api';
 import type { NpcState, NpcView } from '../../lib/api-npc';
 import type { ContinentNpcMark } from './ContinentMap';
@@ -44,6 +44,8 @@ export function useContinentPartners(onNotice: (text: string) => void) {
   const [partners, setPartners] = useState<NpcState | null>(null);
   const [tokens, setTokens] = useState<NpcToken[]>([]);
   const [placing, setPlacing] = useState(false);
+  /** 招募面板里选好的职业与性格（选位态期间有效；守护词条 = 玩家点的那一格） */
+  const [pick, setPick] = useState<{ job: NpcJob; mood: NpcMood }>({ job: 'mage', mood: 'warm' });
 
   const refresh = useCallback(async () => {
     const [cards, npc] = await Promise.all([api.cards.state(), api.npc.state()]);
@@ -57,11 +59,11 @@ export function useContinentPartners(onNotice: (text: string) => void) {
 
   /** 创建一位伙伴（位置 = 玩家点的那一格）。★ 服务端回整份新状态，直接换上，不重取 */
   const create = useCallback(async (row: number, col: number): Promise<NpcCreated> => {
-    const r = await api.npc.create(row, col);
+    const r = await api.npc.create(row, col, pick);
     setPartners(r.state);
     const m = r.state.npcs.find((n) => n.id === r.memberId);
     return { name: m?.name ?? '伙伴', bio: m?.bio ?? '', source: r.source };
-  }, []);
+  }, [pick]);
 
   /** 改名：服务端回整份新状态（名字也出现在横幅与任务清单里） */
   const rename = useCallback(async (id: string, name: string): Promise<string> => {
@@ -85,7 +87,7 @@ export function useContinentPartners(onNotice: (text: string) => void) {
       return;
     }
     setPlacing(true);
-    onNotice('点地图上一格，把伙伴安置在那儿——他得有块「有词条、没冒怪」的地。');
+    onNotice('选好职业与性格，再点地图上一格——他会守那一格上的词条。');
   }, [partners, onNotice]);
 
   const cancelCreate = useCallback(() => setPlacing(false), []);
@@ -128,6 +130,7 @@ export function useContinentPartners(onNotice: (text: string) => void) {
         row: n.row,
         col: n.col,
         distressed: n.distressed,
+        job: n.job,
       })),
     [partners],
   );
@@ -139,6 +142,8 @@ export function useContinentPartners(onNotice: (text: string) => void) {
     marks,
     distressed,
     placing,
+    pick,
+    setPick,
     placeSpots,
     refresh,
     create,
@@ -158,6 +163,9 @@ interface Props {
   npcOpenId: string | null;
   /** 正在选位（状态在 `useContinentPartners` 里，页面只把它透传下来） */
   placing: boolean;
+  /** 招募面板的选择（职业 / 性格）与改写口 */
+  pick: { job: NpcJob; mood: NpcMood };
+  onPick: (next: { job: NpcJob; mood: NpcMood }) => void;
   onClose: () => void;
   /** 「去救他」：★ **不代打**，只把人送到能打的格（页面持有英雄控制器） */
   onRescue: (threatTermId: string) => void;
@@ -176,6 +184,8 @@ export function ContinentPartners({
   distressed,
   npcOpenId,
   placing,
+  pick,
+  onPick,
   onClose,
   onRescue,
   onRename,
@@ -202,12 +212,34 @@ export function ContinentPartners({
 
       {/* ★ ③ 宣传点「创建你的 AI 学习伙伴」的入口 + 名额门票的**进度说在明面上** */}
       {placing ? (
-        <p className="continent-banner">
-          点地图上一格，把伙伴安置在那儿——他得有块「有词条、没冒怪」的地。
-          <button type="button" className="continent-btn ghost" onClick={onCancelCreate}>
-            取消安置
-          </button>
-        </p>
+        <div className="continent-banner continent-recruit" role="group" aria-label="招募伙伴">
+          <div className="continent-recruit-row">
+            <span className="continent-recruit-label">职业</span>
+            {NPC_JOBS.map((j) => (
+              <button key={j} type="button" aria-pressed={pick.job === j}
+                className={pick.job === j ? 'continent-btn continent-recruit-on' : 'continent-btn'}
+                onClick={() => onPick({ ...pick, job: j })}>
+                {NPC_JOB_LABEL[j]}
+              </button>
+            ))}
+          </div>
+          <div className="continent-recruit-row">
+            <span className="continent-recruit-label">性格</span>
+            {NPC_MOODS.map((m) => (
+              <button key={m} type="button" aria-pressed={pick.mood === m}
+                className={pick.mood === m ? 'continent-btn continent-recruit-on' : 'continent-btn'}
+                onClick={() => onPick({ ...pick, mood: m })}>
+                {NPC_MOOD_LABEL[m]}
+              </button>
+            ))}
+          </div>
+          <p className="continent-recruit-hint">
+            守护词条：点地图上一格（得是「有词条、没冒怪」的地），他就守那一格上的词条；名字与人设由 AI 按你选的职业和性格来写。
+            <button type="button" className="continent-btn ghost" onClick={onCancelCreate}>
+              取消招募
+            </button>
+          </p>
+        </div>
       ) : (
         quota && (
           <p className={quota.canCreate ? 'continent-banner' : 'continent-banner dim'}>
@@ -215,11 +247,11 @@ export function ContinentPartners({
               ? '大陆上还没有伙伴。'
               : `已有 ${quota.count} 位伙伴（这块大陆最多 ${quota.max} 位）· 已完成 ${quota.doneTasks} 单任务。`}
             {quota.canCreate
-              ? ' 创建你的 AI 学习伙伴——他会自己起个名字，说一句自己的脾气。'
+              ? ' 招募你的 AI 学习伙伴——选职业与性格、挑一块地让他守，名字与人设由 AI 来写。'
               : ` ${quota.blockedBy}`}
             {quota.canCreate && (
               <button type="button" className="continent-btn" onClick={onStartCreate}>
-                创建伙伴
+                招募伙伴
               </button>
             )}
           </p>

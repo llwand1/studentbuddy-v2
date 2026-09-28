@@ -35,7 +35,7 @@ import {
   drawHero,
   drawLand,
   drawMonster,
-  drawNpc,
+  drawNpc, drawEmber,
   drawSprout,
   drawTile,
 } from './continent-canvas';
@@ -67,6 +67,7 @@ interface Props {
    * ★ 内容由服务端给（`GET /api/npc` 的 `spots`）：前端不重算铺格/领地，自己算就是第二份口径。
    */
   placeSpots?: readonly ContinentCell[];
+  ember?: { row: number; col: number; hue: string } | null;
   hero: HeroCell | null;
   heroFrom: { row: number; col: number } | null;
   /** 这一步的起始时刻（`performance.now()`），插值用 */
@@ -89,7 +90,7 @@ export function ContinentMap({
   tiles,
   wildLands,
   radius,
-  placeSpots = NO_SPOTS,
+  placeSpots = NO_SPOTS, ember = null,
   hero,
   heroFrom,
   heroStart,
@@ -170,11 +171,12 @@ export function ContinentMap({
       tiles.forEach((t, i) => {
         if (t.hasMonster && shown(t.row, t.col)) drawMonster(ctx, t, popOf(i), now);
       });
+      if (ember && shown(ember.row, ember.col)) drawEmber(ctx, ember, reducedMotion ? 0 : now);
       // ★ 伙伴画在**怪之上**（"他在怪的地盘上"要看得见）、**英雄之下**（玩家自己的角色永不被遮）
       npcs.forEach((n, i) => {
         if (!shown(n.row, n.col)) return;
         const idle = reducedMotion ? 0 : Math.round(Math.sin(now / 520) * 1.5) + (i % 2);
-        drawNpc(ctx, n, idle, n.distressed, reducedMotion ? 1 : pulse);
+        drawNpc(ctx, n, idle, n.distressed, reducedMotion ? 1 : pulse, n.job);
       });
       if (hero) {
         const k = reducedMotion || !heroFrom ? 1 : Math.min((now - heroStart) / STEP_MS, 1);
@@ -200,7 +202,7 @@ export function ContinentMap({
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [tiles, wildLands, tilesKey, hover, focus, burst, hero, heroFrom, heroStart, chests, npcs, cam, placeSpots]);
+  }, [tiles, wildLands, tilesKey, hover, focus, burst, hero, heroFrom, heroStart, chests, npcs, cam, placeSpots, ember]);
 
   /** 事件坐标 → **世界格**：视口比例换算 + 相机偏移（CSS 缩放后也准） */
   const at = (canvas: HTMLCanvasElement, clientX: number, clientY: number): ContinentCell => {

@@ -137,6 +137,48 @@ export interface NpcPartyMember {
   termId: string;
   row: number;
   col: number;
+  /** 职业（2026-09-28，创建时玩家选；旧名册没有 ⇒ 读侧按 termId 散列给一个稳定默认，见 `npcJobOf`） */
+  job?: NpcJob;
+  /** 性格（同上；决定他说话的口气，见 `NPC_MOOD_STYLE`） */
+  mood?: NpcMood;
+}
+
+/**
+ * 伙伴的职业与性格（2026-09-28，兑现首页「招募你的 AI 学习伙伴」演示里的三选）。
+ * ★ 守护词条不单列：玩家点哪一格，他就守那一格上的词条——位置即选择。
+ * ★ 职业决定地图上的立绘与他擅长的帮法；性格决定口气。两者都只影响**说法**，不影响名额、交换、求救这些账。
+ */
+export const NPC_JOBS = ['mage', 'knight', 'ranger', 'bard'] as const;
+export type NpcJob = (typeof NPC_JOBS)[number];
+export const NPC_MOODS = ['stern', 'warm', 'snark'] as const;
+export type NpcMood = (typeof NPC_MOODS)[number];
+
+export const NPC_JOB_LABEL: Record<NpcJob, string> = { mage: '法师', knight: '骑士', ranger: '游侠', bard: '吟游诗人' };
+export const NPC_MOOD_LABEL: Record<NpcMood, string> = { stern: '严厉导师', warm: '热心学长', snark: '毒舌搭档' };
+
+/** 给模型的职业口吻：只描述"怎么帮"，不许编造用户进度 */
+export const NPC_JOB_STYLE: Record<NpcJob, string> = {
+  mage: '你是法师：爱追问原理，喜欢用「为什么」把人逼到真正理解。',
+  knight: '你是骑士：讲究规矩和步骤，喜欢把知识拆成一步一步的操练。',
+  ranger: '你是游侠：擅长找线索和联系，爱把这条词条和身边的现象连起来。',
+  bard: '你是吟游诗人：爱讲故事、打比方，喜欢用一个小故事把概念讲活。',
+};
+export const NPC_MOOD_STYLE: Record<NpcMood, string> = {
+  stern: '性格严厉：话少、直接、不给糖，答得含糊就让对方重说。',
+  warm: '性格热心：耐心、爱鼓励，先给一点小线索再让对方自己想。',
+  snark: '性格毒舌：嘴上不饶人但心是好的，爱调侃，也会真的帮忙。',
+};
+
+function pickBy<T>(list: readonly T[], key: string, salt: string): T {
+  return list[continentHash(`${salt}|${key}`) % list.length] as T;
+}
+
+/** 职业归一化：合法值原样；缺失/非法 ⇒ 按 termId 散列的稳定默认（旧名册升级后不会每次刷新换职业） */
+export function npcJobOf(m: { job?: unknown; termId: string }): NpcJob {
+  return (NPC_JOBS as readonly unknown[]).includes(m.job) ? (m.job as NpcJob) : pickBy(NPC_JOBS, m.termId, 'job');
+}
+export function npcMoodOf(m: { mood?: unknown; termId: string }): NpcMood {
+  return (NPC_MOODS as readonly unknown[]).includes(m.mood) ? (m.mood as NpcMood) : pickBy(NPC_MOODS, m.termId, 'mood');
 }
 
 /**
@@ -266,6 +308,8 @@ export function parseNpcParty(raw: string): NpcPartyMember[] {
       termId,
       row,
       col,
+      job: npcJobOf({ job: m.job, termId }),
+      mood: npcMoodOf({ mood: m.mood, termId }),
     });
     if (out.length >= NPC_MAX_CAP) break;
   }

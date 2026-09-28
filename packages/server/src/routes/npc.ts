@@ -30,13 +30,13 @@ npcRouter.get('/', (req: Request, res: Response) => {
  * ★ 返回 `source`：`'fallback'` 时 UI 必须如实说一句"名字是本地起的"（降级可以，假装没降级不行）。
  */
 npcRouter.post('/', async (req: Request, res: Response) => {
-  const { row, col } = req.body as { row?: unknown; col?: unknown };
+  const { row, col, job, mood } = req.body as { row?: unknown; col?: unknown; job?: unknown; mood?: unknown };
   if (!Number.isInteger(row) || !Number.isInteger(col)) {
     res.status(400).json({ error: 'row / col 必须是整数格坐标' });
     return;
   }
   const ownerId = ownerIdOf(req);
-  const r = await createPartner(ownerId, row as number, col as number);
+  const r = await createPartner(ownerId, row as number, col as number, { job, mood });
   if (!r.ok) {
     res.status(r.status).json({ error: r.error });
     return;

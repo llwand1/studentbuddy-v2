@@ -254,7 +254,7 @@ export function drawHero(
 }
 
 /**
- * 学习伙伴（NPC）：落地页招募章同款的游侠立绘（兜帽 + 长弓），缩到 2 倍。
+ * 学习伙伴（NPC）：落地页招募章同款的职业立绘（法师 / 骑士 / 游侠 / 吟游诗人），缩到 2 倍。
  * ★ 与英雄靠**轮廓**区分（兜帽高挑 + 背弓 vs 红披风矮个），不只靠颜色。
  * ★ `bob` 整数像素起伏；`pulse` 控制遇险红「！」的呼吸（静止时停在当前相位）。
  */
@@ -264,10 +264,11 @@ export function drawNpc(
   bob: number,
   distressed: boolean,
   pulse = 0.5,
+  job = 'ranger',
 ): void {
   const cx = Math.round(spot.col * CELL + CELL / 2);
   const cy = Math.round(spot.row * CELL + CELL / 2 + bob);
-  const art = NPC_ART.ranger ?? NPC_ART.mage!;
+  const art = NPC_ART[job] ?? NPC_ART.ranger!;
   ctx.globalAlpha = 1;
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
   ctx.fillRect(cx - 10, cy + 13 - bob, 20, 3);
@@ -309,4 +310,37 @@ export function drawBurst(ctx: CanvasRenderingContext2D, t: CellRef, age: number
     ctx.fillRect(Math.round(cx + Math.cos(ang) * d), Math.round(cy + Math.sin(ang) * d), 3, 3);
   }
   ctx.globalAlpha = 1;
+}
+const EMBER_HUE: Record<string, [string, string]> = {
+  cyan: ['#7ff0ff', '#1aa3c2'],
+  violet: ['#d6a8ff', '#7a3cc9'],
+  gold: ['#ffe08a', '#c98a1a'],
+  green: ['#a8ffb0', '#2f9e48'],
+};
+
+/** 余烬笺的异色篝火：光晕 + 柴堆 + 两帧跳动的火苗 + 飘起的火星（静止帧也读得出是火） */
+export function drawEmber(ctx: CanvasRenderingContext2D, spot: CellRef & { hue: string }, now: number): void {
+  const [h1, h2] = EMBER_HUE[spot.hue] ?? EMBER_HUE.cyan!;
+  const x = spot.col * CELL;
+  const y = spot.row * CELL;
+  const f = Math.floor(now / 140) % 2;
+  ctx.globalAlpha = 0.28 + 0.08 * f;
+  ctx.fillStyle = h2;
+  ctx.fillRect(x - 6, y - 6, CELL + 12, CELL + 12);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#3b2616';
+  ctx.fillRect(x + 12, y + 34, 24, 4);
+  ctx.fillRect(x + 15, y + 30, 18, 4);
+  ctx.fillStyle = '#07050a';
+  ctx.fillRect(x + 14, y + 8 - f * 2, 20, 24 + f * 2);
+  ctx.fillStyle = h2;
+  ctx.fillRect(x + 16, y + 10 - f * 2, 16, 22 + f * 2);
+  ctx.fillStyle = h1;
+  ctx.fillRect(x + 19 + f * 2, y + 15 - f, 8, 16);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x + 22, y + 24, 4, 5);
+  ctx.fillStyle = h1;
+  const rise = Math.floor(now / 200) % 4;
+  ctx.fillRect(x + 12 + f * 18, y + 2 - rise * 2, 2, 2);
+  ctx.fillRect(x + 30 - f * 10, y - 4 - rise, 2, 2);
 }

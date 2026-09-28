@@ -118,7 +118,7 @@ describe('useContinentPartners · 创建（选位态）', () => {
     await act(async () => {
       await view.result.current.placeAt(5, 7);
     });
-    expect(npcMock.create).toHaveBeenCalledWith(5, 7);
+    expect(npcMock.create).toHaveBeenCalledWith(5, 7, { job: 'mage', mood: 'warm' });
     expect(view.result.current.placing).toBe(false);
     expect(view.result.current.partners?.npcs).toHaveLength(1);
     expect(onNotice).toHaveBeenCalledWith(expect.stringContaining('「阿问」来了——守着「主动回忆」的伙伴'));

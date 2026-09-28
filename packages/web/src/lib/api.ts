@@ -29,6 +29,7 @@ import { pkInviteApi } from './api-pk-invite.js';
 import { cardsApi } from './api-cards.js';
 // ★ 2026-09-27：学习伙伴（知识大陆上的常驻元素）——形状与端点整体在 api-npc.ts
 import { npcApi } from './api-npc.js';
+import { emberApi } from './api-ember.js';
 
 // 领域的类型**转出**给调用方（形状定义在 `api-terms-domain.ts`，那里承担行数红线的解释）。
 export type { DomainRow, DomainsResponse, RenameDomainResult, RemoveDomainResult } from './api-terms-domain.js';
@@ -85,6 +86,7 @@ export const api = {
    *   前端算不了也不能算——自己算一遍就是「图上画着伙伴遇险、任务清单里没有那单」的开端。
    */
   npc: npcApi,
+  ember: emberApi,
 
   /**
    * 账号（契约 docs/AUTH-SPEC.md §2）。

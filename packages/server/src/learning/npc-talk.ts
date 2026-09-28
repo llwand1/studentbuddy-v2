@@ -10,7 +10,7 @@
  * ★ 上下文只给三块：人设（名字 + 他守的词条 + 领域）、他**当前是否遇险**、本轮输入。
  *   **不带全库卡墙/复习流水**："你还有 5 条欠账"由 coach 说，不由伙伴说——否则他会与任务清单打架。
  */
-import { npcFallbackLine } from '@sb/shared';
+import { NPC_JOB_STYLE, NPC_MOOD_STYLE, npcFallbackLine, npcJobOf, npcMoodOf } from '@sb/shared';
 import type { ChatMessage } from '../llm/types.js';
 // ★ `resolveNpcTarget` 住在 `npc-genesis.ts`：那是"伙伴这一族用哪个模型角色"的唯一口径（起名也要用它），
 //   放那边还顺手断开了 `genesis → talk → npc.ts` 这个环（talk 要 `NpcView`，而 npc.ts 要 party → genesis）。
@@ -33,6 +33,8 @@ function buildNpcPrompt(npc: NpcView): string {
     : '你这会儿挺安好，附近没有怪。';
   return [
     `你是知识大陆上的学习伙伴「${npc.name}」，守着「${npc.term}」（领域：${npc.domain}）这一块地。`,
+    NPC_JOB_STYLE[npcJobOf(npc)],
+    NPC_MOOD_STYLE[npcMoodOf(npc)],
     '用第一人称、口语化、简短（两三句就够），像一个住在那儿的邻居；不要列条目、不要用标题、不要用列表符号。',
     `你能做的是：陪用户聊他守的这条词条、用提问或线索帮他记牢它、在他路过时提一句这附近有没有怪。`,
     `只聊「${npc.term}」和「${npc.domain}」这一块；被问到别的知识，就说那块地不是你守的。`,

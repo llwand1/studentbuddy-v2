@@ -32,7 +32,8 @@ const apiMock = { map: vi.fn(), mark: vi.fn() };
  */
 const cardsMock = { state: vi.fn() };
 const npcMock = { state: vi.fn() };
-vi.mock('../../lib/api', () => ({ api: { terms: apiMock, cards: cardsMock, npc: npcMock } }));
+const emberMock = vi.hoisted(() => ({ spot: vi.fn(async () => ({ spot: null })), mine: vi.fn(async () => ({ notes: [] })) }));
+vi.mock('../../lib/api', () => ({ api: { terms: apiMock, cards: cardsMock, npc: npcMock, ember: emberMock } }));
 vi.mock('./MonsterDialog', () => ({
   MonsterDialog: (props: {
     tile: { id: string; term: string };

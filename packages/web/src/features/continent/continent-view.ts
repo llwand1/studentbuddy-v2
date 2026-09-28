@@ -147,6 +147,8 @@ export interface ContinentNpcMark {
   row: number;
   col: number;
   distressed: boolean;
+  /** 职业（决定地图立绘；旧数据由服务端补默认） */
+  job?: string;
 }
 
 export interface ContinentViewOptions {

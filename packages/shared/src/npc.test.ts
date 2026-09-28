@@ -32,6 +32,9 @@ import {
   normalizeNpcBio,
   normalizeNpcName,
   parseNpcParty,
+  NPC_JOBS,
+  npcJobOf,
+  npcMoodOf,
   type NpcMonster,
 } from './npc.js';
 // ★ 世界口径在 continent.ts（名额上限跟着它涨）——从那里引，不从 npc.ts 转出
@@ -78,7 +81,17 @@ describe('npcTasksRequiredFor — 创建第 N 位的门票（第 1 位无条件�
 describe('parseNpcParty — 花名册容错解析（坏字节不许毁掉整张名册）', () => {
   it('③ 正常解析：字段齐全并归一化名字', () => {
     const got = parseNpcParty(party(member('t1', 5, 7, { name: '  小白  ' })));
-    expect(got).toEqual([{ id: 'npc:t1', name: '小白', bio: '守着它', termId: 't1', row: 5, col: 7 }]);
+    expect(got).toEqual([
+      { id: 'npc:t1', name: '小白', bio: '守着它', termId: 't1', row: 5, col: 7, job: npcJobOf({ termId: 't1' }), mood: npcMoodOf({ termId: 't1' }) },
+    ]);
+  });
+
+  it('③d 职业与性格：合法值原样保留，缺失/非法按 termId 给稳定默认（旧名册升级后不换人设）', () => {
+    const got = parseNpcParty(party(member('t2', 1, 1, { job: 'knight', mood: 'snark' }), member('t3', 2, 2, { job: 'pirate' })));
+    expect(got[0]).toMatchObject({ job: 'knight', mood: 'snark' });
+    expect(NPC_JOBS).toContain(got[1]!.job);
+    expect(got[1]!.job).toBe(npcJobOf({ termId: 't3' }));
+    expect(parseNpcParty(party(member('t3', 2, 2)))[0]!.mood).toBe(got[1]!.mood);
   });
 
   it('③b 坏 JSON / 非对象 / members 不是数组 ⇒ 一律空数组，不抛', () => {

@@ -18,9 +18,10 @@ import { ContinentChest } from './ContinentChest';
 import { ContinentMap, type ContinentChestDrop } from './ContinentMap';
 import { ContinentPartners, useContinentPartners } from './continent-partners';
 import { ContinentDpad } from './continent-dpad';
+import { EmberBanner, EmberDialog, TileDetail, useContinentEmber } from './continent-ember';
 import { MonsterDialog } from './MonsterDialog';
 import { CodexPanel } from './CodexPanel';
-import { buildContinentView, canStrike, tileStatusText, type ContinentTileView } from './continent-view';
+import { buildContinentView, canStrike, type ContinentTileView } from './continent-view';
 import { useContinentHero } from './useContinentHero';
 import './continent.css';
 
@@ -71,6 +72,7 @@ export function ContinentPage() {
   const baseView = useMemo(() => buildContinentView(terms ?? []), [terms]);
   const heroCtl = useContinentHero(baseView.tiles);
   const view = useMemo(() => buildContinentView(terms ?? [], { hero: heroCtl.hero }), [terms, heroCtl.hero]);
+  const ember = useContinentEmber(heroCtl.hero, setNotice, () => void load());
 
   /** 全部答对：打卡 → 关弹窗 → 播特效 → 地上留一箱 → 重取地图（怪随之消失、领地回归） */
   const solve = useCallback(
@@ -100,6 +102,7 @@ export function ContinentPage() {
         void partners.placeAt(row, col);
         return;
       }
+      if (ember.pickCell(row, col)) return;
       const drop = drops.find((d) => d.row === row && d.col === col);
       if (drop) {
         // ★ 宝箱优先于伙伴：它是**一次性**的（开了就没了），而伙伴一直站在那儿。
@@ -135,7 +138,7 @@ export function ContinentPage() {
         setDetail(tile);
       }
     },
-    [drops, heroCtl, view, partners.partners, partners.placing, partners.placeAt],
+    [drops, heroCtl, view, partners.partners, partners.placing, partners.placeAt, ember],
   );
 
   /** 「去救他」：★ **不代打**，只把人送到"一步能打到"的格（与「靠近才开打」同一条判断标准） */
@@ -220,9 +223,10 @@ export function ContinentPage() {
         </p>
       )}
 
+      <EmberBanner ember={ember} />
       <ContinentPartners
         partners={partners.partners} tokens={partners.tokens} distressed={partners.distressed}
-        npcOpenId={npcOpenId} placing={partners.placing}
+        npcOpenId={npcOpenId} placing={partners.placing} pick={partners.pick} onPick={partners.setPick}
         onClose={() => setNpcOpenId(null)} onRescue={rescue}
         onRename={partners.rename} onRemove={partners.remove}
         onStartCreate={partners.startCreate} onCancelCreate={partners.cancelCreate}
@@ -249,6 +253,7 @@ export function ContinentPage() {
           chests={drops}
           npcs={partners.marks}
           placeSpots={partners.placeSpots}
+          ember={ember.mark}
           recenterTick={recenter}
           onPick={pick}
           burst={burst}
@@ -270,19 +275,9 @@ export function ContinentPage() {
         <MonsterDialog tile={hunting} pool={terms ?? []} onSolved={solve} onClose={() => setHunting(null)} />
       )}
 
-      {detail && (
-        <div className="continent-detail">
-          <span className="continent-modal-title">
-            {detail.term}
-            <small>
-              {detail.domain} · {tileStatusText(detail)}
-            </small>
-          </span>
-          <p className="continent-detail-def">{detail.definition}</p>
-          <button className="continent-btn ghost" onClick={() => setDetail(null)}>
-            关闭
-          </button>
-        </div>
+      {detail && <TileDetail tile={detail} onClose={() => setDetail(null)} onNotice={setNotice} />}
+      {ember.open && ember.spot && (
+        <EmberDialog spot={ember.spot} onKeep={ember.keep} onThank={ember.thank} onHide={ember.hide} onClose={ember.close} />
       )}
 
       {chestAt && (

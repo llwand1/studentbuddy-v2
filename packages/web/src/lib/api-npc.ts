@@ -11,7 +11,7 @@
  *   ⚠️ 改服务端字段时必须同步改这里：护栏是 `routes/npc.test.ts`（它锁的是服务端发出的形状）。
  */
 import { request } from './api-request.js';
-import type { NpcQuota } from '@sb/shared';
+import type { NpcJob, NpcMood, NpcQuota } from '@sb/shared';
 import type { ChestDraw } from './api-cards.js';
 
 /** ★ 名额与门票**不在本文件定义**：它是两端共读的契约形状，定义在 `@sb/shared/npc.ts`（唯一一份） */
@@ -36,6 +36,9 @@ export interface NpcView {
   domain: string;
   row: number;
   col: number;
+  /** 职业与性格（2026-09-28；服务端对旧数据补稳定默认，故必有） */
+  job?: NpcJob;
+  mood?: NpcMood;
   distressed: boolean;
   threat: NpcThreat | null;
 }
@@ -77,8 +80,8 @@ export const npcApi = {
   /** 伙伴名单 + 名额门票 + 可落位格 + 交换余额（★ 进地图页拉它不会写库） */
   state: () => request<NpcState>('/api/npc'),
   /** 创建：`row/col` = 玩家在地图上点的那一格（服务端校验 + 起名 + 落库） */
-  create: (row: number, col: number) =>
-    request<NpcCreateResult>('/api/npc', { method: 'POST', body: JSON.stringify({ row, col }) }),
+  create: (row: number, col: number, pick: { job?: NpcJob; mood?: NpcMood } = {}) =>
+    request<NpcCreateResult>('/api/npc', { method: 'POST', body: JSON.stringify({ row, col, ...pick }) }),
   /** 给一位伙伴改名（空串是入参错：每位伙伴都有存下来的名字） */
   rename: (id: string, name: string) =>
     request<{ state: NpcState }>(`/api/npc/${encodeURIComponent(id)}`, {

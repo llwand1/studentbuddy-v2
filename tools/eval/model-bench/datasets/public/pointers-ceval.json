@@ -1,0 +1,153 @@
+{
+  "_comment": "本文件由 `node tools/eval/model-bench/freeze-public.mjs` 生成，勿手改。 来源 ceval/ceval-exam（https://huggingface.co/datasets/ceval/ceval-exam），许可 CC BY-NC-SA 4.0。 CC BY-NC-SA 的 NC 条款与本仓 MIT 冲突，故**只存指针与指纹，不存题目正文**。 sha = sha256({question,options,answer}) 前 16 位；运行时拉到的条目指纹对不上 ⇒ 上游数据集变过，报告会点名。",
+  "dataset": "ceval/ceval-exam",
+  "split": "val",
+  "license": "CC BY-NC-SA 4.0",
+  "frozenAt": "2026-09-28",
+  "items": [
+    {
+      "id": "ceval/high_school_physics/val/0",
+      "config": "high_school_physics",
+      "rowIdx": 0,
+      "sha": "1ef5cad2ef97f603"
+    },
+    {
+      "id": "ceval/high_school_physics/val/1",
+      "config": "high_school_physics",
+      "rowIdx": 1,
+      "sha": "47381ff9729f46af"
+    },
+    {
+      "id": "ceval/high_school_physics/val/2",
+      "config": "high_school_physics",
+      "rowIdx": 2,
+      "sha": "63f8382b999dd1a2"
+    },
+    {
+      "id": "ceval/high_school_physics/val/3",
+      "config": "high_school_physics",
+      "rowIdx": 3,
+      "sha": "40e4db8427dccf76"
+    },
+    {
+      "id": "ceval/high_school_biology/val/0",
+      "config": "high_school_biology",
+      "rowIdx": 0,
+      "sha": "75bc72130351ff64"
+    },
+    {
+      "id": "ceval/high_school_biology/val/1",
+      "config": "high_school_biology",
+      "rowIdx": 1,
+      "sha": "f7bba2f37b6f63fb"
+    },
+    {
+      "id": "ceval/high_school_biology/val/2",
+      "config": "high_school_biology",
+      "rowIdx": 2,
+      "sha": "0e765136d66441f4"
+    },
+    {
+      "id": "ceval/high_school_biology/val/3",
+      "config": "high_school_biology",
+      "rowIdx": 3,
+      "sha": "7b757d23b20fce83"
+    },
+    {
+      "id": "ceval/high_school_mathematics/val/0",
+      "config": "high_school_mathematics",
+      "rowIdx": 0,
+      "sha": "ea29db0d6cf5d57d"
+    },
+    {
+      "id": "ceval/high_school_mathematics/val/1",
+      "config": "high_school_mathematics",
+      "rowIdx": 1,
+      "sha": "3a0617c336adabf4"
+    },
+    {
+      "id": "ceval/high_school_mathematics/val/2",
+      "config": "high_school_mathematics",
+      "rowIdx": 2,
+      "sha": "48ca5bac2bdc4c18"
+    },
+    {
+      "id": "ceval/high_school_mathematics/val/3",
+      "config": "high_school_mathematics",
+      "rowIdx": 3,
+      "sha": "889fdc3d542df2f9"
+    },
+    {
+      "id": "ceval/high_school_chemistry/val/0",
+      "config": "high_school_chemistry",
+      "rowIdx": 0,
+      "sha": "9f7a2deabaf7db4f"
+    },
+    {
+      "id": "ceval/high_school_chemistry/val/1",
+      "config": "high_school_chemistry",
+      "rowIdx": 1,
+      "sha": "ea3b8f3fa56a49a4"
+    },
+    {
+      "id": "ceval/high_school_chemistry/val/2",
+      "config": "high_school_chemistry",
+      "rowIdx": 2,
+      "sha": "a38379dbef6bbf7b"
+    },
+    {
+      "id": "ceval/high_school_chemistry/val/3",
+      "config": "high_school_chemistry",
+      "rowIdx": 3,
+      "sha": "f66effe876eb388a"
+    },
+    {
+      "id": "ceval/middle_school_history/val/0",
+      "config": "middle_school_history",
+      "rowIdx": 0,
+      "sha": "d06f9dfebe15039f"
+    },
+    {
+      "id": "ceval/middle_school_history/val/1",
+      "config": "middle_school_history",
+      "rowIdx": 1,
+      "sha": "3dc9db0032842839"
+    },
+    {
+      "id": "ceval/middle_school_history/val/2",
+      "config": "middle_school_history",
+      "rowIdx": 2,
+      "sha": "fef55a813578979e"
+    },
+    {
+      "id": "ceval/middle_school_history/val/3",
+      "config": "middle_school_history",
+      "rowIdx": 3,
+      "sha": "c55db16e0a69789d"
+    },
+    {
+      "id": "ceval/computer_network/val/0",
+      "config": "computer_network",
+      "rowIdx": 0,
+      "sha": "003a9770851fe6ff"
+    },
+    {
+      "id": "ceval/computer_network/val/1",
+      "config": "computer_network",
+      "rowIdx": 1,
+      "sha": "eeba771f928d7ea2"
+    },
+    {
+      "id": "ceval/computer_network/val/2",
+      "config": "computer_network",
+      "rowIdx": 2,
+      "sha": "6c1db3a8e45ed2b9"
+    },
+    {
+      "id": "ceval/computer_network/val/3",
+      "config": "computer_network",
+      "rowIdx": 3,
+      "sha": "1c2cb27b82faf19a"
+    }
+  ]
+}

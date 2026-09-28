@@ -28,6 +28,24 @@ export function tryParse(raw) {
 
 const normText = (s) => String(s).replace(/\s+/g, '').toLowerCase();
 
+/**
+ * 选项查重专用的归一:**只去空白,保留大小写**。
+ *
+ * ★ 2026-09-28 公开评测集接入当天,被一条真题当场证伪了原来的写法。
+ *   `ceval/high_school_biology/val/2`(遗传题)的四个选项是 `AaBb / Aabb / AAbb / aabb` ——
+ *   原先查重用 `normText`(带 `toLowerCase()`),四个选项全部归一成同一个串 `aabb`,
+ *   于是一条**完全合法**的真题被判「选项重复」。理想输出(假模型原样回显)都过不了。
+ *   自造数据集里从来没出现过大小写敏感的选项,所以这个洞在 110 例上一直是隐形的。
+ *
+ *   同类会被误杀的还有:化学式(`CO` vs `Co`)、代码标识符(`getUser` vs `getuser`)、
+ *   数学变量(`X` vs `x`)——本产品的学科覆盖面里,大小写有语义是常态而不是例外。
+ *
+ *   取舍照实说:改成大小写敏感之后,「Beijing / beijing」这种**真**重复就查不出来了。
+ *   两害相权取轻 —— 误杀一道合法真题的代价(评测分数错、且错得没人看得见)
+ *   远大于漏掉一组大小写撞车的假选项(那还有 leakage/answers 几道检查兜着)。
+ */
+const normOption = (s) => String(s).replace(/\s+/g, '');
+
 /** 字符 bigram 集(中文友好;英文退化为字符对,同样能测重叠) */
 function bigrams(s) {
   const t = normText(s).replace(/[^\p{L}\p{N}]/gu, '');
@@ -160,7 +178,8 @@ export const HARD_CHECKS = {
       const opts = item.options ?? [];
       if (opts.length < 3) return { pass: false, note: `${at} 选项仅 ${opts.length} 个(<3)` };
       if (opts.some((o) => typeof o !== 'string' || !o.trim())) return { pass: false, note: `${at} 有空选项` };
-      if (new Set(opts.map(normText)).size !== opts.length) return { pass: false, note: `${at} 选项重复` };
+      // 大小写敏感:见 normOption 头注(遗传题 AaBb/Aabb/AAbb/aabb 曾被整组误杀)
+      if (new Set(opts.map(normOption)).size !== opts.length) return { pass: false, note: `${at} 选项重复` };
     }
     return { pass: true };
   },

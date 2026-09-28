@@ -16,6 +16,8 @@ import { ownerIdOf } from '../auth/ownership.js';
 import { npcList, npcTrade } from '../learning/npc.js';
 import { createPartner, removePartner, renamePartner } from '../learning/npc-party.js';
 import { npcTalk } from '../learning/npc-talk.js';
+import { npcHistory } from '../learning/npc-session.js';
+import { clearBubble, npcPing } from '../learning/npc-ping.js';
 
 export const npcRouter = Router();
 
@@ -42,6 +44,29 @@ npcRouter.post('/', async (req: Request, res: Response) => {
     return;
   }
   res.json({ state: npcList(ownerId), memberId: r.member.id, source: r.source });
+});
+
+/**
+ * 轮询口：**地图页可见时**每 20 秒来一次（`NPC_POLL_MS`）。
+ *
+ * 它做两件事：① 顺带把走位推进到此刻（`npcList` 内部的 `moveParty`）；
+ * ② 问三道闸能不能让某位伙伴主动开口。
+ *
+ * ★★ 这是全仓**唯一一条会自己花钱**的轮询，所以闸门写在 `shared/npc-life.ts` 的纯函数里、
+ *   可单测：全局每小时上限 + 两次之间的最小间隔 + 每位的冷却。
+ *   ★ 最硬的一道闸在前端：页面不可见就**停止轮询**（没人在看时的"主动"只是烧钱）。
+ * ★ 没冒泡时回 `{ bubble: null }` 而不是 404："这一轮没人想说话"是正常状态，不是错误。
+ */
+npcRouter.get('/ping', async (req: Request, res: Response) => {
+  const ownerId = ownerIdOf(req);
+  const r = await npcPing(ownerId);
+  res.json({ bubble: r.bubble, npcs: npcList(ownerId).npcs.map((n) => ({ id: n.id, row: n.row, col: n.col })) });
+});
+
+/** 领走气泡（用户点了它 ⇒ 开面板）。★ 幂等：重复调只是再清一次 */
+npcRouter.post('/bubble/dismiss', (req: Request, res: Response) => {
+  clearBubble(ownerIdOf(req));
+  res.json({ ok: true });
 });
 
 /** 给一位伙伴改名。★ 空串是入参错（400）：每位伙伴都有存下来的名字，"清空"不是一个动作 */
@@ -84,8 +109,28 @@ npcRouter.post('/:id/talk', async (req: Request, res: Response) => {
     return;
   }
   const asked = text.trim();
-  // 降级台词的轮换种子 = 本轮输入长度（没有伙伴消息表，拿不到真正的"第几轮"）
-  res.json(await npcTalk({ ownerId, npc, text: asked, seed: asked.length }));
+  // ★ 他此刻站的那一格上的词条 —— 走位决定话题（§11）。从**同一次** `npcList` 里取，
+  //   不另铺一遍图：两份口径就会出现"图上站在 A、他却在聊 B"。
+  const state = npcList(ownerId);
+  const here = state.cells.find((c) => c.row === npc.row && c.col === npc.col) ?? null;
+  // 降级台词的轮换种子 = 本轮输入长度（降级路径没有历史可依）
+  res.json(await npcTalk({ ownerId, npc, text: asked, here, seed: asked.length }));
+});
+
+/**
+ * 这位伙伴的对话史（面板打开时回显）。
+ * ★ 读的是**既有** `messages` 表（伙伴 id 就是会话 id），不是另一份伙伴专用的存储。
+ */
+npcRouter.get('/:id/history', (req: Request, res: Response) => {
+  const ownerId = ownerIdOf(req);
+  const id = req.params.id ?? '';
+  if (!npcList(ownerId).npcs.some((n) => n.id === id)) {
+    res.status(404).json({ error: '这位伙伴不在大陆上，刷新一下地图' });
+    return;
+  }
+  res.json({
+    messages: npcHistory(id).map((m) => ({ role: m.role, content: m.content })),
+  });
 });
 
 /**

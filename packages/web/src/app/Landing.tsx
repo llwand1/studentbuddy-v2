@@ -20,6 +20,7 @@ import { DemoLoginButton } from '../components/DemoLoginButton';
 import { GithubLoginButton } from '../components/GithubLoginButton';
 import { LandingBrand } from './LandingBrand';
 import { LandingHero } from './hero/LandingHero';
+import { LandingPv } from './LandingPv';
 import { ChapterContinent } from './world/ChapterContinent';
 import { ChapterTerm } from './world/ChapterTerm';
 import { ChapterDiscover } from './world/ChapterDiscover';
@@ -73,6 +74,7 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
         <LandingBrand />
         <div className="landing-top-right">
           <LangToggle />
+          <LandingPv />
           <a className="landing-ghost landing-gh" href="https://github.com/llwand1/studentbuddy-v2" target="_blank" rel="noreferrer noopener">
             GitHub
           </a>

@@ -172,3 +172,13 @@ export const LAND_TAG: { shipped: Bi; partial: Bi } = {
   shipped: { zh: '已落地', en: 'Shipped' },
   partial: { zh: '部分落地', en: 'Partly shipped' },
 };
+
+/**
+ * 页眉的「看 PV」入口与弹层（2026-09-28）：宣传片是门面上唯一的视频。
+ * ★ 标题用中性说法（不放「预告」「首发」这类会过期的词），片子换了不用回来改文案。
+ */
+export const PV = {
+  open: { zh: '看 PV', en: 'Watch PV' },
+  title: { zh: 'StudentBuddy 介绍', en: 'StudentBuddy intro' },
+  close: { zh: '关闭', en: 'Close' },
+} satisfies Record<string, Bi>;

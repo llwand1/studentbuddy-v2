@@ -78,7 +78,38 @@ describe('npcTasksRequiredFor — 创建第 N 位的门票（第 1 位无条件�
 describe('parseNpcParty — 花名册容错解析（坏字节不许毁掉整张名册）', () => {
   it('③ 正常解析：字段齐全并归一化名字', () => {
     const got = parseNpcParty(party(member('t1', 5, 7, { name: '  小白  ' })));
-    expect(got).toEqual([{ id: 'npc:t1', name: '小白', bio: '守着它', termId: 't1', row: 5, col: 7 }]);
+    expect(got).toEqual([
+      {
+        id: 'npc:t1',
+        name: '小白',
+        bio: '守着它',
+        termId: 't1',
+        row: 5,
+        col: 7,
+        // 伙伴会走路那次改动（§10）新增的四个字段：老名册里没有 ⇒ 按下面这条规则回填
+        homeRow: 5,
+        homeCol: 7,
+        lastStepAt: 0,
+        stepSeq: 0,
+      },
+    ]);
+  });
+
+  it('★ ③a 老名册回填：没有 home ⇒ 把**当前格**认作家（升级后伙伴不会瞬移回原点）', () => {
+    const [m] = parseNpcParty(party(member('t1', 5, 7)));
+    expect(m).toMatchObject({ homeRow: 5, homeCol: 7, lastStepAt: 0, stepSeq: 0 });
+  });
+
+  it('★ ③a2 已有 home 时原样保留，不被当前格覆盖（他正在外面溜达）', () => {
+    const raw = party(member('t1', 5, 9, { homeRow: 5, homeCol: 7, lastStepAt: 123, stepSeq: 4 }));
+    expect(parseNpcParty(raw)[0]).toMatchObject({
+      row: 5,
+      col: 9,
+      homeRow: 5,
+      homeCol: 7,
+      lastStepAt: 123,
+      stepSeq: 4,
+    });
   });
 
   it('③b 坏 JSON / 非对象 / members 不是数组 ⇒ 一律空数组，不抛', () => {

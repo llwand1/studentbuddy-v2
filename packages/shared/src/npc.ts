@@ -133,10 +133,21 @@ export interface NpcPartyMember {
   name: string;
   /** 一句人设（创建时 AI 写，降级时用 `npcTemplateBio`） */
   bio: string;
-  /** 他守的词条 = 玩家安置他时点的那一格上的词条 */
+  /** 他守的词条 = 玩家安置他时点的那一格上的词条（★ 身份锚，**不随走位变**） */
   termId: string;
+  /** 他**此刻**站的格（伙伴会游走，这两个数会被服务端的走位推进改写） */
   row: number;
   col: number;
+  /**
+   * 家（玩家当初点的那一格）。游走以它为圆心、`NPC_WANDER_RADIUS` 为半径。
+   * ★ 老花名册没有这两个字段 ⇒ 解析时用 `row/col` 补齐（他就站在家门口，语义正确）。
+   */
+  homeRow: number;
+  homeCol: number;
+  /** 上次挪步的时刻（毫秒）。0 ⇒ 还没走过，下一次读地图时就地起步 */
+  lastStepAt: number;
+  /** 已走过的步序：走位的随机种子之一，**必须存**——不存的话每次补步都从 0 开始，路径会重复 */
+  stepSeq: number;
 }
 
 /**
@@ -245,7 +256,13 @@ export function parseNpcParty(raw: string): NpcPartyMember[] {
   if (!Array.isArray(list)) return [];
   const out: NpcPartyMember[] = [];
   const seenId = new Set<string>();
-  const seenCell = new Set<string>();
+  // ★★ 2026-09-28 伙伴会游走那次改动：**去掉了按当前格去重**。
+  //   旧口径把 `row,col` 当第二把尺子，是因为那时位置=安置点、一格一人天经地义。
+  //   伙伴一旦会走，两位擦肩而过就会短暂同格 —— 再按格去重就会**当场把一位伙伴从名册里删掉**
+  //   （连同他的会话与记忆）。位置冲突是**瞬时状态，不是数据错误**：
+  //   真正的约束改由走位自己保证（`npcWanderStep` 不迈进已被占的格），
+  //   而"一条词条只许一位"仍由 `id`（= `npc:<termId>`）这把尺子守着。
+  const seenHome = new Set<string>();
   for (const entry of list) {
     if (!entry || typeof entry !== 'object') continue;
     const m = entry as Record<string, unknown>;
@@ -255,10 +272,15 @@ export function parseNpcParty(raw: string): NpcPartyMember[] {
     const col = Math.trunc(Number(m.col));
     if (!termId || !name || !Number.isFinite(row) || !Number.isFinite(col)) continue;
     const id = typeof m.id === 'string' && m.id ? m.id : npcIdOf(termId);
-    const cell = `${row},${col}`;
-    if (seenId.has(id) || seenCell.has(cell)) continue;
+    // 家的坐标：老记录没有 ⇒ 用当前格补齐（升级前他本就没走过，站的就是家）
+    const homeRow = Number.isFinite(Number(m.homeRow)) ? Math.trunc(Number(m.homeRow)) : row;
+    const homeCol = Number.isFinite(Number(m.homeCol)) ? Math.trunc(Number(m.homeCol)) : col;
+    const home = `${homeRow},${homeCol}`;
+    // ★ 去重只剩两把尺子：`id`（一条词条一位）与 `home`（一格只许安置一位）。
+    //   当前格不参与——它会变。
+    if (seenId.has(id) || seenHome.has(home)) continue;
     seenId.add(id);
-    seenCell.add(cell);
+    seenHome.add(home);
     out.push({
       id,
       name,
@@ -266,6 +288,10 @@ export function parseNpcParty(raw: string): NpcPartyMember[] {
       termId,
       row,
       col,
+      homeRow,
+      homeCol,
+      lastStepAt: Number.isFinite(Number(m.lastStepAt)) ? Math.trunc(Number(m.lastStepAt)) : 0,
+      stepSeq: Number.isFinite(Number(m.stepSeq)) ? Math.trunc(Number(m.stepSeq)) : 0,
     });
     if (out.length >= NPC_MAX_CAP) break;
   }

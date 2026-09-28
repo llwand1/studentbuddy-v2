@@ -20,10 +20,10 @@
  * ★ `marks`（给 canvas 的最小形状）与 `distressed`（横幅要的那几位）都是**同一个 `partners` 的投影**，
  *   不是第二份结论；`NpcDialog` 打开的是 `id` 而不是对象，故地图刷新后名字/处境永远是最新的。
  */
-import { useCallback, useMemo, useState } from 'react';
-import { NPC_TRADE_MIN_CARDS } from '@sb/shared';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { NPC_POLL_MS, NPC_TRADE_MIN_CARDS } from '@sb/shared';
 import { api } from '../../lib/api';
-import type { NpcState, NpcView } from '../../lib/api-npc';
+import type { NpcBubble, NpcState, NpcView } from '../../lib/api-npc';
 import type { ContinentNpcMark } from './ContinentMap';
 import { NpcDialog, type NpcToken } from './NpcDialog';
 
@@ -44,6 +44,8 @@ export function useContinentPartners(onNotice: (text: string) => void) {
   const [partners, setPartners] = useState<NpcState | null>(null);
   const [tokens, setTokens] = useState<NpcToken[]>([]);
   const [placing, setPlacing] = useState(false);
+  /** 地图上那个"他想找你说话"的气泡（服务端决定谁开口、说什么） */
+  const [bubble, setBubble] = useState<NpcBubble | null>(null);
 
   const refresh = useCallback(async () => {
     const [cards, npc] = await Promise.all([api.cards.state(), api.npc.state()]);
@@ -133,6 +135,66 @@ export function useContinentPartners(onNotice: (text: string) => void) {
   );
   const distressed = useMemo(() => (partners?.npcs ?? []).filter((n) => n.distressed), [partners]);
 
+  /**
+   * 心跳：**只在大陆页可见时**每 `NPC_POLL_MS` 问一次服务端
+   *   ①把走位推进到此刻 ②有没有伙伴想主动开口。
+   *
+   * ★★ `document.hidden` 这一道是**最硬的省钱闸**，比服务端那三道还靠前：
+   *   主动搭话每次都是一笔真实模型调用，用户切走了还接着聊天，就是纯烧钱
+   *   （而且他回来只会看到一句三分钟前的话）。切走即停、切回即续。
+   * ★ 用 `setTimeout` 递归而不是 `setInterval`：请求慢于间隔时 `setInterval` 会堆积并发，
+   *   递归式天然"上一轮回来了才排下一轮"。
+   * ★ `alive` 旗标 + 清理函数：组件卸载后到达的响应不许再 `setState`（React 会警告，
+   *   而且那是一次对已死组件的写）。
+   */
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const tick = async () => {
+      if (!alive) return;
+      if (typeof document !== 'undefined' && document.hidden) {
+        pollRef.current = setTimeout(() => void tick(), NPC_POLL_MS);
+        return;
+      }
+      try {
+        const r = await api.npc.ping();
+        if (!alive) return;
+        if (r.bubble) setBubble(r.bubble);
+        // 走位：只换坐标，不整份替换 —— 整份替换会把名额/可落位格也刷一遍，
+        // 正在选位的用户会看到绿框闪烁
+        if (r.npcs?.length) {
+          setPartners((prev) => {
+            if (!prev) return prev;
+            const at = new Map(r.npcs.map((n) => [n.id, n]));
+            return { ...prev, npcs: prev.npcs.map((n) => ({ ...n, ...(at.get(n.id) ?? {}) })) };
+          });
+        }
+      } catch {
+        // 轮询失败静默重试：它是背景心跳，弹一个红条打断用户毫无意义
+      }
+      if (alive) pollRef.current = setTimeout(() => void tick(), NPC_POLL_MS);
+    };
+    pollRef.current = setTimeout(() => void tick(), NPC_POLL_MS);
+    const onVis = () => {
+      // 切回来立刻补一次，不用等满一个间隔（否则回到页面要干等 20 秒）
+      if (!document.hidden && alive) void tick();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      alive = false;
+      if (pollRef.current) clearTimeout(pollRef.current);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
+
+  /** 关掉气泡（点开面板 / 主动关）。★ 服务端也要清，否则下一次轮询又把它送回来 */
+  const dismissBubble = useCallback(() => {
+    setBubble(null);
+    void api.npc.dismissBubble().catch(() => {
+      /* 清不掉最多是气泡再出现一次，不值得打断用户 */
+    });
+  }, []);
+
   return {
     partners,
     tokens,
@@ -140,6 +202,8 @@ export function useContinentPartners(onNotice: (text: string) => void) {
     distressed,
     placing,
     placeSpots,
+    bubble,
+    dismissBubble,
     refresh,
     create,
     rename,

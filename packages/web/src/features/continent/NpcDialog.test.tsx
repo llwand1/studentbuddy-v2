@@ -37,6 +37,8 @@ function npcOf(over: Partial<NpcView> = {}): NpcView {
     domain: '记忆机制',
     row: 5,
     col: 7,
+    homeRow: 5,
+    homeCol: 7,
     distressed: false,
     threat: null,
     ...over,

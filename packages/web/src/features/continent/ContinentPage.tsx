@@ -108,7 +108,11 @@ export function ContinentPage() {
         return;
       }
       const mate = partners.partners?.npcs.find((n) => n.row === row && n.col === col);
-      if (mate) return setNpcOpenId(mate.id);
+      if (mate) {
+        // 点开面板 = 这句话被听见了 ⇒ 收掉话泡（服务端也清，否则下一轮轮询又送回来）
+        if (partners.bubble?.npcId === mate.id) partners.dismissBubble();
+        return setNpcOpenId(mate.id);
+      }
       const tile = view.tiles.find((t) => t.row === row && t.col === col);
       if (tile?.hasMonster) {
         if (canStrike(heroCtl.hero, tile)) {
@@ -248,6 +252,7 @@ export function ContinentPage() {
           heroStart={heroCtl.animStart}
           chests={drops}
           npcs={partners.marks}
+          npcBubble={partners.bubble}
           placeSpots={partners.placeSpots}
           recenterTick={recenter}
           onPick={pick}

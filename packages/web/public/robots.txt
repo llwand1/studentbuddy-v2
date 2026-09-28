@@ -13,5 +13,7 @@ Allow: /favicon.svg
 Allow: /sitemap.xml
 # 分享图（og:image）：社交平台抓图不看 robots，图片搜索看——不放行就是自己挡自己的图
 Allow: /og/
+# 站点静态媒体（/media/ 下的宣传片等）
+Allow: /media/
 
 Sitemap: https://11wand.com/sitemap.xml

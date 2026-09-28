@@ -1033,3 +1033,55 @@
   }
 }
 
+
+/* ── 页眉「看 PV」入口与弹层（2026-09-28） ─────────────────────────────────────
+   弹层是站点静态目录里那支片子（`/media/`）的播放器。关着时组件根本不渲染 <video>，
+   所以这里只画「打开之后」的样子；配色沿用落地页 tokens，暗色主题下自动跟着走。
+   z-index 60 高于氛围层（火把光/余烬，30）：否则光晕会盖在片子上。
+   ★ 遮罩由组件 createPortal 挂到 document.body（页眉的 backdrop-filter 会给 fixed 造包含块，
+     留在页眉里只盖得住顶栏），所以本条规则不能加 .landing 作用域前缀。 */
+.landing-pv-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(3, 2, 5, .84);
+}
+/* 遮罩整片可点＝关闭；弹层要吃掉自己那一片的点击，别让冒泡穿到遮罩上 */
+.landing-pv-box {
+  display: flex;
+  flex-direction: column;
+  width: min(960px, 100%);
+  background: var(--sb-surface, #120c11);
+  border: 1px solid var(--sb-border, #e5e5ea);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--sb-shadow-2, 0 14px 44px rgba(0, 0, 0, .55));
+}
+.landing-pv-box:focus-visible {
+  outline: 2px solid var(--sb-primary, #e0505b);
+  outline-offset: 2px;
+}
+.landing-pv-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: calc(100vh - 120px);
+  background: #000;
+}
+.landing-pv-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--sb-border, #e5e5ea);
+  flex-shrink: 0;
+}
+.landing-pv-title {
+  font-size: 13px;
+  color: var(--sb-text-secondary, #6e6e73);
+}

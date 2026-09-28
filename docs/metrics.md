@@ -23,7 +23,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-09-28 12:27:31（本机时区）｜ 基准 `4245e5f` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-09-28 21:04:03（本机时区）｜ 基准 `fb358ca` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
@@ -44,7 +44,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 ## 测试基线（vitest 实跑）
 
 - **240 文件 / 3169 例**（3168 passed + 1 skipped + 0 failed）⇒ 全绿
-- 本次本机实跑（Node v22.22.2）全量耗时 160s
+- 本次本机实跑（Node v22.23.2）全量耗时 51s
 - jsdom 交互测试文件（`.test.tsx`）38 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 37 份 · md 共 49 份 · 真机探针 15 个
-- git：feat/chat-grimoire-ui @ `4245e5f`（2026-09-28）· 近 14 天 74 commits · 工作区未提交 0 文件
+- git：merge/chat-grimoire-ui @ `fb358ca`（2026-09-28）· 近 14 天 74 commits · 工作区未提交 0 文件
 
 <!-- metrics:end -->
 

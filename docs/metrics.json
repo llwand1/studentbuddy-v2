@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-28T15:08:04.075Z",
+  "generatedAt": "2026-09-28T15:32:08.544Z",
   "code": {
     "rows": [
       {
@@ -85,21 +85,21 @@
     "probes": 15
   },
   "repo": {
-    "head": "7b50954",
+    "head": "c6566c1",
     "headDate": "2026-09-28",
-    "commitsLast14d": 80,
-    "branch": "feat/chat-ux-polish",
-    "dirtyFiles": 20
+    "commitsLast14d": 81,
+    "branch": "merge/chat-ux-polish",
+    "dirtyFiles": 0
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 183.6,
+    "wallSec": 72.6,
     "staleDays": 0,
     "files": 245,
     "cases": 3206,
-    "passed": 3205,
-    "skipped": 1,
+    "passed": 3203,
+    "skipped": 3,
     "failed": 0,
     "success": true
   },

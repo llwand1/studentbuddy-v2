@@ -23,7 +23,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-09-28 15:11:07（本机时区）｜ 基准 `7b50954` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-09-28 23:33:28（本机时区）｜ 基准 `c6566c1` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
@@ -43,8 +43,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 测试基线（vitest 实跑）
 
-- **245 文件 / 3206 例**（3205 passed + 1 skipped + 0 failed）⇒ 全绿
-- 本次本机实跑（Node v22.22.2）全量耗时 183.6s
+- **245 文件 / 3206 例**（3203 passed + 3 skipped + 0 failed）⇒ 全绿
+- 本次本机实跑（Node v22.23.2）全量耗时 72.6s
 - jsdom 交互测试文件（`.test.tsx`）39 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 38 份 · md 共 50 份 · 真机探针 15 个
-- git：feat/chat-ux-polish @ `7b50954`（2026-09-28）· 近 14 天 80 commits · 工作区未提交 20 文件
+- git：merge/chat-ux-polish @ `c6566c1`（2026-09-28）· 近 14 天 81 commits · 工作区未提交 0 文件
 
 <!-- metrics:end -->
 

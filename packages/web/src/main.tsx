@@ -8,12 +8,15 @@
  *   `user === undefined` 是「查询中」：此刻只渲染 `BootScreen`（默认透明、400ms 后才现身的启动画面——
  *   ~一次请求的空窗，不闪落地页再跳应用；快路径与原先的 null 无异）。
  * ★ 三个根场景之间的换根走 `SceneTransition`（像素幕布转场），首次挂载不铺布。
+ * ★ 语言（中英切换）的 Provider 挂在最外（`<StrictMode>` 内、`<Root/>` 外）：三个根场景共用**同一份**
+ *   语言状态——落地页页眉选了 EN、登录进应用壳仍是 EN（口径见 `app/landing-lang.tsx` 头注的范围决策）。
  */
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
 import { entryFor } from './app/entry';
 import { Landing } from './app/Landing';
+import { LandingLangProvider } from './app/landing-lang';
 import { BootScreen } from './components/BootScreen';
 import { SceneTransition } from './components/SceneTransition';
 import { PkApp } from './features/pk/PkApp';
@@ -115,6 +118,8 @@ function Root() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Root />
+    <LandingLangProvider>
+      <Root />
+    </LandingLangProvider>
   </StrictMode>,
 );

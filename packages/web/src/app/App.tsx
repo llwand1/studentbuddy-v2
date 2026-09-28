@@ -14,6 +14,8 @@ import { PixelSidebar } from '../components/PixelSidebar';
 import { SceneTransition } from '../components/SceneTransition';
 import { PlusIcon, ChevronDownIcon, ClockIcon } from '../components/icons';
 import { NAV, PK_HASH, type View } from './nav';
+import { LangToggle, useLandingLang } from './landing-lang';
+import { SHELL } from './shell-copy';
 import { api } from '../lib/api';
 import { SessionList } from './SessionList';
 import { ChatView } from '../features/chat/ChatView';
@@ -21,7 +23,7 @@ import { TermIndexProvider } from '../features/chat/term-index';
 import { GlobalSearch } from '../features/search/GlobalSearch';
 import { useActiveSessions } from '../features/chat/useActiveSessions';
 import { Mascot } from '../features/chat/Mascot';
-import { BRAND_NAME, BRAND_TAGLINE } from '../lib/brand';
+import { BRAND_NAME } from '../lib/brand';
 import { SettingsView } from '../features/settings/SettingsView';
 import { TermsPage } from '../features/terms/TermsPage';
 import { CardsView } from '../features/game/CardsView';
@@ -32,6 +34,8 @@ import { TrialNotice } from '../components/TrialNotice';
 import './app.css';
 
 export function App() {
+  /** 壳层框架文案（新对话 / 历史 / 搜索 / 导航标签）跟着全局语言走，词表见 app/shell-copy.ts */
+  const { lang } = useLandingLang();
   const [view, setView] = useState<View>('chat');
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -137,12 +141,12 @@ export function App() {
           <Mascot />
           <span className="sb-logo-name">
             {BRAND_NAME}
-            <small>{BRAND_TAGLINE}</small>
+            <small>{SHELL.brandTagline[lang]}</small>
           </span>
         </button>
 
         <button className="sb-new-chat" onClick={() => void newSession()}>
-          <PlusIcon /> 新对话
+          <PlusIcon /> {SHELL.newChat[lang]}
         </button>
 
         {/* 功能列表（从上到下） */}
@@ -161,7 +165,7 @@ export function App() {
                 if (key === 'terms') setTermsKeyword('');
               }}
             >
-              <Icon /> {label}
+              <Icon /> {label[lang]}
             </button>
           ))}
         </nav>
@@ -174,14 +178,14 @@ export function App() {
           onClick={() => setHistoryOpen(!historyOpen)}
           aria-expanded={historyOpen}
         >
-          <ClockIcon size={13} /> 历史对话
+          <ClockIcon size={13} /> {SHELL.history[lang]}
           <span className="sb-history-count">{visible.length}</span>
           <ChevronDownIcon size={13} className="sb-history-chev" />
         </button>
         {historyOpen && (
           <input
             className="sb-session-search"
-            placeholder="搜索会话"
+            placeholder={SHELL.searchChats[lang]}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -194,7 +198,7 @@ export function App() {
           activeId={view === 'chat' ? currentId : null}
           collapsed={!historyOpen}
           busy={busy}
-          emptyHint={query ? '没有匹配的会话' : null}
+          emptyHint={query ? SHELL.noMatch[lang] : null}
           onOpen={openSession}
           onTogglePin={(s) => void togglePin(s)}
           onRemove={(id) => void removeSession(id)}
@@ -207,6 +211,8 @@ export function App() {
           两套身份刻意不互相冒充，后续才合并（AUTH-SPEC §0）。
         */}
         <AccountBox onAuthChange={() => void reloadSessions()} /><TrialNotice />
+        {/* 全局语言切换（2026-09-28）：侧栏最底一行，任何视图下都在。样式复用 .landing-lang*（见 landing-lang 头注的命名债） */}
+        <span className="sb-lang-bar"><LangToggle /></span>
       </PixelSidebar>
       <main className="sb-main">
         {/* 五个视图之间的切换走像素幕布转场（components/SceneTransition）：内容同步换、幕布盖在上面掀开；

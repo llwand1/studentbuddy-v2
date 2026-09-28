@@ -6,6 +6,7 @@
  */
 import { VsIcon, CardsIcon, GraphIcon, SettingsIcon } from '../components/icons';
 import { SparkleIcon } from '../components/game-icons';
+import type { Bi } from './landing-lang';
 
 export type View = 'chat' | 'terms' | 'cards' | 'continent' | 'settings';
 
@@ -25,12 +26,17 @@ export type View = 'chat' | 'terms' | 'cards' | 'continent' | 'settings';
  */
 export type NavKey = View | 'pk';
 
-export const NAV: Array<{ key: NavKey; label: string; icon: typeof VsIcon }> = [
-  { key: 'pk', label: '对战', icon: VsIcon },
-  { key: 'terms', label: '词条', icon: CardsIcon },
-  { key: 'cards', label: '卡牌', icon: SparkleIcon },
-  { key: 'continent', label: '知识大陆', icon: GraphIcon },
-  { key: 'settings', label: '设置', icon: SettingsIcon },
+/**
+ * 标签是 `Bi`（{zh,en}）：2026-09-28 全局中英切换起跟着语言走（消费方只有 `App.tsx` 一处，
+ * 那里 `label[lang]` 取词）。放在本文件而不是 `shell-copy.ts`：`NAV` 是导航数据本身，
+ * 标签跟着它走最直观，也免了 `shell-copy ↔ nav` 的循环 import。
+ */
+export const NAV: Array<{ key: NavKey; label: Bi; icon: typeof VsIcon }> = [
+  { key: 'pk', label: { zh: '对战', en: 'Vs AI' }, icon: VsIcon },
+  { key: 'terms', label: { zh: '词条', en: 'Terms' }, icon: CardsIcon },
+  { key: 'cards', label: { zh: '卡牌', en: 'Cards' }, icon: SparkleIcon },
+  { key: 'continent', label: { zh: '知识大陆', en: 'Continent' }, icon: GraphIcon },
+  { key: 'settings', label: { zh: '设置', en: 'Settings' }, icon: SettingsIcon },
 ];
 
 /** PK 独立页的 hash（与 `main.tsx` 的 `isPkHash()` 同一口径） */

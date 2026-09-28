@@ -70,9 +70,21 @@ afterEach(() => {
 
 const title = (container: HTMLElement) => container.querySelector('.landing-title')?.textContent ?? '';
 
+/**
+ * ★ 2026-09-28 全局语言切换：`Landing` 不再自带 Provider（Provider 提到 `main.tsx` 根，落地页与应用壳
+ *   共用同一份状态）⇒ 本文件的渲染必须自己把 Provider 罩上。不罩的话读的是 Context 默认值 `zh`，
+ *   英文侧那几条锁会全部落空（它们本就是这个文件存在的理由）。
+ */
+const renderLanding = () =>
+  render(
+    <LandingLangProvider>
+      <Landing onAuthed={() => undefined} />
+    </LandingLangProvider>,
+  );
+
 describe('落地页双语 — 英文侧真的上屏', () => {
   it('非中文浏览器首探即英文：hero 标题与体验警示都是英文那一侧', async () => {
-    const { container, findByText } = render(<Landing onAuthed={() => undefined} />);
+    const { container, findByText } = renderLanding();
     expect(title(container)).toBe(`${HERO.titlePre.en}${HERO.titleAccent.en}`);
     // §2.10 的决策落点：共享池警示对看不懂中文的英文访客失效＝没警示
     // （★ 体验入口要等 `/api/auth/providers` 回来才画 ⇒ 这里必须 await，同步 getByText 会先扑空）
@@ -80,7 +92,7 @@ describe('落地页双语 — 英文侧真的上屏', () => {
   });
 
   it('★ 页眉切换键：点「中文」→ 整页换血，并把选择写进 localStorage', () => {
-    const { container } = render(<Landing onAuthed={() => undefined} />);
+    const { container } = renderLanding();
     expect(title(container)).toBe(`${HERO.titlePre.en}${HERO.titleAccent.en}`);
     fireEvent.click(screen.getByRole('button', { name: '中文' }));
     expect(title(container)).toBe(`${HERO.titlePre.zh}${HERO.titleAccent.zh}`);
@@ -127,14 +139,14 @@ describe('落地页双语 — 英文侧真的上屏', () => {
 describe('落地页双语 — 记忆优先于浏览器语言', () => {
   it('存过 zh 就不再让自动判定插手（哪怕浏览器是英文）', () => {
     store('zh');
-    const { container } = render(<Landing onAuthed={() => undefined} />);
+    const { container } = renderLanding();
     expect(title(container)).toBe(`${HERO.titlePre.zh}${HERO.titleAccent.zh}`);
   });
 
   it('存过 en 就不再切回中文（哪怕浏览器是 zh-CN）', () => {
     store('en');
     setNav('zh-CN');
-    const { container } = render(<Landing onAuthed={() => undefined} />);
+    const { container } = renderLanding();
     expect(title(container)).toBe(`${HERO.titlePre.en}${HERO.titleAccent.en}`);
   });
 
@@ -218,7 +230,7 @@ describe('落地页双语 — 两语都得在产品事实之内', () => {
 describe('落地页双语 — 冒险录各章跟着换语言', () => {
   it('EN 侧：知识大陆与伙伴章的标题、按钮都是英文；切回中文后换成中文', () => {
     store('en');
-    const { container, getByText } = render(<Landing onAuthed={() => undefined} />);
+    const { container, getByText } = renderLanding();
     expect(container.querySelector('.wf-ch-continent .wf-h2')?.textContent).toBe('The continent grows one term at a time');
     expect(getByText('Learn a new term')).toBeTruthy();
     expect(container.querySelector('.wf-ch-npc .wf-h2')?.textContent).toBe('Recruit your AI companions');
@@ -231,7 +243,7 @@ describe('落地页双语 — 冒险录各章跟着换语言', () => {
 describe('落地页页脚的公开入口（词条目录与更新记录）', () => {
   it('★ 两语侧各两条：地址都带 .html，英文侧都如实写明只有中文', () => {
     // 默认态（localStorage 空 + nav=en-US）即英文侧，见上面的 beforeEach
-    const en = render(<Landing onAuthed={() => undefined} />);
+    const en = renderLanding();
     const enLinks = [...en.container.querySelectorAll<HTMLAnchorElement>('.landing-foot a')];
     expect(enLinks.map((a) => a.textContent)).toEqual([FOOT_TERMS.en, FOOT_CHANGELOG.en]);
     // ★ 词条页与更新页目前都只有中文一套（SEO-SPEC §5 第 3 条），英文标签配中文页面＝承诺一个不存在的东西
@@ -239,7 +251,7 @@ describe('落地页页脚的公开入口（词条目录与更新记录）', () =
     en.unmount();
 
     store('zh');
-    const zh = render(<Landing onAuthed={() => undefined} />);
+    const zh = renderLanding();
     const [terms, changelog] = [...zh.container.querySelectorAll<HTMLAnchorElement>('.landing-foot a')];
     expect(terms?.textContent).toBe('学习科学词条');
     // ★ `/terms/` 线上兜成 SPA 壳（09-23 实测 1487 字节、正文全空），一旦改回去就是指向空页

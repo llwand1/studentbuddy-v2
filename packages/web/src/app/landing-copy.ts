@@ -14,8 +14,9 @@ import type { Bi } from './landing-lang';
 import { BRAND_TAGLINE as BRAND_TAGLINE_ZH } from '../lib/brand';
 
 /**
- * 品牌副标：中文侧**仍是 `lib/brand` 那一个常量**（与产品侧栏逐字一致，单一事实源不动）；
- * EN 是落地页修辞，不进产品——登录后侧栏还是中文那句（范围决策，见 landing-lang 头注）。
+ * 品牌副标：中文侧**仍是 `lib/brand` 那一个常量**（与产品侧栏逐字一致，单一事实源不动）。
+ * ★ 2026-09-28 改口径：EN 不再只属于落地页——全局中英切换后，产品侧栏那句副标也读本条的 `en`
+ *   （`app/shell-copy.ts` 直接复用本常量，不另写一句）。故本常量是两处共用的唯一事实源。
  */
 export const BRAND_TAGLINE: Bi = { zh: BRAND_TAGLINE_ZH, en: 'A gamified knowledge learning agent' };
 

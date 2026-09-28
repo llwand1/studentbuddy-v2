@@ -29,6 +29,8 @@ import {
 } from '@sb/shared';
 import { AccountTrigger } from './AccountTrigger';
 import { api } from '../lib/api';
+import { useLandingLang } from '../app/landing-lang';
+import { RESEND_TEXT, SHELL } from '../app/shell-copy';
 
 type Mode = 'login' | 'register';
 
@@ -50,6 +52,10 @@ export function AccountBox({
   standalone?: boolean;
   initialMode?: Mode;
 }) {
+  /** 表单文案跟着全局语言走（词表见 app/shell-copy.ts 的 account 子表 + RESEND_TEXT）。
+   *  ★ `lang` 必须进下面两个 useCallback 的依赖数组——漏了就会出现「切了语言、报错文案还是旧语言」。 */
+  const { lang } = useLandingLang();
+  const C = SHELL.account;
   const [user, setUser] = useState<AuthUser | null>(null);
   const [open, setOpen] = useState(standalone);
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -99,7 +105,7 @@ export function AccountBox({
   const sendCode = useCallback(async () => {
     const em = normalizeEmail(email);
     if (!em) {
-      setError('邮箱格式不正确');
+      setError(C.errEmail[lang]);
       return;
     }
     setBusy(true);
@@ -110,27 +116,27 @@ export function AccountBox({
       await api.auth.sendCode(em, 'login');
       setCooldown(RESEND_SECONDS);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '验证码发送失败，请重试');
+      setError(err instanceof Error ? err.message : C.errSend[lang]);
     } finally {
       setBusy(false);
     }
-  }, [email]);
+  }, [email, lang]);
 
   const submit = useCallback(async () => {
     const em = normalizeEmail(email);
     if (!em) {
-      setError('邮箱格式不正确');
+      setError(C.errEmail[lang]);
       return;
     }
     // ★ 只有「验证码登录」一条通道要码（注册自 2026-09-22 起免码，契约 §2.7 作废）。
     const needCode = byCode;
     if (needCode && !code.trim()) {
-      setError('请填写邮箱收到的验证码');
+      setError(C.errCode[lang]);
       return;
     }
     // 注册与密码登录都必须设密码（双通道并存）：密码是邮件通道挂掉时唯一的退路。
     if (!needCode && passwordProblem(password)) {
-      setError('密码长度需在 8~100 位之间');
+      setError(C.errPassword[lang]);
       return;
     }
     setBusy(true);
@@ -150,11 +156,11 @@ export function AccountBox({
       onAuthChange?.(next);
     } catch (err) {
       // ApiError 里带的是服务端 `ERROR_TEXT` 的人话（如「这个邮箱已经注册过了，直接登录试试」）
-      setError(err instanceof Error ? err.message : '操作失败，请重试');
+      setError(err instanceof Error ? err.message : C.errGeneric[lang]);
     } finally {
       setBusy(false);
     }
-  }, [email, password, nickname, code, mode, byCode, onAuthChange]);
+  }, [email, password, nickname, code, mode, byCode, onAuthChange, lang]);
 
   const logout = useCallback(async () => {
     setBusy(true);
@@ -173,10 +179,15 @@ export function AccountBox({
 
   const showPassword = mode === 'register' || !byCode;
   const showCode = byCode;
-  const submitLabel = mode === 'register' ? '注册并登录' : byCode ? '验证码登录' : '登录';
+  const submitLabel =
+    mode === 'register'
+      ? C.submitRegister[lang]
+      : byCode
+        ? C.submitByCode[lang]
+        : C.login[lang];
 
   return (
-    <div className="sb-user-box sb-account-box" title={user ? '点击退出登录' : '点击登录 / 注册'}>
+    <div className="sb-user-box sb-account-box" title={user ? C.clickToLogout[lang] : C.clickToLogin[lang]}>
       {/* 收起态块（头像+名称）在 AccountTrigger.tsx；standalone（落地页）无侧栏身份语义，不渲染 */}
       {!standalone && <AccountTrigger user={user} collapsed={!open} onToggle={toggle} />}
       {(standalone || open) && (
@@ -194,20 +205,20 @@ export function AccountBox({
                 className={mode === 'login' ? 'on' : ''}
                 onClick={() => switchMode('login')}
               >
-                登录
+                {C.login[lang]}
               </button>
               <button
                 type="button"
                 className={mode === 'register' ? 'on' : ''}
                 onClick={() => switchMode('register')}
               >
-                注册
+                {C.register[lang]}
               </button>
             </div>
           )}
           <input
             className="sb-user-form-input"
-            placeholder="邮箱"
+            placeholder={C.email[lang]}
             value={email}
             autoComplete="email"
             onChange={(e) => setEmail(e.target.value)}
@@ -215,7 +226,7 @@ export function AccountBox({
           {showPassword && (
             <input
               className="sb-user-form-input"
-              placeholder="密码（至少 8 位）"
+              placeholder={C.password[lang]}
               type="password"
               value={password}
               autoComplete={user ? 'current-password' : 'new-password'}
@@ -226,7 +237,7 @@ export function AccountBox({
             <div className="sb-user-form-row">
               <input
                 className="sb-user-form-input"
-                placeholder={`${AUTH_CODE_LEN} 位验证码`}
+                placeholder={C.code[lang]}
                 value={code}
                 maxLength={AUTH_CODE_LEN}
                 inputMode="numeric"
@@ -239,19 +250,17 @@ export function AccountBox({
                 disabled={busy || cooldown > 0 || !email}
                 onClick={() => void sendCode()}
               >
-                {cooldown > 0 ? `${cooldown}s 后重发` : '发送验证码'}
+                {cooldown > 0 ? RESEND_TEXT[lang](cooldown) : C.sendCode[lang]}
               </button>
             </div>
           )}
           {cooldown > 0 && (
-            <span className="sb-user-form-note">
-              没收到？先翻一下垃圾箱——首次发信被误判的概率最高。
-            </span>
+            <span className="sb-user-form-note">{C.spamNote[lang]}</span>
           )}
           {mode === 'register' && (
             <input
               className="sb-user-form-input"
-              placeholder="昵称（可留空，默认取邮箱前缀）"
+              placeholder={C.nickname[lang]}
               value={nickname}
               maxLength={20}
               onChange={(e) => setNickname(e.target.value)}
@@ -267,7 +276,7 @@ export function AccountBox({
                 setCode('');
               }}
             >
-              {byCode ? '改用密码登录' : '忘记密码 / 改用验证码登录'}
+              {byCode ? C.usePassword[lang] : C.forgot[lang]}
             </button>
           )}
           {error && <span className="sb-user-form-err">{error}</span>}
@@ -277,7 +286,7 @@ export function AccountBox({
             </button>
             {user && (
               <button type="button" className="sb-user-form-btn" disabled={busy} onClick={() => void logout()}>
-                退出
+                {C.logout[lang]}
               </button>
             )}
             <button
@@ -289,7 +298,7 @@ export function AccountBox({
                 setError('');
               }}
             >
-              收起
+              {C.collapse[lang]}
             </button>
           </div>
         </form>

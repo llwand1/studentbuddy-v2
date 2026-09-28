@@ -59,13 +59,24 @@
 
 ### 3.4 释放
 
-- 全部节走完 ⇒ 出现「释放咒语（N 点）」（一节没中则是「释放（哑火）」）。点下去播放释放特效（法阵加速旋转 + 三圈错相扩散环 + 金色闪光 + 伤害数字，`SPELL_CAST_MS = 1100`；`prefers-reduced-motion` 下不播、直接显示结果）。结算文案念出「N 节里命中 M 节（共鸣加倍）：造成 D 点伤害」，点「回到战斗」才把伤害交回打怪弹窗。
+- 全部节走完 ⇒ 出现「释放咒语（N 点）」（一节没中则是「释放（哑火）」）。点下去播放释放特效；`prefers-reduced-motion` 下不播、直接显示结果。结算文案念出「N 节里命中 M 节（共鸣加倍），化作「款式名」：造成 D 点伤害」，点「回到战斗」才把伤害交回打怪弹窗。
+- **款式（`shared/spell-kinds.ts`）**：每次吟唱开始时**掷一次骰**（`pickSpellKind(rng)`，默认 `Math.random`，可注入），从五款里定一款——整段吟唱到释放都是同一款，卡片边框 / 内圈 / 头部标签「款式名」/ 伤害数字随之染色（`.spell-card.kind-<kind>` → `--spell-accent`），「释放」前的提示句会预告「这一次它会化作「X」——一句画面描述」。**款式只改画面，不改数值**：打多少仍由 `chantPower` / `spellDamage` 说了算。
+
+  | id | 招式名 | 画面 | 时长 / 命中帧（ms） |
+  | --- | --- | --- | --- |
+  | `dusk` | 无光斩 | 椭圆黑幕一圈圈收拢、十四只红眼睁开 → 两道白刃十字劈开 → 墨迹炸开、血珠飞溅 | 1600 / 560 |
+  | `grace` | 悔罪光柱 | 金色光尘上升、光环与念珠悬于头顶 → 一线天光落成三层光柱 → 地面溅光、荆棘自地而生、蓝焰绕柱、九星金光 | 1900 / 560 |
+  | `leaf` | 月下叶舞 | 新月当空、十四片枫叶螺旋收拢 → 花印亮起 → 叶片炸开成花瓣、青环扩散 | 1800 / 640 |
+  | `sylph` | 风灵旋刃 | 风线掠过、旋涡拢起 → 分层龙卷拔地 → 三道风刃穿过留下切口、羽片火花四散 | 1700 / 600 |
+  | `salamander` | 炎蛇 | 火蛇盘绕三匝逼近 → 一口咬下炸成火球 → 火环两重、地面火圈带刺、三十二粒余烬、黑烟与焦痕 | 1800 / 620 |
+
+- **释放特效引擎（`features/continent/spell-fx*.ts`，纯 canvas）**：低清画布（高 `FX_H = 120`，宽按卡片长宽比钳在 120–260）由 CSS `image-rendering: pixelated` 拉满卡片，15 fps 定格（`FX_TICK_MS`，帧间不插值），只用整数 `fillRect` 铺像素；颜色走**色阶而不是透明度**（透明度只用于整屏闪白 / 黑幕 / 烟）；随机量来自 `seed`（mulberry32 + 无状态 `hash`），`draw(ctx, ms)` 是 (seed, ms) 的纯函数——同 seed 逐帧相同，截图与测试可复现。五款共用的骨架：怪（幽魂精灵 ×3）先摇晃 → 命中帧**整屏负片**（黑剪影落在各款自己的纸色上）→ 下一帧整屏色洗 + 放射冲击线 → 各款自己的消散（切断 / 升天 / 化瓣 / 卷走 / 成灰）。命中帧与总时长**只写在 `SPELL_KIND_META`**：DOM 计时器（伤害数字在 `impactMs` 弹出 + 卡片 `steps()` 震动，`durationMs` 切结算）与 canvas 编排查同一张表，`spell-fx.test.ts` 锁两边相等。
 - **伤害** = `spellDamage(power, resonant)` = `power × (resonant ? SPELL_RESONANCE_MULTIPLIER : 1)`，其中 `power = chantPower(results)` = 命中节数，`resonant = spellResonates(会话全部消息正文, 词条名)`。
 - 回到打怪弹窗：
-  - `damage ≥ 剩余血量` ⇒ **收复**，走既有 `onSolved(tile, 'spell')` → `api.terms.mark(id, true)`（与常规答完一字不差的写口）；
+  - `damage ≥ 剩余血量` ⇒ **收复**，走既有 `onSolved(tile, kind)` → `api.terms.mark(id, true)`（与常规答完一字不差的写口；`kind` 只用来选特效）；
   - `0 < damage < 剩余血量` ⇒ 扣 `damage` 滴血＝**跳过同样数量的题**（「题数＝血量」的口径不破），剩下的血仍靠常规答题打掉；
   - `damage = 0` ⇒ **哑火**：不扣血，但这一次吟唱机会已用掉。
-- 地图击杀特效：吟唱收复时 `burst` 带 `spell: true`（`ContinentBurst`），`drawBurst(ctx, t, age, spell)` 画**三圈错相扩散环 + 十六粒火星 + 旋转符印**（亮金 `COLOR.spell`），时长仍受 `BURST_MS` 约束；普通收复不变。
+- 地图击杀特效（`features/continent/spell-burst.ts`）：吟唱收复时 `burst` 带上款式（`ContinentBurst.spell?: SpellKind`），`drawBurst(ctx, t, age, spell)` 改画**同款的地图版**——与吟唱框同调色板、同笔刷，坐标系 `scale(3)` 后按 16 单位/格作画（像素颗粒与地图上的怪一样粗）：无光斩十字斩痕 + 墨迹 / 悔罪光柱落柱 + 荆棘 + 蓝焰 + 光环 / 月下叶舞青环 + 枫叶 / 风灵旋刃小龙卷 + 三刃 + 羽片 / 炎蛇火球 → 火环 → 焦痕；时长 `SPELL_BURST_MS = 900`（仍在 1 秒预算内）；普通收复不变。页面横幅念「「款式名」命中，收复了「词条」」。
 
 ## 4. 数值由学习行为解释（本仓纪律）
 
@@ -90,14 +101,22 @@
 | web | `features/continent/spell-chant-view.ts` | 历史行 → 节（借 `chat/history-fold`）、`planSpell`、`spellTimeText`、文案（`verseTitle` / `truncatedText` / `castText`） |
 | web | `features/continent/SpellBook.tsx` | 咒语书（会话列表 + 取数） |
 | web | `features/continent/SpellChant.tsx` + `SpellQuizVerse.tsx` | 吟唱对话框（复述节 / 题目节 / 释放） |
-| web | `features/continent/spell-chant.css` | 特效（只动 `transform` / `opacity`，`steps()`，reduced-motion 逐条降级） |
-| web | `MonsterDialog.tsx` / `ContinentPage.tsx` / `continent-view.ts` / `ContinentMap.tsx` / `continent-canvas.ts` | 技能按钮与伤害结算（`SolveVia`，`onSolved(tile, 'spell')`；常规答完仍不传第二参）/ `solve(tile, via)` → `burst.spell` / `ContinentBurst` 类型 / 吟唱击杀特效 |
+| shared | `packages/shared/src/spell-kinds.ts` | 五款款式表 `SPELL_KINDS` / `SPELL_KIND_META`（名字、一句画面、时长、命中帧）、`pickSpellKind(rng)`、`isSpellKind` |
+| web | `features/continent/spell-fx.ts` + `spell-fx-core.ts` / `spell-fx-art.ts` / `spell-fx-gothic.ts` / `spell-fx-elements.ts` | 释放特效引擎：入口（建场景 / 定格 / 震屏）、像素笔刷与粒子与靶子、像素图与调色板、无光斩 + 悔罪光柱、月下叶舞 + 风灵旋刃 + 炎蛇 |
+| web | `features/continent/spell-fx-soft.ts` | 软件栅格器（`fillRect` 子集）：测试与 `tools/probes/spell-fx-sheet.mts` 在纯 Node 里把帧真的画出来 |
+| web | `features/continent/SpellFx.tsx` | 画布壳：rAF 驱动 `createSpellScene`，帧序号变了才重画，到时长即停 |
+| web | `features/continent/spell-burst.ts` | 地图版收复特效（五款，`SPELL_BURST_MS`） |
+| web | `features/continent/spell-chant.css` | 舞台 / 伤害数字 / 卡片震动 / 款式染色（只动 `transform` / `opacity`，`steps()`，reduced-motion 逐条降级） |
+| web | `MonsterDialog.tsx` / `ContinentPage.tsx` / `continent-view.ts` / `ContinentMap.tsx` / `continent-canvas.ts` | 技能按钮与伤害结算（`onSolved(tile, kind?)`；常规答完仍不传第二参）/ `solve(tile, spell?)` → `burst.spell` / `ContinentBurst` 类型 / `burstMs(spell)` + `drawBurst` 转交 `spell-burst.ts` |
+| tools | `tools/probes/spell-fx-sheet.mts` | 接触印相：五款 × 8 帧（吟唱框）＋五款 × 8 帧（地图版）拼成 `docs/images/spell-fx-kinds.png`，改编排后重跑、评审对着 diff 看 |
 
 ## 7. 验证
 
-- 单测：`packages/shared/src/spell-chant.test.ts`（纯函数口径）、`features/continent/spell-chant-view.test.ts`（历史行切节与共鸣）、`SpellChant.test.tsx`（复述通过/不通过/跳过、题目对/错、释放伤害与共鸣倍率）、`SpellBook.test.tsx`（列表 / 空咒语 / 选中）、`MonsterDialog.test.tsx`（技能按钮、扣血、吟唱收复走 `onSolved(tile,'spell')`、一次开打只一次）。
-- ★ **浏览器实跑（headless Chromium，2026-09-28）**：对着真 dev server（`SB_DATA_DIR` 隔离库）＋ vite 页面走完整条链——SQL 灌入 3 段会话（其中一段带 `[QUIZ]` 题卡、一段只有图片提问）与 3 只逾期怪 ⇒ 点怪开弹窗 → 「魔法吟唱」→ 咒语书三本按更新时间排列（「只有一张图」被判空咒语、置灰不进吟唱）→ 「闭包到底是什么」切成 6 节（3 复述 + 3 题，`essay` 被剔除）→ 复述相似度 73% ≥ 60% 放行、故意答错判断题得一节失谐 → 「释放咒语（10 点）」= 5 命中 × 共鸣 2 → 3 血的怪被收复，页面横幅「咒语命中，收复了「闭包」」，`terms.mark` 真的写了库（再开地图怪已消失、地上留箱）；canvas 在释放后 200ms 的帧上能看到咒语版 burst（方环 + 火花 + 旋转符印）。截图：`docs/images/spell-chant-book.png` / `spell-chant-recall.png` / `spell-chant-cast.png` / `spell-chant-map-burst.png`。
-- ⚠️ **仍未做的**：真实设备与多浏览器（只跑了 headless Chromium）、`prefers-reduced-motion` 下的画面（只在 jsdom 里锁了「跳过释放阶段」）、canvas 特效的**几何断言**（本次只是目检截图，没有像 `tools/probes/continent-cdp.mjs` 那样量像素质心）。`ContinentPage` 里 `via='spell'` → `burst.spell` 那一行接线没有页面级用例（`ContinentPage.test.tsx` 已贴近 300 行红线），由类型（`SolveVia`）、`MonsterDialog.test.tsx` 的 `onSolved(tile,'spell')` 断言与上面那次浏览器实跑兜住。
+- 单测：`packages/shared/src/spell-chant.test.ts`（纯函数口径）、`packages/shared/src/spell-kinds.test.ts`（五款表齐全、掷骰只落在表内且 rng 越界钳住、时长/命中帧合理）、`features/continent/spell-chant-view.test.ts`（历史行切节与共鸣、结算句带款式名）、`SpellChant.test.tsx`（复述通过/不通过/跳过、题目对/错、释放伤害与共鸣倍率；假时钟走完释放：命中帧才出伤害数字与 `struck`、到时长才结算、`onCast` 的 `detail.kind`；不传 `kind` 则掷到五款之一）、`SpellBook.test.tsx`（列表 / 空咒语 / 选中）、`MonsterDialog.test.tsx`（技能按钮、扣血、吟唱收复走 `onSolved(tile, kind)`、一次开打只一次）。
+- ★ **特效引擎的像素断言（`features/continent/spell-fx.test.ts`，纯 Node）**：用 `spell-fx-soft.ts` 的软件栅格器把每一帧真的画进 RGBA 缓冲再看像素——五款的命中帧常量 === `SPELL_KIND_META[kind].impactMs`；整条时间线每帧可画且只用 `fillRect` 子集；**调色板纪律**（一款只用自己的 `FX_PAL[kind]` + 幽魂色 + 三个公共色，地图版同）；命中帧满覆盖且平均亮度 > 0.75、前一帧 < 0.4；靶区命中前覆盖 > 0.5、收尾 < 0.1；同 seed 逐帧相同、异 seed 不同；画布尺寸钳位；地图版五款 ≤ 1s、有像素、不糊满、过时长即净、同帧逐像素相同。
+- ★ **接触印相（`tools/probes/spell-fx-sheet.mts`）**：`npx tsx tools/probes/spell-fx-sheet.mts [输出] [seed]` 把五款 × 8 个时间点（起手 / 蓄力 / 命中前一帧 / 命中帧 / 命中后一帧 / 爆发 / 消散 / 收尾，按各款自己的 `impactMs` / `durationMs` 取）与地图版五款 × 8 帧拼成 `docs/images/spell-fx-kinds.png`。本次编排就是对着它逐帧改出来的（三轮：收尖的弯刃 / 冲击线 / 星光 / 纸色负片 / 荆棘 / 龙卷分层 / 色洗 / 墨迹 / 天光；黑幕从矩形条改成阶梯椭圆——矩形条在红洗下像 UI 色块；命中相关的切换统一改成 `after()` 语义，负片帧不再比 DOM 计时器晚一帧）。
+- ★ **浏览器实跑（headless Chromium，2026-09-28）**：对着真 dev server（`SB_DATA_DIR` 隔离库）＋ vite 页面走完整条链——SQL 灌入 3 段会话（其中一段带 `[QUIZ]` 题卡、一段只有图片提问）与 3 只逾期怪 ⇒ 点怪开弹窗 → 「魔法吟唱」→ 咒语书三本按更新时间排列（「只有一张图」被判空咒语、置灰不进吟唱）→ 「闭包到底是什么」切成 6 节（3 复述 + 3 题，`essay` 被剔除）→ 复述相似度 73% ≥ 60% 放行、故意答错判断题得一节失谐 → 「释放咒语（10 点）」= 5 命中 × 共鸣 2 → 3 血的怪被收复，页面横幅「…命中，收复了「闭包」」，`terms.mark` 真的写了库（再开地图怪已消失、地上留箱）。**五款各跑了一遍**（`add_init_script` 钉住 `Math.random` 让掷骰落到指定款，每次收复后 SQL 把词条拨回逾期再来）：卡片的 `kind-<kind>` 类、款式标签、预告句、命中帧后 `.spell-cast-num` 出现与 `struck` 挂上、结算句「…化作「X」：造成 12 点伤害！」、地图横幅「「X」命中，收复了「闭包」」五款全部对上；浏览器里低清画布为 163×120、拉到 454×334。截图：`docs/images/spell-chant-book.png` / `spell-chant-recall.png` / `spell-chant-ready.png`（款式标签 + 预告句）/ `spell-chant-cast.png`（五款：命中帧 + 命中后 300ms，浏览器实拍）/ `spell-chant-map-burst.png`（五款地图版，浏览器实拍）。
+- ⚠️ **仍未做的**：真实设备与多浏览器（只跑了 headless Chromium）、`prefers-reduced-motion` 下的画面（只在 jsdom 里锁了「跳过释放阶段」）、canvas 在**浏览器里**的几何断言（像素断言在软件栅格器上做，真 canvas 的 `fillRect` 语义一致但没再量一遍）。`ContinentPage` 里 `solve(tile, kind)` → `burst.spell` 那一行接线没有页面级用例（`ContinentPage.test.tsx` 已贴近 300 行红线），由类型（`SpellKind`）、`MonsterDialog.test.tsx` 的 `onSolved(tile,'dusk')` 断言与浏览器实跑兜住。
 
 ## 8. 画面
 
@@ -105,6 +124,18 @@
 | --- | --- |
 | ![咒语书](images/spell-chant-book.png) | ![复述](images/spell-chant-recall.png) |
 
-| 释放 | 地图上的咒语版 burst |
-| --- | --- |
-| ![释放](images/spell-chant-cast.png) | ![burst](images/spell-chant-map-burst.png) |
+掷到「悔罪光柱」的那一局，释放前的卡片（款式标签随款染色、预告句）：
+
+![释放前](images/spell-chant-ready.png)
+
+五款释放特效的接触印相（上五行：吟唱框里的释放，每行 8 个时间点；下五行：同款在地图上的收复特效；`tools/probes/spell-fx-sheet.mts` 生成，seed 20260928）：
+
+![五款释放特效](images/spell-fx-kinds.png)
+
+浏览器实拍（headless Chromium，每行一款：左 = 命中帧附近，右 = 命中后约 300ms；自上而下 无光斩 / 悔罪光柱 / 月下叶舞 / 风灵旋刃 / 炎蛇）：
+
+![浏览器里的释放](images/spell-chant-cast.png)
+
+地图上的咒语版收复特效（浏览器实拍，回到战斗后约 180ms 的一帧，五款同序）：
+
+![地图版](images/spell-chant-map-burst.png)

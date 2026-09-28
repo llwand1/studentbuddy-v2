@@ -14,9 +14,10 @@
  *   `prefers-reduced-motion` 由组件层处理（传 `k = 1` / `pulse = 0.5` / `bob = 0`），
  *   本层不做媒体查询——同一份指令在两种模式下都可执行。
  */
-import { CONTINENT_VIEW_COLS, CONTINENT_QCOLOR, CONTINENT_VIEW_ROWS, type ContinentQType } from '@sb/shared';
+import { CONTINENT_VIEW_COLS, CONTINENT_QCOLOR, CONTINENT_VIEW_ROWS, type ContinentQType, type SpellKind } from '@sb/shared';
 import type { ContinentTileView } from './continent-view';
 import type { HeroCell } from './useContinentHero';
+import { SPELL_BURST_MS, drawSpellBurst } from './spell-burst';
 import { drawSprite } from '../../app/hero/hero-sprites';
 import { CHIBI_MAP, CHIBI_PAL, SHADE_MAP, SHADE_PAL, TILE_PAL, drawProp, drawSigil, drawTile as drawArtTile, type TilePal } from '../../app/world/continent-art';
 import { NPC_ART } from '../../app/world/npc-art';
@@ -61,8 +62,6 @@ export const COLOR = {
   npcHat: '#d98a4a',
   /** 遇险时头顶的红惊叹块。★ 与领地红（landLine）刻意不同色：一个是"地丢了"，一个是"人在喊" */
   npcAlert: '#ff5f5f',
-  /** 魔法吟唱（2026-09-28）：咒语的金比收复金更亮更白——同是"赢了"，但这次是用回忆赢的 */
-  spell: '#fff1b8',
 };
 
 /**
@@ -347,38 +346,32 @@ export function drawFrame(ctx: CanvasRenderingContext2D, t: CellRef, color: stri
 
 /**
  * 收复特效：扩散环 + 爆散粒子（打怪）与领地回归共用。
- * `spell = true`（魔法吟唱补刀，契约 `docs/SPELL-CHANT-SPEC.md` §3.4）：三圈错相扩散环 + 16 粒火花 + 旋转符文方——
- * 明显比常规一击「更大一号」，但时长不变（仍受 `BURST_MS` ≤1 秒预算约束）。
+ * `spell`（魔法吟唱补刀的款式，契约 `docs/SPELL-CHANT-SPEC.md` §3.4）：改走 `spell-burst.ts` 的五款之一——
+ * 与吟唱框里的释放特效同调色板；时长 `SPELL_BURST_MS`，仍压在 1 秒预算内。
  */
-export function drawBurst(ctx: CanvasRenderingContext2D, t: CellRef, age: number, spell = false): void {
-  const p = Math.min(age / BURST_MS, 1);
+export function drawBurst(ctx: CanvasRenderingContext2D, t: CellRef, age: number, spell?: SpellKind): void {
   const cx = t.col * CELL + CELL / 2;
   const cy = t.row * CELL + CELL / 2;
-  const rings = spell ? 3 : 1;
-  const sparks = spell ? 16 : 8;
-  ctx.strokeStyle = spell ? COLOR.spell : COLOR.gold;
-  ctx.lineWidth = 3;
-  for (let r = 0; r < rings; r += 1) {
-    const q = Math.max(0, Math.min(1, p * (1 + r * 0.35) - r * 0.18));
-    ctx.globalAlpha = 1 - q;
-    const ring = Math.round(8 + q * (spell ? 40 : 26));
-    ctx.strokeRect(cx - ring, cy - ring, ring * 2, ring * 2);
+  if (spell) {
+    drawSpellBurst(ctx, cx, cy, age, spell);
+    return;
   }
+  const p = Math.min(age / BURST_MS, 1);
+  ctx.strokeStyle = COLOR.gold;
+  ctx.lineWidth = 3;
   ctx.globalAlpha = 1 - p;
-  ctx.fillStyle = spell ? COLOR.spell : '#ffe9a8';
-  for (let i = 0; i < sparks; i += 1) {
-    const ang = (Math.PI * 2 * i) / sparks;
-    const d = 6 + p * (spell ? 36 : 24);
+  const ring = Math.round(8 + p * 26);
+  ctx.strokeRect(cx - ring, cy - ring, ring * 2, ring * 2);
+  ctx.fillStyle = '#ffe9a8';
+  for (let i = 0; i < 8; i += 1) {
+    const ang = (Math.PI * 2 * i) / 8;
+    const d = 6 + p * 24;
     ctx.fillRect(Math.round(cx + Math.cos(ang) * d), Math.round(cy + Math.sin(ang) * d), 3, 3);
   }
-  if (spell) {
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(Math.PI / 4 + p * Math.PI);
-    ctx.lineWidth = 2;
-    const half = Math.round(6 + p * 18);
-    ctx.strokeRect(-half, -half, half * 2, half * 2);
-    ctx.restore();
-  }
   ctx.globalAlpha = 1;
+}
+
+/** 收复特效时长：咒语版比常规一击长一点，但都在 1 秒内 */
+export function burstMs(spell?: SpellKind): number {
+  return spell ? SPELL_BURST_MS : BURST_MS;
 }

@@ -20,7 +20,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CONTINENT_VIEW_COLS, CONTINENT_VIEW_ROWS, worldCells } from '@sb/shared';
 import {
-  BURST_MS,
+  burstMs,
   CANVAS_H,
   CANVAS_W,
   CELL,
@@ -197,7 +197,7 @@ export function ContinentMap({
       const carried = burstRef.current;
       if (carried) {
         const age = now - carried.start;
-        if (age < BURST_MS) drawBurst(ctx, carried.tile, age, carried.tile.spell === true);
+        if (age < burstMs(carried.tile.spell)) drawBurst(ctx, carried.tile, age, carried.tile.spell);
         else burstRef.current = null;
       }
       if (focus) drawFrame(ctx, focus, COLOR.gold, popAge);
@@ -208,7 +208,7 @@ export function ContinentMap({
       ctx.restore();
 
       const bAge = burstRef.current ? now - burstRef.current.start : Number.POSITIVE_INFINITY;
-      if (popAge < STAGGER_CAP * STAGGER_MS + POP_MS + 40 || bAge < BURST_MS || now - heroStart < STEP_MS + 60) {
+      if (popAge < STAGGER_CAP * STAGGER_MS + POP_MS + 40 || bAge < burstMs(burstRef.current?.tile.spell) || now - heroStart < STEP_MS + 60) {
         raf = requestAnimationFrame(step);
       }
     };

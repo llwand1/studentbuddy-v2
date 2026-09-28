@@ -61,8 +61,9 @@ export function truncatedText(truncated: number): string | null {
 }
 
 /** 释放后的结算文案（弹窗里念给用户听；数字由 shared 算，这里只组句） */
-export function castText(damage: number, power: number, total: number, resonant: boolean): string {
+export function castText(damage: number, power: number, total: number, resonant: boolean, kindName?: string): string {
   if (damage <= 0) return `咒语哑火了——${total} 节里一节都没能共鸣，这只怪没掉血。`;
   const base = `${total} 节里命中 ${power} 节`;
-  return resonant ? `${base}，咒语与这块地共鸣，威力加倍：造成 ${damage} 点伤害！` : `${base}：造成 ${damage} 点伤害。`;
+  const skill = kindName ? `化作「${kindName}」` : '';
+  return resonant ? `${base}，咒语与这块地共鸣，威力加倍${skill ? `，${skill}` : ''}：造成 ${damage} 点伤害！` : `${base}${skill ? `，${skill}` : ''}：造成 ${damage} 点伤害。`;
 }

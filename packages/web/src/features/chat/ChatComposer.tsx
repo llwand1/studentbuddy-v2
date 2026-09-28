@@ -226,7 +226,7 @@ export function ChatComposer({
       <DocModeControl doc={doc} open={docOpen} onClose={() => setDocOpen(false)} />
       <AttachmentTray images={attachments} onRemove={(i) => setAttachments(attachments.filter((_, j) => j !== i))} />
       {intakeHint && <div className="chat-att-hint">{intakeHint}</div>}
-      <div className="chat-composer">
+      <div className={busy ? 'chat-composer busy' : 'chat-composer'}>
         <ComposerMenu
           items={items}
           status={menuStatus({ online, docBase: doc.meta?.name })}

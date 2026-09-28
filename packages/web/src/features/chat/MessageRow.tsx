@@ -20,6 +20,7 @@ import { ToolSteps } from './ToolSteps';
 import { MessageFoot } from './MessageFoot';
 import { processSummary } from './process-summary';
 import { Markdown } from './Markdown';
+import { ChatSpeaker } from './ChatSpeaker';
 import { ChevronDownIcon } from '../../components/icons';
 import { QuizCard } from '../quiz/QuizCard';
 import { ScenarioPanel } from '../quiz/ScenarioPanel';
@@ -89,6 +90,8 @@ export function MessageRow({
 
   return (
     <div className={m.role === 'user' ? 'chat-row user' : 'chat-row'}>
+      {/* 铭牌（头像 + 谁在说话）：每条消息一枚，与流式行 / 等待态那枚同款（ChatSpeaker） */}
+      <ChatSpeaker role={m.role === 'user' ? 'user' : 'assistant'} />
       {m.role === 'user' ? (
         editing ? (
           // 编辑态：textarea 预填原文，保存走 resend（新文案整条替换提问并重跑）

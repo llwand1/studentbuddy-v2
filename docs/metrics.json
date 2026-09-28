@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-28T11:27:38.551Z",
+  "generatedAt": "2026-09-28T13:03:12.175Z",
   "code": {
     "rows": [
       {
@@ -18,17 +18,17 @@
       },
       {
         "pkg": "web",
-        "srcFiles": 232,
-        "testFiles": 84,
-        "srcLines": 31066,
-        "testLines": 12477
+        "srcFiles": 234,
+        "testFiles": 86,
+        "srcLines": 31185,
+        "testLines": 12581
       }
     ],
-    "srcFiles": 456,
-    "testFiles": 238,
-    "srcLines": 66179,
-    "testLines": 44282,
-    "tsxTestFiles": 36
+    "srcFiles": 458,
+    "testFiles": 240,
+    "srcLines": 66298,
+    "testLines": 44386,
+    "tsxTestFiles": 38
   },
   "routes": {
     "total": 139,
@@ -85,20 +85,20 @@
     "probes": 15
   },
   "repo": {
-    "head": "6f9417f",
+    "head": "fb358ca",
     "headDate": "2026-09-28",
-    "commitsLast14d": 71,
-    "branch": "merge/pv-hero",
-    "dirtyFiles": 9
+    "commitsLast14d": 74,
+    "branch": "merge/chat-grimoire-ui",
+    "dirtyFiles": 0
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 48.8,
+    "wallSec": 51,
     "staleDays": 0,
-    "files": 238,
-    "cases": 3161,
-    "passed": 3160,
+    "files": 240,
+    "cases": 3169,
+    "passed": 3168,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -109,14 +109,14 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "238",
-      "measured": "238",
+      "claimed": "240",
+      "measured": "240",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "3161",
-      "measured": "3161",
+      "claimed": "3169",
+      "measured": "3169",
       "ok": true
     },
     {
@@ -157,8 +157,8 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "238 文件 / 3161 例",
-      "measured": "238 文件 / 3161 例",
+      "claimed": "240 文件 / 3169 例",
+      "measured": "240 文件 / 3169 例",
       "ok": true
     }
   ],

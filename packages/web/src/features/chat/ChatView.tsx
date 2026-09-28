@@ -16,6 +16,7 @@ import { ThoughtPanel } from './ThoughtPanel';
 import { ToolSteps } from './ToolSteps';
 import { TaskPanel } from './TaskPanel';
 import { MessageRow } from './MessageRow';
+import { ChatSpeaker } from './ChatSpeaker';
 import { formatRoundMeta } from './chat-meta';
 import { buildExportMarkdown, downloadText, exportFilename } from './chat-export';
 import { mixTipText } from '../quiz/mix-report';
@@ -195,6 +196,14 @@ export function ChatView({
 
   return (
     <div className="chat-view">
+      {/* 会话铭牌条（与其它页面的页标题同一套：角标 + 压印标题 + 荆棘分隔）；空会话由欢迎页自带角标，不重复 */}
+      {!isEmpty && (
+        <header className="chat-head">
+          <span className="chat-head-eyebrow">CAMPFIRE · 篝火对谈</span>
+          <h2 className="chat-head-title">{sessionTitle?.trim() || '新对话'}</h2>
+          <span className="chat-head-rounds">{messages.filter((x) => x.role === 'user').length} 轮</span>
+        </header>
+      )}
       <div className="chat-scroll" ref={scrollRef} onScroll={onScroll} role="log" aria-live="polite" aria-busy={busy}>
         {isEmpty && <Welcome onPick={pick} />}
         {messages.map((m, i) => (
@@ -220,6 +229,7 @@ export function ChatView({
         {busy && !streamingText && <Thinking steps={steps} reasoningLen={reasoning.length} startedAtMs={startedAtMs} />}
         {streamingText && (
           <div className="chat-row">
+            <ChatSpeaker role="assistant" live />
             <div className="chat-bubble md streaming">
               <Markdown text={streamingText} streaming />
               <span className="chat-caret" />

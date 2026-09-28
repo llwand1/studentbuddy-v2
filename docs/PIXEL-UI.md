@@ -44,3 +44,27 @@
 - `styles/pixel-shell.css` 追加的微交互：导航项悬停图标顶一格 / 按下沉 1px / 激活弹一跳，团子悬停抬头，「新对话」加号悬停转 90°，历史会话行悬停右移一格，手机抽屉阶梯滑入 ＋ 遮罩跳变现身，自己发出的消息浮入一格（★ 只挂 user 行：助手行从流式气泡换成落成消息是两个节点的替换，挂了会闪）。
 
 回归：`src/components/SceneTransition.test.tsx`（7 例，登记见 TEST-PLAN §3 顶部）。视觉本身属真机目检：幕布掀开、抽屉滑入、导航弹跳已在无头 Chromium 1280×800 与 390×780 两档连拍确认，减少动态效果档确认零幕布节点。
+
+## 2026-09-28 对话页：篝火对谈皮 + 特效层
+
+起因：对话页是全站唯一还长着「默认聊天软件」模样的页面——无头像、无铭牌、细线气泡、缓动曲线、白渐变卡，和大陆 / 词条 / 卡牌 / 设置那套黑铁金线放在一起像两个产品。本批只加**外观层与动效层**，不加玩法、不加数值、不加迁移，服务端零改动，数据流零改动（`useChatStream` / `MessageRow` 的分支逻辑一行没动）。
+
+- `styles/grimoire-chat.css`（新）：对话页整张皮，按 `grimoire.css` 的语言写——黑铁框 + 双金线（`--gr-frame`）、血红锻铁牌、压印标题、荆棘分隔。**所有效果都是 CSS**，组件只翻 class。层内分区：
+  - 会话铭牌头 `.chat-head`：角标 `CAMPFIRE · 篝火对谈` + 会话标题 + 轮数铁牌 `N 轮`，与 `continent-head` / `term-head` 同一套；空会话（欢迎页）不渲染。
+  - 说话者铭牌 `.chat-speaker`：金框像素头像 + 名字 + 英文角标。助手＝团子（复用 `Mascot`），用户＝勇者（`hero-sprites.ts` 的 `HERO_MAP`——落地页序章与知识大陆里走位的就是它，**勇者在哪儿都是同一个勇者**）。`.live` 态：头像框亮金线、团子按拍跳一格、一粒余烬上飘、「吟唱中」按拍闪。
+  - 助手正文 `.chat-bubble.md`：铁框面板 + 左侧符文轨（`::before` 一列金点）+ 落成时叠一层亮金边三拍淡出（`::after`，`ch-frame-settle` 只动 opacity）。流式中同一个 `::after` 改做从上到下的扫描线（`ch-scan` 只动 transform），外加金色方块光标。★ 助手节点从流式气泡换成落成消息是两个节点的替换，所以**不给助手行挂进场动画**（会闪一下），只闪面板边与印章。
+  - 用户消息 `.chat-bubble.user`：血红锻铁牌，整行进场 `ch-plate-drop`（从上落下两格坐实）+ 四角火星（`::before/::after` 各三粒，420ms 内熄，熄灭位＝默认位）。
+  - 等待态 `.chat-typing`：三粒符文按节拍轮流点亮（不再是圆点弹跳）；思考面板 / 工具步骤 / 任务清单改成同色系的任务日志条。
+  - 回合印章 `.chat-round-meta`：铁牌 + 余烬点，`sb-pop` 弹出（复用 `pixel-motion.css` 关键帧）。
+  - 输入框 `.chat-composer`：铁框 + 双金线 + 两枚角饰；`.busy`（生成中）两枚角饰一明一暗交替呼吸（`ch-charge` 只动 opacity），停止键血红。
+  - Markdown 覆盖：`h1/h2` 走显示字体 + 压印阴影、`h2` 前缀 ◆、代码块改成像素窗（标题栏三粒色块 + 语言名 + 铁框）、表格金字表头、引用块红边、行内代码铁底。题卡 / 情景卡进场 `ch-unroll`（clip-path 自上而下展开）。
+  - 底部一层篝火余光 + 六粒余烬 7s 一循环上飘：压在 `z-index:-1`（`.chat-view` 自成层叠上下文），飘在面板**背后**、只从缝隙露出，不压字。
+- `components/PixelSprite.tsx`（新，通用）：字符画 + 调色板 → 内联 SVG，同行同色合并成一个 `<rect>`，`crispEdges`，`aria-hidden`，颜色走 `fill` 属性（不是内联 style）。只在整数倍尺寸下用。
+- `features/chat/ChatSpeaker.tsx`（新）：铭牌组件，`role` + `live` 两个 prop；名字对辅助技术可读，头像 / 角标 / 「吟唱中」装饰隐藏。挂在 `MessageRow`（两种角色）、`ChatView` 流式行、`Thinking` 等待行三处。
+- `ChatView.tsx` 多一个 `.chat-head`（302 行，门禁 ≤320）；`ChatComposer.tsx` 根节点多一个 `busy` class。
+
+四条口径照旧：只用 `steps()`；只动 transform / opacity / clip-path（12 组关键帧逐一核过：凡是想「闪一下边框」的地方都改成叠一层伪元素动 opacity，不直接动 box-shadow / background）；**默认态即终态**——`prefers-reduced-motion` 由 `pixel-ui.css` 全局关掉动画后，余烬 `opacity:0` 直接不存在、扫描线停在框外、火星停在熄灭位，不留任何遮挡；装饰层一律 `pointer-events:none` 不占焦点。
+
+文案仍全中文：功能页不双语是 `app/landing-lang.tsx` 头注范围决策 ① 的知情选择，铭牌上的 `BUDDY` / `HERO` / `CAMPFIRE` 是角标不是文案（与大陆 HUD 同款），不算半中半英。
+
+回归：`src/components/PixelSprite.test.tsx`（4 例）、`src/features/chat/ChatSpeaker.test.tsx`（4 例），登记见 TEST-PLAN §3 顶部；`ChatView.test.tsx` / `ChatComposer.test.tsx` / `Markdown.test.tsx` 例数不变。视觉属真机目检，已在无头 Chromium 1360×860（含 `prefers-reduced-motion: reduce` 一档）与 390×844 @2x 连拍核对：发送 → 等待（符文轮亮）→ 流式（扫描线 + 光标 + 吟唱中）→ 落成（印章 pop）→ 悬停脚注 → 编辑重发 → 出题（题卡展开）→ 回到顶部；减少动态效果档零残留遮挡；窄屏隐藏角标与角饰、铭牌与面板不溢出。

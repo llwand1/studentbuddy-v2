@@ -320,9 +320,6 @@ body :is(.chat-thought-dot.live, .chat-tasks-dot.live) { animation: ch-blink 0.8
    收起的思考牌就成了一只只有头行的空盒 */
 body .chat-row > :is(.chat-thought, .chat-tasks, .chat-steps) { flex: 0 0 100%; }
 body .chat-step {
-  /* chat.css 的 .chat-step{display:flex} 在打包顺序上排在 chat-extras 的 display:block 之后，
-     展开的载荷会跑到行头右侧、行头被垂直居中——这里钉回块布局 */
-  display: block;
   border: 2px solid var(--ch-iron);
   border-radius: 0;
   background: var(--ch-panel);

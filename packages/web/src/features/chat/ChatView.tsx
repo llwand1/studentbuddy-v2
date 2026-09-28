@@ -9,6 +9,8 @@
  *
  * 本文件只留「消息流 + 编排」；输入区整体在 `ChatComposer.tsx`（ChatView 曾贴 300 行门禁）。
  */
+// 基础样式先于面板组件引入（chat-extras.css 由面板组件引入、建立在 chat.css 之上）——顺序契约由 chat-css-order.test.ts 锁
+import './chat.css';
 import { useEffect, useRef, useState } from 'react';
 import { useChatStream } from './useChatStream';
 import { useScrollAnchor } from './useScrollAnchor';
@@ -33,7 +35,6 @@ import { useDocMode } from './useDocMode';
 import { useAskStyle } from './AskStyleCard';
 import { api } from '../../lib/api';
 import { useAutoResize } from './useAutoResize';
-import './chat.css';
 
 export function ChatView({
   sessionId,

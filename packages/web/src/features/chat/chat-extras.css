@@ -128,11 +128,10 @@
 }
 
 /* ===== 工具过程卡片（可展开） =====
-   基础 chip 样式在 chat.css（.chat-step 容器/三态配色）；这里把它从 flex 行
-   改成块容器：内部 .chat-step-row 是真正的行，点击可展开 .chat-step-payload */
-.chat-step {
-  display: block;
-}
+   基础 chip 样式在 chat.css（.chat-step 块容器/三态配色）；这里只定义内部结构：
+   .chat-step-row 是真正的行，点击可展开 .chat-step-payload。
+   ★ 不在这里改写 .chat-step 已声明过的属性——本文件与 chat.css 的加载先后由模块图决定，
+   同属性二次声明等于赌顺序（chat-css-order.test.ts 锁住这条） */
 .chat-step-row {
   display: flex;
   align-items: center;

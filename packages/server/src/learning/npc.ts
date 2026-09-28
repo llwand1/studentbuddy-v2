@@ -28,6 +28,7 @@ import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
 import { scanMap } from './npc-map.js';
 import { npcQuotaFor, syncParty, type NpcQuota } from './npc-party.js';
+import { moveParty } from './npc-move.js';
 import { cardsByTerm } from './term-cards.js';
 import { drawablePool, type ChestDraw, type PoolItem } from './chest.js';
 
@@ -49,6 +50,12 @@ export interface NpcState {
   quota: NpcQuota;
   /** 可落位的空格（选位态高亮用）；★ 由服务端算，前端不重算铺格/领地 */
   spots: NpcSpot[];
+  /**
+   * 全部词条格（伙伴会游走那次改动新增）。
+   * ★ 主动搭话要知道「他此刻站的这一格是哪条词条」——话题由脚下这块地决定（§11）。
+   *   放进同一次响应而不是另开一个口：两处各铺一遍图，就会出现"图上站在 A、气泡在聊 B"。
+   */
+  cells: Array<{ termId: string; term: string; domain: string; row: number; col: number }>;
 }
 
 /** 今天已经交换过几次：★ 读既有 `chest_open` 的 `source_kind + opened_day`，零迁移拿到日级闸门 */
@@ -69,7 +76,10 @@ export function tradesUsedToday(ownerId: string | null, now = new Date()): numbe
  */
 export function npcList(ownerId: string | null): NpcState {
   const scan = scanMap(ownerId);
-  const members = syncParty(ownerId, scan);
+  // ★★ 先自愈迁移（旧库补册、锚点没了的出册），**再**把位置推进到此刻
+  //   （`moveParty` 内部会重读一次名册，所以顺序不能反：反了就是拿旧册去走位）。
+  syncParty(ownerId, scan);
+  const members = moveParty(ownerId, scan);
   // ★ 锚点词条的名字/领域从**同一次扫描**里取（两个桶合起来就是全部词条格）：不额外查库、不铺第二遍图
   const where = new Map<string, { term: string; domain: string }>();
   for (const c of scan.candidates) where.set(c.termId, { term: c.term, domain: c.domain });
@@ -86,10 +96,12 @@ export function npcList(ownerId: string | null): NpcState {
       threat,
     };
   });
-  const takenCells = new Set(members.map((m) => `${m.row},${m.col}`));
+  // ★ 可落位格要避开的是**家**而不是当前站位：伙伴会走，拿会动的位置当"占用"会让
+  //   绿框每 45 秒闪一下（明明那一格没人安家）。一格只许安一个家，这才是安置的约束。
+  const takenHomes = new Set(members.map((m) => `${m.homeRow},${m.homeCol}`));
   const takenTerms = new Set(members.map((m) => m.termId));
   const spots: NpcSpot[] = scan.candidates
-    .filter((c) => !takenCells.has(`${c.row},${c.col}`) && !takenTerms.has(c.termId))
+    .filter((c) => !takenHomes.has(`${c.row},${c.col}`) && !takenTerms.has(c.termId))
     .map((c) => ({ row: c.row, col: c.col }));
 
   return {
@@ -99,6 +111,13 @@ export function npcList(ownerId: string | null): NpcState {
     // ★ 用**真在册数**（刚 `syncParty` 过）而不是那份便宜口径：两条路径在同一次响应里必须同一个数
     quota: npcQuotaFor(ownerId, members.length),
     spots,
+    cells: [...scan.candidates, ...scan.monsters].map((c) => ({
+      termId: c.termId,
+      term: c.term,
+      domain: c.domain,
+      row: c.row,
+      col: c.col,
+    })),
   };
 }
 
@@ -218,4 +237,41 @@ export function npcTrade(
   const pick = ranked[0] as PoolItem;
   const draw = grantTradeDraw(ownerId, pick, now);
   return { ok: true, draw, domainMatched, tradesLeft: npcTradesLeft(used + 1) };
+}
+
+/**
+ * 按**领域**换一条新词（对话式交换的入口，`NPC-PARTNER-SPEC` §13）。
+ *
+ * ★★ 2026-09-28「原住民」那次改动把交换从**下拉框选信物**改成**对话里说一句**。
+ *   语义上的关键一步：信物**本来就只是用来定领域的**（§6.3 钉死了"卡是读数不是道具，
+ *   给出信物没有真实损耗"）——既然它不被消耗、只决定方向，那么让用户从下拉框里挑一张，
+ *   就是**为了一个纯参数去点三下**。改成：领域 = **伙伴此刻站的那一格**，
+ *   信物 = 这个领域里你最熟的那条（服务端自己挑）。
+ *   ⇒ 两道真实闸门**一个没松**：熟度（该领域得有 ★1 以上的卡）＋ 每日 2 次。
+ * ★ 挑信物用「卡最多 → termId 升序」的**确定性**排序：同一轮对话重试不会换一张，可单测。
+ */
+export function npcTradeInDomain(
+  ownerId: string | null,
+  npcId: string,
+  domain: string,
+  now = new Date(),
+): NpcTradeResult {
+  const owner = ownerForWrite(ownerId);
+  const rows = getDb()
+    .prepare('SELECT id FROM term_library WHERE owner_id = ? AND domain = ?')
+    .all(owner, domain) as Array<{ id: string }>;
+  const byTerm = cardsByTerm(ownerId);
+  const eligible = rows
+    .map((r) => ({ id: r.id, cards: byTerm.get(r.id)?.cards ?? 0 }))
+    .filter((r) => r.cards >= NPC_TRADE_MIN_CARDS)
+    .sort((a, b) => (b.cards !== a.cards ? b.cards - a.cards : a.id < b.id ? -1 : 1));
+  const token = eligible[0];
+  if (!token) {
+    return {
+      ok: false,
+      status: 409,
+      error: `「${domain}」这块地上你还没有 ★1 以上的词条——先把这个领域练熟一条，才换得动。`,
+    };
+  }
+  return npcTrade(ownerId, npcId, token.id, now);
 }

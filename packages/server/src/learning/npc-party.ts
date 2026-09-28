@@ -34,6 +34,7 @@ import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
 import { cardsByTerm } from './term-cards.js';
 import { scanMap, type MapScan } from './npc-map.js';
+import { dropNpcSession, ensureNpcSession } from './npc-session.js';
 import { generateNpcIdentity } from './npc-genesis.js';
 
 // ★ 再导出一次：调用方（`routes/cards.ts`）只要 import 本文件，就能同时拿到**算法**与**形状**，
@@ -152,6 +153,10 @@ function starterMember(scan: MapScan): NpcPartyMember | null {
     termId: first.termId,
     row: first.row,
     col: first.col,
+    homeRow: first.row,
+    homeCol: first.col,
+    lastStepAt: 0,
+    stepSeq: 0,
   };
 }
 
@@ -242,8 +247,18 @@ export async function createPartner(
     termId: cell.termId,
     row: cell.row,
     col: cell.col,
+    // 安置点即是家：游走以它为圆心（`NPC_WANDER_RADIUS`），他不会走出这块街区
+    homeRow: cell.row,
+    homeCol: cell.col,
+    // ★ `lastStepAt = 0` ⇒ 由下一次读地图（`moveParty`）就地起表，而不是在这里写 `Date.now()`：
+    //   创建与第一次被看见之间可能隔很久，那段时间不该算成"他已经在走了"。
+    lastStepAt: 0,
+    stepSeq: 0,
   };
   saveParty(ownerId, [...members, member]);
+  // ★ 同时开一条**属于他自己**的会话（= 他的记忆）。建在这里而不是等第一次说话：
+  //   主动搭话可能先于用户开口发生，会话不在的话那句话就无处可落。
+  ensureNpcSession(member.id, ownerId, member.name, member.termId);
   return { ok: true, member, source: identity.source };
 }
 
@@ -274,5 +289,8 @@ export function removePartner(ownerId: string | null, id: string): NpcWriteResul
     ownerId,
     members.filter((m) => m.id !== id),
   );
+  // ★★ 「让他回家」是**真删**，那他的记忆也该跟着走 —— 否则同一条词条重新安置一位伙伴时，
+  //   新人会凭空继承前任的全部对话史（名字都换了，记忆还在，那是最诡异的一种 bug）。
+  dropNpcSession(id);
   return { ok: true };
 }

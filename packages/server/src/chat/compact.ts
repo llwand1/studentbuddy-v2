@@ -269,7 +269,11 @@ function fail(sessionId: string, failure: NonNullable<CompactResult['failure']>,
  * 压缩主流程。返回 `null` 表示**本轮不需要压缩**（历史没超、丢弃量不足、或没有新内容）——
  * 属正常路径，**不记日志**（否则 event_log 会被「什么都没发生」刷满）。
  */
-async function runCompact(sessionId: string, ownerId?: string | null): Promise<CompactResult | null> {
+async function runCompact(
+  sessionId: string,
+  ownerId?: string | null,
+  isolated = false,
+): Promise<CompactResult | null> {
   const history = loadHistory(sessionId);
   if (history.length === 0) return null;
 
@@ -327,12 +331,20 @@ async function runCompact(sessionId: string, ownerId?: string | null): Promise<C
   applyCompact(sessionId, parsed.summary, upto, tokensBefore);
   // ★ 画像的归属跟着**会话的主人**走，不是跟着「谁在跑压缩」——压缩是 fire-and-forget，
   //   跑到这里时 HTTP 请求早已结束，只能靠显式传下来的 ownerId。
-  const added = upsertMemoryItems(parsed.items, sessionId, ownerId);
+  // ★★ `isolated` ＝ 这条会话的记忆**只许留在它自己的摘要里**（`NPC-PARTNER-SPEC` §12）。
+  //   伙伴会话走这条：A 伙伴不该知道你跟 B 伙伴说过什么，主助手也不该读到伙伴的闲聊。
+  //   ⇒ 跳过**全局** `user_memory` 与偏好画像两处写口；`applyCompact`（上一行）写的
+  //   `sessions.summary` 本就按 sessionId 隔离，那才是"他自己的记忆"。
+  //   ⚠️ 代价如实记：伙伴对话里冒出来的用户偏好**不会**进画像，主助手看不见 —— 这是
+  //   "严格隔离"这条裁定自带的取舍，不是漏实现。
+  const added = isolated ? 0 : upsertMemoryItems(parsed.items, sessionId, ownerId);
   // ★ 顺带刷新**词条库驱动**的偏好画像（契约 `docs/MEMORY-TREND-SPEC.md` §3）：压缩是天然的
   //   「该沉淀了」信号点，偏好画像挂在这里就不必新增调度器。它是**幂等**的——重复跑只刷
   //   `updated_at`、不堆行，所以「多跑几次」没有代价，漏跑也只是晚一轮生效。
-  const digest = refreshDigestQuietly(ownerId);
-  const pruned = pruneMemoryItems(ownerId);
+  // 隔离会话不刷偏好画像 ⇒ 给一个**同形状**的空结果，而不是 0：
+  // 下面的诊断记录要读 `.added`/`.error`，换成数字会让类型和读法都拧巴。
+  const digest = isolated ? { added: 0, error: null } : refreshDigestQuietly(ownerId);
+  const pruned = isolated ? 0 : pruneMemoryItems(ownerId);
   recordCompact(
     sessionId,
     {
@@ -359,11 +371,16 @@ async function runCompact(sessionId: string, ownerId?: string | null): Promise<C
  *   目的是「下一轮生效」，本轮用户已经拿到回答了，没有等它的理由。
  * ★ 全链路自带降级：任何失败都只记 event_log，**绝不影响对话**（ADR-4）。
  */
-export async function compactIfNeeded(sessionId: string, ownerId?: string | null): Promise<CompactResult | null> {
+export async function compactIfNeeded(
+  sessionId: string,
+  ownerId?: string | null,
+  /** 隔离会话（伙伴对话）：只写自己的摘要，**不碰**全局画像与偏好画像 —— 见 `runCompact` 里的长注 */
+  isolated = false,
+): Promise<CompactResult | null> {
   if (inFlight.has(sessionId)) return null;
   inFlight.add(sessionId);
   try {
-    return await runCompact(sessionId, ownerId);
+    return await runCompact(sessionId, ownerId, isolated);
   } catch (err) {
     // 兜底：上面每一层都 catch 过，走到这里说明是预期外的错（如库写失败）——
     // 同样不许冒泡，它跑在 fire-and-forget 里，冒泡就是 unhandled rejection

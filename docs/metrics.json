@@ -1,34 +1,34 @@
 {
-  "generatedAt": "2026-09-27T15:26:53.972Z",
+  "generatedAt": "2026-09-28T05:29:11.845Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
-        "srcFiles": 32,
-        "testFiles": 19,
-        "srcLines": 5262,
-        "testLines": 2785
+        "srcFiles": 33,
+        "testFiles": 20,
+        "srcLines": 5482,
+        "testLines": 2961
       },
       {
         "pkg": "server",
-        "srcFiles": 185,
-        "testFiles": 130,
-        "srcLines": 28444,
-        "testLines": 28267
+        "srcFiles": 186,
+        "testFiles": 131,
+        "srcLines": 28614,
+        "testLines": 28395
       },
       {
         "pkg": "web",
-        "srcFiles": 207,
-        "testFiles": 79,
-        "srcLines": 27335,
-        "testLines": 11921
+        "srcFiles": 222,
+        "testFiles": 81,
+        "srcLines": 29157,
+        "testLines": 11975
       }
     ],
-    "srcFiles": 424,
-    "testFiles": 228,
-    "srcLines": 61041,
-    "testLines": 42973,
-    "tsxTestFiles": 33
+    "srcFiles": 441,
+    "testFiles": 232,
+    "srcLines": 63253,
+    "testLines": 43331,
+    "tsxTestFiles": 34
   },
   "routes": {
     "total": 136,
@@ -42,9 +42,9 @@
     "apiMounts": 28
   },
   "contracts": {
-    "iface": 95,
-    "type": 50,
-    "total": 145
+    "iface": 97,
+    "type": 52,
+    "total": 149
   },
   "migrations": {
     "count": 45,
@@ -80,25 +80,25 @@
     ]
   },
   "docs": {
-    "specs": 36,
-    "all": 48,
+    "specs": 37,
+    "all": 49,
     "probes": 15
   },
   "repo": {
-    "head": "ab017fa",
-    "headDate": "2026-09-27",
-    "commitsLast14d": 7,
-    "branch": "feat/pixel-scene-transitions",
-    "dirtyFiles": 11
+    "head": "f075c5a",
+    "headDate": "2026-09-28",
+    "commitsLast14d": 50,
+    "branch": "feat/spell-chant",
+    "dirtyFiles": 21
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 137.7,
+    "wallSec": 133.8,
     "staleDays": 0,
-    "files": 228,
-    "cases": 3055,
-    "passed": 3054,
+    "files": 232,
+    "cases": 3091,
+    "passed": 3090,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -110,14 +110,14 @@
     {
       "label": "badge 测试文件",
       "claimed": "228",
-      "measured": "228",
-      "ok": true
+      "measured": "232",
+      "ok": false
     },
     {
       "label": "badge 测试用例",
-      "claimed": "3055",
-      "measured": "3055",
-      "ok": true
+      "claimed": "3065",
+      "measured": "3091",
+      "ok": false
     },
     {
       "label": "badge REST 路由",
@@ -128,8 +128,8 @@
     {
       "label": "badge 契约类型",
       "claimed": "145",
-      "measured": "145",
-      "ok": true
+      "measured": "149",
+      "ok": false
     },
     {
       "label": "badge 外部运行时依赖",
@@ -151,16 +151,23 @@
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.142",
-      "measured": "v0.2.142",
+      "claimed": "v0.2.143",
+      "measured": "v0.2.143",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "228 文件 / 3055 例",
-      "measured": "228 文件 / 3055 例",
-      "ok": true
+      "claimed": "228 文件 / 3065 例",
+      "measured": "232 文件 / 3091 例",
+      "ok": false
     }
   ],
-  "landingDrift": []
+  "landingDrift": [
+    {
+      "label": "首屏 数字白名单",
+      "claimed": "HERO/HERO_TAGS 共 0 处数字说法",
+      "measured": "全部可对账",
+      "ok": true
+    }
+  ]
 }

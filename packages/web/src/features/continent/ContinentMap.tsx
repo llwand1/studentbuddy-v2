@@ -44,6 +44,7 @@ import { STEP_MS, type HeroCell } from './useContinentHero';
 import {
   NO_SPOTS,
   cellHint,
+  type ContinentBurst,
   type ContinentCell,
   type ContinentChestDrop,
   type ContinentLandCell,
@@ -78,7 +79,7 @@ interface Props {
   recenterTick: number;
   onPick: (row: number, col: number) => void;
   /** 击杀/收复特效：父组件每次换一个新对象（引用变 = 触发一次） */
-  burst?: ContinentTileView | null;
+  burst?: ContinentBurst | null;
   /** 外部高亮（答题弹窗打开时锁住那一格） */
   focus?: ContinentTileView | null;
   /** 走位被挡 / 够不着的一句说明（ADR-5 禁静默）；给了就顶掉默认提示行 */
@@ -106,7 +107,7 @@ export function ContinentMap({
   const [hover, setHover] = useState<ContinentCell | null>(null);
   const [dragging, setDragging] = useState(false);
   const popRef = useRef({ key: '', start: 0 });
-  const burstRef = useRef<{ start: number; tile: ContinentTileView } | null>(null);
+  const burstRef = useRef<{ start: number; tile: ContinentBurst } | null>(null);
   const { cam, setCam } = useContinentCamera(radius, hero, recenterTick);
   const camRef = useRef(cam);
   camRef.current = cam;
@@ -183,7 +184,7 @@ export function ContinentMap({
       const carried = burstRef.current;
       if (carried) {
         const age = now - carried.start;
-        if (age < BURST_MS) drawBurst(ctx, carried.tile, age);
+        if (age < BURST_MS) drawBurst(ctx, carried.tile, age, carried.tile.spell === true);
         else burstRef.current = null;
       }
       if (focus) drawFrame(ctx, focus, COLOR.gold, popAge);

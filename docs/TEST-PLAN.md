@@ -1,3 +1,13 @@
+> 2026-09-28 对话页换装「篝火对谈」（分支 `feat/chat-grimoire-ui`；零迁移、零新路由、零服务端改动、零数据流改动）：对话页此前是全站唯一还长着「默认聊天软件」模样的页面（无头像、无铭牌、细线气泡、缓动曲线），本次并进 grimoire 那套语言——每条消息前加**说话者铭牌**（助手＝团子＋BUDDY、用户＝勇者像素＋HERO，`chat/ChatSpeaker.tsx`）、会话铭牌头（`.chat-head`：角标／标题／轮数铁牌）、助手正文改黑铁双金线面板＋左侧符文轨、用户气泡改血红锻铁牌、流式态加扫描线＋金光标＋「吟唱中」、等待态三粒符文轮亮、回合印章 pop、输入框铁框＋角饰＋生成中充能——**全部在新增的 `styles/grimoire-chat.css` 里**，组件只翻 class（`ChatComposer` 的 `.busy`）；勇者字符画通过新增的通用 `components/PixelSprite.tsx` 直出 SVG，与落地页序章／知识大陆共用 `hero-sprites.ts` 同一份点阵。新增 **2 文件 / 8 例**，既有 `ChatView.test.tsx`／`ChatComposer.test.tsx`／`Markdown.test.tsx` 例数不变（只锁语义选择器，结构外加一层铭牌不触碰它们）。★ 文案仍全中文——功能页不双语是 `app/landing-lang.tsx` 头注范围决策 ① 的知情选择，这里不开「半中半英」的口子。
+>
+> 本批**刻意不测**：CSS 动效（steps 帧、ember 飘散、扫描线）——门禁只查内联样式，视觉与时序由真机截图核对（`docs/PIXEL-UI.md` 当日小节列了核对清单）。
+
+| 本批测试文件 | 用例 | 不变量 |
+|---|---:|---|
+| `src/components/PixelSprite.test.tsx` | 4 | 纯函数 `spriteRuns` ＋ jsdom 渲染。① 同行同色相邻格**合并成一个色块**、换行不合并（合并算错只会多画几百个 rect，视觉上看不出来，但 DOM 体积翻倍）；② `.`／空格／**调色板里没登记的字符**一律透明（漏这一条＝未知字符画成 `undefined` 色）；③ 用真实 `HERO_MAP`：色块宽度之和 ＝ 点阵里的着色格数（**每格恰画一次**）且同行色块**不重叠**；④ `<svg>` `viewBox` 按点阵宽高、`shape-rendering=crispEdges`、`aria-hidden`、每个 rect 一个色块、颜色走 `fill` 属性而**不是内联 style**（门禁红线）。 |
+| `src/features/chat/ChatSpeaker.test.tsx` | 4 | jsdom。① 助手＝「团子」＋ `BUDDY` 角标＋ `Mascot` 头像（不出现勇者 svg）；② 用户＝「你」＋ `HERO` 角标＋ `svg.chat-hero-px`（不出现团子）；③ **只有名字对辅助技术可读**——头像、英文角标、「吟唱中」都 `aria-hidden`，整块零可聚焦元素、零内联样式；④ `live` 只翻一个 `.live` class ＋ 一枚「吟唱中」标记，`live=false` 两者都不存在（等待态／流式态的全部动效都在 CSS，组件不持计时器）。 |
+
+---
 > 2026-09-28 落地页宣传片「看 PV」（分支 `merge/pv-hero`；零迁移、零新路由、零服务端改动、零游戏数值）：把产品宣传片挂上公开面。片子入仓 `packages/web/public/media/studentbuddy-pv.mp4`（1920×1080／30fps／H.264+AAC／100 秒／25.4 MB，**原片直入未转码**），随构建拷进 `dist/media/` 由站点直接静态分发；`robots.txt` 按本文件自己的规矩补了一行 `Allow: /media/`（不补就是自己挡自己的片子）。落地页页眉（品牌那一栏右侧）挂新增的 `app/LandingPv.tsx`：一枚「看 PV」键 → 弹层播放。新增 **1 文件 6 例**（`src/app/LandingPv.test.tsx`）⇒ 本批 **＋1 文件／＋6 例**，全量实跑 **237 文件／3155 例 → 238 文件／3161 例**（3160 passed＋1 skipped＋0 failed，Node 22；读数口径＝先 `npm run build`）。★ 三条刻意的口径：① 弹层**关着时根本不渲染 `<video>`**（不是 `preload="none"`）——二十多兆的片子挂在首屏，等于让每个访客先付这笔流量，而没有任何东西会报错；② 关闭是**卸载**（Esc／遮罩／关闭键三条路），只 hide 不卸载，视频会在后台继续跑；③ 遮罩整片可点＝关闭，弹层吃掉自己那一片的点击（`stopPropagation`），漏了就是「点一下播放控件，窗也跟着关」；④ 弹层用 `createPortal` **直挂 `document.body`**——页眉 `.landing-top` 的 `backdrop-filter` 给 `position: fixed` 造了包含块，遮罩留在页眉里只盖得住那条顶栏（2026-09-28 真机实测遮罩 1440×108，点左空白命中的是 hero 而不是遮罩），这是层叠规则、不是样式漏写；故测试②里用「遮罩的父节点必须是 `document.body`」把这条钉住（jsdom 看不见几何，这是唯一的可锁抓手），并在真机用一次性探针复跑 17/17（遮罩盖满视口、点遮罩关闭、滚动锁成立；探针不入仓）。★ 体积账：公开仓默认分支体积由约 8 MB 涨到约 33 MB（单文件 25.4 MB，在托管方 100 MB 硬上限以内），用户在「原片直入」与「入仓」之间选定的就是这笔账。★ 已知欠账（如实登记）：没做封面帧（`poster`）、没有中英双版字幕、也没有走 Release 附件旁路——三条都按「先不做」记在这里。
 
 | 本批测试文件 | 用例 | 不变量 |

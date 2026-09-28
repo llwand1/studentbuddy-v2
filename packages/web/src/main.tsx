@@ -29,6 +29,7 @@ import './styles/pixel-shell.css';
 import './styles/pixel-scene.css';
 import './styles/pixel-motion.css';
 import './styles/grimoire.css';
+import './styles/grimoire-chat.css';
 
 /** §14.3 returnTo 的 sessionStorage 键（与 PkApp 的 goLogin 约定同一处） */
 const RETURN_TO_KEY = 'sb_return_to';

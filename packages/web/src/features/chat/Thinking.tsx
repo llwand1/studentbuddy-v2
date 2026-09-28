@@ -8,6 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import { formatElapsed, phaseStatus, type PhaseStep } from './thinking-status';
+import { ChatSpeaker } from './ChatSpeaker';
 
 export function Thinking({
   steps = [],
@@ -31,6 +32,7 @@ export function Thinking({
   }, [startedAtMs]);
   return (
     <div className="chat-row">
+      <ChatSpeaker role="assistant" live />
       <div className="chat-bubble chat-typing" role="status" aria-label="回复中">
         <span className="chat-typing-dot" />
         <span className="chat-typing-dot" />

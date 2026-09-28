@@ -1,0 +1,497 @@
+/* grimoire-chat — 对话页的「篝火对谈」外观层 + 特效层（2026-09-28）。
+   对话页此前是全站唯一还长着默认聊天软件模样的页面（无铭牌、细线气泡、缓动曲线、白渐变卡）。
+   这里把它并进 grimoire.css 那套语言：黑铁框 + 双金线、血红锻铁、压印标题、荆棘分隔；
+   动效遵守 pixel-motion.css 的四条口径——只用 steps()、只动 transform/opacity/clip-path、
+   默认态即终态（prefers-reduced-motion 下 pixel-ui.css 关掉全部动画后不留任何遮挡）、纯装饰 pointer-events:none。
+   只改外观与动效，不动一行数据流；结构上的头像 / 铭牌 / 会话条见 chat/ChatSpeaker.tsx 与 ChatView.tsx。 */
+
+.chat-view {
+  --ch-gold: var(--gr-gold, #c9a24a);
+  --ch-gold-dim: var(--gr-gold-dim, #5a4420);
+  --ch-iron: var(--gr-iron, #07050a);
+  --ch-ember: #ff8a3c;
+  --ch-panel: linear-gradient(#150e13, #0e090d);
+  --ch-plate: linear-gradient(#a3222f, #6e1420);
+  --ch-tile: linear-gradient(#1c1318, #120c10);
+  position: relative;
+  /* 自成层叠上下文：余光与余烬压在 z-index:-1，飘在面板**背后**、只从缝隙里露出来，不压字 */
+  isolation: isolate;
+}
+
+/* ===== 篝火余光：消息区底部一层暖光 + 三四粒余烬缓缓上飘（默认 opacity 0 ⇒ 关掉动画就不存在） ===== */
+.chat-view::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 220px;
+  pointer-events: none;
+  background: radial-gradient(ellipse 60% 100% at 50% 100%, rgba(255, 122, 48, 0.11), transparent 70%);
+}
+.chat-view::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  bottom: 120px;
+  width: 3px;
+  height: 3px;
+  pointer-events: none;
+  background: var(--ch-ember);
+  box-shadow: -190px 26px 0 #ffb070, 150px -24px 0 var(--ch-ember), -70px -58px 0 var(--sb-gold), 230px 36px 0 #ff6a3c, 40px 12px 0 #ffd9a0;
+  opacity: 0;
+  animation: ch-embers 7s steps(28) infinite;
+}
+@keyframes ch-embers {
+  0% { opacity: 0; transform: translateY(0); }
+  10% { opacity: 0.85; }
+  80% { opacity: 0.35; }
+  100% { opacity: 0; transform: translateY(-260px); }
+}
+
+/* ===== 会话铭牌条：角标 + 压印标题 + 轮数铁牌 + 荆棘分隔（与 continent-head / term-head 同一套） ===== */
+.chat-head {
+  flex: none;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: var(--sb-composer-max);
+  margin: 0 auto;
+  padding: 12px 16px 10px;
+}
+.chat-head::after {
+  content: '';
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--ch-gold) 0 12px, transparent 12px 16px, #7a1a24 16px 42%, transparent);
+}
+.chat-head-eyebrow {
+  flex: none;
+  font: 700 10px/1 var(--sb-font-display);
+  letter-spacing: 3px;
+  color: var(--sb-primary);
+}
+.chat-head-eyebrow::before,
+.chat-head-eyebrow::after { content: ' + '; color: var(--sb-ink-tertiary); }
+.chat-head-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 800 15px/1.4 var(--sb-font-display);
+  letter-spacing: 0.04em;
+  text-shadow: 2px 2px 0 #000, 0 0 18px rgba(155, 31, 44, 0.35);
+}
+.chat-head-rounds {
+  flex: none;
+  padding: 2px 8px;
+  border: 2px solid var(--ch-iron);
+  background: var(--ch-tile);
+  box-shadow: inset 0 0 0 1px var(--ch-gold-dim), 2px 2px 0 #000;
+  font: 700 11px/1.6 var(--sb-font-display);
+  letter-spacing: 1px;
+  color: var(--ch-gold);
+}
+
+/* ===== 铭牌（ChatSpeaker）：36px 铁框头像 + 名字 + 英文角标；用户侧整体右对齐、头像在最外 ===== */
+.chat-speaker {
+  flex: 0 0 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  margin-bottom: 8px;
+}
+.chat-row.user .chat-speaker { flex-direction: row-reverse; }
+.chat-speaker-avatar {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--ch-iron);
+  background: var(--ch-tile);
+  box-shadow: inset 0 0 0 1px var(--ch-gold-dim), 2px 2px 0 #000;
+}
+/* 团子在这里是头像不是欢迎页主角：去掉它自带的外边距 / 入场 / 常驻跳动，2× 整数倍 32px 保持像素干净 */
+.chat-speaker .welcome-mascot { display: block; margin: 0; line-height: 0; animation: none; }
+.chat-speaker .welcome-mascot svg { width: 32px; height: 32px; animation: none; }
+.chat-hero-px { display: block; width: 32px; height: 34px; }
+.chat-speaker-name {
+  font: 700 12px/1 var(--sb-font-display);
+  letter-spacing: 1px;
+  color: var(--sb-ink);
+}
+.chat-speaker-tag {
+  padding: 3px 5px 2px;
+  border: 1px solid var(--ch-gold-dim);
+  background: #0b0709;
+  font: 700 9px/1 var(--sb-font-display);
+  letter-spacing: 2px;
+  color: var(--ch-gold);
+}
+.chat-row.user .chat-speaker-tag { border-color: #8e1c28; color: #ffb3b8; }
+.chat-speaker-live {
+  font: 700 10px/1 var(--sb-font-display);
+  letter-spacing: 2px;
+  color: var(--ch-ember);
+  animation: ch-blink 1s steps(1) infinite;
+}
+/* 吟唱中：头像框亮金线、团子按节拍跳（2px 整格）、一粒余烬从帽尖上飘 */
+.chat-speaker.live .chat-speaker-avatar { box-shadow: inset 0 0 0 1px var(--ch-gold), 2px 2px 0 #000; }
+.chat-speaker.live .welcome-mascot svg { animation: ch-chant-hop 0.9s steps(1) infinite; }
+.chat-speaker.live .chat-speaker-avatar::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: 6px;
+  width: 2px;
+  height: 2px;
+  background: var(--ch-ember);
+  box-shadow: 4px -3px 0 var(--sb-gold), -3px -6px 0 var(--ch-ember);
+  opacity: 0;
+  pointer-events: none;
+  animation: ch-spark-rise 1.2s steps(6) infinite;
+}
+@keyframes ch-chant-hop {
+  0%, 55% { transform: translateY(0); }
+  56%, 100% { transform: translateY(-2px); }
+}
+@keyframes ch-spark-rise {
+  0% { opacity: 0; transform: translateY(0); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-12px); }
+}
+@keyframes ch-blink { 50% { opacity: 0.25; } }
+
+/* ===== 助手正文：黑铁框 + 金线的书页，左缘一条装订齿孔 =====
+   （markdown.css 曾把助手正文去卡片以避免「卡片流」；换装后全站面板都是这一种铁框，
+   对话里再裸奔正文反而成了异类——铭牌 + 大间距负责保留「对话」的呼吸感） */
+body .chat-bubble.md {
+  position: relative;
+  max-width: 100%;
+  padding: 14px 16px 14px 22px;
+  border: 2px solid var(--ch-iron);
+  background: var(--ch-panel);
+  box-shadow: var(--gr-frame);
+}
+body .chat-bubble.md::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 8px;
+  width: 4px;
+  pointer-events: none;
+  background: repeating-linear-gradient(180deg, var(--ch-gold-dim) 0 4px, transparent 4px 12px);
+}
+/* 落成那一下：叠一层亮金边，三拍内淡出（只闪框，不动正文——流式气泡换成落成消息是两个节点，正文若动会闪）。
+   亮边是独立一层伪元素、只动 opacity：默认 0 ⇒ 减少动态效果下根本看不见它 */
+body .chat-bubble.md::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--ch-gold), inset 0 0 0 4px var(--ch-gold);
+  opacity: 0;
+  animation: ch-frame-settle 480ms steps(3) backwards;
+}
+@keyframes ch-frame-settle {
+  0% { opacity: 1; }
+  66% { opacity: 0.4; }
+  100% { opacity: 0; }
+}
+/* 流式中：::after 改做扫描线——一道金线自上而下（伪元素与面板同高，translateY(100%) 正好走完全程），余烬光晕常亮 */
+body .chat-bubble.md.streaming {
+  overflow: hidden;
+  box-shadow: var(--gr-frame), 0 0 26px -8px rgba(255, 138, 60, 0.4);
+}
+body .chat-bubble.md.streaming::after {
+  inset: 6px;
+  box-shadow: none;
+  background: linear-gradient(90deg, transparent, var(--ch-gold) 30%, var(--ch-gold) 70%, transparent) 0 0 / 100% 2px no-repeat;
+  opacity: 0.45;
+  animation: ch-scan 2.2s steps(18) infinite;
+}
+@keyframes ch-scan { from { transform: translateY(0); } to { transform: translateY(100%); } }
+/* 光标：金色像素块 + 墨影，与大陆 HUD 数字同色 */
+body .chat-caret {
+  width: 8px;
+  height: 14px;
+  margin-left: 4px;
+  background: var(--ch-gold);
+  box-shadow: 2px 2px 0 #000;
+}
+
+/* ===== 用户发言：血红锻铁牌，随行落下两格坐实、四角迸出火星（火星只动 opacity/transform，熄灭位＝默认位） ===== */
+body .chat-bubble.user {
+  position: relative;
+  max-width: 72%;
+  padding: 10px 14px;
+  border: 2px solid var(--ch-iron);
+  background: var(--ch-plate);
+  color: #fff4e0;
+  box-shadow: inset 0 0 0 1px #e0505b, 3px 3px 0 #000;
+}
+body .chat-bubble.user::before,
+body .chat-bubble.user::after {
+  content: '';
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  pointer-events: none;
+  opacity: 0;
+  background: var(--sb-gold);
+  animation: ch-sparks 420ms steps(4) backwards;
+}
+body .chat-bubble.user::before { left: -6px; top: -6px; box-shadow: 4px -3px 0 var(--ch-ember), -3px 5px 0 #ff6a3c; }
+body .chat-bubble.user::after { right: -6px; bottom: -6px; box-shadow: -4px 3px 0 var(--ch-ember), 3px -5px 0 #ff6a3c; --ch-dir: -1; }
+@keyframes ch-sparks {
+  0% { opacity: 1; transform: translate(0, 0); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(-8px * var(--ch-dir, 1)), calc(-10px * var(--ch-dir, 1))); }
+}
+/* 用户行入场：从上落下两格再坐实（替换 pixel-shell 的 6px 上浮，更像「拍上去」） */
+body .chat-row.user { animation: ch-plate-drop var(--sb-motion-base) steps(3, end) backwards; }
+@keyframes ch-plate-drop { from { opacity: 0; transform: translateY(-8px); } }
+/* 铭牌不跟着牌子一起闪火星，只随行入场 */
+body .chat-row.user .msg-edit-trigger { font-family: var(--sb-font-display); letter-spacing: 1px; }
+
+/* ===== 等待态「吟唱中」：三粒符文按节拍轮流点亮（不再是圆点弹跳） ===== */
+body .chat-typing {
+  gap: 6px;
+  padding: 10px 14px;
+  border: 2px solid var(--ch-iron);
+  background: var(--ch-panel);
+  box-shadow: var(--gr-frame);
+  animation: none;
+}
+body .chat-typing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 0;
+  background: var(--ch-gold);
+  box-shadow: 1px 1px 0 #000;
+  opacity: 0.3;
+  animation: ch-rune 1.05s steps(1) infinite;
+}
+body .chat-typing-dot:nth-child(2) { animation-delay: 0.35s; }
+body .chat-typing-dot:nth-child(3) { animation-delay: 0.7s; }
+/* 轮流点亮：亮的那粒抬一格；减少动态效果下三粒都停在暗态，仍是「三粒符文」不是空框 */
+@keyframes ch-rune {
+  0%, 100% { opacity: 0.3; transform: translateY(0); }
+  33% { opacity: 1; transform: translateY(-3px); }
+  66% { opacity: 0.55; transform: translateY(0); }
+}
+body .chat-typing-status {
+  margin-left: 6px;
+  font-family: var(--sb-font-display);
+  letter-spacing: 1px;
+  color: var(--sb-ink-secondary);
+}
+body .chat-typing-elapsed { color: var(--ch-gold); }
+
+/* ===== 过程区：思考 / 任务 / 工具步骤 = 任务日志（铁框细牌，running 亮金线 + 余烬闪，done 绿勾，error 红叉） ===== */
+body :is(.chat-thought, .chat-tasks) {
+  border: 2px solid var(--ch-iron);
+  border-radius: 0;
+  background: var(--ch-panel);
+  box-shadow: inset 0 0 0 1px var(--ch-gold-dim), 3px 3px 0 #000;
+}
+body :is(.chat-thought-head, .chat-tasks-head) { font-family: var(--sb-font-display); letter-spacing: 1px; }
+body :is(.chat-thought-dot, .chat-tasks-dot) { border-radius: 0; }
+body :is(.chat-thought-dot.live, .chat-tasks-dot.live) { animation: ch-blink 0.8s steps(1) infinite; }
+body .chat-step {
+  border: 2px solid var(--ch-iron);
+  border-radius: 0;
+  background: var(--ch-panel);
+  box-shadow: inset 0 0 0 1px var(--ch-gold-dim), 2px 2px 0 #000;
+  font-family: var(--sb-font-display);
+  color: var(--sb-ink-secondary);
+}
+body .chat-step.running { color: var(--ch-gold); box-shadow: inset 0 0 0 1px var(--ch-gold), 2px 2px 0 #000; }
+body .chat-step.done { color: var(--sb-success); }
+body .chat-step.error { color: var(--sb-danger); }
+body .chat-step-icon { border: 1px solid currentColor; width: 14px; height: 14px; font-size: 10px; }
+body .chat-step-spinner {
+  width: 6px;
+  height: 6px;
+  border: 0;
+  border-radius: 0;
+  background: currentColor;
+  animation: ch-blink 0.5s steps(1) infinite;
+}
+body .chat-step-duration { color: var(--ch-gold-dim); }
+body .proc-summary { font-family: var(--sb-font-display); letter-spacing: 1px; }
+
+/* ===== 落成印记：轮次元信息（token / 耗时）做成一枚金字铁牌，收口那一刻弹一跳 ===== */
+body .chat-round-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--sb-sp-3);
+  padding: 3px 10px;
+  border: 2px solid var(--ch-iron);
+  background: var(--ch-tile);
+  box-shadow: inset 0 0 0 1px var(--ch-gold-dim), 2px 2px 0 #000;
+  font: 700 11px/1.6 var(--sb-font-display);
+  letter-spacing: 1px;
+  color: var(--ch-gold);
+  animation: sb-pop var(--sb-motion-base) steps(3, end);
+}
+body .chat-round-meta::before { content: '✦'; color: var(--sb-primary); }
+
+/* ===== 消息脚注：时间戳金暗色、操作做成悬停才现身的像素小牌 ===== */
+body .msg-foot { font-family: var(--sb-font-display); letter-spacing: 0.5px; }
+body .msg-time { color: var(--ch-gold-dim); }
+body .msg-act {
+  padding: 0 6px;
+  border: 1px solid var(--ch-gold-dim);
+  background: #0b0709;
+  line-height: 16px;
+  transition: opacity var(--sb-motion-fast) steps(2);
+}
+body .msg-act:hover:not(:disabled) { color: var(--ch-gold); border-color: var(--ch-gold); }
+body .chat-jump {
+  border: 2px solid var(--ch-iron);
+  border-radius: 0;
+  background: var(--ch-tile);
+  box-shadow: inset 0 0 0 1px var(--ch-gold-dim), 3px 3px 0 #000;
+  font-family: var(--sb-font-display);
+  letter-spacing: 1px;
+}
+body :is(.chat-error, .chat-remember-msg, .chat-quiz-note, .chat-quiz-mix, .chat-grill-pill) {
+  border-radius: 0;
+  border: 2px solid var(--ch-iron);
+  box-shadow: inset 0 0 0 1px var(--ch-gold-dim), 2px 2px 0 #000;
+  background: var(--ch-panel);
+}
+body .chat-error { box-shadow: inset 0 0 0 1px #8e1c28, 2px 2px 0 #000; }
+
+/* ===== 输入法阵：厚双金框 + 两角荆棘（与大陆弹窗同款），聚焦泛余烬光，生成中两枚角饰一明一暗地「蓄力」 ===== */
+body .chat-composer {
+  position: relative;
+  padding: 14px;
+  border: 3px solid var(--ch-iron);
+  background: linear-gradient(#120b10, #0a060a);
+  box-shadow: var(--gr-frame-hi);
+}
+body .chat-composer:focus-within {
+  border-color: var(--ch-iron);
+  box-shadow: var(--gr-frame-hi), 0 0 30px -10px rgba(255, 138, 60, 0.5);
+}
+body .chat-composer::before,
+body .chat-composer::after {
+  content: '';
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--ch-gold), var(--ch-gold)) 0 0 / 22px 4px no-repeat,
+    linear-gradient(var(--ch-gold), var(--ch-gold)) 0 0 / 4px 22px no-repeat,
+    linear-gradient(#7a1a24, #7a1a24) 7px 7px / 6px 6px no-repeat;
+  filter: drop-shadow(2px 2px 0 #000);
+}
+body .chat-composer::before { top: -7px; left: -7px; }
+body .chat-composer::after { right: -7px; bottom: -7px; transform: rotate(180deg); }
+/* 生成中「蓄力」：两枚角饰一明一暗地交替呼吸（只动 opacity/transform；停下来就是常亮的默认态） */
+body .chat-composer.busy::before,
+body .chat-composer.busy::after { animation: ch-charge 1s steps(2) infinite; }
+body .chat-composer.busy::after { animation-delay: 0.5s; }
+@keyframes ch-charge {
+  50% { opacity: 0.35; }
+}
+body .chat-composer textarea::placeholder { color: var(--sb-ink-tertiary); }
+body .chat-stop {
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--ch-iron);
+  background: var(--ch-tile);
+  color: #ff6a6a;
+  box-shadow: inset 0 0 0 1px #8e1c28, 3px 3px 0 #000;
+  animation: ch-pulse 1s steps(1) infinite;
+}
+/* 停止键只轻微呼吸（0.6 不是 0.25：暗到像禁用态会让人以为停不了） */
+@keyframes ch-pulse { 50% { opacity: 0.6; } }
+body .chat-quiz-btn { border-radius: 0; font-family: var(--sb-font-display); letter-spacing: 1px; }
+
+/* ===== 正文里的内容块：标题压印 + 金菱、代码块像素窗、表格铁头、引用金边、分隔线荆棘 ===== */
+body :is(.md-h1, .md-h2) {
+  font-family: var(--sb-font-display);
+  letter-spacing: 0.04em;
+  text-shadow: 2px 2px 0 #000;
+}
+body .md-h2::before { content: '◆ '; color: var(--ch-gold); font-size: 0.72em; vertical-align: 2px; }
+body .md-h3 { color: var(--ch-gold); }
+body .md-pre {
+  border: 2px solid var(--ch-iron);
+  border-radius: 0;
+  background: #07050a;
+  box-shadow: inset 0 0 0 1px var(--ch-gold-dim), 3px 3px 0 #000;
+}
+body .md-pre-head {
+  padding: 5px 8px 5px 10px;
+  border-bottom: 2px solid var(--ch-iron);
+  background: var(--sb-primary-weak);
+}
+body .md-pre-head::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin-right: 24px;
+  flex: none;
+  background: var(--sb-primary);
+  box-shadow: 10px 0 0 var(--ch-gold), 20px 0 0 var(--sb-success);
+}
+body .md-pre-lang { flex: 1; font-family: var(--sb-font-display); letter-spacing: 1px; color: var(--ch-gold); }
+body .md-pre-btn { border-radius: 0; border-color: var(--ch-gold-dim); font-family: var(--sb-font-display); }
+body .md-pre-btn:hover { color: var(--ch-gold); border-color: var(--ch-gold); }
+body .md-pre-toggle { border-top: 1px dashed var(--ch-gold-dim); background: #0b0709; font-family: var(--sb-font-display); }
+body .md-inline-code {
+  border-radius: 0;
+  border: 1px solid var(--ch-gold-dim);
+  background: #0b0709;
+  color: #ffd9a0;
+}
+body .md-table-wrap { border: 2px solid var(--ch-iron); border-radius: 0; box-shadow: 2px 2px 0 #000; }
+body .md-table th {
+  background: #1c1318;
+  border-bottom: 2px solid var(--ch-iron);
+  font-family: var(--sb-font-display);
+  letter-spacing: 1px;
+  color: var(--ch-gold);
+}
+body .md-table td { border-bottom: 1px dashed var(--sb-line); }
+body .md-quote { border-left: 4px solid var(--ch-gold); border-radius: 0; background: #0f0a0d; }
+body .md-hr {
+  border: 0;
+  height: 3px;
+  margin: 4px 0;
+  background: linear-gradient(90deg, var(--ch-gold) 0 12px, transparent 12px 16px, #7a1a24 16px 60%, transparent);
+}
+
+/* ===== 消息流里的题卡 / 情景卡：像卷轴一样自上而下展开（负 inset 把硬阴影也算进裁切，收尾不跳） ===== */
+body .chat-scroll > :is(.quiz-card, .sb-scenario) { animation: ch-unroll 420ms steps(6) backwards; }
+@keyframes ch-unroll {
+  from { clip-path: inset(-8px -8px 100% -8px); }
+  to { clip-path: inset(-8px); }
+}
+
+@media (max-width: 700px) {
+  .chat-head { padding: 10px 12px 8px; gap: 8px; }
+  .chat-head-eyebrow { display: none; }
+  body .chat-bubble.user { max-width: 86%; }
+  body .chat-composer::before,
+  body .chat-composer::after { display: none; }
+}

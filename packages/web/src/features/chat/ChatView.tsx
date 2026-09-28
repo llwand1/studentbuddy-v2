@@ -9,14 +9,21 @@
  *
  * 本文件只留「消息流 + 编排」；输入区整体在 `ChatComposer.tsx`（ChatView 曾贴 300 行门禁）。
  */
+// 基础样式先于面板组件引入（chat-extras.css 由面板组件引入、建立在 chat.css 之上）——顺序契约由 chat-css-order.test.ts 锁
+import './chat.css';
 import { useEffect, useRef, useState } from 'react';
 import { useChatStream } from './useChatStream';
 import { useScrollAnchor } from './useScrollAnchor';
+import { useSessionDraft } from './useSessionDraft';
+import { useBusyTitle } from './useBusyTitle';
+import { QuoteAsk } from './QuoteAsk';
+import { ChatErrorBar } from './ChatErrorBar';
+import { buildQuote, mergeQuoteIntoInput } from './quote-ask';
 import { ThoughtPanel } from './ThoughtPanel';
 import { ToolSteps } from './ToolSteps';
 import { TaskPanel } from './TaskPanel';
 import { MessageRow } from './MessageRow';
-import { ChatSpeaker } from './ChatSpeaker';
+import { ChatSpeaker, ChatSpeakerDefs } from './ChatSpeaker';
 import { formatRoundMeta } from './chat-meta';
 import { buildExportMarkdown, downloadText, exportFilename } from './chat-export';
 import { mixTipText } from '../quiz/mix-report';
@@ -33,7 +40,6 @@ import { useDocMode } from './useDocMode';
 import { useAskStyle } from './AskStyleCard';
 import { api } from '../../lib/api';
 import { useAutoResize } from './useAutoResize';
-import './chat.css';
 
 export function ChatView({
   sessionId,
@@ -104,6 +110,8 @@ export function ChatView({
   /** 滚动锚定：贴底才跟随流式输出；离底时不打断用户上翻，改显示「回到底部」。
       来源清单也算锚：它随本轮落屏，贴底时该被带进视野 */
   const isEmpty = messages.length === 0 && steps.length === 0 && tasks.length === 0 && !streamingText;
+  /** 轮数＝用户提问条数；只有题卡没有提问的会话不挂「0 轮」 */
+  const rounds = messages.filter((x) => x.role === 'user').length;
   const { scrollRef, showJump, onScroll, jumpToBottom } = useScrollAnchor([
     messages.length,
     steps.length,
@@ -126,6 +134,9 @@ export function ChatView({
     setDocOpen(false);
     setAttachments([]);
   }, [sessionId]);
+  /** 草稿按会话各记各的（切走存、切回取）；生成中把「● 回复中」写进标签页标题 */
+  useSessionDraft(sessionId, input, setInput);
+  useBusyTitle(busy);
 
   const blocked = ready !== 'open' || busy;
   /** 轮次元信息只在收口后显示：生成过程中显示「已用 x tokens」会随流式跳动，且中途的数没有意义 */
@@ -167,6 +178,7 @@ export function ChatView({
     setInput('');
     setAttachments([]);
     setSendError('');
+    inputRef.current?.focus(); // 点按钮发送后焦点留在输入框，下一句直接打
     // 上一轮的来源清单随本轮提问退场：它是**那一轮**的产物，留着会让人以为这一轮也查了网
     quiz.resetRound();
     const r = await sendWithGrill(text, imgs.length > 0 ? imgs : undefined);
@@ -196,12 +208,13 @@ export function ChatView({
 
   return (
     <div className="chat-view">
+      <ChatSpeakerDefs />
       {/* 会话铭牌条（与其它页面的页标题同一套：角标 + 压印标题 + 荆棘分隔）；空会话由欢迎页自带角标，不重复 */}
       {!isEmpty && (
         <header className="chat-head">
           <span className="chat-head-eyebrow">CAMPFIRE · 篝火对谈</span>
           <h2 className="chat-head-title">{sessionTitle?.trim() || '新对话'}</h2>
-          <span className="chat-head-rounds">{messages.filter((x) => x.role === 'user').length} 轮</span>
+          {rounds > 0 && <span className="chat-head-rounds">{rounds} 轮</span>}
         </header>
       )}
       <div className="chat-scroll" ref={scrollRef} onScroll={onScroll} role="log" aria-live="polite" aria-busy={busy}>
@@ -236,7 +249,8 @@ export function ChatView({
             </div>
           </div>
         )}
-        {(error || sendError) && <div className="chat-error">⚠ {error || sendError}</div>}
+        {/* 流式中断给「↻ 重试」（＝对最后一问重新生成）；发送失败不给——那条提问没进会话（见 ChatErrorBar） */}
+        {(error || sendError) && <ChatErrorBar text={error || sendError} onRetry={error && !busy && lastUserIdx >= 0 ? () => void doRegen() : undefined} />}
         {rememberMsg && <div className="chat-remember-msg">{rememberMsg}</div>}
         {/* 本轮出题的补白与来源清单：都进消息流，跟这一轮一起滚走（改版前钉在输入框上方，
             会一直留着像全局状态）。有来源清单时由清单承担告知，`quizNote` 只留「图/联网没成」 */}
@@ -245,6 +259,8 @@ export function ChatView({
         {roundMeta && <div className="chat-round-meta">{roundMeta}</div>}
         {grillNode}
       </div>
+      {/* 选中回答里的一句 → 「引用追问」：引用块并进输入框（函数式更新，不覆盖已打的字）、焦点回输入框 */}
+      <QuoteAsk rootRef={scrollRef} onQuote={(t) => { setInput((v) => mergeQuoteIntoInput(v, buildQuote(t))); inputRef.current?.focus(); }} />
 
       {/* AI 主动发起对战的邀请卡（PK-SPEC §16）。挂在这里而不是 ChatComposer 内部：
           那张卡要吃的是一整个 queue（十个回调），composer 已经贴着 300 行门禁，

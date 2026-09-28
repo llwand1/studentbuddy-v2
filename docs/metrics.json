@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-28T13:03:12.175Z",
+  "generatedAt": "2026-09-28T15:32:08.544Z",
   "code": {
     "rows": [
       {
@@ -18,17 +18,17 @@
       },
       {
         "pkg": "web",
-        "srcFiles": 234,
-        "testFiles": 86,
-        "srcLines": 31185,
-        "testLines": 12581
+        "srcFiles": 239,
+        "testFiles": 91,
+        "srcLines": 31491,
+        "testLines": 13120
       }
     ],
-    "srcFiles": 458,
-    "testFiles": 240,
-    "srcLines": 66298,
-    "testLines": 44386,
-    "tsxTestFiles": 38
+    "srcFiles": 463,
+    "testFiles": 245,
+    "srcLines": 66604,
+    "testLines": 44925,
+    "tsxTestFiles": 39
   },
   "routes": {
     "total": 139,
@@ -80,26 +80,26 @@
     ]
   },
   "docs": {
-    "specs": 37,
-    "all": 49,
+    "specs": 38,
+    "all": 50,
     "probes": 15
   },
   "repo": {
-    "head": "fb358ca",
+    "head": "c6566c1",
     "headDate": "2026-09-28",
-    "commitsLast14d": 74,
-    "branch": "merge/chat-grimoire-ui",
+    "commitsLast14d": 81,
+    "branch": "merge/chat-ux-polish",
     "dirtyFiles": 0
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 51,
+    "wallSec": 72.6,
     "staleDays": 0,
-    "files": 240,
-    "cases": 3169,
-    "passed": 3168,
-    "skipped": 1,
+    "files": 245,
+    "cases": 3206,
+    "passed": 3203,
+    "skipped": 3,
     "failed": 0,
     "success": true
   },
@@ -109,14 +109,14 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "240",
-      "measured": "240",
+      "claimed": "245",
+      "measured": "245",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "3169",
-      "measured": "3169",
+      "claimed": "3206",
+      "measured": "3206",
       "ok": true
     },
     {
@@ -151,14 +151,14 @@
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.143",
-      "measured": "v0.2.143",
+      "claimed": "v0.2.144",
+      "measured": "v0.2.144",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "240 文件 / 3169 例",
-      "measured": "240 文件 / 3169 例",
+      "claimed": "245 文件 / 3206 例",
+      "measured": "245 文件 / 3206 例",
       "ok": true
     }
   ],

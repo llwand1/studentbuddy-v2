@@ -7,13 +7,22 @@
  *   · 用户＝勇者（复用 `hero-sprites.ts` 的 HERO_MAP——落地页序章、知识大陆里走位的就是它）。
  * `live`＝这条正在吟唱（等待态 / 流式中）：头像框亮金线、团子按节拍跳、余烬上飘——全在 CSS，
  * 这里只翻一个 class。样式见 `styles/grimoire-chat.css`。
+ * 团子每枚都是真节点（它自带眨眼动画，得各眨各的，40 个 rect 可以接受）；勇者是静态点阵，走 <symbol>/<use> 共用一份。
  * 铭牌文字对辅助技术可读（谁在说话是有用信息），头像与英文角标是装饰（aria-hidden）。
  */
 import { Mascot } from './Mascot';
-import { PixelSprite } from '../../components/PixelSprite';
+import { PixelSpriteDefs, PixelSpriteUse } from '../../components/PixelSprite';
 import { HERO_MAP, HERO_PAL } from '../../app/hero/hero-sprites';
 
 export type SpeakerRole = 'assistant' | 'user';
+
+/** 勇者点阵的 symbol id：`ChatSpeakerDefs` 定义一次，每枚用户铭牌只 `<use>` 它（104 个 rect 不跟着消息数翻倍） */
+export const HERO_SPRITE_ID = 'ch-hero-sprite';
+
+/** 放在对话视图根下一次（ChatView）；铭牌本身不带定义——带了就每条消息一份，白合并了 */
+export function ChatSpeakerDefs() {
+  return <PixelSpriteDefs id={HERO_SPRITE_ID} map={HERO_MAP} pal={HERO_PAL} />;
+}
 
 export const SPEAKER_LABEL: Record<SpeakerRole, { name: string; tag: string }> = {
   assistant: { name: '团子', tag: 'BUDDY' },
@@ -25,7 +34,7 @@ export function ChatSpeaker({ role, live = false }: { role: SpeakerRole; live?: 
   return (
     <div className={`chat-speaker ${role}${live ? ' live' : ''}`}>
       <span className="chat-speaker-avatar">
-        {role === 'assistant' ? <Mascot /> : <PixelSprite map={HERO_MAP} pal={HERO_PAL} className="chat-hero-px" />}
+        {role === 'assistant' ? <Mascot /> : <PixelSpriteUse id={HERO_SPRITE_ID} className="chat-hero-px" />}
       </span>
       <span className="chat-speaker-name">{label.name}</span>
       <span className="chat-speaker-tag" aria-hidden="true">

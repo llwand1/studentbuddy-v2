@@ -63,6 +63,9 @@
 }
 
 .chat-error {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-3);
   color: var(--sb-danger);
   font-size: var(--sb-fs-sm);
   padding: var(--sb-sp-2) var(--sb-sp-3);
@@ -70,6 +73,20 @@
   background: rgba(239, 68, 68, 0.06);
   margin-bottom: var(--sb-sp-2);
 }
+.chat-error > span { flex: 1 1 auto; min-width: 0; }
+/* 「↻ 重试」：只在流式中断时出现（ChatErrorBar），贴右；样式随主题层 */
+.chat-error-retry {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border: 1px solid currentColor;
+  border-radius: var(--sb-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--sb-fs-xs);
+  cursor: pointer;
+}
+.chat-error-retry:hover { background: rgba(239, 68, 68, 0.12); }
 
 /* 工具步骤条（step 事件三态上屏，ADR-5） */
 .chat-steps {
@@ -80,9 +97,12 @@
   margin-bottom: var(--sb-sp-2);
 }
 .chat-step {
-  display: flex;
-  align-items: center;
-  gap: var(--sb-sp-2);
+  /* 块容器：真正的「行」是 chat-extras.css 里的 .chat-step-row（可点展开 .chat-step-payload）。
+     ★ 这里不能写 display:flex——本文件由 ChatView 引入、chat-extras.css 由面板组件引入，两者在
+     打包产物里的先后取决于模块图；同选择器同属性给出不同值就是在赌顺序（2026-09-28 真机逮到：
+     展开的工具载荷跑到行头右侧）。规矩：两份文件对同一选择器不重复声明同一属性，
+     由 chat-css-order.test.ts 锁住。 */
+  display: block;
   max-width: 100%;
   font-size: var(--sb-fs-sm);
   color: var(--sb-ink-secondary);

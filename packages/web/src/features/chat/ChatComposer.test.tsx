@@ -92,7 +92,7 @@ describe('ChatComposer 输入区', () => {
   it('三态占位文案：无会话 / 连接未就绪 / 生成中各说各话', () => {
     expect(setup({ sessionId: null }).getByPlaceholderText('点一张建议卡先起个头（会自动开新会话）')).toBeTruthy();
     expect(setup({ blocked: true, busy: false }).getByPlaceholderText('连接未就绪…')).toBeTruthy();
-    expect(setup({ blocked: true, busy: true }).getByPlaceholderText('生成中…')).toBeTruthy();
+    expect(setup({ blocked: true, busy: true }).getByPlaceholderText('生成中…（Esc 停止）')).toBeTruthy();
     expect(setup({}).getByPlaceholderText(/Enter 发送/)).toBeTruthy();
   });
 
@@ -139,6 +139,18 @@ describe('ChatComposer 输入区', () => {
     expect(props.onSubmit).toHaveBeenCalledTimes(1);
   });
 
+  it('生成中按 Esc ＝ 停止；不忙时 Esc 什么都不做（不误触、不吞默认行为）', () => {
+    const busy = setup({ busy: true, blocked: true });
+    fireEvent.keyDown(ta(), { key: 'Escape' });
+    expect(busy.props.onStop).toHaveBeenCalledTimes(1);
+    cleanup();
+    const idle = setup({});
+    fireEvent.keyDown(ta(), { key: 'Escape' });
+    expect(idle.props.onStop).not.toHaveBeenCalled();
+    fireEvent.keyDown(ta(), { key: 'Escape', isComposing: true }); // 组字中的 Esc 是输入法的
+    expect(idle.props.onStop).not.toHaveBeenCalled();
+  });
+
   it('输入实时回传 setInput（受控不回弹）', () => {
     const { props } = setup({});
     fireEvent.change(ta(), { target: { value: '问题描述' } });
@@ -157,8 +169,17 @@ describe('ChatComposer 输入区', () => {
     const { container, props } = setup({ statusHint: '连接已断', showJump: true });
     expect(container.querySelector('.chat-conn-hint')?.textContent).toBe('连接已断');
     const jump = container.querySelector('.chat-jump') as HTMLButtonElement;
+    expect(jump.textContent).toBe('↓ 回到最新');
+    expect(jump.classList.contains('live')).toBe(false);
     fireEvent.click(jump);
     expect(props.onJump).toHaveBeenCalledTimes(1);
+  });
+
+  it('生成中离底：跳底按钮点亮成「↓ 新内容」（底下还在长，不只是「你滚上来了」）', () => {
+    const { container } = setup({ showJump: true, busy: true, blocked: true });
+    const jump = container.querySelector('.chat-jump') as HTMLButtonElement;
+    expect(jump.textContent).toBe('↓ 新内容');
+    expect(jump.classList.contains('live')).toBe(true);
   });
 
   it('附件托盘渲染图片并可移除（移除回传剔除后的数组）', () => {

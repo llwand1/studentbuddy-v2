@@ -1,0 +1,8 @@
+/* PixelSprite：<symbol> 定义容器零尺寸、不占布局（不能 display:none——那样 <use> 在部分浏览器里引不到） */
+.px-sprite-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}

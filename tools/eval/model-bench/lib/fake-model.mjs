@@ -136,6 +136,45 @@ export const BROKEN_FIXTURES = [
   },
 ];
 
+/**
+ * **反方向**夹具:每条都是合法输出,对应检查**必须放行**。
+ *
+ * 为什么补这一组(2026-09-28):原来的自检只有一个方向——BROKEN_FIXTURES 证明「该抓的抓到了」。
+ * 于是一类事故是结构性看不见的:**评分器过严,把合法输出误杀**。它不会让自检变红,
+ * 只会让跑分里多出几条莫名其妙的 ❌,而所有人都会默认「模型写坏了」。
+ *
+ * 这不是假想。接公开评测集的当天,`ceval/high_school_biology/val/2` 这条遗传题
+ * (选项 `AaBb / Aabb / AAbb / aabb`)被 `options` 判成「选项重复」——查重当时带 `toLowerCase()`,
+ * 四个选项归一成同一个串。**理想输出(原样回显真题)都过不了**。
+ * 自造的 110 例里从没有大小写敏感的选项,所以这个洞在自检里是隐形的。⇒ 补上反方向。
+ */
+export const LEGIT_FIXTURES = [
+  {
+    name: '遗传题:选项只差大小写(AaBb/Aabb/AAbb/aabb)',
+    mustPass: 'options',
+    output: wrapQ([{ ...OK_Q, options: ['AaBb', 'Aabb', 'AAbb', 'aabb'] }]),
+    why: 'ceval/high_school_biology/val/2 真题形状;大小写在遗传/化学/代码题里有语义',
+  },
+  {
+    name: '化学题:CO 与 Co 是两种东西',
+    mustPass: 'options',
+    output: wrapQ([{ ...OK_Q, options: ['CO', 'Co', 'CO₂', 'C'] }]),
+    why: '一氧化碳 vs 钴;大小写不敏感查重会把它们合并',
+  },
+  {
+    name: '恰好三个选项(下限边界,不许误判为太少)',
+    mustPass: 'options',
+    output: wrapQ([{ ...OK_Q, options: ['甲', '乙', '丙'] }]),
+    why: '检查写的是 <3 才红,3 个必须放行',
+  },
+  {
+    name: '正确选项是短词且恰好在题干出现(未达泄漏门槛)',
+    mustPass: 'leakage',
+    output: wrapQ([{ ...OK_Q, question: '材料提到光合作用,下列哪项正确?', options: ['叶绿', '乙选项', '丙选项', '丁选项'] }]),
+    why: '泄漏检查的门槛是正确选项长度 ≥4 才算;短词重合是中文里的常态,不该红',
+  },
+];
+
 /** 自检用的基准用例(夹具可用 mix 覆写) */
 export const FIXTURE_CASE = {
   id: 'selftest',

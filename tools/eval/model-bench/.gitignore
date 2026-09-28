@@ -1,1 +1,11 @@
 results/
+
+# 公开评测集的运行时缓存：拉下来的正文。
+# 不入库的两条理由：① C-Eval 是 CC BY-NC-SA，与本仓 MIT 冲突，不能由本仓分发；
+# ② 缓存是「某天拉到的那一批」，入库就是把旧数据留在树里误导人（同 tools/eval/reports/ 的道理）。
+# 仓内留下的是可验证的替代品：MIT 的 frozen-mmlu.jsonl（正文）+ pointers-ceval.json（只有指纹）。
+datasets/public/cache/
+
+# 现场采集的快照：带 source_url 与抓取时刻的真实网页题目。
+# 同样不入库 —— 它是会过期的外部内容，而且版权归原站。要复算就把快照文件自己留着。
+harvests/

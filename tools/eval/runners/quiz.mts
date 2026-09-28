@@ -35,6 +35,9 @@ import type {
 import { bootEvalEnv } from '../lib/env.mts';
 import { recordedText } from '../lib/recorder.mts';
 import type { Recorder } from '../lib/recorder.mts';
+import { samplingFromRequest, usageFromBody } from '../lib/meter.mjs';
+import { costOf, priceProvenance } from '../lib/pricing.mjs';
+import { execFileSync } from 'node:child_process';
 
 export interface QuizCase {
   id: string;
@@ -55,6 +58,40 @@ export interface QuizRunRecord extends QuizEvalRunInput {
   arm: string;
   /** 含补跑：1 ＝ 一次成功，>1 ⇒ 前面几次是传输失败（429/超时） */
   attempts: number;
+  /**
+   * 采样参数：**从实际发出去的请求体里读**，不是抄来的。
+   * 评测台一行不改产品参数（见文件头注），所以温度/种子到底是多少，只有请求体知道。
+   * 老录制件没有这个字段 ⇒ `undefined`，渲染成「—」。
+   */
+  sampling?: ReturnType<typeof samplingFromRequest>;
+  /**
+   * 用量：从上游响应体里抠（非流式 `usage` 或 SSE 末块的 usage），按**本组全部调用**求和。
+   * 上游一笔都不回 ⇒ `undefined`。`callsMissingUsage>0` 时这组是**漏记的下界**。
+   */
+  usage?: (NonNullable<ReturnType<typeof usageFromBody>> & { callsMissingUsage: number }) | undefined;
+  /** 成本（美元）：用量 × `tools/eval/pricing.json`；查不到价或没有用量 ⇒ null（**不是 0**） */
+  costUsd?: number | null;
+}
+
+/** 报告头的「可复现七项」（评测契约要求，`docs/eval/quiz.md` §1 登记为批次 B 前必补） */
+export interface RunProvenance {
+  /** 代码版本；dirty ⇒ 这一轮别人还原不了 */
+  gitSha: string | null;
+  temperature: number | null;
+  maxTokens: number | null;
+  /** 产品不传 seed ⇒ null。照实写「未设」，不编一个出来 */
+  seed: number | null;
+  /** 这一轮实际用的模型名（从请求体读，与库里绑的那条对账） */
+  requestedModel: string | null;
+  /** 成本合计；`costedRuns` 是**真的算出了钱**的组数——没有它，总额会被读成全量的账 */
+  costUsd: number | null;
+  costedRuns: number;
+  totalRuns: number;
+  promptTokens: number;
+  completionTokens: number;
+  priceNote: string;
+  /** 同轮里出现多档温度时列出全部；否则 null。报告头报单值会骗人 */
+  tempSpread: string[] | null;
 }
 
 export interface RunOpts {
@@ -76,6 +113,8 @@ export interface RunResult {
   records: QuizRunRecord[];
   scores: QuizRunScore[];
   summaries: Array<{ arm: string; summary: QuizEvalSummary }>;
+  /** 报告头的可复现七项（`docs/eval/quiz.md` §1 登记的欠账） */
+  provenance: RunProvenance;
 }
 
 const ARM_IMAGE: Record<string, boolean> = { base: false, img: true };
@@ -98,7 +137,7 @@ async function runOnce(
   imageOn: boolean,
   model: string,
   recorder: Recorder,
-): Promise<QuizEvalRunInput> {
+): Promise<QuizEvalRunInput & Pick<QuizRunRecord, 'sampling' | 'usage' | 'costUsd'>> {
   const images: QuizImageReport = emptyQuizImageReport(imageOn);
   let delivered: QuizPayload | null = null;
   const aiMixReport: QuizMixReport = { requested: mix, actual: mix, matched: false };
@@ -126,6 +165,28 @@ async function runOnce(
   }
   const calls = recorder.count() - before;
   const rec = calls > 0 ? recorder.last() : null;
+  // ★ 计量按**这一组的全部调用**求和，不是只看最后一笔（出题链会多打几次上游）
+  const group = recorder.since(before);
+  const sampling = samplingFromRequest(group[0]?.requestBody) ?? undefined;
+  const acc = { promptTokens: 0, completionTokens: 0, totalTokens: 0, reasoningTokens: 0, cachedTokens: 0 };
+  let sawUsage = false;
+  let usageMissing = 0;
+  for (const g of group) {
+    const u = usageFromBody(g.responseBody);
+    if (!u) {
+      usageMissing += 1; // 这一笔没记上账 ⇒ 下面的成本是**下界**，不是全额
+      continue;
+    }
+    sawUsage = true;
+    acc.promptTokens += u.promptTokens ?? 0;
+    acc.completionTokens += u.completionTokens ?? 0;
+    acc.totalTokens += u.totalTokens ?? 0;
+    acc.reasoningTokens += u.reasoningTokens ?? 0;
+    acc.cachedTokens += u.cachedTokens ?? 0;
+  }
+  const usage = sawUsage ? { ...acc, source: 'api' as const, callsMissingUsage: usageMissing } : undefined;
+  // 价表查不到 ⇒ null（报告写「—」）。**绝不落 0**：0 会被读成「这轮不要钱」
+  const costUsd = usage ? (costOf(sampling?.model ?? model, usage)?.usd ?? null) : null;
   const rawText = recordedText(rec);
   // ★ 防呆①：一笔都没发到上游 ⇒ 没有原文，绝不能读成「一次成型」
   if (!transportError && calls === 0) transportError = 'no-call-recorded';
@@ -146,6 +207,65 @@ async function runOnce(
     latencyMs: Date.now() - started,
     model,
     transportError,
+    sampling,
+    usage,
+    costUsd,
+  };
+}
+
+/**
+ * 代码版本 + 工作区是否干净。
+ * 拿不到（比如打包发布后没有 .git）就是 null —— 报告里写「—」，不编一个假的 sha。
+ */
+function gitSha(): string | null {
+  try {
+    const sha = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
+    const dirty = execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim() !== '';
+    return dirty ? `${sha}-dirty` : sha;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 把「可复现七项」从**录制件**里汇总出来。
+ *
+ * 为什么不直接读配置：评测台一行不改产品参数，产品内部用什么温度、传不传 seed，
+ * 配置文件上看不出来；只有真发出去的那个请求体作数。录制件缺字段 ⇒ 该项 null ⇒ 报告写「—」。
+ */
+export function collectProvenance(records: QuizRunRecord[]): RunProvenance {
+  const sampled = records.map((r) => r.sampling).filter((x): x is NonNullable<typeof x> => !!x);
+  const first = sampled[0] ?? null;
+  // 同一轮里温度若不一致，说明产品按场景分了档 —— 报告只报第一档会骗人，这里直接标出来
+  const temps = [...new Set(sampled.map((s) => s.temperature).filter((t) => t != null))];
+  let costUsd: number | null = null;
+  let costedRuns = 0;
+  let promptTokens = 0;
+  let completionTokens = 0;
+  for (const r of records) {
+    if (r.usage) {
+      promptTokens += r.usage.promptTokens ?? 0;
+      completionTokens += r.usage.completionTokens ?? 0;
+    }
+    if (typeof r.costUsd === 'number') {
+      costUsd = (costUsd ?? 0) + r.costUsd;
+      costedRuns += 1;
+    }
+  }
+  const model = first?.model ?? records[0]?.model ?? null;
+  return {
+    gitSha: gitSha(),
+    temperature: temps.length > 1 ? null : (first?.temperature ?? null),
+    maxTokens: first?.maxTokens ?? null,
+    seed: first?.seed ?? null,
+    requestedModel: model,
+    costUsd,
+    costedRuns,
+    totalRuns: records.length,
+    promptTokens,
+    completionTokens,
+    priceNote: model ? priceProvenance(model) : '未知模型 —— 无法定价',
+    tempSpread: temps.length > 1 ? temps.map(String) : null,
   };
 }
 
@@ -191,7 +311,15 @@ export async function runQuizSuite(opts: RunOpts): Promise<RunResult> {
   fs.writeFileSync(
     file,
     JSON.stringify(
-      { dataset: dataset.version, model: env.model, stamp, arms: opts.arms, cases: cases.length, records },
+      {
+        dataset: dataset.version,
+        model: env.model,
+        stamp,
+        arms: opts.arms,
+        cases: cases.length,
+        provenance: collectProvenance(records),
+        records,
+      },
       null,
       2,
     ),
@@ -205,6 +333,7 @@ export async function runQuizSuite(opts: RunOpts): Promise<RunResult> {
     records,
     scores,
     summaries: summarizeByArm(scores),
+    provenance: collectProvenance(records),
   };
 }
 
@@ -242,5 +371,8 @@ export function replayScores(file: string): RunResult {
     records,
     scores,
     summaries: summarizeByArm(scores),
+    // 重算走的是**录制件里存的**采样/用量。老录制件没有这些字段 ⇒ 各项 null ⇒ 报告写「—」，
+    // 而不是拿今天的价表去补一个当时并不存在的数。
+    provenance: collectProvenance(records),
   };
 }

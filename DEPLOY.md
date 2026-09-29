@@ -23,7 +23,7 @@ Caddy（11wand.com :443）
    └─ 其余         → 静态 /opt/studentbuddy/app/packages/web/dist（SPA，try_files 回退 index.html）
 
 studentbuddy.service（systemd, root）
-   └─ npx tsx src/index.ts          ← 注意：跑的是**源码**，不是编译产物
+   └─ node packages/server/dist/index.js   ← 跑 esbuild 编译产物（2026-09-29 起；此前为 npx tsx 跑源码）
         └─ SQLite /opt/studentbuddy/data/studentbuddy.db（WAL）
 ```
 
@@ -59,7 +59,7 @@ Type=simple
 User=root
 WorkingDirectory=/opt/studentbuddy/app/packages/server
 EnvironmentFile=/opt/studentbuddy/app/.env
-ExecStart=/usr/bin/npx tsx src/index.ts
+ExecStart=/usr/bin/node /opt/studentbuddy/app/packages/server/dist/index.js
 Restart=always
 RestartSec=3
 MemoryMax=400M
@@ -70,7 +70,7 @@ WantedBy=multi-user.target
 
 ★ **三条容易踩的**：
 
-1. **跑源码、不跑 dist**：`ExecStart` 是 `tsx src/index.ts` ⇒ 发版必须把 `packages/server/src` 传上去；服务器上**没有** `packages/server/dist`，只传编译产物是白传。
+1. **跑编译产物、不跑源码**（2026-09-29 起）：`ExecStart` 是 `node packages/server/dist/index.js` ⇒ 发版必须把 `packages/server/dist` 传上去；`packages/server/src` 不再需要（bundle 已把 `@sb/shared` 内联）。★ 此前是 `npx tsx src/index.ts` 跑源码：本机实测那条包装链多出三个进程（`npm exec` 75MB + `sh` 1MB + `tsx` 49MB ≈ 125MB）⇒ 961MB 的机器上白吃，且每次发版构建出的 `dist` 从不被执行；切换后只剩一个进程、RSS 78MB、启动约 1 秒。要退回源码形态就改回 `tsx`，但请先想清楚这 125MB。
 2. **`MemoryMax=400M` 是 1 GB 机器上的硬上限**（超了会 cgroup OOM kill，再由 `Restart=always` 拉起）。
    ★ **而「偶发 502 ＝ 内存吃满」这句归因此前是推断，2026-09-20 实测被证伪**：开机 **127 天**、内核 oom-kill 计数 **0 次**、`MemoryCurrent` 实测 **138MB**（离 400MB 上限很远）。
    中断**确实发生过**——`/opt/studentbuddy/watchdog.log`：`00:06:12 DOWN`、`00:06:16 DOWN`、`00:06:33 RECOVERED`（连续 2 个采样周期、约 21 秒）。★ 当日 `journalctl -u studentbuddy` 给出了定因：`00:06:11 systemd Stopping studentbuddy.service` → `00:06:12 Deactivated successfully` → `00:06:12 Started` → `00:06:17 listening` —— **这是人为/发版重启，与内存无关**（当天该 unit 共 12 次启停类事件，均为成对的 `Stopping → Started`）。
@@ -262,6 +262,7 @@ APP=/opt/studentbuddy/app
 
 npm run check     # 门禁：tsc×3 + eslint + vitest + gates（任一步红即停，set -e）
 npm run build     # web dist + server 产物
+tar -C packages/server -cf - dist | ssh -i "$KEY" "$SERVER" "tar -xf - -C $APP/packages/server/"
 tar -C packages/web -cf - dist | ssh -i "$KEY" "$SERVER" "tar -xf - -C $APP/packages/web/"
 rsync -a --exclude node_modules --exclude .git --exclude dist --exclude .zcode ./ "$SERVER:$APP/"
 ssh -i "$KEY" "$SERVER" "systemctl restart studentbuddy && sleep 5 && curl -sf http://127.0.0.1:18791/api/health"
@@ -272,8 +273,8 @@ ssh -i "$KEY" "$SERVER" "systemctl restart studentbuddy && sleep 5 && curl -sf h
 ★ **本机没有 `rsync` 时**（Windows Git Bash 常见）最后两步手工替代：
 
 ```bash
-# 只传真正需要的三份：server 源码 + shared 源码 + web 构建产物
-tar -cf - packages/server/src packages/shared/src | ssh -i "$KEY" "$SERVER" "tar -xf - -C $APP/"
+# 只传真正需要的两份：server 编译产物 + web 构建产物
+tar -C packages/server -cf - dist | ssh -i "$KEY" "$SERVER" "tar -xf - -C $APP/packages/server/"
 tar -C packages/web -cf - dist | ssh -i "$KEY" "$SERVER" "tar -xf - -C $APP/packages/web/"
 ssh -i "$KEY" "$SERVER" "systemctl restart studentbuddy && sleep 5 && curl -sf http://127.0.0.1:18791/api/health"
 ```
@@ -334,4 +335,7 @@ git checkout main             # 发完切回来
 - **备份是「每日一次」**：最坏情况会丢一天的数据。要更小的 RPO 得加 WAL 归档或提高备份频率。
 - **主密钥 `.mk` 不随备份走**（§6）：异机恢复后要重填 provider/搜索 key。危害形态是**静默失效**——服务照常起、health 照绿，只有密文解出来是空串。
 - **`/opt/studentbuddy/app` 不是 git 仓库**：服务器上的代码状态**无法用 `git log` 追溯**，只能靠本机提交历史 + 发版时间对应。想知道线上跑的是哪个版本，看 `/api/status`（若暴露版本号）或比对文件 mtime。
-- **本手册的配置快照取自 2026-09-20 实测**；服务器上的配置文件是**真相源**，本文与服务器不一致时以服务器为准，并回来更新本文。
+- **回滚目录 `app-old-*` 只增不减**：每次发版新增一份 210–270MB 的整目录包，没有任何清理策略。2026-09-29 实测攒到 **20 份 ≈ 4.3GB**（磁盘一度到 79%），已清理到保留最近 2 份（可用空间 3.9GB → 7.7GB）。⇒ **发版若干次后要回头看 `ls -1dt /opt/studentbuddy/app-old-*`**：SQLite 与站点文件同在 `/`，盘满会直接打挂线上。
+- **线上跑的是编译产物**（2026-09-29 起）：`ExecStart` = `node packages/server/dist/index.js`。此前跑源码（`npx tsx`）多出约 125MB 包装开销，而发版构建出的 `dist` 从不被执行。切换后 `packages/server/dist/index.js` 与站点同属「真正会被执行的字节」，故 `tools/deploy.sh` 第 ⑧ 步的取证清单已把它纳入。
+- **容器化是备选形态，线上不切**（2026-09-29 决策）：本机（Windows Docker Desktop/WSL2）2026-09-27 已把 compose 全栈跑通；线上复评发现现网 Caddyfile 有五处接线、三件运维件绑死在宿主路径与宿主回环上，照 `tools/docker/部署切换手册.md` §4 直切会丢访问统计、访问报告、第二个站点与监控 ⇒ **保留 systemd 形态**；若要切，前置清单见该手册 §4.0。
+- **本手册的配置快照取自 2026-09-29 实测**；服务器上的配置文件是**真相源**，本文与服务器不一致时以服务器为准，并回来更新本文。

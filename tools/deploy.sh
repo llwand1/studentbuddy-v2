@@ -161,11 +161,13 @@ ssh_ "set -e
   echo \"SB_PLATFORM_* 命中: \$(tr '\\0' '\\n' < /proc/\$MP/environ | grep -c '^SB_PLATFORM_' || true)\""
 
 echo "=== ⑧ 验证（本地 vs 线上 sha256）==="
-FILES="packages/web/dist/index.html packages/web/src/features/settings/PlatformChannelCard.tsx packages/shared/src/platform-channel.ts"
+# ★ 2026-09-29 加 packages/server/dist/index.js：线上 ExecStart 改为跑这份产物（此前是 npx tsx 跑源码），
+#   它是「真正被执行的字节」，必须进取证清单；其余三项维持不变。
+FILES="packages/web/dist/index.html packages/server/dist/index.js packages/web/src/features/settings/PlatformChannelCard.tsx packages/shared/src/platform-channel.ts"
 L=$(sha256sum $FILES | awk '{print $1}' | sort)
 R=$(ssh_ "cd $APP && sha256sum $FILES | awk '{print \$1}' | sort")
 if [ "$L" = "$R" ]; then
-  echo "✓ 线上 = 本地（3 个文件 sha256 全等）"
+  echo "✓ 线上 = 本地（4 个文件 sha256 全等）"
 else
   echo "✗ sha256 不一致 —— 线上不是本地这份代码"; echo "本地:"; echo "$L"; echo "线上:"; echo "$R"; exit 1
 fi

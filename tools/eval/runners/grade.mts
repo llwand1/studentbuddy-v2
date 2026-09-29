@@ -51,6 +51,8 @@ export async function runGradeSuite(opts: { dataset: string; limit: number; thro
           break;
         }
         rec.error = `${out.reason}: ${out.error}`;
+        // ★ 限流（429）要等一会儿再补跑：立即重试只会连撞（首轮真调 7 条全栽在这上面）
+        if (attempt < opts.retry) await sleep(/\b429\b/.test(out.error) ? 15_000 * (attempt + 1) : 2_000);
       }
       records.push(rec);
       console.log(`[${i + 1}/${cases.length}] ${c.id} 标注=${c.expected} 判定=${rec.got ?? '✗失败'}${rec.got && rec.got !== c.expected ? '  ←不一致' : ''}`);

@@ -32,6 +32,12 @@ export interface SendActionsDeps {
   online?: boolean;
 }
 
+/**
+ * 「历史加载中」被拒的原话——唯一一种**瞬态**拒绝（新会话的 /messages 还没回来），且 send 在任何
+ * 副作用之前就返回它。`useQuickStart`（空会话直接开聊）据此判断能不能重试：其余被拒一律不重试。
+ */
+export const HISTORY_LOADING_ERROR = '历史加载中，稍候再发';
+
 export function useSendActions(deps: SendActionsDeps) {
   const { sessionId, ready, busy, beginRound, setError, setBusy, setMessages, historyLoadedRef, online } = deps;
 
@@ -45,7 +51,7 @@ export function useSendActions(deps: SendActionsDeps) {
       if (!sessionId) return { ok: false, error: '无会话' };
       if (ready !== 'open') return { ok: false, error: `连接${ready === 'reconnecting' ? '重连中' : '建立中'}，稍候再发` };
       if (busy) return { ok: false, error: '生成中，请先停止' };
-      if (!historyLoadedRef.current) return { ok: false, error: '历史加载中，稍候再发' };
+      if (!historyLoadedRef.current) return { ok: false, error: HISTORY_LOADING_ERROR };
       setError('');
       beginRound();
       // 乐观渲染用户气泡（含图片缩略图）；图片随消息落库，历史回显走 /messages 的 images 列

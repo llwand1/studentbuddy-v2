@@ -17,11 +17,14 @@ import path from 'node:path';
 import { replayScores, runQuizSuite } from './runners/quiz.mts';
 import { renderQuizDoc } from './lib/render.mts';
 import { replayGrade, runGradeSuite, type GradeRun } from './runners/grade.mts';
+import { replayVision, runVisionSuite, type VisionRun } from './runners/vision.mts';
+import { renderVisionSummary } from '../../packages/server/src/media/vision-eval-metrics.js';
 import { renderGradeSummary } from '../../packages/server/src/learning/grade-eval-metrics.js';
 
 const HELP = `用法：npm run eval -- <suite> [选项]
 
   suite   quiz                     （已实现）  出题结构化指标
+          vision                   （已实现）  看图核验：误收率／泄露检出／单张时延（datasets/vision-v1.json）
           grade                    （已实现）  AI 阅卷准确率／误放率（数据集 datasets/grade-v1.json）
           search/collect/scenario/chat/review   （契约 §3.2~§3.7，批次 B 待建）
 
@@ -58,12 +61,16 @@ async function main(): Promise<void> {
     console.log(HELP);
     return;
   }
+  if (suite === 'vision') {
+    await visionMain(argv);
+    return;
+  }
   if (suite === 'grade') {
     await gradeMain(argv);
     return;
   }
   if (suite !== 'quiz') {
-    console.error(`✗ 套件「${suite}」还没建。已实现：quiz、grade`);
+    console.error(`✗ 套件「${suite}」还没建。已实现：quiz、grade、vision`);
     process.exitCode = 2;
     return;
   }
@@ -155,6 +162,33 @@ async function gradeMain(argv: string[]): Promise<void> {
     return;
   }
   writeDoc(docFile, doc, root, 'grade');
+}
+
+async function visionMain(argv: string[]): Promise<void> {
+  const flags = parse(argv.slice(1));
+  const root = path.resolve(import.meta.dirname, '..', '..');
+  const reportsDir = path.resolve(root, flags['out'] ?? 'tools/eval/reports');
+  const docFile = path.resolve(root, flags['doc'] ?? 'docs/eval/vision.md');
+  let run: VisionRun;
+  if (flags['replay']) {
+    run = replayVision(path.isAbsolute(flags['replay']) ? flags['replay'] : path.resolve(root, flags['replay']));
+  } else {
+    run = await runVisionSuite({
+      dataset: path.resolve(root, flags['dataset'] ?? 'tools/eval/datasets/vision-v1.json'),
+      limit: Number(flags['limit'] ?? '0'),
+      throttleMs: Number(flags['throttle'] ?? '2000'),
+      retry: Number(flags['retry'] ?? '3'),
+      reportsDir,
+    });
+    console.log(`\n录制件：${path.relative(root, run.file)}（${run.records.length} 条）`);
+  }
+  const doc = renderVisionSummary(run.summary, { model: run.model, dataset: run.dataset, date: new Date().toISOString().slice(0, 10), replay: Boolean(flags['replay']) });
+  if (flags['check'] === 'true') {
+    console.log(doc);
+    if (run.summary.accuracy === null) process.exitCode = 1;
+    return;
+  }
+  writeDoc(docFile, doc, root, 'vision');
 }
 
 await main();

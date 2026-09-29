@@ -14,6 +14,8 @@ import { registerTool } from './registry.js';
 import './web-search.js';
 import './fetch-page.js';
 import './fetch-image.js';
+// 找图（2026-09-29）：Commons/Bing 候选 → 看图核验 → 本地缓存 + 署名（media/find-image.ts）
+import './search-images.js';
 // 生图（2026-09-27 v0.2.139，契约 docs/IMAGE-GEN-SPEC.md）：模型凭空造学习示意图，
 // 产物与 fetch_image 同落 image-cache、同走 /api/images 出口
 import './generate-image.js';

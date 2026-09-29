@@ -40,7 +40,8 @@ export function LearnerModelCard({ refreshKey }: { refreshKey: number }) {
   if (!model) return null;
   const { weakTerms, misconceptions, byType, calibration } = model;
   const level = model.ability?.level ?? null;
-  if (weakTerms.length === 0 && misconceptions.length === 0 && byType.length === 0 && !calibration && !level) return null;
+  const fsrs = model.fsrs ?? null;
+  if (weakTerms.length === 0 && misconceptions.length === 0 && byType.length === 0 && !calibration && !level && !fsrs) return null;
 
   const resolve = async (id: string) => {
     await aiOpsApi.resolveMisconception(id).catch(() => undefined);
@@ -87,6 +88,17 @@ export function LearnerModelCard({ refreshKey }: { refreshKey: number }) {
         </div>
       )}
       {calibration && <div className="rv-learner-cal">{calibrationText(calibration)}</div>}
+      {fsrs && <div className="rv-learner-cal">{personalText(fsrs)}</div>}
     </section>
   );
+}
+
+/** 个人化记忆模型的人话：k 是「你的记忆比默认模型稳多少」，间隔跟着按比例变 */
+export function personalText(p: NonNullable<LearnerModel['fsrs']>): string {
+  const base = `记忆模型已按你的 ${p.n} 次复习个人化`;
+  if (Math.abs(p.scale - 1) < 0.05) return `${base}：你的遗忘节奏和默认模型基本一致，间隔不变。`;
+  const pctDiff = Math.round(Math.abs(p.scale - 1) * 100);
+  return p.scale > 1
+    ? `${base}：你记得比默认模型以为的牢，复习间隔拉长约 ${pctDiff}%。`
+    : `${base}：你忘得比默认模型以为的快，复习间隔缩短约 ${pctDiff}%。`;
 }

@@ -39,7 +39,7 @@ export const AI_PURPOSES = {
   'collect.draft': { label: '现场搜集出题', role: 'quiz-generator', version: 1, upstream: 'main', timeoutMs: 180_000 },
   'coach.message': { label: '复习督促', role: 'coach', version: 1, upstream: 'background', timeoutMs: 60_000 },
   'npc.genesis': { label: '伙伴诞生', role: 'npc', version: 1, upstream: 'main', timeoutMs: 60_000 },
-  'npc.talk': { label: '伙伴对话', role: 'npc', version: 1, upstream: 'main', timeoutMs: 60_000 },
+  'npc.talk': { label: '伙伴对话', role: 'npc', version: 2, upstream: 'main', timeoutMs: 60_000 },
   'npc.ping': { label: '伙伴主动搭话', role: 'npc', version: 1, upstream: 'background', timeoutMs: 45_000 },
   'coach.trend': { label: '复习趋势摘要', role: 'coach', version: 1, upstream: 'background', timeoutMs: 60_000 },
   'chat.grill': { label: '收尾追问选项', role: 'explain', version: 1, upstream: 'main', timeoutMs: 60_000 },

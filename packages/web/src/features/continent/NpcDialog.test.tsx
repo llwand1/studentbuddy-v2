@@ -79,6 +79,23 @@ describe('学习伙伴对话面板', () => {
     expect(screen.getByText(NPC_FALLBACK_NOTICE)).toBeTruthy();
   });
 
+  it('④ 智能体：他这一轮用过的工具以小字显示（查记忆／查关系），没用工具就不显示', async () => {
+    apiMock.talk.mockResolvedValueOnce({
+      reply: '你之前把暗反应当成夜里的事啦。',
+      source: 'ai',
+      actions: [{ tool: 'recall_learner_state', label: '看了看你的记忆' }, { tool: 'related_terms', label: '查了「暗反应」的关系' }],
+    });
+    open();
+    fireEvent.change(screen.getByLabelText('对伙伴说的话'), { target: { value: '我哪里不熟' } });
+    fireEvent.click(screen.getByRole('button', { name: '发送' }));
+    await waitFor(() => expect(screen.getByText(/看了看你的记忆、查了「暗反应」的关系/)).toBeTruthy());
+    apiMock.talk.mockResolvedValueOnce({ reply: '好呀。', source: 'ai' });
+    fireEvent.change(screen.getByLabelText('对伙伴说的话'), { target: { value: '嗯' } });
+    fireEvent.click(screen.getByRole('button', { name: '发送' }));
+    await waitFor(() => expect(screen.getByText(/好呀。/)).toBeTruthy());
+    expect(screen.queryByText(/看了看你的记忆/)).toBeNull();
+  });
+
   it('② 没有能当信物的词条 ⇒ 说清他为什么婉拒，且面板上不该再有「换一条」按钮', () => {
     open({ tokens: [] });
     // ★ v2 起交换改走对话（「教我点没见过的」→ 模型调工具 → 服务端真换一条），

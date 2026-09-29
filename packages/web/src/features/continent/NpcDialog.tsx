@@ -63,6 +63,7 @@ export function NpcDialog({
   const [trades, setTrades] = useState(tradesLeft);
   const [draw, setDraw] = useState<ChestDraw | null>(null);
   const [note, setNote] = useState('');
+  const [acts, setActs] = useState<string[]>([]); // 他这一轮用了哪些工具（智能体，Step 4）
   const [busy, setBusy] = useState(false);
   /** 「让他回家」是否已上膛（两段式：一个不可撤销的动作不该一键就发生） */
   const [armed, setArmed] = useState(false);
@@ -98,6 +99,7 @@ export function NpcDialog({
       const r = await api.npc.talk(npc.id, said);
       setReply(r.reply);
       setSource(r.source);
+      setActs((r.actions ?? []).map((a) => a.label));
       setLog((prev) => [...prev, { role: 'assistant', content: r.reply }]);
       // ★★ 交换现在是**他在对话里自己决定**的：模型调了工具，服务端就真换了一条，
       //    这里只负责把开盒仪式抬出来。UI 上没有"换一条"按钮——因为那不是一个按钮该干的事。
@@ -236,6 +238,7 @@ export function NpcDialog({
               ))}
             </ul>
           )}
+          {!busy && acts.length > 0 && <p className="continent-note continent-npc-acts">（{npc.name}{acts.join('、')}）</p>}
           {busy && <p className="continent-note">……</p>}
           {source === 'fallback' && <p className="continent-note">{NPC_FALLBACK_NOTICE}</p>}
         </div>

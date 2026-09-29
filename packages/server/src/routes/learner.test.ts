@@ -64,6 +64,7 @@ describe('学习者模型与误区', () => {
     expect(a.body.misconceptions.map((m: { note: string }) => m.note)).toEqual(['甲的误区']);
     expect(a.body).toHaveProperty('calibration', null);
     expect(a.body.ability).toMatchObject({ n: 0, level: null });
+    expect(a.body).toHaveProperty('fsrs', null);
     const b = await request(app).get('/api/learning/model').set('Origin', origin).set('Cookie', bob.cookie).expect(200);
     expect(b.body.misconceptions).toEqual([]);
     await post(`/api/learning/misconceptions/${id}/resolve`, bob.cookie).expect(404);

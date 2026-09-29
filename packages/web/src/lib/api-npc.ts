@@ -73,6 +73,8 @@ export interface NpcTalkResult {
   draw?: ChestDraw | null;
   /** 想换但没换成时的那句人话（额度用完／这块地还没练熟） */
   tradeNote?: string | null;
+  /** 他这一轮用了哪些工具（查记忆／查关系／送新词），按顺序；只有标签，数据在回复里 */
+  actions?: Array<{ tool: 'recall_learner_state' | 'related_terms' | 'offer_new_term'; label: string }>;
 }
 
 /** 一条历史消息（伙伴会话回显；`GET /:id/history`） */

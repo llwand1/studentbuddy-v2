@@ -11,6 +11,7 @@ import type { LearnerMisconception, LearnerModel, LearnerWeakTerm } from '@sb/sh
 import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
 import { rowsAll, toReviewTerm } from './term-review.js';
+import { personalization } from './fsrs-personal.js';
 import { abilityFor } from './adaptive-quiz.js';
 
 /** 快忘的阈值：当前可提取度低于它才算"快忘了" */
@@ -121,6 +122,7 @@ export function learnerModel(ownerId: string | null, now = new Date()): LearnerM
     byType: byType(ownerId),
     calibration: calibration(ownerId),
     ability: abilityFor(ownerId),
+    fsrs: personalization(ownerId),
   };
 }
 

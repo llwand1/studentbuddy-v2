@@ -9,6 +9,7 @@
  */
 
 import type { AbilityEstimate } from './adaptive.js';
+import type { FsrsPersonalization } from './fsrs-fit.js';
 
 export type GradeVerdict = 'correct' | 'partial' | 'wrong';
 
@@ -96,4 +97,6 @@ export interface LearnerModel {
   calibration: { n: number; predicted: number; actual: number } | null;
   /** 自适应难度：能力估计与建议难度档（样本不足时 level 为 null） */
   ability: AbilityEstimate;
+  /** 个人化记忆模型（复习满 30 次后拟合；null ＝ 还在用默认参数） */
+  fsrs: FsrsPersonalization | null;
 }

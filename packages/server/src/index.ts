@@ -38,6 +38,8 @@ import { wireToolStats } from './storage/tool-stats.js';
 import { aiRouter, jobsRouter, learningRouter } from './routes/ai-ops.js';
 import { learnerRouter } from './routes/learner.js';
 import { wireTermGraph } from './learning/term-graph.js';
+import { wireFsrsFit } from './learning/fsrs-personal.js';
+import { wireQuestionPool } from './pk/question-pool.js';
 import { wireLlmCallLog } from './ai/call-log.js';
 import { wireLearningEvents } from './learning/learning-events.js';
 import { startJobWorker } from './jobs/worker.js';
@@ -204,6 +206,8 @@ if (process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('index.js
   wireLlmCallLog();
   wireLearningEvents();
   wireTermGraph();
+  wireFsrsFit();
+  wireQuestionPool();
   // 逃生口③（启动清理）：重启后内存里挂起的 Promise 已随进程消失，库里遗留的 pending
   // 方案选择永远等不到答复——不清就会变成前端能捞到、却怎么点都没反应的死卡。
   const swept = sweepStaleChoices();

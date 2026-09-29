@@ -16,35 +16,20 @@
  *   模型会顺着那个语气继续演 —— 一句兜底会污染整条会话。
  */
 import { npcFallbackLine } from '@sb/shared';
-import type { ChatMessage, ToolDefinition } from '../llm/types.js';
+import type { ChatMessage } from '../llm/types.js';
 import { resolveNpcTarget } from './npc-genesis.js';
-import { npcTradeInDomain, type NpcView } from './npc.js';
+import type { NpcView } from './npc.js';
+import { NPC_TOOLS, runNpcTool, type NpcAgentAction } from './npc-agent-tools.js';
 import type { ChestDraw } from './chest.js';
 import { buildNpcMessages, ensureNpcSession, recordNpcTurn } from './npc-session.js';
 import { aiText } from '../ai/gateway.js';
 
 /**
- * 伙伴手里唯一的工具：**送你一条没见过的新词**（`NPC-PARTNER-SPEC` §13）。
- *
- * ★★ 为什么交换要做成工具、而不是面板上的下拉框 + 按钮：
- *   交换在设定上是"跟这位邻居换点新花样"，那它就该发生在**对话里** ——
- *   用户说"有没有新东西教我"，他就掏一条出来。为一个纯参数（领域）让用户点三下下拉框，
- *   是把一次交流做成了一张表单。
- * ★ 领域**不让模型填**：它 = 伙伴此刻站的那一格，服务端说了算。
- *   让模型填领域，它就会编一个库里没有的领域名，然后交换必然失败且理由荒唐。
- *   ⇒ 工具**无参数**：模型只负责决定"该给了"，给什么由服务端定。
+ * ★ 工具箱见 `npc-agent-tools.ts`（Step 4 起伙伴是智能体：能查你的记忆、查词条关系、送新词）。
+ *   交换做成工具而不是表单按钮的理由没变——它发生在**对话里**；新增的两个查询工具让他
+ *   「先查再说」，而不是被提示词禁止谈进度。
  */
-const TRADE_TOOL: ToolDefinition = {
-  type: 'function',
-  function: {
-    name: 'offer_new_term',
-    description:
-      '当用户想学点新的、或明确要你"换一条新词/教我点没见过的"时调用它。' +
-      '你会得到一条这块地所属领域里、用户还没见过的新词条，然后用你自己的话把它介绍给他。' +
-      '用户只是随口闲聊、或在问你已有词条的问题时，**不要**调它。',
-    parameters: { type: 'object', properties: {}, required: [] },
-  },
-};
+const MAX_STEPS = 3;
 
 /** 短对话上限（伙伴说不长的话）；温度比 coach 的 0.6 高——伙伴要有人味 */
 const NPC_MAX_TOKENS = 600;
@@ -61,6 +46,8 @@ export interface NpcTalkResult {
   draw?: ChestDraw | null;
   /** 换不成时的那句人话（额度用完／这块地还没练熟）；★ 照实说，不假装没发生 */
   tradeNote?: string | null;
+  /** 这一轮他用了哪些工具（按顺序；前端显示成「看了看你的记忆」这类小字） */
+  actions?: NpcAgentAction[];
 }
 
 /**
@@ -84,7 +71,8 @@ function buildNpcPrompt(npc: NpcView, here: { term: string; domain: string } | n
     '用第一人称、口语化、简短（两三句就够），像一个住在那儿的邻居；不要列条目、不要用标题、不要用列表符号。',
     '你能做的是：陪用户聊脚下这块地的词条、用提问或线索帮他记牢它、在他路过时提一句这附近有没有怪。',
     '★ 你记得你们之前聊过什么（上文里有你自己的记忆摘要）——别每次都像第一次见面那样重新自我介绍。',
-    '★ 不要编造用户的学习进度、复习数字、卡牌数量、欠账——那些由别的面板说，你说了就会和它们对不上。',
+    '★ 说到用户的记忆情况（快忘了什么、搞错过什么）之前，先调 recall_learner_state；说到词条之间的关系，先调 related_terms。只说工具给你的事实，工具没给的一律不编（尤其是数字）。',
+    '★ 卡牌数量、欠账、复习队列这些由别的面板说，你别提。',
     state,
   ].join('\n');
 }
@@ -113,43 +101,45 @@ export async function npcTalk(opts: {
     });
 
     /** 跑一轮（可带工具）；返回正文与模型想调的工具 */
-    const run = async (msgs: ChatMessage[], withTool: boolean) => {
+    const run = async (msgs: ChatMessage[], withTools: boolean) => {
       // 经 AI 网关（超时 + 记账）；失败照旧抛给外层 try，走既有的降级台词
       const r = await aiText({
         purpose: 'npc.talk', ownerId: opts.ownerId, target, messages: msgs,
         temperature: NPC_TEMPERATURE, maxTokens: NPC_MAX_TOKENS, streamMode: 'once', signal: opts.signal,
-        ...(withTool ? { tools: [TRADE_TOOL], toolChoice: 'auto' as const } : {}),
+        ...(withTools ? { tools: NPC_TOOLS, toolChoice: 'auto' as const } : {}),
       });
       if (!r.ok) throw new Error(r.error);
       return { text: r.text, calls: r.toolCalls ?? [] };
     };
 
+    // ★ 领域与词条取**他脚下这一格**，不取他的家：走位决定话题，也决定查谁、换来的词属于哪一块
+    const ctx = { ownerId: opts.ownerId, npcId: opts.npc.id, term: opts.here?.term || opts.npc.term, domain: opts.here?.domain || opts.npc.domain };
     let draw: ChestDraw | null = null;
     let tradeNote: string | null = null;
+    const actions: NpcAgentAction[] = [];
+    const used = new Set<string>();
     let acc = '';
     try {
-      const first = await run(messages, true);
-      acc = first.text;
-      const wantsTrade = first.calls.some((c) => c.name === TRADE_TOOL.function.name);
-      if (wantsTrade) {
-        // ★ 领域取**他脚下这一格**，不取他的家：走位决定话题，也决定换来的词属于哪一块
-        const domain = opts.here?.domain || opts.npc.domain;
-        const r = npcTradeInDomain(opts.ownerId, opts.npc.id, domain);
-        // 把工具结果喂回去，让他用自己的话把新词介绍出来（而不是服务端拼一句模板）
-        const toolMsg = r.ok
-          ? `换到了：「${r.draw.term}」（${r.draw.domain}）——释义：${r.draw.definition}。` +
-            `用你自己的口气把它介绍给他，两三句，别念释义原文。今天还能换 ${r.tradesLeft} 次。`
-          : `没换成。原因：${r.error} 用你自己的口气把这个原因告诉他，一句就够，别安慰过头。`;
-        if (r.ok) {
-          draw = r.draw;
-        } else {
-          tradeNote = r.error;
+      // 智能体循环：最多 MAX_STEPS 轮；每个工具一轮只执行一次（防止模型反复查同一件事烧钱），
+      // 最后一轮不给工具 ⇒ 必须落到一句话上。结果以「（系统）」消息喂回（与原交换同一形状，不依赖各家 tool 消息格式）。
+      let msgs = messages;
+      for (let step = 0; step < MAX_STEPS; step += 1) {
+        const out = await run(msgs, step < MAX_STEPS - 1);
+        if (out.text.trim()) acc = out.text;
+        const calls = out.calls.filter((c) => !used.has(c.name));
+        if (calls.length === 0) break;
+        const results: string[] = [];
+        for (const c of calls) {
+          used.add(c.name);
+          const r = runNpcTool(c.name, ctx);
+          if (!r) continue;
+          actions.push(r.action);
+          if (r.draw) draw = r.draw;
+          if (r.tradeNote) tradeNote = r.tradeNote;
+          results.push(`【${c.name}】${r.result}`);
         }
-        const second = await run(
-          [...messages, { role: 'assistant', content: acc || '' }, { role: 'user', content: `（系统）${toolMsg}` }],
-          false,
-        );
-        if (second.text.trim()) acc = second.text;
+        if (results.length === 0) break;
+        msgs = [...msgs, { role: 'assistant', content: out.text || '' }, { role: 'user', content: `（系统）工具结果：\n${results.join('\n')}` }];
       }
     } catch {
       // 上游抖动也走降级：地图上的常驻元素不许因为一次报错变成"坏掉的功能"（§4.2）。
@@ -157,7 +147,7 @@ export async function npcTalk(opts: {
     }
     if (acc.trim()) {
       recordNpcTurn({ sessionId, ownerId: opts.ownerId, userText: opts.text, reply: acc.trim() });
-      return { reply: acc.trim(), source: 'ai', draw, tradeNote };
+      return { reply: acc.trim(), source: 'ai', draw, tradeNote, actions };
     }
   }
   // ★ 降级不落库（见文件头注最后一条）：罐头台词进了历史会污染之后每一轮。

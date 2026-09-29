@@ -42,3 +42,4 @@ export * from './demo-content.js';
 export * from './quiz-explanation.js';
 export * from './spell-chant.js';
 export * from './spell-kinds.js';
+export * from './fsrs-fit.js';

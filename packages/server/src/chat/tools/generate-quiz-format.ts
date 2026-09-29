@@ -21,6 +21,8 @@ import {
   mixKindCap,
   mixTotal,
   sourceMixTotal,
+  countTiers,
+  tierSummaryLine,
 } from '@sb/shared';
 
 /** 单条题干回灌上限（清单是给模型报菜名用的，不是让它重抄题面） */
@@ -95,15 +97,19 @@ export function quizToolSummary(
   const n = quiz.questions.length;
   const realGot = quiz.questions.filter((q) => q.source?.kind === 'collect').length;
   const svg = countQuizImages(quiz);
+  // 分级（契约 QUIZ-TIER-SPEC §1）：让模型能对学习者说清「哪几道是真题必刷、哪几道只是基础巩固」
+  const tiers = tierSummaryLine(countTiers(quiz.questions));
   const head = [
     `已出题 ${n} 道（${mixText(countByType(quiz))}）` +
-      (realGot > 0 ? `，其中真题 ${realGot} 道` : '') +
+      (tiers ? `，分级：${tiers}` : '') +
       (svg > 0 ? `，含配图 ${svg} 道` : '') +
       // ⚠️ 2026-09-26 题库下线：原句是「对错与统计由系统判分（另有错题本）」——作答不再落库，
       //      就没有「统计」与「错题本」可写给模型看。这段文案是说给模型的，它照着对用户承诺。
       '。题卡已经直接展示给学习者了——**他点卡片作答，对错由题卡即时判分并给出解析**。',
     '★ 不要在正文里重复抄这些题目，也不要自己批改（那等于把刚给的题卡作废）。',
-    '要讲评就针对下面的题干讲；学习者作答后你可以解释错因。',
+    '要讲评就针对下面的题干讲；学习者作答后你可以解释错因。' +
+      '每题卡上都标了档位：真题·必刷（网页逐字摘录、可溯源）/ 模拟题·建议做（参考真题出的变式）/ 基础题·可选做（AI 按材料出的巩固题）——' +
+      '**不要把基础题说成真题**；学习者时间紧时建议他先做真题与模拟题。',
   ].join('\n');
   const notes: string[] = [];
   if (images.droppedSvg > 0) notes.push(`有 ${images.droppedSvg} 张图未通过校验被丢弃（题面保留）`);

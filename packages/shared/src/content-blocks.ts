@@ -49,6 +49,12 @@ export interface QuizQuestion {
    */
   source?: { kind: 'web' | 'ai' | 'collect'; title: string; url?: string };
   /**
+   * 分级（契约 `docs/QUIZ-TIER-SPEC.md`）：real 真题·必刷 / mock 模拟题·建议做 / basic 基础题·可选做。
+   * **服务端按来源事实推导**（模型自报不算数）。可选字段：历史题无此键 → 前端用 `tierOf(q)` 按 `source.kind` 兜底。
+   * 判分/对战/复习一律不读它。
+   */
+  tier?: import('./quiz-tier.js').QuizTier;
+  /**
    * 配图：SVG 源码（契约 docs/QUIZ-IMAGE-SPEC.md）。模型自决——需要示意图才给，看得懂文字就不给。
    * 可选字段：历史题无此键 → undefined → 不渲染，**不做数据迁移**；判分逻辑不读它，图只作附加展示。
    */
@@ -335,6 +341,10 @@ export interface CollectPageRecord {
   fetched: boolean;
   /** fetched=false 时的真因（HTTP 状态 / 非 HTML / 正文过短 / 超时 / SSRF 拦截） */
   reason?: string;
+  /** 判为「考试真题页」（契约 QUIZ-TIER-SPEC §3：≥2 个考试信号；可选，历史记录无此键） */
+  exam?: boolean;
+  /** 命中的考试信号（如「高考」「2023年」「题源:组卷网」），供报告回显 */
+  signals?: string[];
 }
 
 /** 一道搜集候选题。ok=false 的 question 只是模型草稿，前端不得当可用题展示 */
@@ -357,6 +367,8 @@ export interface CollectReport {
   rejected: number;
   /** 与 QuizImageReport.failure 同族：搜集模型没配 / 输出整段解不出，路由据此选文案不反推 */
   failure?: 'no-model' | 'parse';
+  /** 成功搬运的题源配图张数（契约 QUIZ-TIER-SPEC §5；省略＝0） */
+  sourceImages?: number;
 }
 
 /** 零值报告：preview 路由先建好传给域层 */

@@ -13,7 +13,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { CollectCandidate, CollectReport, QuizPayload, QuizQuestion, QuizSourceMix } from '@sb/shared';
 import { DEFAULT_QUIZ_MIX, DEFAULT_QUIZ_SOURCE_MIX, emptyQuizImageReport } from '@sb/shared';
-import { blendMissing, generateBlendedQuiz, pickByQuota } from './quiz-blend.js';
+import { blendMissing, generateBlendedQuiz, pickByQuota, realFirstApplies } from './quiz-blend.js';
 
 const stub = vi.hoisted(() => ({
   /** 桩：AI 侧产出（null ＝ 出题失败） */
@@ -121,8 +121,9 @@ describe('blendMissing（缺口如实报，不用 AI 补）', () => {
 });
 
 describe('generateBlendedQuiz（两条管道的拼装与降级）', () => {
+  // 这一组钉的是**显式配比**语义：真题优先显式关掉（它另有一组用例；缺省值由 `loadQuizRealFirst` 读库，不在此依赖）
   const run = (aiMix = DEFAULT_QUIZ_MIX, realMix = real()) =>
-    generateBlendedQuiz('主题', undefined, aiMix, realMix, emptyQuizImageReport(), undefined, false, null);
+    generateBlendedQuiz('主题', undefined, aiMix, realMix, emptyQuizImageReport(), undefined, false, null, { realFirst: false });
 
   it('AI 题在前、真题在后（按来源分组，用户一眼能分辨）', async () => {
     stub.candidates = [cand('single', '真题1')];
@@ -186,5 +187,55 @@ describe('generateBlendedQuiz（两条管道的拼装与降级）', () => {
     const r = await run();
     expect(r.report.ai.requested).toEqual(DEFAULT_QUIZ_MIX);
     expect(r.report.ai.matched).toBe(false);
+  });
+});
+
+describe('真题优先（契约 QUIZ-TIER-SPEC §4：没配真题也先去摘，摘到就顶替同题型 AI 题）', () => {
+  const run = (aiMix = DEFAULT_QUIZ_MIX, realMix = real(), realFirst = true) =>
+    generateBlendedQuiz('主题', undefined, aiMix, realMix, emptyQuizImageReport(), undefined, false, null, { realFirst });
+
+  it('realFirstApplies：开关开 + 未配真题 + AI 有题 才生效；用户配了真题就照配比走', () => {
+    expect(realFirstApplies(real(), DEFAULT_QUIZ_MIX, true)).toBe(true);
+    expect(realFirstApplies(real(), DEFAULT_QUIZ_MIX, false)).toBe(false);
+    expect(realFirstApplies(real({ single: 1 }), DEFAULT_QUIZ_MIX, true)).toBe(false);
+    expect(realFirstApplies(real(), { single: 0, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 2 }, true)).toBe(false);
+    // 占位主题搜不出真题，不发起
+    expect(realFirstApplies(real(), DEFAULT_QUIZ_MIX, true, '综合')).toBe(false);
+    expect(realFirstApplies(real(), DEFAULT_QUIZ_MIX, true, '  ')).toBe(false);
+  });
+
+  it('搜集配额 = AI 配比（scenario 恒 0），并进搜集提示词参数', async () => {
+    stub.candidates = [];
+    await run();
+    const opts = stub.collectCalls[0]?.[2] as { quota?: QuizSourceMix } | undefined;
+    expect(opts?.quota).toEqual(real({ single: 2, fill: 1, essay: 1 }));
+  });
+
+  it('★ 摘到的真题顶替同题型 AI 题（AI 从后往前削）、真题在前、总题数不变', async () => {
+    stub.candidates = [cand('single', '真题1')];
+    const r = await run();
+    expect(r.quiz?.questions.map((q) => q.question)).toEqual(['真题1', 'AI-s0', 'AI-f0', 'AI-e0']);
+    expect(r.quiz?.questions).toHaveLength(AI_QUESTIONS.length);
+    expect(r.report.realFirst).toEqual({ displaced: 1 });
+  });
+
+  it('一道都没摘到 → 与老行为完全一致（AI 题原样、无顶替）', async () => {
+    stub.candidates = [];
+    const r = await run();
+    expect(r.quiz?.questions.map((q) => q.question)).toEqual(['AI-s0', 'AI-s1', 'AI-f0', 'AI-e0']);
+    expect(r.report.realFirst).toEqual({ displaced: 0 });
+  });
+
+  it('真题侧抛错不阻断，AI 题照常返回', async () => {
+    stub.collectThrows = true;
+    const r = await run();
+    expect(r.quiz?.questions).toHaveLength(AI_QUESTIONS.length);
+  });
+
+  it('用户显式配了真题 → 不走顶替，仍是「AI 在前、真题在后」的配比语义', async () => {
+    stub.candidates = [cand('single', '真题1')];
+    const r = await run(DEFAULT_QUIZ_MIX, real({ single: 1 }));
+    expect(r.quiz?.questions.map((q) => q.question)).toEqual(['AI-s0', 'AI-s1', 'AI-f0', 'AI-e0', '真题1']);
+    expect(r.report.realFirst).toBeUndefined();
   });
 });

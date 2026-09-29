@@ -41,6 +41,11 @@ export interface QuizBlendReport {
   };
   /** 逐页抓取与逐题拒绝的原始记录；本次没配真题时省略 */
   collect?: CollectReport;
+  /**
+   * 真题优先（契约 `docs/QUIZ-TIER-SPEC.md` §4）生效时才有：`requested` 此时是 AI 配比派生的搜集配额，
+   * `displaced` 是被真题顶替掉的 AI 题数（前端据此把「要 N 摘到 M」念成「N 道里换成真题 M 道」，不算缺口）。
+   */
+  realFirst?: { displaced: number };
 }
 
 // ── 出题来源配比：真题（契约 docs/QUIZ-BLEND-SPEC.md §3.1）──

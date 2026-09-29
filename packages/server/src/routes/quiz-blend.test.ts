@@ -70,6 +70,9 @@ const putSourceMix = (mix: Partial<QuizSourceMix>) =>
   request(app).put('/api/settings/quiz-source-mix').set('Origin', origin).send({ mix });
 const putAiMix = (mix: Record<string, number>) =>
   request(app).put('/api/settings/quiz-mix').set('Origin', origin).send({ mix });
+const putRealFirst = (on: unknown) =>
+  request(app).put('/api/settings/quiz-real-first').set('Origin', origin).send({ on });
+const getRealFirst = () => request(app).get('/api/settings/quiz-real-first').set('Origin', origin);
 
 /**
  * 题组里带 `collect` 来源的题数——2026-09-26 起这是「这次出没出到真题」的唯一验证面。
@@ -89,7 +92,39 @@ beforeEach(async () => {
 
 afterAll(() => closeDb());
 
-describe('★ 向后兼容：不配真题时与改动前逐字一致', () => {
+describe('★ 真题优先缺省开（契约 QUIZ-TIER-SPEC §4）：不配真题也先去摘，摘不到与老行为一致', () => {
+  it('不传 sourceMix 且设置里真题全 0 → 仍发起一次搜集，配额 = AI 配比', async () => {
+    const r = await generate({ topic: 't' }).expect(200);
+    expect(stub.collectCalls).toHaveLength(1);
+    const opts = stub.collectCalls[0]?.[2] as { quota?: QuizSourceMix } | undefined;
+    expect(opts?.quota).toMatchObject({ single: 2, fill: 1, essay: 1 });
+    expect(r.body.blend?.realFirst).toEqual({ displaced: 0 });
+  });
+
+  it('摘不到 → 题组与老行为逐字一致（一道 collect 题都没有、AI 题一道不少）', async () => {
+    const r = await generate({ topic: 't' }).expect(200);
+    expect(collectCount(r.body.quiz.questions)).toBe(0);
+    expect(r.body.quiz.questions).toHaveLength(AI_QUIZ.questions.length);
+  });
+
+  it('摘到 1 道 → 顶替同题型 AI 题、真题在前、总数不变，题面带 tier=real', async () => {
+    stub.candidates = collected(1);
+    const r = await generate({ topic: 't' }).expect(200);
+    expect(collectCount(r.body.quiz.questions)).toBe(1);
+    expect(r.body.quiz.questions).toHaveLength(AI_QUIZ.questions.length);
+    expect(r.body.quiz.questions[0].source.kind).toBe('collect');
+    expect(r.body.blend?.realFirst).toEqual({ displaced: 1 });
+  });
+});
+
+describe('★ 向后兼容：真题优先关掉后，不配真题时与改动前逐字一致', () => {
+  beforeEach(async () => {
+    await putRealFirst(false).expect(200);
+  });
+  afterAll(async () => {
+    await putRealFirst(true).expect(200);
+  });
+
   it('不传 sourceMix 且设置里真题全 0 → 一次搜集都不发起', async () => {
     const r = await generate({ topic: 't' }).expect(200);
     expect(stub.collectCalls).toHaveLength(0);
@@ -99,6 +134,13 @@ describe('★ 向后兼容：不配真题时与改动前逐字一致', () => {
   it('题组里一道 collect 题都没有（老行为不变：不配真题就不混真题进来）', async () => {
     const r = await generate({ topic: 't' }).expect(200);
     expect(collectCount(r.body.quiz.questions)).toBe(0);
+  });
+
+  it('开关端点：GET 缺省 false（刚关掉）→ PUT true → GET true；非布尔入参回缺省开', async () => {
+    expect((await getRealFirst().expect(200)).body.on).toBe(false);
+    expect((await putRealFirst('yes').expect(200)).body.on).toBe(true);
+    expect((await getRealFirst().expect(200)).body.on).toBe(true);
+    await putRealFirst(false).expect(200);
   });
 
   it('响应仍带 mix（AI 侧报告）——前端既有 shortfallText 零改动', async () => {

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { QuizQuestion, QuizReviewItem } from '@sb/shared';
+import { QUIZ_TIER_HINTS, QUIZ_TIER_LABELS, tierOf } from '@sb/shared';
 import { SvgPreviewCard } from '../chat/SvgPreviewCard';
 import { Markdown } from '../chat/Markdown';
 import { fillCount, optionsFor, reviewAttempt } from './quiz-attempt';
@@ -17,6 +18,8 @@ export function QuizQuestionItem({ q, index, onComplete, topic }: {
   const choice = ['single', 'multiple', 'judge'].includes(q.type);
   const options = optionsFor(q);
   const label = { single: '单选', multiple: '多选', fill: '填空', essay: '解答', judge: '判断' }[q.type];
+  // 分级徽标（契约 QUIZ-TIER-SPEC §1）：真题·必刷 / 模拟题·建议做 / 基础题·可选做——用户做题前先知道「这题做了有什么用」
+  const tier = tierOf(q);
   const ready = choice ? picked.length > 0 : q.type === 'fill' ? fills.every((s) => s.trim()) : !!essay.trim();
   const submit = () => {
     if (result || !ready) return;
@@ -31,7 +34,11 @@ export function QuizQuestionItem({ q, index, onComplete, topic }: {
   };
   return (
     <section className={`quiz-q${result ? ` is-${result.verdict}` : ''}`} aria-label={`第 ${index + 1} 题`}>
-      <div className="quiz-q-title"><span className="quiz-q-type">{index + 1} · {label}</span>{q.question}</div>
+      <div className="quiz-q-title">
+        <span className="quiz-q-type">{index + 1} · {label}</span>
+        <span className={`quiz-q-tier is-${tier}`} title={QUIZ_TIER_HINTS[tier]}>{QUIZ_TIER_LABELS[tier]}</span>
+        {q.question}
+      </div>
       {q.svg && <div className="quiz-q-svg"><SvgPreviewCard code={q.svg} streaming={false} /></div>}
       {q.photo && (
         <figure className="quiz-q-photo">

@@ -35,7 +35,7 @@ export interface GradeResult {
   misconception: string | null;
 }
 
-export const GRADE_LIMITS = { question: 2000, reference: 2000, answer: 4000, feedback: 400, misconception: 120 } as const;
+export const GRADE_LIMITS = { question: 6500, reference: 2000, answer: 4000, feedback: 400, misconception: 120 } as const;
 
 const VERDICTS: readonly GradeVerdict[] = ['correct', 'partial', 'wrong'];
 

@@ -6,6 +6,17 @@ import { fillCount, optionsFor, reviewAttempt } from './quiz-attempt';
 import { aiOpsApi, answerQType } from '../../lib/api-ai-ops';
 import { AiGradeNote } from './AiGradeNote';
 
+function QuizPhotoFigure({ photo }: { photo: NonNullable<QuizQuestion['photo']> }) {
+  return (
+    <figure className="quiz-q-photo">
+      <img src={photo.src} alt={photo.alt} loading="lazy" />
+      <figcaption>
+        {photo.pageUrl ? <a href={photo.pageUrl} target="_blank" rel="noreferrer noopener">{photo.credit}</a> : photo.credit}
+      </figcaption>
+    </figure>
+  );
+}
+
 export function QuizQuestionItem({ q, index, onComplete, topic }: {
   q: QuizQuestion; index: number; onComplete: (item: QuizReviewItem) => void; topic?: string;
 }) {
@@ -31,16 +42,12 @@ export function QuizQuestionItem({ q, index, onComplete, topic }: {
   };
   return (
     <section className={`quiz-q${result ? ` is-${result.verdict}` : ''}`} aria-label={`第 ${index + 1} 题`}>
+      {/* 自包含（QUIZ-COMPLETE-SPEC §6）：题干依赖的材料与原图排在题干**之前**，读法顺序＝先材料、再问题 */}
+      {q.material && <blockquote className="quiz-q-material" aria-label="材料">{q.material}</blockquote>}
+      {q.photo?.essential && <QuizPhotoFigure photo={q.photo} />}
       <div className="quiz-q-title"><span className="quiz-q-type">{index + 1} · {label}</span>{q.question}</div>
       {q.svg && <div className="quiz-q-svg"><SvgPreviewCard code={q.svg} streaming={false} /></div>}
-      {q.photo && (
-        <figure className="quiz-q-photo">
-          <img src={q.photo.src} alt={q.photo.alt} loading="lazy" />
-          <figcaption>
-            {q.photo.pageUrl ? <a href={q.photo.pageUrl} target="_blank" rel="noreferrer noopener">{q.photo.credit}</a> : q.photo.credit}
-          </figcaption>
-        </figure>
-      )}
+      {q.photo && !q.photo.essential && <QuizPhotoFigure photo={q.photo} />}
       {choice && options.map((option, i) => {
         const correct = !!result && Array.isArray(q.answer) && q.answer.map(Number).includes(i);
         return <button key={i} className={`quiz-opt${picked.includes(i) ? ' picked' : ''}${correct ? ' right' : ''}`}

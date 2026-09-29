@@ -123,6 +123,9 @@ export function quizToolFailureHint(
   if (images.failure === 'no-model') {
     return '出题失败：**出题角色没有可用的模型**。请告诉学习者到「设置 → 角色模型绑定」给「出题」绑一个模型，重试没有用。';
   }
+  if (images.failure === 'incomplete') {
+    return '出题失败：这一批题都依赖没能取到的材料或图（已全部剔除，不给学习者「无头题」）。可以重试，或换个更具体的主题、把材料直接贴进对话。';
+  }
   if (images.failure === 'parse') {
     return '出题失败：模型这次的输出没能解析成题目。可以重试一次；反复失败就建议学习者到设置页给「出题」换一个更强的模型。';
   }

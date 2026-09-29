@@ -63,6 +63,14 @@ describe('buildSolvePrompt(无泄漏)', () => {
   });
 });
 
+describe('buildSolvePrompt — 材料是题干的一部分', () => {
+  it('带 material 的题：solver 必须看到材料，否则「根据材料」的题会被误判不一致而错杀', () => {
+    const p = buildSolvePrompt(single({ question: '根据材料，作者的态度是', material: '材料原文：他买了橘子。' }));
+    expect(p).toContain('他买了橘子');
+    expect(p.indexOf('他买了橘子')).toBeLessThan(p.indexOf('作者的态度'));
+  });
+});
+
 describe('verifyQuiz', () => {
   it('一致 → 放行,passed+1', async () => {
     const report = emptyVerifyReport();

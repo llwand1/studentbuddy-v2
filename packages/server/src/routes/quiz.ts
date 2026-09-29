@@ -140,6 +140,7 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
       // 却没回填 failure，会把「解析不出」误报成「配比裁空」（全量回归抓过）。改用 blend 报告精确区分——
       // 引擎返回 null 时 report.ai 还是空报告（matched=true）；返回了但被裁空时 report.ai.matched=false。
       const notConfigured = images.failure === 'no-model';
+      const incomplete = images.failure === 'incomplete';
       const aiRan = mixTotal(requested) > 0;
       const trimmedEmpty = aiRan && !notConfigured && images.failure !== 'parse' && !blended.report.ai.matched;
       // 纯真题组（AI 侧一档没配）一道都没摘到：题目全无，但真因是「网上没摘到」——
@@ -148,7 +149,9 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
       res.status(502).json({
         error: notConfigured
           ? `出题失败：${roleReady('quiz-generator', ownerIdOf(req)).reason || '出题模型没配好'}——请到「设置」→「角色模型绑定」为「出题」绑定模型后再试`
-          : trimmedEmpty
+          : incomplete
+            ? '出题失败：这一批题都依赖没能取到的材料或图，已全部剔除（不给你无头题）——可重试，或换个更具体的主题、直接贴上材料'
+            : trimmedEmpty
             ? `出题失败：模型出的题经配比裁剪后一题不剩（要求共 ${mixTotal(requested)} 道，可重试或到设置页改配比）`
             : pureRealEmpty
               ? '出题失败：真题一道都没摘到（网上没有可逐字摘录的可用题），本次也未要求 AI 出题——可到设置页把题型配回 AI 侧'

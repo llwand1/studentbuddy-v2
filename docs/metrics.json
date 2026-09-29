@@ -1,34 +1,34 @@
 {
-  "generatedAt": "2026-09-29T06:23:06.792Z",
+  "generatedAt": "2026-09-29T13:08:28.238Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
         "srcFiles": 41,
-        "testFiles": 27,
-        "srcLines": 6387,
-        "testLines": 3540
+        "testFiles": 28,
+        "srcLines": 6454,
+        "testLines": 3556
       },
       {
         "pkg": "server",
-        "srcFiles": 219,
-        "testFiles": 149,
-        "srcLines": 32229,
-        "testLines": 30292
+        "srcFiles": 223,
+        "testFiles": 153,
+        "srcLines": 33173,
+        "testLines": 30818
       },
       {
         "pkg": "web",
         "srcFiles": 244,
-        "testFiles": 96,
-        "srcLines": 31903,
-        "testLines": 13430
+        "testFiles": 97,
+        "srcLines": 31911,
+        "testLines": 13469
       }
     ],
-    "srcFiles": 504,
-    "testFiles": 272,
-    "srcLines": 70519,
-    "testLines": 47262,
-    "tsxTestFiles": 43
+    "srcFiles": 508,
+    "testFiles": 278,
+    "srcLines": 71538,
+    "testLines": 47843,
+    "tsxTestFiles": 44
   },
   "routes": {
     "total": 149,
@@ -42,9 +42,9 @@
     "apiMounts": 32
   },
   "contracts": {
-    "iface": 120,
+    "iface": 122,
     "type": 62,
-    "total": 182
+    "total": 184
   },
   "migrations": {
     "count": 50,
@@ -80,26 +80,26 @@
     ]
   },
   "docs": {
-    "specs": 38,
-    "all": 52,
+    "specs": 39,
+    "all": 54,
     "probes": 15
   },
   "repo": {
-    "head": "a17afd2",
+    "head": "1becebb",
     "headDate": "2026-09-29",
-    "commitsLast14d": 99,
-    "branch": "merge/ai-web-images",
-    "dirtyFiles": 2
+    "commitsLast14d": 101,
+    "branch": "fix/quiz-self-contained",
+    "dirtyFiles": 37
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 65.7,
+    "wallSec": 221.1,
     "staleDays": 0,
-    "files": 272,
-    "cases": 3392,
-    "passed": 3391,
-    "skipped": 1,
+    "files": 278,
+    "cases": 3502,
+    "passed": 3499,
+    "skipped": 3,
     "failed": 0,
     "success": true
   },
@@ -110,14 +110,14 @@
     {
       "label": "badge 测试文件",
       "claimed": "272",
-      "measured": "272",
-      "ok": true
+      "measured": "278",
+      "ok": false
     },
     {
       "label": "badge 测试用例",
       "claimed": "3392",
-      "measured": "3392",
-      "ok": true
+      "measured": "3502",
+      "ok": false
     },
     {
       "label": "badge REST 路由",
@@ -128,8 +128,8 @@
     {
       "label": "badge 契约类型",
       "claimed": "182",
-      "measured": "182",
-      "ok": true
+      "measured": "184",
+      "ok": false
     },
     {
       "label": "badge 外部运行时依赖",
@@ -158,8 +158,8 @@
     {
       "label": "正文基线句",
       "claimed": "272 文件 / 3392 例",
-      "measured": "272 文件 / 3392 例",
-      "ok": true
+      "measured": "278 文件 / 3502 例",
+      "ok": false
     }
   ],
   "landingDrift": [

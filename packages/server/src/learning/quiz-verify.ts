@@ -18,6 +18,7 @@
  * 与「出题引擎」是两种生命周期(先例:quiz-image.ts / quiz-search.ts 同理拆出)。
  */
 import type { QuizPayload, QuizQuestion } from '@sb/shared';
+import { stemOf } from '@sb/shared';
 import { routeRole } from '../llm/router.js';
 import { aiText } from '../ai/gateway.js';
 
@@ -57,7 +58,7 @@ export function buildSolvePrompt(q: QuizQuestion): string {
     q.type === 'multiple'
       ? '这是多选题,只输出全部正确选项的字母(如 AC),不要任何解释。'
       : '只输出正确选项的字母,不要任何解释。';
-  return [ask, '', `题干：${q.question}`, ...opts].join('\n');
+  return [ask, '', `题干：${stemOf(q)}`, ...opts].join('\n');
 }
 
 /**

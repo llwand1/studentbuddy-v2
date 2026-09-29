@@ -20,13 +20,15 @@ import type {
   QuizQuestion,
   QuizSourceMix,
 } from '@sb/shared';
-import { MIX_KINDS, MIX_KIND_LABELS } from '@sb/shared';
+import { MIX_KINDS, MIX_KIND_LABELS, emptyCollectCompleteness } from '@sb/shared';
 import { normalizeQuiz, parseQuizBlock } from './quiz.js';
 import { searchWeb, htmlToText } from '../search/index.js';
 import { fetchSafe } from '../search/ssrf-guard.js';
 import { routeRole } from '../llm/router.js';
 import { aiText } from '../ai/gateway.js';
 import { getQuizMaxOutputTokens } from '../llm/model-limits.js';
+import { markImages, resolveCandidate, stripMarkers, type PageFigure } from './collect-figures.js';
+import { sanitizePhoto } from './quiz-completeness.js';
 
 /** 抓页上限（契约 §2.2：单页、不遍历——只对检索返回的 URL 逐条动手） */
 export const MAX_COLLECT_PAGES = 3;
@@ -113,11 +115,12 @@ export function checkCollectable(q: QuizQuestion): string | null {
  * anchor/page 只当模型自述留档，服务端校验在 `verbatimHit` 重算，不读模型给的 anchor。
  */
 export const COLLECT_PROTOCOL = `你是一个题目摘录引擎。你的唯一任务是从下面给出的网页正文里**逐字摘录已经存在的练习题**，严格按以下 JSON 格式输出，输出外围包一对 [QUIZ]...[/QUIZ] 标记。
-每个题目对象的字段固定为：type、question、options（只有选择题才给）、answer、explanation（网页上没有就给 ""）、anchor、page。
-[QUIZ]{"title":"主题练习","questions":[{"type":"single","question":"完整题干","options":["A. …","B. …","C. …","D. …"],"answer":[1],"explanation":"页面上的解析","anchor":"题干的前二十个字","page":1}]}[/QUIZ]
+每个题目对象的字段固定为：type、question、options（只有选择题才给）、answer、explanation（网页上没有就给 ""）、anchor、page，以及可选的 material、figures。
+[QUIZ]{"title":"主题练习","questions":[{"type":"single","question":"完整题干","options":["A. …","B. …","C. …","D. …"],"answer":[1],"explanation":"页面上的解析","anchor":"题干的前二十个字","page":1,"material":"","figures":[]}]}[/QUIZ]
 规则：
 - 题目必须逐字来自给定页面：不许改写题干、不许补全选项、不许编造答案、不许把多道题拼成一道；页面答案缺失或选项不全的题直接跳过不出。
 - answer 口径：single/multiple 填正确选项下标数组（从 0 数）；fill 按空位顺序填字符串数组；essay 填参考要点。
+- ★ 题干里写着「阅读材料/根据材料/下表/如图」的题必须**带上被引用的东西**：材料或表格数据原文**逐字**抄进 material（不许概括改写）；页面正文里的「[图N]」标记就是这个位置的配图，把这道题依赖的那张图的编号填进 figures（如 [3]，只能填**同一页**里出现过的编号，一题最多一张）。材料找不到、图也没有标记时，**这道题跳过不出**——学生看到「根据材料可知」却没有材料，比少一道题糟得多。
 - anchor 抄该题题干的前 ${ANCHOR_CHARS} 个字；page 填该题摘自查到的第几页（见下文页编号，从 1 起）。
 - 只出这四种题型，最多 ${MAX_COLLECT_QUESTIONS} 道，优先摘带答案带解析的题。
 - 网页正文里没有一道可摘录的题时，输出 [QUIZ]{"title":"","questions":[]}[/QUIZ]——绝不允许自己编题，编题是最严重的失败。
@@ -150,11 +153,13 @@ export function buildQuotaLine(quota?: QuizSourceMix): string {
 interface CollectedPage extends CollectPageRecord {
   text: string;
   normText: string;
+  /** 本页登记的配图（正文里的 `[图N]` 标记，契约 QUIZ-COMPLETE-SPEC §5） */
+  figures: PageFigure[];
 }
 
 /** 页抓 + 剥正文。一切失败都以逐页记录的形式返回，不抛出（ADR-4）。 */
-async function fetchPage(rec: { url: string; title: string }, signal?: AbortSignal): Promise<CollectedPage> {
-  const page: CollectedPage = { url: rec.url, title: rec.title, fetched: false, text: '', normText: '' };
+async function fetchPage(rec: { url: string; title: string }, startN: number, signal?: AbortSignal): Promise<CollectedPage> {
+  const page: CollectedPage = { url: rec.url, title: rec.title, fetched: false, text: '', normText: '', figures: [] };
   try {
     const res = await fetchSafe(rec.url, {
       headers: { 'User-Agent': 'StudentBuddy/2.0 (personal study tool; 127.0.0.1)', 'Accept-Language': 'zh-CN,zh;q=0.9' },
@@ -170,14 +175,16 @@ async function fetchPage(rec: { url: string; title: string }, signal?: AbortSign
       return page;
     }
     const html = (await res.text()).slice(0, 1_000_000);
-    const text = htmlToText(html);
+    const marked = markImages(html, rec.url, startN); // <img> → [图N]，htmlToText 才不会把题图连标签一起吞掉
+    const text = htmlToText(marked.html);
     if (text.length < MIN_PAGE_TEXT_CHARS) {
       page.reason = `正文过短（${text.length} 字，疑似动态渲染页或反爬占位页）`;
       return page;
     }
     page.fetched = true;
     page.text = text.slice(0, PAGE_TEXT_CHARS);
-    page.normText = normalizeForAnchor(page.text);
+    page.normText = normalizeForAnchor(stripMarkers(page.text)); // 标记不参与锚点：它可能夹在题干中间
+    page.figures = marked.figures;
     return page;
   } catch (err) {
     page.reason = errText(err).slice(0, 200);
@@ -196,9 +203,12 @@ async function collectPages(picks: Array<{ url: string; title: string }>, report
   const pages: CollectedPage[] = [];
   for (const p of picks) {
     if (pages.length >= MAX_COLLECT_PAGES) break;
-    const page = await fetchPage(p, signal);
+    const page = await fetchPage(p, pages.reduce((n, x) => n + x.figures.length, 0), signal);
     report.pages.push({ url: page.url, title: page.title, fetched: page.fetched, ...(page.reason ? { reason: page.reason } : {}) });
-    if (page.fetched) pages.push(page);
+    if (page.fetched) {
+      pages.push(page);
+      (report.completeness ??= emptyCollectCompleteness()).figuresSeen += page.figures.length;
+    }
   }
   return pages;
 }
@@ -281,15 +291,17 @@ export async function collectQuiz(
   const normPages = pages.map((p) => p.normText);
   for (const raw of parsed.questions) {
     // anchor/page 是搜集协议附加键，**必须剥掉**——留着会顺着落库污染题库（quiz-search refs 同款教训）
-    const { anchor: _anchor, page: _page, ...question } = raw as QuizQuestion & { anchor?: unknown; page?: unknown };
+    const { anchor: _anchor, page: _page, ...question } = raw as QuizQuestion & { anchor?: unknown; page?: unknown; figures?: unknown };
     const hit = verbatimHit(question.question ?? '', normPages);
     if (hit < 0) {
       candidates.push({ question, ok: false, reason: '题干未在页面原文命中（verbatim 校验未过，疑似非摘录）' });
       continue;
     }
     const src = pages[hit]!;
-    const withSource: QuizQuestion = { ...question, source: { kind: 'collect', title: src.title, url: src.url } };
-    const why = checkCollectable(withSource);
+    // 自包含处置（collect-figures.ts）：材料逐字校验 + 原图搬运 + 复审；仍悬空的 ok:false 并给理由
+    const resolved = await resolveCandidate(question, { page: src, norm: normalizeForAnchor, ownerId: opts.ownerId ?? null, ...(opts.signal ? { signal: opts.signal } : {}), report: (report.completeness ??= emptyCollectCompleteness()) });
+    const withSource: QuizQuestion = { ...resolved.question, source: { kind: 'collect', title: src.title, url: src.url } };
+    const why = resolved.ok ? checkCollectable(withSource) : resolved.reason;
     candidates.push(why ? { question: withSource, ok: false, reason: why } : { question: withSource, ok: true });
   }
   report.total = candidates.length;
@@ -309,10 +321,13 @@ export function normalizeCollectedQuiz(title: string | undefined, questions: unk
   for (const raw of questions) {
     if (!raw || typeof raw !== 'object') continue;
     const { anchor: _a, page: _p, refs: _r, svg: _s, ...q } = raw as QuizQuestion & { anchor?: unknown; page?: unknown; refs?: unknown };
+    // photo 只认本站缓存的图（客户端不能借 commit 塞外链图/跟踪像素）；不合格只丢图，题留着
+    const photo = sanitizePhoto(q.photo);
+    if (photo) q.photo = photo; else delete q.photo;
     if (q.type !== 'single' && q.type !== 'multiple' && q.type !== 'fill' && q.type !== 'essay') continue;
     if (checkCollectable(q)) continue;
     kept.push(q);
   }
-  const quiz = normalizeQuiz({ title: (title ?? '').trim().slice(0, 200) || '搜集的题目', questions: kept }, { allowSvg: false });
+  const quiz = normalizeQuiz({ title: (title ?? '').trim().slice(0, 200) || '搜集的题目', questions: kept }, { allowSvg: false, keepPhoto: true });
   return quiz && quiz.questions.length > 0 ? quiz : null;
 }

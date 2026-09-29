@@ -25,6 +25,8 @@ import {
   emptyQuizSearchReport,
   buildAnswerStyleBlock,
   MAX_DOC_CHARS,
+  MAX_QUIZ_MATERIAL_CHARS,
+  emptyQuizCompletenessReport,
 } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
@@ -38,6 +40,7 @@ import { repairJsonBrackets, repairJsonEscapes } from './quiz-json-repair.js';
 import { defaultSolver, verifyQuiz } from './quiz-verify.js';
 import { loadQuizImage, buildImageInstruction } from './quiz-image.js';
 import { attachQuizPhotos } from './quiz-photo.js';
+import { enforceSelfContained, foldMaterial } from './quiz-selfcontained.js';
 import { buildQuizSearchBlock, mapQuizSources } from './quiz-search.js';
 
 // 配图三件的实现已搬到 quiz-image.ts（本文件行数红线所迫，见该文件头注）。
@@ -53,9 +56,9 @@ export { loadQuizImage, saveQuizImage, buildImageInstruction } from './quiz-imag
  * 导出只为给单测钉住「示例里必须带 svg」这一条——它不是风格问题，而是配图 0 产率的直接根因。
  */
 export const QUIZ_PROTOCOL = `你是一个出题引擎。根据给定材料出一组练习题，严格按以下 JSON 格式输出，输出外围包一对 [QUIZ]...[/QUIZ] 标记。
-每个题目对象的字段固定为：type、question、options（只有选择题才给）、answer、explanation、svg、refs。svg 是字符串，值为该题示意图的完整 SVG 源码；该题不需要示意图时给空字符串 ""，但不要省略这个字段。refs 是数组，填本题参考到的资料编号（只有下文给了「互联网参考资料」时才有编号可填），没参考就填 []。
+每个题目对象的字段固定为：type、question、options（只有选择题才给）、answer、explanation、svg、refs，以及可选的 material。svg 是字符串，值为该题示意图的完整 SVG 源码；该题不需要示意图时给空字符串 ""，但不要省略这个字段。refs 是数组，填本题参考到的资料编号（只有下文给了「互联网参考资料」时才有编号可填），没参考就填 []。
 [QUIZ]{"title":"标题","questions":[{"type":"single","question":"单选题干","options":["A","B","C","D"],"answer":[0],"explanation":"解析","svg":"<svg viewBox='0 0 120 90'><rect x='25' y='15' width='60' height='60' fill='none' stroke='#555'/><text x='18' y='12'>A</text></svg>","refs":[1]},{"type":"multiple","question":"多选题干","options":["A","B","C"],"answer":[0,2],"explanation":"解析","svg":"","refs":[]},{"type":"judge","question":"判断题干（一个可判断真伪的陈述句）","options":["正确","错误"],"answer":[0],"explanation":"解析","svg":"","refs":[]},{"type":"fill","question":"填空题干，空位用____","answer":["答案1"],"explanation":"解析","svg":"","refs":[]},{"type":"essay","question":"解答题干","answer":"参考要点","solution":"完整解答","svg":"","refs":[]}]}[/QUIZ]
-规则：single 的 answer 是正确选项下标数组（一个元素）；multiple 可多元素；judge 的 options 恒为 ["正确","错误"] 两项、answer 是正确项下标数组（一个元素）；fill 的 answer 按空位顺序；essay 不判分只给参考。题目必须源于给定材料，不得编造。题目类型与数量严格按下文「本次出题数量要求」执行。svg 怎么写照下文「配图要求」，但上面格式示例里那个方框只是演示字段怎么写——照抄进题目等于没配图。refs 只填编号数字，**绝不要填网址或标题**（网址由系统按编号补全，你写的网址一律作废）。除该 JSON 外不要输出任何其他文字。`;
+规则：single 的 answer 是正确选项下标数组（一个元素）；multiple 可多元素；judge 的 options 恒为 ["正确","错误"] 两项、answer 是正确项下标数组（一个元素）；fill 的 answer 按空位顺序；essay 不判分只给参考。题目必须源于给定材料，不得编造。**每道题必须自包含**：题干里不得出现「根据材料/阅读下文/如图/下表」这类指向外部内容的说法，除非被引用的文段或表格数据已**逐字**放进该题的 material 字段（纯文本；表格用换行分行、| 分列），或图已画进 svg；互联网参考资料里的原文可以搬进 material，但不许改写编造。没把握放进去，就换一道不依赖材料的题，宁可不出。题目类型与数量严格按下文「本次出题数量要求」执行。svg 怎么写照下文「配图要求」，但上面格式示例里那个方框只是演示字段怎么写——照抄进题目等于没配图。refs 只填编号数字，**绝不要填网址或标题**（网址由系统按编号补全，你写的网址一律作废）。除该 JSON 外不要输出任何其他文字。`;
 
 /**
  * 定位 svg 字段的整个值（含值内未转义的裸引号）——漏转义时值里会有 `"`，
@@ -173,6 +176,8 @@ export interface NormalizeQuizOptions {
   allowSvg?: boolean;
   /** 出参：丢了几张图写这里（契约 §2.4：丢了要如实说，不静默） */
   report?: QuizImageReport;
+  /** 保留合规的 photo（仅搜集 commit 复校验用；出题路径模型写的 photo 一律丢） */
+  keepPhoto?: boolean;
 }
 
 /**
@@ -190,13 +195,18 @@ export function normalizeQuiz(data: QuizPayload, opts?: NormalizeQuizOptions): Q
       (!Array.isArray(q.options) || q.options.length < 2)
     )
       continue;
+    // material 只收字符串并封顶；photo 是**服务端字段**（真图由系统搬来，契约 QUIZ-COMPLETE-SPEC §3）——模型写的一律丢
+    const { photo: rawPhoto, material: rawMat, ...base0 } = q;
+    const base = opts?.keepPhoto && rawPhoto ? { ...base0, photo: rawPhoto } : base0;
+    const material = typeof rawMat === 'string' && rawMat.trim() ? rawMat.trim().slice(0, MAX_QUIZ_MATERIAL_CHARS) : undefined;
+    const clean = material ? { ...base, material } : base;
     const svg = allowSvg ? normalizeQuizSvg(q.svg) : undefined;
     if (svg) {
-      questions.push({ ...q, svg });
+      questions.push({ ...clean, svg });
       continue;
     }
     // 图不合法（截断/非源码/超长）或开关关着：**整字段拿掉**，不能留着原值——留着等于把坏图塞给前端
-    const { svg: _dropped, ...rest } = q;
+    const { svg: _dropped, ...rest } = clean;
     if (allowSvg && opts?.report && typeof q.svg === 'string' && q.svg.trim()) opts.report.droppedSvg += 1;
     questions.push(rest);
   }
@@ -335,13 +345,18 @@ export async function generateQuiz(
   // 来源标注（契约 QUIZ-SEARCH-SPEC §2.8）：把模型给的编号翻译成真实 title/url 填 source。
   // 网址一律取自 found.refs（真实检索结果），模型写什么都丢——这是「来源不可幻觉」的唯一保证。
   const mapped = parsed ? mapQuizSources(parsed, found.refs) : null;
+  // 自包含闸门（契约 QUIZ-COMPLETE-SPEC §3）：引用了没给的材料/图/表的题——补全、搬原图、或剔除；全剔光＝null
+  const gated = mapped ? await enforceSelfContained(mapped, { ownerId: owner, refsBlock, allowPhoto: imageOn && !verify, report: report && (report.completeness ??= emptyQuizCompletenessReport()) }) : null;
+  if (mapped && !gated && report) report.failure = 'incomplete';
   // 网络配图（quiz-photo.ts）：跟随「出题配图」开关；对战路径（verify=true）不配——对战界面不显示且最怕等
-  if (mapped && imageOn && !verify) await attachQuizPhotos(mapped, owner).catch(() => 0);
-  if (!mapped || !verify) return mapped;
+  if (gated && imageOn && !verify) await attachQuizPhotos(gated, owner).catch(() => 0);
+  // 对战界面与盲解验算只认 question：材料折进题干，题自己带着材料
+  const out = gated && verify ? foldMaterial(gated) : gated;
+  if (!out || !verify) return out;
   // 盲解验算（issue #71，实现与三条保守纪律全在 quiz-verify.ts）：
   // solver 未绑定 → 原样放行（零行为变化）；全部被拦 → null（与配比裁到 0 题同一条降级路）
   const solve = defaultSolver(owner);
-  return solve ? verifyQuiz(mapped, solve) : mapped;
+  return solve ? verifyQuiz(out, solve) : out;
 }
 
 // ── 题库段已整族删除（2026-09-26）──

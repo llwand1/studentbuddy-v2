@@ -6,7 +6,7 @@
  *      没参考 ⇒ **基础题**（考概念是否掌握，不要模仿考卷腔、不要编「某年某地真题」字样）；
  *      有参考 ⇒ **模拟题**（照参考资料里真题的考法与难度出变式，refs 如实填）。
  *      模型自己对考点分布的想象不可信，与其让它「装真题」，不如明说这是基础题、把功利效果留给真题档。
- *   ② `fillTiers`：出题结果落 `tier`——**按来源事实**推（collect → real、web → mock、其余 → basic），
+ *   ② `fillTiers`：出题结果落 `tier`——**按来源事实**推（collect → real、web → simulated、其余 → basic），
  *      模型输出里若带 `tier` 键一律覆盖（自报不算数）。
  *   ③ `realFirstQuota` / `mergeRealFirst`：真题优先合流的纯算法（`quiz-blend.ts` 调）——
  *      用户没配真题时，拿 AI 配比当搜集配额；摘到几道真题就顶替几道同题型 AI 题，AI 题削尾。

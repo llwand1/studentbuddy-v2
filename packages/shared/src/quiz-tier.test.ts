@@ -3,30 +3,30 @@ import { describe, it, expect } from 'vitest';
 import { QUIZ_TIER_LABELS, compareTier, countTiers, normalizeQuizRealFirst, tierOf, tierSummaryLine } from './quiz-tier.js';
 
 describe('tierOf（唯一推导口径：显式 tier > source.kind > basic）', () => {
-  it('collect → real、web → mock、ai/无 source → basic（历史题不迁移也能标）', () => {
+  it('collect → real、web → simulated、ai/无 source → basic（历史题不迁移也能标）', () => {
     expect(tierOf({ source: { kind: 'collect', title: 't' } })).toBe('real');
-    expect(tierOf({ source: { kind: 'web', title: 't' } })).toBe('mock');
+    expect(tierOf({ source: { kind: 'web', title: 't' } })).toBe('simulated');
     expect(tierOf({ source: { kind: 'ai', title: 't' } })).toBe('basic');
     expect(tierOf({})).toBe('basic');
   });
   it('服务端已判的显式 tier 优先', () => {
-    expect(tierOf({ tier: 'mock', source: { kind: 'collect', title: 't' } })).toBe('mock');
+    expect(tierOf({ tier: 'simulated', source: { kind: 'collect', title: 't' } })).toBe('simulated');
   });
   it('非法 tier 值忽略，退回来源推导', () => {
-    expect(tierOf({ tier: 'gold' as never, source: { kind: 'web', title: 't' } })).toBe('mock');
+    expect(tierOf({ tier: 'gold' as never, source: { kind: 'web', title: 't' } })).toBe('simulated');
   });
 });
 
 describe('排序与计数', () => {
-  it('compareTier：real < mock < basic', () => {
-    const qs = [{ tier: 'basic' as const }, { tier: 'real' as const }, { tier: 'mock' as const }];
-    expect([...qs].sort(compareTier).map((q) => q.tier)).toEqual(['real', 'mock', 'basic']);
+  it('compareTier：real < simulated < basic', () => {
+    const qs = [{ tier: 'basic' as const }, { tier: 'real' as const }, { tier: 'simulated' as const }];
+    expect([...qs].sort(compareTier).map((q) => q.tier)).toEqual(['real', 'simulated', 'basic']);
   });
   it('countTiers + tierSummaryLine：只列非 0 档', () => {
     const c = countTiers([{ tier: 'real' }, { tier: 'real' }, {}]);
-    expect(c).toEqual({ real: 2, mock: 0, basic: 1 });
+    expect(c).toEqual({ real: 2, simulated: 0, basic: 1 });
     expect(tierSummaryLine(c)).toBe('真题 2 · 基础 1');
-    expect(tierSummaryLine({ real: 0, mock: 0, basic: 0 })).toBe('');
+    expect(tierSummaryLine({ real: 0, simulated: 0, basic: 0 })).toBe('');
   });
   it('三档都有中文徽标文案', () => {
     expect(Object.values(QUIZ_TIER_LABELS)).toEqual(['真题·必刷', '模拟题·建议做', '基础题·可选做']);

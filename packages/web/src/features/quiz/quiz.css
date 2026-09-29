@@ -33,7 +33,7 @@
   cursor: help;
 }
 .quiz-q-tier.is-real { color: #8a4b00; background: #fff1dc; border-color: #f0c98a; font-weight: 700; }
-.quiz-q-tier.is-mock { color: #1f5f9f; background: #e8f1fb; border-color: #b9d3ef; }
+.quiz-q-tier.is-simulated { color: #1f5f9f; background: #e8f1fb; border-color: #b9d3ef; }
 .quiz-q-tier.is-basic { color: var(--sb-ink-tertiary); background: var(--sb-surface-2, #f3f3f3); border-color: var(--sb-line, #e2e2e2); }
 
 /* 题目配图：模型产出的 SVG 宽度已由 fixSvg 钳到 680，卡片内再收一层并允许横向滚动兜底 */

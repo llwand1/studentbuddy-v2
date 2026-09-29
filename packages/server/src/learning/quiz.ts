@@ -336,7 +336,7 @@ export async function generateQuiz(
   if (!parsed && report) report.failure = 'parse';
   // 来源标注（契约 QUIZ-SEARCH-SPEC §2.8）：把模型给的编号翻译成真实 title/url 填 source。
   // 网址一律取自 found.refs（真实检索结果），模型写什么都丢——这是「来源不可幻觉」的唯一保证。
-  // tier 按来源事实落（web ⇒ mock、其余 ⇒ basic；模型自报覆盖掉）
+  // tier 按来源事实落（web ⇒ simulated、其余 ⇒ basic；模型自报覆盖掉）
   const mapped = parsed ? fillTiers(mapQuizSources(parsed, found.refs)) : null;
   // 网络配图（quiz-photo.ts）：跟随「出题配图」开关；对战路径（verify=true）不配——对战界面不显示且最怕等
   if (mapped && imageOn && !verify) await attachQuizPhotos(mapped, owner).catch(() => 0);

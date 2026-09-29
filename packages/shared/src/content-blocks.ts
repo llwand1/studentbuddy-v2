@@ -49,7 +49,7 @@ export interface QuizQuestion {
    */
   source?: { kind: 'web' | 'ai' | 'collect'; title: string; url?: string };
   /**
-   * 分级（契约 `docs/QUIZ-TIER-SPEC.md`）：real 真题·必刷 / mock 模拟题·建议做 / basic 基础题·可选做。
+   * 分级（契约 `docs/QUIZ-TIER-SPEC.md`）：real 真题·必刷 / simulated 模拟题·建议做 / basic 基础题·可选做。
    * **服务端按来源事实推导**（模型自报不算数）。可选字段：历史题无此键 → 前端用 `tierOf(q)` 按 `source.kind` 兜底。
    * 判分/对战/复习一律不读它。
    */

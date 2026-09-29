@@ -17,14 +17,14 @@ describe('buildTierInstruction', () => {
 });
 
 describe('fillTiers（按来源事实落 tier，模型自报覆盖）', () => {
-  it('web → mock、无 source → basic；模型写的 tier:"real" 不算数', () => {
+  it('web → simulated、无 source → basic；模型写的 tier:"real" 不算数', () => {
     const out = fillTiers({
       questions: [
         { ...s('a'), source: { kind: 'web', title: 't', url: 'https://x' } },
         { ...s('b'), tier: 'real' } as QuizQuestion,
       ],
     });
-    expect(out.questions.map((q) => q.tier)).toEqual(['mock', 'basic']);
+    expect(out.questions.map((q) => q.tier)).toEqual(['simulated', 'basic']);
   });
 });
 

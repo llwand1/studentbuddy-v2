@@ -39,6 +39,7 @@ import { defaultSolver, verifyQuiz } from './quiz-verify.js';
 import { loadQuizImage, buildImageInstruction } from './quiz-image.js';
 import { attachQuizPhotos } from './quiz-photo.js';
 import { buildQuizSearchBlock, mapQuizSources } from './quiz-search.js';
+import { buildTierInstruction, fillTiers } from './quiz-tier.js';
 
 // 配图三件的实现已搬到 quiz-image.ts（本文件行数红线所迫，见该文件头注）。
 // 这里原样转出，既有调用方 routes.ts / quiz.test.ts / quiz-image.test.ts 的 import 路径零改动。
@@ -314,7 +315,8 @@ export async function generateQuiz(
     ? await buildQuizSearchBlock(topic, material, searchReport, owner)
     : { block: '', refs: [] };
   const refsBlock = found.block;
-  const prompt = `${QUIZ_PROTOCOL}\n${buildMixInstruction(wanted)}\n${buildImageInstruction(imageOn)}\n${buildAnswerStyleBlock(styleArg ?? loadAnswerStyle(owner), 'quiz')}\n${buildLearnerQuizBlock(owner)}${buildDifficultyBlock(owner)}${refsBlock}${refsBlock ? '\n' : ''}\n材料：\n${material ? material.slice(0, MAX_DOC_CHARS) : `主题：${topic}`}`;
+  // 分级提示（契约 QUIZ-TIER-SPEC §2）：有联网参考 ⇒ 模拟题写法，没有 ⇒ 基础题写法（`quiz-tier.ts`）
+  const prompt = `${QUIZ_PROTOCOL}\n${buildMixInstruction(wanted)}\n${buildTierInstruction(!!refsBlock)}\n${buildImageInstruction(imageOn)}\n${buildAnswerStyleBlock(styleArg ?? loadAnswerStyle(owner), 'quiz')}\n${buildLearnerQuizBlock(owner)}${buildDifficultyBlock(owner)}${refsBlock}${refsBlock ? '\n' : ''}\n材料：\n${material ? material.slice(0, MAX_DOC_CHARS) : `主题：${topic}`}`;
   const r = await aiText({
     purpose: 'quiz.generate',
     ownerId: owner,
@@ -334,7 +336,8 @@ export async function generateQuiz(
   if (!parsed && report) report.failure = 'parse';
   // 来源标注（契约 QUIZ-SEARCH-SPEC §2.8）：把模型给的编号翻译成真实 title/url 填 source。
   // 网址一律取自 found.refs（真实检索结果），模型写什么都丢——这是「来源不可幻觉」的唯一保证。
-  const mapped = parsed ? mapQuizSources(parsed, found.refs) : null;
+  // tier 按来源事实落（web ⇒ simulated、其余 ⇒ basic；模型自报覆盖掉）
+  const mapped = parsed ? fillTiers(mapQuizSources(parsed, found.refs)) : null;
   // 网络配图（quiz-photo.ts）：跟随「出题配图」开关；对战路径（verify=true）不配——对战界面不显示且最怕等
   if (mapped && imageOn && !verify) await attachQuizPhotos(mapped, owner).catch(() => 0);
   if (!mapped || !verify) return mapped;

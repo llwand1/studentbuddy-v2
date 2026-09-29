@@ -35,6 +35,10 @@ export const settingsApi = {
   saveQuizSourceMix: (mix: QuizSourceMix) =>
     request<{ mix: QuizSourceMix }>('/api/settings/quiz-source-mix', { method: 'PUT', body: JSON.stringify({ mix }) }),
   /** 出题配图开关：设置页读写（契约 docs/QUIZ-IMAGE-SPEC.md） */
+  /** 真题优先（契约 docs/QUIZ-TIER-SPEC.md §4）：缺省开——没配真题配比也先去公开题源摘真题顶替 AI 题 */
+  quizRealFirst: () => request<{ on: boolean }>('/api/settings/quiz-real-first'),
+  saveQuizRealFirst: (on: boolean) =>
+    request<{ ok: boolean; on: boolean }>('/api/settings/quiz-real-first', { method: 'PUT', body: JSON.stringify({ on }) }),
   quizImage: () => request<{ on: boolean }>('/api/settings/quiz-image'),
   saveQuizImage: (on: boolean) =>
     request<{ ok: boolean; on: boolean }>('/api/settings/quiz-image', { method: 'PUT', body: JSON.stringify({ on }) }),

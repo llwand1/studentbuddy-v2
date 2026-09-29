@@ -94,3 +94,20 @@ describe('普通题完成与图文复盘', () => {
     expect(screen.queryByText('看懂这一轮')).toBeNull();
   });
 });
+
+describe('分级徽标（契约 QUIZ-TIER-SPEC §1）', () => {
+  it('每题按来源标档位；历史题无 tier 键也能按 source.kind 兜底；卡头汇总三档数', () => {
+    render(<QuizCard title="分级" sessionId="s" questions={[
+      { ...question, tier: 'real', source: { kind: 'collect', title: '2023 高考真题页', url: 'https://x' } },
+      { ...question, source: { kind: 'web', title: '参考页', url: 'https://y' } },
+      question,
+    ]} />);
+    const rows = screen.getAllByRole('region', { name: /第 \d 题/ });
+    expect(within(rows[0] as HTMLElement).getByText('真题·必刷')).toBeTruthy();
+    expect(within(rows[1] as HTMLElement).getByText('模拟题·建议做')).toBeTruthy();
+    expect(within(rows[2] as HTMLElement).getByText('基础题·可选做')).toBeTruthy();
+    expect(screen.getByText(/本组：真题 1 · 模拟 1 · 基础 1/)).toBeTruthy();
+    // 徽标可追问：悬停有「为什么这么标」
+    expect(within(rows[0] as HTMLElement).getByText('真题·必刷').getAttribute('title')).toContain('逐字摘录');
+  });
+});

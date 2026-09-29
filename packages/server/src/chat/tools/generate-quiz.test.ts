@@ -67,6 +67,7 @@ const { runTool, toolMeta, toolNames, toolDefinitions } = await import('./index.
 const { scaleMixToCount, quizToolSummary } = await import('./generate-quiz-format.js');
 const { saveQuizMix } = await import('../../learning/quiz.js');
 const { saveQuizSourceMix } = await import('../../learning/quiz-source-mix.js');
+const { saveQuizRealFirst } = await import('../../learning/quiz-tier.js');
 const { SYSTEM_PROMPT } = await import('../system-prompt.js');
 const { CONFIRM_DENY_HINT } = await import('./write-gate.js');
 const { quizRowContent } = await import('../../learning/quiz-announce.js');
@@ -284,7 +285,8 @@ describe('端到端：runTool → 计划 → 免批准 → 出卡 + 回灌', () 
     expect(rows('SELECT id FROM quiz_bank')).toHaveLength(0);
   });
 
-  it('点名 count 时本次不出真题也不出情景：设置里配了也不碰搜集引擎（口径 1）', async () => {
+  it('点名 count 时设置里的真题配比与情景档本次归零（口径 1）；真题优先关掉时不碰搜集引擎', async () => {
+    saveQuizRealFirst(false, null);
     saveQuizMix({ single: 2, multiple: 0, fill: 1, essay: 1, judge: 0, scenario: 1 }, null);
     saveQuizSourceMix({ single: 2, multiple: 0, fill: 0, essay: 0, judge: 0, scenario: 0 }, { single: 2, multiple: 0, fill: 1, essay: 1, judge: 0, scenario: 1 }, null);
     newSession();
@@ -292,6 +294,17 @@ describe('端到端：runTool → 计划 → 免批准 → 出卡 + 回灌', () 
     expect(collectCalls).toHaveLength(0);
     expect(r.content).toContain('情景题');
     expect(r.content).not.toContain('设置里配了 2 道真题');
+    saveQuizRealFirst(true, null);
+  });
+
+  it('点名 count 且真题优先开（缺省）：仍去摘真题顶替，但总数就是 count（契约 QUIZ-TIER-SPEC §4）', async () => {
+    saveQuizMix({ single: 2, multiple: 0, fill: 1, essay: 1, judge: 0, scenario: 0 }, null);
+    newSession();
+    const r = await runTool('generate_quiz', JSON.stringify({ topic: '词根 spect', count: 2 }), ctx());
+    expect(collectCalls).toEqual(['词根 spect']);
+    expect(r.content).toContain('已出题 2 道');
+    // 回灌里带分级摘要，模型才知道该怎么向学习者说明「哪几道值得先做」
+    expect(r.content).toContain('分级：');
   });
 
   it('不点名 count 时读设置：真题配比 > 0 就走搜集侧（本工具不吞掉用户的配置）', async () => {

@@ -21,6 +21,20 @@
   margin-right: var(--sb-sp-2);
   vertical-align: 1px;
 }
+/* 分级徽标（契约 QUIZ-TIER-SPEC §1）：三档三色——真题最醒目，基础题最淡 */
+.quiz-q-tier {
+  display: inline-block;
+  font-size: var(--sb-fs-xs);
+  border-radius: 6px;
+  padding: 1px 8px;
+  margin-right: var(--sb-sp-2);
+  vertical-align: 1px;
+  border: 1px solid transparent;
+  cursor: help;
+}
+.quiz-q-tier.is-real { color: #8a4b00; background: #fff1dc; border-color: #f0c98a; font-weight: 700; }
+.quiz-q-tier.is-simulated { color: #1f5f9f; background: #e8f1fb; border-color: #b9d3ef; }
+.quiz-q-tier.is-basic { color: var(--sb-ink-tertiary); background: var(--sb-surface-2, #f3f3f3); border-color: var(--sb-line, #e2e2e2); }
 
 /* 题目配图：模型产出的 SVG 宽度已由 fixSvg 钳到 680，卡片内再收一层并允许横向滚动兜底 */
 .quiz-q-svg {

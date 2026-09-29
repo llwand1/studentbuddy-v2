@@ -42,6 +42,8 @@ import {
 } from '@sb/shared';
 import { applyQuizMix, generateQuiz } from './quiz.js';
 import { collectQuiz } from './collect.js';
+import { loadQuizRealFirst, mergeRealFirst, realFirstQuota } from './quiz-tier.js';
+import { isPlaceholderTopic } from './quiz-search.js';
 
 // ★ `BlendMissing` / `QuizBlendReport` 类型定义在 `@sb/shared`（`quiz-source.ts`）——
 //   它们是**前后端契约**（服务端填、前端 `mix-report.ts` 念），放服务端会让前端只能自己抄一份。
@@ -51,6 +53,15 @@ export interface BlendResult {
   /** null ＝ 两侧都没产出（路由据此走既有 502 降级） */
   quiz: QuizPayload | null;
   report: QuizBlendReport;
+}
+
+/**
+ * 真题优先（契约 `docs/QUIZ-TIER-SPEC.md` §4）是否对本次生效：开关开 **且** 用户没自己配真题配比
+ * （配了就照配比走——那是用户的显式意愿，不替他改）**且** AI 侧有题可被顶替。
+ */
+export function realFirstApplies(realMix: QuizSourceMix, aiMix: QuizMix, enabled: boolean, topic = 'x'): boolean {
+  // 占位主题（「综合」「根据当前对话内容出题」）没法搜真题——搜了也是白搜，还多等一轮
+  return enabled && !isPlaceholderTopic(topic) && sourceMixTotal(realMix) === 0 && mixTotal({ ...aiMix, scenario: 0 }) > 0;
 }
 
 function zeroMix(): QuizMix {
@@ -117,47 +128,64 @@ export async function generateBlendedQuiz(
   styleArg: AnswerStyle | undefined,
   online: boolean,
   ownerId: string | null,
+  opts: { realFirst?: boolean } = {},
 ): Promise<BlendResult> {
-  const realRequested = { ...realMix };
+  // 真题优先（契约 QUIZ-TIER-SPEC §4）：用户没配真题 ⇒ 拿 AI 配比当搜集配额，摘到几道顶替几道；
+  // 不加总题数、不加等待（与 AI 出题**并行**跑）。`realFirst` 省略时读用户设置（缺省开）。
+  const realFirst = realFirstApplies(realMix, aiMix, opts.realFirst ?? loadQuizRealFirst(ownerId), topic);
+  const realRequested = realFirst ? realFirstQuota(aiMix) : { ...realMix };
   const report: QuizBlendReport = {
     ai: emptyMixReport(aiMix),
     real: { requested: realRequested, actual: zeroSourceMix(), missing: [] },
+    ...(realFirst ? { realFirst: { displaced: 0 } } : {}),
   };
 
-  // ── ① AI 侧 ──
-  let aiQuiz: QuizPayload | null = null;
-  if (mixTotal(aiMix) > 0) {
-    const raw = await generateQuiz(topic, material, aiMix, imageReport, styleArg, online, ownerId);
-    if (raw) {
-      // 裁剪仍用既有 `applyQuizMix`（多出裁掉、少出如实记）——真题不参与裁剪（契约 §5 E3）：
-      // 真题已按配额筛过，再裁一次就是重复计数。
-      const applied = applyQuizMix(raw, aiMix);
-      aiQuiz = applied.quiz;
-      report.ai = applied.report;
-    }
-  }
+  // ── ① AI 侧（异步启动，与真题侧并行） ──
+  const aiTask: Promise<QuizPayload | null> =
+    mixTotal(aiMix) > 0 ? generateQuiz(topic, material, aiMix, imageReport, styleArg, online, ownerId) : Promise.resolve(null);
 
   // ── ② 真题侧 ──
-  let realQuestions: QuizQuestion[] = [];
-  if (sourceMixTotal(realRequested) > 0) {
+  const realTask = (async (): Promise<QuizQuestion[]> => {
+    if (sourceMixTotal(realRequested) === 0) return [];
     const collectReport = emptyCollectReport();
     report.collect = collectReport;
     try {
       // `quota` 进搜集提示词（契约 §3.3 第 2 条）：不告诉模型要哪几类题，它会按自己的偏好全摘选择题
       const { candidates } = await collectQuiz(topic, collectReport, { ownerId, quota: realRequested });
       const picked = pickByQuota(candidates, realRequested);
-      realQuestions = picked.questions;
       report.real.actual = picked.actual;
       report.real.missing = blendMissing(realRequested, picked.actual);
+      return picked.questions;
     } catch (err) {
       // 上游 `collectQuiz` 内部已逐层记录，能抛到这里的是更外层的意外——**照样不阻断出题**
       collectReport.failed.push(err instanceof Error ? err.message : String(err));
       report.real.missing = blendMissing(realRequested, report.real.actual);
+      return [];
     }
+  })();
+
+  // AI 侧失败照旧向上抛（保持既有路由/工具层文案）；真题侧永不抛
+  const [raw, realQuestions] = await Promise.all([aiTask, realTask]);
+  let aiQuiz: QuizPayload | null = null;
+  if (raw) {
+    // 裁剪仍用既有 `applyQuizMix`（多出裁掉、少出如实记）——真题不参与裁剪（契约 §5 E3）：
+    // 真题已按配额筛过，再裁一次就是重复计数。
+    const applied = applyQuizMix(raw, aiMix);
+    aiQuiz = applied.quiz;
+    report.ai = applied.report;
   }
 
-  // ── ③ 拼装：AI 题在前、真题在后（按来源分组，用户一眼能分辨） ──
-  const questions = [...(aiQuiz?.questions ?? []), ...realQuestions];
+  // ── ③ 拼装 ──
+  //  · 真题优先：真题顶替同题型 AI 题（AI 题从后往前削），真题在前
+  //  · 显式配比：AI 题在前、真题在后（按来源分组，用户一眼能分辨——既有语义不动）
+  let questions: QuizQuestion[];
+  if (realFirst) {
+    const merged = mergeRealFirst(aiQuiz?.questions ?? [], realQuestions);
+    questions = merged.questions;
+    if (report.realFirst) report.realFirst.displaced = merged.displaced;
+  } else {
+    questions = [...(aiQuiz?.questions ?? []), ...realQuestions];
+  }
   if (questions.length === 0) return { quiz: null, report };
   return {
     quiz: { title: aiQuiz?.title ?? `${topic || '综合'}（现场搜集）`, questions },

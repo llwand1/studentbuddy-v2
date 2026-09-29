@@ -20,6 +20,11 @@ const request = (await import('supertest')).default;
 // 只桩「模型出题」这一段：开关读写、落库、回读全用真实现，端到端才有意义
 const quizStub = vi.hoisted(() => ({ result: null as QuizPayload | null }));
 
+// 真题优先缺省开（QUIZ-TIER-SPEC §4）会并行发起搜集；本文件不断言真题，搜集侧打桩免得碰网
+vi.mock('../learning/collect.js', () => ({
+  collectQuiz: async (_topic: string, report: unknown) => ({ report, candidates: [] }),
+}));
+
 vi.mock('../learning/quiz.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../learning/quiz.js')>()),
   generateQuiz: async () => quizStub.result,

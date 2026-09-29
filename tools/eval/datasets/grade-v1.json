@@ -1,0 +1,222 @@
+{
+  "version": "grade-v1",
+  "note": "人工标注的 AI 阅卷评测集：填空侧重等价判断，解答侧重要点与典型误区。expected 为标注者判定。",
+  "cases": [
+    {
+      "id": "f01",
+      "qtype": "fill",
+      "question": "光合作用中释放的气体是____。",
+      "reference": "氧气",
+      "answer": "O2",
+      "expected": "correct",
+      "note": "化学式等价"
+    },
+    {
+      "id": "f02",
+      "qtype": "fill",
+      "question": "植物吸收的温室气体是____。",
+      "reference": "二氧化碳",
+      "answer": "CO₂",
+      "expected": "correct",
+      "note": "化学式下标写法"
+    },
+    {
+      "id": "f03",
+      "qtype": "fill",
+      "question": "真空中光速约为____ m/s。",
+      "reference": "3×10^8",
+      "answer": "300000000",
+      "expected": "correct",
+      "note": "等值数字"
+    },
+    {
+      "id": "f04",
+      "qtype": "fill",
+      "question": "DNA 的中文全称是____。",
+      "reference": "脱氧核糖核酸",
+      "answer": "脱氧核糖核酸（DNA）",
+      "expected": "correct",
+      "note": "带括注"
+    },
+    {
+      "id": "f05",
+      "qtype": "fill",
+      "question": "牛顿第二定律：F = ____。",
+      "reference": "ma",
+      "answer": "m·a",
+      "expected": "correct",
+      "note": "等价写法"
+    },
+    {
+      "id": "f06",
+      "qtype": "fill",
+      "question": "细胞的“能量工厂”是____。",
+      "reference": "线粒体",
+      "answer": "mitochondria",
+      "expected": "correct",
+      "note": "英文名"
+    },
+    {
+      "id": "f07",
+      "qtype": "fill",
+      "question": "水的沸点（标准大气压）是____℃。",
+      "reference": "100",
+      "answer": "212",
+      "expected": "wrong",
+      "note": "数值错（华氏值当摄氏）"
+    },
+    {
+      "id": "f08",
+      "qtype": "fill",
+      "question": "光合作用暗反应发生在____。",
+      "reference": "叶绿体基质",
+      "answer": "类囊体薄膜",
+      "expected": "wrong",
+      "note": "光/暗反应场所混淆"
+    },
+    {
+      "id": "f09",
+      "qtype": "fill",
+      "question": "中国第一个统一的封建王朝是____；建立者是____。",
+      "reference": "秦；秦始皇",
+      "answer": "秦；汉武帝",
+      "expected": "partial",
+      "note": "一空对一空错"
+    },
+    {
+      "id": "f10",
+      "qtype": "fill",
+      "question": "三角形内角和为____度。",
+      "reference": "180",
+      "answer": "360",
+      "expected": "wrong",
+      "note": "与四边形混淆"
+    },
+    {
+      "id": "f11",
+      "qtype": "fill",
+      "question": "有丝分裂中染色体数目加倍发生在____期。",
+      "reference": "后",
+      "answer": "中",
+      "expected": "wrong",
+      "note": "分期混淆"
+    },
+    {
+      "id": "f12",
+      "qtype": "fill",
+      "question": "1 千米 = ____ 米。",
+      "reference": "1000",
+      "answer": "1 000",
+      "expected": "correct",
+      "note": "千分位空格"
+    },
+    {
+      "id": "e01",
+      "qtype": "essay",
+      "question": "简述光合作用的光反应与暗反应之间的联系。",
+      "reference": "光反应为暗反应提供 ATP 和 NADPH；暗反应为光反应提供 ADP、Pi 和 NADP⁺。两者相互依存。",
+      "answer": "光反应产生 ATP 和 NADPH 给暗反应用，暗反应又把 ADP 和 NADP+ 还回去，所以两个阶段离不开对方。",
+      "expected": "correct",
+      "note": "要点齐全，换说法"
+    },
+    {
+      "id": "e02",
+      "qtype": "essay",
+      "question": "简述光合作用的光反应与暗反应之间的联系。",
+      "reference": "光反应为暗反应提供 ATP 和 NADPH；暗反应为光反应提供 ADP、Pi 和 NADP⁺。两者相互依存。",
+      "answer": "光反应给暗反应提供能量 ATP。",
+      "expected": "partial",
+      "note": "只答一半"
+    },
+    {
+      "id": "e03",
+      "qtype": "essay",
+      "question": "简述光合作用的光反应与暗反应之间的联系。",
+      "reference": "光反应为暗反应提供 ATP 和 NADPH；暗反应为光反应提供 ADP、Pi 和 NADP⁺。两者相互依存。",
+      "answer": "暗反应在晚上进行，光反应在白天进行，所以它们轮流工作。",
+      "expected": "wrong",
+      "note": "典型误区：暗反应=夜间"
+    },
+    {
+      "id": "e04",
+      "qtype": "essay",
+      "question": "为什么说市场经济中价格是“看不见的手”？",
+      "reference": "价格随供求变化，传递稀缺信息，引导生产者和消费者自发调整行为，使资源得到配置，无需中央指令。",
+      "answer": "价格涨跌反映供求，商家看到涨价就多生产，消费者就少买，资源就这样被自动分配了，不需要政府一一安排。",
+      "expected": "correct",
+      "note": "要点齐全"
+    },
+    {
+      "id": "e05",
+      "qtype": "essay",
+      "question": "为什么说市场经济中价格是“看不见的手”？",
+      "reference": "价格随供求变化，传递稀缺信息，引导生产者和消费者自发调整行为，使资源得到配置，无需中央指令。",
+      "answer": "因为政府在背后悄悄调控价格，老百姓看不见。",
+      "expected": "wrong",
+      "note": "把看不见的手理解成政府"
+    },
+    {
+      "id": "e06",
+      "qtype": "essay",
+      "question": "解释惯性，并举一个生活中的例子。",
+      "reference": "惯性是物体保持原有运动状态（静止或匀速直线运动）的性质，大小只与质量有关。例：公交车急刹车时乘客向前倾。",
+      "answer": "惯性是物体保持原来运动状态的性质。",
+      "expected": "partial",
+      "note": "缺例子"
+    },
+    {
+      "id": "e07",
+      "qtype": "essay",
+      "question": "解释惯性，并举一个生活中的例子。",
+      "reference": "惯性是物体保持原有运动状态（静止或匀速直线运动）的性质，大小只与质量有关。例：公交车急刹车时乘客向前倾。",
+      "answer": "惯性是一种力，速度越快惯性越大，比如跑得快的人停不下来。",
+      "expected": "wrong",
+      "note": "惯性当成力、与速度有关"
+    },
+    {
+      "id": "e08",
+      "qtype": "essay",
+      "question": "解释惯性，并举一个生活中的例子。",
+      "reference": "惯性是物体保持原有运动状态（静止或匀速直线运动）的性质，大小只与质量有关。例：公交车急刹车时乘客向前倾。",
+      "answer": "物体都有保持静止或匀速直线运动状态的趋势，这就是惯性，只取决于质量。例如抖动衣服能把灰尘抖掉。",
+      "expected": "correct",
+      "note": "换例子"
+    },
+    {
+      "id": "e09",
+      "qtype": "essay",
+      "question": "简述辛亥革命的历史意义。",
+      "reference": "推翻了清朝统治，结束了两千多年的君主专制制度，建立共和政体，使民主共和观念深入人心。",
+      "answer": "推翻清朝，结束帝制，建立了中华民国，共和思想开始普及。",
+      "expected": "correct",
+      "note": "同义"
+    },
+    {
+      "id": "e10",
+      "qtype": "essay",
+      "question": "简述辛亥革命的历史意义。",
+      "reference": "推翻了清朝统治，结束了两千多年的君主专制制度，建立共和政体，使民主共和观念深入人心。",
+      "answer": "辛亥革命彻底完成了反帝反封建的任务。",
+      "expected": "wrong",
+      "note": "夸大（常见误区）"
+    },
+    {
+      "id": "e11",
+      "qtype": "essay",
+      "question": "什么是边际效用递减？",
+      "reference": "在其他条件不变时，随着消费某物品数量增加，每增加一单位带来的额外满足感逐渐减少。",
+      "answer": "吃第一个包子很满足，吃到第五个就没那么香了，每多一个带来的满足越来越少。",
+      "expected": "correct",
+      "note": "用例子正确表述"
+    },
+    {
+      "id": "e12",
+      "qtype": "essay",
+      "question": "什么是边际效用递减？",
+      "reference": "在其他条件不变时，随着消费某物品数量增加，每增加一单位带来的额外满足感逐渐减少。",
+      "answer": "消费越多，总满足感越来越少。",
+      "expected": "wrong",
+      "note": "边际与总效用混淆"
+    }
+  ]
+}

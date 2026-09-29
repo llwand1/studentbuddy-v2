@@ -1114,3 +1114,10 @@
 .rv-learner-list .rv-btn { margin-left: 8px; padding: 0 6px; font-size: 12px; }
 .rv-learner-count { margin-left: 4px; opacity: 0.6; }
 .rv-learner-cal { margin-top: 6px; opacity: 0.75; font-size: 12px; }
+
+/* ── 词条关联（Step 3 TermRelations）── */
+.term-rel { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; padding: 0; list-style: none; font-size: var(--sb-fs-sm); }
+.term-rel-empty { opacity: 0.65; }
+.term-rel-item { padding: 1px 8px; border: 1px solid var(--sb-line); border-radius: 10px; }
+.term-rel-k { margin-right: 4px; opacity: 0.65; }
+.term-rel-item.rel-contrast { border-style: dashed; }

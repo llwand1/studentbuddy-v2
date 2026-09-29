@@ -8,6 +8,9 @@
  *   "哪类题弱"，评分诊断给"误解了什么"。只有误区需要落表（它是 AI 判出来的，别处没有）。
  */
 
+import type { AbilityEstimate } from './adaptive.js';
+import type { FsrsPersonalization } from './fsrs-fit.js';
+
 export type GradeVerdict = 'correct' | 'partial' | 'wrong';
 
 export interface GradeRequest {
@@ -92,4 +95,8 @@ export interface LearnerModel {
    * 两者接近 ⇒ 调度可信；实际明显低于预测 ⇒ 默认参数对这个人偏乐观。样本不足为 null。
    */
   calibration: { n: number; predicted: number; actual: number } | null;
+  /** 自适应难度：能力估计与建议难度档（样本不足时 level 为 null） */
+  ability: AbilityEstimate;
+  /** 个人化记忆模型（复习满 30 次后拟合；null ＝ 还在用默认参数） */
+  fsrs: FsrsPersonalization | null;
 }

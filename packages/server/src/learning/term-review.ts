@@ -162,6 +162,7 @@ export interface TermReviewRow {
   last_reviewed_at: string | null;
   fsrs_stability?: number | null; // v47 旁表 `term_fsrs`；NULL ＝ 还没在新版里复习过
   fsrs_difficulty?: number | null;
+  fsrs_scale?: number | null; // v49 个人化缩放 k（NULL ⇒ 1）：只用于读侧算间隔，写侧推进用原始 S
 }
 
 /**
@@ -173,7 +174,8 @@ export interface TermReviewRow {
 export const SELECT_REVIEW_COLS = `t.id, t.term, t.definition, t.domain, t.importance, t.usage_count,
   t.created_at, t.updated_at, t.review_stage, t.last_reviewed_at,
   (SELECT f.stability FROM term_fsrs f WHERE f.term_id = t.id) AS fsrs_stability,
-  (SELECT f.difficulty FROM term_fsrs f WHERE f.term_id = t.id) AS fsrs_difficulty`;
+  (SELECT f.difficulty FROM term_fsrs f WHERE f.term_id = t.id) AS fsrs_difficulty,
+  (SELECT p.scale FROM fsrs_user_param p WHERE p.owner_id = t.owner_id) AS fsrs_scale`;
 
 /**
  * 行 → 契约对象（**唯一**的状态计算落点；其它函数都调它，保证同一次请求内口径一致）。
@@ -181,7 +183,8 @@ export const SELECT_REVIEW_COLS = `t.id, t.term, t.definition, t.domain, t.impor
  *   那边若自己拼一份，就会出现"队列说今天到期、列表徽标说还有 3 天"。
  */
 export function toReviewTerm(row: TermReviewRow, now: Date): ReviewTerm {
-  const { review_stage, last_reviewed_at, fsrs_stability, fsrs_difficulty, ...rest } = row;
+  const { review_stage, last_reviewed_at, fsrs_stability, fsrs_difficulty, fsrs_scale, ...rest } = row;
+  const stability = typeof fsrs_stability === 'number' ? fsrs_stability * (fsrs_scale ?? 1) : fsrs_stability; // 个人化只作用在读侧
   return {
     ...rest,
     review_stage,
@@ -191,7 +194,7 @@ export function toReviewTerm(row: TermReviewRow, now: Date): ReviewTerm {
       createdAt: row.created_at,
       stage: review_stage,
       now,
-      stability: fsrs_stability,
+      stability,
       difficulty: fsrs_difficulty,
     }),
   };

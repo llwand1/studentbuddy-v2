@@ -15,6 +15,7 @@ import { PK_QUIZ_MIX, isAiUserId } from '@sb/shared';
 import type { QuizPayload } from '@sb/shared';
 import { generateQuiz } from '../learning/quiz.js';
 import { routeRole } from '../llm/router.js';
+import { aiText } from '../ai/gateway.js';
 import { pushGeneratedQuestion, publishState, scheduleNextAiQuiz, submitAnswer } from './match.js';
 import {
   clearQuizPending,
@@ -107,22 +108,12 @@ export async function runAiAnswer(roomId: string, q: PkRoomQuestion): Promise<vo
     `题干：${q.stem}`,
     ...q.options.map((o, i) => `${CHOICE_LETTERS[i]}. ${o}`),
   ].join('\n');
-  let acc = '';
-  try {
-    for await (const chunk of target.adapter.chat({
-      model: target.model,
-      apiKey: target.apiKey,
-      baseUrl: target.baseUrl,
-      messages: [{ role: 'user', content: prompt }],
-    })) {
-      acc += chunk.content;
-      if (chunk.done) break;
-      // 流式超过答题时限即放弃：分数交给服务端超时判罚，AI 不占时限便宜
-      if (Date.now() >= q.deadlineAt) return;
-    }
-  } catch {
-    return;
-  }
+  // 超过答题时限即放弃：分数交给服务端超时判罚，AI 不占时限便宜（超时由网关按剩余时间掐断）
+  const left = q.deadlineAt - Date.now();
+  if (left <= 0) return;
+  const r = await aiText({ purpose: 'pk.bot', ownerId: null, target, messages: [{ role: 'user', content: prompt }], timeoutMs: left });
+  if (!r.ok) return;
+  const acc = r.text;
   if (Date.now() >= q.deadlineAt) return;
   const idx = parseChoice(acc, q.options.length);
   if (idx === null) return;

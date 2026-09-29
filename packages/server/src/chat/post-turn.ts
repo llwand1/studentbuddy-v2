@@ -2,27 +2,52 @@
  * chat/post-turn —— 一轮回复**跑完之后**做的事（契约 `docs/KNOWLEDGE-FOLLOWUP-SPEC.md` §5.4）。
  *
  * 三件事，**顺序不可换**：
- *   ① 抽词（`extractTerms`，一次 LLM 调用）→ ② 落词条库（`saveTerms`）→ ③ 长期记忆压缩（`compactIfNeeded`）。
+ *   ① 抽词（`runTermExtraction`，经 AI 网关）→ ② 落词条库（`saveTerms`）→ ③ 长期记忆压缩（`compactIfNeeded`）。
  *
  * ★ 为什么从 `chat/flow.ts` 搬出来：那个文件收尾时 394 行，就地加这一步会顶到 server
- *   `≤400` 红线。按仓规**拆文件、不压注释**。接缝本身就干净：
- *   `flow.ts` 管「这一轮**怎么跑**」（锁 / 流 / 工具循环 / 落库），本文件管「跑完了**收什么尾**」。
- *   两者的读者也不同——前者要**改对话行为**时读，后者要**改学习产物**时读。
+ *   `≤400` 红线。`flow.ts` 管「这一轮**怎么跑**」，本文件管「跑完了**收什么尾**」。
+ * ★ 为什么 ② 排在 ③ 之前：压缩要打一次 LLM（配额有限），产物收口必须先做完。
  *
- * ★ 为什么 ② 排在 ③ 之前：压缩要打一次 LLM（配额有限），产物收口必须先做完（同原有注释的取舍）。
- *
- * ★ 2026-09-25：原第③步「追问会话连星型边」（`linkFollowUpEdges`，写 knowledge_edge）随
- *   「学习流＋知识图」功能整体下线删除——每轮白写一张没人读的表，正是删它的理由。
- *
- * ★ 全链路**一条都不 await、也一条都不上报错误**：用户此刻已经拿到完整回答了，
- *   这个过程态失败只该静默降级（ADR-4 失败隔离），绝不能把已上屏的回答变出错。
- *   `.finally` 保证压缩无论如何都会跑（它是**下一轮**才生效的，这一轮绝不能把它漏掉）。
+ * ★ 2026-09-29 改走**持久化后台任务**（`jobs/`，任务种类 `chat.post_turn`）：
+ *   改前是 `void promise`——上游抖一下这一轮的词条就永远丢了，进程重启时在途的也一起蒸发。
+ *   现在：抽词超时 / 上游报错 / 输出坏了 ⇒ 抛错交给队列按退避重试（最多 3 次）；
+ *   没配模型 ⇒ `PermanentJobError`（重试也没用，不白记三行失败账）。
+ *   仍然**不 await、不把错误带回对话**：用户此刻已经拿到完整回答了（ADR-4 失败隔离）。
  */
-import { saveTerms, extractTerms } from '../learning/terms.js';
+import { saveTerms, runTermExtraction } from '../learning/terms.js';
+import { dispatchJob, PermanentJobError, registerJobHandler } from '../jobs/worker.js';
 import { compactIfNeeded } from './compact.js';
 
 /** 送去抽词的正文上限（沿用 flow.ts 原有的 30000，避免长回答把这次调用的成本拉爆） */
 export const POST_TURN_TEXT_MAX = 30_000;
+
+export const POST_TURN_JOB = 'chat.post_turn';
+
+interface PostTurnPayload {
+  sessionId: string;
+  material: string;
+}
+
+/** 任务处理函数（导出给测试） */
+export async function runPostTurn(payload: unknown, ownerId: string | null): Promise<void> {
+  const { sessionId, material } = payload as PostTurnPayload;
+  try {
+    const r = await runTermExtraction(material, ownerId);
+    if (r.ok) {
+      if (r.items.length > 0) saveTerms(r.items, sessionId, ownerId);
+    } else if (r.reason === 'no-model') {
+      throw new PermanentJobError(r.error);
+    } else {
+      throw new Error(`抽词失败（${r.reason}）：${r.error}`);
+    }
+  } finally {
+    // 与改前 `.finally` 同口径：抽词无论成败都要压缩（压缩是**下一轮**才生效的，漏不得）；
+    // 重试时会再跑一次，`compactIfNeeded` 自带在途去重与阈值判断，多跑只是空转。
+    void compactIfNeeded(sessionId, ownerId);
+  }
+}
+
+registerJobHandler(POST_TURN_JOB, '对话后抽词与记忆压缩', (payload, ctx) => runPostTurn(payload, ctx.ownerId));
 
 export function afterTurn(input: {
   sessionId: string;
@@ -33,12 +58,9 @@ export function afterTurn(input: {
   ownerId: string | null;
 }): void {
   const { sessionId, text, answer, ownerId } = input;
-  void extractTerms(`${text}\n\n${answer}`.slice(0, POST_TURN_TEXT_MAX), ownerId)
-    .then((items) => {
-      if (items.length > 0) saveTerms(items, sessionId, ownerId);
-    })
-    .catch(() => undefined) // 抽词/落库失败：静默降级，对话已经结束了
-    .finally(() => {
-      void compactIfNeeded(sessionId, ownerId);
-    });
+  dispatchJob({
+    kind: POST_TURN_JOB,
+    ownerId,
+    payload: { sessionId, material: `${text}\n\n${answer}`.slice(0, POST_TURN_TEXT_MAX) } satisfies PostTurnPayload,
+  });
 }

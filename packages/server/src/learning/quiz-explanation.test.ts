@@ -36,9 +36,22 @@ describe('复盘协议与生成', () => {
     expect(await generateExplanation(input, 'owner', signal)).toEqual(output);
     expect(model.route).toHaveBeenCalledWith('solver', undefined, 'owner');
     const request = model.chat.mock.calls[0]?.[0];
-    expect(request.signal).toBe(signal);
+    // ★ 2026-09-29 起经 AI 网关：上游收到的是「调用方信号 + 超时」合并后的信号，不再是同一个对象。
+    //   这里只锁"有信号"；"调用方取消真能传到上游"由下一条用例锁。
+    expect(request.signal).toBeInstanceOf(AbortSignal);
     expect(request.messages[1].content).toContain('二氧化碳');
     expect(request.messages[0].content).toContain('每节必须有真正解释原理的 SVG');
+  });
+  it('调用方取消 ⇒ 上游请求的信号跟着取消（网关合并信号后取消仍然有效）', async () => {
+    const ac = new AbortController();
+    let seen: AbortSignal | undefined;
+    model.chat.mockImplementation(async function* (req: { signal?: AbortSignal }) {
+      seen = req.signal;
+      ac.abort();
+      yield { content: '', done: true };
+    });
+    await expect(generateExplanation(input, null, ac.signal)).rejects.toThrow();
+    expect(seen?.aborted).toBe(true);
   });
   it('缺图重试一次，第二次仍缺图就明确失败', async () => {
     model.chat.mockImplementation(async function* () { yield { content: '{}', done: true }; });

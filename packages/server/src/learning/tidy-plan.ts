@@ -18,7 +18,7 @@
 import type { TidyPlan, TidyCluster } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
-import { routeRole } from '../llm/router.js';
+import { aiJson } from '../ai/gateway.js';
 import type { TermRow } from './terms.js';
 
 const TIDY_PROTOCOL = `你是词条库整理引擎。给定学习者的全部词条（每行：id | 词条 | 领域 | 释义），输出整理方案，严格按以下 JSON 格式输出，外围包一对 [TIDY]...[/TIDY] 标记：
@@ -223,35 +223,25 @@ export async function planTidy(ownerId: string | null): Promise<TidyPlan | null>
     .all(ownerForWrite(ownerId), TIDY_MAX_TERMS) as TermRow[];
   if (rows.length < 2) return { clusters: [], domainRenames: {} };
   // 整理方案是一次 LLM 调用，归属取发起者（契约 §8.1.4）
-  const target = routeRole('explain', undefined, ownerId); // 与词条抽取同角色；契约留扩展点：可拆独立 tidy 角色
-  if (!target || !target.model) {
-    lastPlanError = '未配置可用的模型 provider';
-    return null;
-  }
   const domains = [...new Set(rows.map((r) => r.domain))];
   const lines = rows.map((r) => `${r.id} | ${r.term} | ${r.domain} | ${r.definition.replace(/\s+/g, ' ').slice(0, 60)}`);
   const prompt = `${TIDY_PROTOCOL}\n\n现有领域：${domains.join('、')}\n\n全部词条：\n${lines.join('\n')}`;
-  let acc = '';
-  try {
-    for await (const chunk of target.adapter.chat({
-      model: target.model,
-      apiKey: target.apiKey,
-      baseUrl: target.baseUrl,
-      messages: [{ role: 'user', content: prompt }],
-    })) {
-      acc += chunk.content;
-      if (chunk.done) break;
-    }
-  } catch (e) {
-    // 整理 prompt ≈15k 字，第三方网关（agnes 等）对它偶发秒抛/中途断流/429（2026-09-07 实测 5 连发 2 失败），
-    // 原因必须留档上报而不是吞成 null——否则用户永远只看到笼统的"调用失败"。
-    lastPlanError = e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200);
+  // 经 AI 网关：超时、失败分类、输出不成形时让模型修复一次（整理 prompt ≈15k 字，第三方网关偶发断流/429，
+  // 原因必须留档上报而不是吞成 null——否则用户永远只看到笼统的"调用失败"）
+  const r = await aiJson({
+    purpose: 'term.tidy',
+    ownerId,
+    messages: [{ role: 'user', content: prompt }],
+    parse: parseTidyBlock,
+    repairHint: '请只输出一对 [TIDY]...[/TIDY]，中间是约定的 JSON 方案。',
+  });
+  if (!r.ok) {
+    lastPlanError =
+      r.reason === 'no-model' ? '未配置可用的模型 provider'
+        : r.reason === 'parse' ? (r.text.trim() ? `模型输出不含有效 [TIDY] 方案（输出 ${r.text.length} 字）` : '模型返回空输出')
+          : r.error.slice(0, 200);
     return null;
   }
-  const plan = parseTidyBlock(acc);
-  if (!plan) {
-    lastPlanError = acc.trim() ? `模型输出不含有效 [TIDY] 方案（输出 ${acc.length} 字）` : '模型返回空输出';
-    return null;
-  }
+  const plan = r.value;
   return normalizeTidyPlan(plan, rows);
 }

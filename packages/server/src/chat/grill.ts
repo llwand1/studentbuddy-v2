@@ -26,6 +26,7 @@ import { getMaxOutputTokens } from '../llm/model-limits.js';
 import { runToolCalls } from './tool-exec.js';
 import { runChoiceTool } from './choice-tool.js';
 import { runTool, type ToolContext, type ToolResult } from './tools/index.js';
+import { startLlmMeter } from '../ai/gateway.js';
 
 /**
  * 开场硬指令（pre）：强制模型第一个动作就是 ask_choice。
@@ -87,6 +88,7 @@ export async function runGrillClosing(deps: GrillClosingDeps): Promise<void> {
   messages.push({ role: 'user', content: GRILL_POST });
 
   let calls: ToolCall[] | undefined;
+  const meter = startLlmMeter('chat.grill', ownerId, { model, quota: { platform: false } });
   try {
     for await (const chunk of adapter.chat({
       model,
@@ -101,10 +103,13 @@ export async function runGrillClosing(deps: GrillClosingDeps): Promise<void> {
       streamMode: 'once',
       signal,
     })) {
+      meter.see(chunk);
       if (chunk.toolCalls && chunk.toolCalls.length > 0) calls = chunk.toolCalls;
       if (chunk.done) break;
     }
-  } catch {
+    meter.ok();
+  } catch (err) {
+    meter.fail(err, signal?.aborted === true);
     return; // 收尾失败＝这一轮没有「下一步」卡片，不影响已给出的回答
   }
   if (!calls || calls.length === 0) return;

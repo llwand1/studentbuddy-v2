@@ -35,6 +35,11 @@ import { startTrendScheduler } from './learning/trend.js';
 import { wireActivityEvents } from './learning/activity.js';
 import { wireObsEvents } from './storage/obs.js';
 import { wireToolStats } from './storage/tool-stats.js';
+import { aiRouter, jobsRouter, learningRouter } from './routes/ai-ops.js';
+import { wireLlmCallLog } from './ai/call-log.js';
+import { wireLearningEvents } from './learning/learning-events.js';
+import { startJobWorker } from './jobs/worker.js';
+import { startMaintenance } from './jobs/maintenance.js';
 import { getDb } from './storage/db.js';
 import { requireAuth, attachUser } from './auth/middleware.js';
 import { REQUIRE_AUTH } from './auth/form.js';
@@ -168,6 +173,10 @@ app.use('/api/tools', toolsRouter);
 // 全站全文搜索（契约 docs/FTS-SPEC.md §3.4）：本地库 fts5 检索。
 // ★ 与 `/api/settings/search-keys` 无关——那两条管联网搜索，这条查本地数据。
 app.use('/api/search', searchRouter);
+// v46 AI 网关统计 / 学习事件流 / 后台任务（设置页「AI 运行状况」与首页学习概况读这里）
+app.use('/api/ai', aiRouter);
+app.use('/api/learning', learningRouter);
+app.use('/api/jobs', jobsRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
@@ -188,6 +197,9 @@ if (process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('index.js
   wireObsEvents();
   // 工具统计（§4.5）：订阅 tool_called 落 tool_stats，与 obs 同一订阅位（发布方零感知，ADR-3/4）
   wireToolStats();
+  // v46：AI 调用账（llm_call）与学习事件流（learning_event）——同 obs 的订阅位，发布方零感知
+  wireLlmCallLog();
+  wireLearningEvents();
   // 逃生口③（启动清理）：重启后内存里挂起的 Promise 已随进程消失，库里遗留的 pending
   // 方案选择永远等不到答复——不清就会变成前端能捞到、却怎么点都没反应的死卡。
   const swept = sweepStaleChoices();
@@ -211,6 +223,9 @@ if (process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('index.js
   // ★ 放在启动链**最后**：它起服即先跑一次（否则首张图要等 6 小时），但全程 fire-and-forget，
   //   绝不挡在「开始接请求」之前——一段慢查询不该让端口晚半秒可用。
   startTrendScheduler();
+  // v46 后台任务：起轮询（先把重启前卡在 running 的放回队列），再挂每日清理
+  startJobWorker();
+  startMaintenance();
   // eslint-disable-next-line no-console -- 启动横幅是进程日志，非调试输出
   console.log(`[sb-server] listening on http://${HOST}:${PORT} (v${VERSION})`);
 }

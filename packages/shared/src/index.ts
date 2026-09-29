@@ -20,6 +20,7 @@ export * from './auth.js';
 export * from './ebbinghaus.js';
 export * from './review-goal.js';
 export * from './continent.js';
+export * from './ai-ops.js';
 export * from './npc.js';
 export * from './npc-life.js';
 export * from './term-highlight.js';

@@ -5,11 +5,16 @@ import { QuizCard } from './QuizCard';
 import { reviewAttempt } from './quiz-attempt';
 const apiMock = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock('../../lib/api', () => ({ api: apiMock }));
+const report = vi.hoisted(() => vi.fn());
+vi.mock('../../lib/api-ai-ops', async (orig) => {
+  const real = await orig<typeof import('../../lib/api-ai-ops')>();
+  return { ...real, aiOpsApi: { ...real.aiOpsApi, reportAnswer: report } };
+});
 const question = { type: 'single' as const, question: '叶绿体的作用？', options: ['光合作用', '吸收矿物质'], answer: [0], explanation: '光能转化为化学能。' };
 const result = { summary: '先区分能量和物质。', sections: [{ title: '光能去向', questions: [1], explanation: '光能转为化学能。',
   svg: "<svg viewBox='0 0 200 100'><rect x='10' y='10' width='100' height='30'/><text x='20' y='60'>光能</text></svg>", caption: '方框表示转化。' }],
   transfer: { question: '如果没有光呢？', answer: '光反应不能继续。' } };
-beforeEach(() => { apiMock.request.mockReset(); });
+beforeEach(() => { apiMock.request.mockReset(); report.mockReset(); });
 afterEach(cleanup);
 const complete = () => { fireEvent.click(screen.getByRole('button', { name: /吸收矿物质/ })); fireEvent.click(screen.getByText('确认作答')); };
 describe('普通题完成与图文复盘', () => {
@@ -33,6 +38,10 @@ describe('普通题完成与图文复盘', () => {
     fireEvent.click(screen.getByText('提交并对照参考'));
     expect(screen.getByText('一键讲解 · 图文复盘')).toBeTruthy();
     expect(screen.getByText(/3 项答案吻合/).textContent).toContain('2 项待对照');
+    // ★ 有对错的才进学习事件流：单选/多选/判断 3 条；待对照的填空和解答题不报（不拿"没判"拉低正确率）
+    expect(report.mock.calls.map(([r]) => [r.qtype, r.correct, r.source])).toEqual([
+      ['choice', true, 'chat-quiz'], ['multi', true, 'chat-quiz'], ['judge', true, 'chat-quiz'],
+    ]);
     fireEvent.click(screen.getByText('再练一遍'));
     expect(screen.queryByText('本轮探索完成')).toBeNull();
     expect(screen.getAllByText('确认作答')).toHaveLength(4);

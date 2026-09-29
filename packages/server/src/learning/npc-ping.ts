@@ -29,6 +29,7 @@ import { ownerForWrite, ownerFilter } from '../auth/ownership.js';
 import { resolveNpcTarget } from './npc-genesis.js';
 import { ensureNpcSession, recordNpcTurn } from './npc-session.js';
 import { npcList, type NpcView } from './npc.js';
+import { aiText } from '../ai/gateway.js';
 
 /** 节流账落 `app_settings`（零新表，与花名册同一张表不同键） */
 export const SETTING_KEY_NPC_PINGS = 'npc_pings';
@@ -169,26 +170,18 @@ export async function npcPing(ownerIdRaw: string | null, now = Date.now()): Prom
   let source: 'ai' | 'fallback' = 'fallback';
 
   if (target?.model && target.apiKey) {
-    try {
-      for await (const chunk of target.adapter.chat({
-        model: target.model,
-        apiKey: target.apiKey,
-        baseUrl: target.baseUrl,
-        messages: [
-          { role: 'system', content: buildPingPrompt(npc, topic, sameAsHome) },
-          { role: 'user', content: '（他正好路过，你开口。）' },
-        ],
-        temperature: PING_TEMPERATURE,
-        maxTokens: PING_MAX_TOKENS,
-        streamMode: 'once',
-      })) {
-        if (chunk.content) text += chunk.content;
-        if (chunk.done) break;
-      }
-      if (text.trim()) source = 'ai';
-    } catch {
-      text = '';
-    }
+    const r = await aiText({
+      purpose: 'npc.ping', ownerId, target,
+      messages: [
+        { role: 'system', content: buildPingPrompt(npc, topic, sameAsHome) },
+        { role: 'user', content: '（他正好路过，你开口。）' },
+      ],
+      temperature: PING_TEMPERATURE,
+      maxTokens: PING_MAX_TOKENS,
+      streamMode: 'once',
+    });
+    text = r.ok ? r.text : '';
+    if (text.trim()) source = 'ai';
   }
 
   // ★★ 降级时**不冒泡**，而不是冒一个本地台词的泡。

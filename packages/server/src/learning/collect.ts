@@ -25,6 +25,7 @@ import { normalizeQuiz, parseQuizBlock } from './quiz.js';
 import { searchWeb, htmlToText } from '../search/index.js';
 import { fetchSafe } from '../search/ssrf-guard.js';
 import { routeRole } from '../llm/router.js';
+import { aiText } from '../ai/gateway.js';
 import { getQuizMaxOutputTokens } from '../llm/model-limits.js';
 
 /** 抓页上限（契约 §2.2：单页、不遍历——只对检索返回的 URL 逐条动手） */
@@ -258,24 +259,18 @@ export async function collectQuiz(
     return { report, candidates };
   }
   const prompt = `${COLLECT_PROTOCOL}${buildQuotaLine(opts.quota)}\n\n${buildPagesBlock(pages)}`;
-  let acc = '';
-  try {
-    for await (const chunk of target.adapter.chat({
-      model: target.model,
-      apiKey: target.apiKey,
-      baseUrl: target.baseUrl,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: COLLECT_TEMPERATURE,
-      maxTokens: getQuizMaxOutputTokens(target.model),
-    })) {
-      acc += chunk.content;
-      if (chunk.done) break;
-    }
-  } catch (err) {
-    report.failed.push(`模型调用: ${errText(err)}`);
+  const r = await aiText({
+    purpose: 'collect.draft', ownerId: opts.ownerId ?? null, target, signal: opts.signal,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: COLLECT_TEMPERATURE,
+    maxTokens: getQuizMaxOutputTokens(target.model),
+  });
+  if (!r.ok) {
+    report.failed.push(`模型调用: ${r.error}`);
     report.failure = 'parse';
     return { report, candidates };
   }
+  const acc = r.text;
 
   // ④ 解析 + verbatim 锁 + 来源回填
   const parsed = parseQuizBlock(acc, undefined, false);

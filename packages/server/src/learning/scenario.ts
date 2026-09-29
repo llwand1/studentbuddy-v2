@@ -28,6 +28,7 @@ import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
 import { publish } from '../chat/sse-bus.js';
 import { routeRole } from '../llm/router.js';
+import { aiText } from '../ai/gateway.js';
 import { QUIZ_TEMPERATURE, getQuizMaxOutputTokens } from '../llm/model-limits.js';
 import { parseScenarioBlock, SCENARIO_PROTOCOL, type ScenarioGenReport } from './scenario-protocol.js';
 
@@ -198,22 +199,17 @@ export async function streamScenarioDraft(
     report.failure = 'no-model';
     return null;
   }
-  let acc = '';
-  for await (const chunk of target.adapter.chat({
-    model: target.model,
-    apiKey: target.apiKey,
-    baseUrl: target.baseUrl,
+  const r = await aiText({
+    purpose: 'scenario.generate', ownerId, target,
     messages: [{ role: 'user', content: prompt }],
     temperature: QUIZ_TEMPERATURE,
     maxTokens: getQuizMaxOutputTokens(target.model),
-  })) {
-    acc += chunk.content;
-    if (chunk.done) {
-      // 适配器的权威截断信号（与 generateQuiz 同口径，不靠猜输出形状）
-      if (chunk.finishReason === 'length') report.truncated = true;
-      break;
-    }
-  }
+  });
+  // 上游失败照旧抛给路由（改前 for-await 的异常就是这么冒上去的）；超时现在也能被分出来
+  if (!r.ok) throw new Error(r.error);
+  // 适配器的权威截断信号（与 generateQuiz 同口径，不靠猜输出形状）
+  if (r.finishReason === 'length') report.truncated = true;
+  const acc = r.text;
   const parsed = parseScenarioBlock(acc, report);
   if (!parsed) {
     report.failure = 'parse';

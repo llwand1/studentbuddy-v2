@@ -357,7 +357,7 @@ export function markReviewed(
   //   放在事务外，配合 ADR-4（订阅者失败只记日志），最坏是这一笔没记进连签，不会连带动摇复习曲线。
   // ⚠️ 口径变化如实记：这里**不看词条在不在复习范围内**（老 `reviewStreak` 用范围 JOIN 筛过）——
   //   范围外的词条被手动打卡同样算「今天学了」。契约 §8.3 已登记该取舍：连签数的是学习行为，不是队列归属。
-  if (!opts.silent) publishEvent({ type: 'review_completed', termId: id, ownerId });
+  if (!opts.silent) publishEvent({ type: 'review_completed', termId: id, ownerId, remembered, stageBefore: before, stageAfter: after });
   // ★ 同一处推卡数帧（契约 `TERM-CARDS-SPEC` §7.2）：跟着 `review_completed` 走同一个
   //   `!opts.silent` 闸门，**不是顺手加的**——体验号种子走的也是这个函数，若在这儿无条件推，
   //   首屏种子就会往外发"某人获得了卡牌"的帧，与那里「种子不是有人学习了」那条红线同族。

@@ -18,12 +18,19 @@
  */
 import type { ObsEventBody } from '@sb/shared/obs';
 import type { ToolConfirmDecision } from '@sb/shared';
+import type { LlmCallRecord } from '../ai/gateway.js';
 
 export type DomainEvent =
   | { type: 'chat_done'; sessionId: string; ownerId: string | null }
   | { type: 'quiz_generated'; quizId: string; ownerId: string | null }
-  | { type: 'quiz_answered'; quizId: string; correct: boolean; ownerId: string | null }
-  | { type: 'term_added'; count: number; ownerId: string | null }
+  /**
+   * 答题（2026-09-29 起才有发布方：`POST /api/learning/events` 由前端在答完一题时上报）。
+   * ★ 改前全仓**零发布者**——「答过题」从来不算一个学习日（见 `learning/quiz.ts` 里的在册缺口注释）。
+   * `qtype`／`ms`／`termId` 可选：给之后的记忆模型当特征（题型、用时、考的是哪个词条）。
+   */
+  | { type: 'quiz_answered'; quizId: string; correct: boolean; ownerId: string | null; qtype?: string; ms?: number; termId?: string; source?: string }
+  /** `termIds`：本次真正新建或并入的词条 id（学习事件流按词条记，才能回答"这个词条是哪天学的"） */
+  | { type: 'term_added'; count: number; ownerId: string | null; termIds?: string[] }
   /**
    * 复习打卡（契约 `GAMIFIED-AGENT-SPEC` §8.1，2026-09-25 新增）。
    *
@@ -32,7 +39,9 @@ export type DomainEvent =
    *   两本 streak 账收口成一本（§8.3）之后，复习必须进同一本活动账，否则「连签」仍然只数了一半行为。
    * ★ 同日重复打卡也会各发一笔（与答题同口径：XP 按次累加，连签只看当日有没有行，重复不额外拉长连签）。
    */
-  | { type: 'review_completed'; termId: string; ownerId: string | null }
+  | { type: 'review_completed'; termId: string; ownerId: string | null; remembered?: boolean; stageBefore?: number; stageAfter?: number }
+  /** AI 网关的一次调用（`ai/gateway.ts` 发布，`ai/call-log.ts` 落 `llm_call`）。网关不直接写库，理由同 `tool_called` */
+  | { type: 'llm_call'; record: LlmCallRecord }
   /** 可观测（可观测与数据飞轮方案）；订阅方 storage/obs.ts，发布方 search/flow/quiz/点踩 */
   | ({ type: 'obs' } & ObsEventBody)
   /**

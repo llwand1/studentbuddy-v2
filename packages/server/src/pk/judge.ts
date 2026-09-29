@@ -20,6 +20,7 @@ import type { QuizQuestion } from '@sb/shared';
 import { generateQuiz } from '../learning/quiz.js';
 import { repairJsonBrackets, repairJsonEscapes } from '../learning/quiz-json-repair.js';
 import { routeRole } from '../llm/router.js';
+import { aiText } from '../ai/gateway.js';
 import { searchWeb, type SearchResult } from '../search/index.js';
 
 /** 检索结果最多取几条（够了，多了既慢又稀释重点） */
@@ -39,21 +40,8 @@ async function callJudge(prompt: string, ownerId?: string | null): Promise<strin
   // ★ 裁判是 4 个上游 LLM 调用之一，归属必须与**发起这一轮的人**一致（契约 §8.1.4）
   const target = routeRole('judge', undefined, ownerId);
   if (!target || !target.model) return null;
-  let acc = '';
-  try {
-    for await (const chunk of target.adapter.chat({
-      model: target.model,
-      apiKey: target.apiKey,
-      baseUrl: target.baseUrl,
-      messages: [{ role: 'user', content: prompt }],
-    })) {
-      acc += chunk.content;
-      if (chunk.done) break;
-    }
-  } catch {
-    return null;
-  }
-  return acc.trim() || null;
+  const r = await aiText({ purpose: 'pk.judge', ownerId: ownerId ?? null, target, messages: [{ role: 'user', content: prompt }] });
+  return r.ok ? r.text.trim() || null : null;
 }
 
 /** 从模型回复里抠出第一个 JSON 对象（沿用出题管道的五级修复思路：先修转义再修括号） */

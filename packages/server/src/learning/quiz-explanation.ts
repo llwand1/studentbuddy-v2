@@ -2,6 +2,7 @@
 import type { QuizExplanation, QuizExplanationRequest } from '@sb/shared';
 import { normalizeQuizSvg } from '@sb/shared';
 import { routeRole } from '../llm/router.js';
+import { aiText } from '../ai/gateway.js';
 
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown, max: number): v is string => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
@@ -63,18 +64,17 @@ export async function generateExplanation(input: QuizExplanationRequest, ownerId
   if (!target?.model) throw new Error('请先到设置中配置「题解」模型或默认模型，再生成讲解。');
   for (let attempt = 0; attempt < 2; attempt++) {
     signal.throwIfAborted();
-    let raw = '';
-    for await (const chunk of target.adapter.chat({
-      model: target.model, apiKey: target.apiKey, baseUrl: target.baseUrl, streamMode: target.streamMode,
+    const r = await aiText({
+      purpose: 'quiz.explain', ownerId, target, signal, streamMode: target.streamMode,
       messages: [
         { role: 'system', content: REVIEW_PROMPT + (attempt ? '\n上次输出未通过结构/配图校验，请重新生成完整 JSON，逐节给有效图并覆盖每道题。' : '') },
         { role: 'user', content: JSON.stringify({ title: input.title, kind: input.kind, items: input.items }) },
-      ], temperature: 0.3, maxTokens: 16000, signal,
-    })) {
-      raw += chunk.content;
-      if (raw.length > 100_000) throw new Error('讲解内容过长，请重试。');
-      if (chunk.done) break;
-    }
+      ], temperature: 0.3, maxTokens: 16000,
+    });
+    signal.throwIfAborted();
+    if (!r.ok) throw new Error(r.reason === 'timeout' ? '讲解生成超时，请重试。' : r.error);
+    const raw = r.text;
+    if (raw.length > 100_000) throw new Error('讲解内容过长，请重试。');
     signal.throwIfAborted();
     const result = parseExplanation(raw, input.items.length);
     if (result) return result;

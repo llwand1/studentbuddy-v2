@@ -3,6 +3,7 @@ import type { QuizQuestion, QuizReviewItem } from '@sb/shared';
 import { SvgPreviewCard } from '../chat/SvgPreviewCard';
 import { Markdown } from '../chat/Markdown';
 import { fillCount, optionsFor, reviewAttempt } from './quiz-attempt';
+import { aiOpsApi, answerQType } from '../../lib/api-ai-ops';
 
 export function QuizQuestionItem({ q, index, onComplete }: {
   q: QuizQuestion; index: number; onComplete: (item: QuizReviewItem) => void;
@@ -11,6 +12,7 @@ export function QuizQuestionItem({ q, index, onComplete }: {
   const [fills, setFills] = useState(() => Array<string>(fillCount(q)).fill(''));
   const [essay, setEssay] = useState('');
   const [result, setResult] = useState<QuizReviewItem | null>(null);
+  const [shownAt] = useState(() => Date.now());
   const choice = ['single', 'multiple', 'judge'].includes(q.type);
   const options = optionsFor(q);
   const label = { single: '单选', multiple: '多选', fill: '填空', essay: '解答', judge: '判断' }[q.type];
@@ -20,6 +22,11 @@ export function QuizQuestionItem({ q, index, onComplete }: {
     const next = reviewAttempt(q, { picked, fills, essay });
     setResult(next);
     onComplete(next);
+    // 进学习事件流（正确率、用时、题型；后续自适应难度的原料）。解答题只对照参考、没有对错，不报。
+    const qtype = answerQType(q.type);
+    if (qtype && next.verdict !== 'review') {
+      aiOpsApi.reportAnswer({ correct: next.verdict === 'correct', qtype, ms: Date.now() - shownAt, source: 'chat-quiz' });
+    }
   };
   return (
     <section className={`quiz-q${result ? ` is-${result.verdict}` : ''}`} aria-label={`第 ${index + 1} 题`}>

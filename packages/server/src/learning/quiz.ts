@@ -30,6 +30,7 @@ import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
 import { loadAnswerStyle } from '../storage/answer-style.js';
 import { routeRole } from '../llm/router.js';
+import { aiText } from '../ai/gateway.js';
 import { QUIZ_TEMPERATURE, getQuizMaxOutputTokens } from '../llm/model-limits.js';
 import { repairJsonBrackets, repairJsonEscapes } from './quiz-json-repair.js';
 import { defaultSolver, verifyQuiz } from './quiz-verify.js';
@@ -311,22 +312,20 @@ export async function generateQuiz(
     : { block: '', refs: [] };
   const refsBlock = found.block;
   const prompt = `${QUIZ_PROTOCOL}\n${buildMixInstruction(wanted)}\n${buildImageInstruction(imageOn)}\n${buildAnswerStyleBlock(styleArg ?? loadAnswerStyle(owner), 'quiz')}\n${refsBlock}${refsBlock ? '\n' : ''}\n材料：\n${material ? material.slice(0, MAX_DOC_CHARS) : `主题：${topic}`}`;
-  for await (const chunk of target.adapter.chat({
-    model: target.model,
-    apiKey: target.apiKey,
-    baseUrl: target.baseUrl,
+  const r = await aiText({
+    purpose: 'quiz.generate',
+    ownerId: owner,
+    target,
     messages: [{ role: 'user', content: prompt }],
     // 出题专用参数：温度低于聊天的 0.7（题目与 JSON 都要稳），输出上限单列（一次十题+SVG 常撞通用表）
     temperature: QUIZ_TEMPERATURE,
     maxTokens: getQuizMaxOutputTokens(target.model),
-  })) {
-    acc += chunk.content;
-    if (chunk.done) {
-      // 适配器给出的权威截断信号：撞 max_tokens 时 finish_reason 是 length（不靠猜输出形状）
-      if (report && chunk.finishReason === 'length') report.truncated = true;
-      break;
-    }
-  }
+  });
+  // 上游失败照旧向上抛（改前 for-await 的异常就是这么冒到路由/工具层的，那里各有自己的文案）
+  if (!r.ok) throw new Error(r.error);
+  // 适配器给出的权威截断信号：撞 max_tokens 时 finish_reason 是 length（不靠猜输出形状）
+  if (report && r.finishReason === 'length') report.truncated = true;
+  acc = r.text;
   const parsed = parseQuizBlock(acc, report, imageOn);
   // 走到这儿还解不出＝模型确有输出但不成题组（含配比裁剪后为空的上游情形），与「没配模型」是两条路
   if (!parsed && report) report.failure = 'parse';

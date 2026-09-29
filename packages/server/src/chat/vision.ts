@@ -21,6 +21,7 @@
  */
 import type { ChatMessage, ContentPart, UploadedImage } from '../llm/types.js';
 import { routeRole } from '../llm/router.js';
+import { aiText } from '../ai/gateway.js';
 import { MAX_CHAT_IMAGES, MAX_IMAGE_DATAURL_CHARS, maxImageSizeHint } from '@sb/shared';
 import { explainVisionFailure } from './vision-error.js';
 
@@ -84,24 +85,10 @@ export async function describeImages(
 
   const messages: ChatMessage[] = [{ role: 'user', content: parts }];
 
-  let desc = '';
-  try {
-    for await (const chunk of target.adapter.chat({
-      model: target.model,
-      apiKey: target.apiKey,
-      baseUrl: target.baseUrl,
-      messages,
-      signal,
-      streamMode: target.streamMode,
-      // 视觉理解不开思考链：Anthropic 下 thinking 会强制占 max_tokens 预算且对「看图说话」无益
-      thinking: false,
-    })) {
-      if (chunk.content) desc += chunk.content;
-    }
-  } catch (err) {
-    // ★ 上游报文（英文 JSON + HTTP 状态码）不能直接给用户看——2026-09-20 那次"提示 400"
-    //   就是这么弹出去的，用户既看不懂也不知道该改哪里。翻成人话，原文仍附在末行备查。
-    throw new Error(explainVisionFailure(err, target.model));
-  }
+  const r = await aiText({ purpose: 'chat.vision', ownerId: ownerId ?? null, target, messages, signal, streamMode: target.streamMode });
+  // ★ 上游报文（英文 JSON + HTTP 状态码）不能直接给用户看——2026-09-20 那次"提示 400"
+  //   就是这么弹出去的，用户既看不懂也不知道该改哪里。翻成人话，原文仍附在末行备查。
+  if (!r.ok) throw new Error(explainVisionFailure(new Error(r.error), target.model));
+  const desc = r.text;
   return desc.trim();
 }

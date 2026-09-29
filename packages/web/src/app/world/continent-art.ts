@@ -116,13 +116,17 @@ export function drawProp(c: Ctx, x: number, y: number, seed: number, domain: Dom
   }
 }
 
+/** 魔法阵的两色（亮点 / 环身）；缺省是遗忘之影的血色，野怪用另一组（`continent-canvas.ts`） */
+export type SigilColors = readonly [bright: string, ring: string];
+export const SIGIL_DUE: SigilColors = ['#ff4a6a', '#8a2a6a'];
+
 /** 最后的咒语式魔法阵：怪物脚下的阶梯旋转符环 */
-export function drawSigil(c: Ctx, cx: number, cy: number, r: number, t: number): void {
+export function drawSigil(c: Ctx, cx: number, cy: number, r: number, t: number, colors: SigilColors = SIGIL_DUE): void {
   const n = 16;
   const rot = Math.floor(t * 6) / 16;
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 + rot;
-    c.fillStyle = i % 4 === 0 ? '#ff4a6a' : '#8a2a6a';
+    c.fillStyle = i % 4 === 0 ? colors[0] : colors[1];
     c.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * 0.6), i % 4 === 0 ? 2 : 1, 1);
   }
 }

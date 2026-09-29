@@ -7,7 +7,10 @@
  * ★ `review` 直接取服务端现算的共享类型（`ReviewState`）——前端**不自己算**到期与否：
  *   判定唯一实现在 `shared/ebbinghaus.ts`，地图上的怪和后端队列必须是同一个答案
  *   （否则会出现「图上说这只怪今天到期、复习队列里却没有它」）。
+ * ★ 2026-09-29：地图多带一份**钉子**（开拓出来的地块坐标），并多两个写口（开拓的 offer / claim，
+ *   前缀 `/api/continent`）。形状全在 `@sb/shared/continent-expand`：服务端出的题，前端原样渲染、判分同源。
  */
+import type { ContinentAnswer, ContinentExpandOffer, ContinentExpandResult, ContinentPin } from '@sb/shared';
 import { request } from './api-request.js';
 import type { ReviewTermItem } from './api-terms-review.js';
 
@@ -20,10 +23,30 @@ export interface ContinentMapTerm extends ReviewTermItem {
   review_in_scope: number;
 }
 
+/** `GET /api/terms/review/map` 的整份响应（词条 + 钉子；铺格两端同源的前提） */
+export interface ContinentMapPayload {
+  terms: ContinentMapTerm[];
+  pins: ContinentPin[];
+}
+
 export const termsContinentApi = {
   /**
-   * 知识大陆地图：本用户**全部**词条（含复习范围外的）+ 现算复习状态，按入库时间升序。
+   * 知识大陆地图：本用户**全部**词条（含复习范围外的）+ 现算复习状态，按入库时间升序；另带钉子。
    * ★ 只读：地图上的怪与"解锁"全是派生，答对走既有的 `terms.mark(id, true)`。
    */
-  map: () => request<{ terms: ContinentMapTerm[] }>('/api/terms/review/map'),
+  map: () => request<ContinentMapPayload>('/api/terms/review/map'),
+
+  /** 开拓 ①：点一枚「+」领一块待开拓地（新词条 + 两道题 + 凭证 nonce） */
+  expandOffer: (row: number, col: number) =>
+    request<ContinentExpandOffer>('/api/continent/expand/offer', {
+      method: 'POST',
+      body: JSON.stringify({ row, col }),
+    }),
+
+  /** 开拓 ②：交作答；服务端重判，全对才落库 + 钉住 */
+  expandClaim: (nonce: string, answers: ContinentAnswer[]) =>
+    request<ContinentExpandResult>('/api/continent/expand/claim', {
+      method: 'POST',
+      body: JSON.stringify({ nonce, answers }),
+    }),
 };

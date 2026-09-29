@@ -34,12 +34,12 @@ import {
   drawFrame,
   drawHero,
   drawLand,
-  drawMonster,
   drawNpc,
   drawNpcBubble,
   drawSprout,
   drawTile,
 } from './continent-canvas';
+import { drawFrontier, drawMonster } from './continent-canvas-monster';
 import { camAfterDrag, useContinentCamera, type ContinentCam } from './useContinentCamera';
 import { STEP_MS, type HeroCell } from './useContinentHero';
 import {
@@ -69,6 +69,8 @@ interface Props {
    * ★ 内容由服务端给（`GET /api/npc` 的 `spots`）：前端不重算铺格/领地，自己算就是第二份口径。
    */
   placeSpots?: readonly ContinentCell[];
+  /** 边界上的「+」（开拓入口；`continent-view` 给）。点它走 `onPick`，页面按坐标认出是开拓 */
+  frontier?: readonly ContinentCell[];
   hero: HeroCell | null;
   heroFrom: { row: number; col: number } | null;
   /** 这一步的起始时刻（`performance.now()`），插值用 */
@@ -98,6 +100,7 @@ export function ContinentMap({
   wildLands,
   radius,
   placeSpots = NO_SPOTS,
+  frontier = NO_SPOTS,
   hero,
   heroFrom,
   heroStart,
@@ -171,6 +174,8 @@ export function ContinentMap({
       // 荒地上的领地：地块本身没铺词条（也就没有 tile），但仍要被占领、要挡路、要能点
       const wildPop = popAt(tiles.length * STAGGER_MS);
       for (const l of wildLands) if (shown(l.row, l.col)) drawLand(ctx, l, wildPop, pulse);
+      // 边界上的「+」：画在地块之上、怪与人之下（它是空地上的邀请，不该盖住任何活物）
+      for (const f of frontier) if (shown(f.row, f.col)) drawFrontier(ctx, f, pulse);
       // 宝箱画在怪下面：它是"地上的东西"，不该盖住怪的脸
       const bob = reducedMotion ? 0 : Math.round(Math.sin(now / 380) * 2);
       chests.forEach((d, i) => {
@@ -214,7 +219,7 @@ export function ContinentMap({
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [tiles, wildLands, tilesKey, hover, focus, burst, hero, heroFrom, heroStart, chests, npcs, npcBubble, cam, placeSpots]);
+  }, [tiles, wildLands, tilesKey, hover, focus, burst, hero, heroFrom, heroStart, chests, npcs, npcBubble, cam, placeSpots, frontier]);
 
   /** 事件坐标 → **世界格**：视口比例换算 + 相机偏移（CSS 缩放后也准） */
   const at = (canvas: HTMLCanvasElement, clientX: number, clientY: number): ContinentCell => {
@@ -245,14 +250,10 @@ export function ContinentMap({
     setDragging(false);
   };
 
-  const hoverText = cellHint(hover, { tiles, wildLands, npcs });
+  const hoverText = cellHint(hover, { tiles, wildLands, npcs, frontier });
   const size = 2 * radius + 1;
   const inView = tiles.filter(
-    (t) =>
-      t.row >= cam.row &&
-      t.row < cam.row + CONTINENT_VIEW_ROWS &&
-      t.col >= cam.col &&
-      t.col < cam.col + CONTINENT_VIEW_COLS,
+    (t) => t.row >= cam.row && t.row < cam.row + CONTINENT_VIEW_ROWS && t.col >= cam.col && t.col < cam.col + CONTINENT_VIEW_COLS,
   ).length;
 
   return (
@@ -304,8 +305,8 @@ export function ContinentMap({
             ? `选位中：点一格把伙伴安置在那儿（绿框＝能站）${hoverText ? ` · ${hoverText}` : ''}`
             : hoverText) ??
           `大陆 ${size}×${size} 格（共 ${worldCells(radius)} 格，视野内 ${inView} 格）· 拖拽看别处 · 方向键/WASD 或点地走位 · 走到怪旁边点它开打${
-            npcs.length > 0 ? ' · 点伙伴跟他说句话' : ''
-          }`}
+            frontier.length > 0 ? ' · 点边界上的「+」开拓新地' : ''
+          }${npcs.length > 0 ? ' · 点伙伴跟他说句话' : ''}`}
       </p>
     </div>
   );

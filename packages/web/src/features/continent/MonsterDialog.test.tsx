@@ -50,6 +50,7 @@ function tileOf(id: string, over: Partial<ContinentTileView> = {}): ContinentTil
     stage: 0,
     inScope: true,
     hasMonster: true,
+    monsterKind: 'due',
     level: 1,
     species: speciesTypes(id, 1),
     discovered: false,

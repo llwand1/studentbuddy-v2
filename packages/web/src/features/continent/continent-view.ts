@@ -11,18 +11,29 @@
  *   `spreadLands` 算出来的**派生量**（按逾期天数定格数、确定性贪心定位置）。它必须与
  *   「谁有怪」同源——渲染层只认本文件的结论，不许自己再算一遍谁占了哪格（那份双写就是
  *   「图上画着红边、点进去说没怪」的开端）。故渲染层只读 `landOwner` / `walkable`。
+ *
+ * ★ 2026-09-29 两条新派生量（都仍是**派生、零存储**，口径在 shared）：
+ *   · **野怪** `monsterKind === 'wild'`：`shared/continent-wild.ts` 按「日历日 × 词条 id」稳定哈希每天点名
+ *     几条（范围外也算），让新用户第一天就有怪可打；它**不占地**（领地只从欠账怪长），打赢＝提前复习一次。
+ *     只有传了 `dayKey` 才刷（页面传本地日历日；不传就是旧口径，服务端 / 老测试不受影响）。
+ *   · **边界「+」** `frontier`：`shared/continent-expand.ts` 的 `frontierCells` 再排除掉怪的荒地领地格。
+ *     开拓出来的地块靠 `pins`（服务端随地图一并给）钉在点的那一格——铺格仍是同一份 `layoutTiles`。
  */
 import {
   CONTINENT_CODEX_SLOTS,
   cellKey,
   codexDiscovered,
+  frontierCells,
+  layoutRadius,
   layoutTiles,
+  monsterKindOf,
   monsterLevel,
-  monsterOccupies,
   speciesTypes,
   spreadLands,
-  worldRadiusFor,
+  wildMonsterIds,
   type ContinentLandSource,
+  type ContinentMonsterKind,
+  type ContinentPin,
   type ContinentQType,
   type ReviewStatus,
   type SpellKind,
@@ -46,8 +57,10 @@ export interface ContinentTileView {
   dueInDays: number;
   stage: number;
   inScope: boolean;
-  /** 该格是不是怪的本体（"有怪" ⟺ 它） */
+  /** 该格是不是怪的本体（"有怪" ⟺ 它；欠账怪与野怪都算） */
   hasMonster: boolean;
+  /** 怪的来路：`due` 欠账怪（到期/逾期，占地）／`wild` 野怪（每日随机保底，不占地）；无怪 `null` */
+  monsterKind: ContinentMonsterKind | null;
   /** 等级 = 题数 = 血量；无怪时为 0 */
   level: number;
   /** 怪的题型序列（＝每道题/每滴血；无怪时为空） */
@@ -81,8 +94,16 @@ export interface ContinentView {
    *   （用户看到的形态是"图上明明有红地，点它没反应"，正是本仓最忌的静默死路）。
    */
   wildLands: ContinentLandCell[];
-  /** 图上的怪数（今日可打的复习量） */
+  /** 图上的**欠账怪**数（今日该收复的复习量；野怪另计） */
   monsterCount: number;
+  /** 图上的**野怪**数（每日随机保底；打赢即"提前复习"一次） */
+  wildCount: number;
+  /**
+   * 边界上的「+」：世界内、没铺词条、四邻至少一格词条、且不在怪的荒地领地上的格。
+   * ★ 由 `shared/continent-expand.ts` 算（服务端校验用同一份口径），这里只是把荒地领地排除掉——
+   *   那格画着红边，再叠一个 + 就是两种语义打架。
+   */
+  frontier: ContinentCell[];
 
   /** 已纳入复习范围的词条数 */
   inScopeCount: number;
@@ -159,18 +180,28 @@ export interface ContinentViewOptions {
    * ★ 这是「英雄走位」这个纯前端状态进入派生层的唯一入口；不传＝没有英雄在场。
    */
   hero?: { row: number; col: number } | null;
+  /** 开拓出来的地块坐标（服务端 `GET /review/map` 一并给）；不传＝全走螺旋 */
+  pins?: readonly ContinentPin[];
+  /**
+   * 野怪的日历键（`localDayKey(new Date())`，由页面传入——本文件与 shared 一样不读时钟）。
+   * **不传＝不刷野怪**：只想看欠账怪的调用方（与旧用例）拿到的图与从前一样。
+   */
+  dayKey?: string;
 }
 
-/** 词条列表 → 地图视图模型（铺格顺序由 `layoutTiles` 定，早入库靠中心） */
+/** 词条列表 → 地图视图模型（铺格顺序由 `layoutTiles` 定，早入库靠中心；钉住的落钉子上） */
 export function buildContinentView(
   terms: readonly ContinentMapTerm[],
   opts: ContinentViewOptions = {},
 ): ContinentView {
-  const placed = layoutTiles(terms);
+  const pins = opts.pins ?? [];
+  const placed = layoutTiles(terms, pins);
+  const wild = opts.dayKey ? wildMonsterIds(terms, opts.dayKey) : new Set<string>();
   const termCells = new Set<string>();
-  /** 有怪的格子（＝领地扩散的源） */
+  /** 有欠账怪的格子（＝领地扩散的源；野怪不占地，不进这里） */
   const bodySources: ContinentLandSource[] = [];
   let monsterCount = 0;
+  let wildCount = 0;
   let inScopeCount = 0;
   let dueOutOfScope = 0;
   for (const { term, row, col } of placed) {
@@ -178,14 +209,16 @@ export function buildContinentView(
     const inScope = term.review_in_scope === 1;
     if (inScope) inScopeCount += 1;
     if (!inScope && (term.review.status === 'due' || term.review.status === 'overdue')) dueOutOfScope += 1;
-    if (monsterOccupies(term.review.status, inScope)) {
+    const kind = monsterKindOf(term, wild);
+    if (kind === 'wild') wildCount += 1;
+    if (kind === 'due') {
       monsterCount += 1;
       bodySources.push({ id: term.id, row, col, overdueDays: term.review.overdueDays });
     }
   }
   // ★ 领地只从**本体格**往外长（demo 口径），且跳过英雄脚下那一格
-  // ★ 世界半径与 `layoutTiles` 同源（都是 `worldRadiusFor(词条数)`）⇒ 领地边界不可能与铺格范围打架
-  const radius = worldRadiusFor(terms.length);
+  // ★ 世界半径与 `layoutTiles` 同源（都是 `layoutRadius(词条数, 钉子)`）⇒ 领地边界不可能与铺格范围打架
+  const radius = layoutRadius(terms.length, pins);
   const spread = spreadLands(bodySources, {
     radius,
     termCells,
@@ -195,7 +228,8 @@ export function buildContinentView(
 
   const tiles: ContinentTileView[] = placed.map(({ term, row, col }) => {
     const inScope = term.review_in_scope === 1;
-    const hasMonster = monsterOccupies(term.review.status, inScope);
+    const monsterKind = monsterKindOf(term, wild);
+    const hasMonster = monsterKind !== null;
     const level = monsterLevel(term.review_stage);
     // 本体格永远不会出现在 `spread.lands` 里（`spreadLands` 先占本体再长领地），故不必排除自己
     const landOwner = spread.lands.get(cellKey(row, col)) ?? null;
@@ -214,6 +248,7 @@ export function buildContinentView(
       stage: term.review_stage,
       inScope,
       hasMonster,
+      monsterKind,
       level: hasMonster ? level : 0,
       species: hasMonster ? speciesTypes(term.id, level) : [],
       discovered: (term.last_reviewed_at ?? '') !== '' || term.review_stage > 0,
@@ -239,10 +274,16 @@ export function buildContinentView(
     });
   }
 
+  // 边界上的「+」：荒地领地那些格排除掉（它们已经有一个身份了）
+  const landKeys = new Set(spread.lands.keys());
+  const frontier: ContinentCell[] = frontierCells(placed, radius, landKeys);
+
   return {
     tiles,
     wildLands,
     monsterCount,
+    wildCount,
+    frontier,
     inScopeCount,
     total: terms.length,
     radius,
@@ -268,6 +309,8 @@ export function cellHint(
     tiles: readonly ContinentTileView[];
     wildLands: readonly ContinentLandCell[];
     npcs: readonly { row: number; col: number; name: string; distressed: boolean }[];
+    /** 边界上的「+」（不传＝没有可开拓的格） */
+    frontier?: readonly ContinentCell[];
   },
 ): string | null {
   if (!cell) return null;
@@ -277,7 +320,10 @@ export function cellHint(
   if (t) return tileHint(t);
   const w = ctx.wildLands.find((x) => x.row === cell.row && x.col === cell.col);
   if (w) return `「${w.ownerTerm ?? ''}」怪的领地（荒地）· 领主共占 ${w.count} 格 · 点它复习领主`;
-  return '这一格还没铺上词条（走不过去）· 去「词条」页多存几条，它会从中心长出来';
+  if (ctx.frontier?.some((f) => f.row === cell.row && f.col === cell.col)) {
+    return '边界空地「+」· 点它开拓：领一条新词条，答对两道题，新地块就长在这一格';
+  }
+  return '这一格还没铺上词条（走不过去）· 去「词条」页多存几条，或点边界上的「+」开拓过去';
 }
 
 /**
@@ -321,7 +367,10 @@ export function cellLabel(t: Pick<ContinentTileView, 'row' | 'col'>): string {
 /** 一格的副标题（悬停面板/答题弹窗共用同一句，免得两处各写一套文案） */
 export function tileStatusText(t: ContinentTileView): string {
   if (t.isLand) return `被「${t.landOwnerTerm ?? ''}」占为领地 · 领主共占 ${t.territoryCount} 格`;
-  if (!t.inScope) return '未纳入复习范围 · 地图上只铺地，不冒怪';
+  if (t.monsterKind === 'wild') {
+    return `野怪 · 今天随机盯上了这条${t.inScope ? '' : '（未纳入复习范围，打赢即纳入）'} · ${t.daysSince} 天没碰`;
+  }
+  if (!t.inScope) return '未纳入复习范围 · 不冒欠账怪（野怪仍可能盯上它）';
   if (t.status === 'overdue') return `逾期 ${t.overdueDays} 天 · ${t.daysSince} 天没复习`;
   if (t.status === 'due') return `今天该复习 · ${t.daysSince} 天没复习`;
   if (t.status === 'mastered') return `已入长期记忆 · ${t.daysSince} 天前复习`;
@@ -330,6 +379,7 @@ export function tileStatusText(t: ContinentTileView): string {
 
 /** 悬停提示（一句话说清"这格是什么、点了会怎样"） */
 export function tileHint(t: ContinentTileView): string {
+  if (t.monsterKind === 'wild') return `${t.term}（${t.domain}）· ${t.level} 级野怪 · 走到旁边点它开打（打赢＝提前复习一次）`;
   if (t.hasMonster) return `${t.term}（${t.domain}）· ${t.level} 级怪 · 走到旁边点它开打`;
   if (t.isLand) return `「${t.landOwnerTerm ?? ''}」怪的领地 · 点它复习领主，收复这片地`;
   return `${t.term}（${t.domain}）· 已收复 · 点击查看`;

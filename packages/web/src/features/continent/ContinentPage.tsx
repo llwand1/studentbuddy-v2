@@ -3,33 +3,42 @@
  *
  * 页面只做四件事：**取数 → 派生视图 → 画地图 → 派发交互**。口径全在别处：
  *   取数 `api.terms.map()`、派生 `continent-view.ts`、出题/判分 `shared/continent.ts`、走位 `useContinentHero.ts`、
- *   绘制 `continent-canvas.ts`、相机 `useContinentCamera.ts`、答题 `MonsterDialog.tsx`、图鉴 `CodexPanel.tsx`、宝箱 `ContinentChest.tsx`。
+ *   绘制 `continent-canvas.ts`、相机 `useContinentCamera.ts`、答题 `MonsterDialog.tsx`、图鉴 `CodexPanel.tsx`、宝箱 `ContinentChest.tsx`、
+ *   开拓 `ExpandDialog.tsx`（2026-09-29）。
  *
- * ★ **只新增一个写口，而且是既有端点**：解锁/收复一律走 `api.terms.mark(id, true)`。答对 ⇒ 阶段推进 ⇒
- *   状态离开 due/overdue ⇒ 怪消失、领地回归；宝箱也走 `POST /api/cards/chest/open`（SPEC §4.2 零新表零迁移）。
- * ★ 打卡失败**不吞**：`mark` 对范围外词条会 409，虽然地图已按服务端结论不画这类怪，
- *   但真出现（数据刚好在两次请求间被改）也要把话念出来，而不是"点了没反应"。
+ * ★ 收复一律走既有 `api.terms.mark(id, true)`。答对 ⇒ 阶段推进 ⇒ 状态离开 due/overdue ⇒ 怪消失、领地回归；
+ *   宝箱也走 `POST /api/cards/chest/open`（SPEC §4.2 零新表零迁移）。
+ * ★ **野怪**（2026-09-29）：范围外的词条也会被野怪盯上，打赢它 = 先 `scopeTerm(id, true)` 纳入范围、再 `mark`——
+ *   弹窗里提前说了这一句，所以不是替用户偷偷勾选；范围内的野怪只是提前复习一次。
+ * ★ 打卡失败**不吞**：`mark` 对范围外词条会 409（正常路径已被上一条堵住），真出现也要把话念出来，而不是"点了没反应"。
  * ★ **点地走位**与**打怪**共用一次点击（够得着开打、够不着先走过去）；被挡也要说话（`heroCtl.blocked`），不许静默。
+ * ★ 开拓写口在 `/api/continent/expand/*`（服务端出词、出题、重判、落库、钉住）；本页只负责"点了哪枚 +"与事后重取地图。
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { SPELL_KIND_META, type SpellKind } from '@sb/shared';
+import { SPELL_KIND_META, localDayKey, type ContinentExpandOffer, type SpellKind } from '@sb/shared';
 import { api } from '../../lib/api';
-import type { ContinentMapTerm } from '../../lib/api-terms-continent';
+import type { ContinentMapPayload } from '../../lib/api-terms-continent';
 import { ContinentChest } from './ContinentChest';
+import { ContinentHeader } from './ContinentHeader';
 import { ContinentMap, type ContinentChestDrop } from './ContinentMap';
 import { ContinentPartners, useContinentPartners } from './continent-partners';
 import { ContinentDpad } from './continent-dpad';
+import { ExpandDialog } from './ExpandDialog';
 import { MonsterDialog } from './MonsterDialog';
 import { CodexPanel } from './CodexPanel';
 import { buildContinentView, canStrike, tileStatusText, type ContinentBurst, type ContinentTileView } from './continent-view';
 import { useContinentHero } from './useContinentHero';
+import { useContinentKeys } from './useContinentKeys';
 import './continent.css';
 
 export function ContinentPage() {
-  const [terms, setTerms] = useState<ContinentMapTerm[] | null>(null);
+  /** 地图原料（词条 + 钉子）；`null` = 还没取到 */
+  const [data, setData] = useState<ContinentMapPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   /** 打怪弹窗（有怪的地块，或"点领地 → 打领主"） */
   const [hunting, setHunting] = useState<ContinentTileView | null>(null);
+  /** 开拓弹窗（点了边界上的哪枚「+」） */
+  const [expanding, setExpanding] = useState<{ row: number; col: number } | null>(null);
   /** 普通地块的详情卡（已收复 / 范围外） */
   const [detail, setDetail] = useState<ContinentTileView | null>(null);
   const [showCodex, setShowCodex] = useState(false);
@@ -51,7 +60,8 @@ export function ContinentPage() {
     try {
       // ★ 地图与伙伴并发取（伙伴那一口自己并发取两处，见 `continent-partners.tsx`）
       const [map] = await Promise.all([api.terms.map(), partners.refresh()]);
-      setTerms(map.terms);
+      // ★ `pins ?? []`：老服务端（或用例桩）不带钉子时也要能铺——缺钉子只是全走螺旋，不是错误
+      setData({ terms: map.terms, pins: map.pins ?? [] });
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -69,25 +79,52 @@ export function ContinentPage() {
    * ★ 收敛性：英雄起点取自 ① 里第一格可通行的地块；它在 ② 里正好被记为"英雄格"而不会被占，
    *   所以起点稳定、不会两次派生来回抖（这条不稳就会表现为"英雄每帧都在跳"）。
    */
-  const baseView = useMemo(() => buildContinentView(terms ?? []), [terms]);
+  // ★ 野怪的日历键在这里取（派生层不读时钟）：同一天怎么刷新都是同几只，过了午夜下次取数就换一批
+  const dayKey = localDayKey(new Date());
+  const terms = data?.terms;
+  const pins = data?.pins;
+  const baseView = useMemo(() => buildContinentView(terms ?? [], { pins, dayKey }), [terms, pins, dayKey]);
   const heroCtl = useContinentHero(baseView.tiles);
-  const view = useMemo(() => buildContinentView(terms ?? [], { hero: heroCtl.hero }), [terms, heroCtl.hero]);
+  const view = useMemo(
+    () => buildContinentView(terms ?? [], { hero: heroCtl.hero, pins, dayKey }),
+    [terms, pins, dayKey, heroCtl.hero],
+  );
 
   /** 全部答对：打卡 → 关弹窗 → 播特效（咒语补刀放该款式的咒语版）→ 地上留一箱 → 重取地图（怪随之消失、领地回归） */
   const solve = useCallback(
     async (tile: ContinentTileView, spell?: SpellKind) => {
       try {
+        // ★ 范围外的野怪：先纳入复习范围再打卡（否则 `mark` 必 409）。弹窗副标题已经把这一步说在前面。
+        const adopted = tile.monsterKind === 'wild' && !tile.inScope;
+        if (adopted) await api.terms.scopeTerm(tile.id, true);
         await api.terms.mark(tile.id, true);
         setHunting(null);
         setBurst({ ...tile, spell });
         setDrops((d) =>
           d.some((x) => x.row === tile.row && x.col === tile.col) ? d : [...d, { row: tile.row, col: tile.col, term: tile.term }],
         );
-        setNotice(`${spell ? `「${SPELL_KIND_META[spell].name}」命中，` : ''}收复了「${tile.term}」——复习阶段推进，这块地回到你手里，地上留下一个宝箱。`);
+        const hit = spell ? `「${SPELL_KIND_META[spell].name}」命中，` : '';
+        setNotice(
+          tile.monsterKind === 'wild'
+            ? `${hit}打跑了野怪「${tile.term}」——算你提前复习了一次${adopted ? '，这条词条已纳入复习范围' : ''}，地上留下一个宝箱。`
+            : `${hit}收复了「${tile.term}」——复习阶段推进，这块地回到你手里，地上留下一个宝箱。`,
+        );
         await load();
       } catch (e) {
         setNotice(`${e instanceof Error ? e.message : String(e)}`);
       }
+    },
+    [load],
+  );
+
+  /** 开拓成功：新词条已落库并钉在那一格 ⇒ 关弹窗 → 回话（含来源，如实）→ 重取地图（新地块从那一格长出来） */
+  const expanded = useCallback(
+    async (offer: ContinentExpandOffer) => {
+      setExpanding(null);
+      setNotice(
+        `开拓成功：「${offer.term}」在这块新地上长出来了${offer.source === 'ai' ? '（模型按邻近领域生成）' : '（来自内置词池）'}——明天起它会按曲线到期。`,
+      );
+      await load();
     },
     [load],
   );
@@ -138,7 +175,10 @@ export function ContinentPage() {
       if (tile) {
         heroCtl.walkTo(row, col);
         setDetail(tile);
+        return;
       }
+      // ★ 边界上的「+」：这一格没有词条也没有领地，但它是开拓入口——点了就领一块（不要求英雄相邻：开拓是"规划"，不是"打"）
+      if (view.frontier.some((f) => f.row === row && f.col === col)) setExpanding({ row, col });
     },
     [drops, heroCtl, view, partners.partners, partners.placing, partners.placeAt],
   );
@@ -153,69 +193,17 @@ export function ContinentPage() {
   }, [view.tiles, heroCtl]);
 
   /** 键盘走位（方向键 / WASD）。弹窗开着时让位——不然打字会变成走路 */
-  const stepHero = heroCtl.step;
-  const frozen = hunting !== null || chestAt !== null || npcOpenId !== null;
-  useEffect(() => {
-    if (frozen) return;
-    const dirs: Record<string, [number, number]> = {
-      arrowup: [-1, 0],
-      arrowdown: [1, 0],
-      arrowleft: [0, -1],
-      arrowright: [0, 1],
-      w: [-1, 0],
-      s: [1, 0],
-      a: [0, -1],
-      d: [0, 1],
-    };
-    const onKey = (e: KeyboardEvent): void => {
-      const dir = dirs[e.key.toLowerCase()];
-      if (!dir) return;
-      e.preventDefault();
-      stepHero(dir[0], dir[1]);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [frozen, stepHero]);
+  useContinentKeys(hunting !== null || chestAt !== null || npcOpenId !== null || expanding !== null, heroCtl.step);
 
   return (
     <div className="continent-page">
-      <header className="continent-head">
-        <h1>
-          知识大陆
-          <small>
-            词条从中心长出来；逾期未复习的会被怪占领并向外扩地——走过它们旁边开打，答对就把地收回来
-          </small>
-        </h1>
-        <div className="continent-stats">
-          <span>
-            词条 <b>{view.total}</b>
-          </span>
-          <span>
-            已纳入复习 <b>{view.inScopeCount}</b>
-          </span>
-          <span className={view.monsterCount > 0 ? 'continent-stat-warn' : ''}>
-            待收复的怪 <b>{view.monsterCount}</b>
-          </span>
-          <span className={view.landCount > 0 ? 'continent-stat-warn' : ''}>
-            被占领的地 <b>{view.landCount}</b>
-          </span>
-          <span>
-            图鉴 <b>{view.codexFound.size}</b>/{view.codexTotal}
-          </span>
-          <button className="continent-btn" onClick={() => setShowCodex((v) => !v)}>
-            {showCodex ? '收起图鉴' : '看图鉴'}
-          </button>
-          <button className="continent-btn ghost" onClick={() => void load()}>
-            刷新
-          </button>
-        </div>
-      </header>
+      <ContinentHeader view={view} showCodex={showCodex} onToggleCodex={() => setShowCodex((v) => !v)} onReload={() => void load()} />
 
       {notice && <p className="continent-banner">{notice}</p>}
       {view.dueOutOfScope > 0 && (
         <p className="continent-banner dim">
-          还有 {view.dueOutOfScope} 条到期词条没纳入复习范围，它们只铺地、不冒怪——
-          在「词条」页把它们或所属领域勾进复习范围后，这里就会冒出来。
+          还有 {view.dueOutOfScope} 条到期词条没纳入复习范围，它们不会冒欠账怪（只可能被野怪盯上）——
+          在「词条」页把它们或所属领域勾进复习范围后，这里就会按曲线催你。
         </p>
       )}
 
@@ -235,8 +223,8 @@ export function ContinentPage() {
       />
 
       {error && <p className="continent-banner warn">地图加载失败：{error}</p>}
-      {terms === null && !error && <p className="continent-banner dim">正在展开大陆…</p>}
-      {terms !== null && view.total === 0 && (
+      {data === null && !error && <p className="continent-banner dim">正在展开大陆…</p>}
+      {data !== null && view.total === 0 && (
         <p className="continent-banner dim">
           大陆还是一片空地。先去「词条」页添加，或在对话里存几条词条——它们会从中心长出来，
           你那位学习伙伴也在等它的第一条词条。
@@ -255,6 +243,7 @@ export function ContinentPage() {
           npcs={partners.marks}
           npcBubble={partners.bubble}
           placeSpots={partners.placeSpots}
+          frontier={view.frontier}
           recenterTick={recenter}
           onPick={pick}
           burst={burst}
@@ -275,6 +264,8 @@ export function ContinentPage() {
       {hunting && (
         <MonsterDialog tile={hunting} pool={terms ?? []} onSolved={solve} onClose={() => setHunting(null)} />
       )}
+
+      {expanding && <ExpandDialog cell={expanding} onExpanded={(_r, offer) => expanded(offer)} onClose={() => setExpanding(null)} />}
 
       {detail && (
         <div className="continent-detail">

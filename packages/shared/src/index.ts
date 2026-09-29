@@ -24,6 +24,8 @@ export * from './term-graph.js';
 export * from './adaptive.js';
 export * from './review-goal.js';
 export * from './continent.js';
+export * from './continent-expand.js';
+export * from './continent-wild.js';
 export * from './ai-ops.js';
 export * from './npc.js';
 export * from './npc-life.js';

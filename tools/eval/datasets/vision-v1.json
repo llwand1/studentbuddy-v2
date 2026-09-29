@@ -1,0 +1,594 @@
+{
+ "version": "vision-v1",
+ "note": "看图核验评测集：20 张 Wikimedia Commons 图（标注者逐张看过），每张配正确主题与相近干扰主题，外加 2 条部分相符与 4 条出题泄露样本。",
+ "cases": [
+  {
+   "id": "v00a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/72/Animal_mitochondrion_diagram_as.svg/960px-Animal_mitochondrion_diagram_as.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Animal_mitochondrion_diagram_as.svg",
+    "license": "CC BY-SA 4.0"
+   },
+   "subject": "线粒体",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v00b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/72/Animal_mitochondrion_diagram_as.svg/960px-Animal_mitochondrion_diagram_as.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Animal_mitochondrion_diagram_as.svg",
+    "license": "CC BY-SA 4.0"
+   },
+   "subject": "叶绿体",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v01a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/09/Chloroplast_%28standalone_version%29-en.svg/960px-Chloroplast_%28standalone_version%29-en.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Chloroplast_(standalone_version)-en.svg",
+    "license": "CC0"
+   },
+   "subject": "叶绿体",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v01b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/09/Chloroplast_%28standalone_version%29-en.svg/960px-Chloroplast_%28standalone_version%29-en.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Chloroplast_(standalone_version)-en.svg",
+    "license": "CC0"
+   },
+   "subject": "线粒体",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v02a",
+   "image": {
+    "url": "https://upload.wikimedia.org/wikipedia/commons/c/c4/DNA_double_helix_horizontal.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:DNA_double_helix_horizontal.png",
+    "license": "Public domain"
+   },
+   "subject": "DNA 双螺旋",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v02b",
+   "image": {
+    "url": "https://upload.wikimedia.org/wikipedia/commons/c/c4/DNA_double_helix_horizontal.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:DNA_double_helix_horizontal.png",
+    "license": "Public domain"
+   },
+   "subject": "蛋白质的 α 螺旋",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v03a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a8/Tour_Eiffel_Wikimedia_Commons.jpg/960px-Tour_Eiffel_Wikimedia_Commons.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Tour_Eiffel_Wikimedia_Commons.jpg",
+    "license": "Public domain"
+   },
+   "subject": "埃菲尔铁塔",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v03b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a8/Tour_Eiffel_Wikimedia_Commons.jpg/960px-Tour_Eiffel_Wikimedia_Commons.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Tour_Eiffel_Wikimedia_Commons.jpg",
+    "license": "Public domain"
+   },
+   "subject": "东京塔",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v04a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fa/Great_Wall_of_China_July_2006.JPG/960px-Great_Wall_of_China_July_2006.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Great_Wall_of_China_July_2006.JPG",
+    "license": "CC0"
+   },
+   "subject": "长城",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v04b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fa/Great_Wall_of_China_July_2006.JPG/960px-Great_Wall_of_China_July_2006.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Great_Wall_of_China_July_2006.JPG",
+    "license": "CC0"
+   },
+   "subject": "紫禁城",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v05a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d8/NASA_Mars_Rover.jpg/960px-NASA_Mars_Rover.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:NASA_Mars_Rover.jpg",
+    "license": "Public domain"
+   },
+   "subject": "火星车",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v05b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d8/NASA_Mars_Rover.jpg/960px-NASA_Mars_Rover.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:NASA_Mars_Rover.jpg",
+    "license": "Public domain"
+   },
+   "subject": "土星",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v06a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ca/Top_view_of_the_rings_of_Saturn_by_Cassini_-_October_10%2C_2013.jpg/960px-Top_view_of_the_rings_of_Saturn_by_Cassini_-_October_10%2C_2013.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Top_view_of_the_rings_of_Saturn_by_Cassini_-_October_10,_2013.jpg",
+    "license": "Public domain"
+   },
+   "subject": "土星",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v06b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ca/Top_view_of_the_rings_of_Saturn_by_Cassini_-_October_10%2C_2013.jpg/960px-Top_view_of_the_rings_of_Saturn_by_Cassini_-_October_10%2C_2013.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Top_view_of_the_rings_of_Saturn_by_Cassini_-_October_10,_2013.jpg",
+    "license": "Public domain"
+   },
+   "subject": "木星",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v07a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c7/Grumman_E-2C_Hawkeyes_of_VAW-115_fly_past_Mount_Fuji_on_15_February_2007_%28070215-N-2604L-024%29.jpg/960px-Grumman_E-2C_Hawkeyes_of_VAW-115_fly_past_Mount_Fuji_on_15_February_2007_%28070215-N-2604L-024%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Grumman_E-2C_Hawkeyes_of_VAW-115_fly_past_Mount_Fuji_on_15_February_2007_(070215-N-2604L-024).jpg",
+    "license": "Public domain"
+   },
+   "subject": "舰载预警机",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v07b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c7/Grumman_E-2C_Hawkeyes_of_VAW-115_fly_past_Mount_Fuji_on_15_February_2007_%28070215-N-2604L-024%29.jpg/960px-Grumman_E-2C_Hawkeyes_of_VAW-115_fly_past_Mount_Fuji_on_15_February_2007_%28070215-N-2604L-024%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Grumman_E-2C_Hawkeyes_of_VAW-115_fly_past_Mount_Fuji_on_15_February_2007_(070215-N-2604L-024).jpg",
+    "license": "Public domain"
+   },
+   "subject": "直升机",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v08a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e0/Heart_diagram-en.svg/960px-Heart_diagram-en.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Heart_diagram-en.svg",
+    "license": "CC BY-SA 3.0"
+   },
+   "subject": "心脏的结构",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v08b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e0/Heart_diagram-en.svg/960px-Heart_diagram-en.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Heart_diagram-en.svg",
+    "license": "CC BY-SA 3.0"
+   },
+   "subject": "肺的结构",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v09a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/30/Qin_Terracotta_Army%2C_Pit_1_04.jpg/960px-Qin_Terracotta_Army%2C_Pit_1_04.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Qin_Terracotta_Army,_Pit_1_04.jpg",
+    "license": "CC0"
+   },
+   "subject": "兵马俑",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v09b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/30/Qin_Terracotta_Army%2C_Pit_1_04.jpg/960px-Qin_Terracotta_Army%2C_Pit_1_04.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Qin_Terracotta_Army,_Pit_1_04.jpg",
+    "license": "CC0"
+   },
+   "subject": "敦煌莫高窟",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v10a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg/960px-Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Mona_Lisa,_by_Leonardo_da_Vinci,_from_C2RMF_retouched.jpg",
+    "license": "Public domain"
+   },
+   "subject": "蒙娜丽莎",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v10b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg/960px-Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Mona_Lisa,_by_Leonardo_da_Vinci,_from_C2RMF_retouched.jpg",
+    "license": "Public domain"
+   },
+   "subject": "戴珍珠耳环的少女",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v11a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4d/Periodic_table_large.svg/960px-Periodic_table_large.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Periodic_table_large.svg",
+    "license": "CC BY 3.0"
+   },
+   "subject": "元素周期表",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v11b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4d/Periodic_table_large.svg/960px-Periodic_table_large.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Periodic_table_large.svg",
+    "license": "CC BY 3.0"
+   },
+   "subject": "乘法表",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v12a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3a/Water_cycle_diagram-vi.svg/960px-Water_cycle_diagram-vi.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Water_cycle_diagram-vi.svg",
+    "license": "CC BY-SA 4.0"
+   },
+   "subject": "水循环",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v12b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3a/Water_cycle_diagram-vi.svg/960px-Water_cycle_diagram-vi.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Water_cycle_diagram-vi.svg",
+    "license": "CC BY-SA 4.0"
+   },
+   "subject": "碳循环",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v13a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1e/Mitosis_Stages_-_Persian.svg/960px-Mitosis_Stages_-_Persian.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Mitosis_Stages_-_Persian.svg",
+    "license": "CC BY-SA 4.0"
+   },
+   "subject": "有丝分裂",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v13b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1e/Mitosis_Stages_-_Persian.svg/960px-Mitosis_Stages_-_Persian.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Mitosis_Stages_-_Persian.svg",
+    "license": "CC BY-SA 4.0"
+   },
+   "subject": "减数分裂",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v14a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/59/Sunflower_field_Milky_Way.jpg/960px-Sunflower_field_Milky_Way.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Sunflower_field_Milky_Way.jpg",
+    "license": "CC BY-SA 4.0"
+   },
+   "subject": "向日葵",
+   "expect": [
+    "yes",
+    "partial"
+   ]
+  },
+  {
+   "id": "v14b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/59/Sunflower_field_Milky_Way.jpg/960px-Sunflower_field_Milky_Way.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Sunflower_field_Milky_Way.jpg",
+    "license": "CC BY-SA 4.0"
+   },
+   "subject": "油菜花",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v15a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/74/Taj_Mahal%2C_Agra%2C_India_edit2.jpg/960px-Taj_Mahal%2C_Agra%2C_India_edit2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Taj_Mahal,_Agra,_India_edit2.jpg",
+    "license": "CC BY-SA 4.0"
+   },
+   "subject": "泰姬陵",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v15b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/74/Taj_Mahal%2C_Agra%2C_India_edit2.jpg/960px-Taj_Mahal%2C_Agra%2C_India_edit2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Taj_Mahal,_Agra,_India_edit2.jpg",
+    "license": "CC BY-SA 4.0"
+   },
+   "subject": "圣索菲亚大教堂",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v16a",
+   "image": {
+    "url": "https://upload.wikimedia.org/wikipedia/commons/9/93/Stromboli_Eruption.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Stromboli_Eruption.jpg",
+    "license": "CC BY-SA 3.0"
+   },
+   "subject": "火山喷发",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v16b",
+   "image": {
+    "url": "https://upload.wikimedia.org/wikipedia/commons/9/93/Stromboli_Eruption.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Stromboli_Eruption.jpg",
+    "license": "CC BY-SA 3.0"
+   },
+   "subject": "森林火灾",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v17a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f5/1794_Boulton_and_Anville_Wall_Map_of_Africa_%28most_important_18th_cntry_map_of_Africa%29_-_Geographicus_-_Africa2-boulton-1794.jpg/960px-1794_Boulton_and_Anville_Wall_Map_of_Africa_%28most_important_18th_cntry_map_of_Africa%29_-_Geographicus_-_Africa2-boulton-1794.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:1794_Boulton_and_Anville_Wall_Map_of_Africa_(most_important_18th_cntry_map_of_Africa)_-_Geographicus_-_Africa2-boulton-1794.jpg",
+    "license": "Public domain"
+   },
+   "subject": "非洲地图",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v17b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f5/1794_Boulton_and_Anville_Wall_Map_of_Africa_%28most_important_18th_cntry_map_of_Africa%29_-_Geographicus_-_Africa2-boulton-1794.jpg/960px-1794_Boulton_and_Anville_Wall_Map_of_Africa_%28most_important_18th_cntry_map_of_Africa%29_-_Geographicus_-_Africa2-boulton-1794.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:1794_Boulton_and_Anville_Wall_Map_of_Africa_(most_important_18th_cntry_map_of_Africa)_-_Geographicus_-_Africa2-boulton-1794.jpg",
+    "license": "Public domain"
+   },
+   "subject": "南美洲地图",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v18a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a9/Complete_neuron_cell_diagram_en.svg/960px-Complete_neuron_cell_diagram_en.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Complete_neuron_cell_diagram_en.svg",
+    "license": "Public domain"
+   },
+   "subject": "神经元",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v18b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a9/Complete_neuron_cell_diagram_en.svg/960px-Complete_neuron_cell_diagram_en.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Complete_neuron_cell_diagram_en.svg",
+    "license": "Public domain"
+   },
+   "subject": "植物细胞",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v19a",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/af/All_Gizah_Pyramids.jpg/960px-All_Gizah_Pyramids.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:All_Gizah_Pyramids.jpg",
+    "license": "CC BY-SA 2.0"
+   },
+   "subject": "吉萨金字塔",
+   "expect": [
+    "yes"
+   ]
+  },
+  {
+   "id": "v19b",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/af/All_Gizah_Pyramids.jpg/960px-All_Gizah_Pyramids.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:All_Gizah_Pyramids.jpg",
+    "license": "CC BY-SA 2.0"
+   },
+   "subject": "玛雅金字塔",
+   "expect": [
+    "no"
+   ]
+  },
+  {
+   "id": "v07c",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c7/Grumman_E-2C_Hawkeyes_of_VAW-115_fly_past_Mount_Fuji_on_15_February_2007_%28070215-N-2604L-024%29.jpg/960px-Grumman_E-2C_Hawkeyes_of_VAW-115_fly_past_Mount_Fuji_on_15_February_2007_%28070215-N-2604L-024%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Grumman_E-2C_Hawkeyes_of_VAW-115_fly_past_Mount_Fuji_on_15_February_2007_(070215-N-2604L-024).jpg",
+    "license": "Public domain"
+   },
+   "subject": "富士山",
+   "expect": [
+    "partial"
+   ],
+   "note": "山只是背景，主体是飞机"
+  },
+  {
+   "id": "v05c",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d8/NASA_Mars_Rover.jpg/960px-NASA_Mars_Rover.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:NASA_Mars_Rover.jpg",
+    "license": "Public domain"
+   },
+   "subject": "火星（行星全貌）",
+   "expect": [
+    "partial",
+    "no"
+   ],
+   "note": "画的是火星表面上的探测车，不是行星照片"
+  },
+  {
+   "id": "L01",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/09/Chloroplast_%28standalone_version%29-en.svg/960px-Chloroplast_%28standalone_version%29-en.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Chloroplast_(standalone_version)-en.svg",
+    "license": "CC0"
+   },
+   "subject": "叶绿体",
+   "expect": [
+    "yes"
+   ],
+   "quiz": {
+    "question": "图中这个细胞器叫什么？",
+    "answers": [
+     "叶绿体"
+    ]
+   },
+   "expectLeak": true,
+   "note": "图上印着 the chloroplast"
+  },
+  {
+   "id": "L11",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4d/Periodic_table_large.svg/960px-Periodic_table_large.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Periodic_table_large.svg",
+    "license": "CC BY 3.0"
+   },
+   "subject": "元素周期表",
+   "expect": [
+    "yes"
+   ],
+   "quiz": {
+    "question": "铁（Fe）的原子序数是多少？",
+    "answers": [
+     "26"
+    ]
+   },
+   "expectLeak": true,
+   "note": "周期表上直接标着 26"
+  },
+  {
+   "id": "L10",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg/960px-Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Mona_Lisa,_by_Leonardo_da_Vinci,_from_C2RMF_retouched.jpg",
+    "license": "Public domain"
+   },
+   "subject": "蒙娜丽莎",
+   "expect": [
+    "yes"
+   ],
+   "quiz": {
+    "question": "这幅画的作者是谁？",
+    "answers": [
+     "达·芬奇"
+    ]
+   },
+   "expectLeak": false,
+   "note": "画面无文字"
+  },
+  {
+   "id": "L00",
+   "image": {
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/72/Animal_mitochondrion_diagram_as.svg/960px-Animal_mitochondrion_diagram_as.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "pageUrl": "https://commons.wikimedia.org/wiki/File:Animal_mitochondrion_diagram_as.svg",
+    "license": "CC BY-SA 4.0"
+   },
+   "subject": "线粒体",
+   "expect": [
+    "yes"
+   ],
+   "quiz": {
+    "question": "图中细胞器的主要功能是什么？",
+    "answers": [
+     "有氧呼吸的主要场所，产生 ATP"
+    ]
+   },
+   "expectLeak": false,
+   "note": "示意图无标注"
+  }
+ ]
+}

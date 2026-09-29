@@ -33,6 +33,14 @@ export function QuizQuestionItem({ q, index, onComplete, topic }: {
     <section className={`quiz-q${result ? ` is-${result.verdict}` : ''}`} aria-label={`第 ${index + 1} 题`}>
       <div className="quiz-q-title"><span className="quiz-q-type">{index + 1} · {label}</span>{q.question}</div>
       {q.svg && <div className="quiz-q-svg"><SvgPreviewCard code={q.svg} streaming={false} /></div>}
+      {q.photo && (
+        <figure className="quiz-q-photo">
+          <img src={q.photo.src} alt={q.photo.alt} loading="lazy" />
+          <figcaption>
+            {q.photo.pageUrl ? <a href={q.photo.pageUrl} target="_blank" rel="noreferrer noopener">{q.photo.credit}</a> : q.photo.credit}
+          </figcaption>
+        </figure>
+      )}
       {choice && options.map((option, i) => {
         const correct = !!result && Array.isArray(q.answer) && q.answer.map(Number).includes(i);
         return <button key={i} className={`quiz-opt${picked.includes(i) ? ' picked' : ''}${correct ? ' right' : ''}`}

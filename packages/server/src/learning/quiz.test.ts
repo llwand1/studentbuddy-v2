@@ -28,6 +28,8 @@ import { saveAnswerStyle, loadAnswerStyle } from '../storage/answer-style.js';
 
 // generateQuiz 的 LLM 调用走 mock（捕获出站 prompt；本文件其余用例不触 LLM）——同 terms.test.ts 手法
 let lastPrompt = '';
+// 网络配图步骤单测在 quiz-photo.test.ts；这里屏蔽它，免得规划调用覆盖掉被捕获的出题提示词
+vi.mock('./quiz-photo.js', () => ({ attachQuizPhotos: async () => 0 }));
 vi.mock('../llm/router.js', () => ({
   routeRole: () => ({
     adapter: {

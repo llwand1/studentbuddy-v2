@@ -53,6 +53,20 @@ export interface QuizQuestion {
    * 可选字段：历史题无此键 → undefined → 不渲染，**不做数据迁移**；判分逻辑不读它，图只作附加展示。
    */
   svg?: string;
+  /**
+   * 网络配图（2026-09-29，`learning/quiz-photo.ts`）：从 Commons/Bing 找来、经看图核验且不泄露答案的真实图片。
+   * 与 `svg` 并存（那是模型手绘的示意图）。可选字段：历史题无此键 → 不渲染；判分不读它，题目不看图也能答。
+   */
+  photo?: QuizPhoto;
+}
+
+export interface QuizPhoto {
+  /** 站内地址 `/api/images/<hash>.<ext>` */
+  src: string;
+  alt: string;
+  /** 署名：来源 · 作者 · 许可（纯文本） */
+  credit: string;
+  pageUrl?: string;
 }
 
 export interface QuizPayload {

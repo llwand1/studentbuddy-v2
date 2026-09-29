@@ -86,7 +86,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 | **合计** | **≈ 220 MB** | 其中 **≈130MB 是「跑源码」的税** |
 
 `systemctl show studentbuddy -p MemoryCurrent` = 138MB（仅主进程），`MemoryMax` = 419430400（400MB）。
-⇒ 编译态切换（`node dist/index.js`）的预期收益即这 130MB；实现方案尚未成文（`DEPLOY.md` §3 第 1 条只登记了「现状跑源码」这一事实）。
+⇒ 编译态切换（`node dist/index.js`）的预期收益即这 130MB。
+★ **2026-09-29 已切**：线上 `ExecStart` 改为 `node packages/server/dist/index.js`，实测切换后**单进程 RSS 78MB**、启动约 1 秒。上面那张四进程表是切换前的留档，不再代表现状。
 
 复现：`ps -eo pid,ppid,rss,comm,args --sort=-rss | head`
 
@@ -140,10 +141,10 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 | 项 | 线上 | 仓库要求 | 状态 |
 |---|---|---|---|
-| Node | v20.20.2 | `engines: >=22.11.0` + `.nvmrc` | ❌ **违约运行**（能跑，但不受保证） |
-| schema 水位 | v36 | 代码侧 v37 | ⚠️ 落后一次迁移，下次重启才会应用 |
-| 部署形态 | ssh 直传 + systemd，跑源码 | —— | 容器化/编译态均未做 |
-| Docker | **已装**（docker-ce 29.8.1 + compose 5.5.1） | —— | ❌ `docker.service` failed：`/etc/docker/daemon.json` 内是一行非 JSON 文本（写入于 2026-06-23 12:40，三个月后首次重启才引爆）；`/var/lib/docker` 424K ⇒ 从未真正跑过容器 |
+| Node | v22.23.2 | `engines: >=22.11.0` + `.nvmrc` | ✅ 符合（2026-09-29 实测） |
+| schema 水位 | v50 | 代码侧 v50 | ✅ 一致（2026-09-29 实测） |
+| 部署形态 | ssh 直传 + systemd，跑**编译产物** | —— | 编译态已落地（2026-09-29）；容器化＝本机跑通的备选形态，线上已决策不切（部署切换手册 §4.0） |
+| Docker | **已装且可用**（docker-ce 29.8.1 + compose 5.5.1） | —— | 2026-09-29 复测：`/etc/docker/daemon.json` 已是合法 JSON、`docker run --rm hello-world` 通过、`docker ps -a` 空 ⇒ 此前「failed 三个月 / 从未跑过真容器」已不成立 |
 
 ## 作废登记
 

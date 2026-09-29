@@ -1,4 +1,4 @@
-# deploy/docker/Caddyfile —— compose 用的反向代理配置（EXPERIMENTAL，与 docker-compose.yml 定性一致）
+# deploy/docker/Caddyfile —— compose 用的反向代理配置（备选形态，与 docker-compose.yml 定性一致；线上不切见 tools/docker/部署切换手册.md §4.0）
 #
 # 默认档：纯 HTTP 本地起测（无域名、无证书，`http://localhost:8080` 直接可用）。
 # 生产档：把下面 `:80 {` 换成你的域名（例如 `example.com {`），取消 443 段的注释——

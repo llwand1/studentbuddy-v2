@@ -1,7 +1,7 @@
 # ⚠️ EXPERIMENTAL（定性 2026-09-24）→ ★ **2026-09-27 本机（Windows·Docker Desktop/WSL2）实机跑通**：
 #   build/全栈/注册登录链路/持久卷重起均实测通过（拦路石＝本机镜像拉取源失效，非本文件）。
-#   **线上服务器仍未切容器形态**：服务器 compose 从未跑过，且现网 systemd caddy 占着宿主 80/443，
-#   切换必须先停旧形态（见 tools/docker/部署切换手册.md §4，未执行）。
+#   **线上确定不切容器形态**（2026-09-29 复评）：现网 Caddyfile 五处接线与三件运维件绑死宿主路径与宿主回环，照手册 §4 直切会丢统计、报告、第二个站点与监控；
+#   清单见 tools/docker/部署切换手册.md §4.0（真要切，前置改造在那）。
 # 线上真实运行形态仍是「ssh 直传 + systemd + Caddy」，判断标准见 DEPLOY.md：
 #   - better-sqlite3 风险已排除：v11.10.0 命中 node-v127 prebuilt，未走 gyp 现编（09-27 实测）；
 #   - web/dist 靠一次性容器拷入共享卷，**站点文件放卷根**、主 caddy 挂 /srv 自服务＋SPA 兜底

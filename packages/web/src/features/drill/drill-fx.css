@@ -1,0 +1,247 @@
+/* drill-fx — 刷词命中特效（契约 docs/WAIT-DRILL-SPEC.md §5.3）。
+   五款答对（slash 斩击 / burst 爆裂 / star 星芒 / bolt 电光 / ink 血墨）+ 答错碎裂 + 连击大字。
+   口径：只用 steps()；只动 transform / opacity / clip-path；默认态即终态（粒子静止 = 不可见）；
+   prefers-reduced-motion 下全局关动画 ⇒ 粒子直接不存在，不闪不晃。 */
+
+.drill-fx {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.drill-fx i,
+.drill-fx-boltline,
+.drill-fx-crack {
+  position: absolute;
+  opacity: 0;
+}
+
+/* ── slash 斩击：两道白刃斜切，卡面顺势闪一下 ── */
+.drill-fx-slash i {
+  top: 50%;
+  left: -20%;
+  width: 140%;
+  height: 6px;
+  background: linear-gradient(90deg, transparent, #fff8e6 30%, #fff 50%, #fff8e6 70%, transparent);
+  box-shadow: 0 0 0 2px rgba(255, 244, 224, 0.35), 0 0 18px #ffd88a;
+  transform-origin: center;
+  animation: drill-slash 420ms steps(6);
+}
+.drill-fx-slash i:nth-child(1) { transform: rotate(-24deg); animation-name: drill-slash-a; }
+.drill-fx-slash i:nth-child(2) { transform: rotate(18deg); animation-name: drill-slash-b; animation-delay: 90ms; }
+.drill-fx-slash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  animation: drill-flash 240ms steps(3);
+}
+@keyframes drill-slash-a {
+  0% { opacity: 0; clip-path: inset(0 100% 0 0); transform: rotate(-24deg); }
+  10% { opacity: 1; }
+  60% { clip-path: inset(0 0 0 0); opacity: 1; }
+  100% { clip-path: inset(0 0 0 100%); opacity: 0; transform: rotate(-24deg); }
+}
+@keyframes drill-slash-b {
+  0% { opacity: 0; clip-path: inset(0 0 0 100%); transform: rotate(18deg); }
+  10% { opacity: 1; }
+  60% { clip-path: inset(0 0 0 0); opacity: 1; }
+  100% { clip-path: inset(0 100% 0 0); opacity: 0; transform: rotate(18deg); }
+}
+@keyframes drill-flash { 0% { opacity: 0.55; } 100% { opacity: 0; } }
+
+/* ── burst 像素爆裂：12 粒方块从中心四散 ── */
+.drill-fx-burst i {
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  background: var(--gr-gold);
+  box-shadow: 2px 2px 0 #000;
+  animation: drill-burst 520ms steps(7) forwards;
+}
+.drill-fx-burst i:nth-child(1) { --dx: 0; --dy: -120px; }
+.drill-fx-burst i:nth-child(2) { --dx: 70px; --dy: -100px; background: #fff4e0; }
+.drill-fx-burst i:nth-child(3) { --dx: 120px; --dy: -40px; }
+.drill-fx-burst i:nth-child(4) { --dx: 130px; --dy: 30px; background: var(--sb-primary); }
+.drill-fx-burst i:nth-child(5) { --dx: 80px; --dy: 100px; }
+.drill-fx-burst i:nth-child(6) { --dx: 10px; --dy: 125px; background: #fff4e0; }
+.drill-fx-burst i:nth-child(7) { --dx: -60px; --dy: 110px; }
+.drill-fx-burst i:nth-child(8) { --dx: -120px; --dy: 50px; background: var(--sb-primary); }
+.drill-fx-burst i:nth-child(9) { --dx: -135px; --dy: -20px; }
+.drill-fx-burst i:nth-child(10) { --dx: -100px; --dy: -80px; background: #fff4e0; }
+.drill-fx-burst i:nth-child(11) { --dx: -40px; --dy: -125px; }
+.drill-fx-burst i:nth-child(12) { --dx: 40px; --dy: 40px; background: var(--sb-primary); }
+.drill-fx-burst i:nth-child(even) { animation-delay: 40ms; }
+@keyframes drill-burst {
+  0% { opacity: 1; transform: translate(0, 0) scale(1.4); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.4) rotate(90deg); }
+}
+
+/* ── star 星芒：四角星撑开 + 冲击环扩散 ── */
+.drill-fx-star i {
+  top: 50%;
+  left: 50%;
+}
+.drill-fx-star i:nth-child(1) {
+  width: 160px;
+  height: 160px;
+  margin: -80px 0 0 -80px;
+  background: #fff4e0;
+  clip-path: polygon(50% 0, 58% 42%, 100% 50%, 58% 58%, 50% 100%, 42% 58%, 0 50%, 42% 42%);
+  filter: drop-shadow(0 0 12px var(--gr-gold));
+  animation: drill-star 560ms steps(7);
+}
+.drill-fx-star i:nth-child(2) {
+  width: 60px;
+  height: 60px;
+  margin: -30px 0 0 -30px;
+  border: 4px solid var(--gr-gold);
+  box-shadow: 0 0 0 2px #000;
+  animation: drill-ring 560ms steps(7);
+}
+@keyframes drill-star {
+  0% { opacity: 0; transform: scale(0.2) rotate(0); }
+  20% { opacity: 1; transform: scale(1.1) rotate(20deg); }
+  70% { opacity: 1; transform: scale(0.9) rotate(45deg); }
+  100% { opacity: 0; transform: scale(0.3) rotate(90deg); }
+}
+@keyframes drill-ring {
+  0% { opacity: 1; transform: scale(0.4); }
+  100% { opacity: 0; transform: scale(4); }
+}
+
+/* ── bolt 电光：锯齿闪电从上劈到下，整卡抖两下 ── */
+.drill-fx-boltline {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: #e9f4ff;
+  stroke-width: 3;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 6px #7fc7ff) drop-shadow(2px 2px 0 #000);
+  animation: drill-bolt 460ms steps(5);
+}
+.drill-fx-bolt::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #bfe3ff;
+  opacity: 0;
+  animation: drill-bolt-flash 460ms steps(4);
+}
+@keyframes drill-bolt {
+  0% { opacity: 0; clip-path: inset(0 0 100% 0); }
+  15% { opacity: 1; clip-path: inset(0 0 0 0); }
+  55% { opacity: 1; }
+  70% { opacity: 0.2; }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes drill-bolt-flash { 0% { opacity: 0.5; } 25% { opacity: 0; } 50% { opacity: 0.3; } 100% { opacity: 0; } }
+
+/* ── ink 血墨：一团不规则墨点炸开 + 三滴飞溅 ── */
+.drill-fx-ink i {
+  top: 50%;
+  left: 50%;
+  background: var(--sb-primary);
+  box-shadow: 0 0 0 2px #000;
+}
+.drill-fx-ink i:nth-child(1) {
+  width: 150px;
+  height: 130px;
+  margin: -65px 0 0 -75px;
+  clip-path: polygon(30% 5%, 55% 0, 70% 18%, 95% 25%, 100% 50%, 85% 70%, 90% 95%, 60% 100%, 40% 85%, 15% 95%, 0 65%, 10% 40%);
+  animation: drill-ink 560ms steps(6);
+}
+.drill-fx-ink i:nth-child(2),
+.drill-fx-ink i:nth-child(3),
+.drill-fx-ink i:nth-child(4) {
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  animation: drill-ink-drop 520ms steps(6);
+}
+.drill-fx-ink i:nth-child(2) { --dx: -110px; --dy: -70px; }
+.drill-fx-ink i:nth-child(3) { --dx: 120px; --dy: -40px; animation-delay: 40ms; }
+.drill-fx-ink i:nth-child(4) { --dx: 30px; --dy: 110px; animation-delay: 80ms; }
+@keyframes drill-ink {
+  0% { opacity: 0; transform: scale(0.1) rotate(-20deg); }
+  20% { opacity: 0.92; transform: scale(1.15) rotate(0); }
+  70% { opacity: 0.85; transform: scale(1) rotate(6deg); }
+  100% { opacity: 0; transform: scale(1.1) rotate(8deg); }
+}
+@keyframes drill-ink-drop {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.5); }
+}
+
+/* ── wrong 碎裂：一道裂纹从上劈到下，配 .drill-card.miss 的抖动 ── */
+.drill-fx-crack {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: var(--sb-danger);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  filter: drop-shadow(1px 1px 0 #000);
+  animation: drill-crack 640ms steps(6);
+}
+.drill-fx-wrong::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--sb-danger);
+  opacity: 0;
+  animation: drill-crack-flash 300ms steps(3);
+}
+@keyframes drill-crack {
+  0% { opacity: 0; clip-path: inset(0 0 100% 0); }
+  30% { opacity: 1; clip-path: inset(0 0 0 0); }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes drill-crack-flash { 0% { opacity: 0.35; } 100% { opacity: 0; } }
+
+/* ── 连击大字 ── */
+.drill-fx-combo {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: var(--sb-font-display, inherit);
+  font-size: 30px;
+  letter-spacing: 0.08em;
+  color: var(--gr-gold);
+  text-shadow: 3px 3px 0 #000, 0 0 22px rgba(201, 162, 74, 0.55);
+  opacity: 0;
+  transform: translate(-50%, 0);
+  animation: drill-combo 900ms steps(9);
+}
+.drill-fx-combo small { font-size: var(--sb-fs-xs); letter-spacing: 0.3em; color: #fff4e0; }
+@keyframes drill-combo {
+  0% { opacity: 0; transform: translate(-50%, 24px) scale(0.6); }
+  20% { opacity: 1; transform: translate(-50%, 0) scale(1.15); }
+  40% { transform: translate(-50%, 0) scale(1); }
+  80% { opacity: 1; transform: translate(-50%, -6px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -30px) scale(1.05); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drill-fx,
+  .drill-fx::after,
+  .drill-fx i,
+  .drill-fx-boltline,
+  .drill-fx-crack,
+  .drill-fx-combo { animation: none !important; }
+  .drill-fx-combo { opacity: 1; }
+}

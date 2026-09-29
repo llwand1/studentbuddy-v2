@@ -5,10 +5,13 @@
  *   负责整块答案的匀速吐出），等待态就是它的「回答中」本体。
  * 状态行事件驱动（phaseStatus）：有工具在跑报真实动作，思考链在流报「深度思考中」，
  * 都没有才轮播中性短语——不撒谎。
+ * 气泡尾部带「刷词」入口（`requestDrillOpen`）：等待超过 2 秒会自动弹刷词，这里是手动 / 关掉自动后的入口
+ * （契约 docs/WAIT-DRILL-SPEC.md §2）。
  */
 import { useEffect, useState } from 'react';
 import { formatElapsed, phaseStatus, type PhaseStep } from './thinking-status';
 import { ChatSpeaker } from './ChatSpeaker';
+import { requestDrillOpen } from '../drill/drill-prefs';
 
 export function Thinking({
   steps = [],
@@ -41,6 +44,9 @@ export function Thinking({
           {phaseStatus(steps, reasoningLen, elapsed)}
           <span className="chat-typing-elapsed">{formatElapsed(elapsed)}</span>
         </span>
+        <button type="button" className="chat-typing-drill" title="等待时刷几张词卡" onClick={requestDrillOpen}>
+          刷词
+        </button>
       </div>
     </div>
   );

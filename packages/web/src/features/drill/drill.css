@@ -1,0 +1,372 @@
+/* drill — 「等待时刷词」弹窗（契约 docs/WAIT-DRILL-SPEC.md §5）。
+   与大陆弹窗同一套语言（grimoire.css）：黑铁框 + 双金线、血红主按钮、铁灰次按钮；
+   动效只用 steps()，只动 transform / opacity / clip-path；默认态即终态。 */
+
+.drill-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sb-sp-4);
+  background: rgba(6, 4, 8, 0.78);
+  animation: sb-fade-in 160ms steps(4);
+}
+
+.drill-stage {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  max-height: 96vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+  padding: var(--sb-sp-4);
+  color: var(--sb-ink);
+  border: 3px solid var(--gr-iron);
+  background: linear-gradient(#120b10, #0a060a);
+  box-shadow: var(--gr-frame-hi);
+  animation: sb-pop 200ms steps(4);
+}
+
+.drill-stage::before,
+.drill-stage::after {
+  content: '';
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+  z-index: 5;
+  background:
+    linear-gradient(var(--gr-gold), var(--gr-gold)) 0 0 / 22px 4px no-repeat,
+    linear-gradient(var(--gr-gold), var(--gr-gold)) 0 0 / 4px 22px no-repeat,
+    linear-gradient(#7a1a24, #7a1a24) 7px 7px / 6px 6px no-repeat;
+  filter: drop-shadow(2px 2px 0 #000);
+}
+.drill-stage::before { top: -6px; left: -6px; }
+.drill-stage::after { right: -6px; bottom: -6px; transform: rotate(180deg); }
+
+/* ── 头部 ── */
+.drill-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sb-sp-3);
+  flex-wrap: wrap;
+  padding-bottom: var(--sb-sp-2);
+  border-bottom: 2px solid var(--gr-iron);
+  box-shadow: 0 2px 0 var(--gr-gold-dim);
+}
+
+.drill-brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sb-sp-2);
+  font-family: var(--sb-font-display, inherit);
+}
+
+.drill-brand b {
+  font-size: var(--sb-fs-lg);
+  letter-spacing: 0.04em;
+  text-shadow: 2px 2px 0 #000, 0 0 18px rgba(155, 31, 44, 0.35);
+}
+
+.drill-brand-tag {
+  font-size: var(--sb-fs-xs);
+  letter-spacing: 0.12em;
+  padding: 1px 6px;
+  color: var(--gr-gold);
+  border: 1px solid var(--gr-gold-dim);
+  background: #07050a;
+}
+
+.drill-brand small {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.drill-brand small.live { color: var(--gr-gold); animation: drill-live 1.2s steps(2) infinite; }
+@keyframes drill-live { 50% { opacity: 0.45; } }
+
+.drill-stats {
+  display: flex;
+  gap: var(--sb-sp-2);
+  flex-wrap: wrap;
+}
+
+.drill-stats span {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  padding: 2px 8px;
+  border: 2px solid var(--gr-iron);
+  background: linear-gradient(#1c1318, #120c10);
+  box-shadow: inset 0 0 0 1px var(--gr-gold-dim), 3px 3px 0 #000;
+}
+
+.drill-stats b { color: var(--gr-gold); text-shadow: 1px 1px 0 #000; font-size: var(--sb-fs-md); }
+.drill-stats span.hot b { color: var(--sb-success); }
+
+.drill-tools { display: flex; gap: var(--sb-sp-2); }
+
+.drill-icon {
+  min-width: 34px;
+  height: 30px;
+  padding: 0 8px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink);
+  border: 2px solid var(--gr-iron);
+  background: linear-gradient(#22161d, #140d12);
+  box-shadow: inset 0 0 0 1px var(--gr-gold-dim), 2px 2px 0 #000;
+  cursor: pointer;
+}
+
+.drill-icon.muted { color: var(--sb-ink-tertiary); }
+.drill-icon:active { transform: translate(2px, 2px); box-shadow: none; }
+
+/* ── 回复到了 ── */
+.drill-ready {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  flex-wrap: wrap;
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  font-size: var(--sb-fs-sm);
+  color: #fff4e0;
+  border: 2px solid var(--gr-iron);
+  background: linear-gradient(#a3222f, #6e1420);
+  box-shadow: inset 0 0 0 1px #e0505b, 3px 3px 0 #000;
+  animation: sb-rise-in 160ms steps(3);
+}
+
+.drill-ready > span { flex: 1 1 200px; }
+
+/* ── 卡片 ── */
+.drill-body { position: relative; }
+
+.drill-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+  min-height: 300px;
+  padding: var(--sb-sp-4);
+  border: 2px solid var(--gr-iron);
+  background: linear-gradient(#150e13, #0e090d);
+  box-shadow: var(--gr-frame);
+  animation: sb-rise-in 140ms steps(3);
+}
+
+.drill-card.miss { animation: drill-shake 360ms steps(6); }
+@keyframes drill-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+.drill-card.slain { animation: drill-slain 520ms steps(6) forwards; }
+@keyframes drill-slain {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  30% { transform: translate(2px, -2px) rotate(-1deg); opacity: 1; }
+  100% { transform: translate(18px, 40px) rotate(6deg); opacity: 0; }
+}
+
+.drill-wait {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--sb-ink-secondary);
+}
+
+.drill-chips { display: flex; gap: var(--sb-sp-2); flex-wrap: wrap; }
+
+.drill-chip {
+  font-size: var(--sb-fs-xs);
+  padding: 2px 10px;
+  color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+  border: 1px solid #4a1a22;
+}
+
+.drill-chip.due { color: var(--gr-gold); background: var(--sb-pixel-gold); border-color: var(--gr-gold-dim); }
+.drill-chip.new { color: #7fd6c2; background: #0f2622; border-color: #1f4a42; }
+
+.drill-term {
+  margin: 0;
+  font-family: var(--sb-font-display, inherit);
+  font-size: 34px;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  text-shadow: 2px 2px 0 #000, 0 0 24px rgba(201, 162, 74, 0.25);
+  word-break: break-word;
+}
+
+.drill-prompt {
+  margin: 0;
+  font-size: var(--sb-fs-lg);
+  line-height: var(--sb-lh);
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.drill-def { margin: 0; font-size: var(--sb-fs-md); line-height: var(--sb-lh); color: var(--sb-ink); }
+.drill-src { margin: 0; font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); }
+.drill-src.fallback { color: var(--sb-danger); }
+
+/* 四选一：百词斩式一列大按钮，键位牌在左 */
+.drill-opts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sb-sp-2); }
+
+.drill-opt {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  min-height: 56px;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: var(--sb-fs-md);
+  line-height: 1.4;
+  color: var(--sb-ink);
+  border: 2px solid var(--gr-iron);
+  background: linear-gradient(#22161d, #140d12);
+  box-shadow: inset 0 0 0 1px var(--gr-gold-dim), 3px 3px 0 #000;
+  cursor: pointer;
+  transition: transform 80ms steps(2), box-shadow 80ms steps(2);
+}
+
+.drill-opt kbd {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  font-family: var(--sb-font-display, inherit);
+  font-size: var(--sb-fs-xs);
+  color: var(--gr-gold);
+  border: 1px solid var(--gr-gold-dim);
+  background: #07050a;
+}
+
+.drill-opt span { flex: 1; word-break: break-word; }
+
+@media (hover: hover) {
+  .drill-opt:not(:disabled):hover { transform: translate(-1px, -1px); box-shadow: inset 0 0 0 1px var(--gr-gold), 4px 4px 0 #000; }
+}
+.drill-opt:not(:disabled):active { transform: translate(3px, 3px); box-shadow: inset 0 0 0 1px var(--gr-gold); }
+.drill-opt:disabled { cursor: default; }
+
+.drill-opt.right { background: linear-gradient(#1c3a24, #12261a); box-shadow: inset 0 0 0 2px var(--sb-success), 3px 3px 0 #000; color: #d9f5cf; }
+.drill-opt.right kbd { color: var(--sb-success); border-color: var(--sb-success); }
+.drill-opt.wrong { background: linear-gradient(#4a1418, #2a0d10); box-shadow: inset 0 0 0 2px var(--sb-danger), 3px 3px 0 #000; color: #ffd9d9; }
+.drill-opt.wrong kbd { color: var(--sb-danger); border-color: var(--sb-danger); }
+.drill-opt.dim { opacity: 0.45; }
+
+/* 拼写 */
+.drill-spell { display: flex; flex-direction: column; gap: var(--sb-sp-2); }
+
+.drill-hint {
+  margin: 0;
+  font-family: var(--sb-font-display, inherit);
+  font-size: 26px;
+  letter-spacing: 0.3em;
+  color: var(--gr-gold);
+  text-shadow: 2px 2px 0 #000;
+}
+
+.drill-input {
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: var(--sb-fs-lg);
+  color: var(--sb-ink);
+  border: 2px solid var(--sb-line);
+  background: var(--sb-surface);
+  box-shadow: inset 2px 2px 0 var(--sb-bg);
+}
+
+.drill-input:focus { outline: none; border-color: var(--gr-gold); }
+
+/* 详情（答完翻出来的那一条） */
+.drill-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  font-size: var(--sb-fs-sm);
+  line-height: var(--sb-lh);
+  border-left: 4px solid var(--sb-success);
+  background: rgba(134, 197, 110, 0.08);
+  animation: sb-rise-in 120ms steps(3);
+}
+
+.drill-detail.bad { border-left-color: var(--sb-danger); background: rgba(255, 106, 106, 0.08); }
+.drill-detail b { color: var(--gr-gold); }
+
+/* 按钮 */
+.drill-actions { display: flex; gap: var(--sb-sp-2); justify-content: flex-end; flex-wrap: wrap; margin-top: auto; }
+
+.drill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink);
+  border: 2px solid var(--gr-iron);
+  background: linear-gradient(#22161d, #140d12);
+  box-shadow: inset 0 0 0 1px var(--gr-gold-dim), 3px 3px 0 #000;
+  cursor: pointer;
+  transition: transform 80ms steps(2), box-shadow 80ms steps(2);
+}
+
+.drill-btn kbd {
+  font-family: var(--sb-font-display, inherit);
+  font-size: 10px;
+  padding: 0 4px;
+  color: var(--gr-gold);
+  border: 1px solid var(--gr-gold-dim);
+  background: #07050a;
+}
+
+.drill-btn.primary { color: #fff4e0; background: linear-gradient(#a3222f, #6e1420); box-shadow: inset 0 0 0 1px #e0505b, 3px 3px 0 #000; }
+.drill-btn.primary kbd { color: #fff4e0; border-color: #e0505b; }
+.drill-btn.slay { color: var(--gr-gold); }
+.drill-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.drill-btn:not(:disabled):active { transform: translate(3px, 3px); box-shadow: none; }
+
+.drill-notice {
+  margin: 0;
+  min-height: 1.4em;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+}
+
+.drill-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sb-sp-2);
+  flex-wrap: wrap;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+/* 等待气泡里的入口（Thinking.tsx） */
+.chat-typing-drill {
+  margin-left: var(--sb-sp-2);
+  padding: 1px 8px;
+  font-size: var(--sb-fs-xs);
+  color: var(--gr-gold);
+  border: 1px solid var(--gr-gold-dim);
+  background: #07050a;
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .drill-overlay { padding: var(--sb-sp-2); align-items: flex-start; }
+  .drill-stage { padding: var(--sb-sp-3); }
+  .drill-opts { grid-template-columns: 1fr; }
+  .drill-term { font-size: 28px; }
+  .drill-card { min-height: 0; }
+  .drill-foot span:first-child { display: none; }
+}

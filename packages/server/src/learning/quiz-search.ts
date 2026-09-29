@@ -31,6 +31,12 @@ const FALLBACK_QUERY_CHARS = 60;
 /** 主题位里这些是「没写具体方向」的占位说法，当检索词用等于白搜 */
 const PLACEHOLDER_TOPICS = new Set(['综合', '根据当前对话内容出题']);
 
+/** 主题是不是「没写具体方向」的占位说法（真题优先据此决定要不要发起搜集——占位词搜真题只会白搜） */
+export function isPlaceholderTopic(topic: string): boolean {
+  const t = topic.trim();
+  return !t || PLACEHOLDER_TOPICS.has(t);
+}
+
 /**
  * 定检索词：优先用户点名的主题，主题缺位/是占位说法时才退材料的首段摘要。
  * 两条路都可能给出空串（没主题也没材料）——那种情况调用方就不搜，直接出题。

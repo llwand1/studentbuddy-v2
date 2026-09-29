@@ -14,6 +14,7 @@ import './settings.css';
 import { SearchKeysCard } from './SearchKeysCard';
 import { QuizMixCard } from './QuizMixCard';
 import { QuizImageCard } from './QuizImageCard';
+import { QuizRealFirstCard } from './QuizRealFirstCard';
 import { AnswerStyleCard } from './AnswerStyleCard';
 import { ToolsCard } from './ToolsCard';
 import { SpeechCard } from './SpeechCard';
@@ -255,6 +256,7 @@ export function SettingsView() {
       <PlatformChannelCard flash={flash} onConfigured={() => void reload()} />
       <AnswerStyleCard flash={flash} />
       <QuizMixCard flash={flash} />
+      <QuizRealFirstCard flash={flash} />
       <QuizImageCard flash={flash} />
       <SearchKeysCard flash={flash} />
       <SpeechCard flash={flash} />

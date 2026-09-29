@@ -21,6 +21,11 @@ const quizStub = vi.hoisted(() => ({
   result: null as QuizPayload | null,
 }));
 
+// 真题优先缺省开（QUIZ-TIER-SPEC §4）会并行发起搜集；本文件不断言真题，搜集侧打桩免得碰网
+vi.mock('../learning/collect.js', () => ({
+  collectQuiz: async (_topic: string, report: unknown) => ({ report, candidates: [] }),
+}));
+
 vi.mock('../learning/quiz.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../learning/quiz.js')>()),
   generateQuiz: async (_topic: string, _material?: string, mix?: QuizMix) => {

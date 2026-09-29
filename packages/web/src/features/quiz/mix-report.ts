@@ -130,6 +130,13 @@ export function blendNote(report?: QuizBlendReport | null, questions?: QuizQuest
   if (requested === 0) return null; // 本次没配真题 → 不是损失，不播报（与 imageNote/searchNote 同口径）
 
   const actual = sourceMixTotal(report.real.actual);
+  // 真题优先（契约 QUIZ-TIER-SPEC §4）：requested 是 AI 配比派生的「能换就换」配额，摘不够**不是缺口**，
+  // 不能念成「少 N 道」——那会把一条尽力而为的增益说成故障。
+  if (report.realFirst) {
+    if (actual === 0) return '真题优先：网上没摘到可核验的真题，本组全部由 AI 出（基础题/模拟题已在每题标注）。';
+    const pages = sourcePages(report, questions);
+    return `真题优先：摘到 ${actual} 道真题并顶替了同题型的 AI 题${pages > 0 ? `（来自 ${pages} 个网页）` : ''}，其余由 AI 出。`;
+  }
   // 一条都没摘到：直接交代结果与「谁出的题」，逐页真因由 collect 报告承担（不复述，避免两处说法）
   if (actual === 0) return '真题：本次一道都没摘到（原因见下方逐页报告），题目全部由 AI 出。';
 

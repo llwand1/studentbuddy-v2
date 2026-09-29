@@ -17,6 +17,7 @@ import type { Request, Response } from 'express';
 import { searchWeb, listKeyStatus, saveProviderKey, KEYED_PROVIDERS } from '../search/index.js';
 import { loadQuizMix, saveQuizMix, loadQuizImage, saveQuizImage } from '../learning/quiz.js';
 import { loadQuizSourceMix, saveQuizSourceMix } from '../learning/quiz-source-mix.js';
+import { loadQuizRealFirst, saveQuizRealFirst } from '../learning/quiz-tier.js';
 import {
   loadAnswerStyle,
   saveAnswerStyle,
@@ -89,6 +90,18 @@ settingsRouter.get('/quiz-image', (req, res) => {
 settingsRouter.put('/quiz-image', (req: Request, res: Response) => {
   // 只认真值，其余一律按关处理（saveQuizImage 内归一化）
   const on = saveQuizImage((req.body as { on?: unknown }).on === true, ownerIdOf(req));
+  res.json({ ok: true, on });
+});
+
+// ── settings：真题优先开关（契约 docs/QUIZ-TIER-SPEC.md §4；缺省开）──
+settingsRouter.get('/quiz-real-first', (req, res) => {
+  res.json({ on: loadQuizRealFirst(ownerIdOf(req)) });
+});
+
+settingsRouter.put('/quiz-real-first', (req: Request, res: Response) => {
+  // 只认布尔真假；其余按缺省（开）处理——与 quiz-image 的「只认真值」不同，这个开关缺省就是开
+  const raw = (req.body as { on?: unknown }).on;
+  const on = saveQuizRealFirst(typeof raw === 'boolean' ? raw : undefined, ownerIdOf(req));
   res.json({ ok: true, on });
 });
 

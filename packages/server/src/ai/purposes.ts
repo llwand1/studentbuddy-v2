@@ -34,6 +34,7 @@ export const AI_PURPOSES = {
   'term.relate': { label: '词条关系', role: 'explain', version: 1, upstream: 'background', timeoutMs: 90_000 },
   'term.tidy': { label: '整理词条库', role: 'explain', version: 1, upstream: 'main', timeoutMs: 120_000 },
   'quiz.generate': { label: '出题', role: 'quiz-generator', version: 4, upstream: 'main', timeoutMs: 180_000 },
+  'quiz.selfcontain': { label: '出题自包含补全', role: 'quiz-generator', version: 1, upstream: 'main', timeoutMs: 90_000 },
   'quiz.verify': { label: '盲解验题', role: 'solver', version: 1, upstream: 'main', timeoutMs: 60_000 },
   'quiz.grade': { label: '主观题评分', role: 'solver', version: 1, upstream: 'main', timeoutMs: 45_000 },
   'quiz.explain': { label: '作答讲解', role: 'solver', version: 1, upstream: 'main', timeoutMs: 120_000 },

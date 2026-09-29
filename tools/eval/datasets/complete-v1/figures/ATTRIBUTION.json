@@ -1,0 +1,44 @@
+{
+ "F01-climate": {
+  "file": "figures/F01-climate.png",
+  "title": "File:India mumbai temperature precipitation averages chart.svg",
+  "pageUrl": "https://commons.wikimedia.org/wiki/File:India_mumbai_temperature_precipitation_averages_chart.svg",
+  "license": "CC BY-SA 3.0",
+  "artist": "Saravask"
+ },
+ "F02-circuit": {
+  "file": "figures/F02-circuit.jpg",
+  "title": "File:Series and Parallel Circuit.jpg",
+  "pageUrl": "https://commons.wikimedia.org/wiki/File:Series_and_Parallel_Circuit.jpg",
+  "license": "CC BY-SA 4.0",
+  "artist": "Brightyellowjeans"
+ },
+ "F03-foodweb": {
+  "file": "figures/F03-foodweb.jpg",
+  "title": "File:Chesapeake Waterbird Food Web.jpg",
+  "pageUrl": "https://commons.wikimedia.org/wiki/File:Chesapeake_Waterbird_Food_Web.jpg",
+  "license": "Public domain",
+  "artist": "Matthew C. Perry"
+ },
+ "F04-plantcell": {
+  "file": "figures/F04-plantcell.png",
+  "title": "File:Plant cell structure-en.svg",
+  "pageUrl": "https://commons.wikimedia.org/wiki/File:Plant_cell_structure-en.svg",
+  "license": "Public domain",
+  "artist": "LadyofHats"
+ },
+ "F05-ding": {
+  "file": "figures/F05-ding.jpg",
+  "title": "File:HouMuWuDingFullView.jpg",
+  "pageUrl": "https://commons.wikimedia.org/wiki/File:HouMuWuDingFullView.jpg",
+  "license": "CC BY-SA 3.0",
+  "artist": "Mlogic"
+ },
+ "F06-warriors": {
+  "file": "figures/F06-warriors.jpg",
+  "title": "File:Qin Terracotta Warriors, Pit 1 16.jpg",
+  "pageUrl": "https://commons.wikimedia.org/wiki/File:Qin_Terracotta_Warriors,_Pit_1_16.jpg",
+  "license": "CC0",
+  "artist": "Gary Lee Todd, Ph.D."
+ }
+}

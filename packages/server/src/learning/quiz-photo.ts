@@ -64,14 +64,15 @@ export function answerTexts(q: QuizQuestion): string[] {
   return [];
 }
 
-const plainCredit = (img: FoundImage) => creditLine(img).replace(/^\*|\*$/g, '').replace(/ · \[出处\]\([^)]*\)/, '');
+export const plainCredit = (img: FoundImage) => creditLine(img).replace(/^\*|\*$/g, '').replace(/ · \[出处\]\([^)]*\)/, '');
 
 export async function attachQuizPhotos(payload: QuizPayload, ownerId: string | null, deps: { find?: typeof findImages } = {}): Promise<number> {
   // 没有视觉模型就不做：出题配图要求看过图（题上的错图比没图更糟），省掉一次白花的规划调用
   if (!routeRole('vision', undefined, ownerId)?.model) return 0;
   const qs = payload.questions;
-  if (qs.length === 0) return 0;
-  const list = qs.map((q, i) => `${i}. [${q.type}] ${q.question}${q.options ? `（选项：${q.options.join(' / ')}）` : ''}`).join('\n');
+  // 已有图的题（自包含闸门搬来的 essential 原图）不再规划：一道题一张图
+  if (qs.length === 0 || qs.every((q) => q.photo)) return 0;
+  const list = qs.map((q, i) => (q.photo ? `${i}. （已有配图，不要选）` : `${i}. [${q.type}] ${q.question}${q.options ? `（选项：${q.options.join(' / ')}）` : ''}`)).join('\n');
   const plan = await aiJson({
     purpose: 'quiz.photo_plan',
     ownerId,
@@ -86,7 +87,7 @@ export async function attachQuizPhotos(payload: QuizPayload, ownerId: string | n
   const results = await Promise.all(
     plan.value.map(async (p) => {
       const q = qs[p.index];
-      if (!q) return null;
+      if (!q || q.photo) return null;
       const r = await find({ query: p.query, subject: p.subject, ownerId, requireVerified: true, signal, quiz: { question: q.question, answers: answerTexts(q) } }).catch(() => null);
       const img = r?.images[0];
       return img ? { index: p.index, img } : null;

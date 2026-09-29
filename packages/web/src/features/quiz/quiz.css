@@ -162,3 +162,16 @@
 .quiz-q-photo img { display: block; max-width: 100%; max-height: 280px; object-fit: contain; border-radius: 6px; }
 .quiz-q-photo figcaption { font-size: 12px; opacity: .7; margin-top: 4px; }
 .quiz-q-photo figcaption a { color: inherit; }
+
+/* 题干依赖的材料（QuizQuestion.material）：与题干视觉分开，保留原文换行；长材料限高滚动，不撑爆题卡 */
+.quiz-q-material {
+  margin: 0 0 var(--sb-sp-2);
+  padding: 8px 12px;
+  border-left: 3px solid currentColor;
+  background: rgba(127, 127, 127, .08);
+  border-radius: 0 6px 6px 0;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  max-height: 320px;
+  overflow-y: auto;
+}

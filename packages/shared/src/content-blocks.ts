@@ -64,6 +64,21 @@ export interface QuizQuestion {
    * 与 `svg` 并存（那是模型手绘的示意图）。可选字段：历史题无此键 → 不渲染；判分不读它，题目不看图也能答。
    */
   photo?: QuizPhoto;
+  /**
+   * 题干所依赖的**材料原文**（2026-09-29，契约 `docs/QUIZ-COMPLETE-SPEC.md`）：阅读文段、材料一二、表格数据。
+   * 题干里出现「根据材料 / 如下表」时，被引用的东西必须在这里（或 `svg` / `photo`）——**每道题自包含**。
+   * 可选字段：历史题无此键 → 不渲染。判分不读它，但**盲解验算、AI 阅卷、对战出题**都要用 `stemOf(q)` 取全文。
+   */
+  material?: string;
+}
+
+/** material 字段上限（字符）：一篇阅读理解约 1500–2500 字，留足余量又防把整页倒进来 */
+export const MAX_QUIZ_MATERIAL_CHARS = 4000;
+
+/** 题目的完整题干＝材料＋题干。所有「把题干交给别的模型 / 别的界面」的地方都该走它，不要直接读 `q.question`。 */
+export function stemOf(q: Pick<QuizQuestion, 'question' | 'material'>): string {
+  const m = (q.material ?? '').trim();
+  return m ? `【材料】\n${m}\n\n【题目】${q.question}` : q.question;
 }
 
 export interface QuizPhoto {
@@ -73,6 +88,11 @@ export interface QuizPhoto {
   /** 署名：来源 · 作者 · 许可（纯文本） */
   credit: string;
   pageUrl?: string;
+  /**
+   * 题目**依赖**这张图（题干写着「如图」）。与普通配图的区别：普通配图不看也能答、找不到就算了；
+   * essential 的图找不到，这道题就不该出（契约 QUIZ-COMPLETE-SPEC §3）。
+   */
+  essential?: boolean;
 }
 
 export interface QuizPayload {
@@ -272,7 +292,32 @@ export interface QuizImageReport {
    * 路由只据此选文案——不靠反向探测「模型配没配」来猜，那种猜法在被 mock 的测试里、在角色绑定
    * 存在但 provider 被停用的边缘态里都会判错。
    */
-  failure?: 'no-model' | 'parse';
+  failure?: 'no-model' | 'parse' | 'incomplete';
+  /** 自包含审查报告（契约 QUIZ-COMPLETE-SPEC §4）。可选：没跑审查的调用方不填。 */
+  completeness?: QuizCompletenessReport;
+}
+
+/**
+ * 自包含审查报告（契约 `docs/QUIZ-COMPLETE-SPEC.md` §4，ADR-5 不静默）：
+ * 「这组题里几道是无头题、怎么处理的」如实上报，前端据此说「已剔除 N 道依赖缺失材料的题」。
+ */
+export interface QuizCompletenessReport {
+  /** 送审题数 */
+  checked: number;
+  /** 检出悬空引用（题干指向不存在的材料/图/表）的题数 */
+  dangling: number;
+  /** 改写补全：把材料写进 material 后放行 */
+  repaired: number;
+  /** 找图补全：搬来真实图片（essential）后放行 */
+  imaged: number;
+  /** 补不全，整题剔除 */
+  dropped: number;
+  /** 被剔除题的一句话原因（最多 5 条，给前端/日志） */
+  reasons: string[];
+}
+
+export function emptyQuizCompletenessReport(): QuizCompletenessReport {
+  return { checked: 0, dangling: 0, repaired: 0, imaged: 0, dropped: 0, reasons: [] };
 }
 
 /** 零值报告：路由出题前先建好，传给 generateQuiz 当出参（避开 undefined 分支） */
@@ -367,11 +412,31 @@ export interface CollectReport {
   rejected: number;
   /** 与 QuizImageReport.failure 同族：搜集模型没配 / 输出整段解不出，路由据此选文案不反推 */
   failure?: 'no-model' | 'parse';
-  /** 成功搬运的题源配图张数（契约 QUIZ-TIER-SPEC §5；省略＝0） */
-  sourceImages?: number;
+  /** 自包含审查（契约 QUIZ-COMPLETE-SPEC §5）：摘到几道带材料的题、搬了几张原图、拒了几道无头题 */
+  completeness?: CollectCompletenessReport;
+}
+
+export interface CollectCompletenessReport {
+  /** 页面里识别到的候选配图张数（标记 `[图N]`） */
+  figuresSeen: number;
+  /** 成功搬进本站缓存并挂到题上的原图张数 */
+  figuresAttached: number;
+  /** 图下载/核验失败的张数 */
+  figuresFailed: number;
+  /** 带着材料原文摘下来的题数 */
+  withMaterial: number;
+  /** 因「题干依赖材料/图/表但没取到」被拒的题数 */
+  rejectedIncomplete: number;
+}
+
+export function emptyCollectCompleteness(): CollectCompletenessReport {
+  return { figuresSeen: 0, figuresAttached: 0, figuresFailed: 0, withMaterial: 0, rejectedIncomplete: 0 };
 }
 
 /** 零值报告：preview 路由先建好传给域层 */
 export function emptyCollectReport(): CollectReport {
-  return { queries: [], providers: [], failed: [], pages: [], total: 0, accepted: 0, rejected: 0 };
+  return {
+    queries: [], providers: [], failed: [], pages: [], total: 0, accepted: 0, rejected: 0,
+    completeness: emptyCollectCompleteness(),
+  };
 }

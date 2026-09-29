@@ -14,12 +14,12 @@
  *   `prefers-reduced-motion` 由组件层处理（传 `k = 1` / `pulse = 0.5` / `bob = 0`），
  *   本层不做媒体查询——同一份指令在两种模式下都可执行。
  */
-import { CONTINENT_VIEW_COLS, CONTINENT_QCOLOR, CONTINENT_VIEW_ROWS, type ContinentQType, type SpellKind } from '@sb/shared';
+import { CONTINENT_VIEW_COLS, CONTINENT_VIEW_ROWS, type SpellKind } from '@sb/shared';
 import type { ContinentTileView } from './continent-view';
 import type { HeroCell } from './useContinentHero';
 import { SPELL_BURST_MS, drawSpellBurst } from './spell-burst';
 import { drawSprite } from '../../app/hero/hero-sprites';
-import { CHIBI_MAP, CHIBI_PAL, SHADE_MAP, SHADE_PAL, TILE_PAL, drawProp, drawSigil, drawTile as drawArtTile, type TilePal } from '../../app/world/continent-art';
+import { CHIBI_MAP, CHIBI_PAL, TILE_PAL, drawProp, drawTile as drawArtTile, type TilePal } from '../../app/world/continent-art';
 import { NPC_ART } from '../../app/world/npc-art';
 import type { Domain } from '../../app/world/world-copy';
 
@@ -87,7 +87,8 @@ export interface CellRef {
 }
 
 /** 像素倍率：落地页美术按 16px 一格绘制，这里放大到 CELL */
-const PX = CELL / 16;
+/** 逻辑像素 → 画布像素的放大倍数（16px 一格 × 3）；`continent-canvas-monster.ts` 也用它 */
+export const PX = CELL / 16;
 
 /** 领域 → 地砖风土（关键字优先，其余按字符串散列落到四种之一，同一领域永远同一种地） */
 export function domainOf(domain: string): Domain {
@@ -173,33 +174,6 @@ export function drawLand(ctx: CanvasRenderingContext2D, t: CellRef, pop: number,
   ctx.globalAlpha = pop * 0.5;
   ctx.fillStyle = '#8a2a6a';
   for (let i = 0; i < 4; i += 1) ctx.fillRect(x + 10 + i * 8, y + CELL - 16 - i * 6, 3, 3);
-  ctx.globalAlpha = 1;
-}
-
-/** 怪：脚下旋转魔法阵 + 遗忘之影；头顶金色等级角，脚下题型方块 */
-export function drawMonster(ctx: CanvasRenderingContext2D, t: ContinentTileView, pop: number, now = 0): void {
-  const x = t.col * CELL;
-  const y = t.row * CELL;
-  ctx.globalAlpha = pop;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(PX, PX);
-  drawSigil(ctx, 8, 9, 7 + Math.min(t.level, 4), now / 1000);
-  ctx.restore();
-  const s = Math.max(2, Math.round(PX * (0.6 + 0.4 * pop)));
-  drawSprite(ctx, SHADE_MAP, SHADE_PAL, Math.round(x + CELL / 2 - 5 * s), Math.round(y + CELL / 2 - 6 * s), { scale: s, flip: true, alpha: pop });
-  ctx.globalAlpha = pop;
-  ctx.fillStyle = COLOR.horn;
-  for (let i = 0; i < t.level; i += 1) {
-    const hx = Math.round(x + CELL / 2 + (i - (t.level - 1) / 2) * 7);
-    ctx.fillRect(hx - 2, y + 1, 4, 4);
-  }
-  t.species.forEach((species: ContinentQType, i: number) => {
-    ctx.fillStyle = COLOR.bodyLine;
-    ctx.fillRect(Math.round(x + CELL / 2 + (i - (t.species.length - 1) / 2) * 7) - 3, y + CELL - 9, 6, 6);
-    ctx.fillStyle = CONTINENT_QCOLOR[species];
-    ctx.fillRect(Math.round(x + CELL / 2 + (i - (t.species.length - 1) / 2) * 7) - 2, y + CELL - 8, 4, 4);
-  });
   ctx.globalAlpha = 1;
 }
 

@@ -563,3 +563,34 @@
 .continent-detail .continent-btn {
   align-self: flex-start;
 }
+/* ── 开拓地块 / 野怪（2026-09-29）────────────────────────────────────────── */
+
+/* 野怪计数：与欠账怪的红拉开（它不是欠账，是每日保底的"有东西可打"） */
+.continent-stat-wild b {
+  color: var(--sb-success);
+}
+
+/* 开拓弹窗里的"先学"卡：新词条完整亮出来（用户没见过它，先看再答） */
+.continent-expand-card {
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  padding: var(--sb-sp-3) var(--sb-sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+}
+
+.continent-expand-card b {
+  font-size: var(--sb-fs-lg);
+}
+
+/* 词条来源行：模型生成 vs 内置词池——降级必须看得出来 */
+.continent-expand-source {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+
+.continent-expand-source.fallback {
+  color: var(--sb-danger);
+}

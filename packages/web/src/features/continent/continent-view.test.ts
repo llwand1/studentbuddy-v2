@@ -14,6 +14,7 @@ import type { ContinentMapTerm } from '../../lib/api-terms-continent';
 import {
   buildContinentView,
   canStrike,
+  cellHint,
   cellLabel,
   initialHeroCell,
   manhattan,
@@ -257,6 +258,89 @@ describe('buildContinentView 领地与可通行', () => {
   it('怪的本体格也不可通行（本体与领地都挡路）', () => {
     const view = buildContinentView([deepTerm()]);
     expect(tile(view, 'a').walkable).toBe(false);
+  });
+});
+
+describe('野怪（每日随机保底刷怪，2026-09-29）', () => {
+  const DAY = '2026-09-26';
+
+  it('★ 新用户：唯一一条范围外的新词条也冒怪——`monsterKind=wild`，不算欠账怪、不占地、不可通行', () => {
+    const view = buildContinentView([termOf('a', daysAgo(0))], { dayKey: DAY });
+    const t = tile(view, 'a');
+    expect(t.hasMonster).toBe(true);
+    expect(t.monsterKind).toBe('wild');
+    expect(t.inScope).toBe(false);
+    expect(t.level).toBe(1);
+    expect(t.species).toHaveLength(1);
+    expect(t.walkable).toBe(false);
+    expect(view.wildCount).toBe(1);
+    expect(view.monsterCount).toBe(0);
+    expect(view.wildLands).toEqual([]);
+    expect(t.territoryCount).toBe(0);
+    expect(tileStatusText(t)).toContain('野怪');
+    expect(tileStatusText(t)).toContain('打赢即纳入');
+  });
+
+  it('不传 dayKey ⇒ 不刷野怪（服务端/旧调用方的口径不变）；传了同一天恒同', () => {
+    const terms = Array.from({ length: 12 }, (_, i) => termOf(`t${i}`, daysAgo(0)));
+    expect(buildContinentView(terms).wildCount).toBe(0);
+    const a = buildContinentView(terms, { dayKey: DAY });
+    const b = buildContinentView(terms, { dayKey: DAY });
+    expect(a.wildCount).toBe(2); // 1 + floor(12/8)
+    expect(a.tiles.filter((t) => t.monsterKind === 'wild').map((t) => t.id)).toEqual(
+      b.tiles.filter((t) => t.monsterKind === 'wild').map((t) => t.id),
+    );
+  });
+
+  it('欠账怪优先：范围内逾期的词条是 due 怪，不会同时是野怪；两种怪分开计数', () => {
+    const view = buildContinentView([overdueTerm('a'), termOf('b', daysAgo(0))], { dayKey: DAY });
+    expect(tile(view, 'a').monsterKind).toBe('due');
+    expect(view.monsterCount).toBe(1);
+    expect(view.wildCount + view.monsterCount).toBeLessThanOrEqual(2);
+  });
+
+  it('今天复习过的词条不会被野怪盯上（打赢即消失的机制就靠这一条）', () => {
+    const view = buildContinentView([termOf('a', daysAgo(3), { review_stage: 1, last_reviewed_at: daysAgo(0) })], { dayKey: DAY });
+    expect(tile(view, 'a').hasMonster).toBe(false);
+    expect(view.wildCount).toBe(0);
+  });
+});
+
+describe('开拓：边界「+」与钉子', () => {
+  it('★ 单条词条：四邻全是边界；世界半径留着下一块地的位置', () => {
+    const view = buildContinentView([termOf('a', daysAgo(0))]);
+    expect(view.frontier).toEqual([
+      { row: -1, col: 0 },
+      { row: 0, col: -1 },
+      { row: 0, col: 1 },
+      { row: 1, col: 0 },
+    ]);
+    expect(view.radius).toBeGreaterThanOrEqual(worldRadiusFor(2));
+  });
+
+  it('怪的荒地领地不画「+」（那格已是红边领地）', () => {
+    const view = buildContinentView([deepTerm('a')]);
+    expect(view.wildLands.length).toBeGreaterThan(0);
+    for (const w of view.wildLands) expect(view.frontier).not.toContainEqual({ row: w.row, col: w.col });
+    expect(view.frontier.length).toBeGreaterThan(0);
+  });
+
+  it('钉子：开拓出来的词条落在钉的那一格，其余照旧螺旋', () => {
+    const terms = [termOf('a', daysAgo(2)), termOf('b', daysAgo(1)), termOf('c', daysAgo(0))];
+    const plain = buildContinentView(terms);
+    const pinned = buildContinentView(terms, { pins: [{ id: 'c', row: -3, col: 2 }] });
+    expect(tile(pinned, 'c')).toMatchObject({ row: -3, col: 2 });
+    expect(tile(pinned, 'a')).toMatchObject({ row: tile(plain, 'a').row, col: tile(plain, 'a').col });
+    expect(tile(pinned, 'b')).toMatchObject({ row: tile(plain, 'b').row, col: tile(plain, 'b').col });
+    // 钉出去的地块自己也长边界
+    expect(pinned.frontier).toContainEqual({ row: -4, col: 2 });
+  });
+
+  it('cellHint：边界格说「点它开拓」，非边界空格说「走不过去」', () => {
+    const view = buildContinentView([termOf('a', daysAgo(0))]);
+    const ctx = { tiles: view.tiles, wildLands: view.wildLands, npcs: [], frontier: view.frontier };
+    expect(cellHint({ row: 0, col: 1 }, ctx)).toContain('开拓');
+    expect(cellHint({ row: 3, col: 3 }, ctx)).toContain('走不过去');
   });
 });
 

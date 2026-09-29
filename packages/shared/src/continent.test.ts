@@ -29,10 +29,13 @@ import {
   gradeAnswer,
   isDiscovered,
   landCountFor,
+  layoutRadius,
   layoutTiles,
   monsterLevel,
   monsterOccupies,
   normText,
+  parseContinentPins,
+  serializeContinentPins,
   speciesKey,
   speciesTypes,
   spiralCells,
@@ -111,6 +114,67 @@ describe('continent / 铺格', () => {
     const tiles = layoutTiles(many);
     expect(tiles).toHaveLength(327);
     expect(worldCells(worldRadiusFor(327))).toBeGreaterThanOrEqual(327);
+  });
+});
+
+describe('continent / 钉子（开拓出来的地块坐标）', () => {
+  it('parseContinentPins 容错：坏 JSON / 非数组 / 非整数 / 重复 id 都吞掉，只留合法的；与 serialize 互逆', () => {
+    expect(parseContinentPins(null)).toEqual([]);
+    expect(parseContinentPins('{oops')).toEqual([]);
+    expect(parseContinentPins('{"pins":"x"}')).toEqual([]);
+    const raw = JSON.stringify({
+      pins: [
+        { id: 'a', row: 1, col: -2 },
+        { id: 'b', row: 1.5, col: 0 },
+        { id: 'a', row: 3, col: 3 },
+        { id: '', row: 0, col: 0 },
+        { id: 'c', row: 0, col: 2 },
+      ],
+    });
+    const pins = parseContinentPins(raw);
+    expect(pins).toEqual([
+      { id: 'a', row: 1, col: -2 },
+      { id: 'c', row: 0, col: 2 },
+    ]);
+    expect(parseContinentPins(serializeContinentPins(pins))).toEqual(pins);
+  });
+
+  it('★ 世界永远留着下一块地：铺满 (2R+1)² 条时半径已是 R+1；最远的钉子外面再留一圈', () => {
+    const full = worldCells(WORLD_MIN_RADIUS);
+    expect(worldRadiusFor(full)).toBe(WORLD_MIN_RADIUS);
+    expect(layoutRadius(full)).toBe(WORLD_MIN_RADIUS + 1);
+    expect(layoutRadius(1, [{ id: 'x', row: 0, col: WORLD_MIN_RADIUS }])).toBe(WORLD_MIN_RADIUS + 1);
+    expect(layoutRadius(1, [{ id: 'x', row: -2, col: 1 }])).toBe(WORLD_MIN_RADIUS);
+    expect(layoutRadius(1, [{ id: 'x', row: 0, col: 10_000 }])).toBe(WORLD_MAX_RADIUS);
+    for (const n of [0, 1, 50, 225, 226, 900]) expect(layoutRadius(n + 1)).toBeGreaterThanOrEqual(layoutRadius(n));
+  });
+
+  it('★★ 钉住的词条落在钉子上，其余照旧螺旋、**跳过被钉的格**；输出仍按入库序', () => {
+    const plain = layoutTiles(pool);
+    const pinned = layoutTiles(pool, [{ id: 't5', row: 2, col: -3 }]);
+    expect(pinned.map((t) => t.term.id)).toEqual(plain.map((t) => t.term.id));
+    expect(pinned.find((t) => t.term.id === 't5')).toMatchObject({ row: 2, col: -3 });
+    // t5 让出的螺旋位由后来者顺次补上：t1..t4 不动，t6 站到 t5 原来的位置
+    for (const id of ['t1', 't2', 't3', 't4']) {
+      expect(pinned.find((t) => t.term.id === id)).toEqual(plain.find((t) => t.term.id === id));
+    }
+    expect(pinned.find((t) => t.term.id === 't6')).toMatchObject({ row: plain[4]?.row, col: plain[4]?.col });
+    // 螺旋不会踩到钉子那格
+    const keys = pinned.map((t) => cellKey(t.row, t.col));
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('钉子指向的词条不在库里（删了）⇒ 忽略；两枚钉子同格 ⇒ 后者退回螺旋', () => {
+    const a = layoutTiles(pool, [{ id: 'ghost', row: 2, col: 2 }]);
+    expect(a).toEqual(layoutTiles(pool));
+    const b = layoutTiles(pool, [
+      { id: 't3', row: 2, col: 2 },
+      { id: 't7', row: 2, col: 2 },
+    ]);
+    expect(b.find((t) => t.term.id === 't3')).toMatchObject({ row: 2, col: 2 });
+    expect(b.find((t) => t.term.id === 't7')).not.toMatchObject({ row: 2, col: 2 });
+    const keys = b.map((t) => cellKey(t.row, t.col));
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
 

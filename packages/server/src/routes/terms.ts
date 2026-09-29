@@ -24,6 +24,7 @@ import { ownerIdOf } from '../auth/ownership.js';
 import { reviewOverview, markReviewed } from '../learning/term-review.js';
 // ★ 知识大陆地图取数（「全部词条」而不是「复习范围内」，见该文件头注）
 import { continentMap } from '../learning/continent.js';
+import { loadContinentPins } from '../learning/continent-pins.js';
 // ★ v1.2：队列的构建在三段补位模块（契约 EBBINGHAUS-SPEC §10.3），目标读写单独一模块（§10.2）
 import { reviewQueue } from '../learning/review-queue.js';
 import { loadReviewGoal, saveReviewGoal } from '../learning/review-goal.js';
@@ -208,7 +209,10 @@ termsRouter.get('/review/overview', (req: Request, res: Response) => {
  * ★ 放在 `/:id` 之前（同 `/review/overview`）——否则 `/review/map` 会被 `/:id` 吞成 id='review'。
  */
 termsRouter.get('/review/map', (req: Request, res: Response) => {
-  res.json({ terms: continentMap(ownerIdOf(req)) });
+  const ownerId = ownerIdOf(req);
+  // ★ 2026-09-29 起一并带出**钉子**（开拓出来的地块坐标）：铺格必须两端同源，前端拿不到钉子就会把
+  //   开拓出来的词条按螺旋铺到别处（与服务端 `scanMap` 的图对不上）。
+  res.json({ terms: continentMap(ownerId), pins: loadContinentPins(ownerId) });
 });
 
 /**

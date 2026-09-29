@@ -14,6 +14,8 @@ export interface DrillPrefs {
   enabled: boolean;
   /** 音乐与音效（默认开；浏览器自动播放策略下首个点击后才会真的响） */
   sound: boolean;
+  /** 浮窗上次被拖到的位置（视口坐标；无＝居中）。§5.6：右侧是资料架，小窗让学习者自己摆 */
+  pos?: { x: number; y: number };
 }
 
 export interface DrillDayStats {
@@ -65,9 +67,11 @@ function writeJson(key: string, value: unknown): void {
 
 export function loadDrillPrefs(): DrillPrefs {
   const v = readJson<Partial<DrillPrefs>>(PREFS_KEY);
+  const pos = v?.pos;
   return {
     enabled: typeof v?.enabled === 'boolean' ? v.enabled : DEFAULT_PREFS.enabled,
     sound: typeof v?.sound === 'boolean' ? v.sound : DEFAULT_PREFS.sound,
+    ...(pos && Number.isFinite(pos.x) && Number.isFinite(pos.y) ? { pos: { x: pos.x, y: pos.y } } : {}),
   };
 }
 

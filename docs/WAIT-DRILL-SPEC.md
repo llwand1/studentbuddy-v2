@@ -79,9 +79,10 @@ loading ──取词──▶ question ──答──▶ reveal ──下一张
 
 ## 5. UI
 
-### 5.1 弹窗（`DrillOverlay`）
+### 5.1 小窗（`DrillOverlay`）
 
-`role=dialog` 全屏遮罩 + 640px 舞台，黑铁框双金线（与大陆弹窗同 `grimoire.css` 语言，只用 `--gr-*` / `--sb-*`）。
+`role=dialog` **非模态**小窗（v1 是全屏遮罩模态，2026-09-30 资料溯源批次改成可拖动浮窗，见 §5.6）：外层 `.drill-overlay` 透明且
+`pointer-events: none`，560px 舞台 `.drill-stage` 绝对定位、位置由 `--drill-x/--drill-y` 决定；黑铁框双金线（与大陆弹窗同 `grimoire.css` 语言，只用 `--gr-*` / `--sb-*`）。
 头部：品牌角标 + 「AI 正在回复… / 回复到了」+ 战绩（连击 / 答对 / 斩 / 打卡）+ 音效钮 + ✕；横幅（§2）；卡 + 特效层；状态行（打卡通知 / 新词来源）；键位脚注 + 「还有 N 张」。
 
 ### 5.2 卡（`DrillQuestion`）
@@ -102,7 +103,9 @@ loading ──取词──▶ question ──答──▶ reveal ──下一张
 ### 5.4 键位（`useDrillKeys`）
 
 `1–4` 选项 · `Enter/空格` 下一张 / 记住了 / 收入词库 · `N` 不认识 · `Z` 斩 · `X` 不要 · `Esc` 关闭。焦点在**弹窗里的**输入框（拼写卡）时字母数字不劫持（Esc 照关）。
-焦点规则（真机实拍逮到的坑）：发送完消息焦点还留在聊天输入框——弹窗是模态，所以 **打开时把焦点挪进舞台**（`.drill-stage[tabindex=-1]`），弹窗外的输入框不算「在打字」，按键照归弹窗并 `preventDefault`（数字不会被打进聊天框）；**关掉时焦点还回去**（回复到了正好接着打字）。
+焦点规则：发送完消息焦点还留在聊天输入框，所以 **打开时把焦点挪进舞台**（`.drill-stage[tabindex=-1]`），直接按数字就能答。
+★ §5.6 之后小窗是非模态：焦点在**小窗外**的输入框 / 文本域 / contentEditable 里时，所有键（含 Esc）都归那个控件——用户点回聊天框
+就是要打字，Esc 是聊天框自己的「停止生成」；小窗内的拼写输入框仍只放行 Esc。焦点在 body / 小窗里时按键照归小窗并 `preventDefault`（数字不会打进输入框）。
 脚注按卡换词：拼写卡「输入词条 Enter 提交…」、学新词屏「Enter 记住了来一题」；练习局（没在等回复）头部写「练习局」而不是「回复到了」。
 
 ### 5.5 音频（`DrillAudio`）
@@ -111,9 +114,25 @@ loading ──取词──▶ question ──答──▶ reveal ──下一张
 七款音效 correct / wrong / slash / flip / combo / new / ready。弹窗开 `start()`、关 `stop()`（挂起上下文）、卸载 `dispose()`。
 静音 = 主增益归零（不停调度，切回还在拍上）；自动播放策略被拒时静默，首个点击再 `resume()`。
 
+### 5.6 可拖动小窗（`useDragWindow`，2026-09-30）
+
+为什么：右侧现在常驻「资料架」（`SOURCE-TRACE-SPEC.md`），刷词若还是居中模态就把资料挡个正着。用户拍板：**刷词变成可拖动的小窗**
+（想看资料就拖到左边 / 中间），资料架固定右侧——两个同时开着互不遮挡，对话区也照常可点。
+
+| 事项 | 口径 |
+|---|---|
+| 拖柄 | 头部 `.drill-head`（`cursor: grab`，拖动中 `grabbing`；`touch-action: none`）；头部里的按钮 / 链接 / 输入框按下不算拖 |
+| 位置 | 写在 `.drill-stage` 的 CSS 变量 `--drill-x/--drill-y`（`transform: translate(...)`），不走 React state（每帧 setState 会带着整张卡重渲），也不是内联 style（仓规） |
+| 限位 | `clampWindowPos`：窗至少留 `MIN_VISIBLE`（64px）在视口内、顶边不越出（头部要一直够得着）；窗口 resize 重新夹 |
+| 首次位置 | 没有记忆时 `centeredPos` 居中（顶部至少留 12px）；`useLayoutEffect` 首帧就写上，不会先画在左上角再跳 |
+| 记忆 | 松手 `onSettle(pos)` ⇒ `saveDrillPrefs({ pos })`，下次原地出现；`drill-prefs.pos` 只在两数都有限时才读 |
+| 开场动效 | 专用 `drill-pop` 关键帧（translate + scale）——不能用 `sb-pop`：它只写 scale，会在 200ms 里盖掉 translate 让窗闪到左上角 |
+| 窄屏 ≤640px | CSS 退回**底部抽屉**（`position: fixed; bottom: 0; transform: none !important`），JS 侧 `matchMedia` 命中也不进入拖动（否则抽屉上划两下会把看不见的位置写进偏好，回到宽屏窗就跑到屏幕外） |
+| 无障碍 | 仍是 `role=dialog`，但**不再** `aria-modal`（对话区本来就能操作）；头部 `title=「按住这里拖动小窗」` |
+
 ## 6. 偏好与本机战绩（`drill-prefs.ts`，`localStorage`）
 
-- `sb:drill:prefs` `{enabled, sound}` 默认全开；设置页「等待时刷词」卡与弹窗音效钮都改它，改了广播 `sb:drill-prefs`，常驻的 `WaitDrill` 跟着刷新。
+- `sb:drill:prefs` `{enabled, sound, pos?}` 默认全开（`pos` 是小窗记忆位置，§5.6）；设置页「等待时刷词」卡与弹窗音效钮都改它，改了广播 `sb:drill-prefs`，常驻的 `WaitDrill` 跟着刷新。
 - `sb:drill:stats` `{day, slain[], correct, bestCombo, reviewed}` 按日历日记，换天归零；斩过的 id 只管当天。
 - 为什么放本机：要不要弹、要不要出声、今天斩了几个都是这台设备的事；坏 JSON / 隐私模式一律退默认值不抛。
 
@@ -126,7 +145,8 @@ loading ──取词──▶ question ──答──▶ reveal ──下一张
 | `web/…/drill/useDrillTrigger.test.ts` | 2 秒才弹 / 秒回不弹 / replyReady / 关掉本轮不弹 / openNow |
 | `web/…/drill/drill-audio.test.ts` | 调度器起停幂等、静音是增益归零、七款音效、无 AudioContext 静默 |
 | `web/…/drill/drill-prefs.test.ts` | 默认值 / 广播 / 跨天归零 / 坏 JSON |
-| `web/…/drill/WaitDrill.test.tsx` | 弹与回全链：到期答对 mark、回复到了答完切回、8 秒兜底、继续刷、Esc、设置关、焦点进弹窗 / 聊天框有焦点也能按数字 / 关掉还回、音效钮 |
+| `web/…/drill/WaitDrill.test.tsx` | 弹与回全链：到期答对 mark、回复到了答完切回、8 秒兜底、继续刷、Esc、设置关、焦点进小窗 / 非模态后点回聊天框按键归聊天框 / 关掉焦点还回、拖动改写 `--drill-x/y` + 写偏好 + 头部按钮不算拖 |
+| `web/…/drill/useDragWindow.test.ts` | 限位（左右各留 64px、顶边不越出、极窄视口不出负上限）、居中顶部留 12px、窄屏断点常量 |
 | `web/…/drill/WaitDrill.cards.test.tsx` | 键盘作答、答错插回、斩、五款特效轮换 + COMBO、拼写、AI 新词 keep、词池兜底 + dismiss、词库取不到如实报 |
 | `web/…/settings/WaitDrillCard.test.tsx` | 开关点选即存 + 广播、试一局事件 |
 

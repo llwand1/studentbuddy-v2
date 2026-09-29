@@ -29,6 +29,7 @@ import { TermsPage } from '../features/terms/TermsPage';
 import { CardsView } from '../features/game/CardsView';
 import { ContinentPage } from '../features/continent/ContinentPage';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
+import { SourcePanel } from '../features/sources/SourcePanel';
 import { CoachDock } from '../features/coach/CoachDock';
 import { WaitDrill } from '../features/drill/WaitDrill';
 import { TrialNotice } from '../components/TrialNotice';
@@ -243,6 +244,8 @@ export function App() {
         </SceneTransition>
       </main>
       <PreviewPanel />
+      {/* 资料溯源（docs/SOURCE-TRACE-SPEC.md）：与演示面板同占右栏；有演示时它让位，演示关掉自动回来 */}
+      <SourcePanel />
       {/*
         复习督促小窗（v25 B+C+E）：挂在**主区之上、全局常驻**——它不是某个页面的附属功能，
         而是"随时能点开看一眼欠了多少"的悬浮件，故不随 `view` 切换挂载/卸载

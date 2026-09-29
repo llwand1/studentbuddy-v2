@@ -15,6 +15,8 @@ export interface ProcessShape {
 /** 工具名 → 用户视角动作（与 chat/tools.ts 注册表对应；未知工具名原样展示） */
 const TOOL_LABELS: Record<string, string> = {
   search_web: '联网搜索',
+  fetch_page: '读取网页',
+  pick_sources: '精选资料',
   tidy_terms: '整理词条库',
   manage_terms: '维护词条库',
   lookup_terms: '查词条库',

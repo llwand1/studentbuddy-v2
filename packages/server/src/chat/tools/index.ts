@@ -13,6 +13,7 @@ import { CHOICE_TOOL, runChoiceTool } from '../choice-tool.js';
 import { registerTool } from './registry.js';
 import './web-search.js';
 import './fetch-page.js';
+import './pick-sources.js';
 import './fetch-image.js';
 // 找图（2026-09-29）：Commons/Bing 候选 → 看图核验 → 本地缓存 + 署名（media/find-image.ts）
 import './search-images.js';

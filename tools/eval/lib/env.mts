@@ -25,10 +25,20 @@ export interface BorrowedProvider {
   streamMode: string | null;
   /** 真实库里该角色绑的模型名——评测必须钉住同名，否则「换了个模型」也会读成「质量变了」 */
   model: string;
+  /** 仅覆写通道：明文 key，起环境后立刻加密 */
+  plainKey?: string;
 }
 
 /** 从真实库读 quiz-generator 角色实际会用的那条 provider（只读，取第一个 enabled 的平台行） */
 export function borrowProvider(): BorrowedProvider {
+  // ★ 覆写通道：SB_EVAL_BASE_URL / SB_EVAL_API_KEY / SB_EVAL_MODEL 三个都给了就不读真实库
+  //   （没有本机真实库的机器，如 CI 外的沙箱）。key 只活在进程环境里，由 bootEvalEnv 用临时库的主密钥加密后写入。
+  const envUrl = process.env.SB_EVAL_BASE_URL;
+  const envKey = process.env.SB_EVAL_API_KEY;
+  const envModel = process.env.SB_EVAL_MODEL;
+  if (envUrl && envKey && envModel) {
+    return { upstreamBaseUrl: envUrl.replace(/\/+$/, ''), encryptedKey: '', plainKey: envKey, type: 'openai', streamMode: 'once', model: envModel };
+  }
   const dbPath = path.join(DATA_DIR, 'studentbuddy.db');
   if (!fs.existsSync(dbPath)) throw new Error(`找不到真实库：${dbPath}`);
   const db = new Database(dbPath, { readonly: true });
@@ -74,13 +84,17 @@ export interface EvalEnv {
  * 之后 `routeRole('quiz-generator', undefined, null)` 在产品自己的代码里读到的就是这一行，
  * 于是**产品的调用链一行没改**，只是地址换成了本地代理。
  */
-export async function bootEvalEnv(opts: { rawDir: string; role?: 'quiz-generator' }): Promise<EvalEnv> {
+export async function bootEvalEnv(opts: { rawDir: string; role?: 'quiz-generator' | 'solver' }): Promise<EvalEnv> {
   const borrowed = borrowProvider();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-eval-'));
   openIsolated(dataDir);
   const recorder = await startRecorder(borrowed.upstreamBaseUrl, opts.rawDir);
 
   const { getDb } = await import('../../../packages/server/src/storage/db.js');
+  if (borrowed.plainKey) {
+    const { encryptSecret } = await import('../../../packages/server/src/storage/crypto.js');
+    borrowed.encryptedKey = encryptSecret(borrowed.plainKey);
+  }
   const db = getDb();
   db.prepare(
     `INSERT INTO providers (id, name, base_url, api_key, type, enabled, stream_mode, owner_id)

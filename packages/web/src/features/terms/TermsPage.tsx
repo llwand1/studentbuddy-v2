@@ -16,6 +16,7 @@ import { DomainBar, type DomainStat } from './DomainBar';
 import { ReviewPanel } from './ReviewPanel';
 import { UndoDeleteBar } from './UndoDeleteBar';
 import { CATALOG_PATH } from '../../seo/paths';
+import { TermRelations } from './TermRelations';
 import './terms.css';
 
 /**
@@ -50,6 +51,7 @@ export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) 
     preferred: [],
   });
   const [terms, setTerms] = useState<TermItem[]>([]);
+  const [relOpen, setRelOpen] = useState<string | null>(null); // 展开「关联」的词条 id（一次只开一条）
   const [domain, setDomain] = useState('all');
   const [keyword, setKeyword] = useState(initialKeyword);
   const [editing, setEditing] = useState<string | null>(null);
@@ -229,6 +231,7 @@ export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) 
                     {t.usage_count > 0 && <span className="term-used">已在对话中使用 {t.usage_count} 次</span>}
                   </div>
                   <div className="term-def">{t.definition}</div>
+                  {relOpen === t.id && <TermRelations termId={t.id} />}
                   <div className="term-meta">
                     {t.source_title && <span>来自：{t.source_title.slice(0, 16)}</span>}
                     <span>{t.updated_at?.slice(0, 10)}</span>
@@ -254,6 +257,9 @@ export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) 
                       onClick={() => void toggleScope(t)}
                     >
                       {t.review_in_scope === 1 ? '移出复习' : '纳入复习'}
+                    </button>
+                    <button className="term-btn" aria-pressed={relOpen === t.id} onClick={() => setRelOpen((o) => (o === t.id ? null : t.id))}>
+                      关联
                     </button>
                     <button className="term-btn" onClick={() => startEdit(t)}>
                       编辑

@@ -16,6 +16,7 @@ import type { QuizPayload } from '@sb/shared';
 import { generateQuiz } from '../learning/quiz.js';
 import { routeRole } from '../llm/router.js';
 import { aiText } from '../ai/gateway.js';
+import { requestRefill, takePooled } from './question-pool.js';
 import { pushGeneratedQuestion, publishState, scheduleNextAiQuiz, submitAnswer } from './match.js';
 import {
   clearQuizPending,
@@ -73,13 +74,19 @@ export async function runAiQuiz(roomId: string, ownerId: string | null): Promise
   setQuizPending(room, author.userId, now);
   publishState(room);
 
-  let payload: QuizPayload | null = null;
-  try {
-    // 末参 online=true：AI 出题也联网，与人出题同口径（match.ts 那侧同样开了）。
-    // 失败不阻断：搜不到就退回模型知识，AI 出题失败本就按 CD 不变、可免费重试处理，计分不受影响。
-    payload = await generateQuiz(topic, undefined, PK_QUIZ_MIX, undefined, undefined, true, ownerId, true); // 末参 verify=true：对战题必须过盲解验算（issue #71）
-  } catch {
-    payload = null;
+  // ★ Step 4：先看预生成题池（已过盲解验算），命中就不用让玩家干等一次实时出题；
+  //   不管命中与否都要求补池（worker 不在跑时是空操作，见 question-pool.ts 头注）。
+  const pooled = takePooled(topic, new Set(room.questions.map((q) => q.stem)));
+  requestRefill(topic);
+  let payload: QuizPayload | null = pooled ? { questions: [pooled] } : null;
+  if (!pooled) {
+    try {
+      // 末参 online=true：AI 出题也联网，与人出题同口径（match.ts 那侧同样开了）。
+      // 失败不阻断：搜不到就退回模型知识，AI 出题失败本就按 CD 不变、可免费重试处理，计分不受影响。
+      payload = await generateQuiz(topic, undefined, PK_QUIZ_MIX, undefined, undefined, true, ownerId, true); // 末参 verify=true：对战题必须过盲解验算（issue #71）
+    } catch {
+      payload = null;
+    }
   }
   // LLM 处理期间对局可能已结束：结算后的房间不再收题
   if (room.status !== 'active') {

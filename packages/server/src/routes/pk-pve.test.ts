@@ -45,6 +45,7 @@ const { resetRooms, requireRoomInternal } = await import('../pk/room.js');
 const { resetMatchState, submitQuiz, tickMatches } = await import('../pk/match.js');
 const { PK_QUIZ_MIX } = await import('@sb/shared');
 const { generateQuiz } = await import('../learning/quiz.js');
+const { addToPool } = await import('../pk/question-pool.js');
 const { routeRole } = await import('../llm/router.js');
 const { snapshot } = await import('../chat/sse-bus.js');
 const request = (await import('supertest')).default;
@@ -171,6 +172,18 @@ describe('AI 出题（ticker 到点触发，与人同口径）', () => {
     const now = Date.now();
     expect(room.aiNextQuizAt).toBeLessThanOrEqual(now + 60_000);
     expect(room.aiNextQuizAt).toBeGreaterThan(now + 60_000 - 5000); // ≈ now + QUIZ_CD_MS
+  });
+
+  it('★ 预生成池命中：直接出池里的题、不再实时调出题管道（Step 4）', async () => {
+    addToPool('历史', { type: 'single', question: '池里的题', options: ['甲', '乙', '丙'], answer: 2 } as unknown as QuizQuestion);
+    const { roomId, startedAt } = await makePveRoom('世界历史');
+    vi.mocked(generateQuiz).mockClear();
+    tickMatches(startedAt + AI_FIRST_QUIZ_DELAY_MS);
+    await flush();
+    const q = requireRoomInternal(roomId).questions[0];
+    expect(q?.stem).toBe('池里的题');
+    expect(q?.answer).toBe(2);
+    expect(vi.mocked(generateQuiz)).not.toHaveBeenCalled();
   });
 
   it('AI 出题失败：不扣分不占 CD，10s 后重试（AI_RETRY_DELAY_MS）', async () => {

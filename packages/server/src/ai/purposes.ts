@@ -25,12 +25,13 @@ export interface AiPurposeInfo {
 }
 
 export const AI_PURPOSES = {
-  'chat.turn': { label: '对话回答', role: 'explain', version: 2, upstream: 'main', timeoutMs: 180_000 },
+  'chat.turn': { label: '对话回答', role: 'explain', version: 3, upstream: 'main', timeoutMs: 180_000 },
   'chat.compact': { label: '会话压缩与画像', role: 'summarizer', version: 1, upstream: 'background', timeoutMs: 120_000 },
   'chat.vision': { label: '看图', role: 'vision', version: 1, upstream: 'main', timeoutMs: 90_000 },
   'term.extract': { label: '抽取词条', role: 'explain', version: 1, upstream: 'background', timeoutMs: 90_000 },
+  'term.relate': { label: '词条关系', role: 'explain', version: 1, upstream: 'background', timeoutMs: 90_000 },
   'term.tidy': { label: '整理词条库', role: 'explain', version: 1, upstream: 'main', timeoutMs: 120_000 },
-  'quiz.generate': { label: '出题', role: 'quiz-generator', version: 2, upstream: 'main', timeoutMs: 180_000 },
+  'quiz.generate': { label: '出题', role: 'quiz-generator', version: 3, upstream: 'main', timeoutMs: 180_000 },
   'quiz.verify': { label: '盲解验题', role: 'solver', version: 1, upstream: 'main', timeoutMs: 60_000 },
   'quiz.grade': { label: '主观题评分', role: 'solver', version: 1, upstream: 'main', timeoutMs: 45_000 },
   'quiz.explain': { label: '作答讲解', role: 'solver', version: 1, upstream: 'main', timeoutMs: 120_000 },
@@ -38,7 +39,7 @@ export const AI_PURPOSES = {
   'collect.draft': { label: '现场搜集出题', role: 'quiz-generator', version: 1, upstream: 'main', timeoutMs: 180_000 },
   'coach.message': { label: '复习督促', role: 'coach', version: 1, upstream: 'background', timeoutMs: 60_000 },
   'npc.genesis': { label: '伙伴诞生', role: 'npc', version: 1, upstream: 'main', timeoutMs: 60_000 },
-  'npc.talk': { label: '伙伴对话', role: 'npc', version: 1, upstream: 'main', timeoutMs: 60_000 },
+  'npc.talk': { label: '伙伴对话', role: 'npc', version: 2, upstream: 'main', timeoutMs: 60_000 },
   'npc.ping': { label: '伙伴主动搭话', role: 'npc', version: 1, upstream: 'background', timeoutMs: 45_000 },
   'coach.trend': { label: '复习趋势摘要', role: 'coach', version: 1, upstream: 'background', timeoutMs: 60_000 },
   'chat.grill': { label: '收尾追问选项', role: 'explain', version: 1, upstream: 'main', timeoutMs: 60_000 },

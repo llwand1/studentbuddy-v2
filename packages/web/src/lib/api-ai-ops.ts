@@ -2,7 +2,7 @@
  * api-ai-ops — AI 运行状况、学习汇总、后台任务的 REST 封装（服务端 `routes/ai-ops.ts` 逐字对应）。
  * ★ 独立成文件（`api.ts` 贴着 400 行红线）；只依赖 `api-request.ts`。
  */
-import type { GradeRequest, GradeResult, LearnerModel, AiCallStats, AnswerQType, AnswerSource, JobStatus, JobView, LearningSummary, LearningTimelineItem, QuizQuestion } from '@sb/shared';
+import type { TermRelationView, GradeRequest, GradeResult, LearnerModel, AiCallStats, AnswerQType, AnswerSource, JobStatus, JobView, LearningSummary, LearningTimelineItem, QuizQuestion } from '@sb/shared';
 import { request } from './api-request.js';
 
 export interface AnswerReport {
@@ -34,6 +34,7 @@ export const aiOpsApi = {
   grade: (req: GradeRequest, signal?: AbortSignal) =>
     request<GradeResult>('/api/learning/grade', { method: 'POST', body: JSON.stringify(req), timeoutMs: 60_000, ...(signal ? { signal } : {}) }),
   model: () => request<LearnerModel>('/api/learning/model'),
+  relations: (termId: string) => request<{ items: TermRelationView[] }>(`/api/learning/terms/${encodeURIComponent(termId)}/relations`),
   resolveMisconception: (id: string) => request<{ ok: true }>(`/api/learning/misconceptions/${encodeURIComponent(id)}/resolve`, { method: 'POST' }),
   /**
    * 答题上报：**发了就不管**。学习统计是锦上添花，离线、未登录、服务端 400 都不能打断答题本身。

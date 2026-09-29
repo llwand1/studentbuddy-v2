@@ -45,6 +45,7 @@ export const AI_PURPOSES = {
   'npc.talk': { label: '伙伴对话', role: 'npc', version: 2, upstream: 'main', timeoutMs: 60_000 },
   'npc.ping': { label: '伙伴主动搭话', role: 'npc', version: 1, upstream: 'background', timeoutMs: 45_000 },
   'continent.expand': { label: '大陆开拓出词', role: 'explain', version: 1, upstream: 'main', timeoutMs: 45_000 },
+  'drill.newterms': { label: '等待时刷词出新词', role: 'explain', version: 1, upstream: 'main', timeoutMs: 30_000 },
   'coach.trend': { label: '复习趋势摘要', role: 'coach', version: 1, upstream: 'background', timeoutMs: 60_000 },
   'chat.grill': { label: '收尾追问选项', role: 'explain', version: 1, upstream: 'main', timeoutMs: 60_000 },
   'pk.judge': { label: '对战裁判', role: 'judge', version: 1, upstream: 'main', timeoutMs: 60_000 },

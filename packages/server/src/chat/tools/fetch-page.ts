@@ -19,6 +19,8 @@
 import { fetchSafe } from '../../search/ssrf-guard.js';
 import { combineSignals, htmlToText } from '../../search/index.js';
 import { registerTool } from './registry.js';
+import { decodeText } from '../../search/decode-text.js';
+import { primeReaderHtml } from '../../sources/reader.js';
 
 /** 正文回灌上限（字符）：网页体积不可控，超了截断**并如实标注**（ADR-5 不静默截半）。 */
 const MAX_BODY_CHARS = 8_000;
@@ -79,41 +81,6 @@ function notWebPageText(what: string): string {
   );
 }
 
-/** 替换符占比：用来判断「按这个编码解是不是解错了」。 */
-function replacementRatio(s: string): number {
-  if (!s) return 0;
-  let n = 0;
-  for (const ch of s) if (ch === '\uFFFD') n++;
-  return n / s.length;
-}
-
-/**
- * 按**声明或嗅探**的编码把字节解成文本。
- *
- * ★ 为什么不能直接用 `res.text()`（2026-09-20 真机实测驱动）：
- *   它**恒按 UTF-8 解码、忽略 `content-type` 里的 `charset`** ⇒ GBK 页满屏 U+FFFD
- *   仍被当「正文」回灌。实测三例：湘潭市政府 **61.8%** 替换符、岳阳市政府 **65.5%**、
- *   ★ **当当网 `content-type` 明写 `charset=GBK` 也照样 60.7%**——服务端已经告诉我们了，
- *   我们没听。这与「二进制当正文」是**同一症状、不同根因**，故另起一层修。
- *
- * 顺序：① **服务端声明的 charset 优先**（它自己说的最可信）→ ② 未声明或声明 utf-8 时，
- * 先按 UTF-8 解，替换符超 1% 再试 GB18030，**取替换符更少的那个**。
- * ★ 不用 `fatal:true` 硬判：UTF-8 页里夹几个坏字节也应当照读，不该整页回退。
- */
-function decodeText(bytes: Uint8Array, contentType: string): string {
-  const declared = /charset=["']?([\w-]+)/i.exec(contentType)?.[1];
-  if (declared && !/^utf-?8$/i.test(declared)) {
-    try {
-      return new TextDecoder(declared).decode(bytes);
-    } catch {
-      /* 未知编码名 → 落到嗅探 */
-    }
-  }
-  const asUtf8 = new TextDecoder('utf-8').decode(bytes);
-  if (replacementRatio(asUtf8) <= 0.01) return asUtf8;
-  const asGbk = new TextDecoder('gb18030').decode(bytes);
-  return replacementRatio(asGbk) < replacementRatio(asUtf8) ? asGbk : asUtf8;
-}
 
 /**
  * 失败原因外泄口径：安全策略类原因**不逐字透传**。
@@ -159,6 +126,7 @@ registerTool('fetch_page', {
       return { content: '网址为空，请带 url 重新调用 fetch_page。' };
     }
     ctx.onStep('fetch_page', 'running', url);
+    ctx.sources?.reading(url); // 资料溯源：右侧面板打「在读」标
 
     let bytes: Uint8Array;
     let ct = '';
@@ -178,6 +146,7 @@ registerTool('fetch_page', {
     } catch (err) {
       const reason = publicReason(err);
       ctx.onStep('fetch_page', 'error', reason);
+      ctx.sources?.read(url, undefined, false);
       // 回灌口径：① 不甩内部配置细节；② 明确「你有这能力，只是这次没读到」；
       // ③ **不给「那就别读了」的台阶**，也不许它把"读不到"说成"这页不存在"。
       return {
@@ -191,11 +160,19 @@ registerTool('fetch_page', {
     // 解码会洗掉字节级特征（见 looksBinary 注释）。
     if (looksBinary(bytes)) {
       ctx.onStep('fetch_page', 'error', '非网页：疑似二进制');
+      ctx.sources?.read(url, undefined, false);
       return { content: notWebPageText('疑似二进制文件') };
     }
 
     // 闸门③：编码层。字节 → 文本（按声明或嗅探的编码）。
-    const text = htmlToText(decodeText(bytes, ct));
+    const html = decodeText(bytes, ct);
+    const text = htmlToText(html);
+    // 资料溯源：读过的页升 read 档、补标题；HTML 交给阅读页缓存——面板打开时不必再拉一遍
+    const pageTitle = htmlToText(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? '').slice(0, 120) || undefined;
+    if (ctx.sources) {
+      ctx.sources.read(url, pageTitle, Boolean(text));
+      if (text) primeReaderHtml(url, html);
+    }
     if (!text) {
       ctx.onStep('fetch_page', 'error', '页面无正文');
       return { content: '这个网址打开了，但没提取到正文（可能是纯脚本渲染页或空白页）。可以换一个来源。' };

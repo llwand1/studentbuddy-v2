@@ -330,6 +330,15 @@ CREATE TABLE IF NOT EXISTS path_grants (
 
 **测试与 §7 改坏验证**（全量登记见 `docs/TEST-PLAN.md` §3／§4／§7／§8）：`chat/tools/generate-quiz.test.ts` **23** 例（注册与下发 5／`scaleMixToCount` 6／`quizToolSummary` 4／端到端 8）＋ `learning/quiz-announce.test.ts` **7** 例 ＋ web 侧 `chat-blocks.test.ts`、`history-fold.test.ts` 各 **+4** 例。五处改坏：A 撤注册 ⇒ **12 红**；B `affected`＝题数 ⇒ 恰好无会话对抗例红；C 回灌含 JSON ⇒ 恰好「不含答案」例红；D web 还原停用 ⇒ 6 红（3+3）；E 把 `blockId` 拆回两次取时 ⇒ **恰好 1 红**。★★ **E 这条最初是一把软锁**：原写法用真钟比两个串，一次函数调用内跨毫秒的概率极低 ⇒ 变异**会偶然通过**；改成**步进假钟**（`Date.now = () => ++tick`）后才真的咬住，实测 `expected 'quiz-1790160473219' to be 'quiz-1790160473218'`。**与 §5.3 红线 2/8 那两处「真机实测驱动」同理：锁本身也要被测**——一把偶然通过的锁比没有锁更坏，它会让人以为验过了。
 
+### 5.5 资料精选（`pick_sources`，2026-09-30 新增，**已落码**；契约 `docs/SOURCE-TRACE-SPEC.md` §4.3）
+
+| 工具 | kind | needsConfirm | 复用 | 说明 |
+|---|---|---|---|---|
+| `pick_sources` | `read` | `false`（不写库、不发网络请求，只改本轮资料架） | `sources/shelf.ts` 的 `pick()`（架子由 `flow.ts` 每轮建、`tool-exec.ts` 注入） | 参数 `picks: [{ url, why }]`（1–3 条，`why` ≤140 字）。只认**本轮搜到或读过的网址**：架上没有的退回并在返回文本里点名、没有架子如实说明、空数组 / 无 url 走 §4.3 纠错口径。生效 ⇒ 该条 `origin=pick` 置顶 + 理由条，整表帧下发（SSE-CONTRACT `block` `kind:'sources'`） |
+
+**为什么是工具而不是提示词约定**：「AI 精选」要出现在面板上就得是**结构化事实**（网址 + 理由），放正文里靠正则捞不可靠；工具调用也给了模型一个自然的「读完再选」节拍——系统提示词要求读完资料后调它 1–3 条。
+**同批次配套（非本表工具，登记以免漏账）**：`search_web` 结果自动上架（每次 ≤5 条，编号与回灌文本 `[n]` 一致）、`fetch_page` 自动升格为「读过」并带在读标；工具总数 `toolNames()` 实回 9 → **10**（§4.4 上限 16 仍有余量）。
+
 ## 6. S3 契约：MCP 外部工具接入
 
 ### 6.1 选型与依赖决策

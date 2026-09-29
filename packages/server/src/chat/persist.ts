@@ -12,6 +12,8 @@ import { estimateTokens } from './context.js';
 import { dropRow, indexRow } from '../search/fts-index.js';
 import type { ChatMessage, ToolCall } from '../llm/types.js';
 import type { TaskItem } from './task-list.js';
+import type { SourceItem } from '@sb/shared';
+import { insertMessageSources } from '../sources/store.js';
 
 /**
  * 工具轮 + 最终回答原子落库（v1 语义）：中途失败/中止时整体不落，历史里不会
@@ -26,7 +28,7 @@ export function persistRounds(
   rounds: Array<{ calls: ToolCall[]; results: ChatMessage[]; durations?: Array<number | undefined> }>,
   finalContent: string,
   tokens: number,
-  proc: { reasoning: string; tasks: TaskItem[]; thinkingMs?: number },
+  proc: { reasoning: string; tasks: TaskItem[]; thinkingMs?: number; sources?: SourceItem[] },
 ): string {
   const db = getDb();
   const assistantId = randomUUID();
@@ -51,6 +53,8 @@ export function persistRounds(
       proc.tasks.length > 0 ? JSON.stringify(proc.tasks) : null,
       proc.thinkingMs ?? null,
     );
+    // 资料溯源（SOURCE-TRACE-SPEC §7）：资料行与回答行同一事务——回答在、资料在
+    insertMessageSources(db, sessionId, assistantId, proc.sources ?? []);
   });
   apply();
   // 搜索索引（契约 docs/FTS-SPEC.md §3.3）：**在源表事务提交后**同步最终回答行。
@@ -90,10 +94,13 @@ export function insertAssistantMessage(opts: {
   reasoning?: string | null;
   tasks?: TaskItem[];
   thinkingMs?: number | null;
+  /** 半截回答也把已上架的资料落下：面板上还开着它们，重开会话要还能点（SOURCE-TRACE-SPEC §7） */
+  sources?: SourceItem[];
 }): string {
   const id = randomUUID();
   const tasks = opts.tasks ?? [];
-  getDb()
+  const db = getDb();
+  db
     .prepare(
       `INSERT INTO messages (id, session_id, role, content, tokens, reasoning, tasks, thinking_ms) VALUES (?, ?, 'assistant', ?, ?, ?, ?, ?)`,
     )
@@ -106,6 +113,7 @@ export function insertAssistantMessage(opts: {
       tasks.length > 0 ? JSON.stringify(tasks) : null,
       opts.thinkingMs ?? null,
     );
+  insertMessageSources(db, opts.sessionId, id, opts.sources ?? []);
   indexRow('message', id);
   return id;
 }

@@ -11,7 +11,11 @@
  * 消息视图类型（QuizBlockView / ScenarioBlockView）也定义在这里——useChatStream 与
  * history-fold 双向引用它，放 useChatStream 会成环。
  */
-import type { ScenarioPayload } from '@sb/shared';
+import type { ScenarioPayload, SourcesBlockPayload } from '@sb/shared';
+import { applyLiveSources, takeTurnSources } from '../../lib/sources-store';
+
+/** useChatStream 贴着 400 行红线：资料架归位函数经本文件转出口，省掉那边再开一行 import */
+export { takeTurnSources };
 
 /** 流内 quiz 卡片的消息挂载形状（live 与历史同构） */
 export interface QuizBlockView {
@@ -54,6 +58,12 @@ export function applyChatBlock<T>(
 ): void {
   const p = payload as { kind?: string; payload?: unknown } | undefined;
   if (!p) return;
+  // 资料架（SOURCE-TRACE-SPEC §4）：不进消息流，整表交给右侧面板的 store（items 缺失的坏帧忽略）
+  if (p.kind === 'sources') {
+    const sp = payload as Partial<SourcesBlockPayload>;
+    if (Array.isArray(sp.items) && typeof sp.sessionId === 'string') applyLiveSources(sp as SourcesBlockPayload);
+    return;
+  }
   if (p.kind === 'quiz' && p.payload) {
     const quiz = p.payload as QuizBlockView['quiz'];
     const quizIdMatch = blockId.match(/quiz-(.+)/);

@@ -4,9 +4,9 @@
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-295%20files%20%2F%203631%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-156-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-200%20types-8a63f6)
+![tests](https://img.shields.io/badge/tests-303%20files%20%2F%203686%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-159-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-205%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -78,6 +78,7 @@ flowchart TD
 |---|---|---|
 | `search_web` | 联网搜索（五层体系的一层，见下） | 免 |
 | `fetch_page` | 抓网页正文（SSRF 护栏 + 白名单，单页不遍历） | 免 |
+| `pick_sources` | 从本轮搜到 / 读过的资料里标 1–3 条「AI 精选」带理由，右侧资料架置顶（只能引用本轮网址） | 免 |
 | `fetch_image` | 抓取图片资源 | 免 |
 | `search_images` | 找网络真实图片：Commons 主 / Bing 兜底，候选图必须过视觉模型看图核验（配图管道见「搜索」一节） | 免 |
 | `lookup_terms` | 查用户词条库（正文高亮注入的数据源） | 免 |
@@ -111,6 +112,7 @@ flowchart TD
 - **导出 Markdown**——对话与词条拿得出去，不被锁在库里
 - **文档模式**——绑定长资料走 BM25 检索注入、带段号可溯源，70 万字资料下旧直塞覆盖率 0/13 → 新检索 13/13
 - **等待时刷词**（`docs/WAIT-DRILL-SPEC.md`）——发出问题后 AI 还在想、2 秒没回完就弹一张百词斩式词卡（词→义 / 义→词 / 拼写，键盘一把梭），回复到了答完这张自动切回；到期词条答对直接算一次复习打卡，AI 顺着话题现出库里没有的新词、点「收入词库」才入库；配乐音效全 Web Audio 现场合成，答对五款特效轮换
+- **资料溯源**（`docs/SOURCE-TRACE-SPEC.md`）——AI 一联网，右侧就弹出「资料架」：搜到即上架、读到哪条标「在读」、AI 再精选 1–3 条说一句为什么；网页走服务端零脚本阅读页、PDF 直翻、视频官方播放器；正文里的 `[n]` 是可点的引用芯片；资料随回答落库，历史脚注「资料 n 条」可重开。刷词弹窗同时改成可拖动小窗，与资料架并存
 
 ### AI 出题：一条管道，不是一个按钮
 
@@ -198,7 +200,7 @@ flowchart TD
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼；对已下线路由（`/bank/:id` 等）有**墓碑锁**（断言 404，防止功能悄悄复活没人知道） |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **295 文件 / 3631 例**，全绿；passed/skipped 明细随平台略有差异（skipped 数分平台不同），**不进本文手抄**——实跑明细由 `node tools/metrics.mjs --tests` 当场产出。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3。
+当前测试基线 **303 文件 / 3686 例**，全绿；passed/skipped 明细随平台略有差异（skipped 数分平台不同），**不进本文手抄**——实跑明细由 `node tools/metrics.mjs --tests` 当场产出。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3。
 
 测试之外还有**两套离线评测**（都支持零 key 假模型自检，同 `demo:e2e` 的假 LLM 哲学）：`npm run eval` 评**产品链路**——走生产同款抽取与修复管道，四档解析（strict / repaired / rescued / failed）+ 配图开关两 arm 永不合并，带成本计量，答的是「产品今天交付什么水平」；`npm run eval:models` 评**模型裸输出**——七套件（自建样本 + 冻结的 MMLU / C-Eval 公开集 + 现场真题），出题协议服从性、复刻相似度、联网引用命中、词条抽取 F1、注入对抗，任意 OpenAI 兼容端点自带 key 横向对比，答的是「这只模型本身什么水平」。两边并读：同一份失败，评测台落在 repaired 档而 model-bench 直接红 ⇒ 是修复器救回来的，该改提示词。换模型、换 provider、改提示词前后各跑一遍，分数变化就是决策依据，不再靠手感（详见 [`tools/eval/model-bench/README.md`](tools/eval/model-bench/README.md)）。
 
@@ -302,8 +304,9 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | [`AUTH-SPEC.md`](docs/AUTH-SPEC.md) · [`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) | 账号契约 / 多租户归属契约 |
 | [`SSE-CONTRACT.md`](docs/SSE-CONTRACT.md) · [`CHAT-UX-SPEC.md`](docs/CHAT-UX-SPEC.md) | SSE 事件与 HTTP 接口契约（前端对接核心）/ 对话页流式期与常用动作口径（重试 / Esc 停止 / 会话草稿 / 标题态 / 引用追问） |
 | [`WAIT-DRILL-SPEC.md`](docs/WAIT-DRILL-SPEC.md) | 等待时刷词契约（2 秒才弹 / 答完切回 / 到期打卡 / AI 新词候选闸门 / 特效与音频口径） |
+| [`SOURCE-TRACE-SPEC.md`](docs/SOURCE-TRACE-SPEC.md) | 资料溯源契约（资料架编号即身份 / 阅读页零脚本与授权 / `pick_sources` / `[n]` 引用芯片 / 落库与历史重开 / 与刷词小窗共存） |
 | [`TEST-PLAN.md`](docs/TEST-PLAN.md) | **测试清单**：测试策略 / 运行命令 / 逐文件不变量（每个测试文件锁什么） |
 | [`DEPLOY.md`](DEPLOY.md) | **部署手册**：服务器 / systemd / 五条部署 env / TLS / 备份 / 回滚 |
 | [`CHANGELOG.md`](CHANGELOG.md) | 已发布版本的对外更新记录 |
 
-★ 完整契约清单（39 份 SPEC）直接看 `docs/` 目录。仓内以 `docs/` 与代码为准；文档与实现冲突时**以代码 + 测试为准**。
+★ 完整契约清单（40 份 SPEC）直接看 `docs/` 目录。仓内以 `docs/` 与代码为准；文档与实现冲突时**以代码 + 测试为准**。

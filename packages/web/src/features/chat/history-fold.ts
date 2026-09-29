@@ -9,6 +9,7 @@
  *
  * 纯函数：吃原始行、吐 StreamMessage[]，不碰 DOM 也不碰 React，可直接单测。
  */
+import type { SourceItem } from '@sb/shared';
 import type { StreamMessage, TaskItem, ToolStep } from './useChatStream';
 import { restoreQuizBlock, restoreScenarioBlock } from './chat-blocks';
 
@@ -31,6 +32,8 @@ export interface HistoryRow {
   thinking_ms?: number | null;
   /** v32：tool 结果行的实测执行耗时（ms）——刷新/切会话后卡片耗时不变的事实源 */
   duration_ms?: number | null;
+  /** v51 资料溯源：回答行挂的资料架（`message_source` 表随行下发；无则不带键） */
+  sources?: SourceItem[] | null;
   created_at: string;
 }
 
@@ -139,6 +142,7 @@ export function foldToolRounds(rows: HistoryRow[]): StreamMessage[] {
         reasoning: r.reasoning || undefined,
         ...(r.thinking_ms != null ? { thinkingMs: r.thinking_ms } : {}), // 思考耗时与 done 帧同源（v32 列）
         tasks: parseTasks(r.tasks),
+        ...(r.sources && r.sources.length > 0 ? { sources: r.sources } : {}), // 资料架：脚注「资料 n 条」与 [n] 可点的来源
       });
       pending = [];
       byCallId.clear();

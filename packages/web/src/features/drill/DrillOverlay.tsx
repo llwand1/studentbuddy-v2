@@ -1,7 +1,9 @@
 /**
- * DrillOverlay — 「等待时刷词」的整张弹窗（契约 `docs/WAIT-DRILL-SPEC.md` §5.1）：
- * 头部（品牌角标 + 战绩 + 音效 / 关闭）→ 「回复到了」横幅 → 卡片 + 特效层 → 状态行 → 键位脚注。
+ * DrillOverlay — 「等待时刷词」的整张小窗（契约 `docs/WAIT-DRILL-SPEC.md` §5.1 / §5.6）：
+ * 头部（品牌角标 + 战绩 + 音效 / 关闭，**也是拖柄**）→ 「回复到了」横幅 → 卡片 + 特效层 → 状态行 → 键位脚注。
  *
+ * ★ 2026-09-30 起是**非模态可拖动浮窗**（不压暗背景、不挡对话与右侧资料架）：右侧常驻「资料架」之后，
+ *   居中模态会把 AI 在看的资料挡个正着——学习者自己把它拖到左边或中间（`useDragWindow`，位置记在本机偏好）。
  * ★ 与大陆弹窗同一套黑铁金线（`drill.css` 按 `grimoire.css` 的语言写，只用 `--gr-*` / `--sb-*` 变量）。
  * ★ 纯展示：状态机在 `useDrillSession`，弹与收在 `useDrillTrigger`，两者由 `WaitDrill` 拼起来。
  */
@@ -10,6 +12,7 @@ import type { DrillCard } from '@sb/shared';
 import { DrillFx, type DrillFxState } from './DrillFx';
 import { DrillQuestion } from './DrillQuestion';
 import type { DrillEntry, DrillPhase, DrillResult, DrillStats } from './useDrillSession';
+import { useDragWindow, type WindowPos } from './useDragWindow';
 import './drill.css';
 import './drill-fx.css';
 
@@ -41,6 +44,9 @@ export interface DrillOverlayProps {
   onSlay: () => void;
   onKeep: () => void;
   onDismiss: () => void;
+  /** 浮窗上次的位置（无＝居中）与拖完的回写（§5.6） */
+  windowPos: WindowPos | null;
+  onWindowMoved: (pos: WindowPos) => void;
 }
 
 /** 底部快捷键提示按这张卡的操作方式换词：拼写卡没有 1–4，学新词那屏只有 Enter。 */
@@ -52,8 +58,9 @@ function footHint(phase: DrillPhase, card: DrillCard | null): string {
 
 export function DrillOverlay(p: DrillOverlayProps) {
   /**
-   * 打开时把焦点挪进弹窗、关掉时还回去（多半是聊天输入框——回复到了正好接着打字）。
+   * 打开时把焦点挪进小窗、关掉时还回去（多半是聊天输入框——回复到了正好接着打字）。
    * ★ 不挪焦点的后果在真机上见过：发送完消息焦点还在聊天框里，按 1–4 什么都不发生。
+   *   小窗是非模态的：之后学习者点回聊天框打字，按键就归聊天框（`useDrillKeys` 只在焦点不在外部输入框时接键）。
    */
   const stage = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -63,10 +70,11 @@ export function DrillOverlay(p: DrillOverlayProps) {
       if (prev && prev.isConnected) prev.focus({ preventScroll: true });
     };
   }, []);
+  useDragWindow(stage, { handle: '.drill-head', initial: p.windowPos, onSettle: p.onWindowMoved });
   return (
-    <div className="drill-overlay" role="dialog" aria-modal="true" aria-label="等待时刷词">
+    <div className="drill-overlay" role="dialog" aria-label="等待时刷词">
       <div className="drill-stage" ref={stage} tabIndex={-1}>
-        <header className="drill-head">
+        <header className="drill-head" title="按住这里拖动小窗">
           <div className="drill-brand">
             <span className="drill-brand-tag">WAIT</span>
             <b>等待时刷词</b>

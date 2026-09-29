@@ -17,6 +17,7 @@ import { SvgPreviewCard } from './SvgPreviewCard';
 import { ChartCard } from './ChartCard';
 import { HtmlCard } from './HtmlCard';
 import { TermText } from './TermText';
+import { CiteChip } from '../sources/cite';
 import './markdown.css';
 import './term-highlight.css';
 
@@ -50,6 +51,8 @@ function InlineNodes({ nodes }: { nodes: Inline[] }) {
             );
           case 'br':
             return <br key={i} />;
+          case 'cite':
+            return <CiteChip key={i} n={n.n} />; // 资料引用：架上有第 n 条才是芯片（features/sources/cite.tsx）
           default:
             /**
              * 纯文本节点走 `TermText`：命中词条库的词会带上高亮与悬浮卡

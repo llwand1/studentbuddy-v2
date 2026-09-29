@@ -110,6 +110,7 @@ flowchart TD
 - **出题配图 SVG**——模型自决给几何 / 电路题附图，图坏只删图不删题
 - **导出 Markdown**——对话与词条拿得出去，不被锁在库里
 - **文档模式**——绑定长资料走 BM25 检索注入、带段号可溯源，70 万字资料下旧直塞覆盖率 0/13 → 新检索 13/13
+- **等待时刷词**（`docs/WAIT-DRILL-SPEC.md`）——发出问题后 AI 还在想、2 秒没回完就弹一张百词斩式词卡（词→义 / 义→词 / 拼写，键盘一把梭），回复到了答完这张自动切回；到期词条答对直接算一次复习打卡，AI 顺着话题现出库里没有的新词、点「收入词库」才入库；配乐音效全 Web Audio 现场合成，答对五款特效轮换
 
 ### AI 出题：一条管道，不是一个按钮
 
@@ -300,8 +301,9 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | [`DOC-RAG-SPEC.md`](docs/DOC-RAG-SPEC.md) · [`FTS-SPEC.md`](docs/FTS-SPEC.md) | 文档模式契约（BM25 检索）/ 全站全文搜索契约 |
 | [`AUTH-SPEC.md`](docs/AUTH-SPEC.md) · [`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) | 账号契约 / 多租户归属契约 |
 | [`SSE-CONTRACT.md`](docs/SSE-CONTRACT.md) · [`CHAT-UX-SPEC.md`](docs/CHAT-UX-SPEC.md) | SSE 事件与 HTTP 接口契约（前端对接核心）/ 对话页流式期与常用动作口径（重试 / Esc 停止 / 会话草稿 / 标题态 / 引用追问） |
+| [`WAIT-DRILL-SPEC.md`](docs/WAIT-DRILL-SPEC.md) | 等待时刷词契约（2 秒才弹 / 答完切回 / 到期打卡 / AI 新词候选闸门 / 特效与音频口径） |
 | [`TEST-PLAN.md`](docs/TEST-PLAN.md) | **测试清单**：测试策略 / 运行命令 / 逐文件不变量（每个测试文件锁什么） |
 | [`DEPLOY.md`](DEPLOY.md) | **部署手册**：服务器 / systemd / 五条部署 env / TLS / 备份 / 回滚 |
 | [`CHANGELOG.md`](CHANGELOG.md) | 已发布版本的对外更新记录 |
 
-★ 完整契约清单（38 份 SPEC）直接看 `docs/` 目录。仓内以 `docs/` 与代码为准；文档与实现冲突时**以代码 + 测试为准**。
+★ 完整契约清单（39 份 SPEC）直接看 `docs/` 目录。仓内以 `docs/` 与代码为准；文档与实现冲突时**以代码 + 测试为准**。

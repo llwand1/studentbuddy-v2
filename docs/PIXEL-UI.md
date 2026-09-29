@@ -70,3 +70,14 @@
 回归：`src/components/PixelSprite.test.tsx`（5 例）、`src/features/chat/ChatSpeaker.test.tsx`（4 例）、`ChatView.test.tsx`（＋3 例：铭牌头／铭牌／符号定义的挂线），登记见 TEST-PLAN §3 顶部；`ChatComposer.test.tsx` / `Markdown.test.tsx` 例数不变。视觉属真机目检，已在无头 Chromium 1360×860（含 `prefers-reduced-motion: reduce` 一档）与 390×844 @2x 连拍核对：发送 → 等待（符文轮亮）→ 流式（扫描线 + 光标 + 吟唱中）→ 落成（印章 pop）→ 悬停脚注 → 编辑重发 → 出题（题卡展开）→ 回到顶部；减少动态效果档零残留遮挡；窄屏隐藏角标与角饰、铭牌与面板不溢出。
 
 复查修补（同日，真机连拍第二轮，覆盖此前没走到的态：思考面板 → 任务清单 → 工具步骤（running／done／展开载荷）→ 选择卡 → 确认卡 → 生成失败 → 中途停止 → 题卡作答／复盘；390 与 700 两档窄屏；`prefers-reduced-motion`）：① 装饰性伪元素字符一律 `content: 'x' / ''`（读屏不念 `+`／`✦`／`◆`）；② `N 轮` 铁牌无用户消息时不渲染；③ 消息内过程面板各占一行——此前思考牌与任务牌并排、被 `align-items: stretch` 拉成一只只有头行的空盒；④ `.chat-step` 的工具载荷跑到行头右侧、行头被垂直居中——根因是 **`chat.css` 写 `display: flex`、`chat-extras.css` 写 `display: block` 想覆盖它，而两份文件谁先进产物取决于模块图**（`ChatView` 先 import 面板组件、后 import `./chat.css` ⇒ 基础层反而排在后面、flex 赢）。**在源头修掉**：`chat.css` 的 `.chat-step` 本就该是块容器（行由 `.chat-step-row` 承担），`chat-extras.css` 不再二次声明；`ChatView` 把 `./chat.css` 提到本目录组件 import 之前；新增 `chat-css-order.test.ts` 锁两条契约——两份文件对同一选择器**不得再声明同一属性**（同值也不许）、基础样式 import 必须在前——主题层不再钉 `display`。载荷 `<pre>` 亮底残留 `rgba(0,0,0,.03)` 换成黑底金暗线；⑤ 消息脚注 `margin-top: 6px` 并进定位层——面板是 `position: relative` 带 5px 黑色偏移投影，会盖住紧贴其下的脚注按钮顶边；⑥ running 工具步骤边线改金（此前被 `chat.css` 的主色红压着，与「吟唱中」的金色 live 语义打架）。实测：减少动态档 `document.getAnimations()` 全程为 0；正常档流式期 10 条动画（团子眨眼／跳、火星、扫描线、光标、充能、停止键脉冲等），落成 3 秒后只剩团子眨眼与背景余烬两条闲置循环；`<use>` 勇者在 DPR 1／2 下均为整像素边（与实体 rect 渲染逐像素一致）。
+
+## 2026-09-29 等待时刷词弹窗 + 五款命中特效
+
+起因：等 AI 回复的空档要能刷词（`docs/WAIT-DRILL-SPEC.md`），弹窗得像本仓的东西，不像一个套壳的背单词 App。
+
+- `features/drill/drill.css`：整张弹窗按 `grimoire.css` 的语言写——黑铁框双金线舞台（`--gr-frame-hi`）+ 两枚角饰、血红主按钮 / 铁灰次按钮（与大陆弹窗同款）、金字战绩铁牌、四选一两列大按钮（键位牌在左，答完正确项绿亮 / 选错红亮 / 其余压暗）、拼写卡首字提示用显示字体压印。全部 `--sb-*` / `--gr-*` 变量，无内联样式；390px 下选项改一列、键位脚注隐藏。
+- `features/drill/drill-fx.css` + `DrillFx.tsx`：答对五款轮换（每答对一次换下一款，"变化"本身是奖励）——**斩击**两道白刃 `clip-path` 斜切 + 白闪、**爆裂** 12 粒方块沿 `:nth-child` 写死的方向四散、**星芒**四角星 `clip-path` 撑开 + 冲击环、**电光** SVG 锯齿闪电 `clip-path` 自上劈下 + 蓝闪两拍、**血墨**不规则多边形墨点炸开 + 三滴飞溅；答错**碎裂**（SVG 红裂纹 + `.drill-card.miss` 抖六拍）；连击 5 的倍数叠「COMBO ×N」大字。
+- 四条口径照旧：只用 `steps()`；只动 transform / opacity / clip-path（"闪一下"一律叠伪元素动 opacity）；**默认态即终态**（粒子静止 = `opacity:0`，reduced-motion 全关后什么都不剩）；`pointer-events:none` + `aria-hidden`。
+- 音频不进 CSS：`drill-audio.ts` 用 Web Audio 合成 8-bit 配乐与七款音效（零音频文件，仓库对外「静态产物无二进制素材」的承诺不破），静音记本机。
+
+回归：`features/drill/WaitDrill.cards.test.tsx` 第 ② 例锁五款按次轮换 + COMBO 大字；`drill-audio.test.ts` 锁配乐调度与静音口径。

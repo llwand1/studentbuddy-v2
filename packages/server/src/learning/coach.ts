@@ -15,6 +15,7 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
 import { routeRole } from '../llm/router.js';
+import { aiText } from '../ai/gateway.js';
 import { reviewOverview, markReviewed } from './term-review.js';
 import { computeStreak } from './activity.js';
 // ★ v1.2：队列的构建搬到 `review-queue.ts`（三段补位，契约 EBBINGHAUS-SPEC §10.3）。
@@ -346,32 +347,20 @@ export async function generateCoachReply(opts: {
     ...historyMessages(opts.ownerId),
     { role: 'user', content: opts.text },
   ];
-  let acc = '';
-  try {
-    for await (const chunk of target.adapter.chat({
-      model: target.model,
-      apiKey: target.apiKey,
-      baseUrl: target.baseUrl,
-      messages,
-      temperature: COACH_TEMPERATURE,
-      maxTokens: COACH_MAX_TOKENS,
-      streamMode: 'stream',
-      signal: opts.signal,
-    })) {
-      if (chunk.content) {
-        acc += chunk.content;
-        opts.onToken(chunk.content);
-      }
-      if (chunk.done) break;
-    }
-  } catch (err) {
-    // ★ 用户主动停止（点了停止按钮 / 直接发了下一轮打断了这一轮）：**不是错误**。
-    //   已吐出的部分照常返回并落库（"说了一半的话"也是他说过的），空的部分什么都不落。
-    //   若在这里报错，用户会看到自己点了停止却换来一张「没回上」的卡——那是工具在怪用户。
-    if (opts.signal?.aborted) return { ok: true, text: acc.trim() };
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, text: acc, error: `模型调用失败：${msg}` };
-  }
+  const r = await aiText({
+    purpose: 'coach.message', ownerId: opts.ownerId, target, messages,
+    temperature: COACH_TEMPERATURE, maxTokens: COACH_MAX_TOKENS, streamMode: 'stream', signal: opts.signal,
+    // 用户正看着它逐字出来 ⇒ 按主链优先级排队（登记表里 coach 缺省是 background，给定时督促用）
+    upstream: 'main',
+    onChunk: (chunk) => {
+      if (chunk.content) opts.onToken(chunk.content);
+    },
+  });
+  // ★ 用户主动停止（点了停止按钮 / 直接发了下一轮打断了这一轮）：**不是错误**。
+  //   已吐出的部分照常返回并落库（"说了一半的话"也是他说过的），空的部分什么都不落。
+  if (!r.ok && r.reason === 'aborted') return { ok: true, text: r.text.trim() };
+  if (!r.ok) return { ok: false, text: r.text, error: `模型调用失败：${r.error}` };
+  const acc = r.text;
   const text = acc.trim() || `（模型没有返回内容）`;
   return { ok: true, text: text.slice(0, COACH_MAX_REPLY_CHARS * 2) };
 }

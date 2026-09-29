@@ -1103,3 +1103,14 @@
   color: var(--sb-ink-secondary);
   line-height: 1.5;
 }
+
+/* ── 学习画像（v47 LearnerModelCard）── */
+.rv-learner { flex-shrink: 0; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--sb-line); font-size: var(--sb-fs-sm); color: var(--sb-ink); }
+.rv-learner-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.rv-learner-hint { opacity: 0.6; font-size: 12px; }
+.rv-learner-row { display: flex; gap: 8px; margin: 4px 0; align-items: flex-start; }
+.rv-learner-k { flex: none; min-width: 44px; opacity: 0.7; }
+.rv-learner-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.rv-learner-list .rv-btn { margin-left: 8px; padding: 0 6px; font-size: 12px; }
+.rv-learner-count { margin-left: 4px; opacity: 0.6; }
+.rv-learner-cal { margin-top: 6px; opacity: 0.75; font-size: 12px; }

@@ -10,6 +10,7 @@
     "./content-blocks": "./src/content-blocks.ts",
     "./api": "./src/api.ts",
     "./domain": "./src/domain.ts",
-    "./obs": "./src/obs.ts"
+    "./obs": "./src/obs.ts",
+    "./fsrs": "./src/fsrs.ts"
   }
 }

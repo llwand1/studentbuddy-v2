@@ -138,8 +138,8 @@ function buildTermIndex(ownerId: string | null): TermIndex {
 //   两类改动几乎不会同时发生。照仓规**拆文件、不压注释**。
 // ★ 用 re-export 而不是让调用方改 import：`chat/flow.test.ts` 与 `routes/document.test.ts`
 //   的 `vi.mock('../learning/terms.js')` 都指着本文件——改路径会同时打穿两处 mock。
-export { TERMS_PROTOCOL, parseTermsBlock, normalizeTerms, extractTerms } from './term-extract.js';
-export type { TermItem } from './term-extract.js';
+export { TERMS_PROTOCOL, parseTermsBlock, parseTermsStrict, normalizeTerms, extractTerms, runTermExtraction } from './term-extract.js';
+export type { TermItem, TermExtraction } from './term-extract.js';
 
 /**
  * 入库（防再分裂 + UNIQUE(owner_id,term,domain) 兜底）：先查索引命中并入（同词同域大小写
@@ -190,6 +190,7 @@ export function saveTerms(
   // ★ v31 起幂等键是 `(owner_id, name)` ⇒ 每个用户各自登记一份；漏带归属的话，
   //   `INSERT OR IGNORE` 会**因为别人已经登记过而静默不登记**，本用户的领域 Tab 就少一格。
   const ensureDomain = db.prepare('INSERT OR IGNORE INTO term_domain (owner_id, name) VALUES (?, ?)');
+  const touched: string[] = [];
   const tx = db.transaction(() => {
     for (const t of norm) {
       const imp = t.importance ?? 0.5;
@@ -200,16 +201,18 @@ export function saveTerms(
         // 并入已有行：与 ON CONFLICT 同语义（importance 不低于现值才覆盖释义）
         mergeInto.run(imp, t.definition, imp, sourceSessionId ?? null, hit, owner);
         indexRow('term', hit);
+        touched.push(hit);
       } else {
         const id = randomUUID();
         insert.run(owner, id, t.term, t.definition, domain, sourceSessionId ?? null, imp);
         index.add(t.term, domain, id);
         indexRow('term', id);
+        touched.push(id);
       }
     }
   });
   tx();
-  publishEvent({ type: 'term_added', count: norm.length, ownerId });
+  publishEvent({ type: 'term_added', count: norm.length, ownerId, termIds: touched });
   return norm.length;
 }
 

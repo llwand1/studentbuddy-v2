@@ -17,6 +17,7 @@ import { QuizImageCard } from './QuizImageCard';
 import { AnswerStyleCard } from './AnswerStyleCard';
 import { ToolsCard } from './ToolsCard';
 import { SpeechCard } from './SpeechCard';
+import { AiHealthCard } from './AiHealthCard';
 import { PlatformChannelCard } from './PlatformChannelCard';
 import { RoleRow, providersForRole } from './RoleRow';
 import type { ProviderRow } from './RoleRow';
@@ -258,6 +259,7 @@ export function SettingsView() {
       <SearchKeysCard flash={flash} />
       <SpeechCard flash={flash} />
       <ToolsCard flash={flash} />
+      <AiHealthCard flash={flash} />
     </div>
   );
 }

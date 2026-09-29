@@ -20,6 +20,7 @@
 import { estimateTokens, alignToolRoundBoundary, dropSummarizedHistory } from './context.js';
 import { loadHistory, type HistoryMessage } from './persist.js';
 import { routeRole } from '../llm/router.js';
+import { aiText } from '../ai/gateway.js';
 import { getMaxOutputTokens } from '../llm/model-limits.js';
 import { getDb } from '../storage/db.js';
 import { injectMemoryBlock, pruneMemoryItems, upsertMemoryItems } from './memory.js';
@@ -300,26 +301,17 @@ async function runCompact(
 
   const prompt = buildCompactPrompt(previousSummary, serializeForSummary(pending));
   const startedAt = Date.now();
-  let acc = '';
-  try {
-    for await (const chunk of target.adapter.chat({
-      model: target.model,
-      apiKey: target.apiKey,
-      baseUrl: target.baseUrl,
-      messages: [{ role: 'user', content: prompt }],
-      // 显式传输出上限：摘要要装下六段 + [MEMORY]，靠适配器兜底会撞默认上限被截断
-      maxTokens: getMaxOutputTokens(target.model),
-      // 后台任务（摘要下一轮才生效，本轮用户已拿到回答）：排队时给主链让路
-      purpose: 'background',
-    })) {
-      acc += chunk.content;
-      if (chunk.done) break;
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    recordCompact(sessionId, { ok: false, failure: 'llm-error', message: msg.slice(0, 200) }, tokensBefore, Date.now() - startedAt);
+  const r = await aiText({
+    purpose: 'chat.compact', ownerId: ownerId ?? null, target,
+    messages: [{ role: 'user', content: prompt }],
+    // 显式传输出上限：摘要要装下六段 + [MEMORY]，靠适配器兜底会撞默认上限被截断
+    maxTokens: getMaxOutputTokens(target.model),
+  });
+  if (!r.ok) {
+    recordCompact(sessionId, { ok: false, failure: 'llm-error', message: r.error.slice(0, 200) }, tokensBefore, Date.now() - startedAt);
     return { ok: false, summary: null, items: [], tokensBefore, failure: 'llm-error' };
   }
+  const acc = r.text;
 
   const parsed = parseCompactReply(acc);
   // ★ 解析失败绝不写库：脏摘要比没摘要更糟——它会**持续污染此后每一轮**，

@@ -13,6 +13,7 @@ import { describe, it, expect, afterAll, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fsrsInterval } from '@sb/shared';
 
 process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-term-review-test-'));
 const { app } = await import('../index.js');
@@ -169,12 +170,27 @@ describe('词条复习 — 打卡', () => {
     age(id, 5);
     const done = await mark(id, true).expect(200);
     expect((done.body as ReviewBody).review_stage).toBe(1);
-    expect((done.body as ReviewBody).review.intervalDays).toBe(2); // 阶段 1 = 2 天后
+    // ★ v47 起间隔由 FSRS 按稳定性反推（目标保持率 0.9），不再是固定的「阶段 1 = 2 天」
+    const r = (done.body as ReviewBody).review as ReviewBody['review'] & { stability?: number };
+    expect(r.stability).toBeGreaterThan(0);
+    expect(r.intervalDays).toBe(fsrsInterval(r.stability!));
     expect((await queue()).map((t) => t.id)).not.toContain(id);
 
     const forgot = await mark(id, false).expect(200);
     expect((forgot.body as ReviewBody).review_stage).toBe(0); // 经典重来
     expect((forgot.body as ReviewBody).review.daysSince).toBe(0);
+  });
+
+  it('★ v47 可选四档评分：与 remembered 矛盾或越界 ⇒ 400；「轻松」比「记得」排得更远', async () => {
+    const a = await addTerm('动态规划');
+    const b = await addTerm('贪心算法');
+    const send = (id: string, body: object) => request(app).post(`/api/terms/${id}/review`).set('Origin', origin).send(body);
+    await send(a, { remembered: true, grade: 1 }).expect(400);
+    await send(a, { remembered: false, grade: 3 }).expect(400);
+    await send(a, { remembered: true, grade: 5 }).expect(400);
+    const easy = (await send(a, { remembered: true, grade: 4 }).expect(200)).body as ReviewBody;
+    const good = (await send(b, { remembered: true, grade: 3 }).expect(200)).body as ReviewBody;
+    expect(easy.review.intervalDays).toBeGreaterThan(good.review.intervalDays);
   });
 
   it('今日已复习按词条去重（同一条复习三次只算一个）', async () => {

@@ -201,7 +201,7 @@ describe('督促小窗 — 卡片流水', () => {
     expect(card.term).toBe('记忆化搜索');
     expect(card.remembered).toBe(true);
     expect(card.stage).toBe(1); // 记住 → 推进一档
-    expect(card.intervalDays).toBe(2);
+    expect(card.intervalDays).toBeGreaterThanOrEqual(1); // ★ v47 起由 FSRS 按稳定性排，不再固定 2 天
 
     const q1 = ((await request(app).get('/api/terms/review/queue').expect(200)).body as { items: Array<{ id: string }> })
       .items;

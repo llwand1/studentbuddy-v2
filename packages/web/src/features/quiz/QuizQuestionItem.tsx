@@ -3,14 +3,17 @@ import type { QuizQuestion, QuizReviewItem } from '@sb/shared';
 import { SvgPreviewCard } from '../chat/SvgPreviewCard';
 import { Markdown } from '../chat/Markdown';
 import { fillCount, optionsFor, reviewAttempt } from './quiz-attempt';
+import { aiOpsApi, answerQType } from '../../lib/api-ai-ops';
+import { AiGradeNote } from './AiGradeNote';
 
-export function QuizQuestionItem({ q, index, onComplete }: {
-  q: QuizQuestion; index: number; onComplete: (item: QuizReviewItem) => void;
+export function QuizQuestionItem({ q, index, onComplete, topic }: {
+  q: QuizQuestion; index: number; onComplete: (item: QuizReviewItem) => void; topic?: string;
 }) {
   const [picked, setPicked] = useState<number[]>([]);
   const [fills, setFills] = useState(() => Array<string>(fillCount(q)).fill(''));
   const [essay, setEssay] = useState('');
   const [result, setResult] = useState<QuizReviewItem | null>(null);
+  const [shownAt] = useState(() => Date.now());
   const choice = ['single', 'multiple', 'judge'].includes(q.type);
   const options = optionsFor(q);
   const label = { single: '单选', multiple: '多选', fill: '填空', essay: '解答', judge: '判断' }[q.type];
@@ -20,6 +23,11 @@ export function QuizQuestionItem({ q, index, onComplete }: {
     const next = reviewAttempt(q, { picked, fills, essay });
     setResult(next);
     onComplete(next);
+    // 进学习事件流（正确率、用时、题型；后续自适应难度的原料）。解答题只对照参考、没有对错，不报。
+    const qtype = answerQType(q.type);
+    if (qtype && next.verdict !== 'review') {
+      aiOpsApi.reportAnswer({ correct: next.verdict === 'correct', qtype, ms: Date.now() - shownAt, source: 'chat-quiz' });
+    }
   };
   return (
     <section className={`quiz-q${result ? ` is-${result.verdict}` : ''}`} aria-label={`第 ${index + 1} 题`}>
@@ -49,7 +57,8 @@ export function QuizQuestionItem({ q, index, onComplete }: {
         <strong>{result.verdict === 'correct' ? '✓ 答案吻合' : result.verdict === 'wrong' ? '↗ 找到一个值得回看的知识点' : '◇ 已提交，结合参考继续核对'}</strong>
         <p><b>你的作答：</b>{result.answer}</p>
         <p><b>参考答案：</b>{result.expected}</p>
-        {q.type === 'fill' && <p className="quiz-muted">填空按文字匹配；同义说法和等价式可在图文讲解中进一步核对。</p>}
+        {/* v47：前端判不了的（填空字面没对上、解答题）交给 AI 按要点评分，并诊断误区 */}
+        {result.verdict === 'review' && <AiGradeNote q={q} result={result} {...(topic ? { topic } : {})} />}
         {(q.explanation || q.solution) && <Markdown text={q.explanation || q.solution || ''} />}
         {q.source && <div className="quiz-source">来源：{q.source.url
           ? <a href={q.source.url} target="_blank" rel="noreferrer noopener">{q.source.title}</a> : q.source.title}</div>}

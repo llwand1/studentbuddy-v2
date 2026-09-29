@@ -22,6 +22,7 @@ import {
   npcTemplateBio,
 } from '@sb/shared';
 import { routeRole } from '../llm/router.js';
+import { aiText } from '../ai/gateway.js';
 import type { ChatMessage } from '../llm/types.js';
 
 /** 起名输出的上限（一个 JSON 对象而已；给足余量，免得模型写到一半被截断） */
@@ -94,26 +95,13 @@ export async function generateNpcIdentity(opts: {
     { role: 'system', content: buildGenesisPrompt(opts.term, opts.domain) },
     { role: 'user', content: '给他起个名字和一句自我介绍。' },
   ];
-  let acc = '';
-  try {
-    for await (const chunk of target.adapter.chat({
-      model: target.model,
-      apiKey: target.apiKey,
-      baseUrl: target.baseUrl,
-      messages,
-      temperature: NPC_GEN_TEMPERATURE,
-      maxTokens: NPC_GEN_MAX_TOKENS,
-      streamMode: 'once',
-      signal: opts.signal,
-    })) {
-      if (chunk.content) acc += chunk.content;
-      if (chunk.done) break;
-    }
-  } catch {
-    // 上游抖动也走降级：创建伙伴不许因为一次报错变成"坏掉的功能"（同 §4.2 的判断标准）
-    return fallback();
-  }
-
+  // 上游抖动/超时也走降级：创建伙伴不许因为一次报错变成"坏掉的功能"（同 §4.2 的判断标准）
+  const r = await aiText({
+    purpose: 'npc.genesis', ownerId: opts.ownerId, target, messages,
+    temperature: NPC_GEN_TEMPERATURE, maxTokens: NPC_GEN_MAX_TOKENS, streamMode: 'once', signal: opts.signal,
+  });
+  if (!r.ok) return fallback();
+  const acc = r.text;
   const parsed = pickJson(acc);
   const name = normalizeNpcName(typeof parsed?.name === 'string' ? parsed.name : '');
   const bio = normalizeNpcBio(typeof parsed?.bio === 'string' ? parsed.bio : '');

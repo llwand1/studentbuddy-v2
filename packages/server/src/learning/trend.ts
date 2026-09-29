@@ -27,6 +27,7 @@ import { MENTION_WINDOW_DAYS, mentionTrend, shortDayLabel, type MentionTrend } f
 import { appendCard, lastTrendDayKey, resolveCoachTarget } from './coach.js';
 import { runGameTick } from './game-tick.js';
 import type { ChatMessage } from '../llm/types.js';
+import { aiText } from '../ai/gateway.js';
 
 /** 趋势窗口（天）。与流水窗口同源——两个数一旦各写一份，图上标的天数就会跟曲线对不上 */
 export const TREND_WINDOW_DAYS = MENTION_WINDOW_DAYS;
@@ -132,22 +133,12 @@ export async function summarizeTrend(
       { role: 'system', content: TREND_SUMMARY_PROMPT },
       { role: 'user', content: trendFacts(data) },
     ];
-    let acc = '';
-    for await (const chunk of target.adapter.chat({
-      model: target.model,
-      apiKey: target.apiKey,
-      baseUrl: target.baseUrl,
-      messages,
-      temperature: TREND_SUMMARY_TEMPERATURE,
-      maxTokens: TREND_SUMMARY_MAX_TOKENS,
-      streamMode: 'once',
-      // 后台任务：排队时给用户正在等的对话让路（同 extractTerms / compactIfNeeded）
-      purpose: 'background',
-      signal,
-    })) {
-      if (chunk.content) acc += chunk.content;
-      if (chunk.done) break;
-    }
+    const r = await aiText({
+      purpose: 'coach.trend', ownerId: ownerId ?? null, target, messages,
+      temperature: TREND_SUMMARY_TEMPERATURE, maxTokens: TREND_SUMMARY_MAX_TOKENS, streamMode: 'once', signal,
+    });
+    if (!r.ok) return null;
+    const acc = r.text;
     // 换行折成空格：卡片上只有一行摘要位，模型爱分行会把卡片撑高
     const text = acc.replace(/\s+/g, ' ').trim();
     return text ? text.slice(0, TREND_SUMMARY_MAX_CHARS) : null;

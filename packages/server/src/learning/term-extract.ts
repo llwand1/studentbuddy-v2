@@ -18,7 +18,7 @@
  */
 import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
-import { routeRole } from '../llm/router.js';
+import { aiJson, type AiFailure } from '../ai/gateway.js';
 
 /** 待入库的一条词条（抽取产物 / 手动添加的入参，两条路共用同一形状） */
 export interface TermItem {
@@ -52,6 +52,26 @@ export function parseTermsBlock(text: string): TermItem[] {
   }
 }
 
+/**
+ * 严格版解析（AI 网关的 `parse` 用）：**解析不出协议 JSON ⇒ null**（网关会据此让模型修复一次），
+ * 解析出来但一条有效术语都没有 ⇒ `[]`（这是合法结果：这段对话确实没什么可记的）。
+ * ★ 与 `parseTermsBlock` 的区别只在这一点——后者把两种情况都压成 `[]`，调用方分不清"坏了"和"没有"。
+ */
+export function parseTermsStrict(text: string): TermItem[] | null {
+  const m = text.match(/\[TERMS\]([\s\S]*?)\[\/TERMS\]/);
+  let raw = m ? m[1] : '';
+  if (!raw && text.includes('"terms"')) raw = text;
+  if (!raw) return null;
+  const objMatch = raw.replace(/```json|```/g, '').trim().match(/\{[\s\S]*\}/);
+  if (!objMatch) return null;
+  try {
+    const data = JSON.parse(objMatch[0]) as { terms?: unknown };
+    return Array.isArray(data.terms) ? normalizeTerms(data.terms as TermItem[]) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 校验规范化：丢弃无 term/definition 的条目；importance 钳到 0-1。 */
 export function normalizeTerms(items: TermItem[]): TermItem[] {
   const out: TermItem[] = [];
@@ -81,11 +101,14 @@ export function normalizeTerms(items: TermItem[]): TermItem[] {
  *   ① 模型调用记在谁头上；② 领域引导清单只列**该用户自己的**领域（否则把别人的领域名当"已有领域"
  *   发给模型，既泄露又误导分类）。
  */
-export async function extractTerms(material: string, ownerId: string | null): Promise<TermItem[]> {
-  if (!material?.trim()) return [];
-  const target = routeRole('explain', undefined, ownerId); // 抽取复用讲解角色模型；契约留扩展点：可拆独立 extractor 角色
-  if (!target || !target.model) return [];
-  let acc = '';
+export type TermExtraction = { ok: true; items: TermItem[] } | { ok: false; reason: AiFailure; error: string };
+
+/**
+ * 抽词的**分类结果**版本（后台任务用：要区分"没配模型"（不必重试）与"超时/上游挂了"（该重试））。
+ * 经 AI 网关：超时、解析失败自动修复一次、每次调用记 `llm_call`。
+ */
+export async function runTermExtraction(material: string, ownerId: string | null): Promise<TermExtraction> {
+  if (!material?.trim()) return { ok: true, items: [] };
   // 防领域碎裂：注入已有领域 top-12，引导新词条优先归入既有领域（TERM-TIDY-SPEC §7.2）。
   // 领域清单**直查 `term_domain`**，不 import `learning/domains.ts`——那会成
   // `terms → domains → tidy → terms` 环（见 domains.ts 头注释的依赖方向说明）。
@@ -103,20 +126,18 @@ export async function extractTerms(material: string, ownerId: string | null): Pr
   ).map((r) => r.name);
   const guide = known.length > 0 ? `\n已有领域（优先复用，确实不属于再新建）：${known.join('、')}` : '';
   const prompt = `${TERMS_PROTOCOL}${guide}\n\n材料：\n${material.slice(0, 30000)}`;
-  try {
-    for await (const chunk of target.adapter.chat({
-      model: target.model,
-      apiKey: target.apiKey,
-      baseUrl: target.baseUrl,
-      messages: [{ role: 'user', content: prompt }],
-      // 后台任务（对话已结束才跑，用户在等的是下一轮）：排队时给主链让路
-      purpose: 'background',
-    })) {
-      acc += chunk.content;
-      if (chunk.done) break;
-    }
-  } catch {
-    return [];
-  }
-  return parseTermsBlock(acc);
+  const r = await aiJson({
+    purpose: 'term.extract',
+    ownerId,
+    messages: [{ role: 'user', content: prompt }],
+    parse: parseTermsStrict,
+    repairHint: '请只输出一对 [TERMS]...[/TERMS]，中间是 {"terms":[...]} 形式的 JSON。',
+  });
+  return r.ok ? { ok: true, items: r.value } : { ok: false, reason: r.reason, error: r.error };
+}
+
+/** 旧签名（失败一律降级为 `[]`）：给"抽不到就算了"的调用点用 */
+export async function extractTerms(material: string, ownerId: string | null): Promise<TermItem[]> {
+  const r = await runTermExtraction(material, ownerId);
+  return r.ok ? r.items : [];
 }

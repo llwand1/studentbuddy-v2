@@ -36,7 +36,8 @@ import type { HistoryMessage } from './persist.js';
 import type { ChatMessage } from '../llm/types.js';
 
 /** 段身份。只表达「落位」与「是否可摘除」，**不参与排序**（顺序由清单字面量决定）。 */
-export type ContextSegmentKind = 'summary' | 'date' | 'terms' | 'doc' | 'style' | 'memory' | 'nudge';
+import { buildLearnerBlock } from '../learning/learner-model.js';
+export type ContextSegmentKind = 'summary' | 'date' | 'terms' | 'doc' | 'style' | 'memory' | 'learner' | 'nudge';
 
 export interface ContextSegment {
   kind: ContextSegmentKind;
@@ -124,6 +125,9 @@ export function collectContextSegments(inputs: ContextInputs): CollectedContext 
     // ★ `app_settings` 归主（v30）⇒ 必须带 `ownerId`——不带就会读到**别人的**口吻偏好。
     { kind: 'style', content: buildAnswerStyleBlock(loadAnswerStyle(ownerId ?? null)) },
     { kind: 'memory', content: memoryBlock },
+    // 学习者模型段（2026-09-29 Step 2）：快忘的词条（FSRS）＋ 未纠正的误区（评分诊断）。
+    // 与画像段分开：画像是"他说过什么"，这段是"他会什么"；空模型为 ''，统一剔除不占窗口。
+    { kind: 'learner', content: buildLearnerBlock(ownerId ?? null) },
     // 触发增强（2026-09-14 方案选择框 / 2026-09-17 联网搜索）：识别「这条提问是不是在做选择/规划
     // 或要求联网检索」，命中则追加硬指令。两者同时命中时 **search 优先**——学习者明说"搜一下"
     // 是**动作指令**不是岔路，而实测里模型偏偏在这时弹了 ask_choice 让他先选择（一次现场实测），

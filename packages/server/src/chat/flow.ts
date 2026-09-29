@@ -6,6 +6,7 @@
  */
 import { getDb } from '../storage/db.js';
 import { routeRole } from '../llm/router.js';
+import { startLlmMeter } from '../ai/gateway.js';
 import { getMaxOutputTokens } from '../llm/model-limits.js';
 import { publish, startNewRound } from './sse-bus.js';
 import { publishEvent } from '../events/bus.js';
@@ -193,6 +194,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     if (opts.signal?.aborted) throw new Error('已停止');
   };
 
+  let meter: ReturnType<typeof startLlmMeter> | null = null; // AI 网关计量：每个工具轮记一行 llm_call
   try {
     let pendingToolRound = false;
     for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
@@ -202,6 +204,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       /** 本轮思考链：全局累积（落库）之外按轮另记一份——anthropic thinking + 工具循环时，
           assistant(tool_use) 轮必须把它那轮的思考块原样回灌，适配器从这里取（types.ChatMessage.reasoning） */
       let turnReasoning = '';
+      meter = startLlmMeter('chat.turn', opts.ownerId ?? null, target);
       for await (const chunk of target.adapter.chat({
         model: target.model,
         apiKey: target.apiKey,
@@ -219,6 +222,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         thinking: target.adapter.type === 'anthropic',
       })) {
         abortIfNeeded();
+        meter.see(chunk);
         if (chunk.reasoning) {
           // 边流式呈现、边累积落库（v11）：只发布不落库的话刷新即丢，重开会话看不到当时怎么想的
           if (!reasoningStartMs) reasoningStartMs = Date.now();
@@ -242,6 +246,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         if (chunk.toolCalls && chunk.toolCalls.length > 0) turnToolCalls = chunk.toolCalls;
         if (chunk.done) break;
       }
+      meter.ok();
 
       if (!turnToolCalls) {
         pendingToolRound = false;
@@ -354,6 +359,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     return { ok: true, assistantMessageId: assistantId };
   } catch (err) {
     const aborted = opts.signal?.aborted === true;
+    meter?.fail(err, aborted);
     const msg = err instanceof Error ? err.message : String(err);
     // 逃生口①：本轮异常 / 被停止时连带作废本会话挂起的方案选择。
     // 必做——挂起的 ask_choice 不在 signal 的掐断路径上，它等的是「人点一下」；

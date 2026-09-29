@@ -105,6 +105,11 @@ vi.mock('../learning/terms.js', () => ({
     if (termsStub.extractRejects) throw new Error('抽取服务不可用');
     return [];
   },
+  // ★ 2026-09-29 起对话后处理走后台任务，调的是分类结果版本（要区分"该重试"与"不必重试"）
+  runTermExtraction: async () => {
+    if (termsStub.extractRejects) throw new Error('抽取服务不可用');
+    return { ok: true, items: [] };
+  },
   countUsage: () => 0,
 }));
 

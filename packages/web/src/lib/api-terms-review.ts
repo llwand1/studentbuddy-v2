@@ -102,11 +102,12 @@ export const termsReviewApi = {
    */
   setGoal: (goal: ReviewGoal) =>
     request<ReviewGoal>('/api/terms/review/goal', { method: 'PUT', body: JSON.stringify(goal) }),
-  /** 打卡：`remembered=true` 推进一个节点，`false` 归零重来。未纳入范围的词条会被 409 拒掉 */
-  mark: (id: string, remembered: boolean) =>
+  /** 打卡：`remembered=true` 推进一个节点，`false` 归零重来；下次复习日由 FSRS 按评分排。未纳入范围的词条会被 409 拒掉 */
+  mark: (id: string, remembered: boolean, grade?: 1 | 2 | 3 | 4) =>
     request<ReviewTermItem>(`/api/terms/${id}/review`, {
       method: 'POST',
-      body: JSON.stringify({ remembered }),
+      // ★ v47：可选四档评分喂 FSRS（1 忘了／2 困难／3 记得／4 轻松）；不传时服务端按记住/忘了折算
+      body: JSON.stringify(grade === undefined ? { remembered } : { remembered, grade }),
     }),
 
   // ── 复习范围（v28 选择式复习，契约 EBBINGHAUS-SPEC §9）──

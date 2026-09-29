@@ -21,6 +21,7 @@ import { resolveNpcTarget } from './npc-genesis.js';
 import { npcTradeInDomain, type NpcView } from './npc.js';
 import type { ChestDraw } from './chest.js';
 import { buildNpcMessages, ensureNpcSession, recordNpcTurn } from './npc-session.js';
+import { aiText } from '../ai/gateway.js';
 
 /**
  * 伙伴手里唯一的工具：**送你一条没见过的新词**（`NPC-PARTNER-SPEC` §13）。
@@ -113,24 +114,14 @@ export async function npcTalk(opts: {
 
     /** 跑一轮（可带工具）；返回正文与模型想调的工具 */
     const run = async (msgs: ChatMessage[], withTool: boolean) => {
-      let acc = '';
-      let calls: { id: string; name: string; arguments: string }[] = [];
-      for await (const chunk of target.adapter.chat({
-        model: target.model as string,
-        apiKey: target.apiKey as string,
-        baseUrl: target.baseUrl,
-        messages: msgs,
-        temperature: NPC_TEMPERATURE,
-        maxTokens: NPC_MAX_TOKENS,
-        streamMode: 'once',
-        signal: opts.signal,
+      // 经 AI 网关（超时 + 记账）；失败照旧抛给外层 try，走既有的降级台词
+      const r = await aiText({
+        purpose: 'npc.talk', ownerId: opts.ownerId, target, messages: msgs,
+        temperature: NPC_TEMPERATURE, maxTokens: NPC_MAX_TOKENS, streamMode: 'once', signal: opts.signal,
         ...(withTool ? { tools: [TRADE_TOOL], toolChoice: 'auto' as const } : {}),
-      })) {
-        if (chunk.content) acc += chunk.content;
-        if (chunk.toolCalls?.length) calls = chunk.toolCalls;
-        if (chunk.done) break;
-      }
-      return { text: acc, calls };
+      });
+      if (!r.ok) throw new Error(r.error);
+      return { text: r.text, calls: r.toolCalls ?? [] };
     };
 
     let draw: ChestDraw | null = null;

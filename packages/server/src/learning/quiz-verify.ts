@@ -19,6 +19,7 @@
  */
 import type { QuizPayload, QuizQuestion } from '@sb/shared';
 import { routeRole } from '../llm/router.js';
+import { aiText } from '../ai/gateway.js';
 
 /** 与 UI 选项字母同序;题目选项实际 ≤6 个,留到 F 兜边界 */
 const CHOICE_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
@@ -134,27 +135,16 @@ export async function verifyQuiz(
 export function defaultSolver(ownerId?: string | null): SolveFn | null {
   const target = routeRole('solver', undefined, ownerId ?? null);
   if (!target || !target.model) return null;
+  // 超时 = 放弃这题的验算(放行记 unresolved),不打断整组。超时与失败分类交给 AI 网关，每次调用记账
   return async (q) => {
-    const chat = (async () => {
-      let acc = '';
-      for await (const chunk of target.adapter.chat({
-        model: target.model,
-        apiKey: target.apiKey,
-        baseUrl: target.baseUrl,
-        messages: [{ role: 'user', content: buildSolvePrompt(q) }],
-        temperature: 0, // 验算要的是判定不是创意
-      })) {
-        acc += chunk.content;
-        if (chunk.done) break;
-      }
-      return acc;
-    })();
-    // 超时 = 放弃这题的验算(放行记 unresolved),不打断整组
-    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), VERIFY_TIMEOUT_MS));
-    try {
-      return await Promise.race([chat, timeout]);
-    } catch {
-      return null;
-    }
+    const r = await aiText({
+      purpose: 'quiz.verify',
+      ownerId: ownerId ?? null,
+      target,
+      messages: [{ role: 'user', content: buildSolvePrompt(q) }],
+      temperature: 0, // 验算要的是判定不是创意
+      timeoutMs: VERIFY_TIMEOUT_MS,
+    });
+    return r.ok ? r.text : null;
   };
 }

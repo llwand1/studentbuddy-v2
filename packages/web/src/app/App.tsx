@@ -30,6 +30,7 @@ import { CardsView } from '../features/game/CardsView';
 import { ContinentPage } from '../features/continent/ContinentPage';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
 import { CoachDock } from '../features/coach/CoachDock';
+import { WaitDrill } from '../features/drill/WaitDrill';
 import { TrialNotice } from '../components/TrialNotice';
 import './app.css';
 
@@ -248,6 +249,11 @@ export function App() {
         （卸载会断掉 SSE 与折叠状态，用户每次切页都看到它被重置）。
       */}
       <CoachDock />
+      {/*
+        等待时刷词（docs/WAIT-DRILL-SPEC.md）：同样全局常驻——它盯的是 `localBusySid`（发送后 2 秒还没回完就弹），
+        而弹窗、配乐与本局战绩不该因为切页被重置；`active` 只管"自动弹"是否允许（不在对话页不弹）。
+      */}
+      <WaitDrill busySessionId={localBusySid} active={view === 'chat'} />
     </div>
   );
 }

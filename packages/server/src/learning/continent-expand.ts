@@ -36,12 +36,13 @@ import {
 import type { ChatMessage } from '../llm/types.js';
 import { routeRole } from '../llm/router.js';
 import { aiJson } from '../ai/gateway.js';
-import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
 import { continentMap } from './continent.js';
 import { loadContinentPins, saveContinentPin } from './continent-pins.js';
 import { drawablePool } from './chest.js';
-import { parseAliases, saveOneTerm } from './terms.js';
+import { saveOneTerm } from './terms.js';
+// 「用户库里已有哪些名字」与等待时刷词出新词共用一份实现（归一口径只此一处）
+import { normName, ownedNames } from './term-names.js';
 
 /** offer 有效期与内存上限（超上限先淘汰最老的——正常一人同时只会有一份） */
 export const EXPAND_OFFER_TTL_MS = 10 * 60_000;
@@ -73,24 +74,6 @@ function prune(now: number): void {
 /** 测试用：清空内存里的 offer（进程内单例，用例之间不清会串） */
 export function resetExpandOffersForTest(): void {
   offers.clear();
-}
-
-/** 归一名（与 `chest.ts` 的去重口径同：去空白 + 小写） */
-function normName(s: string): string {
-  return s.trim().toLowerCase();
-}
-
-/** 用户库里已有的名字（正名 + 别名）——新词条不许与之重名 */
-function ownedNames(ownerId: string | null): Set<string> {
-  const owned = new Set<string>();
-  const rows = getDb()
-    .prepare('SELECT term, aliases FROM term_library WHERE owner_id = ?')
-    .all(ownerForWrite(ownerId)) as Array<{ term: string; aliases: string | null }>;
-  for (const r of rows) {
-    owned.add(normName(r.term));
-    for (const a of parseAliases(r.aliases)) owned.add(normName(a));
-  }
-  return owned;
 }
 
 interface NewTerm {

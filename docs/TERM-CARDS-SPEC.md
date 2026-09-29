@@ -158,6 +158,11 @@ cards(term) = COUNT(term_mention_log WHERE term_id = t.id AND owner 同主)
   ⇒ **AI 产出永不自动进仓，公开页与游戏池两套下游**。
 - **6.4 slug 纪律**：候选若将来要升成公开页，slug 必须与 `term-entries-a/-b.ts` 逐条比对——
   线上不存在的 `/terms/*.html` 返回 **200 的 SPA 壳而非 404**，写错是静默坏链。
+- **6.5 第三个进口：等待时刷词（2026-09-29，`docs/WAIT-DRILL-SPEC.md` §3.4）**。刷词弹窗里 AI 顺着当前会话
+  现出的新词同样**落 pending**（`source='ai'`，与设置页生成的同一档），先学后考；用户在卡上点「收入词库」⇒ `POST /api/drill/keep`
+  把那行翻 `approved` 并写进词条库，点「不要」⇒ 翻 `rejected`（留行，以后不再出）。★ 同一张闸门、同一张表：
+  设置页词池卡里照样能看到并批驳这些候选；下一局刷词先消化 pending 里的，不够才再要新的。没绑模型时
+  退 `chest-pool` 底座出题，响应里 `source:'fallback'`，卡面如实写「内置词池」。
 
 ## 7. HTTP 与推送
 

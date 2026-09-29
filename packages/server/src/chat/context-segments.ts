@@ -37,6 +37,17 @@ import type { ChatMessage } from '../llm/types.js';
 
 /** 段身份。只表达「落位」与「是否可摘除」，**不参与排序**（顺序由清单字面量决定）。 */
 import { buildLearnerBlock } from '../learning/learner-model.js';
+import { neighborTerms } from '../learning/term-graph.js';
+import type { TermRow } from '../learning/terms.js';
+
+/** 图扩展失败（库没开、表不在）不能挡住对话：退回只有字面命中 */
+function neighborTermsSafe(ownerId: string | null, hits: TermRow[]): TermRow[] {
+  try {
+    return neighborTerms(ownerId, hits, 6);
+  } catch {
+    return [];
+  }
+}
 export type ContextSegmentKind = 'summary' | 'date' | 'terms' | 'doc' | 'style' | 'memory' | 'learner' | 'nudge';
 
 export interface ContextSegment {
@@ -100,9 +111,15 @@ export function collectContextSegments(inputs: ContextInputs): CollectedContext 
   // ★ v31：词条库已归主 ⇒ 检索必须按人（否则会把别人的词条注进本轮上下文）
   const relevantTerms = getRelevantTerms(text, ownerId ?? null, 15);
   const termLines = relevantTerms.map((t) => `- ${t.term}（${t.domain}）：${t.definition}`).join('\n');
+  // ★ 混合检索（2026-09-29 Step 3）：字面命中之外，再带上命中词条在关系图里的一跳邻居
+  //   （前置／易混淆优先）——学生问"暗反应"时，"光反应"这种前置概念往往才是讲清楚的关键。
+  const neighbors = neighborTermsSafe(ownerId ?? null, relevantTerms);
+  const neighborLines = neighbors.map((t) => `- ${t.term}（${t.domain}）：${t.definition}`).join('\n');
   const termBlock =
     relevantTerms.length > 0
-      ? `以下是你的术语记忆库中与本次提问相关的词条，回复时请优先使用这些术语（保持回答自然，不必逐条列举）：\n${termLines}`
+      ? `以下是你的术语记忆库中与本次提问相关的词条，回复时请优先使用这些术语（保持回答自然，不必逐条列举）：\n${termLines}${
+          neighbors.length > 0 ? `\n与上面词条直接关联（前置、易混淆或组成部分），讲解时可以顺带串起来：\n${neighborLines}` : ''
+        }`
       : '';
 
   // 文档模式（契约 5.0 §5.1.1 + DOC-RAG-SPEC）：短文档整篇直塞（逐字等价旧行为），

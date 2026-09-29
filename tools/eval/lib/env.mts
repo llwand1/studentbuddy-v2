@@ -74,7 +74,7 @@ export interface EvalEnv {
  * 之后 `routeRole('quiz-generator', undefined, null)` 在产品自己的代码里读到的就是这一行，
  * 于是**产品的调用链一行没改**，只是地址换成了本地代理。
  */
-export async function bootEvalEnv(opts: { rawDir: string; role?: 'quiz-generator' }): Promise<EvalEnv> {
+export async function bootEvalEnv(opts: { rawDir: string; role?: 'quiz-generator' | 'solver' }): Promise<EvalEnv> {
   const borrowed = borrowProvider();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-eval-'));
   openIsolated(dataDir);

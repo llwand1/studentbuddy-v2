@@ -39,7 +39,8 @@ export function LearnerModelCard({ refreshKey }: { refreshKey: number }) {
 
   if (!model) return null;
   const { weakTerms, misconceptions, byType, calibration } = model;
-  if (weakTerms.length === 0 && misconceptions.length === 0 && byType.length === 0 && !calibration) return null;
+  const level = model.ability?.level ?? null;
+  if (weakTerms.length === 0 && misconceptions.length === 0 && byType.length === 0 && !calibration && !level) return null;
 
   const resolve = async (id: string) => {
     await aiOpsApi.resolveMisconception(id).catch(() => undefined);
@@ -77,6 +78,12 @@ export function LearnerModelCard({ refreshKey }: { refreshKey: number }) {
         <div className="rv-learner-row">
           <span className="rv-learner-k">题型</span>
           <span>{byType.map((t) => `${qtypeLabel(t.qtype)} ${t.correct}/${t.answers}`).join(' · ')}</span>
+        </div>
+      )}
+      {level && (
+        <div className="rv-learner-row">
+          <span className="rv-learner-k">难度</span>
+          <span>建议「{level}」档 · 出题会按它调整，让你大约答对七到八成</span>
         </div>
       )}
       {calibration && <div className="rv-learner-cal">{calibrationText(calibration)}</div>}

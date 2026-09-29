@@ -57,6 +57,7 @@ import { MIGRATIONS_V44 } from './migrations-list-v44.js';
 import { MIGRATIONS_V45 } from './migrations-list-v45.js';
 import { MIGRATIONS_V46 } from './migrations-list-v46.js';
 import { MIGRATIONS_V47 } from './migrations-list-v47.js';
+import { MIGRATIONS_V48 } from './migrations-list-v48.js';
 
 export const MIGRATIONS: Array<{ version: number; statements: string[] }> = [
   ...MIGRATIONS_V1_9,
@@ -72,4 +73,5 @@ export const MIGRATIONS: Array<{ version: number; statements: string[] }> = [
   ...MIGRATIONS_V45,
   ...MIGRATIONS_V46,
   ...MIGRATIONS_V47,
+  ...MIGRATIONS_V48,
 ];

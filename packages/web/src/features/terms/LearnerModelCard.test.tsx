@@ -20,6 +20,7 @@ const MODEL = {
   misconceptions: [{ id: 'm1', termId: 't1', topic: '卡尔文循环', note: '以为只在夜里进行', count: 2, lastSeen: '' }],
   byType: [{ qtype: 'fill', answers: 4, correct: 1 }],
   calibration: { n: 20, predicted: 0.88, actual: 0.7 },
+  ability: { theta: 1.8, n: 30, recentAccuracy: 0.9, targetB: 0.56, level: '进阶' },
 };
 
 describe('LearnerModelCard', () => {
@@ -31,6 +32,7 @@ describe('LearnerModelCard', () => {
     expect(screen.getByText('×2')).toBeTruthy();
     expect(screen.getByText('填空 1/4')).toBeTruthy();
     expect(screen.getByText(/预测记住 88%，实际 70%/)).toBeTruthy();
+    expect(screen.getByText(/建议「进阶」档/)).toBeTruthy();
   });
 
   it('★「我懂了」⇒ 调接口并从列表移除', async () => {
@@ -43,7 +45,7 @@ describe('LearnerModelCard', () => {
   });
 
   it('★ 空模型或拉取失败 ⇒ 整卡不渲染', async () => {
-    api.model.mockResolvedValue({ weakTerms: [], misconceptions: [], byType: [], calibration: null });
+    api.model.mockResolvedValue({ weakTerms: [], misconceptions: [], byType: [], calibration: null, ability: { theta: 0, n: 2, recentAccuracy: 1, targetB: null, level: null } });
     const { container } = render(<LearnerModelCard refreshKey={0} />);
     await waitFor(() => expect(api.model).toHaveBeenCalled());
     expect(container.innerHTML).toBe('');

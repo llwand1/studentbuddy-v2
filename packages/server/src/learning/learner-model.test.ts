@@ -25,6 +25,7 @@ import {
   resolveMisconceptions,
   weakTerms,
 } from './learner-model.js';
+import { abilityFor, buildDifficultyBlock } from './adaptive-quiz.js';
 
 let dir: string;
 beforeEach(() => {
@@ -164,6 +165,22 @@ describe('学习者模型', () => {
       { qtype: 'fill', answers: 2, correct: 1 },
       { qtype: 'choice', answers: 1, correct: 1 },
     ]);
+  });
+});
+
+describe('自适应难度（abilityFor / buildDifficultyBlock）', () => {
+  it('★ 答题不足 ⇒ 无档位、出题段为空；够了且全对 ⇒ 更难的档位写进出题段', () => {
+    expect(abilityFor(U).level).toBeNull();
+    expect(buildDifficultyBlock(U)).toBe('');
+    const ins = getDb().prepare(`INSERT INTO learning_event (owner_id, kind, payload, day) VALUES (?, 'quiz.answered', ?, '2026-09-29')`);
+    for (let i = 0; i < 30; i += 1) ins.run(U, JSON.stringify({ correct: true, qtype: 'choice' }));
+    ins.run('u2', JSON.stringify({ correct: false, qtype: 'choice' }));
+    const a = abilityFor(U);
+    expect(a.n).toBe(30);
+    expect(['进阶', '挑战']).toContain(a.level);
+    expect(buildDifficultyBlock(U)).toContain(`「${a.level}」档`);
+    expect(learnerModel(U).ability.level).toBe(a.level);
+    expect(abilityFor('u2').n).toBe(1);
   });
 });
 

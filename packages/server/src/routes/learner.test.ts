@@ -63,9 +63,17 @@ describe('学习者模型与误区', () => {
     const a = await request(app).get('/api/learning/model').set('Origin', origin).set('Cookie', alice.cookie).expect(200);
     expect(a.body.misconceptions.map((m: { note: string }) => m.note)).toEqual(['甲的误区']);
     expect(a.body).toHaveProperty('calibration', null);
+    expect(a.body.ability).toMatchObject({ n: 0, level: null });
     const b = await request(app).get('/api/learning/model').set('Origin', origin).set('Cookie', bob.cookie).expect(200);
     expect(b.body.misconceptions).toEqual([]);
     await post(`/api/learning/misconceptions/${id}/resolve`, bob.cookie).expect(404);
     await post(`/api/learning/misconceptions/${id}/resolve`, alice.cookie).expect(200);
+  });
+});
+
+describe('GET /api/learning/terms/:id/relations', () => {
+  it('没有关系 ⇒ 空列表（形状稳定）', async () => {
+    const r = await request(app).get('/api/learning/terms/nope/relations').set('Origin', origin).set('Cookie', alice.cookie).expect(200);
+    expect(r.body).toEqual({ items: [] });
   });
 });

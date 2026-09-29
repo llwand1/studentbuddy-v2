@@ -20,6 +20,8 @@ export * from './auth.js';
 export * from './ebbinghaus.js';
 export * from './fsrs.js';
 export * from './learner.js';
+export * from './term-graph.js';
+export * from './adaptive.js';
 export * from './review-goal.js';
 export * from './continent.js';
 export * from './ai-ops.js';

@@ -4,6 +4,7 @@
  *   POST /api/learning/grade                    AI 判填空/解答题 ⇒ GradeResult（并记误区、进事件流）
  *   GET  /api/learning/model                    学习者模型：快忘的词条、未解决误区、题型正确率、记忆校准
  *   POST /api/learning/misconceptions/:id/resolve  学习者自己把一条误区标为已解决
+ *   GET  /api/learning/terms/:id/relations      词条关系图的一跳邻居（Step 3）
  */
 import { Router } from 'express';
 import type { GradeRequest } from '@sb/shared';
@@ -11,6 +12,7 @@ import { GRADE_LIMITS } from '@sb/shared';
 import { ownerIdOf } from '../auth/ownership.js';
 import { gradeAnswer } from '../learning/quiz-grade.js';
 import { learnerModel, resolveMisconception } from '../learning/learner-model.js';
+import { termRelations } from '../learning/term-graph.js';
 
 export const learnerRouter = Router();
 
@@ -66,4 +68,8 @@ learnerRouter.post('/misconceptions/:id/resolve', (req, res) => {
     return;
   }
   res.json({ ok: true });
+});
+
+learnerRouter.get('/terms/:id/relations', (req, res) => {
+  res.json({ items: termRelations(ownerIdOf(req), req.params.id) });
 });

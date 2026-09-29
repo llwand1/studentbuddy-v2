@@ -24,6 +24,7 @@ import { ChatSpeaker } from './ChatSpeaker';
 import { ChevronDownIcon } from '../../components/icons';
 import { QuizCard } from '../quiz/QuizCard';
 import { ScenarioPanel } from '../quiz/ScenarioPanel';
+import { MessageSourcesProvider } from '../sources/cite';
 
 export function MessageRow({
   m,
@@ -180,7 +181,10 @@ export function MessageRow({
           )}
           {m.content && (
             <div className="chat-bubble md">
-              <Markdown text={m.content} />
+              {/* 正文里的 [n] 引用要能点回这条回答自己的资料架（不是面板当前显示的那份）：由 Provider 交给 CiteChip */}
+              <MessageSourcesProvider sessionId={sessionId ?? ''} sources={m.sources}>
+                <Markdown text={m.content} />
+              </MessageSourcesProvider>
             </div>
           )}
         </>
@@ -193,6 +197,8 @@ export function MessageRow({
           canRegen={canRegen}
           regenDisabled={regenDisabled}
           onRegen={onRegen}
+          sessionId={sessionId ?? ''}
+          sources={m.sources}
         />
       )}
     </div>

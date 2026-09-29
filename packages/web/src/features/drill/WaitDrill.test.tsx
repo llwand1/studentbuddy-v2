@@ -147,21 +147,48 @@ describe('WaitDrill：弹与回', () => {
     expect(dialog()).not.toBeNull();
   });
 
-  it('焦点留在聊天输入框也能按数字作答（且不会把数字打进去）；打开时焦点进弹窗，关掉还回输入框', async () => {
+  it('打开时焦点进小窗（发完消息直接按数字能答）；★ 非模态：用户点回聊天框后数字与 Esc 归聊天框；关掉焦点还回输入框', async () => {
     const ta = document.createElement('textarea');
     document.body.appendChild(ta);
     ta.focus();
     await openBusy();
-    expect(document.activeElement?.classList.contains('drill-stage')).toBe(true);
-    ta.focus(); // 模拟用户又点回聊天框——弹窗是模态，按键仍归弹窗
+    const stage = document.querySelector('.drill-stage') as HTMLElement;
+    expect(document.activeElement).toBe(stage);
+    expect(dialog()?.getAttribute('aria-modal')).toBeNull(); // 不再是模态：不压暗、不挡右侧资料架
     const i = correctIndex();
-    const notPrevented = fireEvent.keyDown(ta, { key: String(i + 1) });
-    expect(notPrevented).toBe(false);
+    // 焦点在小窗里：数字键作答且 preventDefault
+    expect(fireEvent.keyDown(stage, { key: String(i + 1) })).toBe(false);
     expect(document.querySelector('.drill-opt.right')).not.toBeNull();
-    fireEvent.keyDown(ta, { key: 'Escape' });
+    // 用户点回聊天框：按键不再被小窗截走（Esc 是聊天框自己的「停止生成」，不关小窗）
+    ta.focus();
+    expect(fireEvent.keyDown(ta, { key: 'Enter' })).toBe(true);
+    expect(fireEvent.keyDown(ta, { key: 'Escape' })).toBe(true);
+    expect(dialog()).not.toBeNull();
+    // 焦点回到小窗（或 body）时 Esc 照常关，焦点还给输入框
+    stage.focus();
+    fireEvent.keyDown(stage, { key: 'Escape' });
     expect(dialog()).toBeNull();
     expect(document.activeElement).toBe(ta);
     ta.remove();
+  });
+
+  it('§5.6 可拖动：按住头部拖动改写 --drill-x/--drill-y，松手位置写进本机偏好；点头部按钮不算拖', async () => {
+    await openBusy();
+    const stage = document.querySelector('.drill-stage') as HTMLElement;
+    const head = document.querySelector('.drill-head') as HTMLElement;
+    fireEvent.pointerDown(head, { button: 0, pointerId: 1, clientX: 300, clientY: 200 });
+    expect(stage.classList.contains('dragging')).toBe(true);
+    fireEvent.pointerMove(stage, { pointerId: 1, clientX: 340, clientY: 260 });
+    fireEvent.pointerUp(stage, { pointerId: 1, clientX: 340, clientY: 260 });
+    expect(stage.classList.contains('dragging')).toBe(false);
+    const saved = JSON.parse(localStorage.getItem('sb:drill:prefs') ?? '{}') as { pos?: { x: number; y: number } };
+    expect(saved.pos).toBeDefined();
+    expect(stage.style.getPropertyValue('--drill-x')).toBe(`${saved.pos?.x}px`);
+    expect(stage.style.getPropertyValue('--drill-y')).toBe(`${saved.pos?.y}px`);
+    // 头部里的按钮：pointerdown 不进入拖动
+    const btn = document.querySelector('.drill-tools button') as HTMLElement;
+    fireEvent.pointerDown(btn, { button: 0, pointerId: 2, clientX: 10, clientY: 10 });
+    expect(stage.classList.contains('dragging')).toBe(false);
   });
 
   it('不在对话页不自动弹；音效钮切换写回本机偏好', async () => {

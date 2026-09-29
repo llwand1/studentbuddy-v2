@@ -1,25 +1,27 @@
-/* drill — 「等待时刷词」弹窗（契约 docs/WAIT-DRILL-SPEC.md §5）。
+/* drill — 「等待时刷词」小窗（契约 docs/WAIT-DRILL-SPEC.md §5）。
    与大陆弹窗同一套语言（grimoire.css）：黑铁框 + 双金线、血红主按钮、铁灰次按钮；
-   动效只用 steps()，只动 transform / opacity / clip-path；默认态即终态。 */
+   动效只用 steps()，只动 transform / opacity / clip-path；默认态即终态。
+   ★ §5.6（2026-09-30）：非模态**可拖动浮窗**——外层不压暗、不吃点击（pointer-events: none），
+     窗体绝对定位，位置由 useDragWindow 写在 --drill-x/--drill-y 上；右侧资料架与对话都照常可用。 */
 
 .drill-overlay {
   position: fixed;
   inset: 0;
   z-index: 60;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--sb-sp-4);
-  background: rgba(6, 4, 8, 0.78);
-  animation: sb-fade-in 160ms steps(4);
+  pointer-events: none;
 }
 
 .drill-stage {
-  position: relative;
+  --drill-x: 0px;
+  --drill-y: 0px;
+  pointer-events: auto;
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(var(--drill-x), var(--drill-y));
   outline: none;
-  width: 100%;
-  max-width: 640px;
-  max-height: 96vh;
+  width: min(560px, calc(100vw - 16px));
+  max-height: min(92vh, 760px);
   overflow: auto;
   display: flex;
   flex-direction: column;
@@ -28,8 +30,20 @@
   color: var(--sb-ink);
   border: 3px solid var(--gr-iron);
   background: linear-gradient(#120b10, #0a060a);
-  box-shadow: var(--gr-frame-hi);
-  animation: sb-pop 200ms steps(4);
+  box-shadow: var(--gr-frame-hi), 0 18px 40px rgba(0, 0, 0, 0.6);
+  /* 不能用 sb-pop：它的关键帧只写 scale，会在 200ms 里盖掉 translate 让窗体闪到左上角 */
+  animation: drill-pop 200ms steps(4);
+}
+@keyframes drill-pop {
+  0% { transform: translate(var(--drill-x), var(--drill-y)) scale(0.94); }
+  60% { transform: translate(var(--drill-x), var(--drill-y)) scale(1.04); }
+  100% { transform: translate(var(--drill-x), var(--drill-y)) scale(1); }
+}
+.drill-stage.dragging {
+  user-select: none;
+}
+.drill-stage.dragging .drill-head {
+  cursor: grabbing;
 }
 
 .drill-stage::before,
@@ -49,7 +63,7 @@
 .drill-stage::before { top: -6px; left: -6px; }
 .drill-stage::after { right: -6px; bottom: -6px; transform: rotate(180deg); }
 
-/* ── 头部 ── */
+/* ── 头部（也是拖柄：按住空白处拖动小窗） ── */
 .drill-head {
   display: flex;
   align-items: center;
@@ -59,6 +73,9 @@
   padding-bottom: var(--sb-sp-2);
   border-bottom: 2px solid var(--gr-iron);
   box-shadow: 0 2px 0 var(--gr-gold-dim);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
 .drill-brand {
@@ -364,8 +381,19 @@
 }
 
 @media (max-width: 640px) {
-  .drill-overlay { padding: var(--sb-sp-2); align-items: flex-start; }
-  .drill-stage { padding: var(--sb-sp-3); }
+  /* 窄屏不拖：贴底抽屉，位置变量失效（!important 压掉 useDragWindow 写的 transform 变量） */
+  .drill-stage {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: auto;
+    max-height: 88vh;
+    transform: none !important;
+    padding: var(--sb-sp-3);
+  }
+  .drill-head { cursor: default; }
   .drill-opts { grid-template-columns: 1fr; }
   .drill-term { font-size: 28px; }
   .drill-card { min-height: 0; }

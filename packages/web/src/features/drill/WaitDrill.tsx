@@ -152,6 +152,8 @@ export function WaitDrill({ busySessionId, active }: { busySessionId: string | n
       onSlay={s.slay}
       onKeep={s.keep}
       onDismiss={s.dismiss}
+      windowPos={prefs.pos ?? null}
+      onWindowMoved={(pos) => setPrefs(saveDrillPrefs({ pos }))}
     />
   );
 }

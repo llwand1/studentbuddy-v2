@@ -15,7 +15,9 @@ export type Inline =
   | { t: 'code'; v: string }
   | { t: 'a'; children: Inline[]; href: string }
   | { t: 'image'; alt: string; src: string }
-  | { t: 'br' };
+  | { t: 'br' }
+  /** 资料引用 `[n]`（资料溯源，docs/SOURCE-TRACE-SPEC.md §8.3）：渲染层查这条回答的资料架，第 n 条存在才变成可点芯片，否则原样显示 */
+  | { t: 'cite'; n: number };
 
 /** 捕获组兜空：tsconfig 开了 noUncheckedIndexedAccess，正则结果一律显式取值。 */
 const g = (m: RegExpExecArray, k: number): string => m[k] ?? '';
@@ -90,6 +92,13 @@ const INLINE_RULES: Array<{ re: RegExp; make: (m: RegExpExecArray) => Inline }> 
 /** 裸 URL（无 [文本](…) 包裹）：匹配后剥掉尾部粘住的标点，标点留给下一轮当普通字符。 */
 const AUTOLINK = /^https?:\/\/[^\s<>"]+/;
 
+/**
+ * 资料引用 `[n]` / `[1, 3]`（1–2 位数字，后面不能紧跟 `(`——那是链接语法）。
+ * ★ 不进 INLINE_RULES：它还要看**前一个字符**——`a[1]` 这类下标写法（前面紧贴英文字母/数字）不算引用，
+ *   而 `据[2]` / `[1][2]` / 行首 `[3]` 都算。误判的代价很低：渲染层查不到第 n 条就原样显示文字。
+ */
+const CITE = /^\[(\d{1,2}(?:\s*[,，]\s*\d{1,2})*)\](?!\()/;
+
 function trimUrlTail(u: string): string {
   let s = u;
   while (s.length > 0) {
@@ -136,6 +145,13 @@ export function parseInline(text: string): Inline[] {
       }
     }
     if (matched) continue;
+    const ci = CITE.exec(rest);
+    if (ci && !/[A-Za-z0-9_]/.test(i > 0 ? (text[i - 1] ?? '') : '')) {
+      flush();
+      for (const n of g(ci, 1).split(/[,，]/)) out.push({ t: 'cite', n: Number(n.trim()) });
+      i += ci[0].length;
+      continue;
+    }
     const al = AUTOLINK.exec(rest);
     if (al) {
       const url = trimUrlTail(g(al, 0));

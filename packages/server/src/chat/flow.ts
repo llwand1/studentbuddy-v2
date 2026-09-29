@@ -14,6 +14,7 @@ import { estimateTokens, truncateHistoryToBudget, getContextLimit } from './cont
 import { toolDefinitions, toolDefinitionTokens } from './tools/index.js';
 import { runToolCalls, type StepPayload } from './tool-exec.js';
 import { createExecTool } from './tool-dispatch.js';
+import { createSourceShelf } from '../sources/shelf.js';
 import { persistRounds, loadHistory, insertUserMessage, insertAssistantMessage } from './persist.js';
 import { cancelChoicesBySession } from './choice.js';
 import { assembleContextMessages, collectContextSegments } from './context-segments.js';
@@ -187,6 +188,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       latestTasks = items;
     },
   });
+  const shelf = createSourceShelf(sessionId); // 资料溯源：本轮搜到/读过/精选的资料架（SOURCE-TRACE-SPEC §4）
   /** 工具轮攒到最终答案确认后一并落库：中途失败/中止不留孤儿 tool 消息（v1 语义）。
    *  `durations` 与 `results` 同序（每次调用的实测耗时落 `messages.duration_ms`） */
   const rounds: Array<{ calls: ToolCall[]; results: ChatMessage[]; durations: Array<number | undefined> }> = [];
@@ -267,6 +269,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         // ★ v31 补传：此前这里没有 ownerId ⇒ `manage_terms`（已退役，现词条族在 term-ops.ts）的词条增删改查全落**无主行**
         //   （主人自己登录后看不到），而**全程不报错**。必填化就是为了逼出这类静默错误。
         ownerId: opts.ownerId ?? null,
+        sources: shelf, // search_web 上架、fetch_page 标读、pick_sources 打星都写这一只架子
       });
       abortIfNeeded();
       const durations: Array<number | undefined> = [];
@@ -310,6 +313,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       reasoning: reasoningAcc,
       tasks: latestTasks,
       thinkingMs: thinkingMs || undefined,
+      sources: shelf.items(),
     });
     // ★ v29 起带上 user_id（契约 TENANCY-SPEC §8.1.2）：**只用于归属与诊断**，不是配额账本
     //   （§8.1.3 已把免费通道改成「额度不限、只限并发」⇒ 不做 token 聚合）。
@@ -379,6 +383,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         reasoning: reasoningAcc || null,
         tasks: latestTasks,
         thinkingMs,
+        sources: shelf.items(),
       });
     }
     publish(sessionId, { type: 'chat-error', sessionId, message: aborted ? '已停止' : `生成失败：${msg}` });

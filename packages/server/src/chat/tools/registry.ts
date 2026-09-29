@@ -47,6 +47,12 @@ export interface ToolContext {
    *     一直在把模型调用记到平台头上。这正是"必填"要防的那类静默错误。
    */
   ownerId: string | null;
+  /**
+   * 本轮资料架（2026-09-30 资料溯源，契约 docs/SOURCE-TRACE-SPEC.md §4）：`search_web` 把结果上架、
+   * `fetch_page` 标「在读/读过」、`pick_sources` 打精选——右侧面板据此实时展示「AI 在看什么」。
+   * 可选：没有架子（学习助手之外的调用路径、既有工具桩）时工具照常工作，只是不上屏。
+   */
+  sources?: import('../../sources/shelf.js').SourceSink;
 }
 
 export interface ToolResult {

@@ -1,0 +1,157 @@
+/* 资料架面板（右栏，复用 .sb-browser 外壳）：视觉全走 tokens，禁组件内联 style */
+
+/* 标签条：横向可滚、像素边框；一条一个「编号 + 类型 + 站点」 */
+.src-tabs {
+  display: flex;
+  gap: var(--sb-sp-1);
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+  border-bottom: 2px solid var(--sb-pixel-edge);
+  background: var(--sb-bg);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  flex-shrink: 0;
+}
+.src-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 180px;
+  padding: 2px 6px;
+  font-family: var(--sb-font);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  background: var(--sb-surface);
+  border: 2px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.src-tab:hover {
+  color: var(--sb-ink);
+  border-color: var(--sb-pixel-edge);
+}
+.src-tab.active {
+  color: var(--sb-ink);
+  border-color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+  box-shadow: 2px 2px 0 var(--sb-pixel-shadow);
+}
+.src-tab.pick {
+  border-color: var(--sb-gold-edge);
+}
+.src-tab.pick.active {
+  border-color: var(--sb-gold);
+}
+.src-tab-n {
+  min-width: 14px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--sb-primary);
+}
+.src-tab.pick .src-tab-n {
+  color: var(--sb-gold);
+}
+.src-tab-kind {
+  padding: 0 3px;
+  border: 1px solid var(--sb-line);
+  color: var(--sb-ink-tertiary);
+  font-size: 10px;
+  line-height: 1.3;
+}
+.src-tab-kind.kind-video {
+  color: var(--sb-danger);
+  border-color: var(--sb-danger);
+}
+.src-tab-kind.kind-pdf,
+.src-tab-kind.kind-image {
+  color: var(--sb-gold);
+  border-color: var(--sb-gold-edge);
+}
+.src-tab-site {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.src-tab-star {
+  color: var(--sb-gold);
+}
+.src-tab-reading {
+  color: var(--sb-success);
+  animation: src-blink 1s steps(2, end) infinite;
+}
+@keyframes src-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* 说明条：精选理由用金色，否则显示摘要 / 类型 */
+.src-note {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.src-note.pick {
+  color: var(--sb-gold);
+  background: var(--sb-pixel-gold);
+}
+
+.src-frame {
+  background: var(--sb-bg);
+}
+
+.src-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  padding: 2px var(--sb-sp-3);
+  border-top: 1px solid var(--sb-line);
+  background: var(--sb-bg);
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-xs);
+  flex-shrink: 0;
+}
+.src-foot kbd {
+  font-family: var(--sb-font-display);
+  font-size: 10px;
+  padding: 0 4px;
+  border: 1px solid var(--sb-line);
+  color: var(--sb-ink-secondary);
+}
+
+/* 正文里的引用芯片 `[n]`：小方块编号，精选带金边；架上没有的编号不会变成它（渲染层已回落成文字） */
+.md-cite {
+  display: inline-block;
+  min-width: 16px;
+  margin: 0 1px;
+  padding: 0 4px;
+  vertical-align: 2px;
+  font-family: var(--sb-font-display);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 700;
+  color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+  border: 1px solid var(--sb-primary);
+  border-radius: var(--sb-radius-sm);
+  cursor: pointer;
+}
+.md-cite:hover {
+  color: var(--sb-ink);
+  background: var(--sb-primary);
+}
+.md-cite-pick {
+  color: var(--sb-gold);
+  border-color: var(--sb-gold-edge);
+  background: var(--sb-pixel-gold);
+}
+
+/* 消息脚注的「资料 n 条」：与复制/重答不同，它是**信息**不是操作——常显，让人一眼知道这条回答有据可查 */
+.msg-foot .msg-act.msg-sources {
+  color: var(--sb-gold);
+  opacity: 1;
+}
+.msg-foot .msg-act.msg-sources:hover {
+  color: var(--sb-primary);
+}

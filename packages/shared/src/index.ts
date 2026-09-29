@@ -28,6 +28,7 @@ export * from './continent.js';
 export * from './continent-expand.js';
 export * from './continent-wild.js';
 export * from './drill.js';
+export * from './sources.js';
 export * from './ai-ops.js';
 export * from './npc.js';
 export * from './npc-life.js';

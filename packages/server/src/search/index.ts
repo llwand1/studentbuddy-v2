@@ -239,8 +239,12 @@ export async function searchWeb(
   return { results, providers: used, failed };
 }
 
-/** 搜索结果 → LLM 工具结果文本（带来源标注，Perplexity 式可信感） */
-export function resultsToContext(results: SearchResult[]): string {
+/**
+ * 搜索结果 → LLM 工具结果文本（带来源标注，Perplexity 式可信感）。
+ * `numbers`（2026-09-30 资料溯源）：资料架分配的**全轮唯一编号**，与 results 等长；不给则从 1 起编。
+ * 编号必须与右侧资料架一致，模型照它写的 `[n]` 引用才点得回对应资料（SOURCE-TRACE-SPEC §4.1）。
+ */
+export function resultsToContext(results: SearchResult[], numbers?: readonly number[]): string {
   if (results.length === 0) return '（搜索无结果）';
-  return results.map((r, i) => `[${i + 1}] ${r.title}\n${r.url}\n${r.snippet}`).join('\n\n');
+  return results.map((r, i) => `[${numbers?.[i] || i + 1}] ${r.title}\n${r.url}\n${r.snippet}`).join('\n\n');
 }

@@ -6,7 +6,7 @@
  * 2026-09-14：方案选择框（契约 docs/ASK-CHOICE-SPEC.md）的挂起队列抽到 `useChoiceQueue`，本文件只在事件入口做一次转发（本文件贴着行数红线，装不下那 90 行）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SseEvent, TaskItem, TokenUsage } from '@sb/shared';
+import type { SourceItem, SseEvent, TaskItem, TokenUsage } from '@sb/shared';
 import { connectSse, type SseReadyState } from '../../lib/sse-client';
 import { api } from '../../lib/api';
 import { createTokenDrain, type TokenDrain } from './stream-smooth';
@@ -17,7 +17,7 @@ import { usePkInviteQueue } from './usePkInviteQueue';
 import { useSendActions } from './useSendActions';
 import { useRoundBegin } from './useRoundBegin';
 import { foldStepEvent, type ToolStep } from './step-fold';
-import { applyChatBlock, type QuizBlockView, type ScenarioBlockView } from './chat-blocks';
+import { applyChatBlock, takeTurnSources, type QuizBlockView, type ScenarioBlockView } from './chat-blocks';
 export type { TaskItem, TaskStatus } from '@sb/shared';
 
 export interface StreamMessage {
@@ -44,6 +44,7 @@ export interface StreamMessage {
   thinkingMs?: number;
   /** 这条回答最终声明的任务清单（同上；update_tasks 是全量覆盖语义） */
   tasks?: TaskItem[];
+  sources?: SourceItem[]; // 资料溯源（SOURCE-TRACE-SPEC §8）：done 时由 sources-store 归位、历史读 `sources` 列
 }
 
 /** 过程卡片形状与 step 帧折叠都在 `step-fold.ts`（2026-09-19 抽出；此处 re-export 保住既有导入面） */
@@ -208,7 +209,7 @@ export function useChatStream(
         if (t && last?.role === 'assistant' && last.content === t) {
           return hasProc ? [...ms.slice(0, -1), { ...last, ...proc }] : ms;
         }
-        return [...ms, { role: 'assistant', content: t, ts: new Date().toISOString(), ...proc }];
+        return [...ms, { role: 'assistant', content: t, ts: new Date().toISOString(), ...proc, ...takeTurnSources(sessionId) }];
       });
     }
     // 已归位到消息内：清空「当前轮」（ref 与镜像一起清），否则底部与消息里会重复显示一整份过程

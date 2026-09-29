@@ -91,6 +91,8 @@ export interface ToolExecOptions {
    * ★ 改必填时实测逮到 `chat/flow.ts` 主对话路径根本没传（同 `tools.ts` 那处注释）。
    */
   ownerId: string | null;
+  /** 透传进 ToolContext 的本轮资料架（资料溯源；只有主对话路径给，见 SOURCE-TRACE-SPEC §4） */
+  sources?: ToolContext['sources'];
 }
 
 /**
@@ -311,6 +313,7 @@ async function execute(
       sessionId: opts.sessionId,
       // 归属透传进工具：tidy_terms 的 auto 分支要调模型，记在发起这一轮的人头上
       ownerId: opts.ownerId,
+      ...(opts.sources ? { sources: opts.sources } : {}),
     };
 
     let timer: ReturnType<typeof setTimeout> | undefined;

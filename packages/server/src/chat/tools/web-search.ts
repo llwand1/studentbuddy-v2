@@ -54,6 +54,8 @@ registerTool('search_web', {
     }
     const from = providers.filter((p) => p !== 'cache');
     ctx.onStep('search_web', 'done', `${results.length} 条结果${from.length > 0 ? `（来源 ${from.join('、')}）` : '（缓存）'}`);
-    return { content: resultsToContext(results) };
+    // 资料溯源：结果上架并拿全轮编号——回灌给模型的 [n] 与右侧面板的 n 必须是同一个数
+    const numbers = ctx.sources?.found(query, results);
+    return { content: resultsToContext(results, numbers) };
   },
 });

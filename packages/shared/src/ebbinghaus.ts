@@ -32,7 +32,7 @@ const DAY_MS = 86_400_000;
  * 后面的 2/6/31 取整为 2/7/30，再补 60 天作收尾档。**不改数值**，只做「天」这个粒度下的投影。
  * 数组下标即 `stage`：stage=0 表示还没复习过（下次间隔 1 天）。
  */
-import { fsrsInterval, fsrsRetrievability } from './fsrs.js';
+import { fsrsInterval, fsrsRetrievability } from '@sb/shared/fsrs';
 
 export const REVIEW_INTERVALS_DAYS: readonly number[] = [1, 2, 4, 7, 15, 30, 60];
 

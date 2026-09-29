@@ -18,6 +18,8 @@ import { replayScores, runQuizSuite } from './runners/quiz.mts';
 import { renderQuizDoc } from './lib/render.mts';
 import { replayGrade, runGradeSuite, type GradeRun } from './runners/grade.mts';
 import { replayVision, runVisionSuite, type VisionRun } from './runners/vision.mts';
+import { runCompleteGen } from './runners/complete-gen.mts';
+import { runCompleteScoring } from './runners/complete.mts';
 import { renderVisionSummary } from '../../packages/server/src/media/vision-eval-metrics.js';
 import { renderGradeSummary } from '../../packages/server/src/learning/grade-eval-metrics.js';
 
@@ -26,6 +28,8 @@ const HELP = `用法：npm run eval -- <suite> [选项]
   suite   quiz                     （已实现）  出题结构化指标
           vision                   （已实现）  看图核验：误收率／泄露检出／单张时延（datasets/vision-v1.json）
           grade                    （已实现）  AI 阅卷准确率／误放率（数据集 datasets/grade-v1.json）
+          complete-gen             （已实现）  自包含评测·生成侧：跑一臂产品管道，落 reports/complete-gen-<arm>.json
+          complete                 （已实现）  自包含评测·评分侧：评审员给两臂＋人工参考题打分（datasets/complete-v1.json）
           search/collect/scenario/chat/review   （契约 §3.2~§3.7，批次 B 待建）
 
   选项    --dataset <file>         数据集路径（默认 tools/eval/datasets/terms-v1.json）
@@ -67,6 +71,10 @@ async function main(): Promise<void> {
   }
   if (suite === 'grade') {
     await gradeMain(argv);
+    return;
+  }
+  if (suite === 'complete-gen' || suite === 'complete') {
+    await completeMain(suite, argv);
     return;
   }
   if (suite !== 'quiz') {
@@ -162,6 +170,43 @@ async function gradeMain(argv: string[]): Promise<void> {
     return;
   }
   writeDoc(docFile, doc, root, 'grade');
+}
+
+/**
+ * 自包含评测（契约 QUIZ-COMPLETE-SPEC §7）。两段式：
+ *   complete-gen --arm base|fix   在**当前工作树**跑一臂（基线臂＝在修复前提交的 worktree 里跑同一条命令）
+ *   complete --base <f> --fix <f> 评审员打分并把指标写进 docs/eval/complete.md（`--replay` 只读评审缓存）
+ */
+async function completeMain(suite: string, argv: string[]): Promise<void> {
+  const flags = parse(argv.slice(1));
+  const root = path.resolve(import.meta.dirname, '..', '..');
+  const reportsDir = path.resolve(root, flags['out'] ?? 'tools/eval/reports');
+  const dataset = path.resolve(root, flags['dataset'] ?? 'tools/eval/datasets/complete-v1.json');
+  if (suite === 'complete-gen') {
+    const arm = flags['arm'] ?? 'fix';
+    const out = path.resolve(reportsDir, `complete-gen-${arm}.json`);
+    fs.mkdirSync(reportsDir, { recursive: true });
+    const r = await runCompleteGen({
+      dataset, arm, out, reportsDir,
+      limit: Number(flags['limit'] ?? '0'),
+      only: (flags['only'] ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+      channels: (flags['channels'] ?? 'gen,collect').split(',').map((s) => s.trim()),
+      throttleMs: Number(flags['throttle'] ?? '1500'),
+      retry: Number(flags['retry'] ?? '1'),
+      resume: flags['resume'] === 'true',
+    });
+    console.log(`\n录制件：${path.relative(root, out)}（${r.records.length} 条）`);
+    return;
+  }
+  const { md, detail } = await runCompleteScoring({
+    dataset, reportsDir, replay: flags['replay'] === 'true', date: new Date().toISOString().slice(0, 10),
+    baseFile: path.resolve(root, flags['base'] ?? 'tools/eval/reports/complete-gen-base.json'),
+    fixFile: path.resolve(root, flags['fix'] ?? 'tools/eval/reports/complete-gen-fix.json'),
+  });
+  console.log(md);
+  console.log(JSON.stringify(detail, null, 1));
+  if (flags['check'] === 'true') return;
+  writeDoc(path.resolve(root, flags['doc'] ?? 'docs/eval/complete.md'), md, root, 'complete');
 }
 
 async function visionMain(argv: string[]): Promise<void> {

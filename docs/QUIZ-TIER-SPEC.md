@@ -64,31 +64,31 @@
 - `generate_quiz` 工具点名 `count` 时：总数仍是 `count`，真题优先照样生效（顶替不加数）。
 - 关掉 ⇒ 行为与改动前逐字一致（`routes/quiz-blend.test.ts`「向后兼容」组锁着）。
 
-## 5 题源配图搬运（`learning/collect-images.ts`）
+## 5 题源配图：本节已撤，改由 `docs/QUIZ-COMPLETE-SPEC.md` §5 承担
 
-1. 抓页时从**原始 HTML** 抽 `<img>`（`data-original` / `data-src` / `src`，相对路径按页 URL 补全，丢 `data:`、图标 ≤ 48px、logo/头像/二维码/追踪像素，每页 ≤ 12 张）→ 以「本页题干配图清单 `[图n] alt url`」挂在该页正文后。
-2. 摘录协议新增 `image` 字段：只填**编号**（题干配图；解析区的图、拿不准 ⇒ 0）。**网址一律作废**（同 `refs` 纪律）。`collect.draft` purpose version 1 → **2**。
-3. 服务端 `resolveImageRef` 按编号取真实 URL → 既有 `downloadImage`（SSRF 逐跳复检 / 4MB / 魔数判型）→ `saveImage` 站内缓存 → `question.photo = { src:'/api/images/…', credit:'题源页配图 · 页面标题（版权归原作者）', pageUrl }`。
-4. 限量：每题 1 张、每次搜集 ≤ 4 次下载、顺序执行（不对同一题源页并发打请求）。失败只记 `CollectReport.failed`，题照收；成功数记 `CollectReport.sourceImages`。
-5. **不做看图核验**：题源页的图就是这道题自己的图；泄露风险靠「只收题干配图」的字段语义控制。判分不读图。
+本批原自带一套搬运机制（`learning/collect-images.ts`：抓页时把题源页 `<img>` 列成编号清单 → 模型只填编号 → 服务端按编号下载挂 `photo`）。
+并入时它与「题目自包含」那一套（`learning/collect-figures.ts`：正文保留 `[图N]`、材料逐字校验、原图搬运）**是同一件事的两套机制**，
+同写 `question.photo` ⇒ 同一题会被下载两次、且给摘录模型的协议键互相打架。
+
+⇒ **已撤下本套，配图以自包含那套为准**（2026-09-30 并入时决定）：抽取、限额、下载上限、署名与「失败只是没图」的纪律全部见
+`docs/QUIZ-COMPLETE-SPEC.md` §5；本文件不再定义配图协议。题源配图的用户可见行为不变（题照样带原图与署名）。
 
 ## 6 落点清单
 
 | 层 | 文件 | 改动 |
 |---|---|---|
 | shared | `quiz-tier.ts`（新） | `QuizTier` / 徽标文案 / `tierOf` / `countTiers` / 真题优先键与归一化 |
-| shared | `content-blocks.ts` | `QuizQuestion.tier`、`CollectPageRecord.exam/signals`、`CollectReport.sourceImages` |
+| shared | `content-blocks.ts` | `QuizQuestion.tier`、`CollectPageRecord.exam/signals` |
 | shared | `quiz-source.ts` | `QuizBlendReport.realFirst` |
 | server | `learning/collect-quality.ts`（新） | 加强 verbatim / 考试信号 / 题源登记表 / 抓页排序 / 锚点三件套 |
-| server | `learning/collect-images.ts`（新） | 配图抽取 / 清单段 / 编号解析 / 下载挂图 |
 | server | `learning/quiz-tier.ts`（新） | 分级提示词 / `fillTiers` / 真题优先开关读写 / 配额与顶替算法 |
-| server | `learning/collect.ts` | 接入上两层；协议加 `image` 与「抄到句末」规则；搜集词加「真题」 |
+| server | `learning/collect.ts` | 接入辨别层与自包含层；协议加「抄到句末」规则；搜集词加「真题」 |
 | server | `learning/quiz.ts` | 提示词插分级段；`fillTiers` |
 | server | `learning/quiz-blend.ts` | 真题优先编排（并行 + 顶替）；`realFirstApplies` |
 | server | `learning/quiz-search.ts` | `isPlaceholderTopic` |
 | server | `routes/settings.ts` | `/quiz-real-first` GET/PUT |
 | server | `chat/tools/generate-quiz-format.ts` | 回灌带分级摘要与「不得把基础题说成真题」 |
-| server | `ai/purposes.ts` | `quiz.generate` v4、`collect.draft` v2 |
+| server | `ai/purposes.ts` | `quiz.generate` v4、`collect.draft` v2、新增 `quiz.selfcontain` v1（自包含补全） |
 | web | `features/quiz/QuizQuestionItem.tsx` / `QuizCard.tsx` / `quiz.css` | 徽标 + 卡头汇总 |
 | web | `features/quiz/mix-report.ts` | 真题优先文案 |
 | web | `features/settings/QuizRealFirstCard.tsx`（新）/ `SettingsView.tsx` / `lib/api-settings.ts` | 开关卡 |
@@ -98,5 +98,5 @@
 1. **题源逐站评测**：登记表里的站点都是按公开可访问性挑的，**没有逐站实跑摘录成功率**——`tools/eval/` 下应加一条「按题源分桶的 collect 成功率」评测，跑出来再增删登记表；反爬强的站（菁优网等）大概率要从表里摘掉。
 2. **结构化题源适配器**：有 JSON API 的开放题源（如 Open Trivia DB）可以绕过网页抓取 + verbatim 锁直接进 `real` 档；接口位留在 `collectQuiz` 之前，本次未写。
 3. **真题优先的 token 浪费**：AI 侧出满再削。若真题命中率上来，可改成「先摘后出、AI 只补缺」——代价是串行等待，需要真机数据再定。
-4. **配图泄露**：题源页配图目前不过视觉模型；若线上看到「图里印着答案」的样本，把 `verifyImage` 的泄露检查接进 `attachSourceImages`（接口已对齐 `QuizPhoto`）。
+4. **配图泄露**：题源页配图目前不过视觉模型（口径见 `docs/QUIZ-COMPLETE-SPEC.md` §5）；若线上看到「图里印着答案」的样本，把 `verifyImage` 的泄露检查接进自包含那套的取图步骤。
 5. **搜集辨别的误杀率**：尾锚点在页面正文被 `PAGE_TEXT_CHARS`（25k）截断时可能误杀页尾的题——保守方向是漏、不是错，但要在 eval 里盯数。

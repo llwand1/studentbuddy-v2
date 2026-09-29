@@ -424,3 +424,29 @@ describe('generateQuiz 出站提示词 — 回答方式偏好真进了 prompt（
     expect(iStyle).toBeGreaterThan(iImg);
   });
 });
+
+describe('自包含契约（QUIZ-COMPLETE-SPEC）— 协议与规范化', () => {
+  it('出题协议要求自包含：material 字段进清单、禁「根据材料」式悬空引用', () => {
+    expect(QUIZ_PROTOCOL).toContain('material');
+    expect(QUIZ_PROTOCOL).toContain('自包含');
+    expect(QUIZ_PROTOCOL).toContain('宁可不出');
+  });
+  it('normalizeQuiz 保留 material（封顶），并丢弃模型自造的 photo（服务端字段）', () => {
+    const raw = {
+      title: 't',
+      questions: [{ ...q('single', 0), material: `  ${'材'.repeat(5000)}  `, photo: { src: 'https://evil.test/a.png', alt: '', credit: '' } }],
+    } as unknown as QuizPayload;
+    const out = normalizeQuiz(raw);
+    expect(out?.questions[0]?.material).toHaveLength(4000);
+    expect(out?.questions[0]).not.toHaveProperty('photo');
+  });
+  it('material 非字符串/空白 ⇒ 键被去掉', () => {
+    const out = normalizeQuiz({ title: 't', questions: [{ ...q('single', 0), material: 42 as unknown as string }] });
+    expect(out?.questions[0]).not.toHaveProperty('material');
+  });
+  it('keepPhoto（仅搜集 commit 复校验）保留 photo 字段交给 sanitizePhoto 之后的流程', () => {
+    const photo = { src: '/api/images/x.png', alt: '', credit: '' };
+    const out = normalizeQuiz({ title: 't', questions: [{ ...q('single', 0), photo }] }, { keepPhoto: true });
+    expect(out?.questions[0]?.photo).toEqual(photo);
+  });
+});

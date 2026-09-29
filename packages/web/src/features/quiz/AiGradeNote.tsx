@@ -8,6 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import type { GradeResult, QuizQuestion, QuizReviewItem } from '@sb/shared';
+import { stemOf } from '@sb/shared';
 import { aiOpsApi } from '../../lib/api-ai-ops';
 import { ApiError } from '../../lib/api-request';
 
@@ -28,7 +29,7 @@ export function AiGradeNote({ q, result, topic }: { q: QuizQuestion; result: Qui
     aiOpsApi
       .grade(
         {
-          question: q.question,
+          question: stemOf(q),
           reference: result.expected,
           answer: result.answer,
           qtype: q.type === 'fill' ? 'fill' : 'essay',

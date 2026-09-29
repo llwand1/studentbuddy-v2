@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-29T08:05:18.629Z",
+  "generatedAt": "2026-09-29T09:03:17.805Z",
   "code": {
     "rows": [
       {
@@ -20,13 +20,13 @@
         "pkg": "web",
         "srcFiles": 251,
         "testFiles": 99,
-        "srcLines": 32642,
+        "srcLines": 32641,
         "testLines": 13649
       }
     ],
     "srcFiles": 516,
     "testFiles": 278,
-    "srcLines": 71997,
+    "srcLines": 71996,
     "testLines": 47908,
     "tsxTestFiles": 45
   },
@@ -85,21 +85,21 @@
     "probes": 15
   },
   "repo": {
-    "head": "1becebb",
+    "head": "5b47002",
     "headDate": "2026-09-29",
-    "commitsLast14d": 101,
-    "branch": "main",
-    "dirtyFiles": 37
+    "commitsLast14d": 104,
+    "branch": "merge/continent-expand",
+    "dirtyFiles": 0
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 172.2,
+    "wallSec": 81.3,
     "staleDays": 0,
     "files": 278,
     "cases": 3436,
-    "passed": 3435,
-    "skipped": 1,
+    "passed": 3433,
+    "skipped": 3,
     "failed": 0,
     "success": true
   },

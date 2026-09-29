@@ -45,8 +45,8 @@ export function DrillFx({ fx }: { fx: DrillFxState | null }) {
     return (
       <div className="drill-fx drill-fx-wrong" key={fx.key} aria-hidden="true">
         <svg className="drill-fx-crack" viewBox="0 0 100 100" preserveAspectRatio="none" focusable="false">
-          <path d="M50 0 L46 22 L58 38 L44 55 L56 74 L48 100" />
-          <path d="M46 22 L28 30 M58 38 L78 34 M44 55 L22 66 M56 74 L80 82" />
+          <path vectorEffect="non-scaling-stroke" d="M50 0 L46 22 L58 38 L44 55 L56 74 L48 100" />
+          <path vectorEffect="non-scaling-stroke" d="M46 22 L28 30 M58 38 L78 34 M44 55 L22 66 M56 74 L80 82" />
         </svg>
       </div>
     );
@@ -56,7 +56,7 @@ export function DrillFx({ fx }: { fx: DrillFxState | null }) {
     <div className={`drill-fx drill-fx-${fx.kind}`} key={fx.key} aria-hidden="true">
       {fx.kind === 'bolt' ? (
         <svg className="drill-fx-boltline" viewBox="0 0 100 100" preserveAspectRatio="none" focusable="false">
-          <path d="M52 0 L40 34 L58 40 L38 72 L60 66 L46 100" />
+          <path vectorEffect="non-scaling-stroke" d="M52 0 L40 34 L58 40 L38 72 L60 66 L46 100" />
         </svg>
       ) : (
         Array.from({ length: n }, (_, i) => <i key={i} />)

@@ -5,6 +5,7 @@
  * ★ 与大陆弹窗同一套黑铁金线（`drill.css` 按 `grimoire.css` 的语言写，只用 `--gr-*` / `--sb-*` 变量）。
  * ★ 纯展示：状态机在 `useDrillSession`，弹与收在 `useDrillTrigger`，两者由 `WaitDrill` 拼起来。
  */
+import { useEffect, useRef } from 'react';
 import type { DrillCard } from '@sb/shared';
 import { DrillFx, type DrillFxState } from './DrillFx';
 import { DrillQuestion } from './DrillQuestion';
@@ -15,6 +16,8 @@ import './drill-fx.css';
 export interface DrillOverlayProps {
   busy: boolean;
   replyReady: boolean;
+  /** 练习局（从入口手动打开、没在等回复）：头部不说「回复到了」 */
+  practice: boolean;
   /** 回复到了之后还有几秒自动切回（不答也切） */
   readyCountdown: number;
   muted: boolean;
@@ -40,15 +43,34 @@ export interface DrillOverlayProps {
   onDismiss: () => void;
 }
 
+/** 底部快捷键提示按这张卡的操作方式换词：拼写卡没有 1–4，学新词那屏只有 Enter。 */
+function footHint(phase: DrillPhase, card: DrillCard | null): string {
+  if (phase === 'learn') return 'Enter 记住了来一题 · Esc 关闭';
+  if (card?.kind === 'spell') return '输入词条 Enter 提交 · N 不认识 · Z 斩 · Esc 关闭';
+  return '1–4 选 · Enter 下一张 · N 不认识 · Z 斩 · Esc 关闭';
+}
+
 export function DrillOverlay(p: DrillOverlayProps) {
+  /**
+   * 打开时把焦点挪进弹窗、关掉时还回去（多半是聊天输入框——回复到了正好接着打字）。
+   * ★ 不挪焦点的后果在真机上见过：发送完消息焦点还在聊天框里，按 1–4 什么都不发生。
+   */
+  const stage = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const prev = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    stage.current?.focus({ preventScroll: true });
+    return () => {
+      if (prev && prev.isConnected) prev.focus({ preventScroll: true });
+    };
+  }, []);
   return (
     <div className="drill-overlay" role="dialog" aria-modal="true" aria-label="等待时刷词">
-      <div className="drill-stage">
+      <div className="drill-stage" ref={stage} tabIndex={-1}>
         <header className="drill-head">
           <div className="drill-brand">
             <span className="drill-brand-tag">WAIT</span>
             <b>等待时刷词</b>
-            <small className={p.busy ? 'live' : ''}>{p.busy ? 'AI 正在回复…' : '回复到了'}</small>
+            <small className={p.busy ? 'live' : ''}>{p.busy ? 'AI 正在回复…' : p.practice ? '练习局' : '回复到了'}</small>
           </div>
           <div className="drill-stats" aria-label="战绩">
             <span>
@@ -118,7 +140,7 @@ export function DrillOverlay(p: DrillOverlayProps) {
           {p.notice || p.newNote}
         </p>
         <footer className="drill-foot">
-          <span>1–4 选 · Enter 下一张 · N 不认识 · Z 斩 · Esc 关闭</span>
+          <span>{footHint(p.phase, p.card)}</span>
           <span>还有 {p.queueLeft} 张</span>
         </footer>
       </div>

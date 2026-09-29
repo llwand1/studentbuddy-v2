@@ -125,6 +125,7 @@ export function WaitDrill({ busySessionId, active }: { busySessionId: string | n
   return (
     <DrillOverlay
       busy={busySessionId !== null}
+      practice={busySessionId === null && !trigger.replyReady}
       replyReady={trigger.replyReady && !stay}
       readyCountdown={countdown}
       muted={!prefs.sound}

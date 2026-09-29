@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, act, cleanup, fireEvent, screen } from '@testing-library/react';
-import { clickCorrect, dialog, flush, mapMock, markMock, newTermsMock, keepMock, dismissMock, resetDrillMocks } from './WaitDrill.testkit';
+import { clickCorrect, correctIndex, dialog, flush, mapMock, markMock, newTermsMock, keepMock, dismissMock, resetDrillMocks } from './WaitDrill.testkit';
 import { requestDrillOpen, saveDrillPrefs } from './drill-prefs';
 
 vi.mock('../../lib/api-terms-continent', () => ({ termsContinentApi: { map: mapMock } }));
@@ -145,6 +145,23 @@ describe('WaitDrill：弹与回', () => {
       vi.advanceTimersByTime(READY_GRACE_S * 1000 + 2000);
     });
     expect(dialog()).not.toBeNull();
+  });
+
+  it('焦点留在聊天输入框也能按数字作答（且不会把数字打进去）；打开时焦点进弹窗，关掉还回输入框', async () => {
+    const ta = document.createElement('textarea');
+    document.body.appendChild(ta);
+    ta.focus();
+    await openBusy();
+    expect(document.activeElement?.classList.contains('drill-stage')).toBe(true);
+    ta.focus(); // 模拟用户又点回聊天框——弹窗是模态，按键仍归弹窗
+    const i = correctIndex();
+    const notPrevented = fireEvent.keyDown(ta, { key: String(i + 1) });
+    expect(notPrevented).toBe(false);
+    expect(document.querySelector('.drill-opt.right')).not.toBeNull();
+    fireEvent.keyDown(ta, { key: 'Escape' });
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(ta);
+    ta.remove();
   });
 
   it('不在对话页不自动弹；音效钮切换写回本机偏好', async () => {

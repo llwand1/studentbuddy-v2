@@ -95,12 +95,15 @@ loading ──取词──▶ question ──答──▶ reveal ──下一张
 
 答对按次数轮换五款：**斩击**（两道白刃斜切）→ **爆裂**（12 粒方块四散）→ **星芒**（四角星 + 冲击环）→ **电光**（锯齿闪电 + 蓝闪）→ **血墨**（墨点炸开 + 三滴飞溅）；
 答错 **碎裂**（红裂纹 + 卡片抖动）；连击 5 的倍数叠 「COMBO ×N」大字。
+裂纹 / 闪电是 `viewBox 100×100` + `preserveAspectRatio=none` 拉满整张卡的 SVG，路径标 `vector-effect=non-scaling-stroke` 保持 3–4px 线宽——否则横向会被拉粗十几像素把正确答案盖住（实拍逮到）。
 口径与对话页特效层同：只用 `steps()`；只动 transform / opacity / clip-path；默认态即终态；`prefers-reduced-motion` 下全关；
 粒子方向写在 `:nth-child` 规则（禁内联样式）。
 
 ### 5.4 键位（`useDrillKeys`）
 
-`1–4` 选项 · `Enter/空格` 下一张 / 记住了 / 收入词库 · `N` 不认识 · `Z` 斩 · `X` 不要 · `Esc` 关闭。焦点在输入框时字母数字不劫持（Esc 照关）。
+`1–4` 选项 · `Enter/空格` 下一张 / 记住了 / 收入词库 · `N` 不认识 · `Z` 斩 · `X` 不要 · `Esc` 关闭。焦点在**弹窗里的**输入框（拼写卡）时字母数字不劫持（Esc 照关）。
+焦点规则（真机实拍逮到的坑）：发送完消息焦点还留在聊天输入框——弹窗是模态，所以 **打开时把焦点挪进舞台**（`.drill-stage[tabindex=-1]`），弹窗外的输入框不算「在打字」，按键照归弹窗并 `preventDefault`（数字不会被打进聊天框）；**关掉时焦点还回去**（回复到了正好接着打字）。
+脚注按卡换词：拼写卡「输入词条 Enter 提交…」、学新词屏「Enter 记住了来一题」；练习局（没在等回复）头部写「练习局」而不是「回复到了」。
 
 ### 5.5 音频（`DrillAudio`）
 
@@ -123,7 +126,7 @@ loading ──取词──▶ question ──答──▶ reveal ──下一张
 | `web/…/drill/useDrillTrigger.test.ts` | 2 秒才弹 / 秒回不弹 / replyReady / 关掉本轮不弹 / openNow |
 | `web/…/drill/drill-audio.test.ts` | 调度器起停幂等、静音是增益归零、七款音效、无 AudioContext 静默 |
 | `web/…/drill/drill-prefs.test.ts` | 默认值 / 广播 / 跨天归零 / 坏 JSON |
-| `web/…/drill/WaitDrill.test.tsx` | 弹与回全链：到期答对 mark、回复到了答完切回、8 秒兜底、继续刷、Esc、设置关、音效钮 |
+| `web/…/drill/WaitDrill.test.tsx` | 弹与回全链：到期答对 mark、回复到了答完切回、8 秒兜底、继续刷、Esc、设置关、焦点进弹窗 / 聊天框有焦点也能按数字 / 关掉还回、音效钮 |
 | `web/…/drill/WaitDrill.cards.test.tsx` | 键盘作答、答错插回、斩、五款特效轮换 + COMBO、拼写、AI 新词 keep、词池兜底 + dismiss、词库取不到如实报 |
 | `web/…/settings/WaitDrillCard.test.tsx` | 开关点选即存 + 广播、试一局事件 |
 

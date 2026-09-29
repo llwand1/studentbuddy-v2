@@ -66,8 +66,11 @@ import {
   addDays,
   nextStage,
   MAX_REVIEW_STAGE,
+  gradeFromRemembered,
+  type FsrsGrade,
   type ReviewState,
 } from '@sb/shared';
+import { fsrsStep, type FsrsRowInput } from './fsrs-review.js';
 
 /** 近 N 天复习量（概览里的柱状输入） */
 export const REVIEW_RECENT_DAYS = 7;
@@ -157,6 +160,8 @@ export interface TermReviewRow {
   updated_at: string;
   review_stage: number;
   last_reviewed_at: string | null;
+  fsrs_stability?: number | null; // v47 旁表 `term_fsrs`；NULL ＝ 还没在新版里复习过
+  fsrs_difficulty?: number | null;
 }
 
 /**
@@ -166,7 +171,9 @@ export interface TermReviewRow {
  *   正是"大陆上少显示一个状态"这种静默错。
  */
 export const SELECT_REVIEW_COLS = `t.id, t.term, t.definition, t.domain, t.importance, t.usage_count,
-  t.created_at, t.updated_at, t.review_stage, t.last_reviewed_at`;
+  t.created_at, t.updated_at, t.review_stage, t.last_reviewed_at,
+  (SELECT f.stability FROM term_fsrs f WHERE f.term_id = t.id) AS fsrs_stability,
+  (SELECT f.difficulty FROM term_fsrs f WHERE f.term_id = t.id) AS fsrs_difficulty`;
 
 /**
  * 行 → 契约对象（**唯一**的状态计算落点；其它函数都调它，保证同一次请求内口径一致）。
@@ -174,12 +181,19 @@ export const SELECT_REVIEW_COLS = `t.id, t.term, t.definition, t.domain, t.impor
  *   那边若自己拼一份，就会出现"队列说今天到期、列表徽标说还有 3 天"。
  */
 export function toReviewTerm(row: TermReviewRow, now: Date): ReviewTerm {
-  const { review_stage, last_reviewed_at, ...rest } = row;
+  const { review_stage, last_reviewed_at, fsrs_stability, fsrs_difficulty, ...rest } = row;
   return {
     ...rest,
     review_stage,
     last_reviewed_at,
-    review: computeReviewState({ lastReviewedAt: last_reviewed_at, createdAt: row.created_at, stage: review_stage, now }),
+    review: computeReviewState({
+      lastReviewedAt: last_reviewed_at,
+      createdAt: row.created_at,
+      stage: review_stage,
+      now,
+      stability: fsrs_stability,
+      difficulty: fsrs_difficulty,
+    }),
   };
 }
 
@@ -319,7 +333,7 @@ export function markReviewed(
   id: string,
   remembered: boolean,
   ownerId: string | null,
-  opts: { silent?: boolean } = {},
+  opts: { silent?: boolean; grade?: FsrsGrade } = {},
 ): ReviewTerm | null {
   const db = getDb();
   const owner = ownerForWrite(ownerId);
@@ -339,18 +353,29 @@ export function markReviewed(
   // 三条分支合成一行：记住 + 今天首次 ⇒ 推进；记住 + 今天已推进过 ⇒ 原地不动；忘了 ⇒ 归零
   const advance = remembered && !reviewedToday;
   const after = remembered ? (advance ? nextStage(before, true) : before) : 0;
+  // ★ FSRS（v47）：评分缺省由记住/忘了折算（3/1）；同日重复且记住时 S/D 与阶段一样不动。
+  const grade = opts.grade ?? gradeFromRemembered(remembered);
+  const step = fsrsStep(row as TermReviewRow & FsrsRowInput, grade, now);
   const insertLog = db.prepare(
     `INSERT INTO term_review_log (id, term_id, stage, remembered, reviewed_at, reviewed_day)
      VALUES (?, ?, ?, ?, datetime('now'), ?)`,
   );
-  const updateTerm = db.prepare(
-    `UPDATE term_library SET review_stage = ?, last_reviewed_at = datetime('now') WHERE id = ? AND owner_id = ?`,
+  const insertFsrsLog = db.prepare(`INSERT INTO term_review_fsrs (log_id, term_id, grade, stability, difficulty, retrievability) VALUES (?, ?, ?, ?, ?, ?)`);
+  const updateTerm = db.prepare(`UPDATE term_library SET review_stage = ?, last_reviewed_at = datetime('now') WHERE id = ? AND owner_id = ?`);
+  const upsertFsrs = db.prepare(
+    `INSERT INTO term_fsrs (term_id, stability, difficulty) VALUES (?, ?, ?)
+     ON CONFLICT(term_id) DO UPDATE SET stability = excluded.stability, difficulty = excluded.difficulty, updated_at = datetime('now')`,
   );
   db.transaction(() => {
-    insertLog.run(randomUUID(), id, before, remembered ? 1 : 0, today);
+    const moved = advance || !remembered; // 记住＋今天首次，或忘了
+    const logId = randomUUID();
+    const [st, df, rt] = moved ? [step.next.stability, step.next.difficulty, step.retrievability] : [null, null, null];
+    insertLog.run(logId, id, before, remembered ? 1 : 0, today);
+    insertFsrsLog.run(logId, id, grade, st, df, rt);
     // ★ 同日重复且记住 ⇒ **跳过整条 UPDATE**（不只是跳过 stage）：`last_reviewed_at` 一并保持不动，
     //   否则曲线图的时间轴会多出一个"由重复打卡造成、但对曲线零贡献"的基准点。
-    if (advance || !remembered) updateTerm.run(after, id, owner);
+    if (moved) updateTerm.run(after, id, owner);
+    if (moved) upsertFsrs.run(id, step.next.stability, step.next.difficulty);
   })();
   // ★ 事务**之后**才发事件（契约 `GAMIFIED-AGENT-SPEC` §8.1）：订阅方 `learning/activity.ts` 要在
   //   `daily_activity` 上写一行，而同步发布意味着「订阅者抛错」会顺着调用栈打回打卡这条路——

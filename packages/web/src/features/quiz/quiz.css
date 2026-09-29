@@ -134,3 +134,11 @@
 .sb-scenario-task.is-correct { border-left: 3px solid var(--sb-success, #2e7d32); }
 .sb-scenario-task.is-wrong { border-left: 3px solid var(--sb-danger, #c62828); }
 .sb-scenario-task-state { font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); white-space: nowrap; }
+
+/* ── AI 量规评分（v47 AiGradeNote）── */
+.quiz-ai-grade { margin-top: 8px; padding: 8px 10px; border-left: 3px solid var(--sb-line); }
+.quiz-ai-grade.is-correct { border-left-color: var(--sb-ok, #6fae5f); }
+.quiz-ai-grade.is-partial { border-left-color: var(--sb-warn, #d9a441); }
+.quiz-ai-grade.is-wrong { border-left-color: var(--sb-danger, #c0453a); }
+.quiz-ai-grade p { margin: 4px 0 0; }
+.quiz-ai-mis { opacity: 0.85; }

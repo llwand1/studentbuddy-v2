@@ -8,7 +8,7 @@ vi.mock('../../lib/api', () => ({ api: apiMock }));
 const report = vi.hoisted(() => vi.fn());
 vi.mock('../../lib/api-ai-ops', async (orig) => {
   const real = await orig<typeof import('../../lib/api-ai-ops')>();
-  return { ...real, aiOpsApi: { ...real.aiOpsApi, reportAnswer: report } };
+  return { ...real, aiOpsApi: { ...real.aiOpsApi, reportAnswer: report, grade: () => new Promise(() => undefined) } };
 });
 const question = { type: 'single' as const, question: '叶绿体的作用？', options: ['光合作用', '吸收矿物质'], answer: [0], explanation: '光能转化为化学能。' };
 const result = { summary: '先区分能量和物质。', sections: [{ title: '光能去向', questions: [1], explanation: '光能转为化学能。',
@@ -42,6 +42,8 @@ describe('普通题完成与图文复盘', () => {
     expect(report.mock.calls.map(([r]) => [r.qtype, r.correct, r.source])).toEqual([
       ['choice', true, 'chat-quiz'], ['multi', true, 'chat-quiz'], ['judge', true, 'chat-quiz'],
     ]);
+    // ★ v47：前端判不了的那两道（字面没对上的填空、解答题）交给 AI 评分——各出现一次"评分中"
+    expect(screen.getAllByText('AI 正在按要点评分…')).toHaveLength(2);
     fireEvent.click(screen.getByText('再练一遍'));
     expect(screen.queryByText('本轮探索完成')).toBeNull();
     expect(screen.getAllByText('确认作答')).toHaveLength(4);

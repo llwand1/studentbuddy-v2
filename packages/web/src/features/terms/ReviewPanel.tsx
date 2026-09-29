@@ -19,6 +19,7 @@ import { api, type ReviewOverview, type ReviewQueueItem, type ReviewTermItem } f
 import { ClockIcon, CheckIcon } from '../../components/icons';
 import { ReviewScopePicker } from './ReviewScopePicker';
 import { ReviewGoalCard } from './ReviewGoalCard';
+import { LearnerModelCard } from './LearnerModelCard';
 
 const QUEUE_LIMIT = 20;
 
@@ -76,11 +77,11 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
     void reload().catch(() => undefined);
   }, [reload]);
 
-  const mark = async (id: string, remembered: boolean) => {
+  const mark = async (id: string, remembered: boolean, grade?: 1 | 2 | 3 | 4) => {
     if (busy) return;
     setBusy(id);
     try {
-      await api.terms.mark(id, remembered);
+      await api.terms.mark(id, remembered, grade);
       // ★ v1.2：打卡后**整批重拉**，不再"本地删一条"就完事。队列现在会**补位**：
       //   真账刷完后服务端会把"提前背"的词条补进来；本地只删的话，用户会看到空队列却还没达标。
       //   重拉还顺带把 `doneCards`（进度）与服务端对齐——本地自增一旦分叉，
@@ -246,12 +247,20 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
                           不写的话用户会疑惑"我明明没到期，怎么被催了"。 */}
                       {t.segment !== 'due' && (t.segment === 'extra' ? '提前背 · ' : '再巩固 · ')}
                       第 {Math.min(t.review.stage + 1, 7)}/7 节点 · 记忆保持 ≈ {Math.round(t.review.retention * 100)}%
+                      {t.review.stability !== undefined && ` · 稳定 ${stabilityText(t.review.stability)}`}
                       {t.review.basis === 'created' && ' · 还没复习过（按入库时间算）'}
                     </div>
                   </div>
                   <div className="rv-item-actions">
+                    {/* v47：四档评分喂 FSRS——「困难／轻松」决定下次间隔拉多远，两键用户照旧点「记住了」 */}
+                    <button className="rv-btn" title="想起来了但很吃力：间隔拉得短一些" disabled={busy === t.id} onClick={() => void mark(t.id, true, 2)}>
+                      困难
+                    </button>
                     <button className="rv-btn ok" disabled={busy === t.id} onClick={() => void mark(t.id, true)}>
                       记住了
+                    </button>
+                    <button className="rv-btn" title="毫不费力：间隔拉得更远" disabled={busy === t.id} onClick={() => void mark(t.id, true, 4)}>
+                      轻松
                     </button>
                     <button className="rv-btn danger" disabled={busy === t.id} onClick={() => void mark(t.id, false)}>
                       忘了
@@ -262,7 +271,16 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
             </div>
           </>
         )}
+        <LearnerModelCard refreshKey={overview?.todayCards ?? 0} />
       </div>
     </div>
   );
+}
+
+/** 稳定性（天）的人话：记忆保持率掉到 90% 要多久 */
+export function stabilityText(days: number): string {
+  if (days < 1) return '不到 1 天';
+  if (days < 60) return `${Math.round(days)} 天`;
+  if (days < 730) return `${Math.round(days / 30)} 个月`;
+  return `${Math.round(days / 365)} 年`;
 }

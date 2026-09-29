@@ -40,7 +40,7 @@ import {
 import { getSessionDoc, buildDocMaterial } from '../learning/document.js';
 // 撤销快照（契约 TOOL-ECOSYSTEM-SPEC §4.5/§5.1：UI 手动删也进表，actor='ui'）
 import { selectTermRowsForSnapshot, logTermDeletions, listUndoableBatches, undoDeleteBatch } from '../storage/term-delete-log.js';
-import { DOC_EXTRACT_BUDGET_CHARS } from '@sb/shared';
+import { DOC_EXTRACT_BUDGET_CHARS, isFsrsGrade } from '@sb/shared';
 
 export const termsRouter = Router();
 
@@ -163,9 +163,17 @@ termsRouter.post('/extract', async (req: Request, res: Response) => {
  *   后者是"你没把它纳入复习，先去勾选"——两种处置完全不同，压成一个码前端就没法提示。
  */
 termsRouter.post('/:id/review', (req: Request, res: Response) => {
-  const remembered = (req.body as { remembered?: unknown } | undefined)?.remembered;
+  const body = req.body as { remembered?: unknown; grade?: unknown } | undefined;
+  const remembered = body?.remembered;
   if (typeof remembered !== 'boolean') {
     res.status(400).json({ error: 'remembered 必填且必须是布尔值' });
+    return;
+  }
+  // ★ v47 可选四档评分（1 忘了／2 困难／3 记得／4 轻松）喂 FSRS；缺省按记住/忘了折算。
+  //   与 remembered 矛盾（记住却给 1、忘了却给 2–4）一律 400：两个字段各说各话时猜哪个都会错。
+  const grade = body?.grade;
+  if (grade !== undefined && (!isFsrsGrade(grade) || (grade === 1) === remembered)) {
+    res.status(400).json({ error: 'grade 必须是 1–4，且与 remembered 一致（1 ＝ 忘了）' });
     return;
   }
   const id = req.params.id ?? '';
@@ -179,7 +187,7 @@ termsRouter.post('/:id/review', (req: Request, res: Response) => {
     res.status(409).json({ error: '该词条未纳入复习范围，请先在复习范围里勾选它（或其所属领域）' });
     return;
   }
-  const row = markReviewed(id, remembered, ownerId);
+  const row = markReviewed(id, remembered, ownerId, grade === undefined ? {} : { grade });
   if (!row) {
     res.status(404).json({ error: '词条不存在' });
     return;

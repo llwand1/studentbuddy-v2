@@ -36,6 +36,7 @@ import { wireActivityEvents } from './learning/activity.js';
 import { wireObsEvents } from './storage/obs.js';
 import { wireToolStats } from './storage/tool-stats.js';
 import { aiRouter, jobsRouter, learningRouter } from './routes/ai-ops.js';
+import { learnerRouter } from './routes/learner.js';
 import { wireLlmCallLog } from './ai/call-log.js';
 import { wireLearningEvents } from './learning/learning-events.js';
 import { startJobWorker } from './jobs/worker.js';
@@ -176,6 +177,7 @@ app.use('/api/search', searchRouter);
 // v46 AI 网关统计 / 学习事件流 / 后台任务（设置页「AI 运行状况」与首页学习概况读这里）
 app.use('/api/ai', aiRouter);
 app.use('/api/learning', learningRouter);
+app.use('/api/learning', learnerRouter);
 app.use('/api/jobs', jobsRouter);
 
 app.get('/api/health', (_req, res) => {

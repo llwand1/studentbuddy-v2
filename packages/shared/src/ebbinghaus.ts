@@ -32,6 +32,8 @@ const DAY_MS = 86_400_000;
  * 后面的 2/6/31 取整为 2/7/30，再补 60 天作收尾档。**不改数值**，只做「天」这个粒度下的投影。
  * 数组下标即 `stage`：stage=0 表示还没复习过（下次间隔 1 天）。
  */
+import { fsrsInterval, fsrsRetrievability } from './fsrs.js';
+
 export const REVIEW_INTERVALS_DAYS: readonly number[] = [1, 2, 4, 7, 15, 30, 60];
 
 /** 毕业档：stage 走到这里 = 走完全部七个节点，进入长期记忆（此后仍记天数，只是不再催） */
@@ -67,6 +69,13 @@ export interface ReviewState {
   basis: ReviewBasis;
   /** 下次复习日（`YYYY-MM-DD`，本地日历日） */
   nextDueDay: string;
+  /**
+   * FSRS 稳定性（天）。★ 只在该词条已有 FSRS 状态时出现（2026-09-29 起）：出现时 `intervalDays`
+   * 与 `retention` 由 FSRS 算（目标保持率 0.9），不出现时仍是旧的固定 7 档曲线。
+   */
+  stability?: number;
+  /** FSRS 难度 1–10（同上，只在有 FSRS 状态时出现） */
+  difficulty?: number;
 }
 
 /** 把 SQLite 的 `datetime('now')` 文本（UTC，无时区标记）解析成 Date。坏值返回 null。 */
@@ -137,6 +146,9 @@ export interface ReviewStateInput {
   stage?: number | null;
   /** 注入「现在」便于测试；默认真实当前时间 */
   now?: Date;
+  /** FSRS 稳定性（天）；为空 ⇒ 走旧的固定间隔 */
+  stability?: number | null;
+  difficulty?: number | null;
 }
 
 /** 计算一个词条的复习状态（前后端唯一的判定入口）。 */
@@ -148,7 +160,8 @@ export function computeReviewState(input: ReviewStateInput): ReviewState {
   const basis: ReviewBasis = reviewed ? 'review' : 'created';
   const base = reviewed ?? created ?? now;
   const daysSince = localDayIndex(now) - localDayIndex(base);
-  const intervalDays = reviewIntervalDays(stage);
+  const fsrs = reviewed && typeof input.stability === 'number' && input.stability > 0 ? input.stability : null;
+  const intervalDays = fsrs !== null ? fsrsInterval(fsrs) : reviewIntervalDays(stage);
   const baseDay = localDayKey(base);
   const nextDueDay = addDays(baseDay, intervalDays);
   const dueInDays = intervalDays - daysSince;
@@ -168,11 +181,12 @@ export function computeReviewState(input: ReviewStateInput): ReviewState {
     daysSince,
     dueInDays,
     overdueDays,
-    retention: retentionAt(daysSince, intervalDays),
+    retention: fsrs !== null ? Math.max(fsrsRetrievability(daysSince, fsrs), RETENTION_FLOOR) : retentionAt(daysSince, intervalDays),
     status,
     mastered,
     basis,
     nextDueDay,
+    ...(fsrs !== null ? { stability: fsrs, difficulty: input.difficulty ?? 5 } : {}),
   };
 }
 

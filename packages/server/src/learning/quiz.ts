@@ -30,6 +30,7 @@ import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
 import { loadAnswerStyle } from '../storage/answer-style.js';
 import { routeRole } from '../llm/router.js';
+import { buildLearnerQuizBlock } from './learner-model.js';
 import { aiText } from '../ai/gateway.js';
 import { QUIZ_TEMPERATURE, getQuizMaxOutputTokens } from '../llm/model-limits.js';
 import { repairJsonBrackets, repairJsonEscapes } from './quiz-json-repair.js';
@@ -311,7 +312,7 @@ export async function generateQuiz(
     ? await buildQuizSearchBlock(topic, material, searchReport, owner)
     : { block: '', refs: [] };
   const refsBlock = found.block;
-  const prompt = `${QUIZ_PROTOCOL}\n${buildMixInstruction(wanted)}\n${buildImageInstruction(imageOn)}\n${buildAnswerStyleBlock(styleArg ?? loadAnswerStyle(owner), 'quiz')}\n${refsBlock}${refsBlock ? '\n' : ''}\n材料：\n${material ? material.slice(0, MAX_DOC_CHARS) : `主题：${topic}`}`;
+  const prompt = `${QUIZ_PROTOCOL}\n${buildMixInstruction(wanted)}\n${buildImageInstruction(imageOn)}\n${buildAnswerStyleBlock(styleArg ?? loadAnswerStyle(owner), 'quiz')}\n${buildLearnerQuizBlock(owner)}${refsBlock}${refsBlock ? '\n' : ''}\n材料：\n${material ? material.slice(0, MAX_DOC_CHARS) : `主题：${topic}`}`;
   const r = await aiText({
     purpose: 'quiz.generate',
     ownerId: owner,

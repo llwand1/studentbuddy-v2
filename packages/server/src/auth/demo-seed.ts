@@ -95,6 +95,12 @@ function scheduleSeedReview(termId: string, item: DemoSeedTerm): void {
     markReviewed(termId, true, DEMO_USER_ID, { silent: true });
     backdateLastReview(termId, seedReviewDaysAgo(item, i));
   }
+  // ★ v47：种子是按**旧阶段曲线**摆出来的（上面把每次复习挪到该在的那天），而 `markReviewed` 在「今天」
+  //   顺手写了 FSRS 状态——那份状态是以"今天刚复习"算的，与挪过的日期对不上，会让标了 `dueToday`
+  //   的种子不再到期。⇒ 抹掉种子的 FSRS 行：这些词条走旧曲线，访客第一次真复习时再按阶段折算进 FSRS。
+  const db = getDb();
+  db.prepare('DELETE FROM term_fsrs WHERE term_id = ?').run(termId);
+  db.prepare('DELETE FROM term_review_fsrs WHERE term_id = ?').run(termId);
 }
 
 /**

@@ -13,7 +13,7 @@ export function QuizCard({ title, questions, sessionId }: {
   return <div className="quiz-card quiz-adventure">
     <div className="quiz-head"><span className="quiz-eyebrow">知识试炼</span>{title}</div>
     <p className="quiz-muted">先作答，再看懂。完成本组后可生成专属图文讲解。</p>
-    {questions.map((q, i) => <QuizQuestionItem key={`${round}-${i}`} q={q} index={i}
+    {questions.map((q, i) => <QuizQuestionItem key={`${round}-${i}`} q={q} index={i} topic={title}
       onComplete={(item) => setAnswers((prev) => ({ ...prev, [i]: item }))} />)}
     <QuizReview key={round} sessionId={sessionId} title={title} kind="quiz" total={questions.length}
       items={questions.flatMap((_, i) => answers[i] ? [answers[i]] : [])}

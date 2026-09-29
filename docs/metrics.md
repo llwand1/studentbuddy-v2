@@ -23,29 +23,29 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-09-28 23:33:28（本机时区）｜ 基准 `c6566c1` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-09-29 11:36:05（本机时区）｜ 基准 `a15658d` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
-| shared | 35 | 5,786 | 22 | 3,258 | 56% |
-| server | 189 | 29,327 | 132 | 28,547 | 97% |
-| web | 239 | 31,491 | 91 | 13,120 | 42% |
-| **合计** | **463** | **66,604** | **245** | **44,925** | **67%** |
+| shared | 38 | 6,088 | 24 | 3,383 | 56% |
+| server | 203 | 30,737 | 140 | 29,590 | 96% |
+| web | 243 | 31,824 | 95 | 13,360 | 42% |
+| **合计** | **484** | **68,649** | **259** | **46,333** | **67%** |
 
 ## 接口与契约
 
-- REST 路由注册：**139**（get 59 / post 54 / delete 11 / put 14 / patch 1）· 另 /api 挂载点 28 个
-- shared 契约类型：**154**（export interface 100 + export type 54）
+- REST 路由注册：**148**（get 64 / post 58 / delete 11 / put 14 / patch 1）· 另 /api 挂载点 32 个
+- shared 契约类型：**172**（export interface 112 + export type 60）
 - 外部运行时依赖：**6** 个 —— better-sqlite3, cors, express, pino, react, react-dom
-- 迁移水位：代码侧 **v45**（45 个 version 条目，非连续号 0 处）
+- 迁移水位：代码侧 **v47**（47 个 version 条目，非连续号 0 处）
 
 ## 测试基线（vitest 实跑）
 
-- **245 文件 / 3206 例**（3203 passed + 3 skipped + 0 failed）⇒ 全绿
-- 本次本机实跑（Node v22.23.2）全量耗时 72.6s
-- jsdom 交互测试文件（`.test.tsx`）39 个
+- **259 文件 / 3314 例**（3313 passed + 1 skipped + 0 failed）⇒ 全绿
+- 本次本机实跑（Node v22.23.2）全量耗时 45.6s
+- jsdom 交互测试文件（`.test.tsx`）42 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
 
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 38 份 · md 共 50 份 · 真机探针 15 个
-- git：merge/chat-ux-polish @ `c6566c1`（2026-09-28）· 近 14 天 81 commits · 工作区未提交 0 文件
+- git：merge/ai-learner-core @ `a15658d`（2026-09-29）· 近 14 天 87 commits · 工作区未提交 2 文件
 
 <!-- metrics:end -->
 

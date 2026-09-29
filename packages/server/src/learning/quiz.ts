@@ -37,6 +37,7 @@ import { QUIZ_TEMPERATURE, getQuizMaxOutputTokens } from '../llm/model-limits.js
 import { repairJsonBrackets, repairJsonEscapes } from './quiz-json-repair.js';
 import { defaultSolver, verifyQuiz } from './quiz-verify.js';
 import { loadQuizImage, buildImageInstruction } from './quiz-image.js';
+import { attachQuizPhotos } from './quiz-photo.js';
 import { buildQuizSearchBlock, mapQuizSources } from './quiz-search.js';
 
 // 配图三件的实现已搬到 quiz-image.ts（本文件行数红线所迫，见该文件头注）。
@@ -334,6 +335,8 @@ export async function generateQuiz(
   // 来源标注（契约 QUIZ-SEARCH-SPEC §2.8）：把模型给的编号翻译成真实 title/url 填 source。
   // 网址一律取自 found.refs（真实检索结果），模型写什么都丢——这是「来源不可幻觉」的唯一保证。
   const mapped = parsed ? mapQuizSources(parsed, found.refs) : null;
+  // 网络配图（quiz-photo.ts）：跟随「出题配图」开关；对战路径（verify=true）不配——对战界面不显示且最怕等
+  if (mapped && imageOn && !verify) await attachQuizPhotos(mapped, owner).catch(() => 0);
   if (!mapped || !verify) return mapped;
   // 盲解验算（issue #71，实现与三条保守纪律全在 quiz-verify.ts）：
   // solver 未绑定 → 原样放行（零行为变化）；全部被拦 → null（与配比裁到 0 题同一条降级路）

@@ -142,3 +142,9 @@
 .quiz-ai-grade.is-wrong { border-left-color: var(--sb-danger, #c0453a); }
 .quiz-ai-grade p { margin: 4px 0 0; }
 .quiz-ai-mis { opacity: 0.85; }
+
+/* 网络配图（quiz-photo.ts）：真实图片 + 署名，限高防止长图撑爆题卡 */
+.quiz-q-photo { margin: 8px 0; }
+.quiz-q-photo img { display: block; max-width: 100%; max-height: 280px; object-fit: contain; border-radius: 6px; }
+.quiz-q-photo figcaption { font-size: 12px; opacity: .7; margin-top: 4px; }
+.quiz-q-photo figcaption a { color: inherit; }

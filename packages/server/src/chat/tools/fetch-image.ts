@@ -15,9 +15,8 @@
  *   （`storage/image-cache.ts` 的文件头有完整论证），模型只能给 URL、给不了路径。
  *   故不走申请式确认卡——挂上确认门只会让它变成「用户以为这功能不存在」（这是刻意的取舍）。
  */
-import { fetchSafe } from '../../search/ssrf-guard.js';
-import { combineSignals } from '../../search/index.js';
-import { MAX_IMAGE_BYTES, imageUrlOf, saveImage, sniffImage } from '../../storage/image-cache.js';
+import { MAX_IMAGE_BYTES, imageUrlOf, saveImage } from '../../storage/image-cache.js';
+import { downloadImage } from '../../media/image-download.js';
 import { registerTool } from './registry.js';
 
 /**
@@ -25,62 +24,6 @@ import { registerTool } from './registry.js';
  * 仍远短于 `network` 档基线 60s —— 失败要失败得快，档位基线不因此上调。
  */
 const FETCH_TIMEOUT_MS = 20_000;
-
-/** 真实浏览器 UA：不少图床对无 UA 的请求直接 403（与 `fetch_page` / Bing 通道同款理由）。 */
-const FETCH_UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
-
-/**
- * 失败原因外泄口径：安全策略类原因**不逐字透传**（同 `fetch_page.publicReason`）。
- * 把「解析到内网/回环地址」原样回灌，等于把本机的网络拓扑当成模型的探测面。
- * ★ 这是本仓的第二份实现：`fetch_page` 那份是模块私有的，为一个 5 行函数去改刚验证过的
- *   实现不划算。**建议后续把两份收进 `search/ssrf-guard.ts`**（登记在契约待办）。
- */
-function publicReason(err: unknown): string {
-  const msg = err instanceof Error ? err.message : String(err);
-  if (msg.includes('SSRF') || msg.includes('非法 URL') || msg.includes('仅允许 http')) {
-    return '该地址不被允许访问';
-  }
-  return msg;
-}
-
-/**
- * 限量读响应体：**流式累积，超限当场掐断**。
- *
- * 为什么不用 `res.arrayBuffer()`（`fetch_page` 用的是它）：那边的正文上限是「读完再截断」、
- * 截的是字符；这边 4MB 是**硬上限**，而服务器不给 `content-length`（或谎报成小值）时，
- * 一次 arrayBuffer 会把整个响应读进内存 —— 一个 2GB 的「图片」足以把服务打死。
- * 这里的上限**边读边判**，超了立刻 `cancel()`。
- */
-async function readCapped(res: Response, max: number): Promise<Uint8Array | null> {
-  const body = res.body;
-  if (!body) {
-    // 无流（少数运行时 / 测试桩）：整读后判长。走到这里的超大响应已被 content-length 预闸挡下。
-    const whole = new Uint8Array(await res.arrayBuffer());
-    return whole.byteLength > max ? null : whole;
-  }
-  const reader = body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (!value) continue;
-    total += value.byteLength;
-    if (total > max) {
-      await reader.cancel().catch(() => undefined);
-      return null;
-    }
-    chunks.push(value);
-  }
-  const out = new Uint8Array(total);
-  let off = 0;
-  for (const c of chunks) {
-    out.set(c, off);
-    off += c.byteLength;
-  }
-  return out;
-}
 
 /**
  * 成功回灌：**必须把用法说死**。
@@ -161,49 +104,28 @@ registerTool('fetch_image', {
     }
     ctx.onStep('fetch_image', 'running', url);
 
-    let ct = '';
-    let declared: number | null = null;
-    let bytes: Uint8Array | null;
-    try {
-      const res = await fetchSafe(url, {
-        headers: { 'User-Agent': FETCH_UA, Accept: 'image/*,*/*;q=0.8', 'Accept-Language': 'zh-CN,zh;q=0.9' },
-        signal: combineSignals(ctx.signal, FETCH_TIMEOUT_MS),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      ct = (res.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
-      // 体积预闸：服务端自报超大就当场拒，省掉把整个响应读进内存（不报也得靠下面的限量读兜）
-      const raw = Number(res.headers.get('content-length') ?? '');
-      declared = Number.isFinite(raw) && raw > 0 ? raw : null;
-      if (declared !== null && declared > MAX_IMAGE_BYTES) {
-        ctx.onStep('fetch_image', 'error', '图片过大');
-        return { content: tooLargeText(declared) };
-      }
-      bytes = await readCapped(res, MAX_IMAGE_BYTES);
-    } catch (err) {
-      const reason = publicReason(err);
-      ctx.onStep('fetch_image', 'error', reason);
+    const r = await downloadImage(url, { signal: ctx.signal, timeoutMs: FETCH_TIMEOUT_MS });
+    if (!r.ok && r.kind === 'error') {
+      ctx.onStep('fetch_image', 'error', r.reason);
       // 回灌口径：① 不甩内部配置；② 明确「你有这能力，只是这次没取到」；
       // ③ **不给「那就算了」的台阶**，也不许它把"取不到"说成"这张图不存在"。
       return {
         content:
-          `这个图片地址本次没取到（${reason}）。你**具备**取图的能力，只是这一次没成功——` +
+          `这个图片地址本次没取到（${r.reason}）。你**具备**取图的能力，只是这一次没成功——` +
           `可以换一个地址再试；但不要因此说这张图不存在，也不要凭地址编造它画的是什么。`,
       };
     }
-
-    if (!bytes) {
+    if (!r.ok && r.kind === 'too_large') {
       ctx.onStep('fetch_image', 'error', '图片过大');
-      return { content: tooLargeText(declared) };
+      return { content: tooLargeText(r.declared) };
     }
-
-    // ★ 判在**原始字节**上（不看 ct）：content-type 会谎报、会缺失、会写成 octet-stream。
-    //   同 `fetch_page.looksBinary` 的教训——判断标准是关于字节的，就该在字节上判。
-    const type = sniffImage(bytes);
-    if (!type) {
+    if (!r.ok) {
+      const ct = r.contentType;
       ctx.onStep('fetch_image', 'error', ct.startsWith('image/') ? `不支持的格式：${ct}` : '非图片');
       return { content: notImageText(ct) };
     }
-
+    const bytes = r.bytes;
+    const type = { ext: r.ext, mime: r.mime };
     const { name } = saveImage(bytes, type.ext);
     const src = imageUrlOf(name);
     ctx.onStep('fetch_image', 'done', `${type.ext.toUpperCase()} ${Math.max(1, Math.round(bytes.length / 1024))}KB`);

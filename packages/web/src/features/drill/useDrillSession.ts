@@ -87,6 +87,8 @@ export function useDrillSession({ open, sessionId, dayKey, audio, onCardResolved
   const [newNote, setNewNote] = useState('');
   const [stats, setStats] = useState<DrillStats>({ correct: 0, wrong: 0, combo: 0, bestCombo: 0, slain: 0, reviewed: 0 });
   const [queueLeft, setQueueLeft] = useState(0);
+  /** 拼写卡打到一半的字（§2.1：收起再唤回不能丢，所以住在局里而不是卡组件里） */
+  const [draft, setDraft] = useState('');
 
   const queue = useRef<DrillEntry[]>([]);
   const pool = useRef<DrillTermLike[]>([]);
@@ -111,6 +113,7 @@ export function useDrillSession({ open, sessionId, dayKey, audio, onCardResolved
   const serve = useCallback(() => {
     clearAdvance();
     setResult(null);
+    setDraft('');
     if (queue.current.length === 0) {
       queue.current = orderDrillQueue(library.current, `${dayKey}|r${served.current}`, slain.current).map((q) => ({
         term: q.term,
@@ -153,7 +156,8 @@ export function useDrillSession({ open, sessionId, dayKey, audio, onCardResolved
     [],
   );
 
-  // 开局：取词 + 要新词
+  // 开局：取词。★ `open` 在这里的语义是"这一局在跑"，不是"小窗看得见"——小窗收起再唤回（§2.1）不走这里，
+  //   队列 / 连击 / 本局战绩原样接着；只有真正结束（小签 ✕）或下一次开局才重来。
   useEffect(() => {
     if (!open) return;
     let alive = true;
@@ -187,6 +191,16 @@ export function useDrillSession({ open, sessionId, dayKey, audio, onCardResolved
         setNotice(errText(e, '词库没取到'));
         setPhase('empty');
       });
+    return () => {
+      alive = false;
+      clearAdvance();
+    };
+  }, [open, dayKey, serve]);
+
+  // 要新词：开局要一次；局中换了正在等的会话（新话题）再要一次插进队列——新词跟着话题走，唤回的局也不例外
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
     void drillApi
       .newTerms(sessionId)
       .then((r) => {
@@ -201,9 +215,8 @@ export function useDrillSession({ open, sessionId, dayKey, audio, onCardResolved
       });
     return () => {
       alive = false;
-      clearAdvance();
     };
-  }, [open, dayKey, sessionId, serve, injectNew]);
+  }, [open, sessionId, serve, injectNew]);
 
   // 当天战绩落本机（本局数字叠在开局时读到的底数上）
   useEffect(() => {
@@ -306,5 +319,5 @@ export function useDrillSession({ open, sessionId, dayKey, audio, onCardResolved
     finishCard();
   }, [entry, phase, finishCard]);
 
-  return { phase, entry, card, result, fx, notice, newNote, stats, queueLeft, answer, dontKnow, next, learned, slay, keep, dismiss };
+  return { phase, entry, card, result, fx, notice, newNote, stats, queueLeft, draft, setDraft, answer, dontKnow, next, learned, slay, keep, dismiss };
 }

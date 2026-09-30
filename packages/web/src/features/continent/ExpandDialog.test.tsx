@@ -88,9 +88,10 @@ describe('ExpandDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: '对' }));
     fireEvent.click(screen.getByRole('button', { name: '提交' }));
     await waitFor(() => expect(screen.getByText(/第 2 \/ 2 题/)).toBeTruthy());
-    fireEvent.change(screen.getByPlaceholderText('填入词条'), { target: { value: ' 闭包 ' } });
+    // 填空是逐格打字控件：空格不占格，落到服务端的就是干净的词条
+    fireEvent.change(screen.getByLabelText('填入词条'), { target: { value: ' 闭包 ' } });
     fireEvent.click(screen.getByRole('button', { name: '落地！' }));
-    await waitFor(() => expect(apiMock.expandClaim).toHaveBeenCalledWith('n-1', [true, ' 闭包 ']));
+    await waitFor(() => expect(apiMock.expandClaim).toHaveBeenCalledWith('n-1', [true, '闭包']));
     await waitFor(() => expect(onExpanded).toHaveBeenCalledTimes(1));
     expect(onExpanded.mock.calls[0]?.[0]).toMatchObject({ termId: 't-new', row: 2, col: -1 });
     expect(onExpanded.mock.calls[0]?.[1]).toMatchObject({ nonce: 'n-1', term: '闭包' });
@@ -103,7 +104,7 @@ describe('ExpandDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: '对' }));
     fireEvent.click(screen.getByRole('button', { name: '提交' }));
     await waitFor(() => expect(screen.getByText(/第 2 \/ 2 题/)).toBeTruthy());
-    fireEvent.change(screen.getByPlaceholderText('填入词条'), { target: { value: '闭包' } });
+    fireEvent.change(screen.getByLabelText('填入词条'), { target: { value: '闭包' } });
     fireEvent.click(screen.getByRole('button', { name: '落地！' }));
     await waitFor(() => expect(screen.getByText(/没落成：这一格已经不是空地了/)).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: '重新领一块' }));

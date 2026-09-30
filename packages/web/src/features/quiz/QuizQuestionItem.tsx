@@ -6,6 +6,7 @@ import { Markdown } from '../chat/Markdown';
 import { fillCount, optionsFor, reviewAttempt } from './quiz-attempt';
 import { aiOpsApi, answerQType } from '../../lib/api-ai-ops';
 import { AiGradeNote } from './AiGradeNote';
+import { FillBlank } from './FillBlank';
 
 function QuizPhotoFigure({ photo }: { photo: NonNullable<QuizQuestion['photo']> }) {
   return (
@@ -65,11 +66,11 @@ export function QuizQuestionItem({ q, index, onComplete, topic }: {
           {result?.verdict === 'wrong' && picked.includes(i) && !correct && <span className="quiz-mark bad">×</span>}
         </button>;
       })}
-      {q.type === 'fill' && fills.map((value, i) => <label className="quiz-blank" key={i}>
-        第 {i + 1} 空
-        <input className="quiz-fill" value={value} maxLength={500} placeholder="输入这一空的答案" disabled={!!result}
-          onChange={(e) => setFills((prev) => prev.map((s, n) => n === i ? e.target.value : s))} />
-      </label>)}
+      {/* 填空（2026-09-30）：参考答案短就逐格打（打字练习式，符号格替你填好、可分段提示），长句退普通框——见 FillBlank */}
+      {q.type === 'fill' && fills.map((value, i) => <FillBlank key={i} label={`第 ${i + 1} 空`} placeholder="输入这一空的答案"
+        expected={Array.isArray(q.answer) ? q.answer[i] === undefined ? undefined : String(q.answer[i]) : i === 0 && q.answer ? String(q.answer) : undefined}
+        value={value} disabled={!!result} onEnter={submit}
+        onChange={(v) => setFills((prev) => prev.map((s, n) => n === i ? v : s))} />)}
       {q.type === 'essay' && <textarea className="quiz-essay" aria-label="你的解答" placeholder="写下思路，提交后对照参考要点"
         rows={4} value={essay} maxLength={4000} disabled={!!result} onChange={(e) => setEssay(e.target.value)} />}
       {!result && <button className="quiz-submit" disabled={!ready} onClick={submit}>

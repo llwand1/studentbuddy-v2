@@ -101,7 +101,7 @@ describe('WaitDrill：弹与回', () => {
       vi.advanceTimersByTime(READY_GRACE_S * 1000 + 1000);
     });
     expect(dialog()).not.toBeNull();
-    fireEvent.click(screen.getByTitle('关闭（Esc）'));
+    fireEvent.click(screen.getByTitle(/^收起（Esc）/));
     expect(dialog()).toBeNull();
   });
 

@@ -1,0 +1,94 @@
+/* TypingInput — 打字练习式填空（components/TypingInput.tsx）。
+   只用 --sb-* 变量；宿主（刷词黑铁窗 / 大陆弹窗 / 对话题卡）靠父级 class 微调字号与配色。
+   动效只有光标格的 steps() 闪烁；prefers-reduced-motion 下不闪。 */
+
+.ti {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+}
+
+/* 真输入框：视觉隐藏但可聚焦（display:none / visibility:hidden 会让输入法无处组字） */
+.ti-input {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ti-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: var(--sb-sp-2) 0;
+  cursor: text;
+  min-height: 44px;
+}
+.is-disabled .ti-cells { cursor: default; }
+
+/* 词内不换行、词间可换行：格子跟着词走，长答案不会在词中间折断 */
+.ti-word {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.ti-cell {
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 1.35em;
+  height: 1.7em;
+  padding: 0 2px;
+  font-family: var(--sb-font-display, inherit);
+  font-size: var(--sb-fs-xl);
+  line-height: 1.4;
+  color: var(--sb-ink);
+  border-bottom: 3px solid var(--sb-line);
+}
+.is-focused .ti-cell { border-bottom-color: var(--sb-ink-tertiary); }
+.ti-cell.filled { border-bottom-color: var(--sb-ink-secondary); }
+.ti-cell.ok { color: var(--sb-success); border-bottom-color: var(--sb-success); }
+.ti-cell.bad { color: var(--sb-danger); border-bottom-color: var(--sb-danger); }
+/* 提示揭出来的字：灰、斜，一眼看出"这是给的不是你打的" */
+.ti-cell.ghost { color: var(--sb-ink-tertiary); font-style: italic; }
+/* 固定格：符号替你填好，没有下划线 */
+.ti-cell.fixed {
+  min-width: 0.8em;
+  color: var(--sb-ink-tertiary);
+  border-bottom-color: transparent;
+}
+.ti-cell.cur { border-bottom-color: var(--sb-primary); animation: ti-blink 1s steps(2, jump-none) infinite; }
+@keyframes ti-blink {
+  0% { border-bottom-color: var(--sb-primary); }
+  100% { border-bottom-color: var(--sb-line); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ti-cell.cur { animation: none; }
+}
+
+.ti-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sb-sp-2);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+.ti-hint {
+  padding: 2px 10px;
+  font: inherit;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  background: transparent;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  cursor: pointer;
+}
+.ti-hint:hover:not(:disabled) { color: var(--sb-ink); border-color: var(--sb-ink-tertiary); }
+.ti-hint:disabled { cursor: default; opacity: 0.6; }

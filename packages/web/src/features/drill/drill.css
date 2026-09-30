@@ -284,26 +284,19 @@
 /* 拼写 */
 .drill-spell { display: flex; flex-direction: column; gap: var(--sb-sp-2); }
 
-.drill-hint {
-  margin: 0;
-  font-family: var(--sb-font-display, inherit);
+/* 拼写卡 = 打字练习式格子（components/TypingInput）：金字黑铁，格底线用金线；对错沿用 --sb-success / --sb-danger */
+.drill-spell .ti-cell {
   font-size: 26px;
-  letter-spacing: 0.3em;
   color: var(--gr-gold);
   text-shadow: 2px 2px 0 #000;
+  border-bottom-color: var(--gr-iron);
 }
-
-.drill-input {
-  padding: 10px 12px;
-  font-family: inherit;
-  font-size: var(--sb-fs-lg);
-  color: var(--sb-ink);
-  border: 2px solid var(--sb-line);
-  background: var(--sb-surface);
-  box-shadow: inset 2px 2px 0 var(--sb-bg);
-}
-
-.drill-input:focus { outline: none; border-color: var(--gr-gold); }
+.drill-spell .is-focused .ti-cell { border-bottom-color: var(--gr-gold); }
+.drill-spell .ti-cell.fixed { color: var(--sb-ink-tertiary); text-shadow: none; }
+.drill-spell .ti-cell.ghost { color: var(--sb-ink-tertiary); }
+.drill-spell .ti-cell.ok { color: var(--sb-success); }
+.drill-spell .ti-cell.bad { color: var(--sb-danger); }
+.drill-spell .ti-hint { color: var(--gr-gold); border-color: var(--gr-iron); }
 
 /* 详情（答完翻出来的那一条） */
 .drill-detail {
@@ -399,3 +392,55 @@
   .drill-card { min-height: 0; }
   .drill-foot span:first-child { display: none; }
 }
+
+/* ── 「刷词已收起」小签（DrillParkedPill，长在 ChatComposer 输入框上方；契约 §2.1）──
+   与 .chat-grill-pill 同一位置同一体量，但用刷词自己的黑铁金线，一眼认出是它 */
+.chat-drill-pill {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-bottom: var(--sb-sp-2);
+  border: 2px solid var(--gr-iron);
+  background: linear-gradient(#120b10, #0a060a);
+  box-shadow: 3px 3px 0 var(--sb-pixel-shadow, #000);
+  color: var(--sb-ink);
+  font-size: var(--sb-fs-sm);
+}
+.chat-drill-recall {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  padding: 6px var(--sb-sp-3);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.chat-drill-recall:hover .chat-drill-cta { color: var(--gr-gold); }
+.chat-drill-tag {
+  padding: 0 6px;
+  font-family: var(--sb-font-display, inherit);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #120b10;
+  background: var(--gr-gold);
+}
+.chat-drill-combo { color: var(--gr-gold); }
+.chat-drill-cta {
+  margin-left: auto;
+  color: var(--sb-ink-secondary);
+  text-decoration: underline;
+}
+.chat-drill-end {
+  padding: 0 var(--sb-sp-3);
+  border: 0;
+  border-left: 2px solid var(--gr-iron);
+  background: transparent;
+  color: var(--sb-ink-tertiary);
+  font: inherit;
+  cursor: pointer;
+}
+.chat-drill-end:hover { color: var(--sb-danger); }

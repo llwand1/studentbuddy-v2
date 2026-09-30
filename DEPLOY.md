@@ -2,9 +2,9 @@
 
 > 这份文档回答一个问题：**线上那台机器是怎么跑的，怎么发版，出事了怎么回。**
 >
-> 它是 [`README.md`](README.md) §部署形态 的**执行面**——那处讲「为什么要有这些闸门」，这里讲「实际怎么配、怎么验、怎么退」。
+> 它是 [`README.md`](README.md) §架构 的**执行面**——那处讲形态与边界，这里讲「实际怎么配、怎么验、怎么退」；容量与扩容另见 [`docs/SCALING.md`](docs/SCALING.md)。
 >
-> 线上状态：**<https://11wand.com>** 自 2026-09-19 起运行（`2.0.0-alpha.0`）。
+> 线上状态：**<https://11wand.com>** 自 2026-09-19 起运行；当前版本以 `GET /api/status` 的 `version`（＝ `package.json` ＝ 最新 tag）为准。
 >
 > ⚠️ **本仓是公开仓库**：本文与 `tools/deploy.sh` **不含任何密钥、口令、私钥、哈希或真实服务器地址**。`SERVER` 一律经环境变量注入，真实地址存放于仓外的私有运维清单（2026-09-24 起脱敏入规——此前 `deploy.sh` 曾带默认值，git 历史里那条仍在，属公开 DNS 同源信息，但组合了 `root@` 不该留）。
 
@@ -329,7 +329,7 @@ git checkout main             # 发完切回来
 
 ## 11. 已知运维边界
 
-- **单实例**：`SB_UPSTREAM_SITE_MAX_CONCURRENT` 是**进程内 Map**，多实例部署下容量 × 实例数，全站封顶只在单进程内成立。
+- **单实例**：`SB_UPSTREAM_SITE_MAX_CONCURRENT` 是**进程内 Map**，多实例部署下容量 × 实例数，全站封顶只在单进程内成立。★ 单进程实测容量、进程内状态清单与扩容阶梯见 [`docs/SCALING.md`](docs/SCALING.md)（`node tools/loadtest/sse-load.mjs` 可复测；`/api/health` 的 `instance.id` 用来核对粘性会话）。
 - **全站并发值 8 是占位值**，未按真实业务校准。
 - **看门狗只留痕、不告警**（对外告警依赖外部监控服务）。
 - **备份是「每日一次」**：最坏情况会丢一天的数据。要更小的 RPO 得加 WAL 归档或提高备份频率。

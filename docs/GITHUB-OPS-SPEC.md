@@ -23,10 +23,11 @@
 - 代码改动一律开分支提 PR，PR 描述里 `Closes #N` 关联 issue；**纯文档改动可直接进 main**（沿袭仓内既有惯例，不装样子）。
 - PR 合并的判断标准 = 四连全绿（`check`／`build`／`gates`／`metrics --check`）＋ §3 口径过一遍。
 
-### R-3 发版 = 四件套同步
+### R-3 发版 = 四件套同步（外加第 0 步：改号）
 
 **桌面安装包发版**使用独立的 `desktop-v<版本>` tag，挂在实际构建提交上，Release 提供安装程序和 SHA-256 文件，同步 CHANGELOG。线上更新表只记录网站已生效的版本，桌面发版不修改该表、不触发网站部署；构建和验证要求见 `DESKTOP-SPEC.md`。
 
+0. **改号**：`npm version X.Y.Z --workspaces --include-workspace-root --no-git-tag-version`，根与三个 workspace 的 `package.json`（含 lock）一次改齐，与 CHANGELOG 记录行**同一提交**。★ 2026-09-30 起全仓只有一个版本号（此前 `package.json` 挂着内部产品号 `2.0.0-alpha.0`、tag 走 `v0.2.x`，`/api/status` 报的号与更新页对不上）：`package.json` ＝ tag ＝ Release ＝ CHANGELOG ＝ `PUBLIC_RELEASES[0]` ＝ README 徽章 ＝ `/api/status`，机器核对＝`node tools/check-version.mjs`（`npm run gates` 与 `tools/deploy.sh` 第 ①d 步）；
 1. **附注 tag**：挂在**线上实际构建的那个提交**上（不是之后的记录提交——09-24 第一次做时就专门核对过这条）；
 2. **GitHub Release**：`gh release create`，Notes 用对外口径；
 3. **CHANGELOG 记录行**：照常记。

@@ -15,9 +15,18 @@ describe('server 骨架与安全（v1 回归语义）', () => {
     expect(typeof res.body.hasProviders).toBe('boolean');
   });
 
-  it('GET /api/health 健康检查', async () => {
+  it('GET /api/health 健康检查：ok + 实例 id + SSE 体量 + 内存（契约 SCALING.md §4，全是聚合数）', async () => {
     const res = await request(app).get('/api/health').expect(200);
-    expect(res.body).toEqual({ ok: true });
+    expect(res.body.ok).toBe(true);
+    expect(res.body.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(res.body.instance.id).toMatch(/^[0-9a-f]{8}$/);
+    expect(Date.parse(res.body.instance.startedAt)).not.toBeNaN();
+    expect(res.body.instance.uptimeSec).toBeGreaterThanOrEqual(0);
+    expect(res.body.sse).toEqual({ clients: expect.any(Number), sessions: expect.any(Number) });
+    expect(res.body.rssMb).toBeGreaterThan(0);
+    // 同一进程连打两次 id 不变——多实例部署下这就是核对粘性会话的方法
+    const again = await request(app).get('/api/health').expect(200);
+    expect(again.body.instance.id).toBe(res.body.instance.id);
   });
 
   it('写操作无 Origin → 403（防恶意网页跨源调用，v1 SEC-09 回归）', async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { publish, subscribe, snapshot, startNewRound, startHeartbeat } from './sse-bus.js';
+import { publish, subscribe, snapshot, startNewRound, startHeartbeat, busStats } from './sse-bus.js';
 import type { SseEvent } from '@sb/shared';
 
 /** 最小 Response 桩：收集写入的 SSE 帧 */
@@ -154,6 +154,28 @@ describe('sse-bus — 缓冲 TTL 回收（buffers 泄漏回归，原版 now % TT
       subscribe('ttl-b', late);
       expect(late.frames.map(parse).filter((e) => e.type === 'token')).toHaveLength(0);
       clearInterval(hb);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('sse-bus — busStats（/api/health 读的进程内体量，契约 SCALING.md §4）', () => {
+  it('订阅 +1、cleanup −1；缓冲会话数随 publish 增长、随 TTL 回收下降', () => {
+    vi.useFakeTimers();
+    try {
+      const before = busStats();
+      const r = fakeRes();
+      const off = subscribe('stats-a', r);
+      expect(busStats().clients).toBe(before.clients + 1);
+      publish('stats-b', { type: 'token', sessionId: 'stats-b', content: 'x' });
+      expect(busStats().sessions).toBeGreaterThanOrEqual(before.sessions + 1);
+      off();
+      expect(busStats().clients).toBe(before.clients);
+      const hb = startHeartbeat();
+      vi.advanceTimersByTime(80_000); // stats-b 无订阅者且超 TTL ⇒ 回收
+      clearInterval(hb);
+      expect(busStats().sessions).toBeLessThanOrEqual(before.sessions + 1);
     } finally {
       vi.useRealTimers();
     }

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30T05:07:32.030Z",
+  "generatedAt": "2026-09-30T05:44:18.288Z",
   "code": {
     "rows": [
       {
@@ -11,23 +11,23 @@
       },
       {
         "pkg": "server",
-        "srcFiles": 239,
-        "testFiles": 162,
-        "srcLines": 35250,
-        "testLines": 31987
+        "srcFiles": 241,
+        "testFiles": 164,
+        "srcLines": 35399,
+        "testLines": 32141
       },
       {
         "pkg": "web",
-        "srcFiles": 284,
-        "testFiles": 117,
-        "srcLines": 36470,
-        "testLines": 15666
+        "srcFiles": 286,
+        "testFiles": 119,
+        "srcLines": 36739,
+        "testLines": 16055
       }
     ],
-    "srcFiles": 571,
-    "testFiles": 314,
-    "srcLines": 79297,
-    "testLines": 51911,
+    "srcFiles": 575,
+    "testFiles": 318,
+    "srcLines": 79715,
+    "testLines": 52454,
     "tsxTestFiles": 56
   },
   "routes": {
@@ -39,7 +39,7 @@
       "put": 15,
       "patch": 1
     },
-    "apiMounts": 35
+    "apiMounts": 36
   },
   "contracts": {
     "iface": 140,
@@ -47,8 +47,8 @@
     "total": 208
   },
   "migrations": {
-    "count": 51,
-    "max": 51,
+    "count": 52,
+    "max": 52,
     "gaps": 0
   },
   "deps": {
@@ -80,25 +80,25 @@
     ]
   },
   "docs": {
-    "specs": 43,
-    "all": 58,
+    "specs": 45,
+    "all": 62,
     "probes": 15
   },
   "repo": {
-    "head": "b4ed1c8",
+    "head": "7120f7d",
     "headDate": "2026-09-30",
-    "commitsLast14d": 148,
-    "branch": "feat/windows-installer",
-    "dirtyFiles": 37
+    "commitsLast14d": 159,
+    "branch": "review/five-weaknesses",
+    "dirtyFiles": 3
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 49.2,
+    "wallSec": 295.6,
     "staleDays": 0,
-    "files": 314,
-    "cases": 3749,
-    "passed": 3748,
+    "files": 318,
+    "cases": 3804,
+    "passed": 3803,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -110,14 +110,14 @@
     {
       "label": "badge 测试文件",
       "claimed": "314",
-      "measured": "314",
-      "ok": true
+      "measured": "318",
+      "ok": false
     },
     {
       "label": "badge 测试用例",
       "claimed": "3749",
-      "measured": "3749",
-      "ok": true
+      "measured": "3804",
+      "ok": false
     },
     {
       "label": "badge REST 路由",
@@ -145,8 +145,8 @@
     },
     {
       "label": "badge 版本",
-      "claimed": "2.0.0-alpha.0",
-      "measured": "2.0.0-alpha.0",
+      "claimed": "0.2.151",
+      "measured": "0.2.151",
       "ok": true
     },
     {
@@ -157,9 +157,9 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "314 文件 / 3749 例",
-      "measured": "314 文件 / 3749 例",
-      "ok": true
+      "claimed": "313 文件 / 3780 例",
+      "measured": "318 文件 / 3804 例",
+      "ok": false
     }
   ],
   "landingDrift": [

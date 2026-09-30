@@ -25,10 +25,20 @@ const g = (m: RegExpExecArray, k: number): string => m[k] ?? '';
 /** 子串出现次数：split 长度减一，省掉 match 的正则编译与中间数组。块级（stableCut）也在用，故导出。 */
 export const countOf = (s: string, sub: string): number => s.split(sub).length - 1;
 
-/** 链接白名单：只放行 http/https/mailto 与站内锚点，javascript:/data: 直接降级为纯文本。 */
-function safeHref(raw: string): string | null {
+/**
+ * 链接白名单：只放行 http/https/mailto、站内锚点 `#…` 与**站内根相对路径** `/…`，其余（javascript:/data:/
+ * vbscript:/未知协议）降级为纯文本。
+ * ★ 根相对路径必须排除 `//` 与 `/\`：`//evil.example/x` 是协议相对 URL（浏览器补上当前协议就出站了），
+ *   `/\evil.example` 在 Chromium 里等价于 `//evil.example`——两者都长得像站内路径，旧正则 `^\/` 全部放行。
+ * ★ 控制字符（含制表 / 换行）先剥再判：`jav\tascript:` 在 HTML 属性里会被浏览器当成 `javascript:`。
+ */
+export function safeHref(raw: string): string | null {
   const href = raw.trim();
-  if (/^(https?:|mailto:)/i.test(href) || /^(#|\/)/.test(href)) return href;
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(href)) return null;
+  if (/^(https?:|mailto:)/i.test(href)) return href;
+  if (href.startsWith('#')) return href;
+  if (/^\/(?![/\\])/.test(href)) return href;
   return null;
 }
 

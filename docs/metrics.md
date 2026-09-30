@@ -23,7 +23,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-09-30 19:33:01（本机时区）｜ 基准 `eb1d137` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-01 03:58:04（本机时区）｜ 基准 `f464059` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
@@ -44,7 +44,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 ## 测试基线（vitest 实跑）
 
 - **342 文件 / 4038 例**（4036 passed + 2 skipped + 0 failed）⇒ 全绿
-- 本次本机实跑（Node v22.23.3）全量耗时 275.3s
+- 本次本机实跑（Node v22.23.2）全量耗时 49.7s
 - jsdom 交互测试文件（`.test.tsx`）65 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 46 份 · md 共 63 份 · 真机探针 15 个
-- git：fix/npc-ping-conflict-target @ `eb1d137`（2026-09-30）· 近 14 天 187 commits · 工作区未提交 0 文件
+- git：merge/npc-ping @ `f464059`（2026-10-01）· 近 14 天 188 commits · 工作区未提交 0 文件
 
 <!-- metrics:end -->
 

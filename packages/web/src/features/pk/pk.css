@@ -605,6 +605,7 @@
 }
 
 .sb-pk-arena-main {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--sb-sp-3);
@@ -1100,8 +1101,89 @@
   }
 }
 
+/* ── 事件音效开关与命中特效：只响应新题 / 判定 / 连击，不常驻播放 ── */
+.sb-pk-tools {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 32px;
+}
+
+.sb-pk-sound-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sb-sp-1);
+  min-height: 36px;
+  padding: 4px var(--sb-sp-2);
+  color: var(--sb-ink-secondary);
+  background: var(--sb-surface);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  font: inherit;
+  font-size: var(--sb-fs-xs);
+  cursor: pointer;
+}
+
+.sb-pk-sound-toggle[aria-pressed="true"] { color: var(--sb-primary); border-color: var(--sb-primary); }
+.sb-pk-sound-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sb-pk-sound-toggle:focus-visible { outline: 2px solid var(--sb-primary); outline-offset: 2px; }
+
+.sb-pk-battle-fx {
+  position: absolute;
+  z-index: 4;
+  top: 42%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.sb-pk-battle-fx i {
+  position: absolute;
+  width: 86px;
+  height: 86px;
+  margin: -43px 0 0 -43px;
+  border: 3px solid var(--sb-primary);
+  border-radius: 50%;
+  opacity: 0;
+}
+
+.sb-pk-battle-fx i:nth-child(1) { animation: sb-pk-fx-ring 620ms steps(7); }
+.sb-pk-battle-fx i:nth-child(2) { width: 46px; height: 46px; margin: -23px 0 0 -23px; animation: sb-pk-fx-ring 540ms steps(6) 60ms; }
+.sb-pk-battle-fx i:nth-child(3), .sb-pk-battle-fx i:nth-child(4) { width: 9px; height: 9px; margin: -4px; border: 0; border-radius: 0; background: var(--sb-primary); animation: sb-pk-fx-spark 650ms steps(7); }
+.sb-pk-battle-fx i:nth-child(3) { --dx: -72px; --dy: -48px; }
+.sb-pk-battle-fx i:nth-child(4) { --dx: 76px; --dy: 52px; animation-delay: 50ms; }
+.sb-pk-battle-fx b { position: absolute; top: -16px; left: 0; width: max-content; color: var(--sb-primary); font-size: var(--sb-fs-lg); font-weight: 800; text-shadow: 1px 1px 0 var(--sb-surface); animation: sb-pk-fx-label 700ms steps(7); }
+.sb-pk-battle-fx.wrong i, .sb-pk-battle-fx.timeout i { border-color: var(--sb-danger); }
+.sb-pk-battle-fx.wrong i:nth-child(n+3), .sb-pk-battle-fx.timeout i:nth-child(n+3) { background: var(--sb-danger); }
+.sb-pk-battle-fx.wrong b, .sb-pk-battle-fx.timeout b { color: var(--sb-danger); }
+.sb-pk-battle-fx.combo i { border-color: var(--sb-success); }
+.sb-pk-battle-fx.combo b { color: var(--sb-success); }
+.sb-pk-battle-fx.question i { border-color: var(--sb-primary); }
+.sb-pk-battle-fx.question b { color: var(--sb-primary); }
+
+@keyframes sb-pk-fx-ring {
+  0% { opacity: 0.9; transform: scale(0.25); }
+  100% { opacity: 0; transform: scale(2.4); }
+}
+@keyframes sb-pk-fx-spark {
+  0% { opacity: 1; transform: translate(0, 0) scale(1.5); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.3); }
+}
+@keyframes sb-pk-fx-label {
+  0% { opacity: 0; transform: translate(-50%, 18px) scale(0.7); }
+  25% { opacity: 1; transform: translate(-50%, 0) scale(1.08); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -20px) scale(1); }
+}
+
+.sb-pk-arena-score.score-up { color: var(--sb-success); animation: sb-pk-score-pop 560ms steps(6); }
+.sb-pk-arena-score.score-down { color: var(--sb-danger); animation: sb-pk-score-drop 560ms steps(6); }
+@keyframes sb-pk-score-pop { 0% { transform: scale(1); } 45% { transform: scale(1.45); } 100% { transform: scale(1); } }
+@keyframes sb-pk-score-drop { 0% { transform: translateY(0); } 35% { transform: translateY(5px); } 100% { transform: translateY(0); } }
+
 /* 无障碍：系统开了「减弱动态效果」就全关——动画是增强，不是信息载体 */
 @media (prefers-reduced-motion: reduce) {
+  .sb-pk-battle-fx { display: none; }
   .sb-pk *,
   .sb-pk *::before,
   .sb-pk *::after {

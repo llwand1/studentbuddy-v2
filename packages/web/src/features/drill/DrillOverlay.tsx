@@ -5,6 +5,7 @@
  * ★ 2026-09-30 起是**非模态可拖动浮窗**（不压暗背景、不挡对话与右侧资料架）：右侧常驻「资料架」之后，
  *   居中模态会把 AI 在看的资料挡个正着——学习者自己把它拖到左边或中间（`useDragWindow`，位置记在本机偏好）。
  * ★ 与大陆弹窗同一套黑铁金线（`drill.css` 按 `grimoire.css` 的语言写，只用 `--gr-*` / `--sb-*` 变量）。
+ * ★ ✕ / Esc 是**收起**不是作废（§2.1，2026-09-30）：这一局留在宿主里，输入框上方的小签能唤回；小签上的 ✕ 才结束。
  * ★ 纯展示：状态机在 `useDrillSession`，弹与收在 `useDrillTrigger`，两者由 `WaitDrill` 拼起来。
  */
 import { useEffect, useRef } from 'react';
@@ -33,6 +34,8 @@ export interface DrillOverlayProps {
   queueLeft: number;
   notice: string;
   newNote: string;
+  draft: string;
+  onDraft: (v: string) => void;
   onToggleSound: () => void;
   onClose: () => void;
   onLeaveNow: () => void;
@@ -51,9 +54,9 @@ export interface DrillOverlayProps {
 
 /** 底部快捷键提示按这张卡的操作方式换词：拼写卡没有 1–4，学新词那屏只有 Enter。 */
 function footHint(phase: DrillPhase, card: DrillCard | null): string {
-  if (phase === 'learn') return 'Enter 记住了来一题 · Esc 关闭';
-  if (card?.kind === 'spell') return '输入词条 Enter 提交 · N 不认识 · Z 斩 · Esc 关闭';
-  return '1–4 选 · Enter 下一张 · N 不认识 · Z 斩 · Esc 关闭';
+  if (phase === 'learn') return 'Enter 记住了来一题 · Esc 收起';
+  if (card?.kind === 'spell') return '逐字打词条 Enter 提交 · N 不认识 · Z 斩 · Esc 收起';
+  return '1–4 选 · Enter 下一张 · N 不认识 · Z 斩 · Esc 收起';
 }
 
 export function DrillOverlay(p: DrillOverlayProps) {
@@ -106,7 +109,7 @@ export function DrillOverlay(p: DrillOverlayProps) {
             >
               {p.muted ? '♪ 关' : '♪ 开'}
             </button>
-            <button type="button" className="drill-icon" title="关闭（Esc）" onClick={p.onClose}>
+            <button type="button" className="drill-icon" title="收起（Esc）——输入框上方的小签可唤回，这局不作废" onClick={p.onClose}>
               ✕
             </button>
           </div>
@@ -133,6 +136,8 @@ export function DrillOverlay(p: DrillOverlayProps) {
             entry={p.entry}
             result={p.result}
             notice={p.notice}
+            draft={p.draft}
+            onDraft={p.onDraft}
             onAnswer={p.onAnswer}
             onDontKnow={p.onDontKnow}
             onNext={p.onNext}

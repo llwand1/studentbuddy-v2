@@ -72,4 +72,19 @@ describe('useDrillTrigger', () => {
     expect(c.result.current.open).toBe(true);
     expect(c.result.current.replyReady).toBe(false);
   });
+
+  it('唤回（没在等回复时 openNow）沿用上一次的 openSession——换了会话 id 等于换话题，会再要一批新词', () => {
+    const h = mount({ busySessionId: 's1', active: true, enabled: true });
+    act(() => vi.advanceTimersByTime(2000));
+    expect(h.result.current.openSession).toBe('s1');
+    act(() => h.result.current.close());
+    h.rerender({ busySessionId: null, active: true, enabled: true });
+    act(() => h.result.current.openNow());
+    expect(h.result.current.open).toBe(true);
+    expect(h.result.current.openSession).toBe('s1');
+    act(() => h.result.current.close());
+    h.rerender({ busySessionId: 's3', active: true, enabled: true });
+    act(() => h.result.current.openNow());
+    expect(h.result.current.openSession).toBe('s3');
+  });
 });

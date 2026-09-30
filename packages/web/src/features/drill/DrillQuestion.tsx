@@ -4,10 +4,12 @@
  * 三种手感照百词斩：四选一点了就判（对 ⇒ 绿亮闪过，错 ⇒ 红亮 + 正确项绿亮 + 翻出详情等你按「下一张」）；
  * 拼写回车提交；新词先"学"一屏再答，答完不论对错都问「收入词库 / 不要」（答错的词恰恰是最想留的）。
  * 键位提示写在按钮上（`<kbd>`），与 `useDrillKeys` 同一张表。
+ * ★ 拼写卡（2026-09-30 起）是**打字练习式**的 `TypingInput`：一格一字、符号格替你填好、「提示」按段揭、逐格即时对错
+ *   （练习场景，开 `liveCheck`）；提交的仍是带符号的完整答案，判分口径（`gradeDrill`）一字未改。
  * ★ 纯展示 + 回调：判分、排队、记账都在 `useDrillSession`；本组件不 import 任何 API。
  */
-import { useEffect, useRef, useState } from 'react';
 import { DRILL_KIND_LABEL, type DrillCard } from '@sb/shared';
+import { TypingInput } from '../../components/TypingInput';
 import type { DrillEntry, DrillPhase, DrillResult } from './useDrillSession';
 
 interface Props {
@@ -16,6 +18,9 @@ interface Props {
   entry: DrillEntry | null;
   result: DrillResult | null;
   notice: string;
+  /** 拼写卡打到一半的字（住在 `useDrillSession` 里：小窗收起再唤回不丢，§2.1） */
+  draft: string;
+  onDraft: (v: string) => void;
   onAnswer: (a: number | string) => void;
   onDontKnow: () => void;
   onNext: () => void;
@@ -32,13 +37,7 @@ function optionClass(i: number, card: DrillCard, result: DrillResult | null): st
   return 'drill-opt dim';
 }
 
-export function DrillQuestion({ phase, card, entry, result, notice, onAnswer, onDontKnow, onNext, onLearned, onSlay, onKeep, onDismiss }: Props) {
-  const [typed, setTyped] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    setTyped('');
-    if (phase === 'question' && card?.kind === 'spell') inputRef.current?.focus();
-  }, [card, phase]);
+export function DrillQuestion({ phase, card, entry, result, notice, draft, onDraft, onAnswer, onDontKnow, onNext, onLearned, onSlay, onKeep, onDismiss }: Props) {
 
   if (phase === 'loading') return <div className="drill-card drill-wait">正在翻词库…</div>;
   if (phase === 'empty' || !card || !entry) {
@@ -103,21 +102,23 @@ export function DrillQuestion({ phase, card, entry, result, notice, onAnswer, on
           className="drill-spell"
           onSubmit={(e) => {
             e.preventDefault();
-            if (phase === 'question' && typed.trim()) onAnswer(typed);
+            if (phase === 'question' && draft.trim()) onAnswer(draft);
           }}
         >
-          <p className="drill-hint">{card.hint}</p>
-          <input
-            ref={inputRef}
-            className="drill-input"
-            value={typed}
+          <TypingInput
+            answer={card.term}
+            value={draft}
+            onChange={onDraft}
+            onSubmit={() => {
+              if (phase === 'question' && draft.trim()) onAnswer(draft);
+            }}
             disabled={phase !== 'question'}
-            placeholder="输入词条，回车提交"
-            aria-label="拼写作答"
-            onChange={(e) => setTyped(e.target.value)}
+            liveCheck
+            autoFocus={phase === 'question'}
+            ariaLabel="拼写作答"
           />
           {phase === 'question' && (
-            <button type="submit" className="drill-btn primary" disabled={!typed.trim()}>
+            <button type="submit" className="drill-btn primary" disabled={!draft.trim()}>
               提交 <kbd>Enter</kbd>
             </button>
           )}

@@ -32,6 +32,8 @@ import { SourcePanel } from '../features/sources/SourcePanel';
 import { CoachDock } from '../features/coach/CoachDock';
 import { WaitDrill } from '../features/drill/WaitDrill';
 import { HuntAlert } from '../features/hunt/HuntAlert';
+import { GuideBeacon } from '../features/guide/GuideBeacon';
+import { guideMainClass } from '../features/guide/guide-layout';
 import { TrialNotice } from '../components/TrialNotice';
 import './app.css';
 
@@ -62,6 +64,12 @@ export function App() {
   const openTerms = useCallback((keyword: string) => {
     setTermsKeyword(keyword);
     setView('terms');
+  }, []);
+
+  /** 跳页（侧栏导航与引路灯共用）：进词条页清空上次带来的搜索词，其余直切 */
+  const goView = useCallback((v: View) => {
+    setView(v);
+    if (v === 'terms') setTermsKeyword('');
   }, []);
 
   const reloadSessions = useCallback(async () => {
@@ -165,8 +173,7 @@ export function App() {
                   window.location.hash = PK_HASH;
                   return;
                 }
-                setView(key);
-                if (key === 'terms') setTermsKeyword('');
+                goView(key);
               }}
             >
               <Icon /> {label[lang]}
@@ -218,7 +225,20 @@ export function App() {
         {/* 全局语言切换（2026-09-28）：侧栏最底一行，任何视图下都在。样式复用 .landing-lang*（见 landing-lang 头注的命名债） */}
         <span className="sb-lang-bar"><LangToggle /></span>
       </PixelSidebar>
-      <main className="sb-main">
+      <main className={guideMainClass(view)}>
+        {/* 引路灯（docs/GUIDE-SPEC.md）：主区左上角的提灯。关键时刻自己亮，点开是 AI 现挑的下一步；
+            `position: fixed`，不占主区的盒子。「随机话题」要回到未选会话态再开新会话，故传 onFreshChat。 */}
+        <GuideBeacon
+          lang={lang}
+          view={view}
+          sessionId={currentId}
+          onView={goView}
+          onNewSession={() => void newSession()}
+          onFreshChat={() => {
+            setView('chat');
+            setCurrentId(null);
+          }}
+        />
         {/* 四个视图之间的切换走像素幕布转场（components/SceneTransition）：内容同步换、幕布盖在上面掀开；
             场景层不产生盒子，下面各页的 flex/height 口径与直接挂在 .sb-main 下时一字不差 */}
         <SceneTransition scene={view}>

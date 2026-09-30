@@ -1,0 +1,299 @@
+/**
+ * 引路灯（契约 docs/GUIDE-SPEC.md §8）：主区左上角的提灯 + 点开后图标下方竖排的选项。
+ *
+ * 口径同 styles/pixel-motion.css：
+ *   ① 只用 steps()，不用缓动；② 只动 transform / opacity / box-shadow 的硬边环；
+ *   ③ ★ 默认态即终态：关掉「减少动态效果」之外没有任何一层依赖动画才可见——pixel-ui.css 会在减动效时
+ *      把全站 animation 关掉，这时灯照样在、第一帧火苗照样亮、小点照样是金色实心；
+ *   ④ 颜色只取 tokens.css；精灵专用的几个火光色取自既有篝火（styles/pixel-scene.css 的 scene-fire-*）。
+ *
+ * 位置三档（`position: fixed`，不改任何页面自己的盒子）：
+ *   ≥1200px 且内容居中的页（对话 / 词条 / 设置）→ 落在主区左上角的空白里；
+ *   701–1199px 与通栏页（卡牌 / 知识大陆）→ 同一坐标，主区左侧让出一条灯笼轨（.sb-main 的 padding-left）；
+ *   ≤700px → 手机顶栏中段。
+ */
+
+/* ===== 提灯 ===== */
+.guide-beacon {
+  position: fixed;
+  z-index: 46; /* 高于横幅 35 / 督促 40–45，低于刷词小窗与对战浮层 60；幕布（根层 80）盖得住它 */
+  top: var(--sb-sp-2);
+  left: calc(var(--sb-sidebar-w) + var(--sb-sp-2));
+}
+
+.guide-lantern {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--sb-guide-size);
+  height: var(--sb-guide-size);
+  padding: 0;
+  border: 2px solid var(--sb-pixel-edge);
+  background: var(--sb-surface);
+  box-shadow: var(--sb-shadow-1);
+  transition: transform 100ms steps(2), box-shadow 100ms steps(2), background 120ms;
+}
+@media (hover: hover) {
+  .guide-lantern:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0 var(--sb-pixel-shadow);
+  }
+}
+.guide-lantern:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+.guide-beacon.is-open .guide-lantern {
+  border-color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+}
+
+/* 2× 整数倍放大：16 → 32px */
+.lantern,
+.lantern-px {
+  display: block;
+  width: 32px;
+  height: 32px;
+}
+.lantern-px .lt-ink { fill: #1a0e14; }
+.lantern-px .lt-metal { fill: var(--sb-gold-edge); }
+.lantern-px .lt-metal-hi { fill: #d6a246; }
+.lantern-px .lt-glass { fill: #261810; }
+.lantern-px .lt-glow { fill: #5c3418; }
+.lantern-px .lt-flame-out { fill: #9b1f2c; }
+.lantern-px .lt-flame-mid { fill: #e0612b; }
+.lantern-px .lt-flame-core { fill: var(--sb-gold); }
+.lantern-px .lt-glint { fill: #fff4d6; opacity: 0.55; }
+
+/* 火苗两帧交替：第一帧是默认可见的，第二帧默认隐藏——关动效时只剩第一帧 */
+.lantern-flame-a { animation: lt-flame-a 640ms steps(1, end) infinite; }
+.lantern-flame-b { opacity: 0; animation: lt-flame-b 640ms steps(1, end) infinite; }
+@keyframes lt-flame-a { 50% { opacity: 0; } }
+@keyframes lt-flame-b { 50% { opacity: 1; } }
+
+/* 亮灯：整灯上下晃一格、外圈硬边光晕、火苗抖得更快、右上角小点 */
+.guide-beacon.is-lit .guide-lantern {
+  border-color: var(--sb-gold-edge);
+  animation: guide-halo 1000ms steps(1, end) infinite;
+}
+.guide-beacon.is-lit .lantern { animation: guide-bob 900ms steps(1, end) infinite; }
+.guide-beacon.is-lit .lantern-flame-a { animation-duration: 320ms; }
+.guide-beacon.is-lit .lantern-flame-b { animation-duration: 320ms; }
+@keyframes guide-halo {
+  0% { box-shadow: var(--sb-shadow-1), 0 0 0 0 rgb(255 210 122 / 0); }
+  50% { box-shadow: var(--sb-shadow-1), 0 0 0 4px rgb(255 210 122 / 0.3); }
+}
+@keyframes guide-bob { 50% { transform: translateY(-3px); } }
+
+.guide-dot {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--sb-pixel-shadow);
+  background: var(--sb-gold);
+  animation: guide-dot 1000ms steps(1, end) infinite;
+}
+@keyframes guide-dot { 50% { background: var(--sb-primary); } }
+
+/* 图标下的短提示：只有宽屏且该页左侧真有空白时才冒（窄屏靠光晕与小点） */
+.guide-teaser {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  /* 绝对定位的可用宽度被 40px 的提灯限死，不写 max-content 会被挤成一字一行 */
+  width: max-content;
+  max-width: 112px;
+  padding: 3px 6px;
+  border: 2px solid var(--sb-gold-edge);
+  background: var(--sb-surface);
+  box-shadow: 2px 2px 0 var(--sb-pixel-shadow);
+  color: var(--sb-gold);
+  font: 700 var(--sb-fs-xs) / 1.35 var(--sb-font);
+  pointer-events: none;
+  animation: sb-rise-in var(--sb-motion-base) steps(4, end) backwards;
+}
+@media (min-width: 1200px) {
+  .sb-main:not(.guide-rail) .guide-teaser { display: block; }
+}
+
+/* 读屏用的实时区：视觉上不存在 */
+.guide-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ===== 灯笼轨：窄屏与通栏页在主区左侧让出的一条，提灯就坐在里面 ===== */
+@media (min-width: 701px) and (max-width: 1199px) {
+  .sb-main.has-guide { padding-left: var(--sb-guide-rail); }
+}
+@media (min-width: 701px) {
+  .sb-main.guide-rail { padding-left: var(--sb-guide-rail); }
+}
+
+/* ===== 弹层：图标正下方竖排 ===== */
+.guide-pop {
+  position: absolute;
+  top: calc(100% + var(--sb-sp-2));
+  left: 0;
+  width: min(312px, calc(100vw - 24px));
+  max-height: calc(100dvh - 84px);
+  overflow-y: auto;
+  padding: var(--sb-sp-3);
+  border: 2px solid var(--sb-pixel-edge);
+  background: var(--sb-surface);
+  box-shadow: var(--sb-shadow-2);
+  animation: sb-rise-in var(--sb-motion-base) steps(4, end) backwards;
+}
+.guide-pop:focus { outline: none; }
+
+.guide-pop-head { display: flex; align-items: center; gap: var(--sb-sp-2); }
+.guide-pop-title { flex: 1; font: 800 13px var(--sb-font-display); letter-spacing: 1px; color: var(--sb-gold); }
+.guide-badge {
+  padding: 1px 6px;
+  border: 2px solid var(--sb-pixel-edge);
+  font-size: var(--sb-fs-xs);
+  line-height: 1.4;
+  color: var(--sb-ink-tertiary);
+  white-space: nowrap;
+}
+.guide-badge.is-ai { border-color: var(--sb-gold-edge); color: var(--sb-gold); }
+.guide-badge.is-loading { color: var(--sb-primary); animation: guide-blink 900ms steps(1, end) infinite; }
+@keyframes guide-blink { 50% { opacity: 0.45; } }
+
+.guide-icon-btn {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--sb-line);
+  background: var(--sb-bg);
+  color: var(--sb-ink-secondary);
+  font-size: 13px;
+  line-height: 1;
+}
+.guide-icon-btn:hover:not(:disabled) { border-color: var(--sb-primary); color: var(--sb-ink); }
+.guide-icon-btn:disabled { opacity: 0.4; }
+/* 桌面上有 Esc 与点外面，不多摆一个 ✕；手机上才要 */
+.guide-pop-x { display: none; }
+
+.guide-headline { margin: var(--sb-sp-2) 0; font-size: var(--sb-fs-md); line-height: 1.5; color: var(--sb-ink); }
+.guide-reason { margin: 0 0 var(--sb-sp-2); font-size: var(--sb-fs-xs); line-height: 1.5; color: var(--sb-ink-tertiary); }
+.guide-empty { margin: var(--sb-sp-2) 0; font-size: var(--sb-fs-sm); color: var(--sb-ink-tertiary); }
+.guide-notice { margin: var(--sb-sp-2) 0 0; font-size: var(--sb-fs-xs); color: var(--sb-danger); }
+.guide-fresh {
+  margin: 0 0 var(--sb-sp-2);
+  padding: 2px 8px;
+  border: 2px solid var(--sb-gold-edge);
+  background: var(--sb-pixel-gold);
+  color: var(--sb-gold);
+  font-size: var(--sb-fs-xs);
+}
+
+.guide-list { display: grid; gap: 6px; list-style: none; }
+.guide-item {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: var(--sb-sp-2);
+  align-items: start;
+  width: 100%;
+  padding: 8px 10px;
+  border: 2px solid var(--sb-line);
+  background: var(--sb-bg);
+  box-shadow: 2px 2px 0 var(--sb-pixel-shadow);
+  text-align: left;
+  transition: transform 100ms steps(2), box-shadow 100ms steps(2), background 120ms;
+}
+.guide-item:hover,
+.guide-item:focus-visible {
+  border-color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+}
+.guide-item:active { transform: translate(2px, 2px); box-shadow: none; }
+.guide-key {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--sb-pixel-edge);
+  background: var(--sb-surface);
+  color: var(--sb-gold);
+  font: 800 12px var(--sb-font-display);
+}
+.guide-item-body { display: block; min-width: 0; }
+.guide-item-label { display: block; font-weight: 700; color: var(--sb-ink); }
+.guide-item-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--sb-fs-xs);
+  line-height: 1.45;
+  color: var(--sb-ink-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* 全部功能：迷路时的使用说明；灰着的一行写明怎么解锁 */
+.guide-all-toggle {
+  display: block;
+  width: 100%;
+  margin-top: var(--sb-sp-3);
+  padding: 4px 0;
+  text-align: left;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+.guide-all-toggle:hover { color: var(--sb-ink); }
+.guide-all { display: grid; gap: var(--sb-sp-2); padding-top: var(--sb-sp-2); border-top: 1px dashed var(--sb-line); }
+.guide-group { display: grid; gap: 4px; }
+.guide-group-title { font: 700 var(--sb-fs-xs) var(--sb-font-display); letter-spacing: 1px; color: var(--sb-gold); }
+.guide-row {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 2px solid var(--sb-line);
+  background: var(--sb-bg);
+  text-align: left;
+}
+.guide-row:hover:not(:disabled) { border-color: var(--sb-primary); background: var(--sb-primary-weak); }
+.guide-row:disabled { border-style: dashed; opacity: 0.6; }
+.guide-row-label { font-size: var(--sb-fs-sm); font-weight: 700; color: var(--sb-ink); }
+.guide-row-hint { font-size: var(--sb-fs-xs); line-height: 1.4; color: var(--sb-ink-secondary); }
+
+.guide-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sb-sp-2);
+  margin-top: var(--sb-sp-3);
+  padding-top: var(--sb-sp-2);
+  border-top: 1px dashed var(--sb-line);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+.guide-proactive { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+
+/* ===== 手机：提灯坐进顶栏中段（品牌名与「探索菜单」之间），弹层铺满顶栏下方 ===== */
+@media (max-width: 700px) {
+  .guide-beacon {
+    top: 11px;
+    left: auto;
+    right: 96px;
+  }
+  .guide-pop {
+    position: fixed;
+    top: 70px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: calc(100dvh - 82px);
+  }
+  .guide-pop-x { display: block; }
+  .guide-teaser { display: none !important; }
+}

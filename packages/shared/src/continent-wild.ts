@@ -28,8 +28,12 @@
 import { continentHash, monsterOccupies } from './continent.js';
 import type { ReviewBasis, ReviewStatus } from './ebbinghaus.js';
 
-/** 怪的来路：欠账怪（到期/逾期，占地）／野怪（每日随机保底，不占地） */
-export type ContinentMonsterKind = 'due' | 'wild';
+/**
+ * 怪的来路：欠账怪（到期/逾期，占地）／野怪（每日随机保底，不占地）／话题怪（2026-09-30：今天对话里提到的词条，
+ * 口径在 `continent-wild`
+ * 的姊妹文件 `continent-upkeep.ts`，不占地）
+ */
+export type ContinentMonsterKind = 'due' | 'wild' | 'topic';
 
 /** 野怪上限（一屏 14×10，再多就成了怪比地多） */
 export const WILD_MONSTER_MAX = 8;
@@ -75,8 +79,13 @@ export function wildMonsterIds(terms: readonly ContinentSpawnTerm[], dayKey: str
   return new Set(ranked.filter((x) => wildEligible(x.t)).map((x) => x.t.id));
 }
 
-/** 某格的怪是哪一种（没怪 ⇒ `null`）；欠账怪优先 */
-export function monsterKindOf(t: ContinentSpawnTerm, wild: ReadonlySet<string>): ContinentMonsterKind | null {
+/**
+ * 某格的怪是哪一种（没怪 ⇒ `null`）：欠账怪 > 话题怪 > 野怪。
+ * ★ 话题怪排在野怪前：同一条词条既被今天点名当野怪、又刚在对话里提到，它该以"你刚聊到的"这个身份出场
+ *   （提示与讨伐横幅都按这个身份说话）；一格只会有一只怪，身份取最有话说的那个。
+ */
+export function monsterKindOf(t: ContinentSpawnTerm, wild: ReadonlySet<string>, topic?: ReadonlySet<string>): ContinentMonsterKind | null {
   if (monsterOccupies(t.review.status, t.review_in_scope === 1)) return 'due';
+  if (topic?.has(t.id)) return 'topic';
   return wild.has(t.id) ? 'wild' : null;
 }

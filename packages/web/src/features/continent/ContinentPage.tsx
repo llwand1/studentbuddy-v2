@@ -13,21 +13,27 @@
  * ★ 打卡失败**不吞**：`mark` 对范围外词条会 409（正常路径已被上一条堵住），真出现也要把话念出来，而不是"点了没反应"。
  * ★ **点地走位**与**打怪**共用一次点击（够得着开打、够不着先走过去）；被挡也要说话（`heroCtl.blocked`），不许静默。
  * ★ 开拓写口在 `/api/continent/expand/*`（服务端出词、出题、重判、落库、钉住）；本页只负责"点了哪枚 +"与事后重取地图。
+ * ★ 2026-09-30：**导航**（`useContinentHunt` + `ContinentNav`：寻路走过去、到了自动开打、一键讨伐队列；对话页的
+ *   「一键讨伐」经 `continent-hunt-store` 把名单交到这里）、**废墟重建**（点废墟 ⇒ 同一场战斗，打赢＝复习＝原地重建）、
+ *   **话题怪**（打赢与野怪同一条路：范围外先纳入再打卡）。横版战斗的转场与战场在 `MonsterDialog` / `BattleStage`。
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SPELL_KIND_META, localDayKey, type ContinentExpandOffer, type SpellKind } from '@sb/shared';
 import { api } from '../../lib/api';
 import type { ContinentMapPayload } from '../../lib/api-terms-continent';
 import { ContinentChest } from './ContinentChest';
+import { ContinentDetail } from './ContinentDetail';
 import { ContinentHeader } from './ContinentHeader';
 import { ContinentMap, type ContinentChestDrop } from './ContinentMap';
+import { ContinentNav } from './ContinentNav';
 import { ContinentPartners, useContinentPartners } from './continent-partners';
 import { ContinentDpad } from './continent-dpad';
 import { ExpandDialog } from './ExpandDialog';
 import { MonsterDialog } from './MonsterDialog';
 import { CodexPanel } from './CodexPanel';
-import { buildContinentView, canStrike, tileStatusText, type ContinentBurst, type ContinentTileView } from './continent-view';
+import { buildContinentView, canStrike, fightTile, type ContinentBurst, type ContinentTileView } from './continent-view';
 import { useContinentHero } from './useContinentHero';
+import { useContinentHunt } from './useContinentHunt';
 import { useContinentKeys } from './useContinentKeys';
 import './continent.css';
 
@@ -41,7 +47,9 @@ export function ContinentPage() {
   const [expanding, setExpanding] = useState<{ row: number; col: number } | null>(null);
   /** 普通地块的详情卡（已收复 / 范围外） */
   const [detail, setDetail] = useState<ContinentTileView | null>(null);
-  const [showCodex, setShowCodex] = useState(false);
+  /** 右侧面板：图鉴 / 导航 二选一 */
+  const [panel, setPanel] = useState<'none' | 'codex' | 'nav'>('none');
+  const showCodex = panel === 'codex';
   const [burst, setBurst] = useState<ContinentBurst | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   /** 地上掉落的宝箱（本局打怪留下的位置；**不落库**——开箱走既有账本） */
@@ -90,12 +98,21 @@ export function ContinentPage() {
     [terms, pins, dayKey, heroCtl.hero],
   );
 
-  /** 全部答对：打卡 → 关弹窗 → 播特效（咒语补刀放该款式的咒语版）→ 地上留一箱 → 重取地图（怪随之消失、领地回归） */
+  /** 开打：怪照原样；废墟就地立一只"废墟守卫"（`fightTile`），同一场战斗打赢＝复习＝重建；到了就把「正在赶往」那句收掉 */
+  const openFight = useCallback((tile: ContinentTileView) => {
+    setNotice(null);
+    setHunting(fightTile(tile));
+  }, []);
+
+  /** 导航（寻路 + 到了自动开打 + 一键讨伐队列）；横幅走同一个 `setNotice` */
+  const hunt = useContinentHunt(view.tiles, heroCtl, openFight, setNotice);
+
+  /** 全部答对：打卡 → 关弹窗 → 播特效（咒语补刀放该款式的咒语版）→ 地上留一箱 → 重取地图（怪随之消失、领地回归）→ 队列里还有就去下一只 */
   const solve = useCallback(
     async (tile: ContinentTileView, spell?: SpellKind) => {
       try {
-        // ★ 范围外的野怪：先纳入复习范围再打卡（否则 `mark` 必 409）。弹窗副标题已经把这一步说在前面。
-        const adopted = tile.monsterKind === 'wild' && !tile.inScope;
+        // ★ 范围外的词条（野怪 / 话题怪 / 废墟）：先纳入复习范围再打卡（否则 `mark` 必 409）。弹窗副标题已经把这一步说在前面。
+        const adopted = !tile.inScope;
         if (adopted) await api.terms.scopeTerm(tile.id, true);
         await api.terms.mark(tile.id, true);
         setHunting(null);
@@ -104,17 +121,23 @@ export function ContinentPage() {
           d.some((x) => x.row === tile.row && x.col === tile.col) ? d : [...d, { row: tile.row, col: tile.col, term: tile.term }],
         );
         const hit = spell ? `「${SPELL_KIND_META[spell].name}」命中，` : '';
+        const scoped = adopted ? '，这条词条已纳入复习范围' : '';
         setNotice(
           tile.monsterKind === 'wild'
-            ? `${hit}打跑了野怪「${tile.term}」——算你提前复习了一次${adopted ? '，这条词条已纳入复习范围' : ''}，地上留下一个宝箱。`
-            : `${hit}收复了「${tile.term}」——复习阶段推进，这块地回到你手里，地上留下一个宝箱。`,
+            ? `${hit}打跑了野怪「${tile.term}」——算你提前复习了一次${scoped}，地上留下一个宝箱。`
+            : tile.monsterKind === 'topic'
+              ? `${hit}打跑了话题怪「${tile.term}」——刚聊到就复习了一次${scoped}，地上留下一个宝箱。`
+              : !tile.hasMonster && tile.ruin
+                ? `${hit}「${tile.term}」的废墟重建了——复习一次，这块地又立起来了${scoped}，地上留下一个宝箱。`
+                : `${hit}收复了「${tile.term}」——复习阶段推进，这块地回到你手里，地上留下一个宝箱。`,
         );
         await load();
+        hunt.advance();
       } catch (e) {
         setNotice(`${e instanceof Error ? e.message : String(e)}`);
       }
     },
-    [load],
+    [load, hunt],
   );
 
   /** 开拓成功：新词条已落库并钉在那一格 ⇒ 关弹窗 → 回话（含来源，如实）→ 重取地图（新地块从那一格长出来） */
@@ -172,6 +195,11 @@ export function ContinentPage() {
         }
         return;
       }
+      if (tile?.ruin) {
+        // ★ 废墟：点它就是"去重建"——够得着直接开打，够不着导航过去（同一条「靠近才开打」闸门）
+        hunt.goTo(tile);
+        return;
+      }
       if (tile) {
         heroCtl.walkTo(row, col);
         setDetail(tile);
@@ -180,7 +208,7 @@ export function ContinentPage() {
       // ★ 边界上的「+」：这一格没有词条也没有领地，但它是开拓入口——点了就领一块（不要求英雄相邻：开拓是"规划"，不是"打"）
       if (view.frontier.some((f) => f.row === row && f.col === col)) setExpanding({ row, col });
     },
-    [drops, heroCtl, view, partners.partners, partners.placing, partners.placeAt],
+    [drops, heroCtl, hunt, view, partners.partners, partners.placing, partners.placeAt],
   );
 
   /** 「去救他」：★ **不代打**，只把人送到"一步能打到"的格（与「靠近才开打」同一条判断标准） */
@@ -197,7 +225,12 @@ export function ContinentPage() {
 
   return (
     <div className="continent-page">
-      <ContinentHeader view={view} showCodex={showCodex} onToggleCodex={() => setShowCodex((v) => !v)} onReload={() => void load()} />
+      <ContinentHeader
+        view={view}
+        panel={panel}
+        onTogglePanel={(p) => setPanel((cur) => (cur === p ? 'none' : p))}
+        onReload={() => void load()}
+      />
 
       {notice && <p className="continent-banner">{notice}</p>}
       {view.dueOutOfScope > 0 && (
@@ -231,7 +264,7 @@ export function ContinentPage() {
         </p>
       )}
 
-      <div className={showCodex ? 'continent-body with-codex' : 'continent-body'}>
+      <div className={panel !== 'none' ? 'continent-body with-codex' : 'continent-body'}>
         <ContinentMap
           tiles={view.tiles}
           wildLands={view.wildLands}
@@ -247,10 +280,11 @@ export function ContinentPage() {
           recenterTick={recenter}
           onPick={pick}
           burst={burst}
-          focus={hunting ?? detail}
+          focus={hunting ?? hunt.target ?? detail}
           alert={heroCtl.blocked}
         />
-        {showCodex && <CodexPanel found={view.codexFound} onClose={() => setShowCodex(false)} />}
+        {showCodex && <CodexPanel found={view.codexFound} onClose={() => setPanel('none')} />}
+        {panel === 'nav' && <ContinentNav view={view} hero={heroCtl.hero} hunt={hunt} onClose={() => setPanel('none')} />}
       </div>
 
       {/* D-pad：键盘之外的走位入口（已拆成 `continent-dpad.tsx`——本文件贴 `.tsx ≤300` 红线） */}
@@ -267,20 +301,7 @@ export function ContinentPage() {
 
       {expanding && <ExpandDialog cell={expanding} onExpanded={(_r, offer) => expanded(offer)} onClose={() => setExpanding(null)} />}
 
-      {detail && (
-        <div className="continent-detail">
-          <span className="continent-modal-title">
-            {detail.term}
-            <small>
-              {detail.domain} · {tileStatusText(detail)}
-            </small>
-          </span>
-          <p className="continent-detail-def">{detail.definition}</p>
-          <button className="continent-btn ghost" onClick={() => setDetail(null)}>
-            关闭
-          </button>
-        </div>
-      )}
+      {detail && <ContinentDetail tile={detail} onClose={() => setDetail(null)} />}
 
       {chestAt && (
         <ContinentChest

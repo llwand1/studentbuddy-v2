@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { buildMonsterQuestions, computeReviewState, speciesTypes } from '@sb/shared';
 import { MonsterDialog } from './MonsterDialog';
@@ -29,6 +29,10 @@ vi.mock('./SpellChant', () => ({
 }));
 
 afterEach(cleanup);
+/** 横版战场是 canvas：jsdom 拿不到 2d 上下文，`BattleStage` 遇到 `null` 直接不画（画面不参与断言，血量走 aria-label） */
+beforeAll(() => {
+  HTMLCanvasElement.prototype.getContext = (() => null) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+});
 
 /**
  * 造一个地块视图——只填本文件要用的字段，其余给中性值。
@@ -51,6 +55,9 @@ function tileOf(id: string, over: Partial<ContinentTileView> = {}): ContinentTil
     inScope: true,
     hasMonster: true,
     monsterKind: 'due',
+    ring: 0,
+    wear: 0,
+    ruin: false,
     level: 1,
     species: speciesTypes(id, 1),
     discovered: false,
@@ -114,6 +121,7 @@ describe('知识大陆情景题', () => {
       review_stage: 0,
       last_reviewed_at: null,
       review_in_scope: 0,
+      last_used_at: null,
       review: computeReviewState({ stage: 0, createdAt, now: new Date('2026-09-26T12:00:00Z') }),
     }));
     const onSolved = vi.fn().mockResolvedValue(undefined);
@@ -179,5 +187,30 @@ describe('知识大陆魔法吟唱', () => {
     fireEvent.click(screen.getByRole('button', { name: '哑火' }));
     expect(screen.getByText(/哑火/)).toBeTruthy();
     expect((screen.getByRole('button', { name: '吟唱已用' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe('横版战斗（2026-09-30：地图 → 战场的转场与战场本身）', () => {
+  it('讨伐弹窗带着横版战场：血量与题数同源，掉血后战场的可读描述跟着变', () => {
+    const tile = tileOf('stage-3', { level: 3, species: speciesTypes('stage-3', 3) });
+    render(<MonsterDialog tile={tile} pool={[]} onSolved={vi.fn()} onClose={() => undefined} />);
+    expect(screen.getByRole('dialog', { name: '讨伐 词条stage-3' })).toBeTruthy();
+    expect(document.querySelector('.continent-battle .continent-battle-card')).toBeTruthy();
+    const stage = screen.getByRole('img', { name: /横版战场：勇者对阵「词条stage-3」/ });
+    expect(stage.getAttribute('aria-label')).toContain('剩余 3 / 3');
+    fireEvent.click(screen.getByRole('button', { name: '魔法吟唱' }));
+    fireEvent.click(screen.getByRole('button', { name: '选咒语' }));
+    fireEvent.click(screen.getByRole('button', { name: '释放二点' }));
+    expect(screen.getByRole('img', { name: /剩余 1 \/ 3/ })).toBeTruthy();
+  });
+
+  it('废墟重建走同一场战斗：标题说"重建"、对手是"废墟守卫"，「撤退」即关闭', () => {
+    const tile = tileOf('ruin-1', { ruin: true, hasMonster: false, monsterKind: null, status: 'upcoming', species: ['fill'] });
+    const onClose = vi.fn();
+    render(<MonsterDialog tile={tile} pool={[]} onSolved={vi.fn()} onClose={onClose} />);
+    expect(screen.getByRole('dialog', { name: '重建 词条ruin-1' })).toBeTruthy();
+    expect(screen.getByText(/废墟守卫/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '撤退' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

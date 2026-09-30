@@ -18,18 +18,28 @@
  *     只有传了 `dayKey` 才刷（页面传本地日历日；不传就是旧口径，服务端 / 老测试不受影响）。
  *   · **边界「+」** `frontier`：`shared/continent-expand.ts` 的 `frontierCells` 再排除掉怪的荒地领地格。
  *     开拓出来的地块靠 `pins`（服务端随地图一并给）钉在点的那一格——铺格仍是同一份 `layoutTiles`。
+ *
+ * ★ 2026-09-30 再加两条（口径都在 `shared/continent-upkeep.ts`，仍是派生、零存储）：
+ *   · **磨损与废墟** `wear` / `ruin`：地块要维护——多久没碰 ÷ 这一环的耐久期；到 1 就**原地**碎成废墟
+ *     （铺格一格不动：伙伴的家与钉子都是存下来的坐标）。废墟不改变怪与领地的口径，只是不再算「完好地块」。
+ *   · **话题怪** `monsterKind === 'topic'`：今天对话里被提到的词条（服务端 `last_used_at`），与野怪同样只在传了
+ *     `dayKey` 时刷、不占地；欠账怪 > 话题怪 > 野怪。
  */
 import {
   CONTINENT_CODEX_SLOTS,
   cellKey,
   codexDiscovered,
   frontierCells,
+  isRuin,
   layoutRadius,
   layoutTiles,
   monsterKindOf,
   monsterLevel,
   speciesTypes,
   spreadLands,
+  tileRing,
+  tileWear,
+  topicMonsterIds,
   wildMonsterIds,
   type ContinentLandSource,
   type ContinentMonsterKind,
@@ -59,8 +69,14 @@ export interface ContinentTileView {
   inScope: boolean;
   /** 该格是不是怪的本体（"有怪" ⟺ 它；欠账怪与野怪都算） */
   hasMonster: boolean;
-  /** 怪的来路：`due` 欠账怪（到期/逾期，占地）／`wild` 野怪（每日随机保底，不占地）；无怪 `null` */
+  /** 怪的来路：`due` 欠账怪（到期/逾期，占地）／`wild` 野怪（每日随机保底，不占地）／`topic` 话题怪（今天对话里提到的，不占地）；无怪 `null` */
   monsterKind: ContinentMonsterKind | null;
+  /** 离中心几环（`max(|row|,|col|)`）：耐久期由它定 */
+  ring: number;
+  /** 维护磨损 `0..1`（多久没碰 ÷ 本环耐久期；长期记忆恒 0）；≥ 1 即废墟 */
+  wear: number;
+  /** 废墟：碎在原地，复习一次即重建（点它可直接「复习重建」） */
+  ruin: boolean;
   /** 等级 = 题数 = 血量；无怪时为 0 */
   level: number;
   /** 怪的题型序列（＝每道题/每滴血；无怪时为空） */
@@ -98,6 +114,11 @@ export interface ContinentView {
   monsterCount: number;
   /** 图上的**野怪**数（每日随机保底；打赢即"提前复习"一次） */
   wildCount: number;
+  /** 图上的**话题怪**数（今天对话里提到的词条；打赢即复习一次） */
+  topicCount: number;
+  /** 废墟数（碎在原地的地块）与完好地块数（`tiles.length - ruinCount`）——「大陆保持多大」看的是后者 */
+  ruinCount: number;
+  intactCount: number;
   /**
    * 边界上的「+」：世界内、没铺词条、四邻至少一格词条、且不在怪的荒地领地上的格。
    * ★ 由 `shared/continent-expand.ts` 算（服务端校验用同一份口径），这里只是把荒地领地排除掉——
@@ -183,8 +204,8 @@ export interface ContinentViewOptions {
   /** 开拓出来的地块坐标（服务端 `GET /review/map` 一并给）；不传＝全走螺旋 */
   pins?: readonly ContinentPin[];
   /**
-   * 野怪的日历键（`localDayKey(new Date())`，由页面传入——本文件与 shared 一样不读时钟）。
-   * **不传＝不刷野怪**：只想看欠账怪的调用方（与旧用例）拿到的图与从前一样。
+   * 野怪与话题怪的日历键（`localDayKey(new Date())`，由页面传入——本文件与 shared 一样不读时钟）。
+   * **不传＝不刷野怪也不刷话题怪**：只想看欠账怪的调用方（与旧用例）拿到的图与从前一样。
    */
   dayKey?: string;
 }
@@ -197,11 +218,14 @@ export function buildContinentView(
   const pins = opts.pins ?? [];
   const placed = layoutTiles(terms, pins);
   const wild = opts.dayKey ? wildMonsterIds(terms, opts.dayKey) : new Set<string>();
+  const topic = opts.dayKey ? topicMonsterIds(terms, opts.dayKey) : new Set<string>();
   const termCells = new Set<string>();
-  /** 有欠账怪的格子（＝领地扩散的源；野怪不占地，不进这里） */
+  /** 有欠账怪的格子（＝领地扩散的源；野怪 / 话题怪不占地，不进这里） */
   const bodySources: ContinentLandSource[] = [];
   let monsterCount = 0;
   let wildCount = 0;
+  let topicCount = 0;
+  let ruinCount = 0;
   let inScopeCount = 0;
   let dueOutOfScope = 0;
   for (const { term, row, col } of placed) {
@@ -209,8 +233,10 @@ export function buildContinentView(
     const inScope = term.review_in_scope === 1;
     if (inScope) inScopeCount += 1;
     if (!inScope && (term.review.status === 'due' || term.review.status === 'overdue')) dueOutOfScope += 1;
-    const kind = monsterKindOf(term, wild);
+    if (isRuin(tileWear(term, { row, col }))) ruinCount += 1;
+    const kind = monsterKindOf(term, wild, topic);
     if (kind === 'wild') wildCount += 1;
+    if (kind === 'topic') topicCount += 1;
     if (kind === 'due') {
       monsterCount += 1;
       bodySources.push({ id: term.id, row, col, overdueDays: term.review.overdueDays });
@@ -228,9 +254,10 @@ export function buildContinentView(
 
   const tiles: ContinentTileView[] = placed.map(({ term, row, col }) => {
     const inScope = term.review_in_scope === 1;
-    const monsterKind = monsterKindOf(term, wild);
+    const monsterKind = monsterKindOf(term, wild, topic);
     const hasMonster = monsterKind !== null;
     const level = monsterLevel(term.review_stage);
+    const wear = tileWear(term, { row, col });
     // 本体格永远不会出现在 `spread.lands` 里（`spreadLands` 先占本体再长领地），故不必排除自己
     const landOwner = spread.lands.get(cellKey(row, col)) ?? null;
     const owner = landOwner ?? (hasMonster ? term.id : null);
@@ -249,6 +276,9 @@ export function buildContinentView(
       inScope,
       hasMonster,
       monsterKind,
+      ring: tileRing({ row, col }),
+      wear,
+      ruin: isRuin(wear),
       level: hasMonster ? level : 0,
       species: hasMonster ? speciesTypes(term.id, level) : [],
       discovered: (term.last_reviewed_at ?? '') !== '' || term.review_stage > 0,
@@ -283,6 +313,9 @@ export function buildContinentView(
     wildLands,
     monsterCount,
     wildCount,
+    topicCount,
+    ruinCount,
+    intactCount: tiles.length - ruinCount,
     frontier,
     inScopeCount,
     total: terms.length,
@@ -292,38 +325,6 @@ export function buildContinentView(
     dueOutOfScope,
     landCount: spread.lands.size,
   };
-}
-
-/**
- * 某一格的**悬停文案**（唯一文案源，2026-09-27 从 `ContinentMap.tsx` 下沉到这里）。
- *
- * ★ 为什么下沉：① 组件要守 `.tsx ≤300 行` 红线；② 它本来就是**文案口径**——与 `tileHint` 同族，
- *   放这里才能被单测，也不会出现"组件里一套、提示里另一套"。
- * ★ **伙伴优先于地块**：他站在格子上，鼠标停上去该说的是"这是谁"，不是"这格什么状态"。
- * ★ 世界比视口大之后，落在视野里的空格也可能是**世界内但没铺词条**的格，故最后那句要说清
- *   "走不过去"而不是含糊的"空"。
- */
-export function cellHint(
-  cell: { row: number; col: number } | null,
-  ctx: {
-    tiles: readonly ContinentTileView[];
-    wildLands: readonly ContinentLandCell[];
-    npcs: readonly { row: number; col: number; name: string; distressed: boolean }[];
-    /** 边界上的「+」（不传＝没有可开拓的格） */
-    frontier?: readonly ContinentCell[];
-  },
-): string | null {
-  if (!cell) return null;
-  const n = ctx.npcs.find((x) => x.row === cell.row && x.col === cell.col);
-  if (n) return `「${n.name}」你的学习伙伴${n.distressed ? '· 被怪堵住了，点他看看' : '· 点他跟他说句话'}`;
-  const t = ctx.tiles.find((x) => x.row === cell.row && x.col === cell.col);
-  if (t) return tileHint(t);
-  const w = ctx.wildLands.find((x) => x.row === cell.row && x.col === cell.col);
-  if (w) return `「${w.ownerTerm ?? ''}」怪的领地（荒地）· 领主共占 ${w.count} 格 · 点它复习领主`;
-  if (ctx.frontier?.some((f) => f.row === cell.row && f.col === cell.col)) {
-    return '边界空地「+」· 点它开拓：领一条新词条，答对两道题，新地块就长在这一格';
-  }
-  return '这一格还没铺上词条（走不过去）· 去「词条」页多存几条，或点边界上的「+」开拓过去';
 }
 
 /**
@@ -359,28 +360,17 @@ export function neighbors(
   return tiles.filter((t) => manhattan(t, at) === 1);
 }
 
-/** 格子编号（图鉴/提示文案用：「第 12 格」比「row3col5」好读） */
-export function cellLabel(t: Pick<ContinentTileView, 'row' | 'col'>): string {
-  return `第 ${t.row + 1} 行 · 第 ${t.col + 1} 列`;
+/**
+ * 开打用的格（2026-09-30）：有怪的照原样；**废墟**没有怪，就地立一只"废墟守卫"——等级 / 怪种按与怪同一套派生
+ * （`monsterLevel(stage)` / `speciesTypes`），于是同一场战斗、同一张脸、同一份图鉴口径。
+ * ★ 只补 `level/species`，**不改** `hasMonster`：弹窗据此把标题说成"重建"而不是"讨伐"，页面据此挑收复文案。
+ */
+export function fightTile(tile: ContinentTileView): ContinentTileView {
+  if (tile.hasMonster || !tile.ruin) return tile;
+  const level = monsterLevel(tile.stage);
+  return { ...tile, level, species: speciesTypes(tile.id, level) };
 }
 
-/** 一格的副标题（悬停面板/答题弹窗共用同一句，免得两处各写一套文案） */
-export function tileStatusText(t: ContinentTileView): string {
-  if (t.isLand) return `被「${t.landOwnerTerm ?? ''}」占为领地 · 领主共占 ${t.territoryCount} 格`;
-  if (t.monsterKind === 'wild') {
-    return `野怪 · 今天随机盯上了这条${t.inScope ? '' : '（未纳入复习范围，打赢即纳入）'} · ${t.daysSince} 天没碰`;
-  }
-  if (!t.inScope) return '未纳入复习范围 · 不冒欠账怪（野怪仍可能盯上它）';
-  if (t.status === 'overdue') return `逾期 ${t.overdueDays} 天 · ${t.daysSince} 天没复习`;
-  if (t.status === 'due') return `今天该复习 · ${t.daysSince} 天没复习`;
-  if (t.status === 'mastered') return `已入长期记忆 · ${t.daysSince} 天前复习`;
-  return `${t.daysSince} 天没复习 · 还有 ${t.dueInDays} 天到期`;
-}
-
-/** 悬停提示（一句话说清"这格是什么、点了会怎样"） */
-export function tileHint(t: ContinentTileView): string {
-  if (t.monsterKind === 'wild') return `${t.term}（${t.domain}）· ${t.level} 级野怪 · 走到旁边点它开打（打赢＝提前复习一次）`;
-  if (t.hasMonster) return `${t.term}（${t.domain}）· ${t.level} 级怪 · 走到旁边点它开打`;
-  if (t.isLand) return `「${t.landOwnerTerm ?? ''}」怪的领地 · 点它复习领主，收复这片地`;
-  return `${t.term}（${t.domain}）· 已收复 · 点击查看`;
-}
+// 文案口径（悬停提示 / 副标题 / 格子编号）2026-09-30 搬到 `continent-text.ts`；这里再导出一次，
+// 调用方（地图 / 页面 / 弹窗 / 测试）不必知道这次搬家。
+export { cellHint, cellLabel, tileHint, tileStatusText } from './continent-text';

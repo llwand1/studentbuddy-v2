@@ -17,6 +17,9 @@ import { monsterLook } from './monster-art';
 
 /** 野怪脚下的魔法阵：青绿（与欠账怪的血色拉开——同一张脸，来路靠脚下的阵认） */
 const SIGIL_WILD: SigilColors = ['#7ee08f', '#2a6a4a'];
+/** 话题怪脚下的魔法阵（2026-09-30）：金——"你刚聊到的"，与血色 / 青绿都拉开 */
+const SIGIL_TOPIC: SigilColors = ['#ffd84a', '#8a6a1a'];
+const SIGIL_BY_KIND: Partial<Record<NonNullable<ContinentTileView['monsterKind']>, SigilColors>> = { wild: SIGIL_WILD, topic: SIGIL_TOPIC };
 
 /**
  * 怪：脚下旋转魔法阵 + **按怪种定的外观**（`monster-art.ts`：体型/配色/饰物由题型序列决定）；
@@ -29,12 +32,12 @@ export function drawMonster(ctx: CanvasRenderingContext2D, t: ContinentTileView,
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(PX, PX);
-  drawSigil(ctx, 8, 9, 7 + Math.min(t.level, 4), now / 1000, t.monsterKind === 'wild' ? SIGIL_WILD : undefined);
+  drawSigil(ctx, 8, 9, 7 + Math.min(t.level, 4), now / 1000, t.monsterKind ? SIGIL_BY_KIND[t.monsterKind] : undefined);
   ctx.restore();
   const s = Math.max(2, Math.round(PX * (0.6 + 0.4 * pop)));
   const look = monsterLook(t.species);
-  // 12×12 的怪居中偏下（脚踩在魔法阵上）；野怪微微上下浮动，欠账怪站定（它是"钉在这块地上"的）
-  const bob = t.monsterKind === 'wild' ? Math.round(Math.sin(now / 300 + t.col) * 1.5) : 0;
+  // 12×12 的怪居中偏下（脚踩在魔法阵上）；野怪 / 话题怪微微上下浮动，欠账怪站定（它是"钉在这块地上"的）
+  const bob = t.monsterKind === 'wild' || t.monsterKind === 'topic' ? Math.round(Math.sin(now / 300 + t.col) * 1.5) : 0;
   drawSprite(ctx, look.map, look.pal, Math.round(x + CELL / 2 - 6 * s), Math.round(y + CELL / 2 - 7 * s + bob), { scale: s, alpha: pop });
   ctx.globalAlpha = pop;
   ctx.fillStyle = COLOR.horn;

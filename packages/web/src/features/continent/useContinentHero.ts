@@ -45,6 +45,11 @@ export interface ContinentHero {
   step: (dr: number, dc: number) => void;
   /** 点地图寻路（远则排队走过去） */
   walkTo: (row: number, col: number) => void;
+  /**
+   * 按给定步序列走（2026-09-30「导航」用：路由 `continent-path.ts` 的 BFS 算好，这里只负责一步步走出来）。
+   * 空序列 ⇒ 什么也不做（已经到了）；会替换掉当前队列。
+   */
+  follow: (steps: ReadonlyArray<readonly [number, number]>) => void;
   /** 清空走位队列（打开弹窗/切页时别让它继续走） */
   halt: () => void;
 }
@@ -176,7 +181,13 @@ export function useContinentHero(tiles: readonly ContinentTileView[]): Continent
     [walkableAt],
   );
 
+  const follow = useCallback((steps: ReadonlyArray<readonly [number, number]>) => {
+    setBlocked(null);
+    queueRef.current = steps.map(([dr, dc]) => [dr, dc]);
+    setQueued(queueRef.current.length);
+  }, []);
+
   const clearBlocked = useCallback(() => setBlocked(null), []);
 
-  return { hero, animFrom: anim?.from ?? null, animStart: anim?.at ?? 0, queued, blocked, clearBlocked, step, walkTo, halt };
+  return { hero, animFrom: anim?.from ?? null, animStart: anim?.at ?? 0, queued, blocked, clearBlocked, step, walkTo, follow, halt };
 }

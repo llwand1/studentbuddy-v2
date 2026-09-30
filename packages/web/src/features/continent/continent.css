@@ -594,3 +594,189 @@
 .continent-expand-source.fallback {
   color: var(--sb-danger);
 }
+
+/* ── 2026-09-30：话题怪 / 完好地块 / 废墟 计数 ─────────────────────────────────── */
+.continent-stat-topic b {
+  color: var(--sb-gold);
+}
+
+.continent-stat-ruin b {
+  color: var(--sb-ink-tertiary);
+}
+
+/* ── 导航面板（与图鉴同一位置、同一外壳；两者互斥） ────────────────────────────── */
+.continent-nav {
+  flex: 0 1 340px;
+  min-width: 280px;
+  background: var(--sb-sidebar);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  padding: var(--sb-sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-3);
+  max-height: 620px;
+  overflow: auto;
+}
+
+.continent-nav-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sb-sp-2);
+}
+
+.continent-nav-head .continent-btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+.continent-nav-head small {
+  display: block;
+  font-size: var(--sb-fs-xs);
+  font-weight: 400;
+  color: var(--sb-ink-secondary);
+}
+
+.continent-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.continent-nav-group h4 {
+  margin: 0;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+  letter-spacing: 0.04em;
+}
+
+.continent-nav-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  padding: 4px 6px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+  font-size: var(--sb-fs-sm);
+}
+
+.continent-nav-row.is-target {
+  border-color: var(--sb-primary);
+  box-shadow: 0 0 0 1px var(--sb-primary-weak) inset;
+}
+
+.continent-nav-row b {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.continent-nav-row em {
+  font-style: normal;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+  white-space: nowrap;
+}
+
+/* 怪的来路徽标：欠账（红）/ 话题（金）/ 野怪（绿）/ 废墟（灰）——与地图上魔法阵的颜色一一对应 */
+.continent-nav-kind {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  font-size: var(--sb-fs-xs);
+  line-height: 1.5;
+}
+
+.continent-nav-kind.due {
+  color: var(--sb-danger);
+}
+
+.continent-nav-kind.topic {
+  color: var(--sb-gold);
+}
+
+.continent-nav-kind.wild {
+  color: var(--sb-success);
+}
+
+.continent-nav-kind.ruin {
+  color: var(--sb-ink-tertiary);
+}
+
+.continent-nav-foot {
+  display: flex;
+  gap: var(--sb-sp-2);
+  flex-wrap: wrap;
+}
+
+.continent-nav-empty {
+  margin: 0;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-secondary);
+}
+
+/* ── 横版战斗：地图 → 战场的转场 + 战场画布 ─────────────────────────────────── */
+/* 底幕：比普通弹窗更暗、像素阶梯地淡入（steps 而非缓动——像素风的"切"） */
+.continent-battle {
+  background: rgba(7, 5, 10, 0.86);
+  animation: continent-battle-fade 360ms steps(6, end) both;
+}
+
+.continent-battle-card {
+  max-width: 640px;
+  padding-top: 0;
+  background: var(--sb-surface);
+  animation: continent-battle-cut 520ms steps(8, end) both;
+}
+
+/* 战场黑幕：出血到卡片两边；矮屏下画布封顶 34vh、两侧留黑边（不把像素拉扁），题卡与「提交」靠弹窗自己滚动仍够得着 */
+.continent-stage-wrap {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  margin: 0 calc(var(--sb-sp-4) * -1);
+  background: #07050a;
+  border-bottom: 2px solid var(--sb-pixel-edge, #23252f);
+}
+
+/* 战场画布：320×180 逻辑像素按容器宽放大，硬边 */
+.continent-stage {
+  display: block;
+  width: min(100%, calc(34vh * 16 / 9));
+  aspect-ratio: 16 / 9;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #07050a;
+}
+
+@keyframes continent-battle-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 像素帘：从上到下 8 档展开（clip-path 阶梯），像老游戏的战斗转场 */
+@keyframes continent-battle-cut {
+  from {
+    clip-path: inset(0 0 100% 0);
+    transform: scale(1.04);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .continent-battle,
+  .continent-battle-card {
+    animation: none;
+  }
+}

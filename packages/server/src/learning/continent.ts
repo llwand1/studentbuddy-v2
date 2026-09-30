@@ -26,9 +26,14 @@ import {
   type TermReviewRow,
 } from './term-review.js';
 
-/** 地图上的一条词条 = 复习条目 + **有效**复习范围（1 = 该词条要复习，0 = 只铺地块不冒怪） */
+/**
+ * 地图上的一条词条 = 复习条目 + **有效**复习范围（1 = 该词条要复习，0 = 只铺地块不冒怪）
+ * + `last_used_at`（2026-09-30：最近一次在对话回复里被提到，UTC 文本；**话题怪**的唯一依据——
+ *   `term-usage.ts` 收口时按与正文高亮同一条匹配规则写它，前端用 `topicMonsterIds` 读它，零新存储）。
+ */
 export interface ContinentMapTerm extends ReviewTerm {
   review_in_scope: number;
+  last_used_at: string | null;
 }
 
 /**
@@ -41,14 +46,14 @@ export interface ContinentMapTerm extends ReviewTerm {
 export function continentMap(ownerId: string | null): ContinentMapTerm[] {
   const rows = getDb()
     .prepare(
-      `SELECT ${SELECT_REVIEW_COLS}, ${SCOPE_FLAG} AS review_in_scope
+      `SELECT ${SELECT_REVIEW_COLS}, ${SCOPE_FLAG} AS review_in_scope, t.last_used_at
          FROM ${SCOPE_FROM}
         WHERE t.owner_id = ?
         ORDER BY t.created_at, t.id`,
     )
-    .all(ownerForWrite(ownerId)) as Array<TermReviewRow & { review_in_scope: number }>;
+    .all(ownerForWrite(ownerId)) as Array<TermReviewRow & { review_in_scope: number; last_used_at: string | null }>;
   const now = new Date();
   // 同一个 `now` 算完所有词条：不然 140 条里有几条会落在"跨天"的两侧，地图上出现
   // 「同一天入库、状态却差一天」的鬼影（先例：概览也是取一次 now 算全表）。
-  return rows.map((row) => ({ ...toReviewTerm(row, now), review_in_scope: row.review_in_scope }));
+  return rows.map((row) => ({ ...toReviewTerm(row, now), review_in_scope: row.review_in_scope, last_used_at: row.last_used_at ?? null }));
 }

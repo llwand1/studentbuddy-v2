@@ -22,6 +22,28 @@ function ipIsBlocked(ip: string): boolean {
   return false;
 }
 
+/**
+ * 主机名 → 一个**已通过防护**的 IP：字面 IP 直接判，域名解析后**每个**地址都得过（有一个落内网就整体拦）。
+ * 2026-09-30 从 `assertSafeUrl` 抽出并导出：截图保底的守门代理（`sources/shot-proxy.ts`）要拿到解析结果
+ * **钉住再连**，否则「检查时解析到公网、连接时解析到内网」（DNS 重绑定）会绕过防护。
+ */
+export async function resolveSafeAddress(hostname: string): Promise<string> {
+  const host = hostname.replace(/^\[|\]$/g, '');
+  if (net.isIP(host)) {
+    if (ipIsBlocked(host)) throw new Error(`目标地址被 SSRF 防护拦截：${host}`);
+    return host;
+  }
+  const addrs = await lookup(host, { all: true }).catch(() => {
+    throw new Error(`域名解析失败：${host}`);
+  });
+  for (const { address } of addrs) {
+    if (ipIsBlocked(address)) throw new Error(`目标解析到内网/回环地址（SSRF 拦截）：${host} → ${address}`);
+  }
+  const first = addrs[0]?.address;
+  if (!first) throw new Error(`域名解析失败：${host}`);
+  return first;
+}
+
 /** URL 合法性检查（协议/主机/解析 IP 全过才算安全） */
 export async function assertSafeUrl(raw: string): Promise<URL> {
   let url: URL;
@@ -31,18 +53,7 @@ export async function assertSafeUrl(raw: string): Promise<URL> {
     throw new Error(`非法 URL：${raw}`);
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('仅允许 http(s)');
-
-  const host = url.hostname.replace(/^\[|\]$/g, '');
-  if (net.isIP(host)) {
-    if (ipIsBlocked(host)) throw new Error(`目标地址被 SSRF 防护拦截：${host}`);
-    return url;
-  }
-  const addrs = await lookup(host, { all: true }).catch(() => {
-    throw new Error(`域名解析失败：${host}`);
-  });
-  for (const { address } of addrs) {
-    if (ipIsBlocked(address)) throw new Error(`目标解析到内网/回环地址（SSRF 拦截）：${host} → ${address}`);
-  }
+  await resolveSafeAddress(url.hostname);
   return url;
 }
 

@@ -249,7 +249,9 @@ export function renderImageDoc(url: string, title: string): string {
   );
 }
 
-const docCache = new Map<string, { html: string; at: number }>();
+const docCache = new Map<string, { html: string; thin: boolean; at: number }>();
+/** 同一网址正在取的那次：面板会同时发「探测」与 iframe 两个请求，不能各拉一遍上游（2026-09-30 截图保底） */
+const inflight = new Map<string, Promise<ReaderLoad>>();
 const primed = new Map<string, string>();
 
 function cachePut<V>(map: Map<string, V>, key: string, v: V, max: number): void {
@@ -271,6 +273,7 @@ export function primeReaderHtml(url: string, html: string): void {
 export function resetReaderCache(): void {
   docCache.clear();
   primed.clear();
+  inflight.clear();
 }
 
 async function readCapped(res: Response, max: number): Promise<Uint8Array> {
@@ -299,16 +302,28 @@ async function readCapped(res: Response, max: number): Promise<Uint8Array> {
   return out;
 }
 
-export type ReaderLoad = { ok: true; html: string } | { ok: false; status: number; reason: string };
+/** `thin`：正文太短（脚本渲染页），面板据此提供「服务器截图看全」的出口（契约 §13.1） */
+export type ReaderLoad = { ok: true; html: string; thin: boolean } | { ok: false; status: number; reason: string };
 
-/** 取一条资料的阅读页 HTML（带缓存）；失败原因给面板显示，不泄内部细节 */
-export async function loadReaderDoc(url: string, title: string, signal?: AbortSignal): Promise<ReaderLoad> {
+/**
+ * 取一条资料的阅读页 HTML（带缓存 + 同网址并发合流）；失败原因给面板显示，不泄内部细节。
+ * 合流时沿用**第一个**调用方的 signal：两个请求来自同一块面板，一起来一起走。
+ */
+export function loadReaderDoc(url: string, title: string, signal?: AbortSignal): Promise<ReaderLoad> {
   const hit = docCache.get(url);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return { ok: true, html: hit.html };
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return Promise.resolve({ ok: true, html: hit.html, thin: hit.thin });
+  const pending = inflight.get(url);
+  if (pending) return pending;
+  const p = fetchReaderDoc(url, title, signal).finally(() => inflight.delete(url));
+  inflight.set(url, p);
+  return p;
+}
+
+async function fetchReaderDoc(url: string, title: string, signal?: AbortSignal): Promise<ReaderLoad> {
   if (detectSourceKind(url) === 'image') {
     const html = renderImageDoc(url, title);
-    cachePut(docCache, url, { html, at: Date.now() }, CACHE_MAX);
-    return { ok: true, html };
+    cachePut(docCache, url, { html, thin: false, at: Date.now() }, CACHE_MAX);
+    return { ok: true, html, thin: false };
   }
   let source = primed.get(url);
   let kind: SourceKind = 'page';
@@ -335,6 +350,7 @@ export async function loadReaderDoc(url: string, title: string, signal?: AbortSi
   const doc = kind === 'pdf' ? { title, site: siteOf(url), body: '', textLen: 999, kind } : extractReader(source, url);
   if (!doc.title || doc.title === doc.site) doc.title = title || doc.title;
   const html = renderReaderDoc(doc, url);
-  cachePut(docCache, url, { html, at: Date.now() }, CACHE_MAX);
-  return { ok: true, html };
+  const thin = doc.kind === 'page' && doc.textLen < 200;
+  cachePut(docCache, url, { html, thin, at: Date.now() }, CACHE_MAX);
+  return { ok: true, html, thin };
 }

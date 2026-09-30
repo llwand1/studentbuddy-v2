@@ -4,9 +4,9 @@
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-0.2.151-orange)
-![tests](https://img.shields.io/badge/tests-318%20files%20%2F%203804%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-159-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-208%20types-8a63f6)
+![tests](https://img.shields.io/badge/tests-325%20files%20%2F%203838%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-162-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-211%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -22,7 +22,7 @@
 
 | 你想… | 它怎么接 |
 |---|---|
-| 问个问题 | 流式回答 + 思考链 + 工具步骤实时可见；模型自己决定何时搜网 / 查你的词条库 / 出题 / 画图；AI 一联网，右侧**资料架**同步上架，正文里的 `[n]` 点得回原文 |
+| 问个问题 | 流式回答 + 思考链 + 工具步骤实时可见；模型自己决定何时搜网 / 查你的词条库 / 出题 / 画图；AI 一联网，右侧**资料架**同步上架，正文里的 `[n]` 点得回原文；「找视频」一键去 B站 / 抖音找讲解 |
 | 等回复的空档 | 2 秒没回完就弹一张**词卡**（词→义 / 义→词 / 拼写），到期词条答对＝一次真复习打卡 |
 | 让它考我 | 对话里说「考我」即可：六型配比、**真题缺省优先**、每道题标清「真题·必刷 / 模拟题·建议做 / 基础题·可选做」、材料与图必须随题带齐、答案先盲解验算 |
 | 把学过的记住 | 聊完的概念自动入库 → 回复里高亮 → 长成卡牌 → 铺进知识大陆；**FSRS-5** 按你的记忆决定何时复习，到期地块长草生怪，打败即收复 |
@@ -70,7 +70,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼 |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **318 文件 / 3804 例**，全绿（passed/skipped 明细分平台不同，不进本文手抄）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
+当前测试基线 **325 文件 / 3838 例**，全绿（passed/skipped 明细分平台不同，不进本文手抄）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
 
 另有几件不进 `check`、按需跑的仪器：`node tools/loadtest/sse-load.mjs`（单进程 SSE 容量探针，读数在 [`docs/SCALING.md`](docs/SCALING.md)）、`node tools/retention-report.mjs --db …`（只读留存报表，口径在 [`docs/RETENTION-SPEC.md`](docs/RETENTION-SPEC.md)）、`node tools/guard-audit.mjs`（把守门故意改坏，证明它们真的会红）。
 
@@ -98,7 +98,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 - **模型产出不裸跑**：```html 走 `CSP: sandbox`（无 allow-same-origin）＋ iframe 双层沙箱，页面源为 `null`；```svg 走**白名单净化器**（HTML 解析 → 元素/属性白名单 → `XMLSerializer` 重排，剥 `<image>` 外链与全部脚本载体，输出幂等），28 例攻击语料 + 确定性模糊测试守着，契约见 [`docs/UNTRUSTED-RENDER-SPEC.md`](docs/UNTRUSTED-RENDER-SPEC.md)
 - **密钥不出接口**：搜索 key 与模型 key AES-GCM 密文入库，响应只回布尔；搜索 / 抓取出网走 **SSRF 护栏 + 白名单**，抓页单页不遍历
 - **归属过滤按读形状分两把锁**：读「一批行」用 `ownerFilter`，读「一个值/聚合」用 `ownerForWrite`；跨用户访问一律 **404 不回 403**（403 等于承认「这个 id 存在」）
-- **资料阅读页不是开放代理**：`GET /api/sources/{view,pdf}` 只服务**本会话资料架上的网址**（授权 = 会话可访问 **且** 网址在该会话的在线注册表或 `message_source` 表里），否则 403；抓取一律走同一套 SSRF 逐跳复检。阅读页零脚本——CSP `default-src 'none'` + 白名单清洗双保险，`sandbox` 不给 `allow-same-origin`，图片 `no-referrer`；PDF 转发校前 5 字节魔数、上限 25 MB
+- **资料阅读页不是开放代理**：`GET /api/sources/{view,pdf}` 只服务**本会话资料架上的网址**（授权 = 会话可访问 **且** 网址在该会话的在线注册表或 `message_source` 表里），否则 403；抓取一律走同一套 SSRF 逐跳复检。阅读页零脚本——CSP `default-src 'none'` + 白名单清洗双保险，`sandbox` 不给 `allow-same-origin`，图片 `no-referrer`；PDF 转发校前 5 字节魔数、上限 25 MB。截图保底 `/shot` 同一套许可，且截图浏览器的**每一个**出站连接（含重定向、子资源、回环）都经本机守门代理按同一套内网规则放行、按解析出的 IP 钉住连；并发 2 / 排队 4 / 20 秒 / 8 MB 封顶
 
 ## 已知限制
 
@@ -140,7 +140,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | [`AUTH-SPEC.md`](docs/AUTH-SPEC.md) · [`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) | 账号契约 / 多租户归属契约 |
 | [`SSE-CONTRACT.md`](docs/SSE-CONTRACT.md) · [`CHAT-UX-SPEC.md`](docs/CHAT-UX-SPEC.md) | SSE 事件与 HTTP 接口契约（前端对接核心）/ 对话页流式期与常用动作口径（重试 / Esc 停止 / 会话草稿 / 标题态 / 引用追问） |
 | [`WAIT-DRILL-SPEC.md`](docs/WAIT-DRILL-SPEC.md) | 等待时刷词契约（2 秒才弹 / 答完切回 / 到期打卡 / AI 新词候选闸门 / 特效与音频口径） |
-| [`SOURCE-TRACE-SPEC.md`](docs/SOURCE-TRACE-SPEC.md) | 资料溯源契约（资料架编号即身份 / 阅读页零脚本与授权 / `pick_sources` / `[n]` 引用芯片 / 落库与历史重开 / 与刷词小窗共存） |
+| [`SOURCE-TRACE-SPEC.md`](docs/SOURCE-TRACE-SPEC.md) | 资料溯源契约（资料架编号即身份 / 阅读页零脚本与授权 / `pick_sources` / `[n]` 引用芯片 / 落库与历史重开 / 与刷词小窗共存 / 视频线路 B站就地播·抖音跳转 / 截图保底与守门代理） |
 | [`QUIZ-TIER-SPEC.md`](docs/QUIZ-TIER-SPEC.md) | 出题分级与真题优先契约（三档由服务端按事实推 / 基础题就说是基础题 / 搜集辨别层：尾锚点·选项命中率·考试信号 / 真题优先配额与生效条件） |
 | [`QUIZ-COMPLETE-SPEC.md`](docs/QUIZ-COMPLETE-SPEC.md) · [`eval/complete.md`](docs/eval/complete.md) | 题目自包含契约（`material` 字段 / 确定性依赖审查 / 一次修复调用 / 补不全整题剔除 / 搜集侧图与材料搬运）/ 对应评测读数 |
 | [`tools/eval/agent-bench/README.md`](tools/eval/agent-bench/README.md) · [`model-bench/README.md`](tools/eval/model-bench/README.md) | 三套离线评测中的两套说明：agent 循环评测（四套件 / 镜像自检 / pass^k）/ 模型横评（七套件） |

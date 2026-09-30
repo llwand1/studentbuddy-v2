@@ -1,7 +1,8 @@
 # 资料溯源（Source Trace）
 
-状态：v1（2026-09-30）。AI 联网回答时，把它**正在看的资料**（网页 / PDF / 视频 / 图片）实时摆到右侧「资料架」演示给学习者看；
+状态：v1.1（2026-09-30；v1 同日）。AI 联网回答时，把它**正在看的资料**（网页 / PDF / 视频 / 图片）实时摆到右侧「资料架」演示给学习者看；
 AI 自己再从中精选 1–3 条说明为什么值得看；回答里的 `[n]` 引用能点回对应资料；资料随回答落库，历史里照样能翻。
+v1.1 加两条腿：**视频线路**（§12，学习者自己一键去 B站 / 抖音找讲解视频）与**截图保底**（§13，阅读页打不开就让服务器用真浏览器截首屏）。
 
 ## 1. 目标与不做
 
@@ -45,6 +46,21 @@ interface SessionSourcesResult { byMessage: Record<string, SourceItem[]> }
 
 常量：`SOURCE_SHELF_MAX = 12`（架子上限）、`SOURCE_PICK_MAX = 3`、`SOURCE_PER_SEARCH = 5`（每次搜索最多上架）、
 `SOURCE_TITLE_MAX = 120`、`SOURCE_WHY_MAX = 140`、`SOURCE_SNIPPET_MAX = 200`。
+
+视频线路（`packages/shared/src/video-route.ts`，§12）：
+
+```ts
+type VideoRoute = 'bilibili' | 'douyin';
+interface VideoHit { route: VideoRoute; url: string; title: string; author?: string; cover?: string; duration?: string; plays?: number; snippet?: string }
+interface VideoRouteResult { route: VideoRoute; query: string; hits: VideoHit[]; siteSearchUrl: string;
+                             via: 'api' | 'web' | 'none';   // 站内接口 / 联网搜索 / 两条都空
+                             note?: string }                 // 给学习者看的一句实话（为什么少 / 为什么空）
+```
+
+常量：`VIDEO_ROUTES`、`VIDEO_ROUTE_META`（`label / site / playable / hint`）、`VIDEO_QUERY_MAX = 80`、`VIDEO_HITS_MAX = 8`、
+`VIDEO_SEED_MAX = 30`。纯函数：`videoSiteSearchUrl(route, q)`、`cleanVideoQuery`（去控制字符 / 压空白 / 截 80）、
+`videoQueryFromText(text)`（第一个标题，否则首句，≤30 字）、`stripSearchEm`、`bilibiliVideoUrl` / `bvidFromUrl`、
+`douyinVideoIdFromUrl`、`formatPlays`（`68万`）。
 
 纯函数（前后端共用、有单测）：
 
@@ -125,6 +141,9 @@ pick_sources({ picks: [{ url, why }, …] })   // 1–3 条；kind 'read'，idem
 | GET | `/api/sources/view?session=&url=&title=` | 阅读页 HTML（§5）。**授权**：会话可访问 **且** 网址在该会话的资料架上（在线注册表或 `message_source` 表），否则 403——不是任意网址代理 |
 | GET | `/api/sources/pdf?session=&url=` | PDF 转发：同授权；前 5 字节魔数必须是 `%PDF-`（否则 415）；上限 25 MB；`Content-Disposition: inline` |
 | GET | `/api/sources/session/:id` | `{ byMessage }`：该会话每条回答挂的资料（历史重开 / 侧栏用） |
+| GET | `/api/sources/probe?session=&url=&title=` | 阅读页探测（§13.1）：同授权；`{ ok, thin, shot }` 或 `{ ok:false, status, reason, thin:false, shot }`；与 `/view` 合流同一次取页 |
+| GET | `/api/sources/shot?session=&url=` | 截图保底（§13）：同授权；成功 `image/png`（nosniff、`CSP default-src 'none'`、`private, max-age=600`）；失败 JSON `{ error, kind }`，状态码按种类：`no_browser` 404 / `blocked` 400 / `timeout` 504 / `busy` 503 / `failed` 502 |
+| GET | `/api/sources/videos?route=&q=` | 视频线路（§12）：`VideoRouteResult`；`route` 不是两家之一或 `q` 清洗后为空 ⇒ 400；上游失败不报错，写进 `via:'none'` + `note` |
 
 响应头（阅读页）：
 `Content-Security-Policy: sandbox allow-popups allow-popups-to-escape-sandbox; default-src 'none'; img-src https: http: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'`
@@ -183,6 +202,10 @@ readerUrl(sid, item)        // pdf → /api/sources/pdf，其余 → /api/source
   `pdf` ⇒ `/api/sources/pdf`，**不加 sandbox**（浏览器内置 PDF 查看器在沙箱里不工作）；`page` / `image` ⇒ 阅读页
   `sandbox="allow-popups allow-popups-to-escape-sandbox"`（无脚本、无同源）。
 - 「原网页」按钮 `window.open(url, '_blank', 'noopener,noreferrer')`；底栏 `.src-foot`：`k / N` + 键位提示。
+- 网页 / 图片那一格是 `ReaderFrame`（§13.1）：iframe 之外还会按探测结果叠一条出口栏或整格换成截图视图。
+- **两种内容**（2026-09-30）：架子视图之外，同一块面板还能显示**视频线路**（`VideoRouteView`，§12.4）——头部多一个「找视频」；
+  视频视图开着时壳加 `.sb-video-route`，徽标「视频」，头部「资料 n」一键切回架子（架子状态原样保留），× 两个都关。
+  没有架子时（回答没联网）也能单独打开视频视图。
 - 只用 `--sb-*` 令牌、无内联样式；移动端沿用 `.sb-browser` 的铺满规则（`pixel-shell.css`）。
 
 ### 8.3 引用芯片 `[n]`（`lib/markdown-inline.ts` + `features/sources/cite.tsx`）
@@ -201,6 +224,7 @@ readerUrl(sid, item)        // pdf → /api/sources/pdf，其余 → /api/source
 | `Alt+1` … `Alt+9` | `selectSourceAt(k)` |
 | 焦点在 input / textarea / select / contentEditable | 不处理（打字优先） |
 | 带 Ctrl / Meta | 不处理（浏览器快捷键优先） |
+| 视频线路开着 | 全部不处理（`[` `]` 切的是架子，视频视图里切了看不见会很怪） |
 
 ### 8.5 与「等待时刷词」共存
 
@@ -211,8 +235,12 @@ readerUrl(sid, item)        // pdf → /api/sources/pdf，其余 → /api/source
 
 - 阅读页 / PDF 只服务**本会话资料架上的网址**（在线注册表 → 落库表），不是开放代理；抓取一律 `fetchSafe`（SSRF 逐跳复检）。
 - 阅读页零脚本（CSP `default-src 'none'` + 白名单清洗双保险），`sandbox` 不给 `allow-same-origin`，图片 `no-referrer`。
-- 视频只嵌 YouTube（nocookie）/ B 站官方播放器；其它视频站按网页处理。
+- 视频只嵌 YouTube（nocookie）/ B 站官方播放器；其它视频站按网页处理。视频线路的抖音命中**只跳转不嵌播**（§12.2）。
 - 网页正文进模型上下文时仍是「数据不是指令」（`fetch_page` 既有口径）；`pick_sources` 只能引用本轮网址，不能凭空造。
+- 截图保底（§13.2）：浏览器的**每一个**出站连接（含重定向、子资源、回环）都经本机守门代理按 `fetchSafe` 同一套规则
+  解析 + 判内网，过了才按解析出的 IP 钉住连；`/shot` 与 `/view` 同一套「只服务架上网址」的许可；截图进程用独立的
+  临时 profile、不带任何 cookie，用完即删。
+- B站站内搜索接口只带**免登录的设备 cookie**（`buvid3/buvid4`，§12.1），不带用户身份、不做 WBI 签名、不登录。
 
 ## 10. 测试
 
@@ -226,9 +254,18 @@ readerUrl(sid, item)        // pdf → /api/sources/pdf，其余 → /api/source
 | `web/src/lib/sources-store.test.ts` | §8.1 七条 |
 | `web/src/features/sources/sources.test.tsx` | 面板三路 iframe / 让位 / 键位 / 芯片 / 解析 / 分派 / 历史脚注 |
 | `web/src/features/drill/useDragWindow.test.ts` + `WaitDrill.test.tsx` | 小窗限位、拖动写偏好、非模态键位归属 |
+| `shared/src/video-route.test.ts` | 站内搜索页网址两家、`cleanVideoQuery` 控制字符 / 空白 / 截断、`videoQueryFromText` 标题 > 首句、BV 号 / 抖音 id 抽取、`formatPlays` |
+| `server/src/sources/video-route.test.ts` | B站接口形态解析（去 `<em>`、封面补协议、时长 / 播放量）、设备 cookie 领取 / 复用 / 412 换新重试、接口失败退回联网搜索、抖音只留视频页 + 零命中如实 `note`、按线路 + 词缓存 |
+| `server/src/sources/shot.test.ts` | 找浏览器（环境变量 / `off` / PATH）、无头参数（root 才加 `--no-sandbox`、代理 + 回环不绕过）、并发 2 / 排队 4 / `busy`、超时 `timeout`、内网 `blocked`、PNG 上限、结果缓存；守门代理放行 / 拦截 / 钉 IP |
+| `server/src/routes/sources-fallback.test.ts` | `/probe` 授权 + `thin` + `shot` 三态、`/shot` PNG 头与五种失败码、`/videos` 400 与结果透传、失败页写明「截不了图」 |
+| `web/src/lib/video-route-store.test.ts` | 种子词即搜、切线路重搜 / 切回不重搜、旧请求作废、就地播只给 B站、关闭清态 |
+| `web/src/features/sources/ReaderFrame.test.tsx` | 打不开 + 能截 ⇒ 自动截图视图；太薄 ⇒ 出口栏、点了才截；没浏览器 ⇒ 什么都不加；探测失败不影响 iframe；「阅读模式」切回 |
+| `web/src/features/sources/video-route.test.tsx` | 「找视频」只挂回答行、种子词优先级、面板视频视图 + 键位停用、B站卡就地播 + 抖音卡开新标签、零命中 / 出错都给站内搜索出口、「资料 n」切回、× 全关 |
 
 真浏览器实拍（`.probe-local/sources-cdp.mjs`，本机假上游按「搜 → 读 → 精选 → 带引用正文」四步走）：
 搜到即弹、在读标、★ 理由条、`]` / `Alt+3` 切换、芯片点回、刷新后脚注重开、刷词小窗拖到左侧与资料架并存、无 console 告警。
+v1.1 实拍（真上游）：脚本渲染页出「用服务器截图看全」→ 截到对方验证码页原样搬来（如实）；空响应体的 403 页 Chromium 不出图 ⇒
+「截图也没成」+ 原网页出口；「找视频」→ B站 8 条带封面 / 时长 / 播放量、点卡就地播；抖音零命中 ⇒ 站内搜索卡。
 
 ## 11. 风险与后续
 
@@ -237,3 +274,92 @@ readerUrl(sid, item)        // pdf → /api/sources/pdf，其余 → /api/source
 - 搜索渠道（Bing 抓取）的相关性有限；上架顺序 = 渠道顺序，AI 精选是给学习者的第二道筛。
 - 视频只嵌两家；其它站点将来按需加白名单（必须是官方明文允许嵌入的播放器）。
 - 尚未做：资料内搜索 / 高亮引用句、把资料一键存成词条、多轮之间的资料合并视图。
+- 视频线路：B站站内接口是公开但**未承诺**的（形状变了退回联网搜索，不会报错）；抖音没有可用的公开搜索面，
+  搜索引擎对它的收录也几乎为零——命中常为空，产品上接受「站内搜索卡」就是抖音线路的常态。
+- 截图保底：依赖部署机上有 Chromium（线上镜像要自己装）；每张图起一个浏览器进程（≈1–3 s、百兆级内存），
+  已限并发 2 / 排队 4，再多的请求直接 `busy`；截的是**首屏静态图**，登录墙 / 验证码页会原样截到——这是如实，不是 bug。
+
+## 12. 视频线路（2026-09-30）
+
+学习者读完回答想「找个人讲一遍」——不用离开对话，一键去 B站 / 抖音搜这个知识点的讲解视频。
+**口径由用户拍板**：B站 = 站内搜 + 站内播；抖音 = 只能给标题 + 跳转卡（没有公开接口、官方不许嵌播）。
+
+### 12.1 取数（`server/src/sources/video-route.ts`）
+
+`searchVideoRoute(route, q, ownerId, signal?, deps?)` → `VideoRouteResult`：
+
+- **B站**：站内搜索接口（`x/web-interface/search/type?search_type=video&order=totalrank`，公开、免登录）。接口要带
+  **设备 cookie** `buvid3/buvid4`——不带时风控间歇性回 412；cookie 从 `x/frontend/finger/spi` 免登录领，进程内缓存 6 小时，
+  遇 412 领新的再试**一次**。解析：标题去 `<em class="keyword">`、封面补 `https:`、`duration` / `play` / `author` / `bvid`。
+  接口没应答（风控、超时、形状变了）⇒ 退回联网搜索 `site:bilibili.com/video <q>`（`searchWeb`），从网址抠 BV 号
+  （没封面时长，一样能就地播）⇒ `via:'web'`。两条都空 ⇒ `via:'none'` + `note`。
+- **抖音**：只走联网搜索 `site:douyin.com <q>`；命中只留**视频页**（`/video/<id>` 或 `v.douyin.com/<code>`），不给封面
+  （抖音封面链接带签名会过期）；零命中 ⇒ `via:'none'` + 如实的 `note`（「搜索引擎几乎不收录抖音」）。
+- 每条线路都附 `siteSearchUrl`（B站 `search.bilibili.com/all?keyword=`，抖音 `www.douyin.com/search/<q>?type=video`）——
+  **任何情况下**面板都有「去站内搜」这一张卡。
+- 结果按「线路 + 词」缓存 10 分钟（`via:'none'` 不缓存，下次还试）；命中 ≤ `VIDEO_HITS_MAX`（8）；出站都走 `fetchSafe`。
+
+### 12.2 入口与种子词
+
+- 消息脚注（`MessageFoot`）的「找视频」：**只挂回答行**（一问一答挂两个是噪音），不要求这条回答联过网；
+  常显但淡一档（它是入口，复制 / 重答仍是悬停才现）。种子词：架上任一条的 `query`（AI 这轮的搜索词）> `videoQueryFromText(正文)`。
+- 面板头部的「找视频」（架子视图开着时）：种子同上，学习者在面板里随时改词。
+
+### 12.3 状态件（`web/src/lib/video-route-store.ts`）
+
+```ts
+state = { open, sessionId, route, query, phase: 'idle'|'loading'|'done'|'error', result, error, playing }
+openVideoRoute(sid, seed?)  // 打开；当前词为空且有种子 ⇒ 用种子并立即搜
+setVideoRoute(route)        // 切线路即重搜（每条线路各留一份结果，切回不重搜）
+setVideoQuery(q) / runVideoSearch()   // 改词要按「搜」或回车
+playVideo(hit)              // 只接受 route:'bilibili'；抖音卡由视图直接开新标签页
+closeVideoRoute()           // 关掉并清 playing；架子状态不动
+```
+
+旧请求作废：连续搜两次只认最后一次（AbortController + 序号）。与 `sources-store` 分开：架子是 AI 引用的资料（编号即身份、随消息落库），
+视频线路是学习者自己点出来的一次搜索（不编号、不落库、刷新即散）。
+
+### 12.4 视图（`features/sources/VideoRouteView.tsx`，类名 `.vr-*`）
+
+- 一行工具条：词输入框（回车即搜）+ 线路开关「B站 / 抖音」（`.vr-route`）+ 「搜」。
+- 命中卡 `.vr-card`：封面（`referrerpolicy="no-referrer"`，B站图床对外站 Referer 回 403）或 `.vr-cover-blank` 站名占位；
+  标题 + 元信息 `UP · 时长 · n万播放`；右侧动作：B站「播」/「播放中」（`.active`），抖音「↗」（`.jump`，开新标签页）。
+- 就地播：B站命中点开在列表上方出 `iframe.vr-player`（`videoEmbedUrl`，与架子里的视频同一套 sandbox / allow），
+  头部「原网页」指向正在播的那条。
+- 站内搜索出口 `.vr-site`：与命中卡同一副面孔的 `<a>`（「去 B站 站内搜「…」· 在新标签页打开」），`done` / `error` 都在；
+  零命中 `.vr-note.none`、出错 `.vr-note.error` 各一句实话。底栏「B站：就地播 · 抖音：跳转看」。
+
+## 13. 截图保底（2026-09-30）
+
+阅读模式注定拿不好三类页：脚本渲染的单页应用（正文几乎为空）、拒绝非浏览器 UA 的站（403 / 412）、返回非网页内容的地址。
+**口径由用户拍板**：服务器有 Chromium 就用真浏览器截首屏搬过来；没有就退回「新标签页打开」并如实提示；
+零新 npm 依赖（不打包 Playwright）、不接第三方截图服务。
+
+### 13.1 前端三路（`features/sources/ReaderFrame.tsx`）
+
+挂阅读页 iframe 的同时问 `/probe`（服务端与 `/view` 合流同一次取页，不多拉上游），按答复分三路：
+
+| 探测结果 | 面板 |
+|---|---|
+| 打不开（`ok:false`）且 `shot:true` | **自动**换成截图视图 `.src-shot`：顶栏「阅读模式打不开这一页，服务器正在用浏览器截图…」→ 成功 `img.src-shot-img`（可滚动看整张首屏）+ 「是一张图，点不了；要往下看请开原网页」；失败「截图也没成…」；「阅读模式」按钮切回 iframe |
+| 打得开但 `thin:true`（正文 < 200 字）且 `shot:true` | 阅读页照显示，顶上一条 `.src-thin` 出口栏「这页正文主要靠脚本渲染，阅读模式只拿到一小部分 · 用服务器截图看全」，学习者自己决定 |
+| `shot:false` | 什么都不加：失败页本身写了「服务器没装浏览器，截不了图 · 在新标签页打开原网页」 |
+
+探测请求自己失败（网络抖动）不影响 iframe。截图 `<img>` 必须放在**顶层文档**：阅读页在 CSP `sandbox` 里是不透明源，
+它发出的请求带不上 `SameSite=Lax` 的会话 cookie，`/shot` 会被鉴权挡下。
+
+### 13.2 服务端（`sources/shot.ts` + `sources/shot-proxy.ts`）
+
+- 浏览器：`SB_SHOT_BROWSER=<绝对路径>` 优先（`off` 关掉），否则 PATH 上找 `chromium / chromium-browser / google-chrome /
+  google-chrome-stable / chrome / microsoft-edge`；探测结果进程内缓存；`shotAvailable()` 给 `/probe` 报 `shot`。
+- 无头参数（`shotArgs`，纯函数可单测）：`--headless --screenshot=<tmp>.png --window-size=1000,1400 --virtual-time-budget=6000
+  --timeout=12000 --user-data-dir=<临时 profile> --lang=zh-CN` + 与其它出站一致的 UA，扩展 / 同步 / 后台联网 / 组件更新全关；
+  `--no-sandbox` 只在以 root 运行时加（Chromium 不加它就拒绝以 root 起，非 root 保留沙箱）。
+- **守门代理**：每次截图起一个只听 127.0.0.1 的 HTTP 代理，浏览器 `--proxy-server` + `--proxy-bypass-list=<-loopback>`
+  把**所有**出站（含回环）交给它；`CONNECT`（https 隧道，不解密）与绝对地址请求（http 转发）两条通道；每个目标主机都过
+  `resolveSafeAddress`（与 `fetchSafe` 同一套内网判定，从 `assertSafeUrl` 抽出）并按解析出的 IP 钉住连——
+  重定向 / 子资源 / DNS 重绑定都挡在这一层。代理随截图起、随截图关。
+- 资源上限：并发 2、排队 4（再来 `busy` 503）、单次 20 s 硬超时（`timeout` 504）、PNG ≤ 8 MB（超了 `failed`）、
+  结果按网址缓存 10 分钟 / 12 张；临时 profile 与 PNG 用完即删。
+- 失败种类 `ShotError.kind`：`no_browser / blocked / timeout / busy / failed`，`message` 是能直接给学习者看的一句话；
+  空响应体的 4xx 页 Chromium 自己不出图（`ERR_HTTP_RESPONSE_CODE_FAILURE`）⇒ `failed`，前端如实说「截图也没成」。

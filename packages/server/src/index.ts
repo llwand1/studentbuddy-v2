@@ -51,6 +51,8 @@ import { wireLearningEvents } from './learning/learning-events.js';
 import { startJobWorker } from './jobs/worker.js';
 import { startMaintenance } from './jobs/maintenance.js';
 import { getDb } from './storage/db.js';
+import { busStats } from './chat/sse-bus.js';
+import { randomBytes } from 'node:crypto';
 import { requireAuth, attachUser } from './auth/middleware.js';
 import { activityHeartbeat } from './growth/activity.js';
 import { REQUIRE_AUTH } from './auth/form.js';
@@ -201,8 +203,30 @@ app.use('/api/learning', learningRouter);
 app.use('/api/learning', learnerRouter);
 app.use('/api/jobs', jobsRouter);
 
+/**
+ * 健康检查（契约 docs/SCALING.md §4）。除了「活着」再报三件运维要看的事，全是聚合数、零个体信息：
+ *   · `instance`：随机实例 id + 启动时刻——多实例部署时连打两次 `curl`，id 不变才证明粘性会话生效；
+ *   · `sse`：本进程挂着的 SSE 连接数 / 持缓冲的会话数（`tools/loadtest/sse-load.mjs` 读它核对连接是否真挂上）；
+ *   · `rssMb`：常驻内存，跟 watchdog 日志同口径。
+ * ★ 库打不开时回 503 `ok:false`：deploy.sh 的 `curl -sf` 与 watchdog 都把非 2xx 当「没起来」，
+ *   进程活着但库坏了本来就该算没起来。
+ */
+const INSTANCE_ID = randomBytes(4).toString('hex');
+const STARTED_AT = new Date().toISOString();
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true });
+  let dbOk = true;
+  try {
+    getDb().prepare('SELECT 1').get();
+  } catch {
+    dbOk = false;
+  }
+  res.status(dbOk ? 200 : 503).json({
+    ok: dbOk,
+    version: VERSION,
+    instance: { id: INSTANCE_ID, startedAt: STARTED_AT, uptimeSec: Math.round(process.uptime()) },
+    sse: busStats(),
+    rssMb: Math.round(process.memoryUsage().rss / 1048576),
+  });
 });
 
 mountStaticWeb(app);

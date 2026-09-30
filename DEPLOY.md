@@ -329,7 +329,7 @@ git checkout main             # 发完切回来
 
 ## 11. 已知运维边界
 
-- **单实例**：`SB_UPSTREAM_SITE_MAX_CONCURRENT` 是**进程内 Map**，多实例部署下容量 × 实例数，全站封顶只在单进程内成立。
+- **单实例**：`SB_UPSTREAM_SITE_MAX_CONCURRENT` 是**进程内 Map**，多实例部署下容量 × 实例数，全站封顶只在单进程内成立。★ 单进程实测容量、进程内状态清单与扩容阶梯见 [`docs/SCALING.md`](docs/SCALING.md)（`node tools/loadtest/sse-load.mjs` 可复测；`/api/health` 的 `instance.id` 用来核对粘性会话）。
 - **全站并发值 8 是占位值**，未按真实业务校准。
 - **看门狗只留痕、不告警**（对外告警依赖外部监控服务）。
 - **备份是「每日一次」**：最坏情况会丢一天的数据。要更小的 RPO 得加 WAL 归档或提高备份频率。

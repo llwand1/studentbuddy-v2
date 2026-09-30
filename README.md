@@ -12,6 +12,8 @@
 
 **Windows 安装包：[下载本地版 0.1.0](https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-v0.1.0)**。Windows 10/11 x64，双击安装后从开始菜单启动，无需安装 Node 或 npm；浏览器自动打开，首次使用在设置里配置自己的 AI 服务商。关闭浏览器后可从托盘退出，升级和卸载保留学习数据。构建说明见 [Windows 本地安装包](docs/DESKTOP-SPEC.md)。
 
+**GitHub Packages：[studentbuddy-windows 0.1.0](https://github.com/users/llwand1/packages/npm/package/studentbuddy-windows)**。公开分发同一份安装程序、SHA-256 与许可证；npm 用户可按包内说明下载并运行安装命令。
+
 **像素风的游戏化学习 Agent：对话里学、出题里练、知识大陆上复习——你自己的词条库是主体，数据归你（SQLite 单文件，可自托管，开源）。** 在线：<https://11wand.com>（免注册可直接体验）· 本地：`npm install && npm run dev` · 零 key 全栈演示：`npm run demo:e2e`。
 
 **目录**：[为什么用它](#为什么用它) · [快速开始](#快速开始) · [验证：三条命令](#验证三条命令) · [架构](#架构) · [安全与隐私](#安全与隐私) · [已知限制](#已知限制) · [文档索引](#文档索引) —— 功能逐项的实现思路、产品判断与界面预览搬到了 [`docs/FEATURES.md`](docs/FEATURES.md)（长文），本页只留一页架构与三条验证命令。

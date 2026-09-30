@@ -27,6 +27,8 @@
 
 ## GitHub Packages 分发契约
 
+0.1.0 已发布并公开可见：[studentbuddy-windows](https://github.com/users/llwand1/packages/npm/package/studentbuddy-windows)。选择已有桌面 Release 发布：`gh workflow run desktop-package.yml -f version=0.1.0`；同一包版本只能发布一次。
+
 - GitHub npm registry 的 `@llwand1/studentbuddy-windows` 包分发已验证的 Windows x64 安装程序，版本与 `desktop-v<版本>` Release 一致。
 - 包包含安装程序、SHA256SUMS、许可证、使用说明和显式安装命令；安装 npm 包不会自动启动安装程序。
 - 打包前校验 Release 的 SHA-256，安装命令再次校验；文件名与版本严格匹配，校验失败拒绝打包或执行。

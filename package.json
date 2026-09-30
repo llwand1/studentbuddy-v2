@@ -1,6 +1,6 @@
 {
   "name": "studentbuddy",
-  "version": "0.2.151",
+  "version": "0.2.152",
   "private": true,
   "description": "studentbuddy v2 - 本地优先的 AI 学习助手（学→练→析→忆→反馈闭环，学习版豆包）",
   "license": "MIT",

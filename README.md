@@ -4,9 +4,9 @@
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-305%20files%20%2F%203694%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-309%20files%20%2F%203720%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-159-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-205%20types-8a63f6)
+![contracts](https://img.shields.io/badge/shared%20contracts-207%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -221,6 +221,7 @@ flowchart TD
 - **开放世界 + 玩家创建 NPC 学习伙伴**（v0.2.140）：地图比屏幕大、视口相机拖拽与「回到我身上」；学习伙伴由玩家在地图上点格创建、自带起名与人设（`npc` 模型角色，未单独绑定时回退讲解角色）
 - **学习伙伴是带工具的智能体**（`npc-agent-tools.ts`）：原来伙伴只会送新词，提示词还得明令「不要编造进度」——因为他根本看不到进度。现在他能**查**：这块地所属领域里你快忘的词条与未纠正的误区（FSRS + 误区账本）、脚下词条在关系图里连着谁（`term_edge`），最多 3 步、每个工具每轮只用一次、说数字之前必须先查——「不要编造」从提示词祈祷变成「先查再说、只说查到的」的工程约束。工具全部**无参数或只读**：模型只决定「要不要查」，查哪个领域由服务端按他脚下那格定——让模型填词条 id，它会编一个库里没有的
 - **边界开拓与野怪**（v0.2.149）：大陆边界空格画「+」，点它领一条新词条——有模型时按邻近地块领域现生成，失手退内置词池并**如实标注来源**；先看词条再答两道题，全对新地块才落地，同一份开拓凭证只能落一次、10 分钟过期。刷怪双轨：欠账怪之外每天按「日历日 × 词条 id」稳定哈希点名野怪保底——新用户第一天也有怪打；155 个图鉴槽的怪外观由题型组合**确定性派生**（体型 × 配色 × 饰物，两两不同），不是随机贴图
+- **导航 · 话题怪 · 横版战斗 · 地块维护**（未发版）：右侧「导航」清单点「前往」，英雄按最短路（领地是墙会绕）走到怪旁边**自动开打**，「全部讨伐」一只接一只；AI 回复里提到词库里的词条，那些词条当天在大陆上冒**话题怪**，对话页右下角弹「刷新了新的怪物」+「一键讨伐」直达战场（零新存储：只看服务端既有的 `last_used_at`）；点怪进**2D 横版战场**（像素百叶窗转场，勇者对阵图上那只怪，血量与题数同源）；地块耐久随离中心的环数递减，久不复习**原地碎成废墟**（词条不删、可走），复习一次即重建、长期记忆是基石——大陆不靠删格保持在合理大小
 - **验证方式如实说**：走位 / 领地 / 宝箱 / 情景题这几项是用**真机 CDP 探针**验的（`tools/probes/continent-cdp.mjs`：跑真页面 + 真接口，五组断言连续两轮 PASS），**不是人工目检**；两条已知待办（地图静止后常驻演出停帧、寻路遇障不绕路）列在本文「已知限制」一节
 
 ### 搜索：五层，不是一层
@@ -261,7 +262,7 @@ flowchart TD
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼；对已下线路由（`/bank/:id` 等）有**墓碑锁**（断言 404，防止功能悄悄复活没人知道） |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **305 文件 / 3694 例**，全绿；passed/skipped 明细随平台略有差异（skipped 数分平台不同），**不进本文手抄**——实跑明细由 `node tools/metrics.mjs --tests` 当场产出。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3。
+当前测试基线 **309 文件 / 3720 例**，全绿；passed/skipped 明细随平台略有差异（skipped 数分平台不同），**不进本文手抄**——实跑明细由 `node tools/metrics.mjs --tests` 当场产出。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3。
 
 测试之外还有**三套离线评测**（都支持零 key 假模型自检，同 `demo:e2e` 的假 LLM 哲学），三者答的是三个不同的问题：`npm run eval` 评**产品链路**——走生产同款抽取与修复管道，四档解析（strict / repaired / rescued / failed）+ 配图开关两 arm 永不合并，带成本计量，答的是「产品今天交付什么水平」；`npm run eval:models` 评**模型裸输出**——七套件（自建样本 + 冻结的 MMLU / C-Eval 公开集 + 现场真题），出题协议服从性、复刻相似度、联网引用命中、词条抽取 F1、注入对抗，任意 OpenAI 兼容端点自带 key 横向对比，答的是「这只模型本身什么水平」。两边并读：同一份失败，评测台落在 repaired 档而 model-bench 直接红 ⇒ 是修复器救回来的，该改提示词。换模型、换 provider、改提示词前后各跑一遍，分数变化就是决策依据，不再靠手感（详见 [`tools/eval/model-bench/README.md`](tools/eval/model-bench/README.md)）。
 
@@ -342,7 +343,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 - **渲染层覆盖不完整**：jsdom 交互测试覆盖了最高频的几页，**其余页面仍无 jsdom 测试**；且 jsdom 里没有真 CSS、也没有 `DOMParser` / `getBBox` 这类真实浏览器 API ⇒ 布局与观感类症状只能靠真机探针 + 人工目检
 - **行内公式不渲染**（`$…$` 按原文显示）、`mermaid` / `echarts` 围栏降级代码块——刻意不引库以保住 `@sb/web` 零第三方依赖
 - **预览页只活内存**：服务重启即失效、无分享链接（内置面板无地址栏、宽度不可拖拽，是定档边界不是缺陷）
-- **知识大陆两条已知待办**：地图静止后常驻演出会停帧；点地寻路遇障不绕路、也不提示
+- **知识大陆已知待办**：地图静止后常驻演出会停帧；点地走位遇障不绕路（「导航」面板走 BFS 会绕，点地仍是贪心）；横版战场与转场只在 headless Chromium 目检过，真实设备未验
 - **中英切换只到壳层**：侧栏切换键管的是框架文案，功能页正文与服务端消息尚未双语
 - **题目自包含审查是词法的**：只认「根据材料 / 如图 / 下表」这类点名式依赖，不点名却隐式依赖材料的题检测不到；题图不做 OCR
 - **agent-bench 镜像落后生产一个工具**：`pick_sources` 尚未进镜像，`npm run eval:agent -- --selftest` 当前会报「工具镜像漂移」——它不在 CI 门禁内，补一条镜像定义即绿

@@ -73,6 +73,7 @@ export function termOf(id: string, inScope: boolean, over: Partial<ContinentMapT
     review_stage: stage,
     last_reviewed_at: lastReviewedAt,
     review_in_scope: inScope ? 1 : 0,
+    last_used_at: over.last_used_at ?? null,
     review: over.review ?? computeReviewState({ stage, lastReviewedAt, createdAt, now: NOW }),
   };
 }

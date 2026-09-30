@@ -21,6 +21,8 @@ import type { ReviewTermItem } from './api-terms-review.js';
  */
 export interface ContinentMapTerm extends ReviewTermItem {
   review_in_scope: number;
+  /** 最近一次在对话回复里被提到（UTC 文本，服务端写）；**话题怪**据此派生（`shared/continent-upkeep.ts`） */
+  last_used_at: string | null;
 }
 
 /** `GET /api/terms/review/map` 的整份响应（词条 + 钉子；铺格两端同源的前提） */

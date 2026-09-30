@@ -1,0 +1,97 @@
+/* 「刷新了新的怪物」横幅：像素告示牌，金边（与大陆上话题怪脚下的金色魔法阵同色系），盖在主区右下 */
+.hunt-alert {
+  position: fixed;
+  right: var(--sb-sp-4);
+  bottom: 104px;
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  max-width: 440px;
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  font-family: var(--sb-font);
+  font-size: var(--sb-fs-sm);
+  color: #fff4e0;
+  background: linear-gradient(#3a2a12, #201607);
+  border: 2px solid var(--sb-gold-edge);
+  box-shadow: inset 0 0 0 1px var(--sb-gold), 3px 3px 0 #000;
+  animation: sb-rise-in 160ms steps(3);
+}
+
+.hunt-alert-sigil {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  background: var(--sb-gold);
+  box-shadow: 0 0 0 2px #201607, 0 0 0 4px var(--sb-gold-edge);
+  transform: rotate(45deg);
+  animation: hunt-alert-spin 1.6s steps(4, end) infinite;
+}
+
+.hunt-alert-text {
+  flex: 1 1 200px;
+  line-height: var(--sb-lh);
+}
+
+.hunt-alert-text b {
+  display: block;
+  color: var(--sb-gold);
+}
+
+.hunt-alert-go {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  font-family: var(--sb-font);
+  font-size: var(--sb-fs-sm);
+  font-weight: 700;
+  color: #201607;
+  background: var(--sb-gold);
+  border: 2px solid var(--sb-gold-edge);
+  box-shadow: 2px 2px 0 #000;
+  cursor: pointer;
+}
+
+.hunt-alert-go:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.hunt-alert-x {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  font-family: var(--sb-font);
+  font-size: 14px;
+  line-height: 1;
+  color: #fff4e0;
+  background: transparent;
+  border: 2px solid transparent;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.hunt-alert-x:hover {
+  opacity: 1;
+  border-color: var(--sb-gold-edge);
+}
+
+@keyframes hunt-alert-spin {
+  to {
+    transform: rotate(405deg);
+  }
+}
+
+@media (max-width: 720px) {
+  .hunt-alert {
+    left: var(--sb-sp-2);
+    right: var(--sb-sp-2);
+    bottom: 76px;
+    max-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hunt-alert,
+  .hunt-alert-sigil {
+    animation: none;
+  }
+}

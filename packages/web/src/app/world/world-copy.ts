@@ -55,9 +55,9 @@ export const CH_CONTINENT = {
   },
   rules: [
     { k: { zh: '词条 = 地砖', en: 'Term = tile' }, v: { zh: '和 AI 聊懂一个概念，它就从天而降，铺在大陆边缘。', en: 'Understand a concept with AI and it lands on the edge of your map.' } },
-    { k: { zh: '世界只增不减', en: 'The world only grows' }, v: { zh: '世界半径由词条数决定，屏幕只是视野，可拖拽探索。', en: 'Your world radius comes from your term count; the screen is just a viewport.' } },
-    { k: { zh: '遗忘 = 怪物', en: 'Forgetting = monsters' }, v: { zh: '到期没复习的词条化作怪物，逾期越久，吞掉的地块越多。', en: 'Due terms turn into monsters; the longer overdue, the more tiles they swallow.' } },
-    { k: { zh: '讨伐 = 转场', en: 'Hunt = cut scene' }, v: { zh: '走到怪物身边发起讨伐，平面地图转场成横版战斗，用词条答题击败它。', en: 'Walk up and hunt: the map cuts to a side-view battle where terms are your spells.' } },
+    { k: { zh: '世界只增不减', en: 'The world only grows' }, v: { zh: '世界半径由词条数决定，屏幕只是视野，可拖拽探索；地块要维护——越靠边碎得越快，复习一次就原地重建。', en: 'Your world radius comes from your term count; the screen is just a viewport. Tiles need upkeep: the farther from the centre, the faster they crumble — one review rebuilds them in place.' } },
+    { k: { zh: '遗忘 = 怪物', en: 'Forgetting = monsters' }, v: { zh: '到期没复习的词条化作怪物，逾期越久，吞掉的地块越多；对话里刚聊到的词条，当天也会冒出话题怪。', en: 'Due terms turn into monsters; the longer overdue, the more tiles they swallow. Terms you just discussed in chat spawn topic monsters the same day.' } },
+    { k: { zh: '讨伐 = 转场', en: 'Hunt = cut scene' }, v: { zh: '走到怪物身边发起讨伐（或在导航里点「前往」，勇者自己走过去），平面地图转场成横版战斗，用词条答题击败它。', en: 'Walk up and hunt — or pick a target in the navigator and the hero walks there — and the map cuts to a side-view battle where terms are your spells.' } },
     { k: { zh: '收复 = 奖励', en: 'Reclaim = reward' }, v: { zh: '胜利解除占领、推进复习，地块重新亮起，卡牌也随之增加。', en: 'Victory frees the land, advances the review and adds to your cards.' } },
   ],
   learn: { zh: '学会一个新词条', en: 'Learn a new term' },

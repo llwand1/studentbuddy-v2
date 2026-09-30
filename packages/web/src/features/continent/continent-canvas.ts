@@ -48,6 +48,9 @@ export const COLOR = {
   horn: '#e0c36b',
   sprout: '#7ee08f',
   crack: 'rgba(7,5,10,0.7)',
+  /** 废墟的碎石（2026-09-30）：冷灰，与草地/岩地/领地都拉开——"这块地碎了"要一眼看出来 */
+  ruinStone: '#6d6a78',
+  ruinStoneDark: '#3f3c48',
   /** 被占领的地与被"血色"边界：与草地/怪都拉开，一眼看出"这不是你的地" */
   land: '#3a1622',
   landLine: '#c2455f',
@@ -120,23 +123,53 @@ function artTile(ctx: CanvasRenderingContext2D, row: number, col: number, pop: n
   inCell(ctx, row, col, pop, () => drawArtTile(ctx, 0, 0, 16, pal, seedOf(row, col), glow));
 }
 
-/** 地块：落地页同款带厚度的地砖；越久没碰越暗（时间看得见），逾期 3 天起裂、7 天起裂第二道 */
+/**
+ * 地块：落地页同款带厚度的地砖；越久没碰越暗（时间看得见）。
+ * 裂纹有两个来源，取其重：逾期（3 天一道、7 天两道，怪占着的地）与**维护磨损**（2026-09-30：`wear` ≥ 0.5 一道、
+ * ≥ 0.8 两道——离中心越远耐久越短，边缘的地先裂）。`wear ≥ 1` 是**废墟**：地砖压到只剩轮廓，上面铺碎石。
+ */
 export function drawTile(ctx: CanvasRenderingContext2D, t: ContinentTileView, pop: number): void {
   ctx.globalAlpha = pop;
   artTile(ctx, t.row, t.col, pop, TILE_PAL[domainOf(t.domain)]);
-  const dim = Math.min(t.overdueDays / 14, 0.6);
+  const wearDim = t.ruin ? 0.78 : t.wear >= 0.5 ? (t.wear - 0.5) * 0.8 : 0;
+  const dim = Math.max(Math.min(t.overdueDays / 14, 0.6), wearDim);
   if (dim > 0) {
     ctx.globalAlpha = pop * dim;
     ctx.fillStyle = '#07050a';
     ctx.fillRect(t.col * CELL, t.row * CELL, CELL, CELL);
   }
   ctx.globalAlpha = 1;
-  if (t.overdueDays >= 3 && pop > 0.9) {
+  if (t.ruin && pop > 0.9) {
+    drawRubble(ctx, t);
+    return;
+  }
+  const cracks = t.overdueDays >= 7 || t.wear >= 0.8 ? 2 : t.overdueDays >= 3 || t.wear >= 0.5 ? 1 : 0;
+  if (cracks > 0 && pop > 0.9) {
     const cx = t.col * CELL + CELL / 2;
     const cy = t.row * CELL + CELL / 2 - 6;
     ctx.fillStyle = COLOR.crack;
     for (const [dx, dy] of [[-9, -6], [-6, -3], [-3, 0], [-6, 3], [-9, 6]]) ctx.fillRect(cx + dx!, cy + dy!, 3, 3);
-    if (t.overdueDays >= 7) for (const [dx, dy] of [[9, -6], [6, -3], [3, 0]]) ctx.fillRect(cx + dx!, cy + dy!, 3, 3);
+    if (cracks >= 2) for (const [dx, dy] of [[9, -6], [6, -3], [3, 0]]) ctx.fillRect(cx + dx!, cy + dy!, 3, 3);
+  }
+}
+
+/** 废墟的碎石：几块灰石 + 一道贯穿裂缝（位置按格子种子定，同一格每帧一样） */
+function drawRubble(ctx: CanvasRenderingContext2D, t: CellRef): void {
+  const x = t.col * CELL;
+  const y = t.row * CELL;
+  const seed = seedOf(t.row, t.col);
+  ctx.fillStyle = COLOR.crack;
+  for (let i = 0; i < 7; i += 1) {
+    const dx = 6 + ((seed * (i + 3)) % 30);
+    const dy = 8 + ((seed * (i + 7)) % 26);
+    ctx.fillRect(x + dx, y + dy, 3, 3);
+  }
+  ctx.fillStyle = COLOR.ruinStone;
+  for (let i = 0; i < 4; i += 1) {
+    const dx = 8 + ((seed * (i + 11)) % 26);
+    const dy = 10 + ((seed * (i + 5)) % 22);
+    ctx.fillRect(x + dx, y + dy, 6, 4);
+    ctx.fillStyle = i % 2 ? COLOR.ruinStone : COLOR.ruinStoneDark;
   }
 }
 
@@ -145,6 +178,7 @@ export function drawTile(ctx: CanvasRenderingContext2D, t: ContinentTileView, po
  * 从没复习过的压暗——「收复进度」靠这个对比（原来的菱形草苗换成了道具，语义不变）。
  */
 export function drawSprout(ctx: CanvasRenderingContext2D, t: ContinentTileView, pop: number): void {
+  if (t.ruin) return; // 废墟上不长东西（碎石由 drawTile 画）
   ctx.globalAlpha = pop * (t.discovered ? 1 : 0.45);
   inCell(ctx, t.row, t.col, pop, () => drawProp(ctx, 3, 12, seedOf(t.row, t.col), domainOf(t.domain), 0));
   if (t.discovered) {

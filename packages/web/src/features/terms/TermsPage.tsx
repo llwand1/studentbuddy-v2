@@ -2,7 +2,7 @@
  * TermsPage — 词条库（忆域 v2：AI 自动词条库）。
  * 取代旧「背背背」翻卡页：AI 在对话/搜索中自动把重要词条入库，
  * 本页提供领域 Tab 浏览、搜索、手动添加、编辑释义、删除、重要度/使用次数查看，
- * 以及**复习范围的逐条开关**（v28：词条行右侧「纳入复习 / 移出复习」）。
+ * 以及每条词条的卡面星级与页尾完整卡牌区（卡墙／宝箱／任务），和**复习范围的逐条开关**（v28：词条行右侧「纳入复习 / 移出复习」）。
  *
  * `initialKeyword`：跨页带词进来做搜索初值（现状两个来源＝对话页词条卡「打开词条库」与全局搜索）。
  * ★ 原第三来源「知识图页节点 → 去词条库看正文」已随功能下线删除。
@@ -17,6 +17,9 @@ import { ReviewPanel } from './ReviewPanel';
 import { UndoDeleteBar } from './UndoDeleteBar';
 import { CATALOG_PATH } from '../../seo/paths';
 import { TermRelations } from './TermRelations';
+import { TermCardFace } from './TermCardFace';
+import { CardsView } from '../game/CardsView';
+import type { CardsStore } from '../game/use-cards-state';
 import './terms.css';
 
 /**
@@ -37,7 +40,15 @@ function ReviewBadge({ t }: { t: TermItem }) {
   );
 }
 
-export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) {
+export function TermsPage({
+  initialKeyword = '',
+  cardsState,
+  onGoContinent,
+}: {
+  initialKeyword?: string;
+  cardsState?: CardsStore;
+  onGoContinent?: () => void;
+}) {
   const [stats, setStats] = useState<{
     total: number;
     domains: DomainStat[];
@@ -62,6 +73,7 @@ export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) 
   const [newDomain, setNewDomain] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const cardByTerm = new Map((cardsState?.data?.wall ?? []).map((row) => [row.termId, row]));
 
   const reload = useCallback(async () => {
     const [s, t] = await Promise.all([api.terms.domains(), api.terms.list(domain, keyword.trim() || undefined)]);
@@ -222,6 +234,7 @@ export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) 
                 <div className="term-main">
                   <div className="term-top">
                     <span className="term-name">{t.term}</span>
+                    <TermCardFace row={cardByTerm.get(t.id)} />
                     <span className="term-domain">{t.domain}</span>
                     {t.aliases?.length > 0 && (
                       <span className="term-alias" title="AI 整理时并入的同义词">
@@ -296,6 +309,7 @@ export function TermsPage({ initialKeyword = '' }: { initialKeyword?: string }) 
       </div>
 
       {msg && <div className="term-msg">{msg}</div>}
+      {cardsState && <CardsView state={cardsState} onGoContinent={onGoContinent ?? (() => undefined)} onTermsChanged={() => void reload()} />}
     </div>
   );
 }

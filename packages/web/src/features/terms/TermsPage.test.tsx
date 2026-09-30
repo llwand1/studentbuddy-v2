@@ -11,6 +11,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, fireEvent, cleanup, waitFor, screen } from '@testing-library/react';
 import type { TermItem } from '../../lib/api';
+import type { CardsStore } from '../game/use-cards-state';
 import { CATALOG_PATH } from '../../seo/paths';
 
 const apiMock = {
@@ -60,12 +61,44 @@ function makeTerm(over: Partial<TermItem> = {}): TermItem {
   };
 }
 
+
+function cardsStore(): CardsStore {
+  return {
+    data: {
+      summary: { totalTerms: 1, totalCards: 2, byStar: [0, 1, 0, 0, 0, 0, 0, 0, 0], byRarity: { N: 1, R: 0, SR: 0, SSR: 0 }, almostThere: 0 },
+      wall: [{
+        termId: 't1', term: '闭包', definition: '函数与其词法环境的组合', domain: 'js', inScope: false, domIndex: 0,
+        card: { termId: 't1', mentions: 1, reviewDays: 0, chestGrants: 0, cards: 2, star: 1, progress: { star: 1, nextStar: 2, needed: 2, pct: 0 }, rarity: 'N' },
+      }],
+      logSince: null,
+      chest: { day: '2026-09-30', freeUsed: 0, freeLeft: 1, earnedKeys: 0, openedToday: 0, left: { left: 2, reason: 'ok' }, poolLeft: 0, pending: null },
+      tasks: [],
+      candidates: [],
+      npc: { count: 0, max: 2, doneTasks: 0, needTasks: 0, canCreate: true, blockedBy: '' },
+    },
+    link: 'connecting', error: '', freshTaskIds: [], chestReady: false,
+    refresh: async () => undefined, patchChest: () => undefined, clearChestReady: () => undefined, setError: () => undefined,
+  };
+}
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
 });
 
 describe('TermsPage 浏览与统计', () => {
+  it('词条自带稀有度卡面；宝箱、任务与卡墙作为同页区块', async () => {
+    apiMock.domains.mockResolvedValue(stats());
+    apiMock.list.mockResolvedValue([makeTerm()]);
+    render(<TermsPage cardsState={cardsStore()} onGoContinent={() => undefined} />);
+    await waitFor(() => expect(screen.getByText('闭包')).toBeTruthy());
+    expect(screen.getByLabelText('卡面 N，2 张，1 星')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '词条卡牌与成长' })).toBeTruthy();
+    expect(document.querySelector('.cv-chest')).toBeTruthy();
+    expect(screen.getByText(/任务清单 0 单待办/)).toBeTruthy();
+    expect(screen.getByText(/卡墙 1 条/)).toBeTruthy();
+  });
+
   it('空态：词条库还是空的，不渲染列表项', async () => {
     apiMock.domains.mockResolvedValue(stats({ total: 0, domains: [], today: 0 }));
     apiMock.list.mockResolvedValue([]);

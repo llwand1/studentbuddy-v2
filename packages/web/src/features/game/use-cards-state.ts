@@ -17,7 +17,7 @@
  *   **契约 §7.3 点名的**（Android 微信 X5 的 `EventSource` 不稳），面板不能因为拿不到推送
  *   就整块空白。
  * ⚠️ 本 hook 只在**面板挂载期间**订阅。卡数变更发生在聊天页时，这里收不到帧——
- *   切回卡牌页的第一次 `/state` 就是补齐点。这是有意的（不给全局壳加一条常驻连接）。
+ *   打开词条页中的卡牌区块时第一次 `/state` 就是补齐点。这是有意的（不给全局壳加一条常驻连接）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api';

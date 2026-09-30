@@ -16,6 +16,8 @@
  * 触发器只在 `sessionId === null` 时整体禁用：那时菜单里每一项都确实不可用（出题/记忆/文档都要
  * 会话，导出也没有内容）。**生成中不禁用整个菜单**——出题、存入记忆、文档会各自禁用，但导出与
  * 联网开关仍可用（ADR-5：能做的别藏着）。
+ * ★ 但输入框与发送键在无会话时**不禁**（CHAT-UX §2.9 空会话直接开聊）：发送即开新对话，`blocked`
+ *   由 ChatView 按「开会话中」给；占位文案把这条路写出来，而不是让人去找「新建对话」。
  */
 import { useRef, useState, type ComponentProps, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import { ComposerMenu } from '../../components/ComposerMenu';
@@ -239,7 +241,9 @@ export function ChatComposer({
           value={input}
           placeholder={
             sessionId === null
-              ? '点一张建议卡先起个头（会自动开新会话）'
+              ? blocked
+                ? '正在开新对话…'
+                : '问点什么，发送就会开一个新对话（Enter 发送 / Shift+Enter 换行，可直接粘贴图片）'
               : blocked
                 ? busy
                   ? '生成中…（Esc 停止）'

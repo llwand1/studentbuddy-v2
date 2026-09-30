@@ -89,11 +89,21 @@ function setup(over: Partial<ComposerProps> = {}): RenderResult & { props: Compo
 const ta = () => screen.getByRole('textbox') as HTMLTextAreaElement;
 
 describe('ChatComposer 输入区', () => {
-  it('三态占位文案：无会话 / 连接未就绪 / 生成中各说各话', () => {
-    expect(setup({ sessionId: null }).getByPlaceholderText('点一张建议卡先起个头（会自动开新会话）')).toBeTruthy();
+  it('占位文案各说各话：无会话（可直接发 / 开会话中）/ 连接未就绪 / 生成中 / 就绪', () => {
+    // 空会话直接开聊（CHAT-UX §2.9）：无会话的占位要把「发送就会开新对话」这条路写出来，不再指去建议卡
+    expect(setup({ sessionId: null, blocked: false }).getByPlaceholderText(/发送就会开一个新对话/)).toBeTruthy();
+    expect(setup({ sessionId: null, blocked: true }).getByPlaceholderText('正在开新对话…')).toBeTruthy();
     expect(setup({ blocked: true, busy: false }).getByPlaceholderText('连接未就绪…')).toBeTruthy();
     expect(setup({ blocked: true, busy: true }).getByPlaceholderText('生成中…（Esc 停止）')).toBeTruthy();
-    expect(setup({}).getByPlaceholderText(/Enter 发送/)).toBeTruthy();
+    expect(setup({}).getByPlaceholderText(/^问点什么（Enter 发送/)).toBeTruthy();
+  });
+
+  it('无会话且未在开会话：有字就能发（发送键不因「没会话」被锁死）；开会话中禁发', () => {
+    const open = setup({ sessionId: null, blocked: false, input: '什么是闭包' });
+    expect((open.container.querySelector('.chat-send') as HTMLButtonElement).hasAttribute('disabled')).toBe(false);
+    cleanup();
+    const starting = setup({ sessionId: null, blocked: true, input: '什么是闭包' });
+    expect((starting.container.querySelector('.chat-send') as HTMLButtonElement).hasAttribute('disabled')).toBe(true);
   });
 
   it('无会话时「+」菜单触发器整体禁用（每一项都依赖会话，不点亮再让人撞灰）', () => {

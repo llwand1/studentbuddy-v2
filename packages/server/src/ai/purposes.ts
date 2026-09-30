@@ -48,6 +48,7 @@ export const AI_PURPOSES = {
   'drill.newterms': { label: '等待时刷词出新词', role: 'explain', version: 1, upstream: 'main', timeoutMs: 30_000 },
   'coach.trend': { label: '复习趋势摘要', role: 'coach', version: 1, upstream: 'background', timeoutMs: 60_000 },
   'chat.grill': { label: '收尾追问选项', role: 'explain', version: 1, upstream: 'main', timeoutMs: 60_000 },
+  'guide.next': { label: '下一步引导', role: 'explain', version: 1, upstream: 'main', timeoutMs: 20_000 },
   'pk.judge': { label: '对战裁判', role: 'judge', version: 1, upstream: 'main', timeoutMs: 60_000 },
   'pk.bot': { label: '对战 AI 选手', role: 'solver', version: 1, upstream: 'main', timeoutMs: 45_000 },
 } as const satisfies Record<string, AiPurposeInfo>;

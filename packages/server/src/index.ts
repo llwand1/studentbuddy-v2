@@ -34,6 +34,7 @@ import { npcRouter } from './routes/npc.js';
 import { continentRouter } from './routes/continent.js';
 // 等待时刷词（契约 docs/WAIT-DRILL-SPEC.md §4）：新词三件套，独立前缀
 import { drillRouter } from './routes/drill.js';
+import { guideRouter } from './routes/guide.js';
 import { toolsRouter } from './routes/tools.js';
 import { searchRouter } from './routes/search.js';
 import { ensureSearchIndex } from './search/fts-index.js';
@@ -192,6 +193,7 @@ app.use('/api/cards', cardsRouter);
 app.use('/api/npc', npcRouter);
 app.use('/api/continent', continentRouter);
 app.use('/api/drill', drillRouter);
+app.use('/api/guide', guideRouter);
 // 设置页「工具」卡（契约 TOOL-ECOSYSTEM-SPEC §6.3-4/§4.5）：阈值 + 30 天统计；grants 同挂这里
 app.use('/api/tools', toolsRouter);
 // 全站全文搜索（契约 docs/FTS-SPEC.md §3.4）：本地库 fts5 检索。

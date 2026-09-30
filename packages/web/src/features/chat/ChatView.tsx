@@ -41,6 +41,8 @@ import { useAskStyle } from './AskStyleCard';
 import { api } from '../../lib/api';
 import { useAutoResize } from './useAutoResize';
 import { useQuickStart } from './useQuickStart';
+import { useRemember } from './use-remember';
+import { useGuideBridge } from './use-guide-bridge';
 
 export function ChatView({
   sessionId,
@@ -93,18 +95,13 @@ export function ChatView({
   const quick = useQuickStart({ sessionId, ready, busy, onNewSession, send: sendWithGrill, onError: setSendError });
   /** v17 看图：待发送的图片附件（base64 dataURL）。随会话切换清空，避免串台 */
   const [attachments, setAttachments] = useState<Array<{ dataUrl: string; name?: string }>>([]);
-  const [remembering, setRemembering] = useState(false);
-  const [rememberMsg, setRememberMsg] = useState('');
   const [mixTip, setMixTip] = useState('');
+  /** 最近对话材料：出题与「存入记忆」共用同一份拼法 */
+  const getMaterial = () => messages.slice(-8).map((m) => m.content).filter(Boolean).join('\n').slice(-4000);
   /** 出题动作域（传统题组 + 情景题，v0.2.37 从本文件拆出——本文件贴 300 行红线） */
-  const quiz = useQuizActions({
-    sessionId,
-    input,
-    online,
-    getMaterial: () => messages.slice(-8).map((m) => m.content).filter(Boolean).join('\n').slice(-4000),
-    clearInput: () => setInput(''),
-    onError: setSendError,
-  });
+  const quiz = useQuizActions({ sessionId, input, online, getMaterial, clearInput: () => setInput(''), onError: setSendError });
+  /** 忆域 v2：手动「存入记忆」——把最近对话内容交给 AI 抽取重要词条入库（动作域在 use-remember.ts） */
+  const { remembering, rememberMsg, rememberTerms } = useRemember(sessionId, getMaterial);
   /** 文档模式载入面板是否展开：触发器在「+」菜单里，面板与 pill 在 composer 上方 */
   const [docOpen, setDocOpen] = useState(false);
   /** 文档模式状态：与菜单里的触发器共用同一份（载入成功即收面板，失败留着让人看见错） */
@@ -189,23 +186,20 @@ export function ChatView({
   /** 没配过回答方式时，点「出题」先就地展开选项卡问一次（契约 ANSWER-STYLE §4） */
   const ask = useAskStyle((style) => void quiz.runQuiz(style));
 
-  /** 忆域 v2：手动「存入记忆」——把最近对话内容交给 AI 抽取重要词条入库 */
-  const rememberTerms = async () => {
-    if (!sessionId || remembering) return;
-    const material = messages.slice(-8).map((m) => m.content).filter(Boolean).join('\n').slice(-4000);
-    if (!material.trim()) return;
-    setRemembering(true);
-    setRememberMsg('');
-    try {
-      const r = await api.terms.extract(material, sessionId);
-      setRememberMsg(r.added > 0 ? `已存入 ${r.added} 个词条，后续回答会优先使用` : '这段对话没有值得记住的术语');
-    } catch {
-      setRememberMsg('存入失败，请稍后重试');
-    } finally {
-      setRemembering(false);
-      window.setTimeout(() => setRememberMsg(''), 3000);
-    }
-  };
+  /** 引路灯接线（docs/GUIDE-SPEC.md）：上报现场、登记「此刻能做什么」、取「随机话题」信箱——全在 use-guide-bridge.ts */
+  useGuideBridge({
+    sessionId,
+    messages,
+    empty: isEmpty,
+    blocked,
+    quizzing: quiz.quizzing,
+    scenarioing: quiz.scenarioing,
+    remembering,
+    fire,
+    startQuiz: ask.tap,
+    startScenario: () => void quiz.runScenario(),
+    remember: () => void rememberTerms(),
+  });
 
   return (
     <div className="chat-view">

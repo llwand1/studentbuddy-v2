@@ -6,13 +6,14 @@
  * ② 键位：[ ] / Alt+← → / Alt+k，打字中不生效；
  * ③ 引用芯片：消息自带架子优先、架上没有的编号原样显示、点击打开面板到第 n 条；流式正文回落 live 架；
  * ④ 解析：`[n]` / `[1, 3]` 成 cite 节点，`a[1]` 与 `[x](url)` 不算；
- * ⑤ chat-blocks 分派 sources 帧进 store、坏帧忽略；history-fold 透传 sources 列；脚注「资料 n 条」。
+ * ⑤ chat-blocks 分派 sources 帧进 store、坏帧忽略；history-fold 透传 sources 列；脚注「资料 n 条」；
+ * ⑥（2026-09-30）单条 ✕：叉掉后从架上消失、选中落到下一条、live 整表替换/收口归位不把它端回来、一条不剩面板收起。
  */
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, fireEvent, cleanup } from '@testing-library/react';
 import type { SourceItem } from '@sb/shared';
 import { parseInline } from '../../lib/markdown-inline';
-import { applyLiveSources, getSources, openSources, resetSourcesStore } from '../../lib/sources-store';
+import { applyLiveSources, getSources, openSources, removeSource, resetSourcesStore, takeTurnSources } from '../../lib/sources-store';
 import { closePreview, openPreview } from '../../lib/preview-store';
 import { applyChatBlock } from '../chat/chat-blocks';
 import { foldToolRounds } from '../chat/history-fold';
@@ -73,6 +74,29 @@ describe('① SourcePanel', () => {
     fireEvent.click(container.querySelector('.sb-browser-close') as HTMLElement);
     expect(getSources().open).toBe(false);
     open.mockRestore();
+  });
+
+  it('⑥ 单条 ✕：叉掉当前条 ⇒ 选中落到下一条；live 帧再来也不复活；收口归位时也不带它；叉光了面板收起', () => {
+    applyLiveSources({ kind: 'sources', sessionId: 's1', items: [item(1), item(2, 'read'), item(3, 'pick', 'page', { why: '官方' })] });
+    const { container, rerender } = render(<SourcePanel />);
+    expect(container.querySelectorAll('.src-tab-x')).toHaveLength(3);
+    fireEvent.click(container.querySelector('.src-tab-wrap.active .src-tab-x') as HTMLElement); // 叉掉正在看的 3 号（精选）
+    rerender(<SourcePanel />);
+    expect(getSources().items.map((s) => s.n)).toEqual([1, 2]);
+    expect(getSources().activeN).toBe(2);
+    expect(container.querySelector('.src-foot')?.textContent).toContain('1 / 2');
+    // AI 又搜了一次：整表替换里 3 号还在，但用户叉过 ⇒ 不复活；新来的 4 号照上
+    applyLiveSources({ kind: 'sources', sessionId: 's1', items: [item(1), item(2, 'read'), item(3, 'pick'), item(4)] });
+    expect(getSources().items.map((s) => s.n)).toEqual([1, 2, 4]);
+    expect(takeTurnSources('s1').sources?.map((s) => s.n)).toEqual([1, 2, 4]);
+    removeSource(1);
+    removeSource(2);
+    removeSource(4);
+    expect(getSources().open).toBe(false);
+    expect(getSources().items).toEqual([]);
+    // 历史重开同一会话的架子：叉过的网址仍不露面（页面级隐藏表）
+    openSources('s1', [item(1), item(5)]);
+    expect(getSources().items.map((s) => s.n)).toEqual([5]);
   });
 
   it('演示面板开着时让位（返回空），演示关掉回来', () => {

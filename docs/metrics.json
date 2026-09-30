@@ -1,33 +1,33 @@
 {
-  "generatedAt": "2026-09-30T02:53:01.752Z",
+  "generatedAt": "2026-09-30T03:23:34.826Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
         "srcFiles": 47,
         "testFiles": 34,
-        "srcLines": 7405,
-        "testLines": 4179
+        "srcLines": 7423,
+        "testLines": 4187
       },
       {
         "pkg": "server",
         "srcFiles": 238,
         "testFiles": 161,
-        "srcLines": 35181,
-        "testLines": 31890
+        "srcLines": 35220,
+        "testLines": 31934
       },
       {
         "pkg": "web",
         "srcFiles": 280,
         "testFiles": 114,
-        "srcLines": 36064,
-        "testLines": 15344
+        "srcLines": 36104,
+        "testLines": 15368
       }
     ],
     "srcFiles": 565,
     "testFiles": 309,
-    "srcLines": 78650,
-    "testLines": 51413,
+    "srcLines": 78747,
+    "testLines": 51489,
     "tsxTestFiles": 53
   },
   "routes": {
@@ -85,20 +85,20 @@
     "probes": 15
   },
   "repo": {
-    "head": "3a85d81",
+    "head": "22ea2cb",
     "headDate": "2026-09-30",
-    "commitsLast14d": 141,
-    "branch": "feat/continent-upkeep",
-    "dirtyFiles": 2
+    "commitsLast14d": 144,
+    "branch": "merge/source-shelf-trim",
+    "dirtyFiles": 14
   },
   "tests": {
     "available": true,
-    "ranNow": false,
-    "wallSec": 0,
+    "ranNow": true,
+    "wallSec": 50,
     "staleDays": 0,
     "files": 309,
-    "cases": 3720,
-    "passed": 3719,
+    "cases": 3725,
+    "passed": 3724,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -116,8 +116,8 @@
     {
       "label": "badge 测试用例",
       "claimed": "3720",
-      "measured": "3720",
-      "ok": true
+      "measured": "3725",
+      "ok": false
     },
     {
       "label": "badge REST 路由",
@@ -158,8 +158,8 @@
     {
       "label": "正文基线句",
       "claimed": "309 文件 / 3720 例",
-      "measured": "309 文件 / 3720 例",
-      "ok": true
+      "measured": "309 文件 / 3725 例",
+      "ok": false
     }
   ],
   "landingDrift": [

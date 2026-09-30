@@ -313,7 +313,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
       reasoning: reasoningAcc,
       tasks: latestTasks,
       thinkingMs: thinkingMs || undefined,
-      sources: shelf.items(),
+      sources: shelf.settle(acc), // 收口只留读过/精选/引用到的（SOURCE-TRACE-SPEC §4 规则 6）
     });
     // ★ v29 起带上 user_id（契约 TENANCY-SPEC §8.1.2）：**只用于归属与诊断**，不是配额账本
     //   （§8.1.3 已把免费通道改成「额度不限、只限并发」⇒ 不做 token 聚合）。
@@ -383,7 +383,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         reasoning: reasoningAcc || null,
         tasks: latestTasks,
         thinkingMs,
-        sources: shelf.items(),
+        sources: shelf.settle(acc),
       });
     }
     publish(sessionId, { type: 'chat-error', sessionId, message: aborted ? '已停止' : `生成失败：${msg}` });

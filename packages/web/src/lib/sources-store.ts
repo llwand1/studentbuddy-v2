@@ -11,6 +11,9 @@
  *  - **本轮关过就不再自动弹**：`dismissedTurn` 记住用户在这一轮点过关闭；下一轮（新的 turnKey）重新允许。
  *  - **归位到消息**：`takeTurnSources` 在回答收口时被 useChatStream 调一次，把本轮架子挂到那条回答上
  *    （随后同一份数据由 `/messages` 的 `sources` 列接力），消费后清标记，避免下一轮无搜索的回答误挂旧架。
+ *  - **单条可叉掉**（2026-09-30，`removeSource`）：架子越堆越长时用户要能把没用的一条条清走。叉掉按**网址**记在
+ *    本会话的隐藏表里（页面级、不落库）：live 整表替换与收口归位都先过这张表，否则下一帧就把它端回来。
+ *    刷新页面后历史消息的架子会恢复原样——这是有意的最小做法：叉掉是"我现在不想看"，不是"删资料"。
  */
 import { useSyncExternalStore } from 'react';
 import { orderSources, type SourceItem, type SourcesBlockPayload } from '@sb/shared';
@@ -34,7 +37,14 @@ let pendingTurn: { sessionId: string; items: SourceItem[]; takenAt?: number } | 
 /** 用户在这一轮里关过面板：sessionId → 该轮首帧到达时间戳（作为轮次身份） */
 let dismissed: { sessionId: string; turn: number } | null = null;
 let turnStamp = 0;
+/** 用户叉掉的资料：sessionId → 网址集合（页面级；见文件头「单条可叉掉」） */
+const hidden = new Map<string, Set<string>>();
 const listeners = new Set<() => void>();
+
+const visible = (sessionId: string, items: SourceItem[]): SourceItem[] => {
+  const h = hidden.get(sessionId);
+  return h && h.size > 0 ? items.filter((s) => !h.has(s.url)) : items;
+};
 
 const emit = (): void => {
   for (const l of listeners) l();
@@ -61,15 +71,16 @@ function preferred(items: SourceItem[], readingN: number | null): number | null 
 export function applyLiveSources(p: SourcesBlockPayload): void {
   const sameTurn = state.live && state.sessionId === p.sessionId && pendingTurn?.sessionId === p.sessionId && pendingTurn.takenAt === undefined;
   if (!sameTurn) turnStamp += 1; // 单调计数而不是 Date.now()：同一毫秒内收口又开新轮会撞号
-  pendingTurn = { sessionId: p.sessionId, items: p.items };
+  const items = visible(p.sessionId, p.items);
+  pendingTurn = { sessionId: p.sessionId, items };
   const readingN = p.readingN ?? null;
-  const keep = state.activeN !== null && p.items.some((s) => s.n === state.activeN) && state.sessionId === p.sessionId;
+  const keep = state.activeN !== null && items.some((s) => s.n === state.activeN) && state.sessionId === p.sessionId;
   const suppressed = dismissed !== null && dismissed.sessionId === p.sessionId && dismissed.turn === turnStamp;
   state = {
     open: suppressed ? state.open && state.live : true,
     sessionId: p.sessionId,
-    items: p.items,
-    activeN: keep ? state.activeN : preferred(p.items, readingN),
+    items,
+    activeN: keep ? state.activeN : preferred(items, readingN),
     readingN,
     live: true,
   };
@@ -77,7 +88,8 @@ export function applyLiveSources(p: SourcesBlockPayload): void {
 }
 
 /** 历史 / 引用：打开某条回答的资料架，可指定先看第 n 条 */
-export function openSources(sessionId: string, items: SourceItem[], n?: number): void {
+export function openSources(sessionId: string, all: SourceItem[], n?: number): void {
+  const items = visible(sessionId, all);
   if (items.length === 0) return;
   const activeN = n !== undefined && items.some((s) => s.n === n) ? n : preferred(items, null);
   state = { open: true, sessionId, items, activeN, readingN: null, live: false };
@@ -124,6 +136,28 @@ export function closeSources(): void {
 }
 
 /**
+ * 叉掉第 n 条：从当前架上拿掉并记入本会话隐藏表（之后的 live 帧 / 归位 / 历史重开都不再露面）。
+ * 正在看的那条被叉掉 ⇒ 落到剩下里最值得看的；一条不剩 ⇒ 面板收起（空面板没有意义）。
+ */
+export function removeSource(n: number): void {
+  const target = state.items.find((s) => s.n === n);
+  if (!target) return;
+  const set = hidden.get(state.sessionId) ?? new Set<string>();
+  set.add(target.url);
+  hidden.set(state.sessionId, set);
+  const items = state.items.filter((s) => s.n !== n);
+  if (pendingTurn && pendingTurn.sessionId === state.sessionId) pendingTurn = { ...pendingTurn, items: visible(state.sessionId, pendingTurn.items) };
+  state = {
+    ...state,
+    items,
+    open: items.length > 0 && state.open,
+    activeN: state.activeN === n ? preferred(items, state.readingN) : state.activeN,
+    readingN: state.readingN === n ? null : state.readingN,
+  };
+  emit();
+}
+
+/**
  * 回答收口：取走本轮架子挂到消息上（会话不符或没有架子 ⇒ 空对象，不给消息塞空键）。
  * ★ 调用点在 `setMessages` 的 updater 里，StrictMode 下 updater 会被**同步调两遍**——
  *   所以不是「取一次就清」，而是记下取走时刻：同一秒内重复取给同一结果，之后才视为已消费
@@ -137,7 +171,7 @@ export function takeTurnSources(sessionId: string | null): { sources?: SourceIte
     return {};
   }
   pendingTurn.takenAt ??= now;
-  const items = pendingTurn.items;
+  const items = visible(sessionId, pendingTurn.items);
   if (state.live && state.sessionId === sessionId) {
     state = { ...state, live: false, readingN: null };
     // 调用方在 setMessages 的 updater 里（ChatView 渲染中）：通知放到微任务，避免「渲染 A 时更新 B」告警
@@ -152,6 +186,7 @@ export function resetSourcesStore(): void {
   pendingTurn = null;
   dismissed = null;
   turnStamp = 0;
+  hidden.clear();
   emit();
 }
 

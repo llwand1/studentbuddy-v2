@@ -1,5 +1,6 @@
 // svg-utils.ts —— SVG 画图能力的纯函数层（port from v1 chat/svgUtils.ts + parseWidget.fixSvg）。
-// 无 React 依赖，vitest node 环境可直接跑；```svg 围栏 → 自愈 → 净化 → 内联渲染。
+// 无 React 依赖；```svg 围栏 → 自愈（fixSvg）→ 白名单净化（svg-sanitize.ts，需 DOM）→ 内联渲染。
+import { sanitizeSvgDom } from './svg-sanitize';
 
 /** 卡片可视宽度上限：超宽图一律钳到该值（等比缩放靠 viewBox）。 */
 const MAX_SVG_W = 680;
@@ -63,59 +64,16 @@ export function parseSvgSize(svg: string): SvgSize {
 }
 
 /**
- * 内联渲染前净化：剥 <script>/<foreignObject>/<iframe>/<object>/<embed>/<image>、
- * 所有 on* 事件属性与 href 的 javascript: 协议；保留 SMIL/CSS 动画等正常绘图能力。
+ * 内联渲染前净化：**白名单**净化器（`svg-sanitize.ts`）——元素 / 属性 / 属性值 / CSS 四层都是「没登记不进」，
+ * `<image>`/`<feImage>`/外链 `href`/`url(https://…)` 这类会让本机向外发请求的一律不进
+ * （模型产出的图里一个外链就是一枚信标：泄露用户 IP 与「本机会跑 studentbuddy」这一事实）。
  *
- * **<image> 一并剥除**：SVG 是模型产出的不可信内容，`<image href="https://x/y.png">` 会让
- * 本地应用向外部发请求——等于给对方递上一枚信标，泄露用户 IP 与「本机会跑 studentbuddy」这一事实。
- * 本机形态下配图没有外链需求（要图就画出来），故整标签剥掉而非只拦协议。
+ * 输出是良构 XML：innerHTML 注入点与 blob: 独立文档（下载 / 新窗口）读到的是同一棵树。
+ * 无 DOM 环境（纯 node）返回空串：宁可不画，也不让一张没审过的图进 innerHTML——旧版在这里退回弱正则，
+ * 那条路径只在测试里跑过、从没在浏览器里跑过，却让人误以为「没有 DOM 也安全」。
  */
 export function sanitizeSvg(svg: string): string {
-  if (typeof DOMParser !== 'undefined') {
-    try {
-      return sanitizeViaDom(svg);
-    } catch {
-      // 畸形 SVG → 回退正则路径：宁可慢也不漏净化
-    }
-  }
-  return sanitizeViaRegex(svg);
-}
-
-/** DOM 遍历净化：O(n)，避开正则回溯把主线程钉死（v1 真机「窗口冻住几十秒」的根因）。 */
-function sanitizeViaDom(svg: string): string {
-  const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
-  if (doc.querySelector('parsererror')) throw new Error('malformed svg');
-  doc.querySelectorAll('script, foreignObject, iframe, object, embed, image').forEach((el) => el.remove());
-  doc.querySelectorAll('*').forEach((el) => {
-    for (const attr of Array.from(el.attributes)) {
-      const name = attr.name.toLowerCase();
-      if (name.startsWith('on')) {
-        el.removeAttribute(attr.name);
-      } else if ((name === 'href' || name === 'xlink:href') && /^\s*javascript:/i.test(attr.value)) {
-        el.setAttribute(attr.name, '');
-      }
-    }
-  });
-  const root = doc.documentElement;
-  return root ? new XMLSerializer().serializeToString(root) : svg;
-}
-
-/** 正则回退净化：用「不是闭合标签就线性吞」写法替代 [\s\S]*?，杜绝 catastrophic backtracking。 */
-function sanitizeViaRegex(svg: string): string {
-  let s = svg;
-  const removeBlock = (tag: string): void => {
-    const open = new RegExp('<' + tag + '\\b[^>]*>', 'gi');
-    const block = new RegExp(
-      '<' + tag + '\\b[^>]*>[^<]*(?:<(?!<\\/' + tag + '\\s*>)[^<]*)*<\\/' + tag + '\\s*>',
-      'gi',
-    );
-    s = s.replace(block, '').replace(open, '');
-  };
-  for (const tag of ['script', 'foreignObject', 'iframe', 'object', 'embed', 'image']) removeBlock(tag);
-  s = s.replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
-  s = s.replace(/(\s(?:xlink:)?href\s*=\s*["'])\s*javascript:[^"']*(["'])/gi, '$1$2');
-  s = s.replace(/(\s[-\w:]*url\s*\(\s*["']?)\s*javascript:/gi, '$1');
-  return s;
+  return sanitizeSvgDom(svg);
 }
 
 export interface SvgFix {

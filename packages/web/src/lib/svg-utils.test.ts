@@ -1,7 +1,9 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { extractSvgBlocks, hasClosedSvgTag, stripSvgFenceLine, parseSvgSize, fixSvg, sanitizeSvg, prepareSvg } from './svg-utils';
 
-// node 环境无 DOMParser → sanitizeSvg 走线性正则回退路径（浏览器里走 DOM 快路径）。
+// sanitizeSvg 是白名单 DOM 净化器（svg-sanitize.ts），需要 DOM ⇒ 本文件按文件 pragma 启用 jsdom。
+// 攻击语料 / 模糊测试在 svg-sanitize.test.ts 与 svg-sanitize.fuzz.test.ts；这里只锁 svg-utils 这层的组合行为。
 
 describe('svg 围栏提取', () => {
   it('抽出所有已闭合 ```svg 块', () => {
@@ -47,8 +49,8 @@ describe('L1 自愈 fixSvg', () => {
   });
 });
 
-describe('安全净化 sanitizeSvg（正则回退路径）', () => {
-  it('剥掉 script / foreignObject / iframe 整块与自闭合危险标签', () => {
+describe('安全净化 sanitizeSvg（白名单 DOM 路径）', () => {
+  it('剥掉 script / foreignObject / iframe 整块与自闭合危险标签，空 <style/> 保留', () => {
     const dirty =
       '<svg><script>alert(1)</script><foreignObject><b>x</b></foreignObject><iframe/><style/></svg>';
     const clean = sanitizeSvg(dirty);
@@ -85,5 +87,16 @@ describe('安全净化 sanitizeSvg（正则回退路径）', () => {
     expect(out).toContain('width="680"');
     expect(out).not.toContain('bad()');
     expect(out).toContain('</svg>');
+  });
+
+  it('自愈产物（viewBox 合成 / 主题变量）能完整通过白名单', () => {
+    const out = prepareSvg('<svg width="400" height="200"><text fill="#000" stroke="white">x</text></svg>');
+    expect(out).toContain('viewBox="0 0 400 200"');
+    expect(out).toContain('fill="var(--sb-ink)"');
+    expect(out).toContain('stroke="var(--sb-bg)"');
+  });
+
+  it('没有 <svg> 根的输入净化为空串（卡片走「无法解析」降级，不注入任何东西）', () => {
+    expect(sanitizeSvg('<div onclick="x">not svg</div>')).toBe('');
   });
 });

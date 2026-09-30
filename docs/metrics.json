@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30T06:46:31.046Z",
+  "generatedAt": "2026-09-30T07:43:09.425Z",
   "code": {
     "rows": [
       {
@@ -14,21 +14,21 @@
         "srcFiles": 244,
         "testFiles": 167,
         "srcLines": 36045,
-        "testLines": 32596
+        "testLines": 32600
       },
       {
         "pkg": "web",
-        "srcFiles": 290,
-        "testFiles": 122,
-        "srcLines": 37209,
-        "testLines": 16447
+        "srcFiles": 294,
+        "testFiles": 124,
+        "srcLines": 37483,
+        "testLines": 16573
       }
     ],
-    "srcFiles": 583,
-    "testFiles": 325,
-    "srcLines": 80982,
-    "testLines": 53381,
-    "tsxTestFiles": 58
+    "srcFiles": 587,
+    "testFiles": 327,
+    "srcLines": 81256,
+    "testLines": 53511,
+    "tsxTestFiles": 59
   },
   "routes": {
     "total": 162,
@@ -85,20 +85,20 @@
     "probes": 15
   },
   "repo": {
-    "head": "c4fe3e7",
+    "head": "ce16b41",
     "headDate": "2026-09-30",
-    "commitsLast14d": 166,
-    "branch": "merge/source-video",
-    "dirtyFiles": 31
+    "commitsLast14d": 172,
+    "branch": "feat/pk-fx-sfx",
+    "dirtyFiles": 3
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 45.8,
+    "wallSec": 236.2,
     "staleDays": 0,
-    "files": 325,
-    "cases": 3838,
-    "passed": 3836,
+    "files": 327,
+    "cases": 3845,
+    "passed": 3843,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -109,14 +109,14 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "325",
-      "measured": "325",
+      "claimed": "327",
+      "measured": "327",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "3838",
-      "measured": "3838",
+      "claimed": "3845",
+      "measured": "3845",
       "ok": true
     },
     {
@@ -157,8 +157,8 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "325 文件 / 3838 例",
-      "measured": "325 文件 / 3838 例",
+      "claimed": "327 文件 / 3845 例",
+      "measured": "327 文件 / 3845 例",
       "ok": true
     }
   ],

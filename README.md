@@ -4,7 +4,7 @@
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-0.2.151-orange)
-![tests](https://img.shields.io/badge/tests-325%20files%20%2F%203838%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-327%20files%20%2F%203845%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-162-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-211%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
@@ -26,6 +26,7 @@
 | 等回复的空档 | 2 秒没回完就弹一张**词卡**（词→义 / 义→词 / 拼写），到期词条答对＝一次真复习打卡 |
 | 让它考我 | 对话里说「考我」即可：六型配比、**真题缺省优先**、每道题标清「真题·必刷 / 模拟题·建议做 / 基础题·可选做」、材料与图必须随题带齐、答案先盲解验算 |
 | 把学过的记住 | 聊完的概念自动入库 → 回复里高亮 → 长成卡牌 → 铺进知识大陆；**FSRS-5** 按你的记忆决定何时复习，到期地块长草生怪，打败即收复 |
+| 对战关键时刻 | 新题、答对 / 答错 / 超时、对手得分变化有像素反馈与短音效；连击提示，音效可单独静音并记住本机偏好 |
 | 用自己的资料学 | 绑定长文档走 BM25 检索注入、带段号可溯源，70 万字也能对答；粘贴图片提问走独立视觉角色 |
 | 不想注册 / 不想联网 | 首页「免注册，直接体验」；或 clone 后 `npm run demo:e2e`（零 API key、零外呼、杀进程重启后逐字仍在） |
 
@@ -70,7 +71,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼 |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **325 文件 / 3838 例**，全绿（passed/skipped 明细分平台不同，不进本文手抄）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
+当前测试基线 **327 文件 / 3845 例**，全绿（3843 passed / 2 skipped；本机 Node 22.23.3 全量实跑）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
 
 另有几件不进 `check`、按需跑的仪器：`node tools/loadtest/sse-load.mjs`（单进程 SSE 容量探针，读数在 [`docs/SCALING.md`](docs/SCALING.md)）、`node tools/retention-report.mjs --db …`（只读留存报表，口径在 [`docs/RETENTION-SPEC.md`](docs/RETENTION-SPEC.md)）、`node tools/guard-audit.mjs`（把守门故意改坏，证明它们真的会红）。
 

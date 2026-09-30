@@ -182,3 +182,288 @@
 .msg-foot .msg-act.msg-sources:hover {
   color: var(--sb-primary);
 }
+
+/* ===== 截图保底（2026-09-30，SOURCE-TRACE-SPEC §13.1）：阅读页顶上的出口条 + 截图视图 ===== */
+.src-thin {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  padding: 3px var(--sb-sp-3);
+  border-bottom: 1px solid var(--sb-gold-edge);
+  background: var(--sb-pixel-gold);
+  color: var(--sb-gold);
+  font-size: var(--sb-fs-xs);
+  flex-shrink: 0;
+}
+.src-thin > span {
+  flex: 1;
+  min-width: 0;
+}
+.src-thin-btn {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  font-family: var(--sb-font);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-gold);
+  background: transparent;
+  border: 1px solid var(--sb-gold-edge);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.src-thin-btn:hover {
+  color: var(--sb-ink);
+  border-color: var(--sb-gold);
+}
+.src-shot {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--sb-bg);
+}
+.src-shot.error .src-thin {
+  color: var(--sb-danger);
+  border-color: var(--sb-danger);
+  background: var(--sb-primary-weak);
+}
+.src-shot-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+}
+.src-shot-img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.src-shot.loading .src-shot-img {
+  /* 图没到之前不占位（否则 0 高也会挤出一条边） */
+  position: absolute;
+  opacity: 0;
+}
+.src-shot-wait {
+  margin: 0;
+  padding: var(--sb-sp-4);
+  text-align: center;
+  color: var(--sb-ink-tertiary);
+  font-size: var(--sb-fs-sm);
+  animation: src-blink 1s steps(2, end) infinite;
+}
+
+/* ===== 视频线路（2026-09-30，SOURCE-TRACE-SPEC §12.3）===== */
+.vr {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.vr-bar {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sb-sp-1);
+  padding: var(--sb-sp-2);
+  border-bottom: 2px solid var(--sb-pixel-edge);
+  background: var(--sb-bg);
+  flex-shrink: 0;
+}
+.vr-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 8px;
+  font-family: var(--sb-font);
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink);
+  background: var(--sb-surface);
+  border: 2px solid var(--sb-line);
+}
+.vr-input:focus {
+  outline: none;
+  border-color: var(--sb-primary);
+}
+.vr-routes {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.vr-route,
+.vr-go {
+  padding: 2px 8px;
+  font-family: var(--sb-font);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  background: var(--sb-surface);
+  border: 2px solid var(--sb-line);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.vr-route + .vr-route {
+  margin-left: -2px;
+}
+.vr-route:hover,
+.vr-go:hover:not(:disabled) {
+  color: var(--sb-ink);
+  border-color: var(--sb-pixel-edge);
+}
+.vr-route.active {
+  color: var(--sb-ink);
+  border-color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+  box-shadow: 2px 2px 0 var(--sb-pixel-shadow);
+  position: relative;
+}
+.vr-go:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.vr-player {
+  flex: 0 0 auto;
+  aspect-ratio: 16 / 9;
+  border-bottom: 2px solid var(--sb-pixel-edge);
+}
+.vr-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--sb-sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+}
+.vr-hint,
+.vr-wait,
+.vr-note {
+  margin: 0;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+  line-height: 1.5;
+}
+.vr-wait {
+  animation: src-blink 1s steps(2, end) infinite;
+}
+.vr-note {
+  padding: 4px 8px;
+  border-left: 3px solid var(--sb-gold-edge);
+  color: var(--sb-ink-secondary);
+}
+.vr-note.none {
+  border-left-color: var(--sb-line);
+}
+.vr-note.error {
+  border-left-color: var(--sb-danger);
+  color: var(--sb-danger);
+}
+.vr-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-1);
+}
+.vr-card {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sb-sp-2);
+  width: 100%;
+  padding: 4px;
+  text-align: left;
+  font-family: var(--sb-font);
+  color: var(--sb-ink);
+  background: var(--sb-surface);
+  border: 2px solid var(--sb-line);
+  cursor: pointer;
+}
+.vr-card:hover {
+  border-color: var(--sb-pixel-edge);
+}
+.vr-card.active {
+  border-color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+  box-shadow: 2px 2px 0 var(--sb-pixel-shadow);
+}
+.vr-cover {
+  flex: 0 0 96px;
+  width: 96px;
+  height: 60px;
+  object-fit: cover;
+  background: var(--sb-bg);
+  border: 1px solid var(--sb-line);
+}
+.vr-cover-blank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--sb-font-display);
+  font-weight: 700;
+  font-size: var(--sb-fs-sm);
+  color: var(--sb-ink-tertiary);
+}
+.vr-cover-blank.route-douyin {
+  color: var(--sb-ink-secondary);
+  background: var(--sb-pixel-sky);
+}
+.vr-cover-blank.route-bilibili {
+  color: var(--sb-primary);
+}
+.vr-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+.vr-title {
+  font-size: var(--sb-fs-sm);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.vr-meta {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vr-act {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 1px 6px;
+  font-family: var(--sb-font-display);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-primary);
+  border: 1px solid var(--sb-primary);
+}
+.vr-card.jump .vr-act {
+  color: var(--sb-ink-secondary);
+  border-color: var(--sb-line);
+}
+.vr-card.active .vr-act {
+  color: var(--sb-ink);
+  background: var(--sb-primary);
+}
+/* 站内搜索出口：与命中卡同一副面孔（是 <a> 不是 <button>：它就是一个链接） */
+.vr-site {
+  text-decoration: none;
+  border-color: var(--sb-gold-edge);
+}
+.vr-site .vr-title {
+  color: var(--sb-gold);
+}
+.vr-site:hover {
+  border-color: var(--sb-gold);
+  background: var(--sb-pixel-gold);
+}
+
+/* 消息脚注的「找视频」：是一条独立线路的入口，得让人找得到——常显但淡一档（复制 / 重答仍是悬停才现） */
+.msg-foot .msg-act.msg-videos {
+  opacity: 0.6;
+}
+.chat-row:hover .msg-foot .msg-act.msg-videos,
+.msg-foot .msg-act.msg-videos:hover {
+  opacity: 1;
+  color: var(--sb-primary);
+}

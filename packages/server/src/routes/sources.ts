@@ -1,9 +1,12 @@
 /**
- * routes/sources —— 资料溯源的三个只读端点（契约 docs/SOURCE-TRACE-SPEC.md §6）。
+ * routes/sources —— 资料溯源的只读端点（契约 docs/SOURCE-TRACE-SPEC.md §6）。
  *
  *  GET /api/sources/view?session=&url=   阅读页（服务端取回 + 白名单清洗的零脚本 HTML，CSP sandbox）
  *  GET /api/sources/pdf?session=&url=    PDF 转发（只放行魔数 `%PDF-` 的响应；面板 iframe 直接显示）
  *  GET /api/sources/session/:id          该会话每条回答挂的资料（历史重开时「资料 n 条」用）
+ *  GET /api/sources/probe?session=&url=  阅读页探测（2026-09-30，§13.1）：这页阅读模式打不打得开 / 正文是否太薄 / 服务器能不能截图
+ *  GET /api/sources/shot?session=&url=   截图保底（§13）：系统 Chromium 截首屏 PNG；没装浏览器 ⇒ 404 如实说
+ *  GET /api/sources/videos?route=&q=     视频线路（§12）：B站站内搜 / 抖音联网搜，不挂会话（是学习者自己点的，不是 AI 引用的资料）
  *
  * ★ 许可模型：这不是「任意网址代理」。`view`/`pdf` 都要求 `url` **在这个会话的资料架上**
  *   ——在线架（本轮进行中，`liveShelfKnows`）或已落库（`sourceKnownInSession`）二者之一，
@@ -20,6 +23,9 @@ import { ownerIdOf, canAccessSession } from '../auth/ownership.js';
 import { liveShelfKnows, normalizeSourceUrl } from '../sources/shelf.js';
 import { loadSessionSources, sourceKnownInSession } from '../sources/store.js';
 import { loadReaderDoc, READER_TIMEOUT_MS } from '../sources/reader.js';
+import { ShotError, shotAvailable, takeScreenshot } from '../sources/shot.js';
+import { searchVideoRoute } from '../sources/video-route.js';
+import { VIDEO_ROUTES, cleanVideoQuery, detectSourceKind, type VideoRoute } from '@sb/shared';
 import { fetchSafe } from '../search/ssrf-guard.js';
 import { combineSignals } from '../search/combine.js';
 import { FETCH_UA } from '../media/image-download.js';
@@ -45,13 +51,17 @@ function authorize(req: Request): { ok: true; url: string } | { ok: false; statu
   return { ok: true, url };
 }
 
-/** 失败页：同样走沙箱文档（面板 iframe 里能读到原因，不是浏览器的灰色错误页） */
-function failDoc(reason: string, url: string): string {
+/**
+ * 失败页：同样走沙箱文档（面板 iframe 里能读到原因，不是浏览器的灰色错误页）。
+ * 有截图能力时面板会自己换成截图视图（`/probe` 告诉它的），这页只是一闪而过；没有时它就是终点，所以把「为什么没有截图」也说清。
+ */
+function failDoc(reason: string, url: string, canShot: boolean): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const shotLine = canShot ? '<p>面板正在改用服务器截图…</p>' : '<p>服务器没装浏览器，截不了图。</p>';
   return (
     `<!doctype html><html lang="zh"><head><meta charset="utf-8"><style>body{margin:0;background:#140d12;color:#ecdfcc;` +
     `font:14px/1.7 system-ui,sans-serif;padding:32px;text-align:center}a{color:#ffd27a}</style></head><body>` +
-    `<p>阅读模式没打开这一页：${esc(reason)}</p><p><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">在新标签页打开原网页 ↗</a></p></body></html>`
+    `<p>阅读模式没打开这一页：${esc(reason)}</p>${shotLine}<p><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">在新标签页打开原网页 ↗</a></p></body></html>`
   );
 }
 
@@ -73,7 +83,7 @@ sourcesRouter.get('/view', async (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'private, max-age=600');
   res.type('html');
   if (!loaded.ok) {
-    res.status(loaded.status).send(failDoc(loaded.reason, auth.url));
+    res.status(loaded.status).send(failDoc(loaded.reason, auth.url, shotAvailable()));
     return;
   }
   res.send(loaded.html);
@@ -136,6 +146,71 @@ sourcesRouter.get('/pdf', async (req: Request, res: Response) => {
     const msg = err instanceof Error ? err.message : String(err);
     res.status(502).json({ error: /abort/i.test(msg) ? '读取超时' : '取不到这个 PDF' });
   }
+});
+
+/**
+ * 阅读页探测：面板在挂 iframe 的同时问一句「这页会不会打不开 / 是不是太薄 / 能不能截图」，据此决定要不要换成截图视图。
+ * 图片类资料永远 ok（阅读页只是套壳显示原图）。与 `/view` 合流同一次取页（reader 的 inflight），不多拉上游。
+ */
+sourcesRouter.get('/probe', async (req: Request, res: Response) => {
+  const auth = authorize(req);
+  if (!auth.ok) {
+    res.status(auth.status).json({ error: auth.error });
+    return;
+  }
+  const shot = shotAvailable();
+  if (detectSourceKind(auth.url) === 'image') {
+    res.json({ ok: true, thin: false, shot });
+    return;
+  }
+  const ac = new AbortController();
+  req.on('close', () => ac.abort());
+  const loaded = await loadReaderDoc(auth.url, String(req.query.title ?? '').slice(0, 200), ac.signal);
+  res.setHeader('Cache-Control', 'private, max-age=600');
+  if (loaded.ok) res.json({ ok: true, thin: loaded.thin, shot });
+  else res.json({ ok: false, status: loaded.status, reason: loaded.reason, thin: false, shot });
+});
+
+const SHOT_STATUS: Record<ShotError['kind'], number> = { no_browser: 404, blocked: 400, timeout: 504, busy: 503, failed: 502 };
+
+/** 截图保底：许可模型与 `/view` 完全相同（只服务架上的网址）；PNG 直出，错误一律 JSON 且状态码按失败种类 */
+sourcesRouter.get('/shot', async (req: Request, res: Response) => {
+  const auth = authorize(req);
+  if (!auth.ok) {
+    res.status(auth.status).json({ error: auth.error });
+    return;
+  }
+  try {
+    const png = await takeScreenshot(auth.url);
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'");
+    res.setHeader('Cache-Control', 'private, max-age=600');
+    res.send(png);
+  } catch (err) {
+    if (err instanceof ShotError) {
+      res.status(SHOT_STATUS[err.kind]).json({ error: err.message, kind: err.kind });
+      return;
+    }
+    res.status(502).json({ error: '浏览器没截成这一页', kind: 'failed' });
+  }
+});
+
+/** 视频线路：`route` 只认两家，`q` 清洗后非空且 ≤80；失败形态都在结果体里（`via:'none'` + `note`），这里只挡坏参数 */
+sourcesRouter.get('/videos', async (req: Request, res: Response) => {
+  const route = String(req.query.route ?? '') as VideoRoute;
+  const q = cleanVideoQuery(String(req.query.q ?? ''));
+  if (!VIDEO_ROUTES.includes(route)) {
+    res.status(400).json({ error: '线路只有 bilibili / douyin' });
+    return;
+  }
+  if (!q) {
+    res.status(400).json({ error: '缺查询词' });
+    return;
+  }
+  const ac = new AbortController();
+  req.on('close', () => ac.abort());
+  res.json(await searchVideoRoute(route, q, ownerIdOf(req), ac.signal));
 });
 
 sourcesRouter.get('/session/:id', (req: Request, res: Response) => {

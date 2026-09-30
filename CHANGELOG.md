@@ -1,3 +1,37 @@
+## 未发版 — 2026-09-30（评审五项弱点：渲染安全 / 版本号 / 留存 / 容量 / 文档）
+
+> 这一笔来自一次「面试官视角」的评审，五条弱点对应五个原子提交，合在一个 PR 里。
+> 其中「真实用户量很小」这一条**改代码改不出用户**，本次只把它变成**可测量**的（心跳 + 报表），并明说何时才有资格发数字。
+
+### 渲染安全：SVG 净化器换成白名单 + 解析器差异消除 + 模糊测试
+
+- ```svg 围栏的净化从「正则黑名单」换成 **HTML 解析 → 元素/属性白名单 → `XMLSerializer` 重排**：属性值只认合法的 `href`（`#`、`data:image/`、`https:`）、拒 `url(javascript:)`、剥 `<image>` 外链与全部脚本载体，输出**幂等**且是良构 XML；解析器差异（HTML 解析器接受、XML 解析器不接受的属性名 / 控制字符 / 命名空间前缀）逐条堵上。
+- `safeHref` 补堵协议相对 `//` 与 `/\`。
+- 新增 28 例攻击语料 + 注入点重读 + 良性保留 + 幂等四组单测，以及**确定性模糊测试**（固定种子，CI 300 轮、本地 8000 轮全过）。契约新文件 `docs/UNTRUSTED-RENDER-SPEC.md`。
+
+### 版本号：全仓只留一个
+
+- 根与三个 workspace 的 `package.json` 统一为部署构建号 `0.2.151`；`/api/status` 的 `version` 改为运行时读 `package.json`，不再返回内部产品号 `2.0.0-alpha.0`。
+- 新守门 `tools/check-version.mjs`（`npm run gates` 与 `deploy.sh` ①d）：package.json×4 相同且形如 X.Y.Z、CHANGELOG 最高 `## vX.Y.Z` 相等、已合并最高 tag ≤ 之、HEAD 上的 tag 相等；CI 改 `fetch-depth: 0` 以便看见 tag。发版改号一律 `npm version X.Y.Z --workspaces --include-workspace-root --no-git-tag-version`。
+
+### 留存：先让它可测
+
+- 迁移 v52 `user_activity_day(user_id, day, first_seen_at)`：登录用户每天第一次打到 `/api/*` 记一行（中间件 `growth/activity.ts`）；探针流量不记，进程内去重，`INSERT OR IGNORE` 幂等，异常吞掉不影响请求。
+- 新工具 `tools/retention-report.mjs`：只读打开库，排除体验号 / `.invalid` / `--exclude-email`，输出 WAU / MAU / 粘性、D1 与 W1–W4 分桶留存（分母只算注册满 N 天者）、激活漏斗、用量分布；分母 <30 一律 ⚠️；零 PII；`--selftest` 13 条已知答案。
+- 契约 `docs/RETENTION-SPEC.md`；`docs/metrics-product.md` §1/§3 登记机制已补、L3 仍 ❌ 直到心跳满 4 周且纳入用户 ≥30。
+
+### 容量：先量再谈扩展
+
+- `docs/SCALING.md`：单进程实测边界（本机 2 vCPU：100 并发流式生成 + 500 空闲 SSE 零失败、首 token p95 995ms；300 并发仍零失败但 p95 膨胀 2.7×；每条空闲 SSE ≈ 90–160KB）、进程内状态清单（多实例下各自坏什么）、三阶梯扩容路径与触发条件。结论：先到顶的是 `SB_UPSTREAM_SITE_MAX_CONCURRENT=8` 的配额策略，不是 Node。
+- 新探针 `tools/loadtest/sse-load.mjs`（零真实网络，复用 e2e 假上游，新增可选出字节奏参数）。
+- `/api/health` 增 `version` / `instance{id,startedAt,uptimeSec}` / `sse{clients,sessions}` / `rssMb`，库打不开回 503；`instance.id` 用来核对多实例下粘性会话是否生效。
+
+### 文档：README 从 6 万字减到一页
+
+- README 只留：定位 / 快速开始 / **三条验证命令** / 一页架构 / 安全与隐私 / 已知限制 / 文档索引（383 行 → 150 行）；功能逐项实现、产品判断、界面预览整段搬到 `docs/FEATURES.md`。
+- 「已知限制」改真：`/api/status` 版本口径那条删除（已统一）、留存与单进程两条改为指向新契约。
+- `docs/metrics.json` / `docs/metrics.md` 随新测试文件重新采集，README 徽章同步。
+
 ## 桌面版 0.1.0 — 2026-09-30
 
 - 首个 Windows 10/11 x64 安装包，按用户安装，内置 Node 运行时与生产依赖；从开始菜单启动后自动打开浏览器，托盘可打开或退出。

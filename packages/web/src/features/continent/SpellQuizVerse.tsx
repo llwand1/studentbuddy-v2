@@ -10,6 +10,7 @@
 import { useState } from 'react';
 import type { QuizQuestion } from '@sb/shared';
 import { fillCount, optionsFor, reviewAttempt } from '../quiz/quiz-attempt';
+import { FillBlank } from '../quiz/FillBlank';
 
 interface Props {
   question: QuizQuestion;
@@ -63,17 +64,15 @@ export function SpellQuizVerse({ question, title, onResult }: Props) {
 
       {question.type === 'fill' &&
         fills.map((f, i) => (
-          <input
+          <FillBlank
             key={i}
-            className="continent-input"
+            label={fills.length > 1 ? `第 ${i + 1} 空` : '填空作答'}
+            placeholder={fills.length > 1 ? `第 ${i + 1} 空` : '填入答案'}
+            expected={Array.isArray(question.answer) ? (question.answer[i] === undefined ? undefined : String(question.answer[i])) : undefined}
             value={f}
             disabled={verdict !== null}
-            placeholder={fills.length > 1 ? `第 ${i + 1} 空` : '填入答案'}
-            aria-label={fills.length > 1 ? `第 ${i + 1} 空` : '填空作答'}
-            onChange={(e) => setFills((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') submit();
-            }}
+            onEnter={submit}
+            onChange={(v) => setFills((prev) => prev.map((x, j) => (j === i ? v : x)))}
           />
         ))}
 

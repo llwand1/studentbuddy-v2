@@ -4,9 +4,9 @@
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-310%20files%20%2F%203731%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-314%20files%20%2F%203749%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-159-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-207%20types-8a63f6)
+![contracts](https://img.shields.io/badge/shared%20contracts-208%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -158,7 +158,7 @@ flowchart TD
 |---|---|---|
 | 对话输入框 | `Esc` | 生成中＝点停止键（输入法组字期间的 Esc 归输入法，不拦） |
 | 回复正文 | 选中一段字 → `↩ 引用追问` | 选区逐行加 `> ` 并入输入框、不覆盖已打了一半的问题；只认助手正文，题卡与过程面板里的字不算 |
-| 刷词小窗 | `1–4` / `Enter` 或空格 / `N` / `Z` / `X` / `Esc` | 选项 / 下一张·记住了·收入词库 / 不认识 / 斩 / 不要 / 关闭（本轮不再弹）；焦点在拼写框里时字母数字不劫持 |
+| 刷词小窗 | `1–4` / `Enter` 或空格 / `N` / `Z` / `X` / `Esc` | 选项 / 下一张·记住了·收入词库 / 不认识 / 斩 / 不要 / 收起（本轮不再弹；这局留着，输入框上方的小签能唤回）；焦点在拼写格里时字母数字不劫持 |
 | 资料架 | `[` `]` · `Alt+←/→` · `Alt+1–9` | 上一条 / 下一条 / 直达第 n 条；正文里的 `[n]` 引用芯片点了同样切过去 |
 
 **对话页上的小动作**：
@@ -169,6 +169,8 @@ flowchart TD
 - **离底提示分忙闲**：生成中离底是「↓ 新内容」（前面一颗眨的余烬点，`prefers-reduced-motion` 下不眨），不忙时是「↓ 回到最新」
 - **发送后焦点回输入框**；「向 AI 追问」另开 fork 会话不污染原对话
 - **刷词小窗可拖动、位置记住**，与右侧资料架并存；手机（≤640px）上资料架铺满内容区、刷词退回底部抽屉。刷词配乐与七款音效全部 Web Audio 现场合成、零音频文件，静音记本机
+- **刷词关掉不作废**：✕ / Esc / 回复到了自动切回都只是收起，输入框上方留一枚「刷词已收起 · 还有 N 张 · 唤回」小签，点它同一张卡、同一串连击原样回来；下一轮等待自动弹的也是这一局；小签上的 ✕ 才真正结束
+- **填空像打字练习**：刷词拼写卡、知识大陆填空题、对话出题的短答案填空都是一格一字——空格与标点是替你填好的固定格（不用打符号，打了也不落格），「提示」一次揭一段灰字仍要自己打；刷词卡逐格即时判对错，正经考题不判（那会把答案试出来）；轮到拼写但词条满是符号（`C++`、`O(n log n)`）就改出选择题
 
 **设置页「改了就存」**：音色 / 回答方式 / 出题配图这类短值改了即落库，不设保存按钮（多一步只会多出「改了没存」的困惑）；**语速滑条拖完才存**（拖动期间逐次 PUT 会把接口打爆），pointerup 与 keyup **两处都挂**——键盘调滑条不触发 pointerup，少挂一个就有一半用户存不上；**试听必须反映还没保存的选择**，否则用户会以为滑条坏了。同页的「免费通道 · 一键默认设置」是新用户第一入口：平台 key 一个字节都不落库、界面上没有任何「显示 / 复制密钥」的入口（不是漏做，是刻意没有）；剩余额度卡上直接看；因为这个按钮会覆盖已有的逐角色绑定，做成两段式确认，代价说明用 `role="alert"` 念出来。「真题优先」「等待时刷词」「AI 运行状况」各一张卡，开关与读数都在同一页。
 
@@ -264,7 +266,7 @@ flowchart TD
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼；对已下线路由（`/bank/:id` 等）有**墓碑锁**（断言 404，防止功能悄悄复活没人知道） |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **310 文件 / 3731 例**，全绿；passed/skipped 明细随平台略有差异（skipped 数分平台不同），**不进本文手抄**——实跑明细由 `node tools/metrics.mjs --tests` 当场产出。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3。
+当前测试基线 **314 文件 / 3749 例**，全绿；passed/skipped 明细随平台略有差异（skipped 数分平台不同），**不进本文手抄**——实跑明细由 `node tools/metrics.mjs --tests` 当场产出。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3。
 
 测试之外还有**三套离线评测**（都支持零 key 假模型自检，同 `demo:e2e` 的假 LLM 哲学），三者答的是三个不同的问题：`npm run eval` 评**产品链路**——走生产同款抽取与修复管道，四档解析（strict / repaired / rescued / failed）+ 配图开关两 arm 永不合并，带成本计量，答的是「产品今天交付什么水平」；`npm run eval:models` 评**模型裸输出**——七套件（自建样本 + 冻结的 MMLU / C-Eval 公开集 + 现场真题），出题协议服从性、复刻相似度、联网引用命中、词条抽取 F1、注入对抗，任意 OpenAI 兼容端点自带 key 横向对比，答的是「这只模型本身什么水平」。两边并读：同一份失败，评测台落在 repaired 档而 model-bench 直接红 ⇒ 是修复器救回来的，该改提示词。换模型、换 provider、改提示词前后各跑一遍，分数变化就是决策依据，不再靠手感（详见 [`tools/eval/model-bench/README.md`](tools/eval/model-bench/README.md)）。
 

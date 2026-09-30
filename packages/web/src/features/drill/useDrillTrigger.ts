@@ -54,11 +54,12 @@ export function useDrillTrigger({ busySessionId, active, enabled, delayMs = DRIL
   }, []);
 
   /**
-   * 手动打开（等待气泡旁的入口 / 设置页「试一局」）：不受 2 秒表与"本轮已关过"约束。
+   * 手动打开（等待气泡旁的入口 / 设置页「试一局」/ 输入框上方的「唤回」小签）：不受 2 秒表与"本轮已关过"约束。
    * 没在等回复时打开 = 练习局，不设 `replyReady`（没有"回复到了"可切），关掉靠用户自己。
+   * ★ 没在等回复时**沿用上一次的 `openSession`**：唤回收起的那局时它不该变（变了等于换话题，会再要一批新词）。
    */
   const openNow = useCallback(() => {
-    setOpenSession(busySessionId);
+    if (busySessionId) setOpenSession(busySessionId);
     setReplyReady(false);
     setOpen(true);
   }, [busySessionId]);

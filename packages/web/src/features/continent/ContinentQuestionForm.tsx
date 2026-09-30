@@ -6,9 +6,12 @@
  * ★ **受控组件**：作答值由父组件持有（`answer` / `onChange`），形状就是 `gradeAnswer` 的入参
  *   （判断 boolean / 选择与情景 number / 填空 string / 连线 number[]，未选的项为 -1）——组件不自己判分，
  *   父组件拿 `answer` 直接喂 `gradeAnswer`。换题时父组件把 `answer` 置回 `null` 即可（配合 `key={题号}` 更稳）。
+ * ★ 填空（2026-09-30 起）是打字练习式的 `TypingInput`：一格一字、符号格替你填好、「提示」按段揭；`answer` 仍是
+ *   带符号的完整字符串，`gradeAnswer` 的 `normText` 口径不变。正经考题不开逐格对错（那会把答案一格格试出来）。
  */
 import type { ContinentAnswer, ContinentQuestion } from '@sb/shared';
 import { CONTINENT_QLABEL } from '@sb/shared';
+import { TypingInput } from '../../components/TypingInput';
 
 interface Props {
   q: ContinentQuestion;
@@ -66,14 +69,13 @@ export function ContinentQuestionForm({ q, answer, onChange, onEnter }: Props) {
       )}
 
       {q.type === 'fill' && (
-        <input
-          className="continent-input"
+        <TypingInput
+          answer={q.answer}
           value={typeof answer === 'string' ? answer : ''}
-          placeholder="填入词条"
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') onEnter?.();
-          }}
+          onChange={onChange}
+          onSubmit={onEnter}
+          autoFocus
+          ariaLabel="填入词条"
         />
       )}
 

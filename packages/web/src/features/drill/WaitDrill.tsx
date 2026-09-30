@@ -9,11 +9,15 @@
  *   `READY_GRACE_S` 秒后也切（等待的意义已经没了）。「继续刷」按下后本轮不再自动切。
  * ★ 偏好（自动弹 / 声音）来自本机 `drill-prefs`；设置页改了会发 `sb:drill-prefs`，这里跟着刷新。
  * ★ 等待气泡里的「刷词」入口发 `sb:drill-open`（跨组件不传 props，ChatView 贴着行数红线）。
+ * ★ 收起 ≠ 结束（§2.1，2026-09-30）：`alive`（这一局在跑）与 `trigger.open`（小窗看得见）分开——✕ / Esc / 回复到了
+ *   自动切回只把小窗收起，队列与连击留着，`drill-dock` 里写一份「已收起 · 还有 N 张」给输入框上方的小签；
+ *   小签点一下 = `sb:drill-open` 原局唤回，小签 ✕ = `sb:drill-end` 才真正结束。下一轮等待自动弹的也是这同一局。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { localDayKey } from '@sb/shared';
 import { DrillAudio } from './drill-audio';
 import { DrillOverlay } from './DrillOverlay';
+import { DRILL_END_EVENT, resetDrillDock, setDrillDock } from './drill-dock';
 import { DRILL_OPEN_EVENT, DRILL_PREFS_EVENT, loadDrillPrefs, saveDrillPrefs } from './drill-prefs';
 import { useDrillKeys } from './useDrillKeys';
 import { useDrillSession } from './useDrillSession';
@@ -66,7 +70,27 @@ export function WaitDrill({ busySessionId, active }: { busySessionId: string | n
     return true;
   }, [leave]);
 
-  const s = useDrillSession({ open: trigger.open, sessionId: trigger.openSession, dayKey, audio, onCardResolved });
+  // 这一局在跑（小窗开过一次就算开局；收起不算结束）
+  const [alive, setAlive] = useState(false);
+  useEffect(() => {
+    if (trigger.open) setAlive(true);
+  }, [trigger.open]);
+  useEffect(() => {
+    const onEnd = () => {
+      setAlive(false);
+      leave();
+    };
+    window.addEventListener(DRILL_END_EVENT, onEnd);
+    return () => window.removeEventListener(DRILL_END_EVENT, onEnd);
+  }, [leave]);
+
+  const s = useDrillSession({ open: alive, sessionId: trigger.openSession, dayKey, audio, onCardResolved });
+
+  // 给输入框上方的小签：收起了才 parked；数字随局走
+  useEffect(() => {
+    setDrillDock({ parked: alive && !trigger.open, queueLeft: s.queueLeft, correct: s.stats.correct, combo: s.stats.combo });
+  }, [alive, trigger.open, s.queueLeft, s.stats.correct, s.stats.combo]);
+  useEffect(() => () => resetDrillDock(), []);
 
   // 回复到了：一声提示音 + 倒计时；到点不答也切
   useEffect(() => {
@@ -138,6 +162,8 @@ export function WaitDrill({ busySessionId, active }: { busySessionId: string | n
       queueLeft={s.queueLeft}
       notice={s.notice}
       newNote={s.newNote}
+      draft={s.draft}
+      onDraft={s.setDraft}
       onToggleSound={toggleSound}
       onClose={leave}
       onLeaveNow={leave}

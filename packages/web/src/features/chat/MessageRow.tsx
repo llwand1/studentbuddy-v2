@@ -54,14 +54,15 @@ export function MessageRow({
   const [procExpanded, setProcExpanded] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
 
-  // 题卡（2026-09-26 起不再上报作答）：`/api/quiz/stats/record` 与题库整族一起下线，
-  // 卡片只做「点选作答 → 当场判分 → 出解析」，对错不留痕。
+  // 题卡：点选作答 → 当场判分 → 出解析；2026-09-30 起带 quizId 的卡把对错记回服务端
+  // （`/api/quiz/:quizId/attempts`，契约 QUIZ-REVIEW-SPEC「作答记录」节），重开会话能看到刷过几遍、正确率。
   if (m.quizBlock) {
     return (
       <QuizCard
         sessionId={sessionId}
         title={m.quizBlock.quiz.title ?? '练习'}
         questions={m.quizBlock.quiz.questions}
+        {...(m.quizBlock.quizId ? { quizId: m.quizBlock.quizId } : {})}
       />
     );
   }

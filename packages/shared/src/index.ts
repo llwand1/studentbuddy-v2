@@ -48,6 +48,7 @@ export * from './platform-quota.js';
 export * from './platform-channel.js';
 export * from './demo-content.js';
 export * from './quiz-explanation.js';
+export * from './quiz-attempts.js';
 export * from './spell-chant.js';
 export * from './spell-kinds.js';
 export * from './fsrs-fit.js';

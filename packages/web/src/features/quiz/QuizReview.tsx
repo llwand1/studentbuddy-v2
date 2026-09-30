@@ -5,10 +5,13 @@ import { Markdown } from '../chat/Markdown';
 import { SvgPreviewCard } from '../chat/SvgPreviewCard';
 import { prepareSvg } from '../../lib/svg-utils';
 
-/** 普通题与情景题共用完成/复盘面板。作答与图文仅保留于当前打开的卡片。 */
-export function QuizReview({ sessionId, title, kind, items, total, onRetry }: {
+/**
+ * 普通题与情景题共用完成/复盘面板。图文讲解仅保留于当前打开的卡片；
+ * `recorded`＝这张卡的对错已记在服务端（普通题卡带 quizId 时，2026-09-30），底部那行提示据此改口。
+ */
+export function QuizReview({ sessionId, title, kind, items, total, onRetry, recorded = false }: {
   sessionId?: string | null; title: string; kind: 'quiz' | 'scenario';
-  items: QuizReviewItem[]; total: number; onRetry?: () => void;
+  items: QuizReviewItem[]; total: number; onRetry?: () => void; recorded?: boolean;
 }) {
   const [explanation, setExplanation] = useState<QuizExplanation | null>(null);
   const [busy, setBusy] = useState(false);
@@ -85,7 +88,9 @@ export function QuizReview({ sessionId, title, kind, items, total, onRetry }: {
           </div>
         </>}
       </div>
-      <p className="quiz-local-note">本轮作答和讲解保留在当前页面，刷新后需重新作答。</p>
+      <p className="quiz-local-note">{recorded
+        ? '对错已记在这组题上（重开会话能看到刷过几遍、正确率）；图文讲解只保留在当前页面。'
+        : '本轮作答和讲解保留在当前页面，刷新后需重新作答。'}</p>
     </> : <p className="quiz-muted">完成全部{kind === 'quiz' ? '题目' : '任务'}后，解锁这一轮的图文讲解。</p>}
   </section>;
 }

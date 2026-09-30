@@ -1,6 +1,6 @@
 {
   "name": "studentbuddy",
-  "version": "2.0.0-alpha.0",
+  "version": "0.2.151",
   "private": true,
   "description": "studentbuddy v2 - 本地优先的 AI 学习助手（学→练→析→忆→反馈闭环，学习版豆包）",
   "license": "MIT",
@@ -20,7 +20,7 @@
     "lint": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/server && tsc --noEmit -p packages/web && eslint packages --max-warnings 0",
     "test": "node tools/test-tmp.mjs",
     "test:raw": "vitest run",
-    "gates": "node tools/gates/check.mjs && node tools/check-public-traces.mjs",
+    "gates": "node tools/gates/check.mjs && node tools/check-public-traces.mjs && node tools/check-version.mjs",
     "traces": "node tools/check-public-traces.mjs",
     "og:shots": "tsx tools/probes/og-card-cdp.mts",
     "check": "npm run lint && npm run test && npm run gates",

@@ -21,6 +21,10 @@ jobs:
         node-version: [22]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # ★ 2026-09-30 加：`tools/check-version.mjs`（gates 的一环）要拿「最高已合并 tag」与 package.json 对账，
+          #   浅克隆没有 tag 就只能跳过这一条 ⇒ 拉全历史（仓库很小，代价可忽略）
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}

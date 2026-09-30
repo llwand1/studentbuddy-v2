@@ -80,8 +80,14 @@ function openAiStreamFrames(content) {
 
 /**
  * @param {number} [port] 传 0 由系统分配；返回 { server, port(), calls }
+ * @param {{ tokenDelayMs?: number, replyChars?: number }} [opts]
+ *   `tokenDelayMs` > 0 时流式帧之间按此间隔**异步**下发（模拟真上游的出字节奏，`tools/loadtest/sse-load.mjs` 用；
+ *   缺省 0 = 与从前完全一致，同步一次写完）；`replyChars` 把正文重复垫长到至少这么多字（同上，只为压测）。
  */
-export function startFakeProvider(port = 0) {
+export function startFakeProvider(port = 0, opts = {}) {
+  const tokenDelayMs = Number(opts.tokenDelayMs ?? 0) || 0;
+  const replyChars = Number(opts.replyChars ?? 0) || 0;
+  const pad = (content) => (replyChars > 0 && content.length < replyChars ? content.repeat(Math.ceil(replyChars / content.length)) : content);
   const calls = [];
   let n = 0;
   const server = http.createServer((req, res) => {
@@ -98,15 +104,32 @@ export function startFakeProvider(port = 0) {
       const model = String(parsed.model ?? '');
       const messages = Array.isArray(parsed.messages) ? parsed.messages : [];
       calls.push({ id, model, stream: parsed.stream === true, messageCount: messages.length });
-      const content = contentFor(model);
+      const content = pad(contentFor(model));
       if (parsed.stream === true) {
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
-        for (const f of openAiStreamFrames(content)) res.write(`data: ${JSON.stringify(f)}\n\n`);
-        res.write(
-          `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 42, completion_tokens: 21 } })}\n\n`,
-        );
-        res.write('data: [DONE]\n\n');
-        res.end();
+        const frames = openAiStreamFrames(content).map((f) => `data: ${JSON.stringify(f)}\n\n`);
+        const tail = `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 42, completion_tokens: 21 } })}\n\ndata: [DONE]\n\n`;
+        if (tokenDelayMs <= 0) {
+          for (const f of frames) res.write(f);
+          res.write(tail);
+          res.end();
+          return;
+        }
+        // 压测节奏：逐帧异步下发；客户端（服务端 abort）断开就停，别让假上游替真上游"续写"
+        let i = 0;
+        let closed = false;
+        res.on('close', () => (closed = true));
+        const tick = () => {
+          if (closed) return;
+          if (i < frames.length) {
+            res.write(frames[i++]);
+            setTimeout(tick, tokenDelayMs);
+            return;
+          }
+          res.write(tail);
+          res.end();
+        };
+        tick();
         return;
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });

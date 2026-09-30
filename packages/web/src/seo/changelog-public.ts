@@ -24,7 +24,7 @@ export interface ReleaseNote {
 
 /** 页首那句范围声明——这页从哪里记起、和本地版什么关系，写在页面上而不是藏在源码注释里 */
 export const RELEASE_SCOPE = {
-  lead: '这里记的是 11wand.com 这个线上版已经生效的改动。本地安装包版通常领先于线上，那一版的更新在项目首页说明。',
+  lead: '这里记的是 11wand.com 这个线上版已经生效的改动。版本号与项目仓库的 tag、CHANGELOG 和服务端 /api/status 是同一个号。',
   note: '再往前的改动还没清洗进来，这一页从 v0.2.109 记起。',
 };
 

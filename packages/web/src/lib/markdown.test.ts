@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseBlocks, parseInline, remedy, stableCut } from './markdown';
+import { safeHref } from './markdown-inline';
 import type { Block } from './markdown';
 
 describe('markdown 块级切分', () => {
@@ -70,6 +71,16 @@ describe('markdown 行内标记', () => {
     const inl = parseInline('[点我](javascript:alert(1))');
     expect(inl.some((x) => x.t === 'a')).toBe(false);
     expect(JSON.stringify(inl)).toContain('javascript:alert(1)');
+  });
+
+  it('safeHref：协议相对 `//` 与 `/\\` 不算站内路径（旧正则 `^\\/` 全部放行——这两种形状点开就出站）', () => {
+    for (const bad of ['//evil.example/x', '/\\evil.example/x', 'data:text/html,x', 'vbscript:x', 'ftp://x', 'JAVASCRIPT:x'])
+      expect(safeHref(bad), bad).toBeNull();
+    for (const ok of ['/terms/', '/api/images/x.png', '#anchor', 'https://a.example/p?q=1', 'HTTP://a.example', 'mailto:a@b.c'])
+      expect(safeHref(ok), ok).toBe(ok);
+    // 站内根路径经完整解析链仍成链接；协议相对则整段回落纯文本
+    expect(parseInline('[站内](/terms/)').some((x) => x.t === 'a')).toBe(true);
+    expect(parseInline('[出站](//evil.example)').some((x) => x.t === 'a')).toBe(false);
   });
 
   it('未闭合记号原样保留，不误吞后文', () => {

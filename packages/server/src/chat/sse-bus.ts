@@ -106,6 +106,15 @@ export function snapshot(sessionId: string): SseEvent[] {
   return buffers.get(sessionId)?.events.slice() ?? [];
 }
 
+/**
+ * 进程内 SSE 状态的体量（`/api/health` 用，契约 docs/SCALING.md §4）：
+ * `clients` = 当前挂着的连接数，`sessions` = 仍持有回放缓冲的会话数。
+ * ★ 这两个数**只描述本进程**——多实例部署下每个实例各报各的，这正是 SCALING.md 要求先做粘性会话的原因。
+ */
+export function busStats(): { clients: number; sessions: number } {
+  return { clients: clients.size, sessions: buffers.size };
+}
+
 /** 心跳 + 断链探测 + 缓冲 TTL 回收（destroyed 连接从订阅集合移除，防僵尸连接泄漏）。 */
 export function startHeartbeat(): ReturnType<typeof setInterval> {
   return setInterval(() => {

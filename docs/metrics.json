@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30T09:01:24.715Z",
+  "generatedAt": "2026-09-30T18:44:10.088Z",
   "code": {
     "rows": [
       {
@@ -85,16 +85,16 @@
     "probes": 15
   },
   "repo": {
-    "head": "9d52cf5",
-    "headDate": "2026-09-30",
-    "commitsLast14d": 174,
-    "branch": "feat/terms-cards-merge",
-    "dirtyFiles": 18
+    "head": "8dbc1df",
+    "headDate": "2026-10-01",
+    "commitsLast14d": 176,
+    "branch": "merge/terms-cards",
+    "dirtyFiles": 0
   },
   "tests": {
     "available": true,
-    "ranNow": false,
-    "wallSec": 0,
+    "ranNow": true,
+    "wallSec": 61.6,
     "staleDays": 0,
     "files": 329,
     "cases": 3854,

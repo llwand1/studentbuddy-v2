@@ -27,6 +27,9 @@ import { PkQuizBlock } from './PkQuizBlock';
 import { PkQuizPending } from './PkQuizPending';
 import { PkTopicBar } from './PkTopicBar';
 import { PkVerdict } from './PkVerdict';
+import { PkBattleFx } from './PkBattleFx';
+import { PkSoundButton } from './PkSoundButton';
+import { usePkEffects } from './usePkEffects';
 
 interface Props {
   state: PkRoomState;
@@ -83,6 +86,7 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
   const [judge, setJudge] = useState<JudgeView | null>(null);
   /** 底部折叠区（出题入口 / 已发出 / 已判定 / 投降） */
   const [open, setOpen] = useState(false);
+  const { sound, toggleSound, fx, scoreFx, answerResult } = usePkEffects(state, userId);
 
   /**
    * 闪光计时句柄。★ 必须存下来：不存的话连点两个选项会挂着两条独立计时器，第一条到点就把
@@ -149,6 +153,7 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
       setAnswerBusy(true);
       try {
         const r = await api.pk.submitAnswer(state.roomId, mine.id, choice);
+        answerResult(r.correct);
         flash({ kind: r.correct ? 'correct' : 'wrong', text: r.correct ? `答对 +${r.delta}` : `答错 ${r.delta}` });
       } catch (e) {
         flash({ kind: 'info', text: e instanceof ApiError ? e.message : '提交失败' });
@@ -156,7 +161,7 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
         setAnswerBusy(false);
       }
     },
-    [answerBusy, flash, mine, state.roomId],
+    [answerBusy, answerResult, flash, mine, state.roomId],
   );
 
   /** 求助道具：就某道题请裁判指点（当场联网搜索）。用完按钮自动消失——helpLeft 来自服务端快照 */
@@ -205,7 +210,11 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
   );
 
   return (
-    <PkArena state={state} userId={userId}>
+    <PkArena state={state} userId={userId} scoreFx={scoreFx}>
+      <div className="sb-pk-tools">
+        <PkSoundButton enabled={sound} onToggle={toggleSound} />
+      </div>
+      <PkBattleFx fx={fx} />
       <PkTopicBar state={state} userId={userId} />
 
       {verdict && <PkVerdict kind={verdict.kind} text={verdict.text} />}

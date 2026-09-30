@@ -24,3 +24,12 @@
 ## 服务端静态文件契约
 
 `SB_WEB_DIST` 可选：未配置时保持现有 API 服务；配置后从该绝对目录提供静态网页，非 API 的无扩展名 GET/HEAD 路径回退到 `index.html`。未知 API 与丢失的静态资源仍返回 404。
+
+## GitHub Packages 分发契约
+
+- GitHub npm registry 的 `@llwand1/studentbuddy-windows` 包分发已验证的 Windows x64 安装程序，版本与 `desktop-v<版本>` Release 一致。
+- 包包含安装程序、SHA256SUMS、许可证、使用说明和显式安装命令；安装 npm 包不会自动启动安装程序。
+- 打包前校验 Release 的 SHA-256，安装命令再次校验；文件名与版本严格匹配，校验失败拒绝打包或执行。
+- `repository` 元数据关联本仓库；首次发布后核实包关联和公开可见性，使仓库 Packages 显示此包。
+- `.github/workflows/desktop-package.yml` 手动选择已有桌面 Release，用 Actions 的 `GITHUB_TOKEN` 和 `packages: write` 发布；PR 仅运行工具测试。
+- 复验：`node --test tools/desktop/npm-package.test.mjs`，并用 `npm pack` 检查分发文件和安装程序摘要。

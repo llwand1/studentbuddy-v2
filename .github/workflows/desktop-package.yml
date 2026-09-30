@@ -1,0 +1,56 @@
+name: Desktop package
+
+on:
+  pull_request:
+    paths:
+      - 'tools/desktop/**'
+      - '.github/workflows/desktop-package.yml'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing desktop Release version (major.minor.patch)
+        required: true
+        default: '0.1.0'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tools/desktop/npm-package.test.mjs
+  publish:
+    if: github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      DESKTOP_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: https://npm.pkg.github.com
+          scope: '@llwand1'
+      - name: Download released installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$DESKTOP_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || exit 1
+          mkdir -p .runtime/package-assets
+          gh release download "desktop-v$DESKTOP_VERSION" --pattern "StudentBuddy-$DESKTOP_VERSION-windows-x64-setup.exe" --pattern SHA256SUMS.txt --dir .runtime/package-assets
+      - name: Verify and prepare package
+        run: node tools/desktop/prepare-package.mjs "$DESKTOP_VERSION" .runtime/package-assets .runtime/npm-package
+      - name: Publish to GitHub Packages
+        working-directory: .runtime/npm-package
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+        run: npm publish --registry=https://npm.pkg.github.com

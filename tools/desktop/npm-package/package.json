@@ -1,0 +1,19 @@
+{
+  "name": "@llwand1/studentbuddy-windows",
+  "version": "0.1.0",
+  "description": "StudentBuddy Windows x64 installer",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/llwand1/studentbuddy-v2.git",
+    "directory": "tools/desktop/npm-package"
+  },
+  "homepage": "https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-v0.1.0",
+  "publishConfig": { "registry": "https://npm.pkg.github.com" },
+  "bin": { "studentbuddy-install": "install.cjs" },
+  "files": ["install.cjs", "*.exe", "SHA256SUMS.txt", "README.md", "LICENSE"],
+  "engines": { "node": ">=22" },
+  "os": ["win32"],
+  "cpu": ["x64"],
+  "studentbuddy": { "installer": "", "sha256": "" }
+}

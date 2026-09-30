@@ -1,3 +1,11 @@
+## 未发版 — 2026-10-01（伙伴主动搭话的落库修正）
+
+### 修：主动搭话的节流账与地图气泡，此前一直写不进 `app_settings`
+
+- **原因**：`app_settings` 自 2026-09-18 起主键是 `(owner_id, key)`（TENANCY-SPEC §8.2），而 `learning/npc-ping.ts`（09-28 引入）写节流账（`npc_pings`）与地图气泡（`npc_bubble`）用的还是旧主键的 `ON CONFLICT(key)`——SQLite 在 prepare 阶段就拒绝，这两处写库自引入起没成功过。
+- **改法**：读写都带 `owner_id`（`ownerForWrite`），冲突目标改成 `(owner_id, key)`，与花名册 `npc-party.ts` 同一口径；原先「`key:ownerId` 拼键」的写法去掉。旧写法没有成功写过任何行，所以**无需迁移**。
+- **测试**：`routes/npc.test.ts` 补 2 例——⑨ 轮询口没模型、没伙伴也是 200 + `{ bubble: null }`，节流账按 owner 各落一行；⑩ 领走气泡幂等。零迁移、零新表、零新依赖。
+
 ## 未发版 — 2026-09-30（下一步引导：引路灯）
 
 ### 主区左上角多了一盏提灯：功能来找你，不用你去翻功能

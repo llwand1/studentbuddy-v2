@@ -152,7 +152,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | [`AUTH-SPEC.md`](docs/AUTH-SPEC.md) · [`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) | 账号契约 / 多租户归属契约 |
 | [`SSE-CONTRACT.md`](docs/SSE-CONTRACT.md) · [`CHAT-UX-SPEC.md`](docs/CHAT-UX-SPEC.md) | SSE 事件与 HTTP 接口契约（前端对接核心）/ 对话页流式期与常用动作口径（重试 / Esc 停止 / 会话草稿 / 标题态 / 引用追问） |
 | [`WAIT-DRILL-SPEC.md`](docs/WAIT-DRILL-SPEC.md) | 等待时刷词契约（2 秒才弹 / 答完切回 / 到期打卡 / AI 新词候选闸门 / 特效与音频口径） |
-| [`GUIDE-SPEC.md`](docs/GUIDE-SPEC.md) | 下一步引导（引路灯）契约（14 种动作白名单 / 六个阶段与三个必备时刻 / AI 现挑 + 规则兜底 / 能力注册 / 三档位置与三档主动程度） |
+| [`GUIDE-SPEC.md`](docs/GUIDE-SPEC.md) | 下一步引导（引路灯）契约（13 种动作白名单 / 六个阶段与三个必备时刻 / AI 现挑 + 规则兜底 / 能力注册 / 三档位置与三档主动程度） |
 | [`SOURCE-TRACE-SPEC.md`](docs/SOURCE-TRACE-SPEC.md) | 资料溯源契约（资料架编号即身份 / 阅读页零脚本与授权 / `pick_sources` / `[n]` 引用芯片 / 落库与历史重开 / 与刷词小窗共存 / 视频线路 B站就地播·抖音跳转 / 截图保底与守门代理） |
 | [`QUIZ-TIER-SPEC.md`](docs/QUIZ-TIER-SPEC.md) | 出题分级与真题优先契约（三档由服务端按事实推 / 基础题就说是基础题 / 搜集辨别层：尾锚点·选项命中率·考试信号 / 真题优先配额与生效条件） |
 | [`QUIZ-COMPLETE-SPEC.md`](docs/QUIZ-COMPLETE-SPEC.md) · [`eval/complete.md`](docs/eval/complete.md) | 题目自包含契约（`material` 字段 / 确定性依赖审查 / 一次修复调用 / 补不全整题剔除 / 搜集侧图与材料搬运）/ 对应评测读数 |

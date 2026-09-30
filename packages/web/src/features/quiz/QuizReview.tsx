@@ -4,6 +4,7 @@ import { api } from '../../lib/api';
 import { Markdown } from '../chat/Markdown';
 import { SvgPreviewCard } from '../chat/SvgPreviewCard';
 import { prepareSvg } from '../../lib/svg-utils';
+import { useGuideCap } from '../guide/use-guide-cap';
 
 /**
  * 普通题与情景题共用完成/复盘面板。图文讲解仅保留于当前打开的卡片；
@@ -20,6 +21,7 @@ export function QuizReview({ sessionId, title, kind, items, total, onRetry, reco
   const [open, setOpen] = useState(true);
   const controller = useRef<AbortController | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
   useEffect(() => () => { controller.current?.abort(); controller.current = null; }, []);
   const complete = total > 0 && items.length === total;
   const load = async () => {
@@ -49,9 +51,17 @@ export function QuizReview({ sessionId, title, kind, items, total, onRetry, reco
       if (controller.current === ctrl) { controller.current = null; setBusy(false); }
     }
   };
+  // 引路灯（docs/GUIDE-SPEC.md）：答完才有「一键解析 / 再练一遍」可点——在这里**自己报名**，提灯才不会推一个点了没反应的动作。
+  // 讲解生成中 / 生成后「一键解析」撤销，只剩重练。执行前先把这一区滚进视野：用户可能正停在别处，转圈要看得见。
+  useGuideCap('quiz.explain', complete && !!sessionId && !explanation && !busy ? () => {
+    sectionRef.current?.scrollIntoView?.({ block: 'center' }); void load();
+  } : null);
+  useGuideCap('quiz.retry', complete && onRetry && !busy ? () => {
+    sectionRef.current?.parentElement?.scrollIntoView?.({ block: 'start' }); onRetry();
+  } : null);
   const correct = items.filter((i) => i.verdict === 'correct').length;
   const review = items.filter((i) => i.verdict === 'review').length;
-  return <section className={`quiz-review${complete ? ' is-complete' : ''}`} aria-label="练习进度与复盘">
+  return <section ref={sectionRef} className={`quiz-review${complete ? ' is-complete' : ''}`} aria-label="练习进度与复盘">
     <div className="quiz-progress-label" role="status">
       <strong>{complete ? '本轮探索完成' : '探索进度'}</strong><span>{items.length} / {total}</span>
     </div>

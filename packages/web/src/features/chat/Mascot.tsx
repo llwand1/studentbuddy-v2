@@ -68,10 +68,10 @@ export function spriteErrors(): string[] {
   return errs;
 }
 
-type Pixel = { x: number; y: number; w: number; k: string };
+export type Pixel = { x: number; y: number; w: number; k: string };
 
 /** 同一行同色连成一格宽的 rect，节点数从 130+ 降到 40 上下 */
-function toRuns(rows: string[], y0 = 0): Pixel[] {
+export function toRuns(rows: string[], y0 = 0): Pixel[] {
   const runs: Pixel[] = [];
   rows.forEach((row, dy) => {
     let x = 0;

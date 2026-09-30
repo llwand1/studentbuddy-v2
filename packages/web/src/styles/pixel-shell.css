@@ -10,7 +10,9 @@ body .sb-sidebar {
 body .sb-logo { padding: 0 2px 16px; border-bottom: 2px solid var(--sb-pixel-edge); gap: 8px; }
 body .sb-logo .welcome-mascot svg { width: 32px; height: 32px; }
 body .sb-logo-name { font-family: var(--sb-font-display); font-size: 15px; letter-spacing: -0.4px; }
-body .sb-logo-name small { font-family: var(--sb-font); letter-spacing: 1px; margin-top: 3px; }
+/* 英文副标（A gamified knowledge learning agent）比 190px 的 logo 区长：`.sb-logo-name` 的 nowrap 让它溢出侧栏、跑进主区左上角
+   （2026-09-30 放引路灯时才撞见）。副标允许换行，中文副标本来就放得下，不受影响。 */
+body .sb-logo-name small { font-family: var(--sb-font); letter-spacing: 1px; margin-top: 3px; white-space: normal; }
 body .sb-new-chat { margin: 8px 3px 12px 0; min-height: 42px; }
 body .sb-nav { gap: 6px; }
 body .sb-nav-item { min-height: 40px; border: 2px solid transparent; gap: 12px; }

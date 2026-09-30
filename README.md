@@ -4,9 +4,9 @@
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-0.2.151-orange)
-![tests](https://img.shields.io/badge/tests-329%20files%20%2F%203853%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-164-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-216%20types-8a63f6)
+![tests](https://img.shields.io/badge/tests-340%20files%20%2F%204028%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-165-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-231%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -22,6 +22,7 @@
 
 | 你想… | 它怎么接 |
 |---|---|
+| 不知道下一步干什么 | 左上角的**引路灯**：聊完一轮、做完一组题这类时刻它自己亮起来，点开是 AI 按你此刻处境现挑的 2–4 个下一步，一点即执行——第一次＝随机话题、聊完＝出题、做完题＝**一键解析**；迷路了翻「全部功能」，灰着的会告诉你怎么解锁 |
 | 问个问题 | 流式回答 + 思考链 + 工具步骤实时可见；模型自己决定何时搜网 / 查你的词条库 / 出题 / 画图；AI 一联网，右侧**资料架**同步上架，正文里的 `[n]` 点得回原文；「找视频」一键去 B站 / 抖音找讲解 |
 | 等回复的空档 | 2 秒没回完就弹一张**词卡**（词→义 / 义→词 / 拼写），到期词条答对＝一次真复习打卡 |
 | 让它考我 | 对话里说「考我」即可：六型配比、**真题缺省优先**、每道题标清「真题·必刷 / 模拟题·建议做 / 基础题·可选做」、材料与图必须随题带齐、答案先盲解验算 |
@@ -33,6 +34,14 @@
 
 **StudentBuddy 是一个带工具循环、写操作确认门与长期记忆的学习 Agent；你自己的词条库是主体，游戏化（知识大陆、词条卡牌、对战、魔法吟唱）是同一个学习内核（学 → 练 → 析 → 忆 → 反馈）的表达方式，不是套在外面的皮。**
 
+- **功能会来找你，而不是让你去翻功能**：本产品的判断标准是「惰性功能不写」（[`docs/FEATURES.md`](docs/FEATURES.md#产品判断为什么砍功能为什么转向游戏化)）——必须先想起它存在才起作用、不会自己发起交互、拿掉没人察觉的功能，不做。落到界面上：**左上角的引路灯**按你此刻的处境由 AI 现挑下一步（[`GUIDE-SPEC.md`](docs/GUIDE-SPEC.md)）；另有几处各管一段的主动设计，**每一处都带克制的闸门，不是弹窗轰炸**（逐项数字与契约见 [`docs/FEATURES.md`](docs/FEATURES.md#功能来找你主动呈现设计一览)）：
+  - 等回复的空档 → 弹**词卡**（2 秒没回完才弹、秒回不打扰、关掉不作废、回复到了自动切回）
+  - 聊到词库里的词 → 对话页弹「刷新了新的怪物」+「一键讨伐」，直达战场开打
+  - 有真欠账 → **督促胶囊**主动敲门（没欠账不敲、2 小时冷却、逾期 ≥3 天或堆到 10 条才敲）
+  - 讲完一段成体系的内容 → AI 自己递 **PK 邀请卡**（每会话 5 分钟冷却、每人每天 ≤3 次，闸门在数据库里、重启不归零）
+  - 地图页开着时 → **学习伙伴**主动搭话（真模型；每位 6 分钟、全局间隔 90 秒、每小时 ≤8 次；没模型宁可沉默）
+  - 走到岔路口 → AI 主动问一句并给 2–4 个选项（`ask_choice`）；开局就是「开始」——空会话四张建议卡一点即发；出题前就地问一次回答方式
+  - 做完题 → 「一键讲解」「再练一遍」；每条回答下「找视频」；网页打不开 → 自动换服务器截图
 - **对话本身就能干活**：流式回答 + 思考链可见，模型自己决定何时搜网、查你的词条库、出题、画图；资料架随搜索上架，回答里的 `[n]` 点得回原文；绑定长资料走 BM25 检索注入、带段号可溯源。
 - **词条是主体，学的痕迹自动沉淀**：聊完的概念自动入库 → 驱动出题 → FSRS-5 决定复习时机 → 回复里高亮 → 长成卡牌 → 铺进知识大陆。
 - **数据归你**：SQLite 单文件、可自托管、开源。
@@ -70,7 +79,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼 |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **329 文件 / 3853 例**，全绿（passed/skipped 明细分平台不同，不进本文手抄）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
+当前测试基线 **340 文件 / 4028 例**，全绿（passed/skipped 明细分平台不同，不进本文手抄）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
 
 另有几件不进 `check`、按需跑的仪器：`node tools/loadtest/sse-load.mjs`（单进程 SSE 容量探针，读数在 [`docs/SCALING.md`](docs/SCALING.md)）、`node tools/retention-report.mjs --db …`（只读留存报表，口径在 [`docs/RETENTION-SPEC.md`](docs/RETENTION-SPEC.md)）、`node tools/guard-audit.mjs`（把守门故意改坏，证明它们真的会红）。
 
@@ -113,6 +122,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 - **行内公式不渲染**（`$…$` 按原文显示）、`mermaid` / `echarts` 围栏降级代码块——刻意不引库以保住 `@sb/web` 零第三方依赖。
 - **预览页只活内存**：服务重启即失效、无分享链接。
 - **中英切换只到壳层**：功能页正文与服务端消息尚未双语。
+- **引路灯的 AI 推荐花模型额度**：只在点开 / 悬停 0.4 秒 / 聚焦时才请求、同一现场缓存 10 分钟，亮灯本身不调模型；它只在应用壳里（落地页与对战页没有），窄屏与卡牌 / 知识大陆页要在主区左侧让出 56px 的灯笼轨。
 - **题目自包含审查是词法的**：不点名却隐式依赖材料的题检测不到；题图不做 OCR。
 - **agent-bench 镜像落后生产一个工具**（`pick_sources`），`npm run eval:agent -- --selftest` 会报镜像漂移；不在 CI 门禁内。
 - **微信 / 短信登录未做**（需企业主体资质）。
@@ -140,6 +150,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | [`AUTH-SPEC.md`](docs/AUTH-SPEC.md) · [`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) | 账号契约 / 多租户归属契约 |
 | [`SSE-CONTRACT.md`](docs/SSE-CONTRACT.md) · [`CHAT-UX-SPEC.md`](docs/CHAT-UX-SPEC.md) | SSE 事件与 HTTP 接口契约（前端对接核心）/ 对话页流式期与常用动作口径（重试 / Esc 停止 / 会话草稿 / 标题态 / 引用追问） |
 | [`WAIT-DRILL-SPEC.md`](docs/WAIT-DRILL-SPEC.md) | 等待时刷词契约（2 秒才弹 / 答完切回 / 到期打卡 / AI 新词候选闸门 / 特效与音频口径） |
+| [`GUIDE-SPEC.md`](docs/GUIDE-SPEC.md) | 下一步引导（引路灯）契约（14 种动作白名单 / 六个阶段与三个必备时刻 / AI 现挑 + 规则兜底 / 能力注册 / 三档位置与三档主动程度） |
 | [`SOURCE-TRACE-SPEC.md`](docs/SOURCE-TRACE-SPEC.md) | 资料溯源契约（资料架编号即身份 / 阅读页零脚本与授权 / `pick_sources` / `[n]` 引用芯片 / 落库与历史重开 / 与刷词小窗共存 / 视频线路 B站就地播·抖音跳转 / 截图保底与守门代理） |
 | [`QUIZ-TIER-SPEC.md`](docs/QUIZ-TIER-SPEC.md) | 出题分级与真题优先契约（三档由服务端按事实推 / 基础题就说是基础题 / 搜集辨别层：尾锚点·选项命中率·考试信号 / 真题优先配额与生效条件） |
 | [`QUIZ-COMPLETE-SPEC.md`](docs/QUIZ-COMPLETE-SPEC.md) · [`eval/complete.md`](docs/eval/complete.md) | 题目自包含契约（`material` 字段 / 确定性依赖审查 / 一次修复调用 / 补不全整题剔除 / 搜集侧图与材料搬运）/ 对应评测读数 |

@@ -63,6 +63,9 @@
   --sb-sidebar-w: 216px;
   --sb-browser-w: 560px;
   --sb-composer-max: 760px;
+  /* 引路灯（features/guide）：提灯按钮边长；窄屏 / 通栏页在主区左侧让出的「灯笼轨」宽度 */
+  --sb-guide-size: 40px;
+  --sb-guide-rail: 56px;
 
   /* 动效时长（像素风一律 steps() 阶梯计时，不用缓动曲线；关键帧见 styles/pixel-motion.css）
      fast＝按压/悬停微反馈 · base＝元素入场 · scene＝整块场景转场（幕布） */

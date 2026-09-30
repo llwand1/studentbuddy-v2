@@ -5,10 +5,9 @@
  * 以下注释是 App.tsx 原文搬运，一字未改。
  */
 import { VsIcon, CardsIcon, GraphIcon, SettingsIcon } from '../components/icons';
-import { SparkleIcon } from '../components/game-icons';
 import type { Bi } from './landing-lang';
 
-export type View = 'chat' | 'terms' | 'cards' | 'continent' | 'settings';
+export type View = 'chat' | 'terms' | 'continent' | 'settings';
 
 /**
  * 侧栏功能列表（顺序 = 用户的主线动线）。
@@ -34,7 +33,6 @@ export type NavKey = View | 'pk';
 export const NAV: Array<{ key: NavKey; label: Bi; icon: typeof VsIcon }> = [
   { key: 'pk', label: { zh: '对战', en: 'Vs AI' }, icon: VsIcon },
   { key: 'terms', label: { zh: '词条', en: 'Terms' }, icon: CardsIcon },
-  { key: 'cards', label: { zh: '卡牌', en: 'Cards' }, icon: SparkleIcon },
   { key: 'continent', label: { zh: '知识大陆', en: 'Continent' }, icon: GraphIcon },
   { key: 'settings', label: { zh: '设置', en: 'Settings' }, icon: SettingsIcon },
 ];

@@ -1,10 +1,7 @@
 /* terms.css — 词条库页（忆域 v2，取代 memorize.css） */
 
-/* 页面占满 .sb-main 高度做局部滚动：头部/统计/工具栏/添加框固定，仅词条列表内滚
-   （否则整页随内容撑高，滚动发生在 .sb-main 上，是整屏滚而非列表滚）
-   ★ v23.2：`overflow` 从 `hidden` 改成 `auto`——`hidden` 是「静默不可达」的帮凶：
-     内容一旦超出（极矮窗口、面板展开到 45vh 上限），被裁掉的那截**连滚过去的办法都没有**。
-     改成 auto 后正常窗口下不出现条（不改变既有观感），挤爆时至少还滚得到。 */
+/* `.term-page` 是整页唯一滚动容器：卡牌面板已并入词条页，词条列表、宝箱与卡墙应连续滚动，
+   不再让列表内部另起滚动区。极矮窗口或面板展开时，所有内容仍可由外层滚到。 */
 .term-page {
   max-width: 760px;
   padding: 20px 24px 20px;
@@ -173,17 +170,15 @@
   color: var(--sb-ink);
 }
 
-/* 词条列表：唯一滚动区（头部/工具栏/添加框固定在外，滚动只发生在这里）
-   ★ min-height 是**保底**不是布局值：本页其它兄弟都是 flex-shrink:0，一旦有兄弟按内容撑高，
-     列表就是唯一被牺牲的那个（曾被压到 4px 并被父级 overflow:hidden 裁掉）。给个下限，
-     让「词条库本体」任何情况下都还剩一块可滚的区域。 */
+/* 词条列表：不再单独嵌套滚动。词条与卡牌玩法在同一页，唯一滚动容器是 `.term-page`，
+   否则用户得先滚列表、再滚宝箱与卡墙，两个滚轮区域彼此争手势。 */
 .term-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  flex: 1;
-  min-height: 160px;
-  overflow-y: auto;
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
   padding: 2px 2px 2px 0;
 }
 
@@ -218,6 +213,24 @@
   font-weight: 700;
   color: var(--sb-ink);
 }
+
+.term-card-face {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border: 1px solid var(--gm-card-edge, var(--sb-line));
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.term-card-face[data-r="N"] { background: var(--gm-r-n); border-color: var(--gm-r-n-dark); color: var(--gm-r-n-ink); }
+.term-card-face[data-r="R"] { background: var(--gm-r-r); border-color: var(--gm-r-r-dark); color: var(--gm-r-r-ink); }
+.term-card-face[data-r="SR"] { background: var(--gm-r-sr); border-color: var(--gm-r-sr-dark); color: var(--gm-r-sr-ink); }
+.term-card-face[data-r="SSR"] { background: var(--gm-r-ssr); border-color: var(--gm-r-ssr-dark); color: var(--gm-r-ssr-ink); }
+.term-card-face-gem { font-size: 12px; }
 
 .term-domain {
   font-size: 10.5px;

@@ -1,5 +1,5 @@
 /**
- * CardsView — 卡牌页（三屏合一的壳：宝箱条 / 任务清单 / 卡墙）。
+ * CardsView — 词条页里的卡牌区块（三屏合一：宝箱条 / 任务清单 / 卡墙）。
  *
  * ★ 三屏共用**一次** `GET /api/cards/state`（`use-cardsState`），不是三个各自拉数的组件：
  *   它们之间有等式（`summary.totalCards` = 卡墙各行之和、清单的进度来自同一份聚合），
@@ -10,7 +10,7 @@
  *   后者才是真的空态）——把失败画成空态，用户会以为自己的数据没了。
  */
 import { SparkleIcon, MascotIcon, StarIcon, TaskIcon, KeyIcon, DeckIcon } from '../../components/game-icons';
-import { useCardsState } from './use-cards-state';
+import type { CardsStore } from './use-cards-state';
 import { CardWall } from './CardWall';
 import { TaskListPanel } from './TaskListPanel';
 import { ChestPanel } from './ChestPanel';
@@ -56,8 +56,15 @@ function StatsBar({
  * `onGoContinent` 由 `App` 注入：任务清单里那条"伙伴名额"要能把人送到知识大陆（创建伙伴的落点在那边）。
  * ★ 这里**不自己拉** `/api/npc`：名额随 `/state` 一起回来（同一个瞬间），多一次读只会多一个不一致的机会。
  */
-export function CardsView({ onGoContinent }: { onGoContinent: () => void }) {
-  const s = useCardsState();
+export function CardsView({
+  state: s,
+  onGoContinent,
+  onTermsChanged,
+}: {
+  state: CardsStore;
+  onGoContinent: () => void;
+  onTermsChanged: () => void;
+}) {
 
   if (s.data === null) {
     return (
@@ -81,8 +88,17 @@ export function CardsView({ onGoContinent }: { onGoContinent: () => void }) {
 
   const { summary, wall, logSince, chest, tasks, candidates } = s.data;
 
+  const changed = () => {
+    void s.refresh();
+    onTermsChanged();
+  };
+
   return (
-    <section className="cv-page">
+    <section className="cv-page" aria-label="词条卡牌、宝箱与任务">
+      <header className="cv-section-head">
+        <span className="gm-eyebrow">Terms &amp; Cards</span>
+        <h2 className="cv-h2">词条卡牌与成长</h2>
+      </header>
       <div className="cv-lede">
         <MascotIcon size={24} />
         <span>
@@ -121,7 +137,7 @@ export function CardsView({ onGoContinent }: { onGoContinent: () => void }) {
         ready={s.chestReady}
         onOpened={s.clearChestReady}
         onChest={s.patchChest}
-        onChanged={() => void s.refresh()}
+        onChanged={changed}
       />
 
       <TaskListPanel
@@ -130,7 +146,7 @@ export function CardsView({ onGoContinent }: { onGoContinent: () => void }) {
         freshTaskIds={s.freshTaskIds}
         npcQuota={s.data.npc}
         onGoContinent={onGoContinent}
-        onChanged={() => void s.refresh()}
+        onChanged={changed}
       />
 
       <CardWall rows={wall} logSince={logSince} />

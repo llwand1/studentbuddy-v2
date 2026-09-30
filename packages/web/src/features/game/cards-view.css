@@ -58,6 +58,14 @@
   gap: var(--sb-sp-2);
 }
 
+.cv-section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 2px solid var(--gm-line);
+  padding-top: var(--sb-sp-4);
+}
+
 /* ══════════════════════ 卡墙 ══════════════════════ */
 
 .cv-wall {

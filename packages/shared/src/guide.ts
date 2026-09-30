@@ -22,7 +22,7 @@ export interface GuideText {
   en: string;
 }
 
-/** 提灯挂在应用壳里，能感知的五个视图（与 web `View` 同名同序） */
+/** 提灯挂在应用壳里，能感知的四个视图（与 web `View` 同名同序；卡牌已并入词条页，不再是独立视图） */
 export const GUIDE_VIEWS = ['chat', 'terms', 'continent', 'settings'] as const;
 export type GuideView = (typeof GUIDE_VIEWS)[number];
 

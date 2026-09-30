@@ -52,6 +52,7 @@ import { startJobWorker } from './jobs/worker.js';
 import { startMaintenance } from './jobs/maintenance.js';
 import { getDb } from './storage/db.js';
 import { requireAuth, attachUser } from './auth/middleware.js';
+import { activityHeartbeat } from './growth/activity.js';
 import { REQUIRE_AUTH } from './auth/form.js';
 import { purgeExpiredSessions } from './auth/session.js';
 import { purgeExpiredCodes } from './auth/codes.js';
@@ -117,6 +118,13 @@ app.use('/api', originCheck);
  *   归属过滤被整体跳过 ⇒ **隔离形同虚设**。强制登录只是部署形态的选择，不影响「我是谁」的解析。
  */
 app.use('/api', attachUser);
+
+/**
+ * 按日活跃心跳（契约 docs/RETENTION-SPEC.md §2）：登录用户当天第一次打到 `/api/*` 记一行 `user_activity_day`。
+ * 紧跟 `attachUser`（要读 `req.authUser`）、先于强制鉴权（被 401 的请求不算「来过」——它没登录）。
+ * 探针流量（`X-SB-Probe` / `studentbuddy-probe/*`）不记；每用户每天进程内只打一次库。
+ */
+app.use('/api', activityHeartbeat);
 
 /**
  * 可选强制鉴权（契约 docs/AUTH-SPEC.md §3）。

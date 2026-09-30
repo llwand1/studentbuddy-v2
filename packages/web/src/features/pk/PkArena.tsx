@@ -12,16 +12,19 @@
  */
 import type { ReactNode } from 'react';
 import { isAiUserId, type PkPlayer, type PkRoomState } from '@sb/shared';
+import type { PkScoreFx } from './usePkEffects';
 
 interface Props {
   state: PkRoomState;
   userId: string;
   /** 中央区：答题 / 出题 / 出题中的过渡提示，由 `PkMatch` 决定当前该显示哪一个 */
   children: ReactNode;
+  /** 对手分数变化的即时提示；分差仍只读服务端快照 */
+  scoreFx?: PkScoreFx | null;
 }
 
 /** 一侧的玩家卡（横屏在左/右，竖屏回落成上/下） */
-function SideCard({ player, label }: { player: PkPlayer | undefined; label: string }) {
+function SideCard({ player, label, scoreFx }: { player: PkPlayer | undefined; label: string; scoreFx?: PkScoreFx | null }) {
   if (!player) {
     return (
       <div className="sb-pk-arena-side empty">
@@ -37,7 +40,12 @@ function SideCard({ player, label }: { player: PkPlayer | undefined; label: stri
         {player.nickname}
         {isAiUserId(player.userId) && <span className="sb-pk-ai-tag">AI</span>}
       </span>
-      <span className="sb-pk-arena-score">{player.score}</span>
+      <span
+        key={scoreFx?.userId === player.userId ? scoreFx.key : undefined}
+        className={`sb-pk-arena-score${scoreFx?.userId === player.userId ? (scoreFx.delta > 0 ? ' score-up' : ' score-down') : ''}`}
+      >
+        {player.score}
+      </span>
       <span className="sb-pk-sub">
         答对 {player.correct}/{player.answered}
       </span>
@@ -46,7 +54,7 @@ function SideCard({ player, label }: { player: PkPlayer | undefined; label: stri
   );
 }
 
-export function PkArena({ state, userId, children }: Props) {
+export function PkArena({ state, userId, children, scoreFx }: Props) {
   const mine = state.players.find((p) => p.userId === userId);
   const opp = state.players.find((p) => p.userId !== userId);
 
@@ -54,9 +62,9 @@ export function PkArena({ state, userId, children }: Props) {
     <div className="sb-pk-arena">
       {/* 轻提示，不是遮罩：横屏更好用，但竖屏照样能玩——功能不能被提示挡住 */}
       <p className="sb-pk-rotate-tip">横屏体验更佳（竖屏也能玩）</p>
-      <SideCard player={opp} label="对手" />
+      <SideCard player={opp} label="对手" scoreFx={scoreFx} />
       <div className="sb-pk-arena-main">{children}</div>
-      <SideCard player={mine} label="我" />
+      <SideCard player={mine} label="我" scoreFx={scoreFx} />
     </div>
   );
 }

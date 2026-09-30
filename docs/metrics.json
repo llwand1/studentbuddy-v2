@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30T18:44:10.088Z",
+  "generatedAt": "2026-09-30T18:57:04.600Z",
   "code": {
     "rows": [
       {
@@ -18,17 +18,17 @@
       },
       {
         "pkg": "web",
-        "srcFiles": 294,
-        "testFiles": 123,
-        "srcLines": 37384,
-        "testLines": 16575
+        "srcFiles": 298,
+        "testFiles": 125,
+        "srcLines": 37658,
+        "testLines": 16701
       }
     ],
-    "srcFiles": 589,
-    "testFiles": 329,
-    "srcLines": 81399,
-    "testLines": 53704,
-    "tsxTestFiles": 59
+    "srcFiles": 593,
+    "testFiles": 331,
+    "srcLines": 81673,
+    "testLines": 53830,
+    "tsxTestFiles": 60
   },
   "routes": {
     "total": 164,
@@ -85,20 +85,20 @@
     "probes": 15
   },
   "repo": {
-    "head": "8dbc1df",
+    "head": "c48bb93",
     "headDate": "2026-10-01",
-    "commitsLast14d": 176,
-    "branch": "merge/terms-cards",
-    "dirtyFiles": 0
+    "commitsLast14d": 178,
+    "branch": "merge/pk-fx",
+    "dirtyFiles": 16
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 61.6,
+    "wallSec": 39.7,
     "staleDays": 0,
-    "files": 329,
-    "cases": 3854,
-    "passed": 3852,
+    "files": 331,
+    "cases": 3861,
+    "passed": 3859,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -110,14 +110,14 @@
     {
       "label": "badge 测试文件",
       "claimed": "329",
-      "measured": "329",
-      "ok": true
+      "measured": "331",
+      "ok": false
     },
     {
       "label": "badge 测试用例",
       "claimed": "3854",
-      "measured": "3854",
-      "ok": true
+      "measured": "3861",
+      "ok": false
     },
     {
       "label": "badge REST 路由",
@@ -158,8 +158,8 @@
     {
       "label": "正文基线句",
       "claimed": "329 文件 / 3854 例",
-      "measured": "329 文件 / 3854 例",
-      "ok": true
+      "measured": "331 文件 / 3861 例",
+      "ok": false
     }
   ],
   "landingDrift": [

@@ -32,6 +32,7 @@ const OPP = 'u-opp';
 
 afterEach(() => {
   cleanup();
+  localStorage.clear();
   vi.clearAllMocks();
 });
 
@@ -98,6 +99,15 @@ const inFold = (c: HTMLElement) => {
 };
 
 describe('PkMatch 对局视图', () => {
+  it('音效开关可见、键盘可达且即时记住本机选择', () => {
+    const { getByRole } = setup(room({ questions: [] }));
+    const toggle = getByRole('button', { name: '对战音效已开启' });
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(toggle);
+    expect(getByRole('button', { name: '对战音效已关闭' }).getAttribute('aria-pressed')).toBe('false');
+    expect(localStorage.getItem('sb:pk:sound')).toBe('off');
+  });
+
   it('有我的待答题：中央区只放答题块，出题入口收进折叠区且仍可达', () => {
     const { container } = setup(room({ questions: [question()] }));
     const main = container.querySelector('.sb-pk-arena-main')!;

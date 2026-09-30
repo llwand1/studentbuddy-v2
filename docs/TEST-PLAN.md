@@ -1,3 +1,12 @@
+> 2026-09-30 PK 对战关键事件反馈（契约 `docs/PK-SPEC.md` §17；仅前端表现层，零迁移 / 新表 / 新路由 / 新运行时依赖，计分与题目状态不变）：答题正确 / 错误 / 超时、收到新题、连击里程碑及对手得分变化触发短促像素反馈；Web Audio 现场合成五类音效（无背景音乐），本机可静音且偏好留在本机。新 `pk-audio.test.ts` **3** + `usePkEffects.test.tsx` **3** + 既有 `PkMatch.test.tsx` **9→10**，共 **3 文件 / 7 例**。
+>
+> | 本批测试文件 | 用例 | 不变量 |
+> |---|---:|---|
+> | `src/features/pk/pk-audio.test.ts` | 3 | jsdom 桩 AudioContext。按需建上下文、五类音效均合成有界振荡节点并 start/stop；静音不建节点、恢复时主增益淡入；无 Web Audio 静默降级；开关偏好按本机保存。 |
+> | `src/features/pk/usePkEffects.test.tsx` | 3 | jsdom。新题只在目标是本人且由对手发出时触发；对手答题按服务端分数变化触发反馈；本人连续答对三次触发连击档；挂载时已有题只建立基线不误播；音效切换即时生效并持久化。 |
+
+---
+
 > 2026-09-30 做题痕迹不丢（分支 `feat/quiz-attempt-record`，契约 `docs/QUIZ-REVIEW-SPEC.md`「作答记录」节；**零迁移、零新表、零新依赖**——复用 2026-09-26 题库下线后空着的 `quiz_stats`，新增 `GET|POST /api/quiz/:quizId/attempts` 一对薄端点）：题卡每答一题记一笔（题号、三档判定、作答文字），重开会话时卡顶一行「刷过 N 遍 · 客观题正确率」、每题一枚「上次 ✓／↗／◇」。累计口径是 shared 里的**同一个纯函数**（`applyQuizAttempt`）——服务端算下一行用它、前端乐观更新也用它；概括口径 `summarizeQuizAttempts`（遍数 = attempts 最大值、解答题不进正确率、没答过客观题不写 0%）。**新增 4 个测试文件 15 例**＝shared `src/quiz-attempts.test.ts` **5**／server `src/learning/quiz-attempts.test.ts` **4**、`src/routes/quiz-attempts.test.ts` **3**／web `src/features/quiz/QuizCard.attempts.test.tsx` **3**；既有文件零改例（`QuizCard.test.tsx` 那 7 例不传 quizId ⇒ 记录关着，行为与从前逐字相同）。★ 三把要紧的锁：① **别人往我的题号上写是 404 不是 403、且不覆盖**（主键 `(quiz_id, question_index)` 不含 owner，这是唯一会串台的口子）；② **老行兼容**（题库时代 `last_answer` 是裸文本 ⇒ 判定按 streak 推、再记一笔后转成新格式）；③ **记不上不回滚**（用户确实答了，页面上的判分是真的——只多一行「第 n 题没记上」）。本批**刻意不测**：卡顶那行的样式；「最近 时间」的本地化（走既有 `formatMsgTime`，它自己有锁）。**欠账**：真机（真 SQLite + 刷新）未跑，jsdom 与 supertest 各锁一半。
 >
 > | 本批测试文件 | 用例 | 不变量 |

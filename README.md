@@ -4,7 +4,7 @@
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-0.2.151-orange)
-![tests](https://img.shields.io/badge/tests-342%20files%20%2F%204036%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-342%20files%20%2F%204038%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-165-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-231%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
@@ -81,7 +81,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼 |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **342 文件 / 4036 例**，全绿（4034 passed / 2 skipped；本机全量实跑）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
+当前测试基线 **342 文件 / 4038 例**，全绿（4036 passed / 2 skipped；本机全量实跑）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
 
 另有几件不进 `check`、按需跑的仪器：`node tools/loadtest/sse-load.mjs`（单进程 SSE 容量探针，读数在 [`docs/SCALING.md`](docs/SCALING.md)）、`node tools/retention-report.mjs --db …`（只读留存报表，口径在 [`docs/RETENTION-SPEC.md`](docs/RETENTION-SPEC.md)）、`node tools/guard-audit.mjs`（把守门故意改坏，证明它们真的会红）。
 

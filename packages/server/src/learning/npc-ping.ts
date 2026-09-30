@@ -40,33 +40,33 @@ export const SETTING_KEY_NPC_BUBBLE = 'npc_bubble';
 const PING_MAX_TOKENS = 200;
 const PING_TEMPERATURE = 0.9;
 
-function settingKey(base: string, ownerId: string | null): string {
-  // 与花名册同款：无主行用裸键，有主行按 owner 分键（`npc-party.ts` 同一口径）
-  return ownerId ? `${base}:${ownerId}` : base;
-}
-
-function readSetting(key: string): string {
-  const row = getDb().prepare('SELECT value FROM app_settings WHERE key = ?').get(key) as
-    | { value: string }
-    | undefined;
+/**
+ * `app_settings` 自 v30 起主键是 `(owner_id, key)`（TENANCY-SPEC §8.2）：读写都带 owner_id，
+ * `ON CONFLICT` 的目标也必须是 `(owner_id, key)`——与花名册 `npc-party.ts` 同一口径。
+ * （此前这里还是 v30 之前的 `ON CONFLICT(key)`，SQLite 在 prepare 时就报「找不到匹配的唯一索引」。）
+ */
+function readSetting(ownerId: string | null, key: string): string {
+  const row = getDb()
+    .prepare('SELECT value FROM app_settings WHERE owner_id = ? AND key = ?')
+    .get(ownerForWrite(ownerId), key) as { value: string } | undefined;
   return row?.value ?? '';
 }
 
-function writeSetting(key: string, value: string): void {
+function writeSetting(ownerId: string | null, key: string, value: string): void {
   getDb()
     .prepare(
-      `INSERT INTO app_settings (key, value) VALUES (?, ?)
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      `INSERT INTO app_settings (owner_id, key, value) VALUES (?, ?, ?)
+       ON CONFLICT(owner_id, key) DO UPDATE SET value = excluded.value`,
     )
-    .run(key, value);
+    .run(ownerForWrite(ownerId), key, value);
 }
 
 export function loadPingState(ownerId: string | null): NpcPingState {
-  return parseNpcPingState(readSetting(settingKey(SETTING_KEY_NPC_PINGS, ownerId)));
+  return parseNpcPingState(readSetting(ownerId, SETTING_KEY_NPC_PINGS));
 }
 
 export function savePingState(ownerId: string | null, state: NpcPingState): void {
-  writeSetting(settingKey(SETTING_KEY_NPC_PINGS, ownerId), JSON.stringify(state));
+  writeSetting(ownerId, SETTING_KEY_NPC_PINGS, JSON.stringify(state));
 }
 
 /** 地图上那个待领的气泡 */
@@ -86,7 +86,7 @@ export interface NpcBubble {
 }
 
 export function loadBubble(ownerId: string | null, now = Date.now()): NpcBubble | null {
-  const raw = readSetting(settingKey(SETTING_KEY_NPC_BUBBLE, ownerId));
+  const raw = readSetting(ownerId, SETTING_KEY_NPC_BUBBLE);
   if (!raw) return null;
   try {
     const b = JSON.parse(raw) as NpcBubble;
@@ -100,7 +100,7 @@ export function loadBubble(ownerId: string | null, now = Date.now()): NpcBubble 
 }
 
 export function clearBubble(ownerId: string | null): void {
-  writeSetting(settingKey(SETTING_KEY_NPC_BUBBLE, ownerId), '');
+  writeSetting(ownerId, SETTING_KEY_NPC_BUBBLE, '');
 }
 
 /** 他此刻站的那一格是哪条词条（走位决定话题的那一步） */
@@ -203,7 +203,7 @@ export async function npcPing(ownerIdRaw: string | null, now = Date.now()): Prom
     at: now,
     source,
   };
-  writeSetting(settingKey(SETTING_KEY_NPC_BUBBLE, ownerId), JSON.stringify(bubble));
+  writeSetting(ownerId, SETTING_KEY_NPC_BUBBLE, JSON.stringify(bubble));
   savePingState(ownerId, notePing(state, npc.id, now));
 
   // 主动说的这句照样进他自己的会话史（★ 否则点开面板会发现气泡说过的话凭空消失）

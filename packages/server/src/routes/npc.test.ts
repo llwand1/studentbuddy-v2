@@ -56,7 +56,7 @@ beforeEach(() => {
   for (const t of ['term_library', 'term_mention_log', 'term_review_log', 'chest_keys', 'chest_open', 'study_task']) {
     db.prepare(`DELETE FROM ${t}`).run();
   }
-  db.prepare(`DELETE FROM app_settings WHERE key = 'npc_party'`).run();
+  db.prepare(`DELETE FROM app_settings WHERE key IN ('npc_party', 'npc_pings', 'npc_bubble')`).run();
 });
 
 afterAll(() => closeDb());
@@ -240,5 +240,23 @@ describe('归属隔离', () => {
     // B 也不能改到 A 的名字
     await req.put('/api/npc/npc:x', B.cookie, { name: '别人的伙伴' }).expect(404);
     expect((await npcState(A.cookie)).partnerName).toBe('小满');
+  });
+});
+
+describe('主动搭话轮询口 /ping 与领走气泡 —— 节流账 / 气泡落 app_settings', () => {
+  // 回归：这里曾写 `ON CONFLICT(key)`，而 app_settings 自 v30 起主键是 (owner_id, key)，
+  // SQLite 在 prepare 时就抛「找不到匹配的唯一索引」。不绑模型、没有伙伴的最短路径也会写节流账，所以必须覆盖。
+  it('⑨ 没模型、没伙伴也是 200 + { bubble: null }；节流账按 owner 各落一行（不串台）', async () => {
+    const a = await req.get('/api/npc/ping', A.cookie).expect(200);
+    expect((a.body as { bubble: unknown }).bubble).toBeNull();
+    await req.get('/api/npc/ping', B.cookie).expect(200);
+
+    const rows = getDb().prepare(`SELECT owner_id FROM app_settings WHERE key = 'npc_pings'`).all() as Array<{ owner_id: string }>;
+    expect(rows.map((r) => r.owner_id).sort()).toEqual([A.id, B.id].sort());
+  });
+
+  it('⑩ 领走气泡同样写 app_settings：200，且重复调用幂等', async () => {
+    await req.post('/api/npc/bubble/dismiss', A.cookie).expect(200);
+    await req.post('/api/npc/bubble/dismiss', A.cookie).expect(200);
   });
 });

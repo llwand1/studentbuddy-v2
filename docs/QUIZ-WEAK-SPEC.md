@@ -19,6 +19,9 @@
 >
 > **本次零迁移（判决＝本次不碰表）**：`quiz_bank`／`quiz_stats`／`quiz_notes` 三张表留在库里，
 >   等一次**独立的删除型迁移**（按次确认）。⇒ `quiz_stats` 自此是「有表、有归属列、有历史行、零写者」的活化石。
+>   ★ **2026-09-30 更新**：`quiz_stats` 重新有写者——对话题卡的作答记录（`learning/quiz-attempts.ts`，契约
+>   `docs/QUIZ-REVIEW-SPEC.md`「作答记录」节：一题一行逐题累计、只服务题卡自己、没有列表与分析）。它**退出**删除清单；
+>   `quiz_bank`／`quiz_notes` 仍在清单里。本文件其余墓碑文字不变。
 >
 > **被这条牵连的资产（同步改，别拿旧文当已交付）**：
 >  · `llm/router.ts` 的 `MODEL_ROLES.analyzer` **仍在**，且 `routes/providers.ts:156` 把整张角色表回给前端

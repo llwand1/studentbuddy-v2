@@ -32,6 +32,7 @@ import { PreviewPanel } from '../features/preview/PreviewPanel';
 import { SourcePanel } from '../features/sources/SourcePanel';
 import { CoachDock } from '../features/coach/CoachDock';
 import { WaitDrill } from '../features/drill/WaitDrill';
+import { HuntAlert } from '../features/hunt/HuntAlert';
 import { TrialNotice } from '../components/TrialNotice';
 import './app.css';
 
@@ -39,6 +40,8 @@ export function App() {
   /** 壳层框架文案（新对话 / 历史 / 搜索 / 导航标签）跟着全局语言走，词表见 app/shell-copy.ts */
   const { lang } = useLandingLang();
   const [view, setView] = useState<View>('chat');
+  /** 回答收口的轮次计数（`HuntAlert` 据此重取地图看有没有刷出话题怪；契约 KNOWLEDGE-CONTINENT-SPEC §「话题怪」） */
+  const [roundTick, setRoundTick] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
   /** 会话标题过滤（纯前端，服务端列表本就 ≤ 单机量级）；空串 = 不过滤 */
@@ -230,7 +233,10 @@ export function App() {
                 sessionId={currentId}
                 sessionTitle={sessions.find((s) => s.id === currentId)?.title}
                 onNewSession={() => void newSession()}
-                onRoundDone={() => void reloadSessions()}
+                onRoundDone={() => {
+                  void reloadSessions();
+                  setRoundTick((n) => n + 1);
+                }}
                 onBusyChange={handleBusyChange}
               />
             </TermIndexProvider>
@@ -257,6 +263,8 @@ export function App() {
         而弹窗、配乐与本局战绩不该因为切页被重置；`active` 只管"自动弹"是否允许（不在对话页不弹）。
       */}
       <WaitDrill busySessionId={localBusySid} active={view === 'chat'} />
+      {/* 「刷新了新的怪物」：每轮收口后与大陆同一口径算话题怪，新冒出的就提醒；「一键讨伐」切到大陆自动寻路开打 */}
+      <HuntAlert active={view === 'chat'} roundTick={roundTick} onGoContinent={() => setView('continent')} />
     </div>
   );
 }

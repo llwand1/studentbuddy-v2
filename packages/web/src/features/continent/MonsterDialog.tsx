@@ -15,8 +15,16 @@
  * ★ 魔法吟唱（契约 `docs/SPELL-CHANT-SPEC.md`）：每次开怪**一次**机会——翻咒语书选一段历史对话吟唱，
  *   伤害 `damage`（shared 口径）= 掉 `damage` 滴血 = 替你答掉 `damage` 道题（「题数 = 血量」不破）。
  *   血掉光 ⇒ `onSolved(tile, kind)`（这次释放化作的款式）⇒ 父组件放该款的咒语版特效。中断 / 哑火都算用掉，不能翻书试到共鸣为止。
+ *
+ * ★ 横版战斗（2026-09-30，契约 KNOWLEDGE-CONTINENT-SPEC §「横版战斗」）：弹窗变成一块**战场**——
+ *   顶上是横版 canvas（`BattleStage`：左勇者、右这只怪、序章同款布景），底下仍是同一套答题。答对 ⇒ 勇者突进、怪掉血；
+ *   答错 ⇒ 怪扑过来；吟唱命中 ⇒ 符文；最后一击 ⇒ 怪化沙、`onSolved`。打开时地图先像素化暗下去再亮出战场
+ *   （`.continent-battle` 的 CSS 转场，减少动态效果时直接切）。**规则一条没变**：题数 = 血量、答错可重试。
+ * ★ 废墟的「复习重建」也走这里（`tile.ruin` 且无怪）：同一场战斗，只是标题说的是"重建"。
  */
 import { useMemo, useState } from 'react';
+import { BattleStage } from './BattleStage';
+import type { BattleEvent, BattleEventKind } from './battle-stage';
 import { CONTINENT_QLABEL, buildMonsterQuestions, gradeAnswer, type ContinentAnswer, type SpellKind } from '@sb/shared';
 import type { ContinentMapTerm } from '../../lib/api-terms-continent';
 import { ContinentQuestionForm, correctText } from './ContinentQuestionForm';
@@ -57,6 +65,9 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
   const [busy, setBusy] = useState(false);
   const [spell, setSpell] = useState<SpellState>('idle');
   const [spellPlan, setSpellPlan] = useState<{ plan: SpellPlan; title: string } | null>(null);
+  /** 战场事件（序号自增：连答对两题也要各演一遍） */
+  const [event, setEvent] = useState<BattleEvent | null>(null);
+  const play = (kind: BattleEventKind): void => setEvent((e) => ({ kind, seq: (e?.seq ?? 0) + 1 }));
 
   const current = questions[qi];
   const answered = current !== undefined && answer !== null && gradeAnswer(current, answer);
@@ -69,8 +80,11 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
       setQi(qi + damage);
       setNote(null);
       setAnswer(null);
+      play(spell ? 'spell' : 'hit');
       return;
     }
+    setHp(0);
+    play('defeat');
     setBusy(true);
     try {
       await (spell ? onSolved(tile, spell) : onSolved(tile));
@@ -85,6 +99,7 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
     if (!current || busy) return;
     if (!answered) {
       setNote(`还不对。${correctText(current)}`);
+      play('miss');
       return;
     }
     await hurt(1);
@@ -122,19 +137,23 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
     );
   }
 
+  const rebuild = tile.ruin && !tile.hasMonster;
   return (
-    <div className="continent-modal" role="dialog" aria-modal="true" aria-label={`复习 ${tile.term}`}>
-      <div className="continent-modal-card">
+    <div className="continent-modal continent-battle" role="dialog" aria-modal="true" aria-label={`${rebuild ? '重建' : '讨伐'} ${tile.term}`}>
+      <div className="continent-modal-card continent-battle-card">
+        {/* 横版战场：地图 → 战场的转场由 `.continent-battle` 的 CSS 做；血量与下面的血条同源 */}
+        <BattleStage tile={tile} hp={hp} maxHp={questions.length} event={event} />
         <header className="continent-modal-head">
           <span className="continent-modal-title">
             {tile.term}
             <small>
-              {/* 怪的俗名由怪种（题型序列）定——与图上那张脸、图鉴那一格是同一个名字；来路（野怪/欠账）由 tileStatusText 说 */}
+              {/* 怪的俗名由怪种（题型序列）定——与图上那张脸、图鉴那一格是同一个名字；来路（野怪/欠账/话题/废墟）由 tileStatusText 说 */}
+              {rebuild ? '废墟守卫·' : ''}
               {monsterLook(tile.species).name} · {cellLabel(tile)} · {tileStatusText(tile)}
             </small>
           </span>
           <button className="continent-btn ghost" onClick={onClose}>
-            关闭
+            撤退
           </button>
         </header>
 

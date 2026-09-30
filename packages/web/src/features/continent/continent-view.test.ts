@@ -16,6 +16,7 @@ import {
   canStrike,
   cellHint,
   cellLabel,
+  fightTile,
   initialHeroCell,
   manhattan,
   tileHint,
@@ -44,6 +45,7 @@ function termOf(id: string, createdAt: string, over: Partial<ContinentMapTerm> =
     review_stage: 0,
     last_reviewed_at: null,
     review_in_scope: 0,
+    last_used_at: null,
     review: computeReviewState({ stage: 0, createdAt, now: NOW }),
   };
   const merged: ContinentMapTerm = { ...base, ...over };
@@ -412,5 +414,98 @@ describe('文案口径', () => {
 
   it('cellLabel 用 1 起的行列号（写「第 1 行」而不是「第 0 行」）', () => {
     expect(cellLabel({ row: 5, col: 7 })).toBe('第 6 行 · 第 8 列');
+  });
+});
+describe('地块维护：磨损与废墟（2026-09-30）', () => {
+  const DAY = '2026-09-26';
+
+  it('★ 同样 20 天没碰：中心那块完好，铺到第 7 环的那块已是废墟；废墟仍是词条格、可通行、不冒怪、不占地', () => {
+    // 145 条今天刚入库的普通词条铺满前 6 环（1+8+…+48 = 169 > 145，够把 a/b 顶到第 6、7 环外）
+    const filler = Array.from({ length: 200 }, (_, i) => termOf(`f${i}`, daysAgo(0)));
+    const center = termOf('c', daysAgo(20), { created_at: daysAgo(30) }); // 最早入库 ⇒ 中心格
+    const rim = termOf('r', daysAgo(20), { created_at: daysAgo(0), id: 'r' });
+    // 让 rim 排在 filler 之后（created_at 同为今天时按 id：'r' > 'f…'）
+    const view = buildContinentView([center, ...filler, rim]);
+    const c = tile(view, 'c');
+    const r = tile(view, 'r');
+    expect(c.ring).toBe(0);
+    expect(r.ring).toBeGreaterThanOrEqual(7); // 第 7 环耐久 10 天 < 20 天
+    expect(c.ruin).toBe(false);
+    expect(c.wear).toBeCloseTo(20 / 120, 5);
+    expect(r.ruin).toBe(true);
+    expect(r.wear).toBe(1);
+    expect(r.walkable).toBe(true);
+    expect(r.hasMonster).toBe(false);
+    expect(view.ruinCount).toBe(1);
+    expect(view.intactCount).toBe(view.tiles.length - 1);
+    expect(view.landCount).toBe(0);
+    expect(tileStatusText(r)).toContain('废墟');
+    expect(tileStatusText(r)).toContain('复习一次即重建');
+    expect(tileHint(r)).toContain('点它复习重建');
+    // 起裂提醒：磨损 ≥ 0.5 才说
+    expect(tileHint(c)).not.toContain('起裂');
+  });
+
+  it('废墟上照样能冒怪（欠账 / 野怪 / 话题），怪的口径不因废墟改变', () => {
+    const filler = Array.from({ length: 200 }, (_, i) => termOf(`f${i}`, daysAgo(0)));
+    const rim = termOf('r', daysAgo(20), { created_at: daysAgo(0), review_in_scope: 1 }); // 范围内、逾期 ⇒ 欠账怪
+    const view = buildContinentView([...filler, rim], { dayKey: DAY });
+    const r = tile(view, 'r');
+    expect(r.ruin).toBe(true);
+    expect(r.monsterKind).toBe('due');
+    expect(r.walkable).toBe(false);
+  });
+
+  it('长期记忆是基石：mastered 的边缘地块放一年也不碎', () => {
+    const filler = Array.from({ length: 200 }, (_, i) => termOf(`f${i}`, daysAgo(0)));
+    const rim = termOf('r', daysAgo(0), { created_at: daysAgo(0), review_in_scope: 1, review_stage: 7, last_reviewed_at: daysAgo(365) });
+    const r = tile(buildContinentView([...filler, rim]), 'r');
+    expect(r.status).toBe('mastered');
+    expect(r.wear).toBe(0);
+    expect(r.ruin).toBe(false);
+    expect(tileStatusText(r)).toContain('基石');
+  });
+
+  it('fightTile：废墟没有怪 ⇒ 就地立"废墟守卫"（等级/怪种按同一套派生，不改 hasMonster）；有怪的原样返回', () => {
+    const filler = Array.from({ length: 200 }, (_, i) => termOf(`f${i}`, daysAgo(0)));
+    const rim = termOf('r', daysAgo(20), { created_at: daysAgo(0), review_stage: 4 });
+    const r = tile(buildContinentView([...filler, rim]), 'r');
+    expect(r.level).toBe(0);
+    const f = fightTile(r);
+    expect(f.hasMonster).toBe(false);
+    expect(f.level).toBe(3); // monsterLevel(4)
+    expect(f.species).toHaveLength(3);
+    const due = tile(buildContinentView([overdueTerm('a')]), 'a');
+    expect(fightTile(due)).toBe(due);
+  });
+});
+
+describe('话题怪：对话里提到的词条今天冒怪（2026-09-30）', () => {
+  const DAY = '2026-09-26';
+
+  it('★ 今天提到过（last_used_at 今天）且不是欠账怪 ⇒ monsterKind=topic：不占地、范围外也出、文案说"话题怪"', () => {
+    const talked = termOf('t', daysAgo(0), { last_used_at: daysAgo(0) });
+    const quiet = termOf('q', daysAgo(0), { last_used_at: daysAgo(2) });
+    const view = buildContinentView([talked, quiet], { dayKey: DAY });
+    const t = tile(view, 't');
+    expect(t.monsterKind).toBe('topic');
+    expect(t.hasMonster).toBe(true);
+    expect(t.walkable).toBe(false);
+    expect(t.territoryCount).toBe(0);
+    expect(view.topicCount).toBe(1);
+    expect(view.landCount).toBe(0);
+    expect(tile(view, 'q').monsterKind === 'topic').toBe(false);
+    expect(tileStatusText(t)).toContain('话题怪');
+    expect(tileStatusText(t)).toContain('打赢即纳入');
+    expect(tileHint(t)).toContain('话题怪');
+  });
+
+  it('欠账怪优先于话题怪；不传 dayKey 不刷话题怪；今天复习过的不出', () => {
+    const due = overdueTerm('a', { last_used_at: daysAgo(0) });
+    expect(tile(buildContinentView([due], { dayKey: DAY }), 'a').monsterKind).toBe('due');
+    const talked = termOf('t', daysAgo(0), { last_used_at: daysAgo(0) });
+    expect(tile(buildContinentView([talked]), 't').monsterKind).toBeNull();
+    const reviewed = termOf('r', daysAgo(3), { last_used_at: daysAgo(0), review_stage: 1, last_reviewed_at: daysAgo(0) });
+    expect(tile(buildContinentView([reviewed], { dayKey: DAY }), 'r').monsterKind).not.toBe('topic');
   });
 });

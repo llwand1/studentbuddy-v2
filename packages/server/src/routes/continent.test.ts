@@ -29,6 +29,7 @@ interface MapTerm {
   review_stage: number;
   review: { status: string; overdueDays: number; stage: number };
   review_in_scope: number;
+  last_used_at: string | null;
 }
 
 /** 建词条；`inScope=false` 造「范围外」的词条（v28 起新词条默认**不在**范围） */
@@ -77,12 +78,15 @@ describe('知识大陆地图', () => {
     expect(terms.length).toBeGreaterThan(total);
   });
 
-  it('每条带现算的 review 与**服务端**的范围结论 review_in_scope', async () => {
+  it('每条带现算的 review 与**服务端**的范围结论 review_in_scope；另带 last_used_at（话题怪的依据，没提过为 null）', async () => {
     const outScope = await addTerm('范围外二号', false);
     const terms = await map();
     const hit = terms.find((t) => t.id === outScope);
     expect(hit?.review_in_scope).toBe(0);
     expect(hit?.review.status).toBeTypeOf('string');
+    expect(hit?.last_used_at).toBeNull();
+    getDb().prepare(`UPDATE term_library SET last_used_at = datetime('now') WHERE id = ?`).run(outScope);
+    expect((await map()).find((t) => t.id === outScope)?.last_used_at).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
   });
 
   it('逾期词条在地图上标 overdue（怪占格的判断标准）', async () => {

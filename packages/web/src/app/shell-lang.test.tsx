@@ -120,12 +120,14 @@ describe('全局中英切换 — 壳层框架真的换血', () => {
     expect(container.textContent).not.toContain(SHELL.account.notLoggedIn.en);
   });
 
-  it('导航标签两语齐备，且五个 en 侧互不相同（复制粘贴漏改是机器可查的）', () => {
+  it('导航标签两语齐备、英文不重复，且卡牌并入词条后不再占独立入口', () => {
     for (const { label } of NAV) {
       expect(label.zh.trim()).not.toBe('');
       expect(label.en.trim()).not.toBe('');
     }
     expect(new Set(NAV.map((n) => n.label.en)).size).toBe(NAV.length);
+    expect(NAV.map((n) => n.key)).not.toContain('cards');
+    expect(NAV.map((n) => n.key)).toContain('terms');
   });
 
   it('★ 落地页与应用壳共用同一份语言状态：在落地页点 EN，壳这边读到的也是 en', () => {

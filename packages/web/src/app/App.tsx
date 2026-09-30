@@ -5,7 +5,7 @@
  * 底部用户框为 PK 昵称登录入口（模拟登录；真微信授权后续接入）；「对话」不再占导航项——logo 与新对话即入口。
  * 会话搜索框保留，收进历史对话区内。
  * 功能列表补「对战」一项（实测「找不到入口」）——PK 页仍是独立页，
- * 这一项只负责把 hash 改成 `#/pk`，见下方 NAV 注释。
+ * 这一项只负责把 hash 改成 `#/pk`，见下方 NAV 注释。卡牌系统并入词条视图，不再单设导航项。
  */
 import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@sb/shared';
@@ -25,8 +25,7 @@ import { useActiveSessions } from '../features/chat/useActiveSessions';
 import { Mascot } from '../features/chat/Mascot';
 import { BRAND_NAME } from '../lib/brand';
 import { SettingsView } from '../features/settings/SettingsView';
-import { TermsPage } from '../features/terms/TermsPage';
-import { CardsView } from '../features/game/CardsView';
+import { TermsLibraryView } from '../features/terms/TermsLibraryView';
 import { ContinentPage } from '../features/continent/ContinentPage';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
 import { SourcePanel } from '../features/sources/SourcePanel';
@@ -220,7 +219,7 @@ export function App() {
         <span className="sb-lang-bar"><LangToggle /></span>
       </PixelSidebar>
       <main className="sb-main">
-        {/* 五个视图之间的切换走像素幕布转场（components/SceneTransition）：内容同步换、幕布盖在上面掀开；
+        {/* 四个视图之间的切换走像素幕布转场（components/SceneTransition）：内容同步换、幕布盖在上面掀开；
             场景层不产生盒子，下面各页的 flex/height 口径与直接挂在 .sb-main 下时一字不差 */}
         <SceneTransition scene={view}>
           {view === 'chat' && (
@@ -242,9 +241,13 @@ export function App() {
             </TermIndexProvider>
           )}
           {/* key 变化时重挂：从词条卡带词进来要重新初始化搜索框 */}
-          {view === 'terms' && <TermsPage key={termsKeyword} initialKeyword={termsKeyword} />}
-          {/* `onGoContinent`：任务清单那条"伙伴名额"要把人送到知识大陆（创建伙伴的落点在那边） */}
-          {view === 'cards' && <CardsView onGoContinent={() => setView('continent')} />}
+          {view === 'terms' && (
+            <TermsLibraryView
+              key={termsKeyword}
+              initialKeyword={termsKeyword}
+              onGoContinent={() => setView('continent')}
+            />
+          )}
           {view === 'continent' && <ContinentPage />}
           {view === 'settings' && <SettingsView />}
         </SceneTransition>

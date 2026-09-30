@@ -39,7 +39,7 @@
 
 - `styles/tokens.css`：三档动效时长 `--sb-motion-fast / base / scene`（120 / 220 / 320ms）。全站动效只认这三档，像素风一律 `steps()` 阶梯计时、不用缓动曲线。
 - `styles/pixel-motion.css`：共享关键帧（`sb-rise-in` / `sb-fade-in` / `sb-drawer-in` / `sb-pop`）、场景舞台与幕布、启动画面。四条口径写在文件头：只用 steps、只动 transform/opacity/clip-path、**默认态即终态**（减少动态效果关掉动画后不会留下一块布）、纯装饰不占焦点不接指针。
-- `components/SceneTransition.tsx`：场景转场。应用壳 `<main>` 的五个视图切换与 `main.tsx` 的落地页 ↔ 应用 ↔ 对战页换根都走它。内容**同步**换、幕布盖在上面从上到下掀开；首次挂载不铺布；`prefers-reduced-motion` 命中时幕布节点根本不渲染。场景层 `display: contents` 不产生盒子，各页面原有的 flex / height 口径一字不改。
+- `components/SceneTransition.tsx`：场景转场。应用壳 `<main>` 的四个视图切换与 `main.tsx` 的落地页 ↔ 应用 ↔ 对战页换根都走它。内容**同步**换、幕布盖在上面从上到下掀开；首次挂载不铺布；`prefers-reduced-motion` 命中时幕布节点根本不渲染。场景层 `display: contents` 不产生盒子，各页面原有的 flex / height 口径一字不改。
 - `components/BootScreen.tsx`：`/api/auth/me` 未回时的启动画面，默认透明、400ms 后才现身——快路径与原先的空白无异，慢路径不再是一屏空白。
 - `styles/pixel-shell.css` 追加的微交互：导航项悬停图标顶一格 / 按下沉 1px / 激活弹一跳，团子悬停抬头，「新对话」加号悬停转 90°，历史会话行悬停右移一格，手机抽屉阶梯滑入 ＋ 遮罩跳变现身，自己发出的消息浮入一格（★ 只挂 user 行：助手行从流式气泡换成落成消息是两个节点的替换，挂了会闪）。
 
@@ -47,7 +47,7 @@
 
 ## 2026-09-28 对话页：篝火对谈皮 + 特效层
 
-起因：对话页是全站唯一还长着「默认聊天软件」模样的页面——无头像、无铭牌、细线气泡、缓动曲线、白渐变卡，和大陆 / 词条 / 卡牌 / 设置那套黑铁金线放在一起像两个产品。本批只加**外观层与动效层**，不加玩法、不加数值、不加迁移，服务端零改动，数据流零改动（`useChatStream` / `MessageRow` 的分支逻辑一行没动）。
+起因：对话页是全站唯一还长着「默认聊天软件」模样的页面——无头像、无铭牌、细线气泡、缓动曲线、白渐变卡，和大陆 / 词条（卡面与卡墙）/ 设置那套黑铁金线放在一起像两个产品。本批只加**外观层与动效层**，不加玩法、不加数值、不加迁移，服务端零改动，数据流零改动（`useChatStream` / `MessageRow` 的分支逻辑一行没动）。
 
 - `styles/grimoire-chat.css`（新）：对话页整张皮，按 `grimoire.css` 的语言写——黑铁框 + 双金线（`--gr-frame`）、血红锻铁牌、压印标题、荆棘分隔。**所有效果都是 CSS**，组件只翻 class。层内分区：
   - 会话铭牌头 `.chat-head`：角标 `CAMPFIRE · 篝火对谈` + 会话标题 + 轮数铁牌 `N 轮`，与 `continent-head` / `term-head` 同一套；空会话（欢迎页）不渲染。

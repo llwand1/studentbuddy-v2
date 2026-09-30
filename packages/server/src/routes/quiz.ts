@@ -1,5 +1,5 @@
 /**
- * routes/quiz — 出题薄路由（只剩 `/generate` 一条）。
+ * routes/quiz — 出题薄路由（`/generate` + 题卡作答记录一对读写）。
  *
  * ★ 2026-09-26 题库整族下线（线上实测无人使用，且它是依附对话核的派生产品线）：
  *   `/bank*`（列表/读取/删组/逐题剔除）、`/collect/*`（现场搜集两段）、`/analyze/:id`（薄弱点分析）、
@@ -8,6 +8,9 @@
  *   对战共用的出口（`chat/tools/generate-quiz.ts` 与 `pk/match.ts` 走的是同一台引擎）。
  * ★ 随之下线的是**落库**，不是题卡：本路由出卡仍走 `announceQuizToSession`（会话里看得见、
  *   刷新可还原），只是 `quizId` 从 2026-09-26 起是**本次调用的临时 id**，不再有 `quiz_bank` 行。
+ * ★ 2026-09-30 加回一对薄端点 `GET|POST /:quizId/attempts`（契约 `docs/QUIZ-REVIEW-SPEC.md`「作答记录」节）：
+ *   题卡每答一题记一行、重开时读回来——用户反馈「刷新后做题痕迹全没」。它**不是**题库回魂：
+ *   没有列表、没有分析、不读题目内容，quizId 仍是出题时那个临时 id（它现在多了一个用处：当记录的键）。
  */
 import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
@@ -33,9 +36,40 @@ import { getSessionDoc, buildDocMaterial } from '../learning/document.js';
 import { publishEvent } from '../events/bus.js';
 import { ownerIdOf } from '../auth/ownership.js';
 import { quizExplanationRouter } from './quiz-explanation.js';
+import { isQuizIdLike, listQuizAttempts, parseQuizAttemptInput, recordQuizAttempt } from '../learning/quiz-attempts.js';
 
 export const quizRouter = Router();
 quizRouter.use(quizExplanationRouter);
+
+/** 这组题的作答记录（只看自己的；没有 ⇒ 空 rows，不是 404——「没刷过」是正常态） */
+quizRouter.get('/:quizId/attempts', (req: Request, res: Response) => {
+  const { quizId } = req.params;
+  if (!isQuizIdLike(quizId)) {
+    res.status(400).json({ error: 'quizId 不合法' });
+    return;
+  }
+  res.json({ quizId, rows: listQuizAttempts(quizId, ownerIdOf(req)) });
+});
+
+/** 记一次作答：{ questionIndex, verdict, answer? } → 更新后的那一行。判分在题卡上已经做完，这里只记结果 */
+quizRouter.post('/:quizId/attempts', (req: Request, res: Response) => {
+  const { quizId } = req.params;
+  if (!isQuizIdLike(quizId)) {
+    res.status(400).json({ error: 'quizId 不合法' });
+    return;
+  }
+  const input = parseQuizAttemptInput(req.body);
+  if (!input) {
+    res.status(400).json({ error: '作答记录不合法：questionIndex 要是 0–199 的整数，verdict 只认 correct / wrong / review' });
+    return;
+  }
+  const row = recordQuizAttempt(quizId, input, ownerIdOf(req));
+  if (!row) {
+    res.status(404).json({ error: '没有这组题的记录' });
+    return;
+  }
+  res.json({ quizId, row });
+});
 
 /**
  * 一键出题：{ topic, material?, sessionId?, mix?, style? } → 生成→裁剪→（可选）入会话消息流→返回题目。

@@ -94,6 +94,23 @@
 .quiz-blank-free:hover { color: var(--sb-ink); border-color: var(--sb-ink-tertiary); }
 .quiz-blank.is-cells .ti-cell { font-size: var(--sb-fs-lg); }
 
+/* 作答记录（QUIZ-REVIEW-SPEC「作答记录」节）：卡顶一行汇总 + 每题一枚「上次 ✓／↗／◇」小标 */
+.quiz-attempt-line {
+  display: flex; align-items: center; gap: var(--sb-sp-2); margin: 0 0 var(--sb-sp-2);
+  font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary);
+}
+.quiz-attempt-tag {
+  padding: 0 6px; font-size: var(--sb-fs-xs); letter-spacing: 0.06em;
+  color: var(--sb-gold); border: 1px solid var(--sb-gold-edge); border-radius: 6px;
+}
+.quiz-attempt-error { margin: 0 0 var(--sb-sp-2); font-size: var(--sb-fs-sm); color: var(--sb-danger); }
+.quiz-q-last {
+  display: inline-block; margin-right: var(--sb-sp-2); padding: 1px 8px; font-size: var(--sb-fs-xs);
+  border: 1px solid var(--sb-line); border-radius: 6px; color: var(--sb-ink-secondary); vertical-align: 1px;
+}
+.quiz-q-last.is-correct { color: var(--sb-success); border-color: var(--sb-success); }
+.quiz-q-last.is-wrong { color: var(--sb-danger); border-color: var(--sb-danger); }
+
 .quiz-submit {
   margin-top: var(--sb-sp-2);
   padding: var(--sb-sp-1) var(--sb-sp-4);

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { QuizQuestion, QuizReviewItem } from '@sb/shared';
-import { QUIZ_TIER_HINTS, QUIZ_TIER_LABELS, tierOf } from '@sb/shared';
+import { QUIZ_ATTEMPT_MARK, QUIZ_TIER_HINTS, QUIZ_TIER_LABELS, tierOf, type QuizAttemptRow } from '@sb/shared';
 import { SvgPreviewCard } from '../chat/SvgPreviewCard';
 import { Markdown } from '../chat/Markdown';
 import { fillCount, optionsFor, reviewAttempt } from './quiz-attempt';
@@ -19,8 +19,10 @@ function QuizPhotoFigure({ photo }: { photo: NonNullable<QuizQuestion['photo']> 
   );
 }
 
-export function QuizQuestionItem({ q, index, onComplete, topic }: {
+export function QuizQuestionItem({ q, index, onComplete, topic, last }: {
   q: QuizQuestion; index: number; onComplete: (item: QuizReviewItem) => void; topic?: string;
+  /** 这题上一次的作答记录（服务端读回；没刷过 / 老卡 ⇒ null）——只标一枚小标，不替用户作答 */
+  last?: QuizAttemptRow['last'];
 }) {
   const [picked, setPicked] = useState<number[]>([]);
   const [fills, setFills] = useState(() => Array<string>(fillCount(q)).fill(''));
@@ -52,6 +54,9 @@ export function QuizQuestionItem({ q, index, onComplete, topic }: {
       <div className="quiz-q-title">
         <span className="quiz-q-type">{index + 1} · {label}</span>
         <span className={`quiz-q-tier is-${tier}`} title={QUIZ_TIER_HINTS[tier]}>{QUIZ_TIER_LABELS[tier]}</span>
+        {last && !result && <span className={`quiz-q-last is-${last.verdict}`} title={last.answer ? `上次答：${last.answer}` : undefined}>
+          上次 {QUIZ_ATTEMPT_MARK[last.verdict]}
+        </span>}
         {q.question}
       </div>
       {q.svg && <div className="quiz-q-svg"><SvgPreviewCard code={q.svg} streaming={false} /></div>}

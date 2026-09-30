@@ -4,9 +4,9 @@
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-313%20files%20%2F%203743%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-159-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-208%20types-8a63f6)
+![tests](https://img.shields.io/badge/tests-317%20files%20%2F%203758%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-161-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-213%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -186,6 +186,7 @@ flowchart TD
 - **真题优先，缺省开**：设置页一张卡（`GET/PUT /api/settings/quiz-real-first`）。用户没自己配真题配比时，出题**并行**去公开题源搜集真题，摘到几道就顶替几道同题型的 AI 题——「能换成真题的都换」，**不加总题数**，情景题恒不换；自己配过配比就按显式配比走，不越俎代庖。搜集辨别层同批加严：原来只校题干前 20 字，弱模型「首句抄、后半编」「题干抄、选项编」全部放行 ⇒ 加**尾锚点**（题干 ≥40 字时末 16 字也必须在同一页命中）与**选项命中率**（≥50% 选项在页面命中）；标题 / URL / 正文里的考试词 + 年份 + 已登记题源 **≥2 票**才判「考试真题页」；题源登记表**不是白名单**，只影响抓页顺序。保守方向是**少杀**：短题不做尾锚点、无选项不做命中率——误杀真题比漏一道更伤信任
 - **题目自包含**（[`docs/QUIZ-COMPLETE-SPEC.md`](docs/QUIZ-COMPLETE-SPEC.md)，#109）：学生会碰到「阅读材料可知，洋务运动的目的是（　）」——**没有材料**。题干、选项、答案齐全，判分链路上完全合法，此前没有任何一道闸会拦它。成因查到了源码：抓页把 `<img>` 连标签一起删、材料常在题干上方另一段而模型只抄题干、联网出题只看 6 条 ≤300 字摘要却被要求出「源于材料」的题。处置是三条纪律——**不静默**（检出几道、补全 / 搬图 / 剔除各几道如实进报告，全剔光 502 说真因）、**宁缺勿给无头题**（补不全整题剔除，与盲解验算「验算失败放行」刻意相反：那边放行的代价是可能错，这边是用户亲眼看到坏题）、**搬运不发明**（材料只能取自联网参考资料或题目自身，图只能是**真实存在**的图——原页配图或 Commons 检索，绝不让模型「描述一张图」当图用；URL 与署名只由服务端填）。落地形状：题目多一个可选 `material` 字段（题卡上作引用块显示在题干上方，题干依赖的图排在题干前），审查是**确定性纯函数**——找「根据材料 / 如图 / 下表」这类外部依赖并排除「如图书馆」「根据牛顿第三定律」，干净的题**零额外 LLM 调用**，有缺陷的合并成**一次**修复调用；搜集侧抓页保留 `[图N]` 占位、材料必须与页面逐字对得上、原图随题搬运；盲解验算 / AI 阅卷 / 对战出题读的都是「材料 + 题干」，不因材料另放而退化。评测集 `complete-v1`（33 题：文段 13 / 图 9 / 表 6 / 无依赖对照 5），读数与方法见 [`docs/eval/complete.md`](docs/eval/complete.md)；如实说没做的：不点名材料却隐式依赖它的题检测不到、不做 OCR
 - **五级解析阶梯 + AI 特化 SVG 配图**：模型犯错不塌整组，丢图保题
+- **做题痕迹不丢**（未发版，[`docs/QUIZ-REVIEW-SPEC.md`](docs/QUIZ-REVIEW-SPEC.md)「作答记录」节）：题卡每答一题就把对错记回服务端，刷新或重开会话后卡顶一行「刷过 N 遍 · 客观题正确率 X%」、每题一枚「上次 ✓／↗／◇」（悬停看上次答的是什么）；解答题没有对错、不进正确率；读不到 / 记不上只多一行说明、不打断答题。复用既有 `quiz_stats` 表，零迁移；老题卡（没有 quizId）行为不变
 - **出题后盲解验算**（`quiz-verify.ts`）：选择类题入库前由 solver 角色**只喂题干与选项、不喂答案**盲解一遍，解出的答案与出题标注**明确不一致才丢题**——出题模型标错答案＝教错，比没题更糟（model-bench 真机实测某模型 40 例出题里答案检查 6 例红）。三条保守纪律：solver 没绑定整体跳过零行为变化；solver 超时/异常该题放行只记 unresolved；只拦「明确不一致」——验算是保险丝，不许反过来阻断出题
 - **模型输出的无损修复**（`quiz-json-repair.ts`）：真机端到端抓到的第四类失败——模型 finish=stop、标记成对、内容一个字没少，但 `options` 数组**写漏了收尾的 `]`**，整份 JSON 因此非法；「原样 → 剥 svg → 逐题回退」三级阶梯治不了它，于是补一层括号/非法转义的定点修复——四道好题不再因一个字符整组判死成 502
 - **难度自适应**：由最近 200 条答题事件在线估学习者能力 θ（Elo 式更新的 Rasch/1PL 模型），反推「答对率落在 70–85%」的难度档写进出题提示词；样本不足不给建议（能力估计的来龙去脉见「记忆与学习者建模」）
@@ -264,7 +265,7 @@ flowchart TD
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼；对已下线路由（`/bank/:id` 等）有**墓碑锁**（断言 404，防止功能悄悄复活没人知道） |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **313 文件 / 3743 例**，全绿；passed/skipped 明细随平台略有差异（skipped 数分平台不同），**不进本文手抄**——实跑明细由 `node tools/metrics.mjs --tests` 当场产出。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3。
+当前测试基线 **317 文件 / 3758 例**，全绿；passed/skipped 明细随平台略有差异（skipped 数分平台不同），**不进本文手抄**——实跑明细由 `node tools/metrics.mjs --tests` 当场产出。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3。
 
 测试之外还有**三套离线评测**（都支持零 key 假模型自检，同 `demo:e2e` 的假 LLM 哲学），三者答的是三个不同的问题：`npm run eval` 评**产品链路**——走生产同款抽取与修复管道，四档解析（strict / repaired / rescued / failed）+ 配图开关两 arm 永不合并，带成本计量，答的是「产品今天交付什么水平」；`npm run eval:models` 评**模型裸输出**——七套件（自建样本 + 冻结的 MMLU / C-Eval 公开集 + 现场真题），出题协议服从性、复刻相似度、联网引用命中、词条抽取 F1、注入对抗，任意 OpenAI 兼容端点自带 key 横向对比，答的是「这只模型本身什么水平」。两边并读：同一份失败，评测台落在 repaired 档而 model-bench 直接红 ⇒ 是修复器救回来的，该改提示词。换模型、换 provider、改提示词前后各跑一遍，分数变化就是决策依据，不再靠手感（详见 [`tools/eval/model-bench/README.md`](tools/eval/model-bench/README.md)）。
 

@@ -23,16 +23,16 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-09-30 03:56:26（本机时区）｜ 基准 `49be0a3` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-09-30 13:08:21（本机时区）｜ 基准 `b4ed1c8` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
-| shared | 48 | 7,573 | 35 | 4,256 | 56% |
-| server | 238 | 35,220 | 161 | 31,934 | 91% |
-| web | 284 | 36,461 | 117 | 15,659 | 43% |
-| **合计** | **570** | **79,254** | **313** | **51,849** | **65%** |
+| shared | 48 | 7,577 | 35 | 4,258 | 56% |
+| server | 239 | 35,250 | 162 | 31,987 | 91% |
+| web | 284 | 36,470 | 117 | 15,666 | 43% |
+| **合计** | **571** | **79,297** | **314** | **51,911** | **65%** |
 
 ## 接口与契约
 
@@ -43,8 +43,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 测试基线（vitest 实跑）
 
-- **313 文件 / 3743 例**（3740 passed + 3 skipped + 0 failed）⇒ 全绿
-- 本次本机实跑（Node v22.20.0）全量耗时 190.3s
+- **314 文件 / 3749 例**（3748 passed + 1 skipped + 0 failed）⇒ 全绿
+- 本次本机实跑（Node v22.23.2）全量耗时 49.2s
 - jsdom 交互测试文件（`.test.tsx`）56 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
@@ -52,8 +52,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 - ⬜ 无覆盖率产物（跑 `node tools/metrics.mjs --tests --coverage` 生成，**不编数**）
 
 ## 文档与仓库
-- docs/：SPEC 契约 42 份 · md 共 57 份 · 真机探针 15 个
-- git：feat/drill-recall-typing @ `49be0a3`（2026-09-30）· 近 14 天 147 commits · 工作区未提交 28 文件
+- docs/：SPEC 契约 43 份 · md 共 58 份 · 真机探针 15 个
+- git：feat/windows-installer @ `b4ed1c8`（2026-09-30）· 近 14 天 148 commits · 工作区未提交 37 文件
 
 <!-- metrics:end -->
 

@@ -3,7 +3,7 @@
 [![CI](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml)
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
+![version](https://img.shields.io/badge/version-0.2.151-orange)
 ![tests](https://img.shields.io/badge/tests-314%20files%20%2F%203749%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-159-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-208%20types-8a63f6)
@@ -44,7 +44,7 @@
 - **不想点网页？** clone 后 `npm run demo:e2e` 一条命令跑完**确定性全栈演示**（用户 → API → 假 LLM → SSE → 落库 → 杀进程重启后逐字仍在；零 API key、零真实外呼）。
 - v2 是全新重写仓（v1 [`llwand1/studentbuddy`](https://github.com/llwand1/studentbuddy) 已冻结）。
 
-> 🏷️ **两套版本号各管各的**：`v0.2.x` 是**部署构建号**——对外线，GitHub Releases / tag / 线上公开更新页 `/changelog` 都走它，每次发版加一；`2.0.0-alpha.0` 是**内部产品号**（`package.json` 的 `version`），标记「v2 重写线」这个产品大版本，不随每次部署跳。⚠️ `/api/status` 返回的是**内部号** ⇒ 判线上版本请对 **GitHub Release** 或 **`/changelog`** 页。
+> 🏷️ **全仓只有一个版本号**（2026-09-30 起）：`package.json` ＝ git tag ＝ GitHub Release ＝ `CHANGELOG.md` ＝ 线上更新页 `/changelog` ＝ `/api/status` 返回值，每次发版加一；一致性由 `node tools/check-version.mjs` 守门（`npm run gates` 的一环）。此前并存的内部产品号 `2.0.0-alpha.0` 已废止——两套号的代价是「用户从 `/api/status` 看到的版本对不上更新页」。
 > 📌 本文所有定量数字**不许手抄**：由 `node tools/metrics.mjs` 产出，`--check` 在漂移时退出码 1——徽章、测试基线、线上版本号三条线都进对账（CI 里跑的就是 `metrics --tests --check`）。
 
 ## 最近上新

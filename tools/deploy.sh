@@ -92,6 +92,10 @@ echo "=== ①c 对外更新表同步核对（那页不许落后于线上）==="
 # 判断标准钉在 tag 上而不是内部拟号上：tag 才是「这一版真的上线过」的机械证据。
 node tools/check-public-changelog.mjs
 
+echo "=== ①d 版本号一致性（package.json×4 ＝ CHANGELOG ＝ tag；/api/status 报的就是它）==="
+# 2026-09-30 起全仓只有一个版本号；改号用 npm version X.Y.Z --workspaces --include-workspace-root --no-git-tag-version
+node tools/check-version.mjs
+
 echo "=== ② 打包（排除运行时不需要、或绝不能覆盖线上那份的）==="
 tar czf "$TAR" \
   --exclude='./node_modules' --exclude='*/node_modules' \

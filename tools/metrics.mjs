@@ -271,7 +271,7 @@ function readmeDrift(m) {
     const engines = pkg.engines?.node ?? '';
     claims.push({ label: 'badge Node 下限', claimed, measured: engines, ok: !!claimed && claimed === majMin(engines) });
   }
-  // 版本徽章：`version-2.0.0--alpha.0`（shields 用 `--` 转义 `-`）vs `package.json` 的 version
+  // 版本徽章：`version-0.2.151`（shields 用 `--` 转义 `-`，如有）vs `package.json` 的 version（＝ tag，见 tools/check-version.mjs）
   const badgeVer = /badge\/version-([^)]+?)-([a-zA-Z0-9_]+)\)/.exec(text);
   if (badgeVer) {
     const claimed = badgeVer[1].replace(/--/g, '-');

@@ -12,6 +12,10 @@
  *  2. **架子有上限**（`SOURCE_SHELF_MAX`）：读过 / 精选优先级高，满了就挤掉编号最大的 `search` 条；
  *     `read`/`pick` 之间不互挤（一轮读十几页的情况极少，真到了就让最早读的留着——它们已经落在正文里）。
  *  3. **只收 http(s)**：模型编出来的 `javascript:`/`file:` 一律不上架也不编号。
+ *  4. **收口只留看得了的**（2026-09-30 起，`settle`）：回答结束时把「搜到但没读过、正文也没引用」的条目
+ *     撤下——它们的正文没进过阅读页缓存，学习者点开要现抓，一大半站点会拒（用户原话："推的东西很多看不了"）。
+ *     读过的（正文已缓存）、精选的、正文里 `[n]` 点到名的留下，编号不动，芯片照样能点。
+ *     读**失败**的页面同理不留：`read(ok=false)` 会把 `reading` 占的位撤掉（原本是搜到的就退回 search 档）。
  *
  * 注册表（`shelfOf`）是 reader 端点的许可依据：浏览器只能通过 `/api/sources/view` 打开
  * **架上有的**网址（在线架或已落库），本服务不是任意网址的代理。
@@ -23,6 +27,7 @@ import {
   SOURCE_SNIPPET_MAX,
   SOURCE_TITLE_MAX,
   SOURCE_WHY_MAX,
+  citedSourceNumbers,
   detectSourceKind,
   isShelvableUrl,
   siteOf,
@@ -49,7 +54,7 @@ export interface SourceSink {
   found(query: string, results: readonly SearchResult[]): number[];
   /** fetch_page 开始读：面板给它打「在读」标（不在架上的网址会先以 read 档上架占位） */
   reading(url: string): void;
-  /** fetch_page 读完：升成 read 档、补标题；`ok=false`（没读到）只清「在读」标 */
+  /** fetch_page 读完：升成 read 档、补标题；`ok=false`（没读到）清「在读」标并撤掉占位（搜到的退回 search 档） */
   read(url: string, title: string | undefined, ok: boolean): void;
   /** pick_sources：最多 SOURCE_PICK_MAX 条精选，带理由 */
   pick(picks: readonly PickInput[]): PickOutcome;
@@ -57,6 +62,11 @@ export interface SourceSink {
   items(): SourceItem[];
   /** 本轮是否上过任何资料（没有就不落库、不发帧） */
   size(): number;
+  /**
+   * 回答收口：只留 **读成功 / 精选 / 正文 `[n]` 引用到** 的条目（编号不变），整表再下发一帧，返回留下的表。
+   * 之后 `items()` 也只剩这些——落库与面板终态同一份。
+   */
+  settle(answer: string): SourceItem[];
 }
 
 export interface SourceShelf extends SourceSink {
@@ -106,6 +116,8 @@ export function createSourceShelf(sessionId: string): SourceShelf {
   /** 每个网址第一次露面的编号与元数据（含未上架的） */
   const known = new Map<string, { n: number; title: string; snippet?: string; query?: string }>();
   const shelf = new Map<number, SourceItem>();
+  /** 读**成功**过的编号：收口时 read 档只认这些（`reading` 占的位读失败会被撤） */
+  const readOk = new Set<number>();
   let next = 1;
   let readingN: number | undefined;
 
@@ -202,7 +214,18 @@ export function createSourceShelf(sessionId: string): SourceShelf {
     read(url, title, ok) {
       if (!isShelvableUrl(url)) return;
       const n = numberOf(url, { title: title ? clip(title, SOURCE_TITLE_MAX) : '' });
-      if (ok) place(url, n, 'read', title ? { title: clip(title, SOURCE_TITLE_MAX) } : {});
+      if (ok) {
+        place(url, n, 'read', title ? { title: clip(title, SOURCE_TITLE_MAX) } : {});
+        readOk.add(n);
+      } else {
+        // 没读到：`reading` 占的 read 位不能留着装"读过"。原本是搜到的退回 search 档（搜索摘要还在，
+        // 收口时若正文没引用它自然会撤）；纯为读而占的位直接撤。已成功读过 / 精选过的不动。
+        const cur = shelf.get(n);
+        if (cur && cur.origin === 'read' && !readOk.has(n)) {
+          if (cur.query) shelf.set(n, { ...cur, origin: 'search' });
+          else shelf.delete(n);
+        }
+      }
       if (readingN === n) readingN = undefined;
       emit();
     },
@@ -224,6 +247,22 @@ export function createSourceShelf(sessionId: string): SourceShelf {
     },
     items,
     size: () => shelf.size,
+    settle(answer) {
+      const cited = citedSourceNumbers(answer);
+      let changed = false;
+      for (const it of items()) {
+        const keep = it.origin === 'pick' || (it.origin === 'read' && readOk.has(it.n)) || cited.has(it.n);
+        if (keep) continue;
+        shelf.delete(it.n);
+        changed = true;
+      }
+      if (readingN !== undefined) {
+        readingN = undefined;
+        changed = true;
+      }
+      if (changed) emit();
+      return items();
+    },
     knows: (url) => known.has(normalizeSourceUrl(url)),
     dispose() {
       if (live.get(sessionId)?.shelf === api) live.delete(sessionId);

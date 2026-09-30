@@ -43,6 +43,33 @@
 .src-tab.pick.active {
   border-color: var(--sb-gold);
 }
+/* 标签 + 它旁边的 ✕：两个按钮并排（button 不能套 button），✕ 平时淡、悬停/选中时亮 */
+.src-tab-wrap {
+  display: inline-flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+}
+.src-tab-x {
+  padding: 0 4px;
+  margin-left: -2px;
+  font-family: var(--sb-font);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--sb-ink-tertiary);
+  background: transparent;
+  border: 2px solid transparent;
+  cursor: pointer;
+  opacity: 0.45;
+}
+.src-tab-wrap:hover .src-tab-x,
+.src-tab-wrap.active .src-tab-x,
+.src-tab-x:focus-visible {
+  opacity: 1;
+}
+.src-tab-x:hover {
+  color: var(--sb-danger);
+  border-color: var(--sb-pixel-edge);
+}
 .src-tab-n {
   min-width: 14px;
   text-align: center;

@@ -1,33 +1,33 @@
 {
-  "generatedAt": "2026-09-29T21:22:10.641Z",
+  "generatedAt": "2026-09-30T02:59:04.193Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
         "srcFiles": 46,
         "testFiles": 33,
-        "srcLines": 7282,
-        "testLines": 4067
+        "srcLines": 7300,
+        "testLines": 4075
       },
       {
         "pkg": "server",
         "srcFiles": 238,
         "testFiles": 161,
-        "srcLines": 35176,
-        "testLines": 31886
+        "srcLines": 35215,
+        "testLines": 31930
       },
       {
         "pkg": "web",
         "srcFiles": 271,
         "testFiles": 111,
-        "srcLines": 35171,
-        "testLines": 14862
+        "srcLines": 35211,
+        "testLines": 14886
       }
     ],
     "srcFiles": 555,
     "testFiles": 305,
-    "srcLines": 77629,
-    "testLines": 50815,
+    "srcLines": 77726,
+    "testLines": 50891,
     "tsxTestFiles": 51
   },
   "routes": {
@@ -85,11 +85,11 @@
     "probes": 15
   },
   "repo": {
-    "head": "3753c0d",
+    "head": "be6ddd4",
     "headDate": "2026-09-30",
-    "commitsLast14d": 134,
-    "branch": "feat/chat-quick-start",
-    "dirtyFiles": 16
+    "commitsLast14d": 141,
+    "branch": "feat/source-shelf-trim",
+    "dirtyFiles": 2
   },
   "tests": {
     "available": true,
@@ -97,9 +97,9 @@
     "wallSec": 0,
     "staleDays": 0,
     "files": 305,
-    "cases": 3694,
-    "passed": 3691,
-    "skipped": 3,
+    "cases": 3699,
+    "passed": 3698,
+    "skipped": 1,
     "failed": 0,
     "success": true
   },
@@ -115,8 +115,8 @@
     },
     {
       "label": "badge 测试用例",
-      "claimed": "3694",
-      "measured": "3694",
+      "claimed": "3699",
+      "measured": "3699",
       "ok": true
     },
     {
@@ -157,8 +157,8 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "305 文件 / 3694 例",
-      "measured": "305 文件 / 3694 例",
+      "claimed": "305 文件 / 3699 例",
+      "measured": "305 文件 / 3699 例",
       "ok": true
     }
   ],

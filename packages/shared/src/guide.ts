@@ -139,7 +139,9 @@ export const GUIDE_CATALOG: Record<GuideKind, GuideKindInfo> = {
     group: 'quiz',
     label: { zh: '一键解析', en: 'Explain my answers' },
     hint: { zh: '结合你的作答，图文讲清每道题', en: 'Illustrated walk-through based on your answers' },
-    need: { zh: '先把一组题做完', en: 'Finish a question set first' },
+    // ★ 灰着有三种原因：没做完 / 正在生成 / 已经生成（生成后这一项就撤销了，讲解留在那组题下方）。
+    //   所以这句不能只写「先做完」——对做完了、也看过讲解的人是误导；两半都得说清：怎么解锁 + 之后去哪看。
+    need: { zh: '做完一组题后可用；讲解生成后留在这组题下方', en: 'Available once a set is finished; the walkthrough then stays below that set' },
   },
   'quiz.retry': {
     group: 'quiz',

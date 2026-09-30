@@ -3,6 +3,7 @@
  * routes/ 薄路由层 + SSE 广播；chat 域编排见 chat/flow.ts。
  */
 import express from 'express';
+import { mountStaticWeb } from './web-static.js';
 import cors from 'cors';
 import { securityHeaders, originCheck, isAllowedOrigin } from './security.js';
 import { sessionsRouter, providersRouter, settingsRouter, initChatInfra } from './routes.js';
@@ -195,6 +196,8 @@ app.use('/api/jobs', jobsRouter);
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
+
+mountStaticWeb(app);
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'not found' });

@@ -11,6 +11,8 @@
     "packages/*"
   ],
   "scripts": {
+    "desktop:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/desktop/build.ps1",
+    "desktop:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/desktop/smoke.ps1",
     "dev": "node tools/dev.mjs",
     "dev:server": "npm run dev -w @sb/server",
     "dev:web": "npm run dev -w @sb/web",

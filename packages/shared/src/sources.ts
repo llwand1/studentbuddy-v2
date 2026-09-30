@@ -116,6 +116,24 @@ export function sourceByN(items: readonly SourceItem[], n: number): SourceItem |
   return items.find((s) => s.n === n);
 }
 
+/**
+ * 正文里引用到的资料编号：`[3]` / `[1, 4]` / `[2][5]`（1–2 位数字；后面紧跟 `(` 的是链接语法，
+ * 前面紧贴英文字母/数字的是下标写法 `a[1]`，都不算）。
+ * ★ 与前端 `markdown-inline.ts` 的 `CITE` 同一条规则（那边是逐字符的分词器，这边是全文扫一遍）：
+ *   收口时"哪些编号被引用了"与渲染时"哪些 [n] 变成芯片"必须同一口径，否则会留下点不动的芯片。
+ */
+export function citedSourceNumbers(text: string): Set<number> {
+  const out = new Set<number>();
+  const re = /(?<![A-Za-z0-9])\[(\d{1,2}(?:\s*[,，]\s*\d{1,2})*)\](?!\()/g;
+  for (const m of text.matchAll(re)) {
+    for (const part of (m[1] ?? '').split(/[,，]/)) {
+      const n = Number(part.trim());
+      if (n > 0) out.add(n);
+    }
+  }
+  return out;
+}
+
 /** 资料架 SSE 载荷（走 `block` 帧，`payload.kind === 'sources'`；整表下发、前端整表替换） */
 export interface SourcesBlockPayload {
   kind: 'sources';

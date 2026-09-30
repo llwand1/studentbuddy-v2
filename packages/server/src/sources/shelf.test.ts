@@ -4,7 +4,8 @@
  * 钉：① 编号全轮唯一、跨搜索续号、同网址复用；② 每次搜索只上架前 5 条但**全部占号**；
  * ③ 未上架的结果被 fetch_page 读到时以**原号**上架（read 档）；④ 架满挤 search 不挤 read/pick；
  * ⑤ pick 只认架上（known）网址、多余的截到 3 条、未知的原样退回；⑥ 每次变化整表下发 block 帧、
- * 且 `readingN` 只在读取中有值；⑦ 非 http(s) 一律不占号不上架；⑧ 在线注册表可查 knows。
+ * 且 `readingN` 只在读取中有值；⑦ 非 http(s) 一律不占号不上架；⑧ 在线注册表可查 knows；
+ * ⑨（2026-09-30）读失败撤占位／退回 search 档；⑩ `settle` 收口只留读成功 / 精选 / 正文引用到的，编号不动。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SearchResult } from '../search/types.js';
@@ -56,14 +57,28 @@ describe('shelf：编号与上架', () => {
     expect(shelf.items().find((s) => s.n === 6)?.title).toBe('真正的标题');
   });
 
-  it('读一个架上没有也没搜过的网址 ⇒ 补下一号上架；读失败只清在读标不升档', () => {
+  it('读一个架上没有也没搜过的网址 ⇒ 补下一号上架；⑨ 读失败清在读标并**撤掉占位**（别装读过）', () => {
     const shelf = createSourceShelf('s3');
     shelf.found('q', results(2));
     shelf.reading('https://new.example.com/x');
     expect(shelf.items().map((s) => s.n)).toEqual([1, 2, 3]);
     shelf.read('https://new.example.com/x', undefined, false);
     expect(lastPayload().readingN).toBeUndefined();
-    expect(shelf.items().find((s) => s.n === 3)?.origin).toBe('read');
+    expect(shelf.items().map((s) => s.n)).toEqual([1, 2]);
+    expect(lastPayload().items.map((s) => s.n)).toEqual([1, 2]);
+    // 号不回收：它稍后被读成功仍是 3 号
+    shelf.reading('https://new.example.com/x');
+    shelf.read('https://new.example.com/x', '读到了', true);
+    expect(shelf.items().find((s) => s.n === 3)).toMatchObject({ origin: 'read', title: '读到了' });
+  });
+
+  it('⑨ 搜到的条目读失败 ⇒ 退回 search 档（摘要还在，收口时再定去留）', () => {
+    const shelf = createSourceShelf('s3b');
+    shelf.found('q', results(2));
+    shelf.reading('https://a.example.com/p/2');
+    expect(shelf.items().find((s) => s.n === 2)?.origin).toBe('read');
+    shelf.read('https://a.example.com/p/2', undefined, false);
+    expect(shelf.items().find((s) => s.n === 2)).toMatchObject({ origin: 'search', query: 'q' });
   });
 
   it('⑦ 非 http(s) 不占号（返回 0）不上架', () => {
@@ -127,5 +142,34 @@ describe('shelf：精选与发布', () => {
     expect(normalizeSourceUrl('https://Example.com/#top')).toBe('https://example.com');
     shelf.dispose();
     expect(liveShelfKnows('s8', 'https://a.example.com/p/1')).toBe(false);
+  });
+});
+
+describe('shelf：收口 settle（2026-09-30）', () => {
+  it('⑩ 只留读成功 / 精选 / 正文 [n] 引用到的；编号不动；整表再发一帧', () => {
+    const shelf = createSourceShelf('s-settle');
+    shelf.found('q', results(6)); // 1–5 上架，6 只占号
+    shelf.reading('https://a.example.com/p/2');
+    shelf.read('https://a.example.com/p/2', '读过的', true);
+    shelf.pick([{ url: 'https://a.example.com/p/4', why: '官方' }]);
+    published.length = 0;
+    const kept = shelf.settle('先看 [2]，再看[5]；a[1] 是下标不算，[3](https://x) 是链接也不算。');
+    expect(kept.map((s) => `${s.n}:${s.origin}`)).toEqual(['2:read', '4:pick', '5:search']);
+    expect(shelf.items().map((s) => s.n)).toEqual([2, 4, 5]);
+    expect(published).toHaveLength(1);
+    expect(lastPayload().items.map((s) => s.n)).toEqual([2, 4, 5]);
+    expect(lastPayload().readingN).toBeUndefined();
+  });
+
+  it('⑩ 没什么可撤（全是读过/精选）⇒ 不多发帧；读到一半被打断的占位也撤', () => {
+    const shelf = createSourceShelf('s-settle-2');
+    shelf.reading('https://r.example.com/a');
+    shelf.read('https://r.example.com/a', 'A', true);
+    published.length = 0;
+    expect(shelf.settle('没有引用').map((s) => s.n)).toEqual([1]);
+    expect(published).toHaveLength(0);
+    shelf.reading('https://r.example.com/b'); // 读到一半（中止）
+    expect(shelf.settle('').map((s) => s.n)).toEqual([1]);
+    expect(lastPayload().readingN).toBeUndefined();
   });
 });

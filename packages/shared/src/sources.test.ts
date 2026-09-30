@@ -3,7 +3,7 @@
  * 类型判定 / 视频嵌入地址 / 排序 / 引用查找 / 可上架判定——全是纯函数，锁口径。
  */
 import { describe, it, expect } from 'vitest';
-import { detectSourceKind, isShelvableUrl, orderSources, siteOf, sourceByN, videoEmbedUrl, type SourceItem } from './sources.js';
+import { citedSourceNumbers, detectSourceKind, isShelvableUrl, orderSources, siteOf, sourceByN, videoEmbedUrl, type SourceItem } from './sources.js';
 
 const item = (n: number, origin: SourceItem['origin']): SourceItem => ({
   n,
@@ -55,5 +55,13 @@ describe('sources：排序与引用', () => {
     const items = [item(1, 'search'), item(7, 'pick')];
     expect(sourceByN(items, 7)?.origin).toBe('pick');
     expect(sourceByN(items, 2)).toBeUndefined();
+  });
+});
+
+describe('citedSourceNumbers（与前端 CITE 同口径）', () => {
+  it('认 [n] / [1, 4] / [2][5] 与行首 [3]；不认下标 a[1]、链接 [3](url)、三位数与 0', () => {
+    const got = citedSourceNumbers('据[2]所述，[1, 4]与[6][7]；a[9] 不算，[3](https://x) 不算，[123] 不算，[0] 不算。\n[8] 行首算');
+    expect([...got].sort((a, b) => a - b)).toEqual([1, 2, 4, 6, 7, 8]);
+    expect(citedSourceNumbers('没有引用').size).toBe(0);
   });
 });

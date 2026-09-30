@@ -72,6 +72,13 @@ SSE `block`（`blockId = sources:{sessionId}`，`payload.kind = 'sources'`，`do
 4. **在读标**：`fetch_page` 开始时 `readingN = n`，结束（成功或失败）清掉——面板上「在读」只在真的抓取期间亮。
 5. **在线注册表**：`liveShelfKnows(sessionId, url)` 供 §6 的授权在**落库之前**放行；条目 2 小时无动静自动清；
    落库后许可由 `message_source` 表接力（§7）。
+6. **收口只留看得了的**（2026-09-30，`settle(answer)`）：回答结束时（正常与失败/中止两条落库路径都是）只留
+   **读成功**（正文已进阅读页缓存）、**精选**、**正文 `[n]` 引用到**（`citedSourceNumbers`，与前端 `CITE` 同口径）的条目，
+   其余（搜到但没读、正文也没提）撤下，**编号不动**，再整表下发一帧；落库的就是这份终态。
+   动机：搜索结果只有摘要，点开要现抓，一大半站点会拒——学习者原话「推的东西很多看不了」。引用到的 `search` 条即使
+   现抓可能失败也留着：撤了会留下点不动的 `[n]`，比一张 415 页更糟。
+7. **读失败不装读过**（同批）：`read(url, title, ok=false)` 把 `reading` 占的 `read` 位撤掉——原本是搜到的退回 `search` 档
+   （摘要还在，去留由规则 6 决定），纯为读而占的位直接撤；号不回收（稍后读成功仍是原号）。
 
 ### 4.1 搜到即上架（`search/index.ts` → `tools/web-search.ts`）
 
@@ -151,6 +158,7 @@ applyLiveSources(payload)   // SSE 帧：整表替换；首帧自动打开；已
 openSources(sid, items, n?) // 历史 / 脚注：指定 n（不存在落首选）；空架不开
 showSource(sid, items, n)   // 引用芯片：同一份架子只切条目并确保打开，不同架子按新架重开
 selectSource / stepSource(±1) / selectSourceAt(k) / closeSources()
+removeSource(n)             // 叉掉第 n 条：按网址记入本会话隐藏表（页面级）；live 帧 / 归位 / 历史重开都先过这张表
 takeTurnSources(sid)        // 回答收口：把本轮架子交给 finalizeRound 挂到消息上；live→false
 readerUrl(sid, item)        // pdf → /api/sources/pdf，其余 → /api/sources/view
 ```
@@ -159,13 +167,17 @@ readerUrl(sid, item)        // pdf → /api/sources/pdf，其余 → /api/source
   下一轮首帧重新弹。轮次用**单调计数**而不是时间戳（同一毫秒内收口又开新轮会撞号）。
 - `takeTurnSources` 在 `setMessages` 的 updater 里被调（StrictMode 下同一 tick 调两次）：同秒重复取返回同一份；
   通知放到微任务（避免「渲染 ChatView 时更新 SourcePanel」告警）；1 s 后再取为空（防陈旧架子挂到下一条）。
+- **单条可叉掉**（2026-09-30）：`removeSource(n)` 从架上拿掉并按**网址**记入本会话的隐藏表；正在看的被叉掉 ⇒ 落到剩下里的首选；
+  一条不剩 ⇒ 面板收起。隐藏表是页面级（刷新即忘、不落库）：叉掉表达的是「我现在不想看」，不是删资料——
+  服务端 `message_source` 不动，翻历史重开时（同一页面会话内）仍按隐藏表过滤。
 
 ### 8.2 面板（`features/sources/SourcePanel.tsx` + `sources.css`）
 
 - 复用演示面板的壳（`.sb-browser.sb-sources`：`-head/-badge/-title/-actions/-btn/-close/-frame`），宽 `--sb-browser-w`；
   **演示面板开着时返回 null**（HTML 演示优先，演示关掉资料架回来）。
-- 徽标：live 时「AI 在看」，历史「资料」。标签条 `.src-tabs`：编号 + 类型字（文/PDF/视/图）+ 站名 + ★（精选）+ 「在读」；
-  顺序 = `orderSources`；当前 `.active`。理由条 `.src-note.pick`（精选）或摘要（搜到）。
+- 徽标：live 时「AI 在看」，历史「资料」。标签条 `.src-tabs`：每条是 `.src-tab-wrap`（标签按钮 `.src-tab` + 旁边的 ✕ `.src-tab-x`，
+  button 不能套 button 故并排）：编号 + 类型字（文/PDF/视/图）+ 站名 + ★（精选）+ 「在读」；✕ 平时淡、悬停 / 当前条亮，
+  `aria-label="去掉资料 n：标题"`。顺序 = `orderSources`；当前 `.active`。理由条 `.src-note.pick`（精选）或摘要（搜到）。
 - `SourceFrame` 按类型三路：`video` ⇒ 官方播放器（`sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"` +
   `allow="fullscreen; picture-in-picture; encrypted-media"`）；
   `pdf` ⇒ `/api/sources/pdf`，**不加 sandbox**（浏览器内置 PDF 查看器在沙箱里不工作）；`page` / `image` ⇒ 阅读页

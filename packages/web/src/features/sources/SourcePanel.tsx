@@ -7,6 +7,7 @@
  *  - PDF → `/api/sources/pdf` 转发，**不加 sandbox 属性**（浏览器的 PDF 查看器在沙箱 iframe 里是禁用的；
  *    服务端已校验魔数、nosniff，只会是 PDF 字节）。
  * 「原网页」按钮永远在：阅读模式拿不全（脚本渲染页）时一键去看原站。
+ * 每个标签旁有一个 ✕（2026-09-30）：架子堆多了要能**一条条**清走没用的（整面板的 × 只是收起）。
  *
  * 与演示面板的关系：两者同占右栏，演示是用户点出来的、优先级更高——有演示时本面板让位（返回 null），
  * 演示关掉就回来（store 状态没丢）。
@@ -14,7 +15,7 @@
 import { useSyncExternalStore } from 'react';
 import { orderSources, videoEmbedUrl, type SourceItem } from '@sb/shared';
 import { getPreview, subscribePreview } from '../../lib/preview-store';
-import { closeSources, readerUrl, selectSource, useSources } from '../../lib/sources-store';
+import { closeSources, readerUrl, removeSource, selectSource, useSources } from '../../lib/sources-store';
 import { useSourceKeys } from './useSourceKeys';
 import '../preview/panel.css';
 import './sources.css';
@@ -83,20 +84,24 @@ export function SourcePanel() {
       </header>
       <nav className="src-tabs" aria-label="资料列表">
         {ordered.map((s, k) => (
-          <button
-            key={s.n}
-            type="button"
-            className={`src-tab${s.n === active.n ? ' active' : ''}${s.origin === 'pick' ? ' pick' : ''}`}
-            aria-current={s.n === active.n ? 'true' : undefined}
-            title={`${k + 1 <= 9 ? `Alt+${k + 1} · ` : ''}[${s.n}] ${s.title}\n${s.url}${s.why ? `\n★ ${s.why}` : ''}`}
-            onClick={() => selectSource(s.n)}
-          >
-            <span className="src-tab-n">{s.n}</span>
-            <span className={`src-tab-kind kind-${s.kind}`}>{KIND_GLYPH[s.kind]}</span>
-            <span className="src-tab-site">{s.site}</span>
-            {s.origin === 'pick' && <span className="src-tab-star" aria-label="AI 精选">★</span>}
-            {st.readingN === s.n && <span className="src-tab-reading">在读</span>}
-          </button>
+          <span key={s.n} className={`src-tab-wrap${s.n === active.n ? ' active' : ''}`}>
+            <button
+              type="button"
+              className={`src-tab${s.n === active.n ? ' active' : ''}${s.origin === 'pick' ? ' pick' : ''}`}
+              aria-current={s.n === active.n ? 'true' : undefined}
+              title={`${k + 1 <= 9 ? `Alt+${k + 1} · ` : ''}[${s.n}] ${s.title}\n${s.url}${s.why ? `\n★ ${s.why}` : ''}`}
+              onClick={() => selectSource(s.n)}
+            >
+              <span className="src-tab-n">{s.n}</span>
+              <span className={`src-tab-kind kind-${s.kind}`}>{KIND_GLYPH[s.kind]}</span>
+              <span className="src-tab-site">{s.site}</span>
+              {s.origin === 'pick' && <span className="src-tab-star" aria-label="AI 精选">★</span>}
+              {st.readingN === s.n && <span className="src-tab-reading">在读</span>}
+            </button>
+            <button type="button" className="src-tab-x" aria-label={`去掉资料 ${s.n}：${s.title}`} title="从架上去掉这条" onClick={() => removeSource(s.n)}>
+              ×
+            </button>
+          </span>
         ))}
       </nav>
       <div className={`sb-browser-note src-note${active.origin === 'pick' ? ' pick' : ''}`} title={note}>

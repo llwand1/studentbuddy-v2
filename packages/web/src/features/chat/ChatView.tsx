@@ -40,6 +40,7 @@ import { useDocMode } from './useDocMode';
 import { useAskStyle } from './AskStyleCard';
 import { api } from '../../lib/api';
 import { useAutoResize } from './useAutoResize';
+import { useQuickStart } from './useQuickStart';
 
 export function ChatView({
   sessionId,
@@ -88,6 +89,8 @@ export function ChatView({
   const [sendError, setSendError] = useState('');
   // v18.3：grill 收尾卡点选后 send 失败要浮出来（此前 void 吞掉 {ok:false}＝点了没反应）
   const { composerProps, grillNode, sendWithGrill } = useGrillChoice({ pendingChoice, replyChoice, skipChoice, send, onSendError: setSendError });
+  /** 空会话直接开聊（CHAT-UX §2.9）：没会话 ⇒ 暂存这一问、开新会话、就绪后自动发；开会话期间 `starting` 禁发（连按不开两间，见 `blocked`） */
+  const quick = useQuickStart({ sessionId, ready, busy, onNewSession, send: sendWithGrill, onError: setSendError });
   /** v17 看图：待发送的图片附件（base64 dataURL）。随会话切换清空，避免串台 */
   const [attachments, setAttachments] = useState<Array<{ dataUrl: string; name?: string }>>([]);
   const [remembering, setRemembering] = useState(false);
@@ -138,7 +141,7 @@ export function ChatView({
   useSessionDraft(sessionId, input, setInput);
   useBusyTitle(busy);
 
-  const blocked = ready !== 'open' || busy;
+  const blocked = quick.starting || (sessionId !== null && (ready !== 'open' || busy));
   /** 轮次元信息只在收口后显示：生成过程中显示「已用 x tokens」会随流式跳动，且中途的数没有意义 */
   const roundMeta = busy ? '' : formatRoundMeta(usage, elapsedMs);
   /** 「重新生成」只给最后一条回答：对中间某条重生成的语义是分叉，本版不做（会牵扯历史改写） */
@@ -163,26 +166,24 @@ export function ChatView({
   const statusHint =
     sessionId === null ? '' : ready === 'reconnecting' ? '连接已断开，正在重连…' : ready === 'connecting' ? '正在建立连接…' : '';
 
-  /** 建议卡：文字填进输入框可改再发（不自动发送）；还没会话时顺手开一个 */
-  const pick = (text: string): void => {
-    setInput(text);
-    if (!sessionId) onNewSession();
+  /** 发出一问的公共路径（输入框与建议卡同一条）：清错、焦点回框（点按钮发送后下一句直接打）、
+      上一轮的来源清单退场——它是**那一轮**的产物，留着会让人以为这一轮也查了网；再交给 quick 发 */
+  const fire = (text: string, imgs?: Array<{ dataUrl: string; name?: string }>): void => {
+    setSendError('');
     inputRef.current?.focus();
+    quiz.resetRound();
+    quick.fire(text, imgs);
   };
-
-  const submit = async () => {
+  /** 建议卡：点了就开聊——提示语作为第一问直接发出（没会话先开一间）；输入框里打了半句的按草稿带进新会话 */
+  const pick = (text: string): void => fire(text);
+  const submit = (): void => {
     const text = input.trim();
     const imgs = attachments;
     // 允许「纯图片」提问（无文字也有图）；文字与图都没有才拦截
     if ((!text && imgs.length === 0) || blocked) return;
     setInput('');
     setAttachments([]);
-    setSendError('');
-    inputRef.current?.focus(); // 点按钮发送后焦点留在输入框，下一句直接打
-    // 上一轮的来源清单随本轮提问退场：它是**那一轮**的产物，留着会让人以为这一轮也查了网
-    quiz.resetRound();
-    const r = await sendWithGrill(text, imgs.length > 0 ? imgs : undefined);
-    if (!r.ok && r.error) setSendError(r.error);
+    fire(text, imgs.length > 0 ? imgs : undefined);
   };
 
   /** 没配过回答方式时，点「出题」先就地展开选项卡问一次（契约 ANSWER-STYLE §4） */
@@ -283,7 +284,7 @@ export function ChatView({
         attachments={attachments}
         setAttachments={setAttachments}
         {...composerProps}
-        onSubmit={() => void submit()}
+        onSubmit={submit}
         onStop={() => void stop()}
         quizzing={quiz.quizzing}
         onQuiz={() => ask.tap()}

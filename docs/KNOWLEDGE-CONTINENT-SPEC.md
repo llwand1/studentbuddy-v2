@@ -177,6 +177,16 @@ npcTasksRequiredFor(N) = 3 × (N-1)                           // 创建第 N 位
 - **界面**：完好地块按磨损画裂纹，废墟画成碎石＋残柱；头部统计多「完好地块 / 废墟」两格；`tileStatusText` 说「废墟 · N 天没碰，这块地碎了（复习一次即重建）」；`tileHint` 在磨损 ≥ 0.5 时提醒「起裂」。
 - **测试**：`continent-upkeep.test.ts` ①②③、`continent-view.test.ts` 废墟四例、`ContinentPage.hunt.test.tsx` ③。
 
+## 填空题：打字练习式逐格作答（2026-09-30）
+
+- **用户原话**："填空题的输入改成一个个字符输入，像打字练习软件；可以分段给提示；打字题尽量不要带符号"。
+- `ContinentQuestionForm` 的填空换成通用控件 `components/TypingInput.tsx`（口径 `@sb/shared/typing`，与刷词拼写卡、对话出题填空同一份）：
+  答案铺成一格一字，字母 / 数字 / 汉字要打，空格与标点是**替你填好的固定格**（键入的符号直接丢）；「提示 k/n」按段揭灰字（汉字 2 字一段、字母数字 3 字一段），仍要自己打；
+  回车提交走原来 `onEnter` 那条路。
+- 判分零改动：控件交给父组件的仍是**带符号的完整字符串**，`gradeAnswer` 的 `normText` 本来就抹掉空白与标点，所以"不打符号"不改变对错。
+- 大陆题是正经考题：**不开逐格即时对错**（那会把答案一格格试出来）；提示不扣血（打怪的代价在题数与血量上，不在提示上）。
+- 详细口径与测试见 `docs/WAIT-DRILL-SPEC.md` §5.2；`MonsterDialog.test.tsx` / `ExpandDialog.test.tsx` 的填空用例已按逐格控件改写（`getByLabelText('填入词条')`，空格不落格）。
+
 ## 数据与来源
 
 实现来源：Trae-A1 的 `92dc58c`，基于 main `b88dab5`。集成保留原提交，并在像素统一分支补充验证、像素怪物与保存失败恢复。

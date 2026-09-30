@@ -14,6 +14,7 @@
 import { CHEST_POOL_SEED } from './chest-pool.js';
 import { continentHash, monsterOccupies, normText } from './continent.js';
 import type { ReviewStatus } from './ebbinghaus.js';
+import { spellFriendly } from './typing.js';
 
 export type DrillKind = 'meaning' | 'reverse' | 'spell';
 
@@ -123,6 +124,8 @@ export function spellHint(term: string): string {
 
 /**
  * 造一张卡。干扰项池 = 用户词库 ∪ 冷启动词池；不足 3 条干扰项 ⇒ 退成拼写（而不是出一道两选一）。
+ * ★ 反向兜底（2026-09-30）：轮到拼写但词条**不适合逐格打**（`C++` / `O(n log n)` 这类满是符号、或太长）⇒ 改出
+ *   「看词选义」——拼写卡是打字练习的手感，用户不该被迫打符号；连选择题也出不了时才照旧拼写（符号格替他填好）。
  */
 export function buildDrillCard(
   kind: DrillKind,
@@ -133,6 +136,7 @@ export function buildDrillCard(
 ): DrillCard {
   const base = { origin, termId: term.id, term: term.term, definition: term.definition, domain: term.domain };
   const full = [...pool, ...DRILL_SEED_POOL];
+  if (kind === 'spell' && !spellFriendly(term.term)) kind = 'meaning';
   if (kind !== 'spell') {
     const field = kind === 'meaning' ? 'definition' : 'term';
     const wrongs = pickDistractors(term, full, `${seed}|${kind}`, DRILL_OPTIONS - 1, field).map((t) => t[field]);

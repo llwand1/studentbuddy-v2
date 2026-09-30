@@ -33,6 +33,7 @@ import type { ConfirmItem } from './useConfirmQueue';
 import { DocModeControl } from './DocModeControl';
 import { menuStatus } from './composer-status';
 import { GrillPill } from './GrillPill';
+import { DrillParkedPill } from '../drill/DrillParkedPill';
 import { AttachmentTray } from './AttachmentTray';
 import type { DocMode } from './useDocMode';
 import { QuizGenerating } from '../quiz/QuizGenerating';
@@ -216,6 +217,7 @@ export function ChatComposer({
       )}
       {askHint && <div className="ask-style-hint">{askHint}</div>}
       {grillMe && <GrillPill onClose={() => setGrillMe(false)} />}
+      <DrillParkedPill />
       {askCard && <AskStyleCard {...askCard} busy={quizzing} />}
       {/* 确认门卡浮在选择卡之上：它阻塞的是工具执行，比"AI 在等你选方向"更急 */}
       {confirmCard && (

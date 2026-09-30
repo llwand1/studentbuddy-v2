@@ -83,6 +83,16 @@ describe('buildDrillCard：四选一与干扰项纪律', () => {
     expect(card.hint).toBe('事＿＿＿');
     expect(spellHint('a')).toBe('＿');
   });
+  it('满是符号的词条轮到拼写时改出看词选义（不逼人打符号）；出不了选择题才照旧拼写', () => {
+    const sym: DrillTermLike = { id: 's', term: 'O(n log n)', definition: '归并排序的时间复杂度', domain: 'algo' };
+    const swapped = buildDrillCard('spell', sym, lib, 'library');
+    expect(swapped.kind).toBe('meaning');
+    expect(swapped.options).toContain(sym.definition);
+    const lone: DrillTermLike = { id: 'l', term: 'C++', definition: 'x', domain: 'z' };
+    // 词库与词池都凑不出 3 条不同释义的干扰项时只能拼写（释义 'x' 与池子里的都不同，故这里仍能出选择题）
+    expect(buildDrillCard('spell', lone, [], 'library').kind).toBe('meaning');
+    expect(buildDrillCard('spell', B, lib, 'library').kind).toBe('spell');
+  });
   it('选项顺序稳定：同 seed 两次一样，换 seed 可能不同但仍含正确答案', () => {
     const a = buildDrillCard('meaning', C, lib, 'library', 'k1');
     const b = buildDrillCard('meaning', C, lib, 'library', 'k1');

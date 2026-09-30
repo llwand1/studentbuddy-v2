@@ -31,6 +31,7 @@ export * from './continent-upkeep.js';
 export * from './drill.js';
 export * from './typing.js';
 export * from './sources.js';
+export * from './video-route.js';
 export * from './ai-ops.js';
 export * from './npc.js';
 export * from './npc-life.js';

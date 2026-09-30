@@ -199,6 +199,7 @@ export function MessageRow({
           onRegen={onRegen}
           sessionId={sessionId ?? ''}
           sources={m.sources}
+          canVideos={m.role === 'assistant'}
         />
       )}
     </div>

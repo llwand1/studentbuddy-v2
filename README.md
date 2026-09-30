@@ -4,9 +4,9 @@
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-2.0.0--alpha.0-orange)
-![tests](https://img.shields.io/badge/tests-314%20files%20%2F%203749%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-159-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-208%20types-8a63f6)
+![tests](https://img.shields.io/badge/tests-321%20files%20%2F%203783%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-162-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-211%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -20,7 +20,7 @@
 
 | 你想… | 它怎么接 |
 |---|---|
-| 问个问题 | 流式回答 + 思考链 + 工具步骤实时可见；模型自己决定何时搜网 / 查你的词条库 / 出题 / 画图；AI 一联网，右侧**资料架**同步上架，正文里的 `[n]` 点得回原文 |
+| 问个问题 | 流式回答 + 思考链 + 工具步骤实时可见；模型自己决定何时搜网 / 查你的词条库 / 出题 / 画图；AI 一联网，右侧**资料架**同步上架，正文里的 `[n]` 点得回原文；「找视频」一键去 B站 / 抖音找讲解 |
 | 等回复的空档 | 2 秒没回完就弹一张**词卡**（词→义 / 义→词 / 拼写），到期词条答对＝一次真复习打卡 |
 | 让它考我 | 对话里说「考我」即可：六型配比、**真题缺省优先**、每道题标清「真题·必刷 / 模拟题·建议做 / 基础题·可选做」、材料与图必须随题带齐、答案先盲解验算 |
 | 把学过的记住 | 聊完的概念自动入库 → 回复里高亮 → 长成卡牌 → 铺进知识大陆；**FSRS-5** 按你的记忆决定何时复习，到期地块长草生怪，打败即收复 |
@@ -147,6 +147,8 @@ flowchart TD
 - **文档模式**——绑定长资料走 BM25 检索注入、带段号可溯源，70 万字资料下旧直塞覆盖率 0/13 → 新检索 13/13
 - **等待时刷词**（`docs/WAIT-DRILL-SPEC.md`）——发出问题后 AI 还在想、2 秒没回完就弹一张百词斩式词卡（词→义 / 义→词 / 拼写，键盘一把梭），回复到了答完这张自动切回；到期词条答对直接算一次复习打卡，AI 顺着话题现出库里没有的新词、点「收入词库」才入库；配乐音效全 Web Audio 现场合成，答对五款特效轮换
 - **资料溯源**（`docs/SOURCE-TRACE-SPEC.md`）——AI 一联网，右侧就弹出「资料架」：搜到即上架、读到哪条标「在读」、AI 再精选 1–3 条说一句为什么；回答收口后只留**读过 / 精选 / 正文引用到**的（搜到没读的点开多半打不开，不摆），每条旁有 ✕ 可单独叉掉；网页走服务端零脚本阅读页、PDF 直翻、视频官方播放器；正文里的 `[n]` 是可点的引用芯片；资料随回答落库，历史脚注「资料 n 条」可重开。刷词弹窗同时改成可拖动小窗，与资料架并存
+- **找视频**（未发版，`SOURCE-TRACE-SPEC.md` §12）——每条回答下面一个「找视频」，右侧面板一键去 **B站 / 抖音**搜这个知识点的讲解视频，种子词取 AI 这轮的搜索词、随时改。B站走站内搜索接口（封面 / UP 主 / 时长 / 播放量齐全）、点卡片**就地播**官方播放器，接口不应答退回联网搜索一样能播；抖音没有公开接口也不许嵌播，只给标题 + 跳转卡，搜不到就如实说，任何时候都留一张「去站内搜」卡
+- **截图保底**（未发版，§13）——脚本渲染页、拒绝服务器抓取的站，阅读模式拿不好：面板先探一下，打不开且服务器装了 Chromium 就**自动**换成服务器刚截的原网页首屏（可滚动的一张图，可切回阅读模式）；正文太薄给一条「用服务器截图看全」由你决定；没装浏览器就如实写「截不了图」+ 新标签页打开。零新依赖：Chromium 系统里有就用、不打包、不接第三方
 
 ### 顺手的小设计：不用学就会用
 
@@ -159,7 +161,7 @@ flowchart TD
 | 对话输入框 | `Esc` | 生成中＝点停止键（输入法组字期间的 Esc 归输入法，不拦） |
 | 回复正文 | 选中一段字 → `↩ 引用追问` | 选区逐行加 `> ` 并入输入框、不覆盖已打了一半的问题；只认助手正文，题卡与过程面板里的字不算 |
 | 刷词小窗 | `1–4` / `Enter` 或空格 / `N` / `Z` / `X` / `Esc` | 选项 / 下一张·记住了·收入词库 / 不认识 / 斩 / 不要 / 收起（本轮不再弹；这局留着，输入框上方的小签能唤回）；焦点在拼写格里时字母数字不劫持 |
-| 资料架 | `[` `]` · `Alt+←/→` · `Alt+1–9` | 上一条 / 下一条 / 直达第 n 条；正文里的 `[n]` 引用芯片点了同样切过去 |
+| 资料架 | `[` `]` · `Alt+←/→` · `Alt+1–9` | 上一条 / 下一条 / 直达第 n 条；正文里的 `[n]` 引用芯片点了同样切过去；视频线路开着时不劫持，输入框回车即搜 |
 
 **对话页上的小动作**：
 
@@ -266,7 +268,7 @@ flowchart TD
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼；对已下线路由（`/bank/:id` 等）有**墓碑锁**（断言 404，防止功能悄悄复活没人知道） |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **314 文件 / 3749 例**，全绿；passed/skipped 明细随平台略有差异（skipped 数分平台不同），**不进本文手抄**——实跑明细由 `node tools/metrics.mjs --tests` 当场产出。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3。
+当前测试基线 **321 文件 / 3783 例**，全绿；passed/skipped 明细随平台略有差异（skipped 数分平台不同），**不进本文手抄**——实跑明细由 `node tools/metrics.mjs --tests` 当场产出。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3。
 
 测试之外还有**三套离线评测**（都支持零 key 假模型自检，同 `demo:e2e` 的假 LLM 哲学），三者答的是三个不同的问题：`npm run eval` 评**产品链路**——走生产同款抽取与修复管道，四档解析（strict / repaired / rescued / failed）+ 配图开关两 arm 永不合并，带成本计量，答的是「产品今天交付什么水平」；`npm run eval:models` 评**模型裸输出**——七套件（自建样本 + 冻结的 MMLU / C-Eval 公开集 + 现场真题），出题协议服从性、复刻相似度、联网引用命中、词条抽取 F1、注入对抗，任意 OpenAI 兼容端点自带 key 横向对比，答的是「这只模型本身什么水平」。两边并读：同一份失败，评测台落在 repaired 档而 model-bench 直接红 ⇒ 是修复器救回来的，该改提示词。换模型、换 provider、改提示词前后各跑一遍，分数变化就是决策依据，不再靠手感（详见 [`tools/eval/model-bench/README.md`](tools/eval/model-bench/README.md)）。
 
@@ -331,7 +333,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 - **模型产出不裸跑**：```html 走 `CSP: sandbox`（无 allow-same-origin）＋ iframe 双层沙箱，页面源为 `null`；```svg 净化剥 `<image>` 外链（防信标泄露 IP）与全部脚本载体
 - **密钥不出接口**：搜索 key 与模型 key AES-GCM 密文入库，响应只回布尔；搜索 / 抓取出网走 **SSRF 护栏 + 白名单**，抓页单页不遍历
 - **归属过滤按读形状分两把锁**：读「一批行」用 `ownerFilter`，读「一个值/聚合」用 `ownerForWrite`；跨用户访问一律 **404 不回 403**（403 等于承认「这个 id 存在」）
-- **资料阅读页不是开放代理**：`GET /api/sources/{view,pdf}` 只服务**本会话资料架上的网址**（授权 = 会话可访问 **且** 网址在该会话的在线注册表或 `message_source` 表里），否则 403；抓取一律走同一套 SSRF 逐跳复检。阅读页零脚本——CSP `default-src 'none'` + 白名单清洗双保险，`sandbox` 不给 `allow-same-origin`，图片 `no-referrer`；PDF 转发校前 5 字节魔数、上限 25 MB
+- **资料阅读页不是开放代理**：`GET /api/sources/{view,pdf}` 只服务**本会话资料架上的网址**（授权 = 会话可访问 **且** 网址在该会话的在线注册表或 `message_source` 表里），否则 403；抓取一律走同一套 SSRF 逐跳复检。阅读页零脚本——CSP `default-src 'none'` + 白名单清洗双保险，`sandbox` 不给 `allow-same-origin`，图片 `no-referrer`；PDF 转发校前 5 字节魔数、上限 25 MB。截图保底 `/shot` 同一套许可，且截图浏览器的**每一个**出站连接（含重定向、子资源、回环）都经本机守门代理按同一套内网规则放行、按解析出的 IP 钉住连；并发 2 / 排队 4 / 20 秒 / 8 MB 封顶
 
 ## 已知限制
 
@@ -376,7 +378,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | [`AUTH-SPEC.md`](docs/AUTH-SPEC.md) · [`TENANCY-SPEC.md`](docs/TENANCY-SPEC.md) | 账号契约 / 多租户归属契约 |
 | [`SSE-CONTRACT.md`](docs/SSE-CONTRACT.md) · [`CHAT-UX-SPEC.md`](docs/CHAT-UX-SPEC.md) | SSE 事件与 HTTP 接口契约（前端对接核心）/ 对话页流式期与常用动作口径（重试 / Esc 停止 / 会话草稿 / 标题态 / 引用追问） |
 | [`WAIT-DRILL-SPEC.md`](docs/WAIT-DRILL-SPEC.md) | 等待时刷词契约（2 秒才弹 / 答完切回 / 到期打卡 / AI 新词候选闸门 / 特效与音频口径） |
-| [`SOURCE-TRACE-SPEC.md`](docs/SOURCE-TRACE-SPEC.md) | 资料溯源契约（资料架编号即身份 / 阅读页零脚本与授权 / `pick_sources` / `[n]` 引用芯片 / 落库与历史重开 / 与刷词小窗共存） |
+| [`SOURCE-TRACE-SPEC.md`](docs/SOURCE-TRACE-SPEC.md) | 资料溯源契约（资料架编号即身份 / 阅读页零脚本与授权 / `pick_sources` / `[n]` 引用芯片 / 落库与历史重开 / 与刷词小窗共存 / 视频线路 B站就地播·抖音跳转 / 截图保底与守门代理） |
 | [`QUIZ-TIER-SPEC.md`](docs/QUIZ-TIER-SPEC.md) | 出题分级与真题优先契约（三档由服务端按事实推 / 基础题就说是基础题 / 搜集辨别层：尾锚点·选项命中率·考试信号 / 真题优先配额与生效条件） |
 | [`QUIZ-COMPLETE-SPEC.md`](docs/QUIZ-COMPLETE-SPEC.md) · [`eval/complete.md`](docs/eval/complete.md) | 题目自包含契约（`material` 字段 / 确定性依赖审查 / 一次修复调用 / 补不全整题剔除 / 搜集侧图与材料搬运）/ 对应评测读数 |
 | [`tools/eval/agent-bench/README.md`](tools/eval/agent-bench/README.md) · [`model-bench/README.md`](tools/eval/model-bench/README.md) | 三套离线评测中的两套说明：agent 循环评测（四套件 / 镜像自检 / pass^k）/ 模型横评（七套件） |

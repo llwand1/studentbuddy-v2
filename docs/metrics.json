@@ -1,39 +1,39 @@
 {
-  "generatedAt": "2026-09-30T05:07:32.030Z",
+  "generatedAt": "2026-09-30T06:01:06.894Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
-        "srcFiles": 48,
-        "testFiles": 35,
-        "srcLines": 7577,
-        "testLines": 4258
+        "srcFiles": 49,
+        "testFiles": 36,
+        "srcLines": 7728,
+        "testLines": 4338
       },
       {
         "pkg": "server",
-        "srcFiles": 239,
-        "testFiles": 162,
-        "srcLines": 35250,
-        "testLines": 31987
+        "srcFiles": 242,
+        "testFiles": 165,
+        "srcLines": 35896,
+        "testLines": 32440
       },
       {
         "pkg": "web",
-        "srcFiles": 284,
-        "testFiles": 117,
-        "srcLines": 36470,
-        "testLines": 15666
+        "srcFiles": 288,
+        "testFiles": 120,
+        "srcLines": 36940,
+        "testLines": 16058
       }
     ],
-    "srcFiles": 571,
-    "testFiles": 314,
-    "srcLines": 79297,
-    "testLines": 51911,
-    "tsxTestFiles": 56
+    "srcFiles": 579,
+    "testFiles": 321,
+    "srcLines": 80564,
+    "testLines": 52836,
+    "tsxTestFiles": 58
   },
   "routes": {
-    "total": 159,
+    "total": 162,
     "byMethod": {
-      "get": 69,
+      "get": 72,
       "post": 63,
       "delete": 11,
       "put": 15,
@@ -42,9 +42,9 @@
     "apiMounts": 35
   },
   "contracts": {
-    "iface": 140,
-    "type": 68,
-    "total": 208
+    "iface": 142,
+    "type": 69,
+    "total": 211
   },
   "migrations": {
     "count": 51,
@@ -85,20 +85,20 @@
     "probes": 15
   },
   "repo": {
-    "head": "b4ed1c8",
+    "head": "3ee2ada",
     "headDate": "2026-09-30",
-    "commitsLast14d": 148,
-    "branch": "feat/windows-installer",
-    "dirtyFiles": 37
+    "commitsLast14d": 154,
+    "branch": "feat/source-video-shot",
+    "dirtyFiles": 1
   },
   "tests": {
     "available": true,
-    "ranNow": true,
-    "wallSec": 49.2,
+    "ranNow": false,
+    "wallSec": 0,
     "staleDays": 0,
-    "files": 314,
-    "cases": 3749,
-    "passed": 3748,
+    "files": 321,
+    "cases": 3783,
+    "passed": 3782,
     "skipped": 1,
     "failed": 0,
     "success": true
@@ -109,26 +109,26 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "314",
-      "measured": "314",
-      "ok": true
+      "claimed": "320",
+      "measured": "321",
+      "ok": false
     },
     {
       "label": "badge 测试用例",
-      "claimed": "3749",
-      "measured": "3749",
-      "ok": true
+      "claimed": "3777",
+      "measured": "3783",
+      "ok": false
     },
     {
       "label": "badge REST 路由",
-      "claimed": "159",
-      "measured": "159",
+      "claimed": "162",
+      "measured": "162",
       "ok": true
     },
     {
       "label": "badge 契约类型",
-      "claimed": "208",
-      "measured": "208",
+      "claimed": "211",
+      "measured": "211",
       "ok": true
     },
     {
@@ -157,9 +157,9 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "314 文件 / 3749 例",
-      "measured": "314 文件 / 3749 例",
-      "ok": true
+      "claimed": "320 文件 / 3777 例",
+      "measured": "321 文件 / 3783 例",
+      "ok": false
     }
   ],
   "landingDrift": [

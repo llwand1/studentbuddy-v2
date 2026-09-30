@@ -2,12 +2,16 @@
  * SourcePanel — 应用右侧「资料架」：AI 联网时搜到 / 读过 / 精选的资料在这里逐条可看（契约 docs/SOURCE-TRACE-SPEC.md §8）。
  *
  * 与内置浏览器（PreviewPanel）同一块位置、同一套外壳样式（`.sb-browser`），但内容按资料类型分三路：
- *  - 网页 / 图片 → 服务端阅读页 `/api/sources/view`（零脚本文档 + CSP sandbox，iframe 再叠 sandbox）；
+ *  - 网页 / 图片 → 服务端阅读页 `/api/sources/view`（零脚本文档 + CSP sandbox，iframe 再叠 sandbox），
+ *    打不开时由 `ReaderFrame` 换成**服务器截图**（2026-09-30 截图保底，§13）；
  *  - 视频 → 官方播放器（youtube-nocookie / player.bilibili），需要脚本与同源才能播；
  *  - PDF → `/api/sources/pdf` 转发，**不加 sandbox 属性**（浏览器的 PDF 查看器在沙箱 iframe 里是禁用的；
  *    服务端已校验魔数、nosniff，只会是 PDF 字节）。
  * 「原网页」按钮永远在：阅读模式拿不全（脚本渲染页）时一键去看原站。
  * 每个标签旁有一个 ✕（2026-09-30）：架子堆多了要能**一条条**清走没用的（整面板的 × 只是收起）。
+ *
+ * 「视频线路」（2026-09-30，§12）：同一块面板的第二种内容——学习者自己去 B站 / 抖音找讲解视频。
+ * 打开时替换架子视图（头部「资料 n」一键切回），架子本身状态不动；没有架子也能单独打开（消息脚注「找视频」）。
  *
  * 与演示面板的关系：两者同占右栏，演示是用户点出来的、优先级更高——有演示时本面板让位（返回 null），
  * 演示关掉就回来（store 状态没丢）。
@@ -16,6 +20,9 @@ import { useSyncExternalStore } from 'react';
 import { orderSources, videoEmbedUrl, type SourceItem } from '@sb/shared';
 import { getPreview, subscribePreview } from '../../lib/preview-store';
 import { closeSources, readerUrl, removeSource, selectSource, useSources } from '../../lib/sources-store';
+import { closeVideoRoute, openVideoRoute, useVideoRoute } from '../../lib/video-route-store';
+import { ReaderFrame } from './ReaderFrame';
+import { VideoRouteView } from './VideoRouteView';
 import { useSourceKeys } from './useSourceKeys';
 import '../preview/panel.css';
 import './sources.css';
@@ -38,33 +45,65 @@ function SourceFrame({ sessionId, item }: { sessionId: string; item: SourceItem 
       />
     );
   }
-  const src = readerUrl(sessionId, item);
   if (item.kind === 'pdf') {
+    const src = readerUrl(sessionId, item);
     return <iframe key={src} className="sb-browser-frame src-frame" src={src} title={item.title} />;
   }
-  return (
-    <iframe
-      key={src}
-      className="sb-browser-frame src-frame"
-      src={src}
-      title={item.title}
-      sandbox="allow-popups allow-popups-to-escape-sandbox"
-      referrerPolicy="no-referrer"
-    />
-  );
+  return <ReaderFrame sessionId={sessionId} item={item} />;
 }
 
 export function SourcePanel() {
   const st = useSources();
+  const vr = useVideoRoute();
   const preview = useSyncExternalStore(subscribePreview, getPreview, getPreview);
-  const visible = st.open && st.items.length > 0 && !preview;
-  useSourceKeys(visible);
+  const hasShelf = st.open && st.items.length > 0;
+  const videoMode = vr.open;
+  const visible = (hasShelf || videoMode) && !preview;
+  useSourceKeys(visible && !videoMode);
   if (!visible) return null;
 
   const ordered = orderSources(st.items);
   const active = ordered.find((s) => s.n === st.activeN) ?? ordered[0];
+  const closeAll = (): void => {
+    closeVideoRoute();
+    closeSources();
+  };
+
+  if (videoMode) {
+    return (
+      <aside className="sb-browser sb-sources sb-video-route" aria-label="视频线路">
+        <header className="sb-browser-head">
+          <span className="sb-browser-badge">视频</span>
+          <span className="sb-browser-title" title={vr.playing?.url ?? ''}>
+            {vr.playing ? vr.playing.title : vr.query ? `找「${vr.query}」的讲解视频` : '找讲解视频'}
+          </span>
+          <span className="sb-browser-actions">
+            {vr.playing && (
+              <button className="sb-browser-btn" onClick={() => window.open(vr.playing?.url ?? '', '_blank', 'noopener,noreferrer')} title="在新标签页打开视频页">
+                原网页
+              </button>
+            )}
+            {hasShelf && (
+              <button className="sb-browser-btn" onClick={closeVideoRoute} title="回到这条回答的资料架">
+                资料 {ordered.length}
+              </button>
+            )}
+            <button className="sb-browser-btn sb-browser-close" onClick={closeAll} title="关闭">
+              ×
+            </button>
+          </span>
+        </header>
+        <VideoRouteView st={vr} />
+        <footer className="src-foot">
+          <span>B站：就地播 · 抖音：跳转看</span>
+        </footer>
+      </aside>
+    );
+  }
+
   if (!active) return null;
   const note = active.origin === 'pick' && active.why ? `★ AI 精选：${active.why}` : active.snippet ? active.snippet : `${KIND_LABEL[active.kind]} · ${active.site}`;
+  const seed = st.items.find((s) => s.query)?.query ?? '';
 
   return (
     <aside className="sb-browser sb-sources" aria-label="资料架">
@@ -74,6 +113,9 @@ export function SourcePanel() {
           {active.title}
         </span>
         <span className="sb-browser-actions">
+          <button className="sb-browser-btn" onClick={() => openVideoRoute(st.sessionId, seed)} title="去 B站 / 抖音找这个知识点的讲解视频">
+            找视频
+          </button>
           <button className="sb-browser-btn" onClick={() => window.open(active.url, '_blank', 'noopener,noreferrer')} title="在新标签页打开原网页">
             原网页
           </button>

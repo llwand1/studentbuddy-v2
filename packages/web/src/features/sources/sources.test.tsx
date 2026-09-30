@@ -15,6 +15,7 @@ import type { SourceItem } from '@sb/shared';
 import { parseInline } from '../../lib/markdown-inline';
 import { applyLiveSources, getSources, openSources, removeSource, resetSourcesStore, takeTurnSources } from '../../lib/sources-store';
 import { closePreview, openPreview } from '../../lib/preview-store';
+import { resetVideoRouteStore } from '../../lib/video-route-store';
 import { applyChatBlock } from '../chat/chat-blocks';
 import { foldToolRounds } from '../chat/history-fold';
 import { Markdown } from '../chat/Markdown';
@@ -22,6 +23,13 @@ import { MessageFoot } from '../chat/MessageFoot';
 import { CiteChip, MessageSourcesProvider } from './cite';
 import { SourcePanel } from './SourcePanel';
 import { handleSourceKey } from './useSourceKeys';
+
+// 网页格会顺手探测阅读页（截图保底，见 ReaderFrame.test）：这里桩成永不返回，面板行为与探测无关
+vi.mock('../../lib/api-sources', () => ({
+  probeReader: () => new Promise(() => undefined),
+  shotUrl: (sessionId: string, url: string) => `/api/sources/shot?session=${sessionId}&url=${encodeURIComponent(url)}`,
+  searchVideos: () => new Promise(() => undefined),
+}));
 
 const item = (n: number, origin: SourceItem['origin'] = 'search', kind: SourceItem['kind'] = 'page', extra: Partial<SourceItem> = {}): SourceItem => ({
   n,
@@ -35,6 +43,7 @@ const item = (n: number, origin: SourceItem['origin'] = 'search', kind: SourceIt
 
 beforeEach(() => {
   resetSourcesStore();
+  resetVideoRouteStore();
   closePreview();
 });
 afterEach(cleanup);
@@ -69,7 +78,7 @@ describe('① SourcePanel', () => {
     frame = container.querySelector('iframe') as HTMLIFrameElement;
     expect(frame.getAttribute('src')).toMatch(/^\/api\/sources\/pdf\?/);
     expect(frame.hasAttribute('sandbox')).toBe(false);
-    fireEvent.click(container.querySelector('.sb-browser-actions .sb-browser-btn') as HTMLElement);
+    fireEvent.click(Array.from(container.querySelectorAll('.sb-browser-actions .sb-browser-btn')).find((b) => b.textContent === '原网页') as HTMLElement);
     expect(open).toHaveBeenCalledWith('https://x.example.com/2.pdf', '_blank', 'noopener,noreferrer');
     fireEvent.click(container.querySelector('.sb-browser-close') as HTMLElement);
     expect(getSources().open).toBe(false);

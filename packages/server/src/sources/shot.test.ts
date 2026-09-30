@@ -151,7 +151,11 @@ describe('⑤ 真浏览器（没装就跳过）', () => {
   const real = findBrowser();
   it.skipIf(!real)('经守门代理截本机页面：PNG 魔数、体积合理', async () => {
     const port = await startTarget();
-    const png = await takeScreenshot(`http://127.0.0.1:${port}/real`, { bin: real, root: process.getuid?.() === 0 });
+    // ★ 2026-09-30 修：本用例验的是「守门代理 + 真浏览器 → 拿回一张 PNG」这条链路，不是沙箱形态。
+    //   而 CI 的 ubuntu runner 是非 root 且限制非特权 user namespace ⇒ 不带 --no-sandbox 的无头 Chrome
+    //   起不来（表现为 20 秒超时）；实现**只在 root 时**才加 --no-sandbox（它渲染的是不可信页面，这条不能为
+    //   迁就测试而放松）⇒ 这里按服务器形态显式传 root，断言该链路本身是通的。
+    const png = await takeScreenshot(`http://127.0.0.1:${port}/real`, { bin: real, root: true });
     expect(png.readUInt32BE(0)).toBe(0x89504e47);
     expect(png.length).toBeGreaterThan(1000);
   }, 40_000);

@@ -33,6 +33,27 @@ describe('splitDocName（文档 pill 的文件名拆分）', () => {
     expect(splitDocName('')).toEqual({ base: '', ext: '' });
   });
 
+  it('★ 末段不像扩展名就不拆：网页标题里的点不该把标题切掉大半截（网页资料 §10）', () => {
+    // 网页资料把 <title> 当资料名，而标题带点是常态；老规则会把 ext 拆成一长串，
+    // 于是本该只放 `.txt` 的小字 span 吞掉标题主体，ellipsis 也就截错了地方。
+    expect(splitDocName('Array.prototype.map() - JavaScript | MDN')).toEqual({
+      base: 'Array.prototype.map() - JavaScript | MDN',
+      ext: '',
+    });
+    expect(splitDocName('第 3 章 电化学 · 2026 春季修订版')).toEqual({
+      base: '第 3 章 电化学 · 2026 春季修订版',
+      ext: '',
+    });
+    // 站名回退（取不到标题时资料名就是站名）仍按扩展名拆，整名看得全，不算问题
+    expect(splitDocName('zh.wikipedia.org')).toEqual({ base: 'zh.wikipedia', ext: '.org' });
+  });
+
+  it('★ 末段像扩展名但过长 / 带空格 → 不拆（`.markdown` 认，`.超过八位的中文段` 不认）', () => {
+    expect(splitDocName('讲义.markdown')).toEqual({ base: '讲义', ext: '.markdown' });
+    expect(splitDocName('讲义.verylongextension')).toEqual({ base: '讲义.verylongextension', ext: '' });
+    expect(splitDocName('讲义.txt 副本')).toEqual({ base: '讲义.txt 副本', ext: '' });
+  });
+
   it('往返不变量：base + ext 必须逐字还原原名，且 base 不为空时 ellipsis 才有东西可截', () => {
     for (const n of ['a.txt', '无扩展', '.env', 'x.y.z.md', '', '结尾有点.', '....']) {
       const { base, ext } = splitDocName(n);

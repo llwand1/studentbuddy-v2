@@ -24,6 +24,10 @@ import { termsReviewApi } from './api-terms-review.js';
 // ★ 知识大陆（游戏化地图）——地图取数在 api-terms-continent.ts，此处只挂引用
 import { termsContinentApi } from './api-terms-continent.js';
 import { toolsApi, termsUndoApi } from './api-tools.js';
+import { docApi } from './api-doc.js';
+
+// 文档模式的形状搬去了 api-doc.ts（行数红线），这里原样转出口——调用方 import 路径不变
+export type { DocMeta, DocSource } from './api-doc.js';
 import { searchApi } from './api-search.js';
 import { pkInviteApi } from './api-pk-invite.js';
 import { cardsApi } from './api-cards.js';
@@ -330,18 +334,8 @@ export const api = {
     ...termsUndoApi,
   },
 
-  /** 文档模式：会话绑定一篇资料。三个接口都只过元信息，正文只在 set 时上一次行 */
-  doc: {
-    get: (sessionId: string) =>
-      request<{ doc: DocMeta | null }>(`/api/doc?sessionId=${encodeURIComponent(sessionId)}`),
-    set: (sessionId: string, name: string, text: string) =>
-      request<{ doc: DocMeta }>('/api/doc', {
-        method: 'POST',
-        body: JSON.stringify({ sessionId, name, text }),
-      }),
-    clear: (sessionId: string) =>
-      request<{ ok: boolean }>(`/api/doc?sessionId=${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
-  },
+  /** 文档模式（契约 docs/DOC-RAG-SPEC.md §5 / §10）：形状与实现整体在 `api-doc.ts`（行数红线），此处只挂引用 */
+  doc: docApi,
 
   /**
    * 工具生态（契约 TOOL-ECOSYSTEM-SPEC）：设置页阈值/统计 + 确认卡回执。
@@ -350,11 +344,6 @@ export const api = {
   tools: toolsApi,
 };
 
-export interface DocMeta {
-  name: string;
-  chars: number;
-  truncated: boolean;
-}
 
 export interface TermItem {
   id: string;

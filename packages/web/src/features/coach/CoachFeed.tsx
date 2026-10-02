@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CoachCard } from '@sb/shared';
 import type { ReviewTermItem } from '../../lib/api';
 import { QueueCard, StreamCard } from './CoachCardViews';
+import { PomodoroPanel } from '../pomodoro/PomodoroPanel';
 
 export function CoachFeed({
   cards,
@@ -51,6 +52,8 @@ export function CoachFeed({
 
   return (
     <div className="coach-feed">
+      {/* 专注番茄钟（POMODORO-SPEC §3 / §10）：排在队列之前——它回答「这段时间学什么」，队列回答「欠了什么」，先定方向再还账 */}
+      <PomodoroPanel />
       <section className="coach-queue-sec">
         <div className="coach-sec-head">
           今日队列

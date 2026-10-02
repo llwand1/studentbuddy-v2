@@ -1,3 +1,9 @@
+> 2026-10-02 番茄钟搬进督促小窗 + 专注统计（分支 `feat/pomodoro-in-coach`，契约 `docs/POMODORO-SPEC.md` v0.2；迁移 **v54** 新表 `pomodoro_log`；新路由 `GET /api/pomodoro/stats`）：用户纠正「番茄钟应在右下角复习督促小窗，和它的学习可视化做到一起」——开钟卡从词条页复习列表搬到督促抽屉顶部第一区，下面是近 7 天专注分钟折线（复用趋势卡 `renderTrendSvg`）与按方向汇总；流水由服务端在 PUT 里按 `completed +1` 记行。**新增 1 个测试文件 2 例、既有 `routes/pomodoro.test.ts` 7→10 例**。★ 两把锁：① 流水只认 completed 恰好 +1 且上一份在工作段（原样重存 / 换方向重开 / DELETE / 再来一轮翻两段都不多记）；② 统计数字只来自服务端（面板不累加），completed 变才重拉。`ReviewPanel.tsx` 301→286 行（入口移除），既有词条页用例零改动。
+>
+> | 本批测试文件 | 用例 | 不变量 |
+> |---|---:|---|
+> | `src/features/pomodoro/PomodoroPanel.test.tsx`（web） | 2 | jsdom，REST 替身。未 loaded 不拉统计、loaded 后拉一次；空统计 ⇒ 引导语、无 svg；有统计 ⇒ 表头「今日 2 轮 · 50 分」、`.pomo-chart svg`、方向芯片带分钟、「共 N 轮」；开钟卡在面板内；★ 翻段 completed 变 ⇒ 重拉，休息→下一轮不变 ⇒ 不拉 |
+>
 > 2026-10-02 手机端专项（分支 `feat/mobile-polish`，契约 `docs/MOBILE-SPEC.md`；**零迁移、零新表、零新依赖、服务端零改动**）：用 Playwright iPhone 13 仪器逐屏量出的问题——胶囊压输入框、抽屉不整屏、设置表头竖排、输入区被三行信息顶高、可点元素 <36px、字号 <12px、无 `viewport-fit=cover`、表单 <16px 聚焦放大——集中在**一个**文件 `styles/mobile.css` 解决（≤700 / 粗指针 / 矮屏三类媒体查询，main.tsx 最后引入）；JS 侧唯一断点 `lib/use-narrow.ts`；占位文案收口到 `composer-placeholder.ts`。**新增 3 个测试文件 10 例**。★ 三把锁：① mobile.css 必须是最后一个 CSS 引入（挪前整文件静默失效）；② 断点 700 三处同数；③ 四条口径各有规则、文件里不许混桌面规则。本批**刻意不测**：真机安全区与键盘行为（见 SPEC §4 人工项）。
 >
 > | 本批测试文件 | 用例 | 不变量 |

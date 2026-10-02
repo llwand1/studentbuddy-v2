@@ -37,6 +37,8 @@ import { DrillParkedPill } from '../drill/DrillParkedPill';
 import { AttachmentTray } from './AttachmentTray';
 import type { DocMode } from './useDocMode';
 import { QuizGenerating } from '../quiz/QuizGenerating';
+import { composerPlaceholder } from './composer-placeholder';
+import { useNarrow } from '../../lib/use-narrow';
 
 /** 选项卡的 props（`busy` 由本组件按出题态统一给，故排除掉） */
 type AskCardProps = Omit<ComponentProps<typeof AskStyleCard>, 'busy'>;
@@ -197,6 +199,9 @@ export function ChatComposer({
     onPickImages: () => fileRef.current?.click(),
   });
 
+  // 手机宽度下占位文案换短句（docs/MOBILE-SPEC.md §3.1）；布局差异仍在 CSS，这里只管字
+  const narrow = useNarrow();
+
   return (
     <div className="chat-composer-wrap">
       {/* 生成中离底：按钮点亮成「新内容」——提示底下还在长，而不只是「你滚上来了」 */}
@@ -241,17 +246,7 @@ export function ChatComposer({
         <textarea
           ref={inputRef}
           value={input}
-          placeholder={
-            sessionId === null
-              ? blocked
-                ? '正在开新对话…'
-                : '问点什么，发送就会开一个新对话（Enter 发送 / Shift+Enter 换行，可直接粘贴图片）'
-              : blocked
-                ? busy
-                  ? '生成中…（Esc 停止）'
-                  : '连接未就绪…'
-                : '问点什么（Enter 发送 / Shift+Enter 换行，可直接粘贴图片）'
-          }
+          placeholder={composerPlaceholder({ sessionId, blocked, busy, narrow })}
           onChange={(e) => setInput(e.target.value)}
           onPaste={(e) => {
             // 粘贴图片 = 直接附图（与「+ 图片」同一条路）；非图片粘贴交回默认行为

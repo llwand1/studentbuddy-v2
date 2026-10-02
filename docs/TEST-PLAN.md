@@ -1,3 +1,11 @@
+> 2026-10-02 手机端专项（分支 `feat/mobile-polish`，契约 `docs/MOBILE-SPEC.md`；**零迁移、零新表、零新依赖、服务端零改动**）：用 Playwright iPhone 13 仪器逐屏量出的问题——胶囊压输入框、抽屉不整屏、设置表头竖排、输入区被三行信息顶高、可点元素 <36px、字号 <12px、无 `viewport-fit=cover`、表单 <16px 聚焦放大——集中在**一个**文件 `styles/mobile.css` 解决（≤700 / 粗指针 / 矮屏三类媒体查询，main.tsx 最后引入）；JS 侧唯一断点 `lib/use-narrow.ts`；占位文案收口到 `composer-placeholder.ts`。**新增 3 个测试文件 10 例**。★ 三把锁：① mobile.css 必须是最后一个 CSS 引入（挪前整文件静默失效）；② 断点 700 三处同数；③ 四条口径各有规则、文件里不许混桌面规则。本批**刻意不测**：真机安全区与键盘行为（见 SPEC §4 人工项）。
+>
+> | 本批测试文件 | 用例 | 不变量 |
+> |---|---:|---|
+> | `src/lib/use-narrow.test.ts`（web） | 3 | jsdom。`NARROW_QUERY` 为 700px 且 mobile.css / pixel-shell.css 都有同数断点；无 matchMedia ⇒ false 不抛；假 MediaQueryList 翻转时 hook 当场更新、卸载后监听数归零 |
+> | `src/features/chat/composer-placeholder.test.ts`（web） | 3 | 未选会话两端文案；开新对话中 / 生成中 / 未就绪三态两端同句（手机短句不覆盖阻塞态）；会话内手机句 ≤16 字且不含「Enter」 |
+> | `src/styles/mobile.test.ts`（web） | 4 | 读源码：main.tsx 最后一个 `.css` 引入是 mobile.css；index.html viewport 含 `viewport-fit=cover`；`.chat-view` / `.coach-dock-rail` 有 `env(safe-area-inset-bottom)`、粗指针 36px、textarea/select 16px、`--sb-fs-xs: 12px`；全部 @media 只落在 max-width 700/900 或 pointer: coarse |
+>
 > 2026-10-02 平台通道：按 env 顺序优先 + 失败自动换路（分支 `feat/platform-failover`，契约 `docs/TENANCY-SPEC.md` §8.1.3.5；**零迁移、零新表、零新依赖**）：平台通道多路（`SB_PLATFORM_API_KEY`／`SB_PLATFORM_BASE_URL` 逗号分隔、按位配对）的选路口径由「**等概率随机挑一路、失败不换路**」改为「**按 env 顺序优先（第一路＝主力，付费路写第一位）+ 失败自动换下一路**」。**实测依据**：线上 3 路里两把免费 key 约 12 发即打满限速（60 发 48–49 个 429），付费 key 60/60 零 429；旧口径把约 2/3 请求摊到必限速路。换路触发＝429/408/401/403/5xx/网络错误；**不换**＝400/404/422、**用户取消**；**流式已吐字节后绝不换**；**BYOK 单凭据不换**；候选只有一路时行为与从前逐字相同。适配器 `!response.ok` 改抛带 `status` 的 `UpstreamHttpError`（文案不变）——这是换路可判可测的前提。**新增 1 文件 8 例 + 既有文件 +12 例 = 本批 +20 例**。★ 四条锁：① **换第二路真的发第二发、且用第二路的 key/baseUrl**（不整对换＝key/地址错配的静默事故）；② **不无限重试**（两路都 500 ⇒ 两发后抛）；③ **吐字节后不换路**（流中途出错只发一发、错误原样抛，否则用户看到重复内容）；④ **去配自己的模型**（错误对象带状态码，`shouldFailover` 按码判）。本批**刻意不测**：真·限速上游的行为（用 fetch 桩）；多实例下每实例各自换路（`platformRoutes()` 是 env 派生、无状态，天然一致）。★ 变异自证：去掉「进入下一路」⇒ 第 ① 条转红；去掉「吐字节后不换」保护 ⇒ 第 ③ 条转红（均已实跑）。
 >
 > | 本批测试文件 | 用例 | 不变量 |

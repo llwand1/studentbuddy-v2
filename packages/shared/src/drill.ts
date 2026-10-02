@@ -11,6 +11,7 @@
  * ★ 队列排序是**派生量**：按「日历日 × 词条 id」哈希，当天恒同、跨日换序（与野怪同手法）；
  *   到期词条（`monsterOccupies` 口径＝大陆上的怪）永远排最前——它们答对算复习打卡，最值钱。
  */
+import { domainMatchesFocus } from './pomodoro.js';
 import { CHEST_POOL_SEED } from './chest-pool.js';
 import { continentHash, monsterOccupies, normText } from './continent.js';
 import type { ReviewStatus } from './ebbinghaus.js';
@@ -185,12 +186,16 @@ export function orderDrillQueue(
   terms: readonly DrillQueueTerm[],
   dayKey: string,
   exclude: ReadonlySet<string> = new Set(),
+  /** 番茄钟方向（契约 POMODORO-SPEC §5.3）：两段**各自内部**方向内的词条排前；不改到期 / 非到期的先后 */
+  focusSubject: string | null = null,
 ): DrillQueueItem[] {
   const rank = (t: DrillQueueTerm): number => continentHash(`${dayKey}|drill|${t.id}`);
   const live = terms.filter((t) => !exclude.has(t.id) && t.term.trim() !== '' && t.definition.trim() !== '');
   const due = live.filter((t) => monsterOccupies(t.status, t.inScope));
   const rest = live.filter((t) => !monsterOccupies(t.status, t.inScope));
-  const byRank = (a: DrillQueueTerm, b: DrillQueueTerm): number => rank(a) - rank(b) || (a.id < b.id ? -1 : 1);
+  const inFocus = (t: DrillQueueTerm): number => (focusSubject && domainMatchesFocus(t.domain, focusSubject) ? 0 : 1);
+  const byRank = (a: DrillQueueTerm, b: DrillQueueTerm): number =>
+    inFocus(a) - inFocus(b) || rank(a) - rank(b) || (a.id < b.id ? -1 : 1);
   return [
     ...[...due].sort(byRank).map((term) => ({ term, origin: 'due' as const })),
     ...[...rest].sort(byRank).map((term) => ({ term, origin: 'library' as const })),

@@ -31,6 +31,8 @@ import {
   countQuizImages,
   type ScenarioMixResult,
 } from '@sb/shared';
+import { pomodoroFocus, pomodoroTopic } from '@sb/shared';
+import { loadPomodoro } from '../storage/pomodoro.js';
 import { roleReady } from '../llm/router.js';
 import { getSessionDoc, buildDocMaterial } from '../learning/document.js';
 import { publishEvent } from '../events/bus.js';
@@ -79,7 +81,7 @@ quizRouter.post('/:quizId/attempts', (req: Request, res: Response) => {
  * ★ `save` 参数随题库下线一并摘除——它曾是「这次要不要写进题库」的开关，现在没有人能翻题库。
  */
 quizRouter.post('/generate', async (req: Request, res: Response) => {
-  const { topic, material, sessionId, mix, style, search, sourceMix } = req.body as {
+  const { topic: rawTopic, material, sessionId, mix, style, search, sourceMix } = req.body as {
     topic?: string;
     material?: string;
     sessionId?: string;
@@ -100,11 +102,13 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
   // ★ 带归属：别人的会话取不到资料 ⇒ 回退链自然断开（拿别人的资料出题＝泄露，2026-09-21 闸门 #2）
   const docFallback = material?.trim() || !sessionId ? null : getSessionDoc(sessionId, ownerIdOf(req));
   const effectiveMaterial =
-    material?.trim() || (docFallback ? buildDocMaterial(docFallback, topic ?? '') : undefined);
-  if (!topic && !effectiveMaterial) {
+    material?.trim() || (docFallback ? buildDocMaterial(docFallback, rawTopic ?? '') : undefined);
+  if (!rawTopic && !effectiveMaterial) {
     res.status(400).json({ error: 'topic 或 material 必填' });
     return;
   }
+  // 番茄钟方向（契约 POMODORO-SPEC §5.2）：缺省主题换成方向、自定主题加方向标签；休息段 / 没开钟原样
+  const topic = pomodoroTopic(rawTopic, pomodoroFocus(loadPomodoro(ownerIdOf(req)), new Date()));
   try {
     // 真题配比（契约 docs/QUIZ-BLEND-SPEC.md §3.1）：省略＝读设置页存的那份。
     // ★ 两遍归一（顺序不能省）：AI 配比的「纯真题组例外」（显式全 0 + 真题配了题 ⇒ 不回退默认）

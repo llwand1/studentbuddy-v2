@@ -28,6 +28,8 @@ import {
 } from '@sb/shared';
 import type { ChatMessage } from '../llm/types.js';
 import { routeRole } from '../llm/router.js';
+import { loadPomodoro } from '../storage/pomodoro.js';
+import { buildFocusBlock } from '../chat/focus-context.js';
 import { aiJson } from '../ai/gateway.js';
 import { getDb } from '../storage/db.js';
 import { canAccessSession, ownerForWrite } from '../auth/ownership.js';
@@ -78,9 +80,11 @@ function candidateNames(ownerId: string | null): Set<string> {
   return new Set(rows.map((r) => normName(r.term)));
 }
 
-function buildPrompt(topic: string, domains: string[], existing: string[], want: number): string {
+function buildPrompt(topic: string, domains: string[], existing: string[], want: number, focusLine = ''): string {
   return [
     '你在为一个正在等 AI 回复的学习者出几条**他词库里还没有的新词条**，让他在等待的十几秒里刷一刷。',
+    // 番茄钟方向（契约 POMODORO-SPEC §5.3）排在话题之前：方向是他定的，话题只是刚好聊到
+    ...(focusLine ? [focusLine] : []),
     topic ? `他刚刚问的是：「${topic}」——新词条优先与这个话题相关。` : '他还没有具体话题，按他常学的领域出。',
     `他常学的领域：${domains.join('、') || '（还不清楚，出通用的学习科学 / 计算机基础概念）'}。`,
     '严格只回一个 JSON 对象，不要代码块、不要解释：',
@@ -171,7 +175,10 @@ async function freshTerms(
   const target = routeRole('explain', undefined, ownerId);
   if (!target?.model || !target.apiKey) return poolTerms(ownerId, want, '没有绑定可用的模型，这批来自内置词池');
   const messages: ChatMessage[] = [
-    { role: 'system', content: buildPrompt(sessionTopic(ownerId, sessionId), topDomains(ownerId), [...owned], want) },
+    {
+      role: 'system',
+      content: buildPrompt(sessionTopic(ownerId, sessionId), topDomains(ownerId), [...owned], want, buildFocusBlock(loadPomodoro(ownerId))),
+    },
     { role: 'user', content: `出 ${want} 条新词条。` },
   ];
   const r = await aiJson({

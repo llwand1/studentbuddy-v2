@@ -100,8 +100,14 @@ export function buildGuidePrompt(f: GuideFacts, stage: GuideStage, eligible: rea
   } else if (f.view === 'chat') {
     lines.push(`- 这场对话：还没有内容；这个人一共开过 ${f.sessions} 场对话`);
   }
+  lines.push(`- 学习现状：词条 ${t.total} 条，今天到期 ${t.due} 条（其中逾期 ${t.overdue} 条），连续学习 ${t.streak} 天`);
+  // 番茄钟方向（契约 POMODORO-SPEC §5.4）：有方向时推荐与 text 都要落在方向里
+  if (f.focus) {
+    lines.push(
+      `- 番茄钟：这一段的学习方向是「${f.focus.subject}」（第 ${f.focus.round} 轮，${f.focus.leftMin > 0 ? `还剩约 ${f.focus.leftMin} 分钟` : '刚到点'}）——推荐、hint 与 text 都要围绕「${f.focus.subject}」，chat.topic 的开场白必须是这个方向里的问题`,
+    );
+  }
   lines.push(
-    `- 学习现状：词条 ${t.total} 条，今天到期 ${t.due} 条（其中逾期 ${t.overdue} 条），连续学习 ${t.streak} 天`,
     '',
     '【可选动作】（kind 必须逐字照抄，只能从这里选）',
     ...eligible.map((k) => `- ${k}：${KIND_BRIEF[k]}`),

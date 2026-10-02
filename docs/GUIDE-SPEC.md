@@ -158,6 +158,10 @@
 
 只在应用壳里出现；落地页与对战页（独立根）不挂。`<main>` 的类名由 `guideMainClass(view)` 给（`has-guide` / `guide-rail`）。
 
+### 8.1 快捷项（2026-10-01，契约 `POMODORO-SPEC.md` §9）
+
+亮灯时提灯**正下方直接摆出第一条推荐**（短提示 + `result.items[0]` + ✕）：点推荐＝执行并灭灯、**不展开**清单；点提灯本身才是整张清单。先规则、AI 回来原位换；亮灯那刻顺手预取。✕ 只收起这一次亮灯。窄屏（<700px）不摆。亮灯时刻在原有两个之外多一个：**番茄钟刚开 / 刚进下一轮**（`fresh / chatted / tour` 三阶段），短提示写「专注「方向」，从这开始？」。`GuideFacts.focus` 带方向：话题 / 追问文本与出题副行都落在方向里（`focusGuideText`）。
+
 ### 提灯（`Lantern.tsx`）
 
 16×16 手工点阵（`lantern-sprite.ts`，与 Mascot 同一套「横跑合并成 `<rect>`」），`crispEdges`，2× 整数倍放大；火苗两帧交替（`steps()`），配色取自既有篝火（`#9b1f2c` / `#e0612b` / `#ffd27a`）。三个状态：

@@ -6,10 +6,11 @@
  *
  * 纯状态编排：不发 toast、不碰路由；失败真因经 onError 交回 ChatView 统一显示。
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { AnswerStyle, QuizBlendReport, QuizImageReport, QuizPayload, QuizRef, ScenarioMixResult } from '@sb/shared';
 import { api } from '../../lib/api';
 import { blendNote, imageNote, refsList, searchNote, scenarioMixNote } from '../quiz/mix-report';
+import { setQuizWait } from '../drill/quiz-wait';
 
 interface Opts {
   sessionId: string | null;
@@ -30,6 +31,11 @@ export function useQuizActions({ sessionId, input, online, getMaterial, clearInp
   const [quizNote, setQuizNote] = useState('');
   /** 本次出题的参考来源清单（契约 QUIZ-SEARCH-SPEC §2.8）；没联网/没命中即空数组 */
   const [quizRefs, setQuizRefs] = useState<QuizRef[]>([]);
+  // 出题中 = 等待（POMODORO-SPEC §8）：写一份给等待时刷词；卸载时清掉，别让「出题中」卡死成永远在等
+  useEffect(() => {
+    setQuizWait(quizzing || scenarioing ? sessionId : null);
+  }, [quizzing, scenarioing, sessionId]);
+  useEffect(() => () => setQuizWait(null), []);
 
   /** 传统题组（行为与拆出前逐字一致；style 单次覆盖见 ANSWER-STYLE §4） */
   const runQuiz = useCallback(

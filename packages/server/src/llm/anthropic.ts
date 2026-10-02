@@ -11,7 +11,18 @@
 import type { ChatRequest, ContentPart, LLMAdapter, ModelListRequest, TokenChunk, ToolCall } from './types.js';
 import { getMaxOutputTokens } from './model-limits.js';
 import { acquireUpstream } from './upstream-gate.js';
+import type { PlatformRoute } from './platform-channel.js';
+import {
+  decideFailover,
+  failoverRoutes,
+  markFailover,
+  runFailover,
+  UpstreamHttpError,
+} from './upstream-failover.js';
 import { asUpstreamError, createUpstreamGuard, UPSTREAM_IDLE_MS } from './upstream-timeout.js';
+
+/** 未配 baseUrl 时的默认入口（与从前逐字一致）。 */
+const DEFAULT_BASE_URL = 'https://api.anthropic.com/v1';
 
 /** 思考预算（tokens）：≥1024 是 Anthropic 硬下限；max_tokens 必须大于它 */
 const THINKING_BUDGET_TOKENS = 4096;
@@ -20,12 +31,26 @@ export class AnthropicAdapter implements LLMAdapter {
   type = 'anthropic' as const;
 
   async *chat(req: ChatRequest): AsyncIterable<TokenChunk> {
-    const baseUrl = req.baseUrl || 'https://api.anthropic.com/v1';
-    const url = `${baseUrl}/messages`;
-    // 并发闸门（2026-09-17 建；2026-09-18 加两层业务闸门）。一次请求占一个槽，
-    // 主链优先、后台让路；`req.quota` 带的是"谁在问"（由 routeRole 经 bindQuota 绑上）。
-    // 排队期间被「停止」会在此抛错——此时尚未建任何请求资源，无需清理。
-    const release = await acquireUpstream(baseUrl, req.purpose ?? 'main', req.signal, req.quota);
+    // 候选线路：**平台行**取 `platformRoutes()`（按 env 顺序，第一路＝主力），BYOK/未带配额取单路
+    // （用 routeRole 解析出的那一对）——单路时 `runFailover` 只跑一次，行为与从前逐字相同。
+    const routes = failoverRoutes(req);
+    const list: ReadonlyArray<PlatformRoute> =
+      routes.length > 0 ? routes : [{ index: 0, apiKey: req.apiKey, baseUrl: req.baseUrl || DEFAULT_BASE_URL }];
+
+    // 一次请求占一个槽（主链优先、后台让路）；★ 换路时**重新 acquire**（闸门按 baseUrl 分桶，
+    // 换路就该走新桶），每次尝试各计一笔（取舍见 `upstream-failover.ts` 文件头）。
+    yield* runFailover(list, {
+      acquire: (route) => acquireUpstream(route.baseUrl, req.purpose ?? 'main', req.signal, req.quota),
+      attempt: (route) => this.attempt(req, route),
+    });
+  }
+
+  /**
+   * 一次尝试（单路）：建请求体 → fetch → 流式解析。
+   * @param route 本次尝试的那一路（key/baseUrl **成对**；换路只换整对，绝不 key/base 错配）
+   */
+  private async *attempt(req: ChatRequest, route: PlatformRoute): AsyncIterable<TokenChunk> {
+    const url = `${route.baseUrl}/messages`;
 
     // system 段可能有多条——基础提示词 / 忆域词条段 / 文档模式资料段 / 表达偏好段。
     // 旧实现用 find() 只取第一条，第二条起在出站请求里凭空消失（openai 适配器全量透传故掩盖）。
@@ -98,7 +123,7 @@ export class AnthropicAdapter implements LLMAdapter {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': req.apiKey,
+          'x-api-key': route.apiKey,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify(body),
@@ -106,7 +131,7 @@ export class AnthropicAdapter implements LLMAdapter {
       });
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`Anthropic API error ${response.status}: ${errText}`);
+        throw new UpstreamHttpError(response.status, `Anthropic API error ${response.status}: ${errText}`);
       }
       const reader = response.body?.getReader();
       if (!reader) throw new Error('No response body');
@@ -180,10 +205,13 @@ export class AnthropicAdapter implements LLMAdapter {
       }
       yield { content: '', done: true };
     } catch (err) {
-      throw asUpstreamError(err, guard);
+      // 超时转成可读错误；非超时的原始错误原样透传（HTTP 4xx/5xx 要保真）。
+      const converted = asUpstreamError(err, guard);
+      // ★ 是否可换路：HTTP 按状态码、超时按网络错；**用户取消一律不换**（硬约束 ②）。
+      //   流式已吐字节时外层 `runFailover` 会因 `yielded` 拦下（硬约束 ①）。
+      throw markFailover(converted, decideFailover(err, { timedOut: guard.timedOut(), aborted: !!req.signal?.aborted }));
     } finally {
       guard.dispose();
-      release();
     }
   }
 

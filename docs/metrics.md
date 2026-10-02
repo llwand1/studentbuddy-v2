@@ -23,16 +23,16 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-10-02 11:40:47（本机时区）｜ 基准 `33ca643` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-02 12:39:02（本机时区）｜ 基准 `f3b3fe5` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
 | shared | 51 | 8,428 | 38 | 4,850 | 58% |
-| server | 251 | 36,710 | 172 | 33,668 | 92% |
-| web | 312 | 38,850 | 133 | 18,000 | 46% |
-| **合计** | **614** | **83,988** | **343** | **56,518** | **67%** |
+| server | 252 | 36,946 | 173 | 34,050 | 92% |
+| web | 312 | 38,860 | 133 | 18,000 | 46% |
+| **合计** | **615** | **84,234** | **344** | **56,900** | **68%** |
 
 ## 接口与契约
 
@@ -43,8 +43,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 测试基线（vitest 实跑）
 
-- **343 文件 / 4065 例**（4063 passed + 2 skipped + 0 failed）⇒ 全绿
-- 本次本机实跑（Node v22.23.2）全量耗时 56.2s
+- **344 文件 / 4085 例**（4083 passed + 2 skipped + 0 failed）⇒ 全绿
+- 本次本机实跑（Node v22.23.2）全量耗时 90.6s
 - jsdom 交互测试文件（`.test.tsx`）65 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 46 份 · md 共 63 份 · 真机探针 15 个
-- git：feat/paid-channel @ `33ca643`（2026-10-02）· 近 14 天 199 commits · 工作区未提交 20 文件
+- git：feat/platform-failover @ `f3b3fe5`（2026-10-02）· 近 14 天 203 commits · 工作区未提交 10 文件
 
 <!-- metrics:end -->
 

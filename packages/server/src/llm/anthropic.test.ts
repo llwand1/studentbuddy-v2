@@ -4,9 +4,11 @@
  * ② test-plan §6 首笔记的结构性欠账——适配器层对「发给模型的 body」零断言。
  * 手法：桩掉 global fetch，把 init.body 解出来逐字段钉死，不打真网络。
  */
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { beforeEach, describe, it, expect, afterEach, vi } from 'vitest';
 import { AnthropicAdapter } from './anthropic.js';
-import type { ChatMessage, ToolDefinition } from './types.js';
+import { NOOP_PLATFORM_METER } from './platform-quota.js';
+import { resetUpstreamGates, setPlatformMeter } from './upstream-gate.js';
+import type { ChatMessage, ChatRequest, ToolDefinition } from './types.js';
 
 type OutBody = {
   model: string;
@@ -158,5 +160,165 @@ describe('出站请求体其余字段（适配器零断言欠账清偿）', () =
     ]);
     const withoutTools = await outbound([{ role: 'user', content: 'U' }]);
     expect('tools' in withoutTools).toBe(false);
+  });
+});
+
+// ── 2026-10-02：平台通道**失败换路**（契约 `docs/TENANCY-SPEC.md` §8.1.3.5）──────────
+// 与 `openai.test.ts` 同源口径：平台行按 env 顺序优先、失败换下一路；BYOK/单路/吐字节后不换。
+// ★ 纪律：纯逻辑——注入 `NOOP_PLATFORM_METER`，env 用完还原。
+
+/** Anthropic 版 SSE 成功响应：一段正文 + message_delta 收口。 */
+function anthSseResponse() {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(c) {
+      c.enqueue(encoder.encode('data: {"type":"content_block_delta","delta":{"text":"好"}}\n\n'));
+      c.enqueue(encoder.encode('data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}\n\n'));
+      c.close();
+    },
+  });
+  return { ok: true, status: 200, text: async (): Promise<string> => '', body: stream };
+}
+
+async function collectAnth(gen: AsyncIterable<{ content: string; done: boolean }>): Promise<Array<{ content: string; done: boolean }>> {
+  const out: Array<{ content: string; done: boolean }> = [];
+  for await (const c of gen) out.push(c);
+  return out;
+}
+
+const PLATFORM_ENV_KEYS = ['SB_PLATFORM_API_KEY', 'SB_PLATFORM_BASE_URL'] as const;
+
+describe('v20261002 平台通道失败换路', () => {
+  let savedEnv: Record<string, string | undefined>;
+
+  beforeEach(() => {
+    savedEnv = {};
+    for (const k of PLATFORM_ENV_KEYS) {
+      savedEnv[k] = process.env[k];
+      delete process.env[k];
+    }
+    resetUpstreamGates();
+    setPlatformMeter(NOOP_PLATFORM_METER);
+  });
+
+  afterEach(() => {
+    for (const k of PLATFORM_ENV_KEYS) {
+      if (savedEnv[k] === undefined) delete process.env[k];
+      else process.env[k] = savedEnv[k];
+    }
+    setPlatformMeter(null);
+  });
+
+  function twoPlatformRoutes(): void {
+    process.env.SB_PLATFORM_API_KEY = 'sk-test-primary,sk-test-backup';
+    process.env.SB_PLATFORM_BASE_URL = 'https://primary.example/v1,https://backup.example/v1';
+  }
+
+  function platformReq(over?: Partial<ChatRequest>): ChatRequest {
+    return {
+      model: 'claude-sonnet-4-5',
+      apiKey: 'sk-test-primary',
+      baseUrl: 'https://primary.example/v1',
+      messages: [{ role: 'user', content: '问' }],
+      quota: { ownerId: 'u1', platform: true },
+      ...over,
+    };
+  }
+
+  it('★ 第一路 429 ⇒ 换第二路：发两发，第二发用第二路的 baseUrl 与 key', async () => {
+    twoPlatformRoutes();
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+      if (String(url).startsWith('https://primary.example/v1')) {
+        return { ok: false, status: 429, text: async (): Promise<string> => 'rate limited' };
+      }
+      return anthSseResponse();
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const chunks = await collectAnth(new AnthropicAdapter().chat(platformReq()));
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://primary.example/v1/messages');
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('https://backup.example/v1/messages');
+    const init2 = fetchMock.mock.calls[1]?.[1] as RequestInit | undefined;
+    expect((init2?.headers as Record<string, string> | undefined)?.['x-api-key']).toBe('sk-test-backup');
+    expect(chunks.map((c) => c.content).join('')).toContain('好');
+  });
+
+  it('★ 两路都 500 ⇒ 发两发后抛出（不无限重试）', async () => {
+    twoPlatformRoutes();
+    const fetchMock = vi.fn(async () => ({ ok: false, status: 500, text: async () => 'boom' }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(collectAnth(new AnthropicAdapter().chat(platformReq()))).rejects.toThrow('500');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('★ BYOK（platform=false）429 ⇒ 只发一发、不换路', async () => {
+    twoPlatformRoutes();
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ({ ok: false, status: 429, text: async (): Promise<string> => 'rate limited' }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(
+      collectAnth(
+        new AnthropicAdapter().chat(
+          platformReq({ quota: { ownerId: 'u1', platform: false }, apiKey: 'sk-test-byok', baseUrl: 'https://byok.example/v1' }),
+        ),
+      ),
+    ).rejects.toThrow('429');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://byok.example/v1/messages');
+  });
+
+  it('★ 用户取消 ⇒ 只发一发、立即抛，不换路', async () => {
+    twoPlatformRoutes();
+    const ac = new AbortController();
+    ac.abort();
+    const abortErr = Object.assign(new Error('This operation was aborted'), { name: 'AbortError' });
+    const fetchMock = vi.fn(async () => {
+      throw abortErr;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(collectAnth(new AnthropicAdapter().chat(platformReq({ signal: ac.signal })))).rejects.toThrow(
+      /abort/i,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('★ 流式中途出错**不换路**：已吐字节 ⇒ 原样抛、只发一发', async () => {
+    twoPlatformRoutes();
+    // 每次 fetch 现造一个流：第一次 read 吐一段正文，第二次 read 报错（真·流中途出错）。
+    const fetchMock = vi.fn(async () => {
+      const encoder = new TextEncoder();
+      let n = 0;
+      const body = new ReadableStream<Uint8Array>({
+        pull(c) {
+          n += 1;
+          if (n === 1) c.enqueue(encoder.encode('data: {"type":"content_block_delta","delta":{"text":"前"}}\n\n'));
+          else c.error(new Error('mid-stream boom'));
+        },
+      });
+      return { ok: true, status: 200, text: async (): Promise<string> => '', body };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(collectAnth(new AnthropicAdapter().chat(platformReq()))).rejects.toThrow('mid-stream boom');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('★ 候选只有一路 ⇒ 与从前逐字相同：成功照常；429 也只发一发', async () => {
+    process.env.SB_PLATFORM_API_KEY = 'sk-test-only';
+    process.env.SB_PLATFORM_BASE_URL = 'https://only.example/v1';
+    const req = platformReq({ apiKey: 'sk-test-only', baseUrl: 'https://only.example/v1' });
+
+    const ok = vi.fn(async () => anthSseResponse());
+    vi.stubGlobal('fetch', ok);
+    const chunks = await collectAnth(new AnthropicAdapter().chat(req));
+    expect(ok).toHaveBeenCalledTimes(1);
+    expect(chunks.at(-1)?.done).toBe(true);
+
+    resetUpstreamGates();
+    const bad = vi.fn(async () => ({ ok: false, status: 429, text: async () => 'rl' }));
+    vi.stubGlobal('fetch', bad);
+    await expect(collectAnth(new AnthropicAdapter().chat(req))).rejects.toThrow('429');
+    expect(bad).toHaveBeenCalledTimes(1);
   });
 });

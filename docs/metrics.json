@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-02T05:27:31.135Z",
+  "generatedAt": "2026-10-02T06:34:33.442Z",
   "code": {
     "rows": [
       {
@@ -18,16 +18,16 @@
       },
       {
         "pkg": "web",
-        "srcFiles": 318,
-        "testFiles": 133,
-        "srcLines": 39420,
-        "testLines": 17657
+        "srcFiles": 320,
+        "testFiles": 136,
+        "srcLines": 39466,
+        "testLines": 17784
       }
     ],
-    "srcFiles": 625,
-    "testFiles": 346,
-    "srcLines": 85204,
-    "testLines": 56966,
+    "srcFiles": 627,
+    "testFiles": 349,
+    "srcLines": 85250,
+    "testLines": 57093,
     "tsxTestFiles": 65
   },
   "routes": {
@@ -80,25 +80,25 @@
     ]
   },
   "docs": {
-    "specs": 47,
-    "all": 65,
+    "specs": 48,
+    "all": 66,
     "probes": 15
   },
   "repo": {
-    "head": "bda23d0",
+    "head": "503c28b",
     "headDate": "2026-10-02",
-    "commitsLast14d": 209,
-    "branch": "merge/pomodoro-focus",
-    "dirtyFiles": 47
+    "commitsLast14d": 212,
+    "branch": "merge/mobile-polish",
+    "dirtyFiles": 17
   },
   "tests": {
     "available": true,
     "ranNow": false,
     "wallSec": 0,
     "staleDays": 0,
-    "files": 346,
-    "cases": 4056,
-    "passed": 4054,
+    "files": 349,
+    "cases": 4067,
+    "passed": 4065,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -109,14 +109,14 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "346",
-      "measured": "346",
+      "claimed": "349",
+      "measured": "349",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4056",
-      "measured": "4056",
+      "claimed": "4067",
+      "measured": "4067",
       "ok": true
     },
     {
@@ -157,8 +157,8 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "346 文件 / 4056 例",
-      "measured": "346 文件 / 4056 例",
+      "claimed": "349 文件 / 4067 例",
+      "measured": "349 文件 / 4067 例",
       "ok": true
     }
   ],

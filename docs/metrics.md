@@ -23,7 +23,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-10-02 13:27:31（本机时区）｜ 基准 `bda23d0` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-02 14:34:33（本机时区）｜ 基准 `503c28b` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
@@ -31,8 +31,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 |---|---|---|---|---|---|
 | shared | 52 | 8,711 | 39 | 5,079 | 58% |
 | server | 255 | 37,073 | 174 | 34,230 | 92% |
-| web | 318 | 39,420 | 133 | 17,657 | 45% |
-| **合计** | **625** | **85,204** | **346** | **56,966** | **67%** |
+| web | 320 | 39,466 | 136 | 17,784 | 45% |
+| **合计** | **627** | **85,250** | **349** | **57,093** | **67%** |
 
 ## 接口与契约
 
@@ -43,7 +43,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 测试基线（vitest 实跑）
 
-- **346 文件 / 4056 例**（4054 passed + 2 skipped + 0 failed）⇒ 全绿
+- **349 文件 / 4067 例**（4065 passed + 2 skipped + 0 failed）⇒ 全绿
 - ⚠️ 本次未重跑 vitest，读的是 今日的 test-results 产物——要新鲜数字加 `--tests`
 - jsdom 交互测试文件（`.test.tsx`）65 个
 
@@ -52,8 +52,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 - ⬜ 无覆盖率产物（跑 `node tools/metrics.mjs --tests --coverage` 生成，**不编数**）
 
 ## 文档与仓库
-- docs/：SPEC 契约 47 份 · md 共 65 份 · 真机探针 15 个
-- git：merge/pomodoro-focus @ `bda23d0`（2026-10-02）· 近 14 天 209 commits · 工作区未提交 47 文件
+- docs/：SPEC 契约 48 份 · md 共 66 份 · 真机探针 15 个
+- git：merge/mobile-polish @ `503c28b`（2026-10-02）· 近 14 天 212 commits · 工作区未提交 17 文件
 
 <!-- metrics:end -->
 

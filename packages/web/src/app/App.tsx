@@ -32,7 +32,7 @@ import { SourcePanel } from '../features/sources/SourcePanel';
 import { CoachDock } from '../features/coach/CoachDock';
 import { WaitDrill } from '../features/drill/WaitDrill';
 import { useQuizWait } from '../features/drill/quiz-wait';
-import { POMODORO_OPEN_EVENT, loadPomodoroState } from '../features/pomodoro/pomodoro-store';
+import { loadPomodoroState } from '../features/pomodoro/pomodoro-store';
 import { HuntAlert } from '../features/hunt/HuntAlert';
 import { GuideBeacon } from '../features/guide/GuideBeacon';
 import { guideMainClass } from '../features/guide/guide-layout';
@@ -74,13 +74,10 @@ export function App() {
     if (v === 'terms') setTermsKeyword('');
   }, []);
 
-  // 番茄钟（docs/POMODORO-SPEC.md）：起应用拉一次状态；「去定一个」（气泡 / 引路灯）⇒ 跳词条页，开钟卡自己会展开
+  // 番茄钟（docs/POMODORO-SPEC.md）：起应用拉一次状态。开钟 / 统计都在督促小窗抽屉里，`sb:pomodoro-open` 由 CoachDock 自己接
   useEffect(() => {
     void loadPomodoroState();
-    const onOpen = () => goView('terms');
-    window.addEventListener(POMODORO_OPEN_EVENT, onOpen);
-    return () => window.removeEventListener(POMODORO_OPEN_EVENT, onOpen);
-  }, [goView]);
+  }, []);
   /** 出题中的那间会话（§8）：与对话流的忙态并成一个信号喂给等待时刷词 */
   const quizWaitSid = useQuizWait();
 

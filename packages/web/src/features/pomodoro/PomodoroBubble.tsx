@@ -58,23 +58,23 @@ export function PomodoroBubble({ openedAt }: { openedAt: Date }) {
       <div className="pomo-bubble-actions">
         {r.kind === 'work-done' && (
           <>
-            <button type="button" className="rv-btn ok" disabled={busy} onClick={() => run(() => advanceFocus())}>
+            <button type="button" className="pomo-btn ok" disabled={busy} onClick={() => run(() => advanceFocus())}>
               开始休息
             </button>
-            <button type="button" className="rv-btn" disabled={busy} onClick={() => run(() => skipFocusBreak())}>
+            <button type="button" className="pomo-btn" disabled={busy} onClick={() => run(() => skipFocusBreak())}>
               再来一轮
             </button>
-            <button type="button" className="rv-btn" disabled={busy} onClick={() => run(() => stopFocus())}>
+            <button type="button" className="pomo-btn" disabled={busy} onClick={() => run(() => stopFocus())}>
               结束
             </button>
           </>
         )}
         {r.kind === 'break-done' && (
           <>
-            <button type="button" className="rv-btn ok" disabled={busy} onClick={() => run(() => advanceFocus())}>
+            <button type="button" className="pomo-btn ok" disabled={busy} onClick={() => run(() => advanceFocus())}>
               开始下一轮
             </button>
-            <button type="button" className="rv-btn" disabled={busy} onClick={() => run(() => stopFocus())}>
+            <button type="button" className="pomo-btn" disabled={busy} onClick={() => run(() => stopFocus())}>
               结束
             </button>
           </>
@@ -82,7 +82,7 @@ export function PomodoroBubble({ openedAt }: { openedAt: Date }) {
         {r.kind === 'setup' && (
           <button
             type="button"
-            className="rv-btn ok"
+            className="pomo-btn ok"
             onClick={() => {
               close('setup');
               requestPomodoroOpen();

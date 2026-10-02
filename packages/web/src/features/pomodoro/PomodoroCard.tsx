@@ -5,7 +5,7 @@
  *   未开钟 ⇒ 「学什么 · 学多久」：方向可敲、也可点领域芯片（词条库里已有的领域，点一下就填）；时长四档 + 自填；
  *   开着钟 ⇒ 倒计时、第几轮、已完成几轮；工作段给「休息 / 再来一轮 / 结束」，休息段给「开始下一轮 / 结束」。
  * ★ 到点**不自动翻页**（口径 2）：这里与胶囊旁的气泡是同一组动作的两个入口，哪边点都行。
- * ★ 领域芯片复用复习目标卡的视觉词汇（`rv-goal-chip`），不另起一套样式——它就在那张卡旁边。
+ * ★ 样式全在 `pomodoro.css`（`pomo-*`）：抽屉里没有词条页的样式表，不能再借用。
  */
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -63,15 +63,15 @@ export function PomodoroCard() {
 
   if (!session) {
     return (
-      <div className="rv-goal pomo-card" data-testid="pomodoro-card">
-        <div className="rv-goal-head">
+      <div className="pomo-card" data-testid="pomodoro-card">
+        <div className="pomo-head">
           <b>🍅 番茄钟</b>
-          <span className="rv-goal-hint">定下接下来学什么，对话、出题、刷词、引路灯都会偏向它</span>
+          <span className="pomo-hint">定下接下来学什么，对话、出题、刷词、引路灯都会偏向它</span>
         </div>
-        <div className="rv-goal-row">
-          <span className="rv-goal-label">学什么</span>
+        <div className="pomo-row">
+          <span className="pomo-label">学什么</span>
           <input
-            className="rv-goal-input pomo-subject"
+            className="pomo-input pomo-subject"
             type="text"
             maxLength={POMODORO_SUBJECT_MAX}
             placeholder="如：数学 / 高数·极限"
@@ -81,19 +81,19 @@ export function PomodoroCard() {
             aria-label="学习方向"
           />
           {domains.length > 0 && (
-            <div className="rv-goal-chips">
+            <div className="pomo-chips">
               {domains.map((d) => (
-                <button key={d} type="button" className={subject === d ? 'rv-goal-chip on' : 'rv-goal-chip'} disabled={busy} onClick={() => setSubject(d)}>
+                <button key={d} type="button" className={subject === d ? 'pomo-chip on' : 'pomo-chip'} disabled={busy} onClick={() => setSubject(d)}>
                   {d}
                 </button>
               ))}
             </div>
           )}
         </div>
-        <div className="rv-goal-row">
-          <span className="rv-goal-label">学多久</span>
+        <div className="pomo-row">
+          <span className="pomo-label">学多久</span>
           <input
-            className="rv-goal-input"
+            className="pomo-input"
             type="number"
             min={POMODORO_WORK_MIN}
             max={POMODORO_WORK_MAX}
@@ -102,17 +102,17 @@ export function PomodoroCard() {
             onChange={(e) => setMinutes(e.target.value)}
             aria-label="工作时长（分钟）"
           />
-          <span className="rv-goal-label">分钟</span>
-          <div className="rv-goal-presets">
+          <span className="pomo-label">分钟</span>
+          <div className="pomo-chips">
             {POMODORO_WORK_PRESETS.map((n) => (
-              <button key={n} type="button" className={workMin === n ? 'rv-goal-chip on' : 'rv-goal-chip'} disabled={busy} onClick={() => setMinutes(String(n))}>
+              <button key={n} type="button" className={workMin === n ? 'pomo-chip on' : 'pomo-chip'} disabled={busy} onClick={() => setMinutes(String(n))}>
                 {n}
               </button>
             ))}
           </div>
           <button
             type="button"
-            className="rv-btn ok"
+            className="pomo-btn ok"
             disabled={busy || subject.trim() === ''}
             onClick={() =>
               void run(async () => {
@@ -124,7 +124,7 @@ export function PomodoroCard() {
             开始专注
           </button>
         </div>
-        <p className="rv-goal-tip">每轮结束后休息 5 分钟，每 4 轮一次 15 分钟长休；到点只提醒、不替你翻页。</p>
+        <p className="pomo-tip">每轮结束后休息 5 分钟，每 4 轮一次 15 分钟长休；到点只提醒、不替你翻页。</p>
         {error && <div className="pomo-error">{error}</div>}
       </div>
     );
@@ -134,10 +134,10 @@ export function PomodoroCard() {
   const done = pomodoroPhaseDone(session, now);
   const working = session.phase === 'work';
   return (
-    <div className={`rv-goal pomo-card${working ? ' is-work' : ' is-break'}`} data-testid="pomodoro-card">
-      <div className="rv-goal-head">
+    <div className={`pomo-card${working ? ' is-work' : ' is-break'}`} data-testid="pomodoro-card">
+      <div className="pomo-head">
         <b>{working ? `🍅 ${session.subject}` : '☕ 休息中'}</b>
-        <span className="rv-goal-hint">
+        <span className="pomo-hint">
           第 {session.round} 轮 · 已完成 {session.completed} 轮{working && isLongBreakAfter(session.round) ? ' · 这轮之后长休' : ''}
         </span>
       </div>
@@ -145,22 +145,22 @@ export function PomodoroCard() {
         {formatPomodoroClock(left)}
         {done && <span className="pomo-done">{working ? '到点了' : '休息结束'}</span>}
       </div>
-      <div className="rv-goal-row pomo-actions">
+      <div className="pomo-row pomo-actions">
         {working ? (
           <>
-            <button type="button" className="rv-btn ok" disabled={busy} onClick={() => void run(() => advanceFocus())}>
+            <button type="button" className="pomo-btn ok" disabled={busy} onClick={() => void run(() => advanceFocus())}>
               {done ? '开始休息' : '提前休息'}
             </button>
-            <button type="button" className="rv-btn" disabled={busy} onClick={() => void run(() => skipFocusBreak())}>
+            <button type="button" className="pomo-btn" disabled={busy} onClick={() => void run(() => skipFocusBreak())}>
               再来一轮
             </button>
           </>
         ) : (
-          <button type="button" className="rv-btn ok" disabled={busy} onClick={() => void run(() => advanceFocus())}>
+          <button type="button" className="pomo-btn ok" disabled={busy} onClick={() => void run(() => advanceFocus())}>
             开始第 {session.round + 1} 轮
           </button>
         )}
-        <button type="button" className="rv-btn pomo-stop" disabled={busy} onClick={() => void run(() => stopFocus())}>
+        <button type="button" className="pomo-btn pomo-stop" disabled={busy} onClick={() => void run(() => stopFocus())}>
           结束番茄钟
         </button>
       </div>

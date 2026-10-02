@@ -58,7 +58,7 @@ vi.mock('../learning/quiz-blend.js', async (importOriginal) => {
 });
 
 const { app } = await import('../index.js');
-const { closeDb } = await import('../storage/db.js');
+const { closeDb, getDb } = await import('../storage/db.js');
 const { createUser } = await import('../auth/users.js');
 const { createSession: issueSession } = await import('../auth/session.js');
 const { collectContextSegments } = await import('../chat/context-segments.js');
@@ -88,6 +88,7 @@ beforeEach(async () => {
   llm.calls = [];
   blend.topics = [];
   await request(app).delete('/api/pomodoro').set('Origin', origin).expect(200);
+  getDb().prepare('DELETE FROM pomodoro_log').run();
 });
 afterAll(() => {
   closeDb();
@@ -175,5 +176,59 @@ describe('⑥ ⑦ 刷词与出题', () => {
     await request(app).delete('/api/pomodoro').set('Origin', origin).expect(200);
     await request(app).post('/api/quiz/generate').set('Origin', origin).send({ topic: '二次函数' });
     expect(blend.topics).toEqual(['数学（结合当前对话）', '【数学】二次函数', '二次函数']);
+  });
+});
+
+describe('⑧ 流水与统计（v54 pomodoro_log，契约 §10）', () => {
+  const stats = async (cookie?: string) => {
+    const r = request(app).get('/api/pomodoro/stats');
+    return (await (cookie ? r.set('Cookie', cookie) : r).expect(200)).body as import('@sb/shared').PomodoroStats;
+  };
+
+  it('completed +1 才记一行（按上一份会话的方向 / 时长）；重复保存、跨方向重开不记；DELETE 不记', async () => {
+    const s = work('数学');
+    await put(s).expect(200);
+    expect((await stats()).today.rounds).toBe(0);
+    await put(s).expect(200); // 原样再存：不是完成
+    expect((await stats()).today.rounds).toBe(0);
+    const b = nextPomodoroPhase(s, NOW); // 工作 → 休息：completed 1
+    await put(b).expect(200);
+    let st = await stats();
+    expect(st.today).toEqual({ rounds: 1, minutes: 30 });
+    expect(st.bySubject).toEqual([{ subject: '数学', rounds: 1, minutes: 30 }]);
+    // 换方向重开（completed 归零）不算完成
+    await put(work('英语')).expect(200);
+    expect((await stats()).today.rounds).toBe(1);
+    await request(app).delete('/api/pomodoro').set('Origin', origin).expect(200);
+    st = await stats();
+    expect(st.today.rounds).toBe(1);
+    // 逐日：7 天、升序、今天在末位、缺日补 0
+    expect(st.recent).toHaveLength(7);
+    expect(st.recent.slice(0, 6).every((d) => d.rounds === 0 && d.minutes === 0)).toBe(true);
+    expect(st.recent[6]?.rounds).toBe(1);
+    expect([...st.recent.map((d) => d.day)].sort()).toEqual(st.recent.map((d) => d.day));
+  });
+
+  it('「再来一轮」一次翻两段也只记一轮；方向按分钟降序', async () => {
+    const s = work('物理');
+    await put(s).expect(200);
+    const { skipBreak } = await import('@sb/shared');
+    await put(skipBreak(s, NOW)).expect(200); // completed 1，直接第 2 轮工作
+    const s2 = (await (await get().expect(200)).body as { session: PomodoroSession }).session;
+    await put(nextPomodoroPhase(s2, NOW)).expect(200); // completed 2
+    const st = await stats();
+    expect(st.today.rounds).toBe(2);
+    expect(st.bySubject[0]?.subject).toBe('物理');
+    expect(st.bySubject[0]?.minutes).toBe(60);
+  });
+
+  it('多租户：A 的流水 B 看不到', async () => {
+    const a = await newCookie('a-pomo-stats@example.com');
+    const b = await newCookie('b-pomo-stats@example.com');
+    const s = work('化学');
+    await put(s, a).expect(200);
+    await put(nextPomodoroPhase(s, NOW), a).expect(200);
+    expect((await stats(a)).today.rounds).toBe(1);
+    expect((await stats(b)).today.rounds).toBe(0);
   });
 });

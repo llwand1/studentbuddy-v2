@@ -1,19 +1,130 @@
-/* 番茄钟（契约 docs/POMODORO-SPEC.md）：开钟卡复用复习目标卡的 .rv-goal-* 词汇，这里只补它独有的几件 */
+/* 番茄钟（契约 docs/POMODORO-SPEC.md）：整个长在督促小窗里——开钟卡 / 统计在抽屉顶部，提醒气泡在胶囊旁。
+   样式自给自足（抽屉里没有词条页的样式表），视觉词汇沿用 coach.css：surface 底、line 边、primary 强调。 */
+.pomo-sec {
+  margin-bottom: var(--sb-sp-3);
+}
+.pomo-card {
+  padding: var(--sb-sp-3);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-md);
+  background: var(--sb-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-sp-2);
+}
 .pomo-card.is-work {
   border-color: var(--sb-gold-edge);
 }
-.pomo-card.is-break {
-  border-color: var(--sb-line);
+.pomo-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sb-sp-2);
+  font-size: var(--sb-fs-sm);
+}
+.pomo-hint {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+  text-align: right;
+}
+.pomo-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sb-sp-2);
+}
+.pomo-label {
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  white-space: nowrap;
+}
+.pomo-input {
+  flex: 1;
+  min-width: 0;
+  width: 5em;
+  padding: var(--sb-sp-1) var(--sb-sp-2);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: transparent;
+  color: var(--sb-ink);
+  font: inherit;
+  font-size: var(--sb-fs-sm);
+}
+.pomo-input:disabled {
+  opacity: 0.5;
 }
 .pomo-subject {
-  width: 12em;
+  flex: 1 1 100%;
+  width: auto;
+}
+.pomo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pomo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--sb-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sb-ink-secondary);
+  font: inherit;
+  font-size: var(--sb-fs-xs);
+  cursor: pointer;
+}
+.pomo-chip:hover:not(:disabled) {
+  border-color: var(--sb-primary);
+  color: var(--sb-primary);
+}
+.pomo-chip.on {
+  border-color: var(--sb-primary);
+  color: var(--sb-primary);
+  background: var(--sb-primary-weak);
+}
+.pomo-chip.is-stat {
+  cursor: default;
+}
+.pomo-chip.is-stat b {
+  color: var(--sb-ink);
+  font-weight: 600;
+}
+.pomo-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius-sm);
+  background: var(--sb-surface);
+  color: var(--sb-ink-secondary);
+  font: inherit;
+  font-size: var(--sb-fs-xs);
+  cursor: pointer;
+}
+.pomo-btn:hover:not(:disabled) {
+  border-color: var(--sb-primary);
+  color: var(--sb-primary);
+}
+.pomo-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pomo-btn.ok {
+  border-color: var(--sb-primary);
+  color: var(--sb-primary);
+}
+.pomo-tip {
+  margin: 0;
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+  line-height: 1.5;
 }
 .pomo-clock {
   display: flex;
   align-items: baseline;
   gap: var(--sb-sp-2);
-  margin: 6px 0 4px;
-  font-size: 28px;
+  margin: 2px 0;
+  font-size: 30px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
   color: var(--sb-gold);
@@ -31,16 +142,39 @@
     opacity: 0.35;
   }
 }
-.pomo-actions {
-  flex-wrap: wrap;
-}
 .pomo-stop {
   margin-left: auto;
 }
 .pomo-error {
-  margin-top: 4px;
   font-size: var(--sb-fs-xs);
   color: var(--sb-danger);
+}
+
+/* 统计：与趋势卡同一支画笔，放在开钟卡下面 */
+.pomo-stats {
+  margin-top: var(--sb-sp-2);
+  padding: var(--sb-sp-2) var(--sb-sp-3);
+  border: 1px dashed var(--sb-line);
+  border-radius: var(--sb-radius-md);
+}
+.pomo-stats-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sb-sp-2);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-secondary);
+  margin-bottom: 4px;
+}
+.pomo-chart svg {
+  width: 100%;
+  height: auto;
+}
+.pomo-subjects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--sb-sp-2);
 }
 
 /* 胶囊旁的番茄气泡：与 .coach-bubble 同舱同形，只多一排动作键 */
@@ -80,7 +214,7 @@
 .pomo-bubble-x:hover {
   color: var(--sb-ink);
 }
-/* 胶囊上的番茄标签：有钟时放在数字前面，颜色跟工作 / 休息走 */
+/* 胶囊上的番茄标签 */
 .coach-cap-pomo {
   font-variant-numeric: tabular-nums;
   color: var(--sb-gold);

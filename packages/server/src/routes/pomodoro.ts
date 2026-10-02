@@ -11,7 +11,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { pomodoroFocus } from '@sb/shared';
 import { ownerIdOf } from '../auth/ownership.js';
-import { clearPomodoro, loadPomodoro, savePomodoro } from '../storage/pomodoro.js';
+import { clearPomodoro, loadPomodoro, logPomodoroRound, pomodoroStats, savePomodoro } from '../storage/pomodoro.js';
 
 export const pomodoroRouter = Router();
 
@@ -21,12 +21,22 @@ pomodoroRouter.get('/', (req: Request, res: Response) => {
 });
 
 pomodoroRouter.put('/', (req: Request, res: Response) => {
-  const session = savePomodoro((req.body as { session?: unknown }).session, ownerIdOf(req));
+  const owner = ownerIdOf(req);
+  const prev = loadPomodoro(owner);
+  const session = savePomodoro((req.body as { session?: unknown }).session, owner);
   if (!session) {
     res.status(400).json({ error: 'session 形状不对：方向不能为空，时间要是合法的 ISO 串。' });
     return;
   }
+  // 流水（契约 §10）：`completed` 比库里多了 ⇒ 刚完成一个工作段，按**上一份**会话的方向 / 时长 / 轮次记一行。
+  // 只认 +1：客户端一次翻两段（再来一轮）也只完成了一轮；跨会话（方向换了、completed 归零）不记。
+  if (prev && session.completed === prev.completed + 1 && prev.phase === 'work') logPomodoroRound(owner, prev);
   res.json({ session, focus: pomodoroFocus(session, new Date()) });
+});
+
+/** 专注统计：今日 / 近 7 天逐日 / 按方向（督促小窗的学习可视化，契约 §10） */
+pomodoroRouter.get('/stats', (req: Request, res: Response) => {
+  res.json(pomodoroStats(ownerIdOf(req)));
 });
 
 pomodoroRouter.delete('/', (req: Request, res: Response) => {

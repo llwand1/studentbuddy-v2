@@ -8,7 +8,7 @@
  * ★ **消费面零改动**：`api.ts` 里仍是 `providers: providersApi`，调用方照旧写
  *   `api.providers.models(id)`。
  */
-import type { ModelRole, PlatformQuotaState, Provider } from '@sb/shared';
+import type { ModelRole, PlatformQuotaView, Provider } from '@sb/shared';
 import { request } from './api-request.js';
 
 export const providersApi = {
@@ -47,9 +47,11 @@ export const providersApi = {
       method: 'POST',
     }),
   /**
-   * 平台免费额度剩余次数（每 5 小时 250 次滚动窗口）。
-   * ★ `limited: false` = 当前身份**不计量**（未登录单人模式），不是"额度无限"——
-   *   前端据此显示"本地模式不限额"而不是编一个 250。
+   * 平台免费额度剩余次数（`PlatformQuotaView` 三态）。
+   * ★ `limited: false` 有**两种**含义，必须按 `reason` 分支，别当成一件事：
+   *   · `reason: 'local'`     = 未登录单人模式，**不计量**（不是"额度无限"）；
+   *   · `reason: 'unlimited'` = 平台通道已取消**每用户**上限，**不限次数**（仍受全站每日闸）。
+   *   `reason: 'limited'` 时才用 `used`/`limit`/`resetAt` 显示"还剩 N 次"。
    */
-  quota: () => request<PlatformQuotaState & { limited: boolean }>('/api/providers/quota'),
+  quota: () => request<PlatformQuotaView>('/api/providers/quota'),
 };

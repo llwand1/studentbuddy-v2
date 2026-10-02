@@ -77,10 +77,11 @@ const QUEUE_ABORT_MESSAGE = '已停止';
 const DEFAULT_QUOTA: UpstreamQuota = { ownerId: null, platform: true };
 
 /**
- * 次数配额的**计量器**（v39）。默认落库。
+ * 次数配额的**计量器**（v39；v53 2026-10-02 扩展全站每日两法）。默认落库。
  *
  * ★ 默认取落库实现 = **fail-closed**：某条新路径万一忘了显式装计量器，代价是"照常计量"；
  *   反过来（默认 NOOP）的代价是"配额静默失效"——正是本文件反复强调要消灭的那类 bug。
+ *   ★ 全站每日闸（`assertSite`/`recordSite`）同理走这把计量器：漏装的代价必须是"照常计量"。
  * ★ 可替换的唯一动机是**测试**：`upstream-gate.test.ts` 是纯逻辑用例，绝不能开真库
  *   （理由与后果见 `platform-quota.ts` 的 `PlatformMeter`）。
  */
@@ -253,8 +254,16 @@ export async function acquireUpstream(
   //     恒为 NULL，用它当键会让所有免费用户共享同一份额度（同 `innerKey` 那个坑的姊妹版）。
   const meteredOwner = q.platform && q.ownerId !== null ? q.ownerId : null;
 
-  // 断言放在**拿槽之前**：额度用完的请求不该占着并发桶，否则会把正常用户挡在门外。
+  // ★ v53（2026-10-02）**全站每日**上限（成本闸）：平台通道这一整天总共几笔上游调用，**不分用户**。
+  //   三道闸各管一段，缺一段就有洞：
+  //   ① **并发闸**（下文内/外层）管「同一时刻几路」——防上游被打挂；
+  //   ② **每用户次数配额**（`meteredOwner`，v39）管「一个人能刷多少」——付费 key 上线后被 env 取消；
+  //   ③ **全站每日上限**（`meter.assertSite`）管「**平台这一整天**花多少」——取消 ② 后唯一还能拦住
+  //      「批量建号慢慢刷」的闸（注册限流的前提正是"每号一份配额"，前提破了成本就无上限）。
+  //   ★ 全站闸**只看 `q.platform`、不看 `ownerId`**：它管的是「平台这笔钱」，与请求者是谁无关——
+  //     本地单人模式（`ownerId === null`）花的也是平台的钱，同样要计。
   if (meteredOwner !== null) meter.assert(meteredOwner);
+  if (q.platform) meter.assertSite();
 
   const releaseInner = await gateFor(innerGates, innerKey(baseUrl, q.ownerId), UPSTREAM_MAX_CONCURRENT).acquire(
     purpose,
@@ -271,6 +280,7 @@ export async function acquireUpstream(
     // ★ 两层槽都拿到 ⇒ 这笔请求**必然发出**，此刻才记一笔。
     //   被闸门拒绝的（外层队列满 / 排队中被停止）走 catch，**不计数**——用户没得到服务，不该扣次数。
     if (meteredOwner !== null) meter.record(meteredOwner);
+    if (q.platform) meter.recordSite(); // 全站每日：同样只在"必然发出"后计
     return () => {
       releaseOuter();
       releaseInner();

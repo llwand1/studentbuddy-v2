@@ -8,7 +8,7 @@
  *
  * 全部为纯逻辑断言，不打网络、不起真定时器。
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   acquireUpstream,
   bindQuota,
@@ -20,7 +20,8 @@ import {
   UPSTREAM_SITE_QUEUE_MAX,
   upstreamStats,
 } from './upstream-gate.js';
-import { NOOP_PLATFORM_METER } from './platform-quota.js';
+import { NOOP_PLATFORM_METER, PlatformQuotaExceededError } from './platform-quota.js';
+import { PLATFORM_BUDGET_MESSAGE } from '@sb/shared';
 import type { LLMAdapter, UpstreamQuota } from './types.js';
 
 const URL_A = 'https://upstream-a.example/v1';
@@ -56,6 +57,8 @@ beforeEach(() => {
   //   **真实库**（`getDb()` 懒加载真实数据目录），既违反 ADR-6「不碰用户数据」，
   //   又会与正在跑的 dev server 争 WAL 写锁 ⇒ 随机红。计量器本身的正确性由
   //   `platform-quota.test.ts`（隔离库）负责，本文件只测**并发闸门**。
+  //   ★ v53（2026-10-02）：`NOOP_PLATFORM_METER` 现也覆盖 `assertSite`/`recordSite`（全站每日闸），
+  //   故本文件无需再为全站闸单独补注入点——它同样被这一把 NOOP 计量器挡在库外。
   setPlatformMeter(NOOP_PLATFORM_METER);
 });
 
@@ -389,6 +392,94 @@ describe('外层：全站封顶 N + 队列上限（只约束平台通道）', ()
   it('常量不变式：外层不得小于内层（否则一个用户连自己那 2 个槽都用不满）', () => {
     expect(UPSTREAM_SITE_MAX_CONCURRENT).toBeGreaterThanOrEqual(UPSTREAM_MAX_CONCURRENT);
     expect(UPSTREAM_SITE_QUEUE_MAX).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ── 2026-10-02：全站每日闸接线（契约 `docs/TENANCY-SPEC.md` §8.1.3.4）──────────
+// ★ 这一组为什么必须存在：`acquireUpstream` 里 `meter.assertSite()` / `recordSite()` 两行
+//   是**全站每日成本闸**的唯一接线点（付费 key 上线、每用户上限被 env 取消后，它是唯一还能
+//   拦住「批量建号慢慢刷」的闸）。**没有用例钉住它们 ⇒ 谁把这行删了，全部用例照样绿**——
+//   正是本仓反复强调要消灭的「闸静默失效」。下面用 **spy 计量器**把这两行钉死在「平台通道 /
+//   非 BYOK」这一态上（★ 不能用 `NOOP_PLATFORM_METER`：它把调用**空操作吃掉**，根本测不出「有没有被调到」）。
+// ★ 纪律不变：纯逻辑、不打网络、不起真定时器、绝不打开真库（`beforeEach` 已兜底复原计量器）。
+
+describe('v53 全站每日闸接线：平台通道经过 assertSite/recordSite，BYOK 不经', () => {
+  /** 全站闸 spy：四个方法都只记录"被没被调、调了几次"，不做任何判断也不落库。 */
+  function meterSpy() {
+    return { assert: vi.fn(), record: vi.fn(), assertSite: vi.fn(), recordSite: vi.fn() };
+  }
+
+  it('★ 平台目标成功 acquire ⇒ assertSite 与 recordSite **各一次**', async () => {
+    const spy = meterSpy();
+    setPlatformMeter(spy);
+    const r = await acquireUpstream(URL_A, 'main', undefined, q('uA'));
+    expect(spy.assertSite).toHaveBeenCalledTimes(1);
+    expect(spy.recordSite).toHaveBeenCalledTimes(1);
+    r();
+  });
+
+  it('★ BYOK（platform=false）**不过**全站闸：assertSite/recordSite 零调用（用户自己的钱不进平台成本账）', async () => {
+    const spy = meterSpy();
+    setPlatformMeter(spy);
+    const r = await acquireUpstream(URL_A, 'main', undefined, q('uA', false));
+    expect(spy.assertSite).not.toHaveBeenCalled();
+    expect(spy.recordSite).not.toHaveBeenCalled();
+    r();
+  });
+
+  it('★ 本地单人模式（ownerId=null, platform=true）**也计全站**，但不计每用户（v39 三态不变）', async () => {
+    const spy = meterSpy();
+    setPlatformMeter(spy);
+    const r = await acquireUpstream(URL_A, 'main', undefined, q(null));
+    // 全站闸管的是「平台这笔钱」，与请求者是谁无关 ⇒ 未登录花的也是平台的钱，必须计
+    expect(spy.assertSite).toHaveBeenCalledTimes(1);
+    expect(spy.recordSite).toHaveBeenCalledTimes(1);
+    // 每用户那对（v39）：ownerId=null ⇒ 不计数（三态语义一字不改）
+    expect(spy.assert).not.toHaveBeenCalled();
+    expect(spy.record).not.toHaveBeenCalled();
+    r();
+  });
+
+  it('★ 全站闸超限 ⇒ 快速失败且**不占任何并发槽**：断言在拿内层槽之前，抛错原样透传', async () => {
+    const err = new PlatformQuotaExceededError(1000, PLATFORM_BUDGET_MESSAGE);
+    setPlatformMeter({
+      assert: vi.fn(),
+      record: vi.fn(),
+      assertSite: () => {
+        throw err;
+      },
+      recordSite: vi.fn(),
+    });
+    // 判据（用例名里的"不占槽"）：`assertSite` 在拿内层槽**之前**调用，抛错时内层/外层都没动过。
+    // 故拒绝后立刻读桶：该用户内层桶与全站桶的在飞/排队都必须是 0（照 `assert 抛` 那条既有用例的手法）。
+    await expect(acquireUpstream(URL_A, 'main', undefined, q('uA'))).rejects.toBe(err); // ★ 原样抛出（不是包装过的）
+    expect(upstreamStats(URL_A, 'uA').inFlight).toBe(0);
+    expect(upstreamStats(URL_A, 'uA').pendingMain).toBe(0);
+    expect(upstreamStats(URL_A).siteInFlight).toBe(0);
+    expect(upstreamStats(URL_A).sitePending).toBe(0);
+  });
+
+  it('★ 被外层闸门拒绝的不计全站：8 笔在飞记 8 次 recordSite，20 笔排队 + 1 笔被拒都不记', async () => {
+    const spy = meterSpy();
+    setPlatformMeter(spy);
+    // 前 8 个用**不同**用户占满外层在飞位（每人内层只占 1，不会先被内层挡住）
+    const held: Array<() => void> = [];
+    for (let i = 0; i < UPSTREAM_SITE_MAX_CONCURRENT; i++) {
+      held.push(await acquireUpstream(URL_A, 'main', undefined, q(`u${i}`)));
+    }
+    // 后 20 个排进外层队列（非阻塞探针，`await` 它们会死锁）
+    for (let i = 0; i < UPSTREAM_SITE_QUEUE_MAX; i++) probeQ(URL_A, q(`w${i}`));
+    await tick();
+    expect(spy.recordSite).toHaveBeenCalledTimes(UPSTREAM_SITE_MAX_CONCURRENT); // ★ 排队的没计
+
+    const overflow = probeQ(URL_A, q('overflow'));
+    await tick();
+    expect(overflow.error?.message).toBe(UPSTREAM_BUSY_MESSAGE);
+    expect(spy.recordSite).toHaveBeenCalledTimes(UPSTREAM_SITE_MAX_CONCURRENT); // ★ 被拒的也不计（没得到服务）
+    expect(spy.assertSite).toHaveBeenCalledTimes(UPSTREAM_SITE_MAX_CONCURRENT + UPSTREAM_SITE_QUEUE_MAX + 1); // 断言都过了
+
+    held.forEach((r) => r());
+    await tick();
   });
 });
 

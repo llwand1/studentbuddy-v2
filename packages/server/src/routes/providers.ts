@@ -29,8 +29,8 @@ import { OpenAICompatibleAdapter } from '../llm/openai.js';
 import { AnthropicAdapter } from '../llm/anthropic.js';
 import { encryptSecret, decryptSecret, isEncrypted } from '../storage/crypto.js';
 import { ownerIdOf } from '../auth/ownership.js';
-import { platformQuotaState } from '../llm/platform-quota.js';
-import { PLATFORM_QUOTA_MAX_CALLS } from '@sb/shared';
+import { platformQuotaMax, platformQuotaState, platformUsageCount } from '../llm/platform-quota.js';
+import { PLATFORM_QUOTA_MAX_CALLS, type PlatformQuotaView } from '@sb/shared';
 
 // ── providers / 角色绑定（归属，契约 docs/TENANCY-SPEC.md §8.1）────────
 export const providersRouter = Router();
@@ -262,21 +262,40 @@ providersRouter.put('/roles/:role', (req: Request, res: Response) => {
 });
 
 /**
- * 平台免费额度的剩余次数（前端显示"还剩 N 次"）。
+ * 平台免费额度的剩余次数（前端显示"还剩 N 次"）。回 `PlatformQuotaView`（三态）。
  *
  * ★ 为什么要有这个端点：免费额度是**每 5 小时 250 次**的滚动窗口，用户看不见剩余量
  *   时，唯一能做的事就是"撞到超限才知道"——那是 ADR-5 要消灭的失败模式。
- * ★ 未登录单人模式回 `limited: false` 而不是编一个 250：那条路径**根本不计费**
- *   （`upstream-gate.ts`：`platform && ownerId === null` ⇒ 不计数），编个数字就是撒谎。
+ *
+ * ★★ `limited:false` 现在有**两种**含义，靠 `reason` 区分（`@sb/shared` 的 `PlatformQuotaView`）：
+ *   · `reason:'local'`     —— 未登录单人模式（`owner === null`）：那条路径**根本不计费**
+ *     （`upstream-gate.ts`：`platform && ownerId === null` 不计数），故 `used:0, limit:250` 只是占位、
+ *     不代表"还剩 250"；编个数字就是撒谎。
+ *   · `reason:'unlimited'` —— 平台通道已由 env 取消**每用户**上限（`platformQuotaMax() === null`）：
+ *     **不限次数**（但仍受全站每日闸约束）。此时 `used` 仍回**真实累计次数**（照常统计），`limit:0`
+ *     只是占位——前端必须按 `reason` 分支，**不能**把 `unlimited` 显示成"本地模式"。
+ *   · `reason:'limited'`   —— 常规：每用户有上限、带上完整 `PlatformQuotaState`。
  *   ★ 判断标准必须与闸门**逐字一致**，否则会出现"设置页说还剩 240 次，实际早就被拒了"。
  */
 providersRouter.get('/quota', (req: Request, res: Response) => {
   const owner = ownerIdOf(req);
+  let view: PlatformQuotaView;
   if (owner === null) {
-    res.json({ limited: false, used: 0, limit: PLATFORM_QUOTA_MAX_CALLS, windowStart: 0, resetAt: 0 });
-    return;
+    view = { limited: false, reason: 'local', used: 0, limit: PLATFORM_QUOTA_MAX_CALLS, windowStart: 0, resetAt: 0 };
+  } else if (platformQuotaMax() === null) {
+    // 不限：仍回真实用量（`platformQuotaState` 的 limit 此时为 0，不会被展示）。
+    view = {
+      limited: false,
+      reason: 'unlimited',
+      used: platformUsageCount(owner),
+      limit: 0,
+      windowStart: 0,
+      resetAt: 0,
+    };
+  } else {
+    view = { limited: true, reason: 'limited', ...platformQuotaState(owner) };
   }
-  res.json({ limited: true, ...platformQuotaState(owner) });
+  res.json(view);
 });
 
 /**

@@ -1,3 +1,16 @@
+## 未发版 — 2026-10-02（平台通道：可取消每用户限额 + 新增全站每日成本闸）
+
+### 每用户次数上限可由 env 取消，另加一道全站每日上限兜成本
+
+- **原因**：平台通道改走**付费 key**。原「每用户每 5 小时 250 次」的配额要能整体取消（线上设为不限），但 `auth/register-limit.ts` 的反滥用前提**正是「每号一份平台配额」**——前提一破，「每用户无限 + 只限并发」＝**批量建号可无限烧钱**（每号都合法、并发也不高，却能慢慢刷满一整天）。故**同时**新增一道全站每日成本闸。
+- **改法**：
+  - **每用户上限可取消**：`SB_PLATFORM_QUOTA_MAX` 配 `off`/`unlimited`/`none` ⇒ 不限；**未配仍是 250**（其它部署行为不变）；非法值（`0`/`-1`/`abc`…）一律回落 250——宁可限额、不静默放开。解析口径是 shared 的纯函数 `parsePlatformQuotaMax`（每次现读 env）。
+  - **新增全站每日上限**：`SB_PLATFORM_DAILY_MAX`（默认 10000，`off` 即不限），口径＝平台通道的**每次上游调用**、**不分用户**（含未登录本地单人模式）；用与既有链条一致的「**先断言、后计数**」；超限**复用 `PLATFORM_QUOTA_CODE`**（不新造码，好让上层仍按「去配自己的模型」处置），文案 `PLATFORM_BUDGET_MESSAGE`，`retryAfterMs`＝距服务器本地明日 0 点。
+  - `GET /api/providers/quota` 改回 `PlatformQuotaView`（三态 `reason: 'limited' | 'local' | 'unlimited'`）；设置页按 `reason` 分支，平台通道**不限时不再说「每 5 小时 250 次」**（否则界面在撒谎）。`PlatformMeter` 扩展 `assertSite`/`recordSite`，默认仍取**落库**实现（fail-closed）。
+- **迁移**：**有**——新表 `platform_call_day`（迁移 **v53**，一行＝「这一天平台通道调用了多少次」，UPSERT 自增并只留当天）。零新依赖。
+- **契约**：`docs/TENANCY-SPEC.md` **§8.1.3.4**（叠加在 §8.1.3.3 之后，不改历史原文）。
+- **测试**：新增 `packages/server/src/llm/platform-budget.test.ts` **10** 例（真库：自增/跨日归零/旧行清理/三态/边界/retryAfterMs）；既有文件 **+17** 例 = `llm/platform-quota.test.ts` **21→30**（+9）、`llm/upstream-gate.test.ts` **24→29**（+5，用 spy 计量器钉住全站闸的两行接线——★ 这组是复查后补的：没有它，删掉 `meter.assertSite()` 那行全部用例照样绿，正是"闸静默失效"）、`routes/providers-tenancy.test.ts` **+2**、`web PlatformChannelCard.test.tsx` **6→7**（+1）。本批共 **+27** 例。
+
 ## v0.2.152 — 2026-10-01
 
 ### 一盏提灯指下一步，打开就聊；知识大陆能开拓，答过的题留下痕迹

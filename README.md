@@ -3,7 +3,7 @@
 [![CI](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml)
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![version](https://img.shields.io/badge/version-0.2.153-orange)
+![version](https://img.shields.io/badge/version-0.2.154-orange)
 ![tests](https://img.shields.io/badge/tests-349%20files%20%2F%204067%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-168-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-239%20types-8a63f6)
@@ -49,7 +49,7 @@
 - **数据归你**：SQLite 单文件、可自托管、开源。
 - **前端依赖极少**：`@sb/web` 运行时依赖只有 react / react-dom；Markdown / SVG 净化 / 图表自绘，不可信内容的渲染契约见 [`docs/UNTRUSTED-RENDER-SPEC.md`](docs/UNTRUSTED-RENDER-SPEC.md)。
 
-- **在线体验**：<https://11wand.com>（**已上线到 v0.2.153**）。首页「免注册，直接体验」直连公用体验账号；⚠️ 公用池全站共享、访客彼此可见，别放个人信息。
+- **在线体验**：<https://11wand.com>（**已上线到 v0.2.154**）。首页「免注册，直接体验」直连公用体验账号；⚠️ 公用池全站共享、访客彼此可见，别放个人信息。
 - **不想点网页？** clone 后 `npm run demo:e2e` 跑完确定性全栈演示（用户 → API → 假 LLM → SSE → 落库 → 杀进程重启后逐字仍在；零 API key、零真实外呼）。
 - v2 是全新重写仓（v1 [`llwand1/studentbuddy`](https://github.com/llwand1/studentbuddy) 已冻结）。每个功能为什么这么做、产品为什么砍功能转游戏化，见 [`docs/FEATURES.md`](docs/FEATURES.md)。
 

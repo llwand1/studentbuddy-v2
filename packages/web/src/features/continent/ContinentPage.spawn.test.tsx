@@ -50,7 +50,9 @@ describe('ContinentPage 野怪与开拓', () => {
     expect(screen.getByText('野怪')).toBeTruthy();
 
     clickCell(CENTER_ROW, CENTER_COL);
-    expect(document.querySelector('.stub-monster-dialog')).toBeTruthy();
+    // ★ 全量并发下 React 的状态更新落到 DOM 可能晚一拍；用 waitFor 等它出现，而不是同步断言。
+    //   （TEST-AUDIT §4.4 登记的时序脆弱，2026-10-02 在 CI 复现，按「加等待条件而不是删例」处置。）
+    await waitFor(() => expect(document.querySelector('.stub-monster-dialog')).toBeTruthy());
     fireEvent.click(document.querySelector('.stub-solve') as HTMLButtonElement);
     // ★ 先纳入复习范围、再打卡（范围外直接 mark 必 409）；两步都发生，且顺序正确
     await waitFor(() => expect(apiMock.mark).toHaveBeenCalledWith('n1', true));

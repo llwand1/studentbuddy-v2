@@ -8,9 +8,11 @@
  *    而"颜色变了"本身就是提示；
  *  - 折叠态**不显示 AI 说的话**——那是展开态的事，胶囊负责的只有"该不该现在点开"。
  */
-import { capsuleLine, type CoachSnapshot } from '@sb/shared';
+import { capsuleLine, pomodoroCapsuleLabel, type CoachSnapshot } from '@sb/shared';
 import { capsuleTone } from './coach-cards';
 import { CardsIcon } from '../../components/icons';
+import { usePomodoro } from '../pomodoro/pomodoro-store';
+import { usePomodoroClock } from '../pomodoro/use-pomodoro-clock';
 
 export function CoachCapsule({
   snapshot,
@@ -26,6 +28,10 @@ export function CoachCapsule({
 }) {
   const tone = snapshot ? capsuleTone(snapshot) : 'ok';
   const line = snapshot ? capsuleLine(snapshot) : '复习督促';
+  // 番茄钟标签（契约 POMODORO-SPEC §7.1）：开着钟就把倒计时摆在欠账前面——它是此刻最要紧的那个数
+  const pomo = usePomodoro().session;
+  const { now } = usePomodoroClock();
+  const pomoLabel = pomodoroCapsuleLabel(pomo, now);
   return (
     <button
       className={`coach-cap ${tone}${open ? ' open' : ''}`}
@@ -36,6 +42,7 @@ export function CoachCapsule({
       <span className="coach-cap-icon">
         <CardsIcon size={15} />
       </span>
+      {pomoLabel && <span className={`coach-cap-pomo${pomo?.phase === 'break' ? ' is-break' : ''}`}>{pomoLabel}</span>}
       <span className="coach-cap-text">{line}</span>
       {nudge && snapshot !== null && snapshot.due > 0 && <span className="coach-cap-dot" />}
     </button>

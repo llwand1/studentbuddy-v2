@@ -47,6 +47,10 @@
 - `useDrillSession` 的开局效果只随 `open`（＝alive）与日历日重跑；要新词的效果单独随 `sessionId` 重跑。
 - 拼写卡打到一半的字（`draft`）也住在 `useDrillSession` 里而不是卡组件里：小窗卸载再唤回，格子里的字原样在（真机验出——放在组件 state 里会随卸载丢掉）；翻到下一张才清空。
 
+### 2.2 出题中也算等待（2026-10-01，契约 `POMODORO-SPEC.md` §8）
+
+`use-quiz-actions` 把「哪间会话正在出题」写进 `drill/quiz-wait` store，App 把它与 `localBusySid` 并成一个 `busySessionId` 喂给 `WaitDrill`——上表一字不改。出题等待条上另给「刷词」入口（同 `sb:drill-open`）。另：番茄钟工作段里 `orderDrillQueue` 让方向内领域的词条在两段各自内部排前（`POMODORO-SPEC` §5.3）。
+
 ## 3. 一局（`useDrillSession`）
 
 ```

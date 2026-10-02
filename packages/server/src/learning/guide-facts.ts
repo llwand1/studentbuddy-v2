@@ -12,6 +12,8 @@ import { getDb } from '../storage/db.js';
 import { canAccessSession, ownerFilter } from '../auth/ownership.js';
 import { routeRole } from '../llm/router.js';
 import { coachSnapshot } from './coach.js';
+import { pomodoroFocus } from '@sb/shared';
+import { loadPomodoro } from '../storage/pomodoro.js';
 
 /** 末一问 / 末一答放进提示词的字数上限（够判断话题，不把整段对话送出去） */
 export const GUIDE_LAST_USER_MAX = 160;
@@ -96,5 +98,15 @@ export function buildGuideFacts(ownerId: string | null, req: GuideNextRequest): 
     chat: req.view === 'chat' ? readGuideChatFacts(ownerId, req.sessionId) : null,
     terms: readGuideTermFacts(ownerId),
     sessions: countSessions(ownerId),
+    focus: readGuideFocus(ownerId),
   };
+}
+
+/** 番茄钟方向（契约 POMODORO-SPEC §5.4）：工作段才有；读失败按没开钟 */
+export function readGuideFocus(ownerId: string | null): GuideFacts['focus'] {
+  try {
+    return pomodoroFocus(loadPomodoro(ownerId), new Date());
+  } catch {
+    return null;
+  }
 }

@@ -35,6 +35,7 @@ import { drillApi } from '../../lib/api-drill';
 import type { DrillAudio } from './drill-audio';
 import { fxKindFor, type DrillFxState } from './DrillFx';
 import { loadDrillStats, saveDrillStats } from './drill-prefs';
+import { readPomodoro } from '../pomodoro/pomodoro-store';
 
 export type DrillPhase = 'loading' | 'question' | 'reveal' | 'learn' | 'empty';
 
@@ -115,7 +116,10 @@ export function useDrillSession({ open, sessionId, dayKey, audio, onCardResolved
     setResult(null);
     setDraft('');
     if (queue.current.length === 0) {
-      queue.current = orderDrillQueue(library.current, `${dayKey}|r${served.current}`, slain.current).map((q) => ({
+      // 番茄钟方向（POMODORO-SPEC §5.3）：工作段里方向内的词条排前（两段各自内部，不改到期优先）
+      const pomo = readPomodoro().session;
+      const focusSubject = pomo && pomo.phase === 'work' ? pomo.subject : null;
+      queue.current = orderDrillQueue(library.current, `${dayKey}|r${served.current}`, slain.current, focusSubject).map((q) => ({
         term: q.term,
         origin: q.origin,
       }));

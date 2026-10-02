@@ -31,6 +31,8 @@ import { PreviewPanel } from '../features/preview/PreviewPanel';
 import { SourcePanel } from '../features/sources/SourcePanel';
 import { CoachDock } from '../features/coach/CoachDock';
 import { WaitDrill } from '../features/drill/WaitDrill';
+import { useQuizWait } from '../features/drill/quiz-wait';
+import { POMODORO_OPEN_EVENT, loadPomodoroState } from '../features/pomodoro/pomodoro-store';
 import { HuntAlert } from '../features/hunt/HuntAlert';
 import { GuideBeacon } from '../features/guide/GuideBeacon';
 import { guideMainClass } from '../features/guide/guide-layout';
@@ -71,6 +73,16 @@ export function App() {
     setView(v);
     if (v === 'terms') setTermsKeyword('');
   }, []);
+
+  // 番茄钟（docs/POMODORO-SPEC.md）：起应用拉一次状态；「去定一个」（气泡 / 引路灯）⇒ 跳词条页，开钟卡自己会展开
+  useEffect(() => {
+    void loadPomodoroState();
+    const onOpen = () => goView('terms');
+    window.addEventListener(POMODORO_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(POMODORO_OPEN_EVENT, onOpen);
+  }, [goView]);
+  /** 出题中的那间会话（§8）：与对话流的忙态并成一个信号喂给等待时刷词 */
+  const quizWaitSid = useQuizWait();
 
   const reloadSessions = useCallback(async () => {
     try {
@@ -285,7 +297,7 @@ export function App() {
         等待时刷词（docs/WAIT-DRILL-SPEC.md）：同样全局常驻——它盯的是 `localBusySid`（发送后 2 秒还没回完就弹），
         而弹窗、配乐与本局战绩不该因为切页被重置；`active` 只管"自动弹"是否允许（不在对话页不弹）。
       */}
-      <WaitDrill busySessionId={localBusySid} active={view === 'chat'} />
+      <WaitDrill busySessionId={localBusySid ?? quizWaitSid} active={view === 'chat'} />
       {/* 「刷新了新的怪物」：每轮收口后与大陆同一口径算话题怪，新冒出的就提醒；「一键讨伐」切到大陆自动寻路开打 */}
       <HuntAlert active={view === 'chat'} roundTick={roundTick} onGoContinent={() => setView('continent')} />
     </div>

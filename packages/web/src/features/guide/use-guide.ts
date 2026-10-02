@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   guideStage,
   guideTeaser,
+  pomodoroFocus,
   ruleGuide,
   type GuideFacts,
   type GuideLang,
@@ -25,6 +26,7 @@ import {
 import { useGuideLive, type GuideLive } from './guide-store';
 import { useGuideFetch, type GuideCtx } from './use-guide-fetch';
 import { markGuideSeen, readGuideProactive, readGuideSeen, writeGuideProactive } from './guide-prefs';
+import { usePomodoro } from '../pomodoro/pomodoro-store';
 
 /** 首次自动展开的延迟：让页面先落定，别在首屏一出来就盖上去 */
 export const GUIDE_AUTO_OPEN_MS = 1200;
@@ -34,7 +36,7 @@ export const GUIDE_HOVER_PREFETCH_MS = 400;
 const randomSeed = (): number => Math.floor(Math.random() * 100_000);
 
 /** 客户端能知道的那部分现场（服务端才知道的词条欠账 / 有无模型先填中性值） */
-export function clientFacts(lang: GuideLang, view: GuideView, live: GuideLive): GuideFacts {
+export function clientFacts(lang: GuideLang, view: GuideView, live: GuideLive, focus: GuideFacts['focus'] = null): GuideFacts {
   const c = live.chat;
   return {
     lang,
@@ -45,14 +47,25 @@ export function clientFacts(lang: GuideLang, view: GuideView, live: GuideLive): 
     chat: c ? { rounds: c.rounds, lastUser: '', lastAssistant: '', quizzes: 0 } : null,
     terms: { total: 0, due: 0, overdue: 0, streak: 0 },
     sessions: 0,
+    // 番茄钟方向（POMODORO-SPEC §5.4）：客户端也知道，规则推荐那几百毫秒里话题就已经落在方向里
+    focus,
   };
+}
+
+/** 番茄钟刚开 / 刚进下一轮时提灯亮起的那句话 */
+export function focusTeaser(subject: string, lang: GuideLang): string {
+  return lang === 'zh' ? `专注「${subject}」，从这开始？` : `Focus on "${subject}" — start here?`;
 }
 
 export type GuideSource = 'ai' | 'rules' | 'loading';
 
 export function useGuide({ lang, view, sessionId }: { lang: GuideLang; view: GuideView; sessionId: string | null }) {
   const live = useGuideLive();
-  const facts = useMemo(() => clientFacts(lang, view, live), [lang, view, live]);
+  const pomo = usePomodoro().session;
+  // 方向按「方向 + 轮次」记忆化：倒计时每秒变，不该让 facts 每秒重建
+  const focusKey = pomo && pomo.phase === 'work' ? `${pomo.subject}|${pomo.round}` : '';
+  const focus = useMemo(() => pomodoroFocus(pomo, new Date()), [focusKey]);
+  const facts = useMemo(() => clientFacts(lang, view, live, focus), [lang, view, live, focus]);
   const stage = guideStage(facts);
   const ctx = useMemo<GuideCtx>(
     () => ({ lang, view, sessionId: view === 'chat' ? sessionId : null, can: live.kinds, busy: !!live.chat?.busy, rounds: live.chat?.rounds ?? 0 }),
@@ -134,6 +147,22 @@ export function useGuide({ lang, view, sessionId }: { lang: GuideLang; view: Gui
     // litStage 只用来判断「是否已经离开被点亮的阶段」，不作触发条件
   }, [stage, explainable, proactive]);
 
+  // ── 番茄钟刚开 / 进下一轮 ⇒ 亮灯（POMODORO-SPEC §9）：此刻最该做的就是「从方向里开始」 ──
+  const litByFocus = useRef(false);
+  const prevFocusKey = useRef(focusKey);
+  useEffect(() => {
+    const was = prevFocusKey.current;
+    prevFocusKey.current = focusKey;
+    if (!proactive || !focusKey || focusKey === was) return;
+    if (stage === 'fresh' || stage === 'chatted' || stage === 'tour') {
+      litByFocus.current = true;
+      setLitStage(stage);
+    }
+  }, [focusKey, proactive, stage]);
+  useEffect(() => {
+    if (!litStage) litByFocus.current = false;
+  }, [litStage]);
+
   // ── 首次自动展开（本机仅一次；窄屏不盖，只靠点亮） ──
   useEffect(() => {
     if (!proactive || view !== 'chat' || stage !== 'fresh' || readGuideSeen()) return;
@@ -165,7 +194,7 @@ export function useGuide({ lang, view, sessionId }: { lang: GuideLang; view: Gui
     close,
     done,
     lit: litStage,
-    teaser: litStage ? guideTeaser(litStage, lang) : null,
+    teaser: litStage ? (litByFocus.current && focus ? focusTeaser(focus.subject, lang) : guideTeaser(litStage, lang)) : null,
     source,
     result,
     reason,

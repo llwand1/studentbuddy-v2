@@ -10,7 +10,7 @@
  * ★ `chat.topic` 不直接发话：把话放进信箱、请 App 切到未选会话态，ChatView 取信走既有的 `useQuickStart.fire`
  *   （开会话 → 等 SSE 就绪 → 自动发出），不另造一条发送路径。
  */
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { GUIDE_CATALOG, GUIDE_TEXT_KINDS, defaultGuideText, type GuideItem, type GuideKind, type GuideLang } from '@sb/shared';
 import { PK_HASH, type View } from '../../app/nav';
@@ -127,6 +127,18 @@ export function GuideBeacon({ lang, view, sessionId, onView, onNewSession, onFre
     }
   };
 
+  // 快捷项（POMODORO-SPEC §9 / GUIDE-SPEC §8.1）：亮灯时提灯**正下方直接摆出第一条推荐**，一点即执行；
+  // 点提灯本身才是整张清单。先是规则推荐、AI 回来原位换；亮灯那刻顺手预取，让 AI 版尽快到。
+  const quick = useMemo<GuideItem | null>(() => g.result.items[0] ?? null, [g.result]);
+  const [quickHidden, setQuickHidden] = useState<string | null>(null);
+  const litKey = g.lit ? `${g.lit}|${g.teaser ?? ''}` : null;
+  useEffect(() => {
+    if (litKey) g.prefetch();
+    // 每次新亮灯都重新露出快捷项（上次叉掉的是上次那条）
+    setQuickHidden(null);
+  }, [litKey]);
+  const showQuick = !!g.teaser && !g.open && quickHidden !== litKey;
+
   const state = g.open ? 'open' : g.lit ? 'lit' : 'idle';
   return (
     <div className={`guide-beacon${g.open ? ' is-open' : ''}${g.lit ? ' is-lit' : ''}`} ref={rootRef} onKeyDown={onKeyDown}>
@@ -153,10 +165,26 @@ export function GuideBeacon({ lang, view, sessionId, onView, onNewSession, onFre
         <Lantern state={state} />
         {g.lit && !g.open && <span className="guide-dot" aria-hidden="true" />}
       </button>
-      {g.teaser && !g.open && (
-        <span className="guide-teaser" aria-hidden="true">
-          {g.teaser}
-        </span>
+      {showQuick && (
+        <div className="guide-quick">
+          <span className="guide-teaser" aria-hidden="true">
+            {g.teaser}
+          </span>
+          {quick && (
+            <button
+              type="button"
+              className="guide-quick-btn"
+              title={quick.text ? `${T.willSend[lang]}${quick.text}` : quick.hint}
+              onClick={() => pick(quick)}
+            >
+              <b>{quick.label}</b>
+              <small>{quick.hint}</small>
+            </button>
+          )}
+          <button type="button" className="guide-quick-x" aria-label={T.close[lang]} title={T.close[lang]} onClick={() => setQuickHidden(litKey)}>
+            ×
+          </button>
+        </div>
       )}
       {/* 读屏用：常驻的实时区，亮灯时才有字——实时区必须先于内容存在，播报才可靠 */}
       <span className="guide-sr" role="status">

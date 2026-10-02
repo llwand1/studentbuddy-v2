@@ -4,9 +4,9 @@
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
 ![version](https://img.shields.io/badge/version-0.2.153-orange)
-![tests](https://img.shields.io/badge/tests-339%20files%20%2F%204014%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-165-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-233%20types-8a63f6)
+![tests](https://img.shields.io/badge/tests-346%20files%20%2F%204056%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-168-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-239%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -81,7 +81,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼 |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **339 文件 / 4014 例**，全绿（4012 passed / 2 skipped；本机全量实跑）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
+当前测试基线 **346 文件 / 4056 例**，全绿（4054 passed / 2 skipped；本机全量实跑）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
 ### 为什么有四千条测试——它们不是数字游戏
 
 一个常见的第一印象是「4000 例太多了，多半是凑数」。2026-10-02 我们按**风险驱动测试**的口径把全部用例逐条过了一遍（方法与局限见 [`docs/TEST-AUDIT.md`](docs/TEST-AUDIT.md)，逐例明细 [`docs/test-audit-cases.csv`](docs/test-audit-cases.csv)），每条用例回答三问：**挡住什么失败？别处（tsc / eslint / 门禁 / 其他测试）能不能挡？代价多大？** 结果：
@@ -141,7 +141,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 - **容器化：本机已跑通，线上确定不切**（2026-09-29 决策，理由与前置清单见 [`DEPLOY.md`](DEPLOY.md) §11）。
 - **文档模式是词法检索，不是语义检索**：没有 embedding；用户不用资料里的原词改写提问时，70 万字规模下召回约 62%。
 - **渲染层覆盖不完整**：jsdom 交互测试只覆盖最高频几页；布局与观感类症状只能靠真机探针 + 人工目检。
-- **行内公式不渲染**（`$…$` 按原文显示）、`mermaid` / `echarts` 围栏降级代码块——刻意不引库以保住 `@sb/web` 零第三方依赖。
+- **行内公式不渲染**（`$… 按原文显示）、`mermaid` / `echarts` 围栏降级代码块——刻意不引库以保住 `@sb/web` 零第三方依赖。
 - **预览页只活内存**：服务重启即失效、无分享链接。
 - **中英切换只到壳层**：功能页正文与服务端消息尚未双语。
 - **引路灯的 AI 推荐花模型额度**：只在点开 / 悬停 0.4 秒 / 聚焦时才请求、同一现场缓存 10 分钟，亮灯本身不调模型；它只在应用壳里（落地页与对战页没有），窄屏与知识大陆页要在主区左侧让出 56px 的灯笼轨。

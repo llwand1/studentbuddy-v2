@@ -38,6 +38,8 @@ import type { ChatMessage } from '../llm/types.js';
 /** 段身份。只表达「落位」与「是否可摘除」，**不参与排序**（顺序由清单字面量决定）。 */
 import { buildLearnerBlock } from '../learning/learner-model.js';
 import { neighborTerms } from '../learning/term-graph.js';
+import { loadPomodoro } from '../storage/pomodoro.js';
+import { buildFocusBlock } from './focus-context.js';
 import type { TermRow } from '../learning/terms.js';
 
 /** 图扩展失败（库没开、表不在）不能挡住对话：退回只有字面命中 */
@@ -48,7 +50,7 @@ function neighborTermsSafe(ownerId: string | null, hits: TermRow[]): TermRow[] {
     return [];
   }
 }
-export type ContextSegmentKind = 'summary' | 'date' | 'terms' | 'doc' | 'style' | 'memory' | 'learner' | 'nudge';
+export type ContextSegmentKind = 'summary' | 'date' | 'terms' | 'doc' | 'style' | 'focus' | 'memory' | 'learner' | 'nudge';
 
 export interface ContextSegment {
   kind: ContextSegmentKind;
@@ -141,6 +143,9 @@ export function collectContextSegments(inputs: ContextInputs): CollectedContext 
     // 它**恒非空**（至少含 scope 那句），故无需条件判断——空内容段会在下面被统一剔除。
     // ★ `app_settings` 归主（v30）⇒ 必须带 `ownerId`——不带就会读到**别人的**口吻偏好。
     { kind: 'style', content: buildAnswerStyleBlock(loadAnswerStyle(ownerId ?? null)) },
+    // 番茄钟方向段（契约 POMODORO-SPEC §5.1）：工作段才有、休息段为 ''。排在偏好之后、记忆之前——
+    // 它讲的是「这半小时在学什么」，属于回答口径而不是事实材料。
+    { kind: 'focus', content: buildFocusBlock(loadPomodoro(ownerId ?? null)) },
     { kind: 'memory', content: memoryBlock },
     // 学习者模型段（2026-09-29 Step 2）：快忘的词条（FSRS）＋ 未纠正的误区（评分诊断）。
     // 与画像段分开：画像是"他说过什么"，这段是"他会什么"；空模型为 ''，统一剔除不占窗口。

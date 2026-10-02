@@ -1,3 +1,18 @@
+## v0.2.156 — 2026-10-02
+
+### 网页也能直接当资料用
+
+- ★ 本段是本次发版的合批段：本批只含一组改动（把网页存为本会话的学习资料）。逐段台账见下方「同批上线细节」小节，这里只记对外口径。
+- **网页也能直接当资料用**：对话右侧的资料架里，每条结果多一个「存为资料」——把这一页的正文抓下来，当成本会话的资料；之后提问会照着它回答，引用带段号、点得回原文。
+
+## 同批上线细节 · 网页存为资料（DOC-RAG）
+
+### 网页也能直接当资料用
+
+- 服务端新增 `search/page-text.ts`、`learning/doc-url.ts`，扩展 `routes/document.ts`、`chat/tools/fetch-page.ts`（重构）；前端新增 `sources/SaveAsDocButton.tsx`、`chat/doc-events.ts`、`lib/doc-name.ts` / `lib/api-doc.ts` 相应扩展。
+- 契约新增 `docs/DOC-RAG-SPEC.md`，`docs/SOURCE-TRACE-SPEC.md` 同步；**零迁移、零新表、零新依赖**。
+- 测试：新增 `learning/doc-url.test.ts`、`sources/save-as-doc.test.tsx`、`features/chat/doc-name.test.ts`；`routes/document.test.ts` 扩充。
+
 ## v0.2.155 — 2026-10-02
 
 ### 番茄钟搬进督促小窗，多了专注统计

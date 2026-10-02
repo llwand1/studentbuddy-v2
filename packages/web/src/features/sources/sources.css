@@ -467,3 +467,18 @@
   opacity: 1;
   color: var(--sb-primary);
 }
+
+/* 「存为资料」（契约 docs/DOC-RAG-SPEC.md §10）：把架上这一页设成本会话资料。
+   平时与其它头部按钮同形；成功转金、失败转危险色——两种终态都要**留在屏上**（ADR-5 不静默）。 */
+.src-save-doc.done {
+  color: var(--sb-gold);
+  border-color: var(--sb-gold-edge);
+}
+.src-save-doc.failed {
+  color: var(--sb-danger);
+  border-color: var(--sb-danger);
+}
+.src-save-doc:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

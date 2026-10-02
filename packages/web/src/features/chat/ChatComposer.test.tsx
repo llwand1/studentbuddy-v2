@@ -24,10 +24,13 @@ function stubDoc(): DocMode {
     setName: () => {},
     text: '',
     setText: () => {},
+    url: '',
+    setUrl: () => {},
     busy: false,
     hint: '',
     overCap: false,
     submit: async () => {},
+    submitUrl: async () => {},
     onPickFile: async () => {},
     clear: async () => {},
   };

@@ -27,7 +27,8 @@ export function DocModeControl({
   open: boolean;
   onClose: () => void;
 }) {
-  const { meta, dn, name, setName, text, setText, busy, hint, overCap, submit, onPickFile, clear } = doc;
+  const { meta, dn, name, setName, text, setText, url, setUrl, busy, hint, overCap, submit, submitUrl, onPickFile, clear } =
+    doc;
 
   return (
     <div className="chat-doc">
@@ -57,6 +58,35 @@ export function DocModeControl({
           <div className="chat-doc-note">
             每次一份，载入新资料会替换当前的。超过 {num(MAX_DOC_CHARS)} 字不再整篇送入模型，而是按你的提问检索相关段落来回答。
           </div>
+
+          {/*
+            网页资料（契约 docs/DOC-RAG-SPEC.md §10）：排在粘贴之前，因为它是更省事的那条路
+            ——有网址时不必再「打开 → 全选 → 复制 → 粘回来」。抓取在服务端做。
+          */}
+          <div className="chat-doc-url-row">
+            <input
+              className="chat-doc-url-input"
+              type="url"
+              inputMode="url"
+              value={url}
+              placeholder="粘贴网址，直接把这一页当资料（https://…）"
+              maxLength={2000}
+              onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && url.trim() && !busy) void submitUrl(url);
+              }}
+            />
+            <button
+              className="chat-quiz-btn"
+              disabled={!url.trim() || busy}
+              onClick={() => void submitUrl(url)}
+              title="服务端会抓取这一页的正文，之后的回答与出题都以它为准"
+            >
+              载入网页
+            </button>
+          </div>
+          <div className="chat-doc-or">或者粘贴正文</div>
+
           <input
             className="chat-doc-name-input"
             value={name}

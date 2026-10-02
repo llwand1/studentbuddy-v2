@@ -1,40 +1,40 @@
 {
-  "generatedAt": "2026-10-02T08:32:15.352Z",
+  "generatedAt": "2026-10-02T11:06:10.785Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
         "srcFiles": 52,
         "testFiles": 39,
-        "srcLines": 8751,
+        "srcLines": 8764,
         "testLines": 5079
       },
       {
         "pkg": "server",
-        "srcFiles": 256,
-        "testFiles": 174,
-        "srcLines": 37153,
-        "testLines": 34285
+        "srcFiles": 258,
+        "testFiles": 175,
+        "srcLines": 37394,
+        "testLines": 34627
       },
       {
         "pkg": "web",
-        "srcFiles": 321,
-        "testFiles": 137,
-        "srcLines": 39551,
-        "testLines": 17879
+        "srcFiles": 324,
+        "testFiles": 138,
+        "srcLines": 39785,
+        "testLines": 18013
       }
     ],
-    "srcFiles": 629,
-    "testFiles": 350,
-    "srcLines": 85455,
-    "testLines": 57243,
-    "tsxTestFiles": 66
+    "srcFiles": 634,
+    "testFiles": 352,
+    "srcLines": 85943,
+    "testLines": 57719,
+    "tsxTestFiles": 67
   },
   "routes": {
-    "total": 169,
+    "total": 170,
     "byMethod": {
       "get": 75,
-      "post": 65,
+      "post": 66,
       "delete": 12,
       "put": 16,
       "patch": 1
@@ -85,20 +85,20 @@
     "probes": 15
   },
   "repo": {
-    "head": "fe2a26c",
+    "head": "206be8a",
     "headDate": "2026-10-02",
-    "commitsLast14d": 220,
-    "branch": "feat/pomodoro-in-coach",
-    "dirtyFiles": 22
+    "commitsLast14d": 227,
+    "branch": "merge/doc-from-url",
+    "dirtyFiles": 1
   },
   "tests": {
     "available": true,
-    "ranNow": true,
-    "wallSec": 208.2,
+    "ranNow": false,
+    "wallSec": 0,
     "staleDays": 0,
-    "files": 350,
-    "cases": 4072,
-    "passed": 4070,
+    "files": 352,
+    "cases": 4099,
+    "passed": 4097,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -109,20 +109,20 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "350",
-      "measured": "350",
+      "claimed": "352",
+      "measured": "352",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4072",
-      "measured": "4072",
+      "claimed": "4099",
+      "measured": "4099",
       "ok": true
     },
     {
       "label": "badge REST 路由",
-      "claimed": "169",
-      "measured": "169",
+      "claimed": "170",
+      "measured": "170",
       "ok": true
     },
     {
@@ -145,20 +145,20 @@
     },
     {
       "label": "badge 版本",
-      "claimed": "0.2.154",
-      "measured": "0.2.154",
+      "claimed": "0.2.155",
+      "measured": "0.2.155",
       "ok": true
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.154",
-      "measured": "v0.2.154",
+      "claimed": "v0.2.155",
+      "measured": "v0.2.155",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "350 文件 / 4072 例",
-      "measured": "350 文件 / 4072 例",
+      "claimed": "352 文件 / 4099 例",
+      "measured": "352 文件 / 4099 例",
       "ok": true
     }
   ],

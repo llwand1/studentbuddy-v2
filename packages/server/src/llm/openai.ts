@@ -7,7 +7,18 @@
 import type { ChatMessage, ChatRequest, ContentPart, LLMAdapter, ModelListRequest, TokenChunk, ToolCall } from './types.js';
 import { getMaxOutputTokens } from './model-limits.js';
 import { acquireUpstream } from './upstream-gate.js';
+import type { PlatformRoute } from './platform-channel.js';
+import {
+  decideFailover,
+  failoverRoutes,
+  markFailover,
+  runFailover,
+  UpstreamHttpError,
+} from './upstream-failover.js';
 import { asUpstreamError, createUpstreamGuard, UPSTREAM_IDLE_MS, UPSTREAM_TOTAL_MS } from './upstream-timeout.js';
+
+/** 未配 baseUrl 时的默认入口（与从前逐字一致）。 */
+const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
 
 /**
  * content 可能已是多模态段数组（视觉调用传图）。openai 视觉 API 认 `image_url` part，
@@ -59,33 +70,30 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
   type = 'openai' as const;
 
   async *chat(req: ChatRequest): AsyncIterable<TokenChunk> {
-    const baseUrl = req.baseUrl || 'https://api.openai.com/v1';
-    // 并发闸门（2026-09-17 建；2026-09-18 加两层业务闸门）。一次请求占一个槽，
-    // 主链优先、后台让路；`req.quota` 带的是"谁在问"（由 routeRole 经 bindQuota 绑上）。
-    // ★ 只在最外层 acquire 一次 —— streamMode='once' 会转到 chatOnce()，那是内部转调；
-    //   若它也 acquire 就会「自己等自己」直接死锁。
-    const release = await acquireUpstream(baseUrl, req.purpose ?? 'main', req.signal, req.quota);
-    try {
-      // 一次性回答（v13，池中 AI 形态）：不发流式请求，等完整 JSON 回来整块吐出。
-      // 等待期由前端「思考中」UI 覆盖（首 token 前的空窗）；中转池大量按非流式聚合转发，
-      // 对它们逐字流式只是把残缺体验拉长，不如一次到位。
-      if (req.streamMode === 'once') {
-        yield* this.chatOnce(req, baseUrl);
-        return;
-      }
-      yield* this.chatStream(req, baseUrl);
-    } finally {
-      release();
-    }
+    // 候选线路：**平台行**取 `platformRoutes()`（按 env 顺序，第一路＝主力），BYOK/未带配额取单路
+    // （用 routeRole 解析出的那一对）——单路时 `runFailover` 只跑一次，行为与从前逐字相同。
+    const routes = failoverRoutes(req);
+    const list: ReadonlyArray<PlatformRoute> =
+      routes.length > 0 ? routes : [{ index: 0, apiKey: req.apiKey, baseUrl: req.baseUrl || DEFAULT_BASE_URL }];
+
+    // 一次请求占一个槽（主链优先、后台让路）；★ 换路时**重新 acquire**（闸门按 baseUrl 分桶，
+    // 换路就该走新桶），每次尝试各计一笔（取舍见 `upstream-failover.ts` 文件头）。
+    // ★ 只在最外层 acquire 一次 —— 每次尝试内部转调 `chatOnce()`/`chatStream()` 是内部调用，
+    //   它们**不再 acquire**（若也 acquire 就会「自己等自己」直接死锁）。
+    yield* runFailover(list, {
+      acquire: (route) => acquireUpstream(route.baseUrl, req.purpose ?? 'main', req.signal, req.quota),
+      attempt: (route) => (req.streamMode === 'once' ? this.chatOnce(req, route) : this.chatStream(req, route)),
+    });
   }
 
   /**
    * 流式分支：SSE 增量解析。
    * 等待兜底＝**空闲超时**（每收到一段数据重置计时）——上游有数据在流就不该被掐，
    * 只有「真挂起」才会被兜住。首字节之前同样计时（原实现在此处完全裸奔，见 upstream-timeout.ts）。
+   * @param route 本次尝试的那一路（key/baseUrl **成对**；换路只换整对，绝不 key/base 错配）
    */
-  private async *chatStream(req: ChatRequest, baseUrl: string): AsyncIterable<TokenChunk> {
-    const url = `${baseUrl}/chat/completions`;
+  private async *chatStream(req: ChatRequest, route: PlatformRoute): AsyncIterable<TokenChunk> {
+    const url = `${route.baseUrl}/chat/completions`;
 
     const controller = new AbortController();
     const guard = createUpstreamGuard({ controller, external: req.signal, idleMs: UPSTREAM_IDLE_MS });
@@ -107,13 +115,13 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
 
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${req.apiKey}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${route.apiKey}` },
         body: JSON.stringify(body),
         signal: controller.signal,
       });
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`OpenAI API error ${response.status}: ${errText}`);
+        throw new UpstreamHttpError(response.status, `OpenAI API error ${response.status}: ${errText}`);
       }
       const reader = response.body?.getReader();
       if (!reader) throw new Error('No response body');
@@ -190,8 +198,12 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
       yield { content: '', done: true };
     } catch (err) {
       // 超时转成可读错误（裸 AbortError 会让用户看到「生成失败：This operation was aborted」）；
-      // 非超时的原始错误原样透传，HTTP 4xx/5xx 的报文要保真
-      throw asUpstreamError(err, guard);
+      // 非超时的原始错误原样透传，HTTP 4xx/5xx 的报文要保真。
+      const converted = asUpstreamError(err, guard);
+      // ★ 是否可换路：HTTP 按状态码、超时按网络错；**用户取消一律不换**（硬约束 ②）。
+      //   标记随错误穿过 generator 边界，由外层 `runFailover` 决定要不要进下一路；
+      //   ★ 流式已吐字节时外层会因 `yielded` 拦下（硬约束 ①）。
+      throw markFailover(converted, decideFailover(err, { timedOut: guard.timedOut(), aborted: !!req.signal?.aborted }));
     } finally {
       guard.dispose();
     }
@@ -202,8 +214,8 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
    * 差异仅在 body.stream=false、响应是一次完整 JSON（choices[0].message 而非 delta）。
    * reasoning 多字段兼容口径与流式分支一致（中转池字段名不统一是常态）。
    */
-  private async *chatOnce(req: ChatRequest, baseUrl: string): AsyncIterable<TokenChunk> {
-    const url = `${baseUrl}/chat/completions`;
+  private async *chatOnce(req: ChatRequest, route: PlatformRoute): AsyncIterable<TokenChunk> {
+    const url = `${route.baseUrl}/chat/completions`;
 
     // 一次性请求没有任何中间帧可等 ⇒ 只能用总时长超时（流式那套「空闲超时」在此无从触发）
     const controller = new AbortController();
@@ -225,13 +237,13 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
 
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${req.apiKey}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${route.apiKey}` },
         body: JSON.stringify(body),
         signal: controller.signal,
       });
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`OpenAI API error ${response.status}: ${errText}`);
+        throw new UpstreamHttpError(response.status, `OpenAI API error ${response.status}: ${errText}`);
       }
       const parsed = (await response.json()) as {
         choices?: Array<{
@@ -273,7 +285,10 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
         ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
       };
     } catch (err) {
-      throw asUpstreamError(err, guard);
+      // 一次性分支：任何抛出都在**产出任何 chunk 之前**（fetch/解析阶段）⇒ 未吐字节，
+      // 换路安全（外层 `runFailover` 的 `yielded` 仍为 false）。用户取消不换（硬约束 ②）。
+      const converted = asUpstreamError(err, guard);
+      throw markFailover(converted, decideFailover(err, { timedOut: guard.timedOut(), aborted: !!req.signal?.aborted }));
     } finally {
       guard.dispose();
     }
@@ -281,7 +296,7 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
 
   async listModels(config?: ModelListRequest): Promise<string[]> {
     try {
-      const baseUrl = config?.baseUrl || 'https://api.openai.com/v1';
+      const baseUrl = config?.baseUrl || DEFAULT_BASE_URL;
       const apiKey = config?.apiKey || '';
       const response = await fetch(`${baseUrl}/models`, { headers: { Authorization: `Bearer ${apiKey}` } });
       if (!response.ok) return [];

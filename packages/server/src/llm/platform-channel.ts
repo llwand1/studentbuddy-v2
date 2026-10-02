@@ -7,11 +7,13 @@
  *   · 本文件放**只有服务端能碰**的东西——env 里的凭据、数据库里的落点行。
  *     `resolveProviderCredentials()` 的返回值**带明文 key**，禁令写在它自己的注释里。
  *
- * ★ 为什么从 `router.ts` 拆出来：零配置与双入口随机两处改动
+ * ★ 为什么从 `router.ts` 拆出来：零配置与**多路凭据**两处改动
  *   都往 `router.ts` 加东西，该文件撞到 `server/.ts ≤ 400` 红线（413 行）。本仓约定
  *   「**拆文件优先于压注释**」，故把「凭据怎么解析」整块搬出——它本来就是一个独立关注点：
  *   `router.ts` 关心「**哪个角色**用哪个 provider」，本文件关心「那个 provider 到底
  *   **拿哪把 key、打哪个地址、用什么模型名**」。两处都会改到的地方就撞在一起。
+ * ★ 2026-10-02：多路选路口径由「等概率随机」改为「**按 env 顺序优先 + 失败换路**」
+ *   （`platformRoutes()`；换路策略在 `upstream-failover.ts`，契约 `docs/TENANCY-SPEC.md` §8.1.3.5）。
  */
 import { DEFAULT_PLATFORM_MODEL } from '@sb/shared';
 import { getDb } from '../storage/db.js';
@@ -68,24 +70,59 @@ function platformEnvList(name: 'SB_PLATFORM_API_KEY' | 'SB_PLATFORM_BASE_URL'): 
     .filter((s) => s.length > 0);
 }
 
+/** 平台通道的一条候选线路（key 与 baseUrl **按位配对**，整对换）。`index` = env 里出现的位置。 */
+export interface PlatformRoute {
+  /** env 里出现的位置（**0 = 主力**；仅供诊断/日志，不参与配对计算） */
+  index: number;
+  apiKey: string;
+  baseUrl: string;
+}
+
 /**
- * 双入口随机（两个入口都保留，随机分配）：
- * `SB_PLATFORM_API_KEY`／`SB_PLATFORM_BASE_URL` 支持**逗号分隔多路**，按位配对
- * （key[i] ↔ base[i]）后**每次调用随机挑一路**。单值行为不变（长度 1 的列表随机＝恒取它）。
- * ★ 配对规则＝`min(keys, bases)`：两列表长度不等时**多出的路数无效**——宁可少一路，
- *   也不许出现「key 与地址错配」的合法假象（错配必然打向不属于这把 key 的入口）。
- * ★ 单边多值（只配多把 key、地址未配）⇒ 只对**有值的那条**随机，另一条仍回落数据库
- *   （v39 的逐条独立回落语义保持不变）。★ `SB_PLATFORM_MODEL` 仍单值，多路共享同一个模型名。
+ * 平台通道的**候选线路**：按 env 里出现的顺序返回**全部有效路**，**第一个＝主力**。
+ *
+ * ★ 2026-10-02 起平台通道的选路口径＝「**按序优先 + 失败换路**」（契约 §8.1.3.5），
+ *   取代了 v39.1 的「等概率随机挑一路」。为什么改：线上曾配 3 路（两把免费 key + 一把付费 key），
+ *   实测**两把免费 key 约 12 发就打满限速**（60 发里 48–49 个 429），付费 key 60/60 零 429；
+ *   而随机分配会把约 2/3 的请求摊到必限速的免费路上 ⇒ 用户看到
+ *   `429 … 免费用户的 API 速率限制`。改为「**按 env 顺序优先**」后，运维把付费路写在第一位
+ *   （线上此刻只剩付费一路，顺序天然成立）即可「几乎只走付费」；免费路只作**失败时的备胎**。
+ *
+ * ★ **配对规则＝`min(keys, bases)`，按位配对（key[i] ↔ base[i]）**：两列表长度不等时**多出的路无效**——
+ *   宁可少一路，也不许出现「key 与地址错配」的合法假象（错配必然打向不属于这把 key 的入口）。
+ *   ★★ **换路只能整对换**：本函数的每一项都携带成对的 key/baseUrl，调用方换路时**整项替换**，
+ *   绝不允许把某一路的 key 配另两路的地址。
+ * ★ **单边多值**（只配多把 key、地址未配）在 `platformRoutes()` 里**返回空**（没有可配对的路），
+ *   由 `platformEnvPair()` 保留其**旧语义**（随机选一把 key、baseUrl 回落数据库）——见那边注释。
+ * ★ 空串 / 纯空白项一律过滤（运维手滑留空格＝未配）。
  */
-function platformEnvPair(): { apiKey: string; baseUrl: string } {
+export function platformRoutes(): ReadonlyArray<PlatformRoute> {
   const keys = platformEnvList('SB_PLATFORM_API_KEY');
   const bases = platformEnvList('SB_PLATFORM_BASE_URL');
-  if (keys.length === 0 || bases.length === 0) {
-    const i = Math.floor(Math.random() * Math.max(keys.length, bases.length));
-    return { apiKey: keys[i] ?? '', baseUrl: bases[i] ?? '' };
-  }
-  const i = Math.floor(Math.random() * Math.min(keys.length, bases.length));
-  // ★ min 配对保证 i 在两侧界内，但 noUncheckedIndexedAccess 不知道——用 `?? ''` 兜给编译器看
+  const n = Math.min(keys.length, bases.length);
+  const out: PlatformRoute[] = [];
+  for (let i = 0; i < n; i++) out.push({ index: i, apiKey: keys[i] ?? '', baseUrl: bases[i] ?? '' });
+  return out;
+}
+
+/**
+ * 平台通道的**主力**那一对（`platformRoutes()[0]`）。
+ *
+ * ★ 旧实现是「等概率随机挑一路」（v39.1），现改为「取按序候选的第一项」——`resolveProviderCredentials()`
+ *   因此**对外语义不变**（仍返回一对 key/baseUrl），但返回的**恒是主力**（不再是随机一路）。
+ *   `router.ts` 解析出的目标与换路循环的**第 1 路必须一致**（都取 `platformRoutes()[0]`），
+ *   否则会出现「routeRole 说用 A、真正第一发却打了 B」这种只差一行的幽灵。
+ * ★ **单边多值的旧语义保留**（不进 `platformRoutes()`）：只配多把 key、地址未配时，
+ *   随机选一把 key，baseUrl 照旧回落数据库——这种配置没有"按位配对"可言（baseUrl 只有一个来源：库），
+ *   也谈不上换路。★ 这条分支是**兼容遗留部署**用的，线上双多路的正常形态走上面的按序候选。
+ * ★ `SB_PLATFORM_MODEL` 仍单值，多路共享同一个模型名。
+ */
+function platformEnvPair(): { apiKey: string; baseUrl: string } {
+  const main = platformRoutes()[0];
+  if (main) return { apiKey: main.apiKey, baseUrl: main.baseUrl };
+  const keys = platformEnvList('SB_PLATFORM_API_KEY');
+  const bases = platformEnvList('SB_PLATFORM_BASE_URL');
+  const i = Math.floor(Math.random() * Math.max(keys.length, bases.length));
   return { apiKey: keys[i] ?? '', baseUrl: bases[i] ?? '' };
 }
 
@@ -131,7 +168,8 @@ export function resolveProviderCredentials(p: {
   // ★ 只对平台行注入 env。BYOK 行（用户自己的 provider）**绝不能**被 env 覆盖——
   //   那会把用户自己的 key 换成一笔平台开销，等于"你配了 key，但花的还是平台的钱"。
   const isPlatform = p.owner_id === null;
-  // ★ v39.1：一次取一对（key[i] ↔ base[i] 按位配对），保证随机挑中的 key 与地址属于同一路。
+  // ★ 2026-10-02：一次取**主力那一对**（key[0] ↔ base[0]，按位配对），不再是"随机一路"。
+  //   换路由 `upstream-failover.ts` 在适配器层完成（仅在平台行），这里只负责"第一发打哪一路"。
   const { apiKey: envKey, baseUrl: envBase } = isPlatform
     ? platformEnvPair()
     : { apiKey: '', baseUrl: '' };

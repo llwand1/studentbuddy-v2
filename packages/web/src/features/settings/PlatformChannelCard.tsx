@@ -11,14 +11,15 @@
  * ① **key 不可见、也取不到**：本卡只调 `POST /roles/default`，它**一个字节的凭据都不落库**；
  *    平台 key 始终只在服务端 env。故界面上没有任何"显示/复制密钥"的入口——不是漏做了，
  *    是**刻意没有**（一键配置后 key 对用户不可见，也无法通过其他手段获取）。
- * ② **额度要看得见**：每 5 小时 250 次是**滚动窗口**，用户看不到剩余量就只能靠撞墙发现。
+ * ② **额度要看得见**：每 5 小时 250 次是**滚动窗口**（服务方可通过 env 取消为"不限次数"），
+ *    用户看不到剩余量就只能靠撞墙发现；两种状态都必须照实说，别把"不限"写成"本地模式"。
  * ③ **用完有出路**：超限不是死路——上方「服务商」一节就是 BYOK 通道，文案要指过去。
  * ④ **覆盖要问一声**：这个按钮会**覆盖用户已有的 8 行绑定**
  *    （含自填模型名），而它偏偏是**新用户第一眼就会点的实心主色按钮**。故做成两段式：
  *    首屏只进确认态、确认键才真动手，且代价说明用 `role="alert"` 念出来。
  */
 import { useEffect, useState } from 'react';
-import type { PlatformQuotaState } from '@sb/shared';
+import type { PlatformQuotaView } from '@sb/shared';
 import { api } from '../../lib/api';
 import './settings.css';
 
@@ -41,7 +42,7 @@ export function PlatformChannelCard({
   /** 一键配完要刷新上面那张绑定表——否则用户看到的是"点了没反应"（表还是旧的） */
   onConfigured: () => void;
 }) {
-  const [quota, setQuota] = useState<(PlatformQuotaState & { limited: boolean }) | null>(null);
+  const [quota, setQuota] = useState<PlatformQuotaView | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   /**
@@ -95,21 +96,40 @@ export function PlatformChannelCard({
   };
 
   const left = quota ? Math.max(0, quota.limit - quota.used) : 0;
+  /** 按三态出文案。★ `limited:false` 有两种含义（local / unlimited），必须靠 `reason` 分，别混。 */
   const state = loading
     ? '读取额度中…'
     : !quota
       ? '额度读取失败（不影响使用）'
-      : quota.limited
+      : quota.reason === 'limited'
         ? `本窗口已用 ${quota.used} / ${quota.limit} 次，剩余 ${left} 次；最早一笔将在 ${remainText(quota.resetAt)}后可再调用`
-        : '本地模式：不计入免费额度';
+        : quota.reason === 'unlimited'
+          ? '当前平台通道不限次数'
+          : '本地模式：不计入免费额度';
 
   return (
     <section className="settings-sec">
       <h3>免费通道 · 一键默认设置</h3>
       <p className="settings-hint">
         一键把 8 个学习环节全部绑到平台免费通道，使用服务默认模型（<b>agnes-2.5-flash</b>）。
-        额度<b>每 5 小时 250 次</b>、按你的账号单独计算；用完或想换更好的模型，就在上方「服务商」里
-        配自己的 key，再回「角色模型绑定」逐项指定。
+        {/* ★ 额度那句**必须随 `reason` 变**：平台通道不限时还说"每 5 小时 250 次"＝界面在撒谎。
+            读不到额度（`quota === null`）时走默认分支，保持与从前逐字相同的文案。 */}
+        {quota?.reason === 'unlimited' ? (
+          <>
+            当前平台通道<b>不限次数</b>、但受全站每日用量总量保护；想换更好的模型，就在上方「服务商」里
+            配自己的 key，再回「角色模型绑定」逐项指定。
+          </>
+        ) : quota?.reason === 'local' ? (
+          <>
+            本地模式<b>不计入免费额度</b>；想换更好的模型，就在上方「服务商」里
+            配自己的 key，再回「角色模型绑定」逐项指定。
+          </>
+        ) : (
+          <>
+            额度<b>每 5 小时 250 次</b>、按你的账号单独计算；用完或想换更好的模型，就在上方「服务商」里
+            配自己的 key，再回「角色模型绑定」逐项指定。
+          </>
+        )}
         <br />
         平台密钥由服务方托管——界面不显示、接口不返回，你也取不到；本操作只写「用哪个服务商、用哪个模型」，
         <b>不会把密钥存进你的账号</b>。

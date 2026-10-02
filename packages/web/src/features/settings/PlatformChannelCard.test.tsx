@@ -41,8 +41,8 @@ vi.mock('../../lib/api', () => ({
 
 import { PlatformChannelCard } from './PlatformChannelCard';
 
-/** 额度读回一态（`limited:false` ＝ 本地模式，状态文案最短，不干扰按钮断言）。 */
-const QUOTA = { used: 0, limit: 250, resetAt: Date.now() + 60_000, limited: false };
+/** 额度读回一态（`reason:'local'` ＝ 本地模式，状态文案最短，不干扰按钮断言）。 */
+const QUOTA = { used: 0, limit: 250, resetAt: Date.now() + 60_000, limited: false, reason: 'local' as const };
 
 const idleBtn = () => screen.getByRole('button', { name: '一键默认设置' }) as HTMLButtonElement;
 const confirmBtn = () => screen.getByRole('button', { name: '确认覆盖' }) as HTMLButtonElement;
@@ -158,5 +158,18 @@ describe('PlatformChannelCard — 一键默认设置的二次确认', () => {
     // ★ 停在确认态＝把一次失败变成一次静默的误覆盖（用户早忘了这按钮会覆盖什么）
     await waitFor(() => expect(idleBtn()).toBeTruthy());
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('⑦ reason:"unlimited" ⇒ 状态与提示都写"不限次数"，且不再提"每 5 小时 250 次"', async () => {
+    h.quota.mockResolvedValue({ used: 3, limit: 0, resetAt: 0, limited: false, reason: 'unlimited' });
+    mount();
+    await ready();
+
+    const card = screen.getByRole('heading', { name: /免费通道/ }).closest('section') as HTMLElement;
+    // ★ 平台通道不限时，界面不许再说"每 5 小时 250 次"（那是撒谎）；状态与提示分别照实说
+    expect(card.textContent).toContain('当前平台通道不限次数');
+    expect(card.textContent).not.toContain('250 次');
+    // 状态绝不能落到"本地模式"那一句（`limited:false` 有两种含义，靠 reason 分）
+    expect(card.textContent).not.toContain('本地模式');
   });
 });

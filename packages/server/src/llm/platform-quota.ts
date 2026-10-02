@@ -5,6 +5,10 @@
  * 外加一个 `PlatformMeter` 接口——让闸门能替换掉"怎么记的"（理由见文件末尾）。
  * 口径、计数单位、作用域的理由见 shared 那份文件头，此处不重复。
  *
+ * ★ 2026-10-02：本文件管的是**每用户**次数配额（可被 env 取消）；另有一道**全站每日上限**
+ *   （`platform-budget.ts`，v53）兜「平台这一整笔钱」。两者都由 `PlatformMeter` 的四个方法承载。
+ *   每用户上限的边界与"先断言后计数"时序与从前逐字相同，只是多了一条不限态短路（见 `assertPlatformQuota`）。
+ *
  * ── 为什么挂在这里而不是新开一层中间件 ────────────────────────────────────
  * 计数点必须是「**一笔上游请求确实要发出去了**」那一刻，而这个时刻在本仓只有一处：
  * `upstream-gate.ts#acquireUpstream`（两个适配器 `openai.ts` / `anthropic.ts` 的 `chat()`
@@ -21,12 +25,18 @@
  */
 import {
   PLATFORM_QUOTA_CODE,
-  PLATFORM_QUOTA_MAX_CALLS,
+  PLATFORM_QUOTA_MAX_ENV,
   PLATFORM_QUOTA_MESSAGE,
   PLATFORM_QUOTA_WINDOW_MS,
+  parsePlatformQuotaMax,
   type PlatformQuotaState,
 } from '@sb/shared';
 import { getDb } from '../storage/db.js';
+// ★ 全站每日闸（v53）。`DB_PLATFORM_METER` 的 `assertSite`/`recordSite` 指向它。
+//   ⚠️ 本文件 ↔ `platform-budget.ts` 是一个**模块环**（那边要复用下面的 `PlatformQuotaExceededError`）。
+//   环是安全的，因为两边都在**函数体里**引用对方：那边只在抛错时读本文件的类（类声明完成于本文件求值），
+//   本文件只在 `DB_PLATFORM_METER` 的**方法体**里调用那边的函数。别把任一侧的引用提到模块顶层直接求值。
+import { assertSiteBudget, recordSiteCall } from './platform-budget.js';
 
 /**
  * 平台额度用尽。★ 单独一个错误类而不是抛 `Error` 字符串：
@@ -38,8 +48,14 @@ export class PlatformQuotaExceededError extends Error {
   /** 最早那笔消耗滑出窗口的时间（毫秒）——前端可据此给"约 X 分钟后可再试" */
   readonly retryAfterMs: number;
 
-  constructor(retryAfterMs: number) {
-    super(PLATFORM_QUOTA_MESSAGE);
+  /**
+   * @param retryAfterMs 多久后可再试（毫秒）。每用户窗口＝最早那笔滑出的时刻；
+   *   全站每日闸＝距服务器本地明日 0 点（见 `platform-budget.ts`）。
+   * @param message 用户可读文案。默认 `PLATFORM_QUOTA_MESSAGE`（每用户超限）；
+   *   全站每日闸传 `PLATFORM_BUDGET_MESSAGE`。★ 两条共用同一个 `code`（理由见 shared 该常量注释）。
+   */
+  constructor(retryAfterMs: number, message: string = PLATFORM_QUOTA_MESSAGE) {
+    super(message);
     this.name = 'PlatformQuotaExceededError';
     this.retryAfterMs = retryAfterMs;
   }
@@ -48,6 +64,15 @@ export class PlatformQuotaExceededError extends Error {
 /** 窗口下界（含边界：`ts >` 这个界，恰好满 5 小时的那笔算过期） */
 function windowStart(now: number): number {
   return now - PLATFORM_QUOTA_WINDOW_MS;
+}
+
+/**
+ * 当前生效的**每用户**次数上限：`null` ＝ 不限。
+ * ★ **每次调用现读 env**（不模块级快照）：与 `platform-channel.ts` 同一风格——
+ *   测试要能改 env 验证三态，运维改完 env 重启即生效。解析口径与取舍见 `parsePlatformQuotaMax`。
+ */
+export function platformQuotaMax(): number | null {
+  return parsePlatformQuotaMax(process.env[PLATFORM_QUOTA_MAX_ENV]);
 }
 
 /** 窗口内的调用次数（只读，不写库）。 */
@@ -67,7 +92,8 @@ export function platformQuotaState(ownerId: string, now: number = Date.now()): P
   const first = row.first ?? now;
   return {
     used,
-    limit: PLATFORM_QUOTA_MAX_CALLS,
+    // 不限态（max === null）取 0：route 那层会带上 `reason:'unlimited'`，这个 0 不会被展示。
+    limit: platformQuotaMax() ?? 0,
     windowStart: used === 0 ? now : first,
     resetAt: used === 0 ? now : first + PLATFORM_QUOTA_WINDOW_MS,
   };
@@ -75,11 +101,15 @@ export function platformQuotaState(ownerId: string, now: number = Date.now()): P
 
 /**
  * 超限即抛（快速失败）。★ 放在拿并发槽**之前**调用。
- * 边界：`used >= limit` 就拒——即第 251 笔被挡（前 250 笔正常发出）。
+ * 边界：`used >= max` 就拒——即第 251 笔被挡（前 250 笔正常发出）。
+ * ★ **不限态（max === null）直接 return**：不检查、不抛，但 `platformUsageCount` 照常统计
+ *   （route 要回真实用量，且全站每日闸的计数与它各算各的）。
  */
 export function assertPlatformQuota(ownerId: string, now: number = Date.now()): void {
+  const max = platformQuotaMax();
+  if (max === null) return;
   const used = platformUsageCount(ownerId, now);
-  if (used < PLATFORM_QUOTA_MAX_CALLS) return;
+  if (used < max) return;
   const state = platformQuotaState(ownerId, now);
   throw new PlatformQuotaExceededError(Math.max(0, state.resetAt - now));
 }
@@ -122,15 +152,36 @@ export function resetPlatformUsage(): void {
  *   `upstream-gate.ts` 文件头反复强调要消灭的那类 bug。
  */
 export interface PlatformMeter {
+  /** 每用户次数配额：断言（超限抛 `PlatformQuotaExceededError`）。 */
   assert(ownerId: string): void;
+  /** 每用户次数配额：记一笔。 */
   record(ownerId: string): void;
+  /**
+   * 全站每日上限（v53，2026-10-02）：断言（超限抛 `PlatformQuotaExceededError`，文案为 `PLATFORM_BUDGET_MESSAGE`）。
+   * ★ 与 `assert` 并列却**不带 ownerId**：全站闸管的是「平台这一整天总共花多少」，与请求者是谁无关。
+   */
+  assertSite(): void;
+  /** 全站每日上限：记一笔（不分用户）。 */
+  recordSite(): void;
 }
 
-/** 生产计量器：落库。 */
+/**
+ * 生产计量器：落库。
+ * ★ `assertSite`/`recordSite` 用**方法简写**（而非 `assertSite: assertSiteBudget`）是**刻意**的：
+ *   本文件与 `platform-budget.ts` 是模块环，直接引用会在「budget 先被加载」时读到尚未初始化的
+ *   绑定；写成方法体则在实际调用那一刻才读，彻底与模块求值顺序解耦。
+ */
 export const DB_PLATFORM_METER: PlatformMeter = {
   assert: assertPlatformQuota,
   record: recordPlatformUsage,
+  assertSite: () => assertSiteBudget(),
+  recordSite: () => recordSiteCall(),
 };
 
 /** 不落库的计量器（**仅测试用**：给纯逻辑用例，不碰任何数据库）。 */
-export const NOOP_PLATFORM_METER: PlatformMeter = { assert: () => {}, record: () => {} };
+export const NOOP_PLATFORM_METER: PlatformMeter = {
+  assert: () => {},
+  record: () => {},
+  assertSite: () => {},
+  recordSite: () => {},
+};

@@ -21,6 +21,7 @@ import {
   assertPlatformQuota,
   DB_PLATFORM_METER,
   NOOP_PLATFORM_METER,
+  platformQuotaMax,
   platformQuotaState,
   platformUsageCount,
   PlatformQuotaExceededError,
@@ -36,7 +37,15 @@ import {
   UPSTREAM_SITE_QUEUE_MAX,
   upstreamStats,
 } from './upstream-gate.js';
-import { PLATFORM_QUOTA_CODE, PLATFORM_QUOTA_MAX_CALLS, PLATFORM_QUOTA_WINDOW_MS } from '@sb/shared';
+import {
+  PLATFORM_BUDGET_DEFAULT_MAX,
+  PLATFORM_QUOTA_CODE,
+  PLATFORM_QUOTA_MAX_CALLS,
+  PLATFORM_QUOTA_MAX_ENV,
+  PLATFORM_QUOTA_WINDOW_MS,
+  parsePlatformBudgetMax,
+  parsePlatformQuotaMax,
+} from '@sb/shared';
 
 const URL_A = 'https://upstream-a.example/v1';
 
@@ -50,6 +59,7 @@ beforeEach(() => {
   openIsolated(dir);
   resetUpstreamGates();
   setPlatformMeter(null); // 复原成落库计量器（别的用例可能换过）
+  delete process.env[PLATFORM_QUOTA_MAX_ENV]; // env 是进程级全局，漏清会污染后续用例
 });
 
 afterEach(() => {
@@ -207,7 +217,9 @@ describe('v39 计数层：窗口、边界、清理', () => {
 describe('v39 闸门接线：assert 在拿槽前、record 在两槽后', () => {
   /** 计数型计量器：只记录"被谁、以什么顺序调了"，不做任何判断也不落库。 */
   function spyMeter() {
-    return { assert: vi.fn(), record: vi.fn() };
+    // ★ v53（2026-10-02）：`PlatformMeter` 新增 `assertSite`/`recordSite`（全站每日闸），
+    //   纯逻辑用例的 spy 也得补齐这两个方法——否则闸门一调就是 `undefined is not a function`。
+    return { assert: vi.fn(), record: vi.fn(), assertSite: vi.fn(), recordSite: vi.fn() };
   }
 
   it('★ 计量键是**请求者**（不是 provider 的 owner —— 平台行 owner 恒为 NULL）', async () => {
@@ -225,6 +237,8 @@ describe('v39 闸门接线：assert 在拿槽前、record 在两槽后', () => {
         throw new PlatformQuotaExceededError(1000);
       },
       record: vi.fn(),
+      assertSite: vi.fn(),
+      recordSite: vi.fn(),
     });
     await expect(acquireUpstream(URL_A, 'main', undefined, { ownerId: 'uA', platform: true })).rejects.toBeInstanceOf(
       PlatformQuotaExceededError,
@@ -304,6 +318,32 @@ describe('v39 闸门接线：assert 在拿槽前、record 在两槽后', () => {
     expect(spy.record).not.toHaveBeenCalled();
     r();
   });
+
+  it('★ v53 全站每日闸接线：**平台请求都调** assertSite/recordSite —— 含未登录（ownerId=null）', async () => {
+    const spy = spyMeter();
+    setPlatformMeter(spy);
+    // 登录用户：每用户配额与全站闸**都**调
+    const a = await acquireUpstream(URL_A, 'main', undefined, { ownerId: 'uA', platform: true });
+    expect(spy.assert).toHaveBeenCalledWith('uA');
+    expect(spy.assertSite).toHaveBeenCalledTimes(1);
+    expect(spy.recordSite).toHaveBeenCalledTimes(1);
+    a();
+    // ★ 未登录本地单人模式：每用户配额**不**调，但全站闸**照调**（花的是平台的钱，与请求者是谁无关）
+    const b = await acquireUpstream(URL_A, 'main', undefined, { ownerId: null, platform: true });
+    expect(spy.assert).toHaveBeenCalledTimes(1); // 只对登录用户断言过
+    expect(spy.assertSite).toHaveBeenCalledTimes(2);
+    expect(spy.recordSite).toHaveBeenCalledTimes(2);
+    b();
+  });
+
+  it('★ BYOK（platform=false）全站闸也不调：用户自己的钱不进平台成本账', async () => {
+    const spy = spyMeter();
+    setPlatformMeter(spy);
+    const r = await acquireUpstream(URL_A, 'main', undefined, { ownerId: 'uA', platform: false });
+    expect(spy.assertSite).not.toHaveBeenCalled();
+    expect(spy.recordSite).not.toHaveBeenCalled();
+    r();
+  });
 });
 
 // ── 三、端到端：真闸门 + 真库（唯一一条走完整链的用例）──────────────────────
@@ -329,5 +369,65 @@ describe('v39 端到端：第 251 次上游调用被闸门拦下', () => {
     const b = await acquireUpstream(URL_A, 'main', undefined, { ownerId: 'uB', platform: true });
     b();
     expect(platformUsageCount('uB')).toBe(1);
+  });
+});
+
+// ── 四、env 覆盖与"不限"态（v53，2026-10-02）────────────────────────────────
+// 线上切付费 key 后每用户上限被 env 取消；解析口径与取舍见 shared/platform-quota 的 `parseLimit`。
+
+describe('v53 上限解析矩阵（parsePlatformQuotaMax / parsePlatformBudgetMax）', () => {
+  it('未配 / 空串 / 纯空白 ⇒ 默认值（其它部署行为不变）', () => {
+    expect(parsePlatformQuotaMax(undefined)).toBe(250);
+    expect(parsePlatformQuotaMax(null)).toBe(250);
+    expect(parsePlatformQuotaMax('')).toBe(250);
+    expect(parsePlatformQuotaMax('   ')).toBe(250);
+    expect(parsePlatformBudgetMax(undefined)).toBe(10000);
+  });
+
+  it('off / unlimited / none（含大小写与首尾空白）⇒ null＝不限', () => {
+    for (const v of ['off', 'unlimited', 'none', 'OFF', 'Unlimited', '  off  ', 'NoNe']) {
+      expect(parsePlatformQuotaMax(v), v).toBeNull();
+      expect(parsePlatformBudgetMax(v), v).toBeNull();
+    }
+  });
+
+  it('纯正整数 ⇒ 该数', () => {
+    expect(parsePlatformQuotaMax('1')).toBe(1);
+    expect(parsePlatformQuotaMax('250')).toBe(250);
+    expect(parsePlatformQuotaMax(' 5000 ')).toBe(5000);
+    expect(parsePlatformBudgetMax('3')).toBe(3);
+  });
+
+  it('★ 其它任何值 ⇒ 回默认值（宁可限额、不静默放开：一个错字不该让成本无上限）', () => {
+    for (const v of ['0', '-1', 'abc', '250次', '2.5', 'offf', 'true']) {
+      expect(parsePlatformQuotaMax(v), v).toBe(250);
+      expect(parsePlatformBudgetMax(v), v).toBe(PLATFORM_BUDGET_DEFAULT_MAX);
+    }
+  });
+});
+
+describe('v53 不限态：不检查、不抛，但照常统计', () => {
+  it('platformQuotaMax 每次现读 env（未配 ⇒ 250；off ⇒ null；数字 ⇒ 该数）', () => {
+    expect(platformQuotaMax()).toBe(250);
+    process.env[PLATFORM_QUOTA_MAX_ENV] = 'off';
+    expect(platformQuotaMax()).toBeNull();
+    process.env[PLATFORM_QUOTA_MAX_ENV] = '7';
+    expect(platformQuotaMax()).toBe(7);
+  });
+
+  it('★ 不限态下打满任意多笔都不抛，但 platformUsageCount 照数（route 要回真实用量）', () => {
+    process.env[PLATFORM_QUOTA_MAX_ENV] = 'off';
+    seedUsage('u1', 300, NOW - 1000);
+    expect(() => assertPlatformQuota('u1', NOW)).not.toThrow();
+    expect(platformUsageCount('u1', NOW)).toBe(300); // 照常统计
+    const s = platformQuotaState('u1', NOW);
+    expect(s.used).toBe(300);
+    expect(s.limit).toBe(0); // 不限态 limit 取 0（占位，route 会带 reason:'unlimited'）
+  });
+
+  it('有限态仍照旧拒（对照组：上面的"不抛"不是因为断言整体坏了）', () => {
+    process.env[PLATFORM_QUOTA_MAX_ENV] = '5';
+    seedUsage('u1', 5, NOW - 1000);
+    expect(() => assertPlatformQuota('u1', NOW)).toThrow(PlatformQuotaExceededError);
   });
 });

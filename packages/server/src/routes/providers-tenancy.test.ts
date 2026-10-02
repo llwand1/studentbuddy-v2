@@ -357,10 +357,34 @@ describe('一键默认设置（POST /roles/default）', () => {
 });
 
 describe('平台免费额度查询（GET /quota）', () => {
-  it('登录用户回窗口用量与上限（前端显示"还剩 N 次"）', async () => {
+  it('登录用户回窗口用量与上限（前端显示"还剩 N 次"），reason 为 limited', async () => {
     const res = await request(app).get('/api/providers/quota').set('Origin', origin).set('Cookie', cookieA);
     expect(res.status).toBe(200);
     expect(res.body.limited).toBe(true);
+    expect(res.body.reason).toBe('limited');
+    expect(res.body.limit).toBe(250);
+    expect(res.body.used).toBe(0);
+  });
+
+  it('★ off ⇒ reason:"unlimited"（不限次数），且仍回**真实**用量而不是编 0', async () => {
+    const uid = await userIdOf(cookieA);
+    getDb().prepare('DELETE FROM platform_usage').run(); // 去前序残留，用量断言才确定
+    getDb().prepare('INSERT INTO platform_usage (owner_id, ts) VALUES (?, ?)').run(uid, Date.now());
+    await withEnv({ SB_PLATFORM_QUOTA_MAX: 'off' }, async () => {
+      const res = await request(app).get('/api/providers/quota').set('Origin', origin).set('Cookie', cookieA);
+      expect(res.status).toBe(200);
+      expect(res.body.reason).toBe('unlimited'); // ★ 不能显示成"本地模式"
+      expect(res.body.limited).toBe(false);
+      expect(res.body.limit).toBe(0);
+      expect(res.body.used).toBe(1); // 照常统计
+    });
+  });
+
+  it('★ 未登录单人模式 ⇒ reason:"local"（不计量），limit 是占位、used 0', async () => {
+    const res = await request(app).get('/api/providers/quota').set('Origin', origin);
+    expect(res.status).toBe(200);
+    expect(res.body.reason).toBe('local');
+    expect(res.body.limited).toBe(false);
     expect(res.body.limit).toBe(250);
     expect(res.body.used).toBe(0);
   });

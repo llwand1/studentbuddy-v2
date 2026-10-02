@@ -30,6 +30,8 @@ import './styles/pixel-scene.css';
 import './styles/pixel-motion.css';
 import './styles/grimoire.css';
 import './styles/grimoire-chat.css';
+// 手机端专项（docs/MOBILE-SPEC.md）：必须是最后一个样式引入——它要压过上面所有功能样式的桌面口径
+import './styles/mobile.css';
 
 /** §14.3 returnTo 的 sessionStorage 键（与 PkApp 的 goLogin 约定同一处） */
 const RETURN_TO_KEY = 'sb_return_to';

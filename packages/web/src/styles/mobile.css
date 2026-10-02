@@ -1,0 +1,187 @@
+/*
+ * mobile.css — 手机端专项（契约 docs/MOBILE-SPEC.md）。**最后一个**被 main.tsx 引入，层叠上压过各功能 CSS。
+ *
+ * 为什么单独一个文件而不是散在各 feature 的 @media 里：各处已有 20 多个零散断点（420/520/600/640/700/720/760/880），
+ * 手机上的整体问题（底部安全区、胶囊压住输入框、表格挤成竖排、输入框一点就放大）不属于任何一个功能，
+ * 散着写就没人能回答「手机上到底有哪些规则」。本文件只写 ≤700px（与 pixel-shell 的手机断点同一个数）、
+ * 粗指针（pointer: coarse）与安全区三类规则；功能自己的小断点仍留在原处。
+ *
+ * ★ 四条口径：
+ *  1. 底部所有 fixed / 贴底元素都要加 env(safe-area-inset-bottom)（iPhone 底部手势条 34px）。
+ *  2. 可点元素在粗指针下最小 36px 高（WCAG 2.5.8 的 24px 是下限，手指是 36–44）。
+ *  3. 表单控件在手机上 ≥16px：iOS Safari 对 <16px 的输入框聚焦会自动放大整页，退不回来。
+ *  4. 小字下限 12px：像素风的 11px 在 2x 屏上就是 22 物理像素、在手机上贴脸也读不清。
+ */
+
+/* ── 字号下限与控件尺寸（≤700） ───────────────────────────────────── */
+@media (max-width: 700px) {
+  :root {
+    --sb-fs-xs: 12px;
+    --sb-fs-sm: 13px;
+  }
+  /* 口径 3：聚焦不放大 */
+  body input:not([type='checkbox']):not([type='radio']),
+  body textarea,
+  body select {
+    font-size: 16px;
+  }
+  body .chat-composer textarea {
+    font-size: 16px;
+    line-height: 1.45;
+  }
+}
+
+/* ── 粗指针：最小命中区（口径 2） ─────────────────────────────────── */
+@media (pointer: coarse) {
+  body .composer-menu-btn,
+  body .msg-act,
+  body .msg-edit-trigger,
+  body .chat-error-retry,
+  body .rv-toggle,
+  body .rv-btn,
+  body .rv-goal-chip,
+  body .settings-add,
+  body .settings-del,
+  body .term-tab,
+  body .guide-icon-btn,
+  body .coach-drawer-close,
+  body .coach-bubble-x,
+  body .pomo-bubble-x,
+  body .guide-quick-x {
+    min-height: 36px;
+    min-width: 36px;
+  }
+  body .msg-act,
+  body .msg-edit-trigger {
+    padding: 6px 10px;
+  }
+}
+
+/* ── 底部安全区（口径 1）＋ 胶囊不再压住输入框 ────────────────────── */
+@media (max-width: 700px) {
+  /* 对话页：输入框下面留出胶囊那一条（pixel-shell 原给 44px；胶囊含阴影实测 50px ⇒ 56 + 安全区） */
+  body .chat-view {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+  body .chat-composer-wrap {
+    padding-bottom: 8px;
+  }
+  /* 胶囊：贴底、贴右、带安全区；收紧一圈——它在手机上是角标，不是横幅 */
+  body .coach-dock-rail {
+    right: 10px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+  body .coach-cap {
+    padding: 6px 10px;
+    font-size: var(--sb-fs-xs);
+  }
+  /* 非对话页：内容区自己留底，免得最后一行被胶囊盖住 */
+  body .term-page,
+  body .continent-page,
+  body .settings-view {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+  /* 督促抽屉：手机上是整屏底页，不是 92vw 的侧抽屉（侧抽屉会露出一条背景，像没打开） */
+  body .coach-drawer {
+    inset: 0;
+    width: auto;
+    max-width: none;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  body .sb-shell:has(.sb-browser) .coach-drawer {
+    right: 0;
+  }
+}
+
+/* ── 对话页：输入框上方的信息条在手机上只留必要的 ─────────────────── */
+@media (max-width: 700px) {
+  /* 「出题配比 … 设置页可改」是桌面上顺手一瞥的说明，手机上它把输入框往上顶一整行；信息在设置页原样在 */
+  body .chat-quiz-mix {
+    display: none;
+  }
+  /* 回答方式提示：压成一行省略，点出题时仍会弹卡问 */
+  body .ask-style-hint {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* 错误条里的上游原文（长 JSON / URL）按任意位置折行，不撑宽 */
+  body .chat-error {
+    overflow-wrap: anywhere;
+  }
+}
+
+/* ── 设置页：表格横向滚、表单竖排 ─────────────────────────────────── */
+@media (max-width: 700px) {
+  /* 表格别为了塞进 390px 把表头挤成一列一个字：给它最小宽度，交给 .settings-sec 的横向滚动 */
+  body .settings-table {
+    min-width: 560px;
+    white-space: nowrap;
+  }
+  body .settings-table .mono {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  body .settings-form {
+    grid-template-columns: 1fr;
+  }
+  body .settings-view h2 {
+    font-size: var(--sb-fs-xl);
+  }
+}
+
+/* ── 词条页 / 知识大陆：面板按钮换行、不横向溢出 ──────────────────── */
+@media (max-width: 700px) {
+  body .rv-head {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  body .rv-goal-row,
+  body .pomo-actions {
+    flex-wrap: wrap;
+  }
+  body .pomo-subject {
+    width: 100%;
+  }
+}
+
+/* ── 对战页：底部操作条带安全区 ───────────────────────────────────── */
+@media (max-width: 700px) {
+  body .sb-pk {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+/* ── 横屏手机（高度很矮）：顶栏与输入框都瘦一点，给内容留高度 ───── */
+@media (max-width: 900px) and (max-height: 460px) {
+  body .sb-sidebar {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  body .chat-view {
+    padding-bottom: 8px;
+  }
+  body .coach-dock-rail {
+    display: none;
+  }
+}
+
+/* ── 督促抽屉整屏时，提灯让位（两者都是 fixed，提灯 z 更高会压在抽屉表头上） ── */
+@media (max-width: 700px) {
+  body .sb-shell:has(.coach-drawer) .guide-beacon {
+    display: none;
+  }
+}
+
+/* ── 键盘弹起（可视高度很矮）：欢迎页只留标题与卡片，副标与眉题收起，别和输入框上方的提示叠在一起 ── */
+@media (max-width: 700px) and (max-height: 560px) {
+  body .welcome-eyebrow,
+  body .welcome-sub,
+  body .pixel-scene {
+    display: none;
+  }
+  body .chat-scroll {
+    padding-top: var(--sb-sp-3);
+  }
+}

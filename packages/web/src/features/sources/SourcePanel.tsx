@@ -10,6 +10,9 @@
  * 「原网页」按钮永远在：阅读模式拿不全（脚本渲染页）时一键去看原站。
  * 每个标签旁有一个 ✕（2026-09-30）：架子堆多了要能**一条条**清走没用的（整面板的 × 只是收起）。
  *
+ * 「存为资料」（2026-10-02，DOC-RAG-SPEC §10）：架子上翻到「就它了」的那一页，可以就地设成
+ * **本会话的学习资料**——之后的回答与出题都以它为准。它写的是文档模式、不碰架子本身（两个语义）。
+ *
  * 「视频线路」（2026-09-30，§12）：同一块面板的第二种内容——学习者自己去 B站 / 抖音找讲解视频。
  * 打开时替换架子视图（头部「资料 n」一键切回），架子本身状态不动；没有架子也能单独打开（消息脚注「找视频」）。
  *
@@ -22,6 +25,7 @@ import { getPreview, subscribePreview } from '../../lib/preview-store';
 import { closeSources, readerUrl, removeSource, selectSource, useSources } from '../../lib/sources-store';
 import { closeVideoRoute, openVideoRoute, useVideoRoute } from '../../lib/video-route-store';
 import { ReaderFrame } from './ReaderFrame';
+import { SaveAsDocButton } from './SaveAsDocButton';
 import { VideoRouteView } from './VideoRouteView';
 import { useSourceKeys } from './useSourceKeys';
 import '../preview/panel.css';
@@ -113,6 +117,8 @@ export function SourcePanel() {
           {active.title}
         </span>
         <span className="sb-browser-actions">
+          {/* 存为资料：学习者在这里已经选中了某一页，就地把它设成本会话资料（DOC-RAG-SPEC §10） */}
+          <SaveAsDocButton key={active.url} sessionId={st.sessionId} item={active} />
           <button className="sb-browser-btn" onClick={() => openVideoRoute(st.sessionId, seed)} title="去 B站 / 抖音找这个知识点的讲解视频">
             找视频
           </button>

@@ -8,9 +8,10 @@
  *
  * 正文只随会话存服务端，刷新后靠 GET meta 复原——长资料也没必要反复过网络。
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api, type DocMeta } from '../../lib/api';
 import { splitDocName } from './doc-name';
+import { DOC_CHANGED_EVENT } from './doc-events';
 import { MAX_DOC_CHARS } from '@sb/shared';
 
 /** 服务端 express.json 上限 2mb，留余量给 JSON 转义膨胀 */
@@ -27,10 +28,15 @@ export interface DocMode {
   setName: (v: string) => void;
   text: string;
   setText: (v: string) => void;
+  /** 网页资料的网址输入（契约 `docs/DOC-RAG-SPEC.md` §10） */
+  url: string;
+  setUrl: (v: string) => void;
   busy: boolean;
   hint: string;
   overCap: boolean;
   submit: (docName: string, docText: string) => Promise<void>;
+  /** 把一个网址抓成本会话资料。抓取在服务端，失败只改 hint、不动已载入的那份 */
+  submitUrl: (docUrl: string) => Promise<void>;
   onPickFile: (file: File | undefined) => Promise<void>;
   clear: () => Promise<void>;
 }
@@ -46,6 +52,7 @@ export function useDocMode(sessionId: string | null, onLoaded?: () => void): Doc
   const [meta, setMeta] = useState<DocMeta | null>(null);
   const [name, setName] = useState('');
   const [text, setText] = useState('');
+  const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState('');
 
@@ -68,6 +75,25 @@ export function useDocMode(sessionId: string | null, onLoaded?: () => void): Doc
     };
   }, [sessionId]);
 
+  /**
+   * 别处（资料架的「存为资料」）改完资料后重取一次 meta。
+   * 只重取、不接收推过来的值——服务端是唯一真相源，两个入口各自写一份 state 迟早漂。
+   */
+  const refetch = useCallback(() => {
+    if (!sessionId) return;
+    api.doc
+      .get(sessionId)
+      .then((r) => setMeta(r.doc))
+      .catch(() => {
+        /* 取不到就维持现状：这是后台同步，不该弹错打断正在打字的人（ADR-4） */
+      });
+  }, [sessionId]);
+
+  useEffect(() => {
+    window.addEventListener(DOC_CHANGED_EVENT, refetch);
+    return () => window.removeEventListener(DOC_CHANGED_EVENT, refetch);
+  }, [refetch]);
+
   const submit = async (docName: string, docText: string): Promise<void> => {
     if (!sessionId || busy) return;
     setBusy(true);
@@ -81,6 +107,33 @@ export function useDocMode(sessionId: string | null, onLoaded?: () => void): Doc
       onLoaded?.();
     } catch (e) {
       setHint(`载入失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * 网页资料：把网址交给服务端，抓到就直接成为本会话资料。
+   * ★ 失败时**不碰 meta**——服务端那边也没动（抓取失败在落库之前），
+   *   屏上那份旧资料仍然有效，不能让它看起来像被清掉了。
+   */
+  const submitUrl = async (docUrl: string): Promise<void> => {
+    const target = docUrl.trim();
+    if (!sessionId || busy || !target) return;
+    setBusy(true);
+    setHint('正在抓取网页…');
+    try {
+      const r = await api.doc.setFromUrl(sessionId, target);
+      setMeta(r.doc);
+      setUrl('');
+      setHint(
+        r.source.clipped
+          ? `已载入「${r.source.site}」，原页 ${r.source.sourceChars.toLocaleString('zh-CN')} 字超出上限已截断，从下一轮回答起生效`
+          : `已载入「${r.source.site}」，从下一轮回答起生效`,
+      );
+      onLoaded?.();
+    } catch (e) {
+      setHint(`网页载入失败：${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -117,10 +170,13 @@ export function useDocMode(sessionId: string | null, onLoaded?: () => void): Doc
     setName,
     text,
     setText,
+    url,
+    setUrl,
     busy,
     hint,
     overCap: text.length > MAX_DOC_CHARS,
     submit,
+    submitUrl,
     onPickFile,
     clear,
   };

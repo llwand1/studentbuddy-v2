@@ -265,6 +265,38 @@
   background: var(--sb-surface);
 }
 
+/* 网页资料（契约 docs/DOC-RAG-SPEC.md §10）：网址一行 + 按钮，排在粘贴区之前 */
+.chat-doc-url-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+}
+.chat-doc-url-row .chat-quiz-btn {
+  margin-bottom: 0;
+  flex: none;
+}
+.chat-doc-url-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 两条载入路径之间的分隔：不是标题，只是说明下面换了一种办法 */
+.chat-doc-or {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  font-size: var(--sb-fs-xs);
+  color: var(--sb-ink-tertiary);
+}
+.chat-doc-or::before,
+.chat-doc-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--sb-line);
+}
+
+.chat-doc-url-input,
 .chat-doc-name-input,
 .chat-doc-text {
   border: 1px solid var(--sb-line);

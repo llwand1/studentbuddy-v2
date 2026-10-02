@@ -62,3 +62,6 @@
   .quiz-adventure, .quiz-adventure *, .quiz-adventure *::after, .quiz-forging, .quiz-forging * { animation: none !important; transition: none !important; }
   .quiz-progress::-webkit-progress-value { transition: none; }
 }
+/* 出题中的「刷词」入口（POMODORO-SPEC §8）：靠右、按钮形，与等待气泡里那枚同义 */
+.quiz-forging-drill { margin-left: auto; padding: 3px 10px; border: 1px solid var(--sb-line); border-radius: var(--sb-radius-sm); background: var(--sb-surface); color: var(--sb-ink-secondary); font-size: var(--sb-fs-xs); cursor: pointer; white-space: nowrap; }
+.quiz-forging-drill:hover { border-color: var(--sb-primary); color: var(--sb-primary); }

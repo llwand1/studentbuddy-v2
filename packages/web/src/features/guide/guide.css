@@ -97,27 +97,64 @@
 }
 @keyframes guide-dot { 50% { background: var(--sb-primary); } }
 
-/* 图标下的短提示：只有宽屏且该页左侧真有空白时才冒（窄屏靠光晕与小点） */
-.guide-teaser {
+/* 亮灯时提灯正下方的「快捷项」（POMODORO-SPEC §9）：短提示 + 第一条推荐（一点即执行）+ ✕。
+   窄屏（<700px）不摆：提灯坐在顶栏里，下面就是内容。 */
+.guide-quick {
   display: none;
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
+  z-index: 1;
+  flex-direction: column;
+  gap: 4px;
   /* 绝对定位的可用宽度被 40px 的提灯限死，不写 max-content 会被挤成一字一行 */
   width: max-content;
-  max-width: 112px;
-  padding: 3px 6px;
+  max-width: 200px;
+  padding: 5px 6px 6px;
   border: 2px solid var(--sb-gold-edge);
   background: var(--sb-surface);
   box-shadow: 2px 2px 0 var(--sb-pixel-shadow);
-  color: var(--sb-gold);
-  font: 700 var(--sb-fs-xs) / 1.35 var(--sb-font);
-  pointer-events: none;
   animation: sb-rise-in var(--sb-motion-base) steps(4, end) backwards;
 }
-@media (min-width: 1200px) {
-  .sb-main:not(.guide-rail) .guide-teaser { display: block; }
+@media (min-width: 700px) {
+  .guide-quick { display: flex; }
 }
+.guide-teaser {
+  color: var(--sb-gold);
+  font: 700 var(--sb-fs-xs) / 1.35 var(--sb-font);
+  padding-right: 16px;
+}
+.guide-quick-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 4px 6px;
+  border: 1px solid var(--sb-line);
+  background: var(--sb-primary-weak);
+  color: var(--sb-ink);
+  text-align: left;
+  cursor: pointer;
+  font: var(--sb-fs-xs) / 1.35 var(--sb-font);
+}
+.guide-quick-btn:hover,
+.guide-quick-btn:focus-visible {
+  border-color: var(--sb-primary);
+}
+.guide-quick-btn b { color: var(--sb-gold); }
+.guide-quick-btn small { color: var(--sb-ink-secondary); }
+.guide-quick-x {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  padding: 0 3px;
+  border: 0;
+  background: transparent;
+  color: var(--sb-ink-tertiary);
+  cursor: pointer;
+  font: var(--sb-fs-xs) / 1 var(--sb-font);
+}
+.guide-quick-x:hover { color: var(--sb-ink); }
 
 /* 读屏用的实时区：视觉上不存在 */
 .guide-sr {
@@ -295,5 +332,5 @@
     max-height: calc(100dvh - 82px);
   }
   .guide-pop-x { display: block; }
-  .guide-teaser { display: none !important; }
+  .guide-quick { display: none !important; }
 }

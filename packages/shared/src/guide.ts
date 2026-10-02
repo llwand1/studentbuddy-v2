@@ -14,6 +14,8 @@
  * ★ 纯函数、零 IO、不读时钟：随机只来自调用方传的 `seed`，测试可复现。
  */
 
+import type { PomodoroFocus } from './pomodoro.js';
+
 export type GuideLang = 'zh' | 'en';
 
 /** 一条文案的两种语言（与 web 侧 `Bi` 同形，shared 不依赖 web，故在此重述） */
@@ -239,6 +241,8 @@ export interface GuideFacts {
   terms: { total: number; due: number; overdue: number; streak: number };
   /** 这个人一共有几场会话（首次使用判定的旁证） */
   sessions: number;
+  /** 番茄钟当前方向（契约 POMODORO-SPEC §5）：工作段才有；没开钟 / 休息段 ⇒ null 或缺省 */
+  focus?: PomodoroFocus | null;
 }
 
 export interface GuideItem {
@@ -349,6 +353,25 @@ export function defaultGuideText(kind: GuideKind, lang: GuideLang, seed = 0): st
   return GUIDE_CATALOG[kind].text?.[lang];
 }
 
+/** 番茄钟进行中（契约 POMODORO-SPEC §5）：随机话题换成方向里的开场白——「方向」比「有趣」优先 */
+const FOCUS_TOPICS: readonly ((subject: string) => GuideText)[] = [
+  (x) => ({ zh: `「${x}」里最容易混淆的两个概念是什么？帮我分清楚。`, en: `What are the two most confusable ideas in "${x}"? Help me tell them apart.` }),
+  (x) => ({ zh: `用一个生活里的例子讲清「${x}」的一个核心概念。`, en: `Explain one core idea of "${x}" with an everyday example.` }),
+  (x) => ({ zh: `「${x}」考试里最常考的点是什么？从最基础的讲起。`, en: `What gets tested most in "${x}"? Start from the basics.` }),
+];
+
+/** 带方向的兜底文本：`chat.topic` / `chat.ask` 都围绕方向；没方向退 `defaultGuideText` */
+export function focusGuideText(kind: GuideKind, f: Pick<GuideFacts, 'lang' | 'focus'>, seed = 0): string | undefined {
+  const subject = f.focus?.subject;
+  if (!subject || !GUIDE_TEXT_KINDS.includes(kind)) return defaultGuideText(kind, f.lang, seed);
+  if (kind === 'chat.ask') {
+    return f.lang === 'zh' ? `刚才这段和「${subject}」有什么关系？帮我接回主线。` : `How does this connect back to "${subject}"? Tie it to the main thread.`;
+  }
+  const n = FOCUS_TOPICS.length;
+  const i = ((Math.trunc(seed) % n) + n) % n;
+  return (FOCUS_TOPICS[i] ?? FOCUS_TOPICS[0]!)(subject)[f.lang];
+}
+
 /** 带现场数据的副行（规则推荐用）；没有可写的数据就返回 null，由目录默认文案顶上 */
 function dynamicHint(kind: GuideKind, f: GuideFacts, text?: string): string | null {
   const zh = f.lang === 'zh';
@@ -366,6 +389,7 @@ function dynamicHint(kind: GuideKind, f: GuideFacts, text?: string): string | nu
       if (f.terms.total <= 0) return null;
       return zh ? `库里已有 ${f.terms.total} 条，点进去翻翻、搜搜` : `${f.terms.total} saved — browse and search them`;
     case 'quiz.start': {
+      if (f.focus) return zh ? `围绕「${f.focus.subject}」出题，当场判分` : `Questions on "${f.focus.subject}", graded on the spot`;
       const t = f.chat?.lastUser ? shortGuideText(f.chat.lastUser, 14) : '';
       if (!t) return null;
       return zh ? `基于「${t}」出题，当场判分` : `Questions on "${t}", graded on the spot`;
@@ -377,7 +401,7 @@ function dynamicHint(kind: GuideKind, f: GuideFacts, text?: string): string | nu
 
 function defaultItem(kind: GuideKind, f: GuideFacts, seed: number): GuideItem {
   const info = GUIDE_CATALOG[kind];
-  const text = GUIDE_TEXT_KINDS.includes(kind) ? defaultGuideText(kind, f.lang, seed) : undefined;
+  const text = GUIDE_TEXT_KINDS.includes(kind) ? focusGuideText(kind, f, seed) : undefined;
   const item: GuideItem = {
     kind,
     label: info.label[f.lang],
@@ -414,7 +438,7 @@ export function ruleGuide(f: GuideFacts, seed = 0): GuideResult {
 function pickText(kind: GuideKind, raw: unknown, f: GuideFacts, seed: number): string | undefined {
   if (!GUIDE_TEXT_KINDS.includes(kind)) return undefined;
   const t = cleanGuideLine(raw, GUIDE_TEXT_MAX);
-  return Array.from(t).length >= GUIDE_TEXT_MIN ? t : defaultGuideText(kind, f.lang, seed);
+  return Array.from(t).length >= GUIDE_TEXT_MIN ? t : focusGuideText(kind, f, seed);
 }
 
 /**

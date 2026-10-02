@@ -26,7 +26,11 @@ import { CoachCapsule } from './CoachCapsule';
 import { CoachComposer } from './CoachComposer';
 import { CoachFeed } from './CoachFeed';
 import { mergeCards, trendBubble, withStreaming, type CoachBubble } from './coach-cards';
+import { PomodoroBubble } from '../pomodoro/PomodoroBubble';
 import './coach.css';
+
+/** 本次打开应用的时刻：「还没设番茄钟」的提醒要等人坐稳 3 分钟才敲（契约 POMODORO-SPEC §7.3） */
+const OPENED_AT = new Date();
 
 /** 队列取几条：小窗一屏能横向滚动的量，再多就该回词条页的复习面板处理 */
 const QUEUE_LIMIT = 20;
@@ -183,6 +187,8 @@ export function CoachDock() {
       {/* 悬浮舱：胶囊与气泡**同舱**（`.coach-dock-rail` 的 flex 列），气泡天然排在胶囊正上方——
           不靠"手算一个等于胶囊高度的 bottom 偏移"，那种写法在文案变长时会压上去。 */}
       <div className="coach-dock-rail">
+        {/* 番茄提醒（契约 POMODORO-SPEC §7）：到点 / 休息结束 / 还没设钟，三种都在这枚气泡里，与趋势卡气泡同舱同纪律 */}
+        <PomodoroBubble openedAt={OPENED_AT} />
         {/* 趋势卡气泡：★ 刻意**不是模态、也不自动展开抽屉**——要的是"冒出来一个
             小的对话框"，自动弹开等于抢屏幕（与督促的克制同一条纪律，契约 §4.4）。
             点它才把抽屉开开并滚到那张卡；右侧 × 是"先不看了"。 */}

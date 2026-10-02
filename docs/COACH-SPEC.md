@@ -120,6 +120,10 @@ GET  /api/coach/live             断线重连后的快照对齐
 - 时间文案只到分钟：`刚刚 / N 分钟前 / 今天 HH:MM / 昨天 HH:MM / MM-DD HH:MM`，
   解析一律走 `parseCoachTime`（库里的 `datetime('now')` 是 UTC 且无时区标记，直接 `new Date` 会差 8 小时）。
 
+- 番茄钟（2026-10-01，契约 `POMODORO-SPEC.md` §7）：胶囊数字前多 `🍅 方向 MM:SS`；到点 / 休息结束 / **没开钟** 三种提醒
+  由 `PomodoroBubble` 在同一条 `.coach-dock-rail` 里冒泡，与趋势卡气泡同一纪律（不模态、不自动展开抽屉、不响铃）。
+  判定不在本册（`shared/pomodoro.ts` 的 `pomodoroReminder`），与 `shouldNudge` 互不影响。
+
 ## 8. 未做（登记不欠账）
 
 | 项 | 为什么先不做 |

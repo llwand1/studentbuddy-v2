@@ -250,3 +250,43 @@ export function pomodoroCapsuleLabel(s: PomodoroSession | null, now: Date): stri
   const clock = formatPomodoroClock(pomodoroRemainingMs(s, now));
   return s.phase === 'work' ? `🍅 ${s.subject} ${clock}` : `☕ 休息 ${clock}`;
 }
+
+// ── 专注统计（督促小窗的学习可视化，契约 §10）────────────────────────────
+
+export interface PomodoroDayStat {
+  /** 本地日历日 `YYYY-MM-DD` */
+  day: string;
+  rounds: number;
+  minutes: number;
+}
+export interface PomodoroSubjectStat {
+  subject: string;
+  rounds: number;
+  minutes: number;
+}
+export interface PomodoroStats {
+  today: { rounds: number; minutes: number };
+  /** 近 N 天（含今天）逐日，按日期升序、缺日补 0——图上不出现「没发生过的专注」，也不跳过空白日 */
+  recent: PomodoroDayStat[];
+  /** 近 N 天按方向汇总，分钟降序 */
+  bySubject: PomodoroSubjectStat[];
+}
+
+export const POMODORO_STATS_DAYS = 7;
+
+/** 分钟 → 人话：`25 分` / `1 小时 05 分` / `2 小时` */
+export function formatFocusMinutes(min: number): string {
+  const m = Math.max(0, Math.round(min));
+  if (m < 60) return `${m} 分`;
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return r === 0 ? `${h} 小时` : `${h} 小时 ${String(r).padStart(2, '0')} 分`;
+}
+
+/** 面板表头那一行：`今日 2 轮 · 50 分`；今天还没专注过 ⇒ 看近 7 天；都没有 ⇒ 空串（由 UI 给引导语） */
+export function pomodoroStatsLine(s: PomodoroStats): string {
+  if (s.today.rounds > 0) return `今日 ${s.today.rounds} 轮 · ${formatFocusMinutes(s.today.minutes)}`;
+  const rounds = s.recent.reduce((a, d) => a + d.rounds, 0);
+  const minutes = s.recent.reduce((a, d) => a + d.minutes, 0);
+  return rounds > 0 ? `近 ${s.recent.length} 天 ${rounds} 轮 · ${formatFocusMinutes(minutes)}` : '';
+}

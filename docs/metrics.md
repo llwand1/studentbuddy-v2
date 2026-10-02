@@ -23,29 +23,29 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-10-02 14:34:33（本机时区）｜ 基准 `503c28b` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-02 08:35:43（本机时区）｜ 基准 `fe2a26c` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
-| shared | 52 | 8,711 | 39 | 5,079 | 58% |
-| server | 255 | 37,073 | 174 | 34,230 | 92% |
-| web | 320 | 39,466 | 136 | 17,784 | 45% |
-| **合计** | **627** | **85,250** | **349** | **57,093** | **67%** |
+| shared | 52 | 8,751 | 39 | 5,079 | 58% |
+| server | 256 | 37,153 | 174 | 34,285 | 92% |
+| web | 321 | 39,551 | 137 | 17,879 | 45% |
+| **合计** | **629** | **85,455** | **350** | **57,243** | **67%** |
 
 ## 接口与契约
 
-- REST 路由注册：**168**（get 74 / post 65 / delete 12 / put 16 / patch 1）· 另 /api 挂载点 38 个
-- shared 契约类型：**239**（export interface 159 + export type 80）
+- REST 路由注册：**169**（get 75 / post 65 / delete 12 / put 16 / patch 1）· 另 /api 挂载点 38 个
+- shared 契约类型：**242**（export interface 162 + export type 80）
 - 外部运行时依赖：**6** 个 —— better-sqlite3, cors, express, pino, react, react-dom
-- 迁移水位：代码侧 **v53**（53 个 version 条目，非连续号 0 处）
+- 迁移水位：代码侧 **v54**（54 个 version 条目，非连续号 0 处）
 
 ## 测试基线（vitest 实跑）
 
-- **349 文件 / 4067 例**（4065 passed + 2 skipped + 0 failed）⇒ 全绿
-- ⚠️ 本次未重跑 vitest，读的是 今日的 test-results 产物——要新鲜数字加 `--tests`
-- jsdom 交互测试文件（`.test.tsx`）65 个
+- **350 文件 / 4072 例**（4070 passed + 2 skipped + 0 failed）⇒ 全绿
+- 本次本机实跑（Node v22.22.2）全量耗时 208.2s
+- jsdom 交互测试文件（`.test.tsx`）66 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
 
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 48 份 · md 共 66 份 · 真机探针 15 个
-- git：merge/mobile-polish @ `503c28b`（2026-10-02）· 近 14 天 212 commits · 工作区未提交 17 文件
+- git：feat/pomodoro-in-coach @ `fe2a26c`（2026-10-02）· 近 14 天 220 commits · 工作区未提交 22 文件
 
 <!-- metrics:end -->
 

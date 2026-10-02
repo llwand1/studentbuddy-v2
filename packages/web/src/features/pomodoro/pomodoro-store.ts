@@ -1,7 +1,7 @@
 /**
  * pomodoro-store — 番茄钟的跨组件状态（契约 `docs/POMODORO-SPEC.md` §6）。
  *
- * 为什么是一个模块级小 store 而不是 props：番茄钟一头长在词条页的复习列表里（开钟卡），一头长在右下角督促胶囊旁
+ * 为什么是一个模块级小 store 而不是 props：番茄钟整个长在右下角督促小窗里（胶囊上的倒计时、抽屉里的开钟卡与统计、胶囊旁的提醒）
  * （倒计时与提醒），还要喂给引路灯（方向）与刷词（方向内词条排前）——四处隔着 App 壳层，props 穿不过去。
  * 与 `drill-dock` 同一思路：`useSyncExternalStore` 保证四处同一帧一致。
  *
@@ -101,7 +101,7 @@ export function markSetupNudged(now = new Date()): void {
   }
 }
 
-/** 请 App 跳到词条页并展开开钟卡（气泡 / 引路灯 / 任何入口都走这一条） */
+/** 请督促小窗打开抽屉（专注面板就在抽屉顶部）——气泡「去定一个」/ 任何入口都走这一条 */
 export function requestPomodoroOpen(): void {
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(POMODORO_OPEN_EVENT));
 }

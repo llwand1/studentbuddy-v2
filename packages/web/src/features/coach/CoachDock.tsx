@@ -27,6 +27,7 @@ import { CoachComposer } from './CoachComposer';
 import { CoachFeed } from './CoachFeed';
 import { mergeCards, trendBubble, withStreaming, type CoachBubble } from './coach-cards';
 import { PomodoroBubble } from '../pomodoro/PomodoroBubble';
+import { POMODORO_OPEN_EVENT } from '../pomodoro/pomodoro-store';
 import './coach.css';
 
 /** 本次打开应用的时刻：「还没设番茄钟」的提醒要等人坐稳 3 分钟才敲（契约 POMODORO-SPEC §7.3） */
@@ -140,6 +141,13 @@ export function CoachDock() {
   );
 
   const clearFocus = useCallback(() => setFocusCard(null), []);
+
+  // 「去定一个番茄钟」（气泡 / 任何入口）⇒ 打开抽屉，专注面板就在顶部（POMODORO-SPEC §3）
+  useEffect(() => {
+    const onOpen = () => void openDrawer();
+    window.addEventListener(POMODORO_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(POMODORO_OPEN_EVENT, onOpen);
+  }, [openDrawer]);
 
   const send = useCallback(async (text: string) => {
     setError('');

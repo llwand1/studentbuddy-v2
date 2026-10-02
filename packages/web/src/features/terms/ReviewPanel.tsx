@@ -20,8 +20,6 @@ import { ClockIcon, CheckIcon } from '../../components/icons';
 import { ReviewScopePicker } from './ReviewScopePicker';
 import { ReviewGoalCard } from './ReviewGoalCard';
 import { LearnerModelCard } from './LearnerModelCard';
-import { PomodoroCard } from '../pomodoro/PomodoroCard';
-import { POMODORO_OPEN_EVENT, usePomodoro } from '../pomodoro/pomodoro-store';
 
 const QUEUE_LIMIT = 20;
 
@@ -54,14 +52,6 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
    * 范围是"该背哪些"、队列是"今天还哪些账"，三者改动频率不同，合成一个每次都要先展开别的。
    */
   const [goalOpen, setGoalOpen] = useState(false);
-  /** 番茄钟卡（契约 POMODORO-SPEC §3）：第四个独立开关；开着钟时默认展开（倒计时就该在眼前），气泡「去定一个」也会把它展开 */
-  const pomoSession = usePomodoro().session;
-  const [pomoOpen, setPomoOpen] = useState(() => pomoSession !== null);
-  useEffect(() => {
-    const onOpen = () => setPomoOpen(true);
-    window.addEventListener(POMODORO_OPEN_EVENT, onOpen);
-    return () => window.removeEventListener(POMODORO_OPEN_EVENT, onOpen);
-  }, []);
   /**
    * 队列响应里的目标与进度（v1.2）：**与队列同源**，不另打一次概览去凑——
    * 分两次请求就可能出现"队列里还有 5 条、进度却说已达标"（契约 §10.7）。
@@ -143,9 +133,6 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
         <button className="rv-toggle" aria-expanded={goalOpen} onClick={() => setGoalOpen((o) => !o)}>
           {goalOpen ? '收起目标' : '今日目标'}
         </button>
-        <button className="rv-toggle" aria-expanded={pomoOpen} onClick={() => setPomoOpen((o) => !o)}>
-          {pomoOpen ? '收起番茄钟' : pomoSession ? '🍅 进行中' : '番茄钟'}
-        </button>
         <button className="rv-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
           {open ? '收起队列' : '展开队列'}
           <i className={open ? 'rv-caret on' : 'rv-caret'} />
@@ -164,8 +151,6 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
             }}
           />
         )}
-
-        {pomoOpen && <PomodoroCard />}
 
         {goalOpen && queueMeta && (
           <ReviewGoalCard

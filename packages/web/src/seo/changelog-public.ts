@@ -31,6 +31,15 @@ export const RELEASE_SCOPE = {
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
   {
+    version: 'v0.2.156',
+    date: '2026-10-02',
+    headline: '网页也能直接当资料用',
+    items: [
+      '对话右侧的资料架里，每条结果多一个「存为资料」：把这一页的正文抓下来，当成本会话的资料。',
+      '存进来的网页和已有的长资料一样参与检索：提问会照着它回答，引用带段号、点得回原文。',
+    ],
+  },
+  {
     version: 'v0.2.155',
     date: '2026-10-02',
     headline: '番茄钟搬进督促小窗，多了专注统计',

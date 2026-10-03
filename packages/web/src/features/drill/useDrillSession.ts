@@ -22,11 +22,11 @@ import {
   drillKindAt,
   gradeDrill,
   isComboMilestone,
-  orderDrillQueue,
   requeueIndex,
   type DrillCard,
   type DrillNewTerm,
   type DrillOrigin,
+  type DrillQueueTerm,
   type DrillTermLike,
 } from '@sb/shared';
 import { termsContinentApi } from '../../lib/api-terms-continent';
@@ -35,7 +35,11 @@ import { drillApi } from '../../lib/api-drill';
 import type { DrillAudio } from './drill-audio';
 import { fxKindFor, type DrillFxState } from './DrillFx';
 import { loadDrillStats, saveDrillStats } from './drill-prefs';
+import { buildDrillQueue, drillFocusNotice, needsFocusRefill } from './drill-focus';
 import { readPomodoro } from '../pomodoro/pomodoro-store';
+
+/** 方向内排空后「现场出题」最多补几次：补不到就如实说空，不无限打网络 */
+const MAX_FOCUS_REFILL = 3;
 
 export type DrillPhase = 'loading' | 'question' | 'reveal' | 'learn' | 'empty';
 
@@ -93,7 +97,7 @@ export function useDrillSession({ open, sessionId, dayKey, audio, onCardResolved
 
   const queue = useRef<DrillEntry[]>([]);
   const pool = useRef<DrillTermLike[]>([]);
-  const library = useRef<Parameters<typeof orderDrillQueue>[0]>([]);
+  const library = useRef<readonly DrillQueueTerm[]>([]);
   const slain = useRef<Set<string>>(new Set());
   const served = useRef(0);
   const fxKey = useRef(0);
@@ -104,41 +108,20 @@ export function useDrillSession({ open, sessionId, dayKey, audio, onCardResolved
   phaseRef.current = phase;
   /** 开局时本机已有的当天战绩（落盘时叠加本局） */
   const dayBase = useRef({ correct: 0, reviewed: 0, bestCombo: 0 });
+  /** 「现场出题」的闸：同一时刻只允许一次在飞，且本局最多补 `MAX_FOCUS_REFILL` 次（防排空→请求→仍空的死循环） */
+  const refill = useRef({ inFlight: false, tries: 0 });
+  /**
+   * `requestNewTerms` 要在新词到达后续上一张、`serve` 又要在排空时叫它——两个 ref 打断这对循环依赖。
+   * ★ `serve` **绝不能**把 `requestNewTerms`（含 `sessionId`）写进 deps：开局 effect 依赖 `serve`，
+   *   一旦 `serve` 随会话变身份，换会话就会重开局，踩掉「换会话只补新词、不重开局」（WAIT-DRILL-SPEC §2.1）。
+   */
+  const serveRef = useRef<() => void>(() => undefined);
+  const requestNewTermsRef = useRef<(reason: 'open' | 'focus') => void>(() => undefined);
 
   const clearAdvance = () => {
     if (advance.current) clearTimeout(advance.current);
     advance.current = null;
   };
-
-  /** 从队列里拿下一张；空了就重排一轮词库；仍空 ⇒ empty */
-  const serve = useCallback(() => {
-    clearAdvance();
-    setResult(null);
-    setDraft('');
-    if (queue.current.length === 0) {
-      // 番茄钟方向（POMODORO-SPEC §5.3）：工作段里方向内的词条排前（两段各自内部，不改到期优先）
-      const pomo = readPomodoro().session;
-      const focusSubject = pomo && pomo.phase === 'work' ? pomo.subject : null;
-      queue.current = orderDrillQueue(library.current, `${dayKey}|r${served.current}`, slain.current, focusSubject).map((q) => ({
-        term: q.term,
-        origin: q.origin,
-      }));
-    }
-    const nextEntry = queue.current.shift() ?? null;
-    setQueueLeft(queue.current.length);
-    if (!nextEntry) {
-      setEntry(null);
-      setCard(null);
-      setPhase('empty');
-      return;
-    }
-    const kind = nextEntry.origin === 'new' ? 'meaning' : drillKindAt(served.current, dayKey);
-    served.current += 1;
-    setEntry(nextEntry);
-    setCard(buildDrillCard(kind, nextEntry.term, pool.current, nextEntry.origin, `${dayKey}|${served.current}`));
-    setPhase(nextEntry.origin === 'new' ? 'learn' : 'question');
-    if (nextEntry.origin === 'new') audio?.play('new');
-  }, [dayKey, audio]);
 
   /**
    * 新词到了：第一条排成**下一张**（正在答的那张是词库的，已经进入节奏），之后每隔 `NEW_TERM_GAP` 张一条；
@@ -159,6 +142,68 @@ export function useDrillSession({ open, sessionId, dayKey, audio, onCardResolved
     },
     [],
   );
+
+  /**
+   * 要一批新词。`open` 是开局那次（原行为）；`focus` 是番茄钟方向内排空后的**现场出题**，
+   * 后者带闸：同一时刻只一次在飞、本局最多 `MAX_FOCUS_REFILL` 次——补不到就如实说空，不无限打网络。
+   */
+  const requestNewTerms = useCallback(
+    (reason: 'open' | 'focus') => {
+      if (reason === 'focus') {
+        if (refill.current.inFlight || refill.current.tries >= MAX_FOCUS_REFILL) return;
+        refill.current.inFlight = true;
+        refill.current.tries += 1;
+      }
+      void drillApi
+        .newTerms(sessionId)
+        .then((r) => {
+          if (r.fallbackReason) setNewNote(r.fallbackReason);
+          if (r.items.length > 0) {
+            injectNew(r.items);
+            if (phaseRef.current === 'empty') serveRef.current();
+          }
+        })
+        .catch((e: unknown) => setNewNote(errText(e, '这次没要到新词')))
+        .finally(() => {
+          if (reason === 'focus') refill.current.inFlight = false;
+        });
+    },
+    [sessionId, injectNew],
+  );
+  requestNewTermsRef.current = requestNewTerms;
+
+  /** 从队列里拿下一张；空了就重排一轮词库；仍空 ⇒ empty */
+  const serve = useCallback(() => {
+    clearAdvance();
+    setResult(null);
+    setDraft('');
+    if (queue.current.length === 0) {
+      // 番茄钟方向（POMODORO-SPEC §5.3）：工作段**硬过滤**——方向外的词条不进队列；
+      // 方向内排空后按 drill-focus 的三级兜底（重复巩固 → 现场出题 → 如实说空）。
+      const pomo = readPomodoro().session;
+      const subject = pomo && pomo.phase === 'work' ? pomo.subject : null;
+      const built = buildDrillQueue({ terms: library.current, dayKey: `${dayKey}|r${served.current}`, exclude: slain.current, subject });
+      queue.current = built.items.map((q) => ({ term: q.term, origin: q.origin }));
+      const line = drillFocusNotice(built.outcome, subject);
+      if (line) setNotice(line);
+      if (needsFocusRefill(built.outcome)) requestNewTermsRef.current('focus');
+    }
+    const nextEntry = queue.current.shift() ?? null;
+    setQueueLeft(queue.current.length);
+    if (!nextEntry) {
+      setEntry(null);
+      setCard(null);
+      setPhase('empty');
+      return;
+    }
+    const kind = nextEntry.origin === 'new' ? 'meaning' : drillKindAt(served.current, dayKey);
+    served.current += 1;
+    setEntry(nextEntry);
+    setCard(buildDrillCard(kind, nextEntry.term, pool.current, nextEntry.origin, `${dayKey}|${served.current}`));
+    setPhase(nextEntry.origin === 'new' ? 'learn' : 'question');
+    if (nextEntry.origin === 'new') audio?.play('new');
+  }, [dayKey, audio]);
+  serveRef.current = serve;
 
   // 开局：取词。★ `open` 在这里的语义是"这一局在跑"，不是"小窗看得见"——小窗收起再唤回（§2.1）不走这里，
   //   队列 / 连击 / 本局战绩原样接着；只有真正结束（小签 ✕）或下一次开局才重来。
@@ -201,26 +246,13 @@ export function useDrillSession({ open, sessionId, dayKey, audio, onCardResolved
     };
   }, [open, dayKey, serve]);
 
-  // 要新词：开局要一次；局中换了正在等的会话（新话题）再要一次插进队列——新词跟着话题走，唤回的局也不例外
+  // 要新词：开局要一次；局中换了正在等的会话（新话题）再要一次插进队列——新词跟着话题走，唤回的局也不例外。
+  // 换会话 ⇒ 现场出题的次数闸重新计数（新话题值得重新给它三次机会）。
   useEffect(() => {
     if (!open) return;
-    let alive = true;
-    void drillApi
-      .newTerms(sessionId)
-      .then((r) => {
-        if (!alive) return;
-        if (r.fallbackReason) setNewNote(r.fallbackReason);
-        if (r.items.length === 0) return;
-        injectNew(r.items);
-        if (phaseRef.current === 'empty') serve();
-      })
-      .catch((e: unknown) => {
-        if (alive) setNewNote(errText(e, '这次没要到新词'));
-      });
-    return () => {
-      alive = false;
-    };
-  }, [open, sessionId, serve, injectNew]);
+    refill.current = { inFlight: false, tries: 0 };
+    requestNewTerms('open');
+  }, [open, sessionId, requestNewTerms]);
 
   // 当天战绩落本机（本局数字叠在开局时读到的底数上）
   useEffect(() => {

@@ -7,11 +7,16 @@
  *  GET /api/sources/probe?session=&url=  阅读页探测（2026-09-30，§13.1）：这页阅读模式打不打得开 / 正文是否太薄 / 服务器能不能截图
  *  GET /api/sources/shot?session=&url=   截图保底（§13）：系统 Chromium 截首屏 PNG；没装浏览器 ⇒ 404 如实说
  *  GET /api/sources/videos?route=&q=     视频线路（§12）：B站站内搜 / 抖音联网搜，不挂会话（是学习者自己点的，不是 AI 引用的资料）
+ *  GET /api/sources/read?session=&url=   阅读页的**块模型** JSON（2026-10-04，§14.1）：前端用 React 渲染进主文档，于是选区可读
+ *  POST /api/sources/follow              页内跳转许可（§14.2）：用户在确认条上点了「在侧栏打开」才登记，随后 read/view 才认这个网址
  *
  * ★ 许可模型：这不是「任意网址代理」。`view`/`pdf` 都要求 `url` **在这个会话的资料架上**
  *   ——在线架（本轮进行中，`liveShelfKnows`）或已落库（`sourceKnownInSession`）二者之一，
  *   且会话归属当前用户（`canAccessSession`，不归属一律 404 不泄露存在性）。
  *   架上的网址都是搜索引擎给的 / 模型在搜索结果里点的，SSRF 守卫在取页时仍逐跳复检。
+ *   2026-10-04 起多一条来源：**用户在跳转确认条上亲自点过**的网址（`isFollowApproved`，§14.2）——
+ *   它仍不是开放代理，因为每一条都对应一次明确的人类确认，且同一用户本来就能用 `POST /api/doc/url`
+ *   让服务端抓任意网址，follow 没有抬高能力等级，只是把它收进「先看见、再确认」的流程。
  *
  * ★ 阅读页与演示面板同一套沙箱思路（routes/preview.ts）但更严：`sandbox` 不给 allow-scripts
  *   （阅读页零脚本），`default-src 'none'` 只开图片与内联样式——清洗层漏什么，沙箱也兜得住。
@@ -23,9 +28,11 @@ import { ownerIdOf, canAccessSession } from '../auth/ownership.js';
 import { liveShelfKnows, normalizeSourceUrl } from '../sources/shelf.js';
 import { loadSessionSources, sourceKnownInSession } from '../sources/store.js';
 import { loadReaderDoc, READER_TIMEOUT_MS } from '../sources/reader.js';
+import { loadReaderPage } from '../sources/reader-page.js';
+import { approveFollow, isFollowApproved, FOLLOW_MAX_PER_SESSION } from '../sources/follow.js';
 import { ShotError, shotAvailable, takeScreenshot } from '../sources/shot.js';
 import { searchVideoRoute } from '../sources/video-route.js';
-import { VIDEO_ROUTES, cleanVideoQuery, detectSourceKind, type VideoRoute } from '@sb/shared';
+import { VIDEO_ROUTES, cleanVideoQuery, detectSourceKind, siteOf, type VideoRoute } from '@sb/shared';
 import { fetchSafe } from '../search/ssrf-guard.js';
 import { combineSignals } from '../search/combine.js';
 import { FETCH_UA } from '../media/image-download.js';
@@ -45,7 +52,8 @@ function authorize(req: Request): { ok: true; url: string } | { ok: false; statu
   if (!canAccessSession(sessionId, ownerIdOf(req))) return { ok: false, status: 404, error: '会话不存在' };
   const url = normalizeSourceUrl(raw);
   if (!/^https?:\/\//i.test(url)) return { ok: false, status: 400, error: '只支持 http(s) 网址' };
-  if (!liveShelfKnows(sessionId, url) && !sourceKnownInSession(getDb(), sessionId, url)) {
+  // 三条来源任一即可：在线架 / 已落库 / 用户在跳转确认条上亲自放行过（§14.2）
+  if (!liveShelfKnows(sessionId, url) && !sourceKnownInSession(getDb(), sessionId, url) && !isFollowApproved(sessionId, url)) {
     return { ok: false, status: 403, error: '这个网址不在本会话的资料架上' };
   }
   return { ok: true, url };
@@ -87,6 +95,58 @@ sourcesRouter.get('/view', async (req: Request, res: Response) => {
     return;
   }
   res.send(loaded.html);
+});
+
+/**
+ * 阅读页的块模型（§14.1）。与 `/view` 的区别只在**出口形态**：那边是沙箱 iframe 里的 HTML 文档，
+ * 这边是 JSON 结构，交给前端用 React 渲染进主文档 —— 于是选区可读（划线功能的前提）。
+ * 取页、清洗、缓存三件事两条路完全共用，不会出现「iframe 看到的和划线取到的不是同一份」。
+ */
+sourcesRouter.get('/read', async (req: Request, res: Response) => {
+  const auth = authorize(req);
+  if (!auth.ok) {
+    res.status(auth.status).json({ error: auth.error });
+    return;
+  }
+  const title = String(req.query.title ?? '').slice(0, 200);
+  const ac = new AbortController();
+  req.on('close', () => ac.abort());
+  const page = await loadReaderPage(auth.url, title, ac.signal);
+  res.setHeader('Cache-Control', 'private, max-age=600');
+  // 失败也回 200 + ok:false：面板要把原因显示在阅读区里，而不是吞成一个网络错误（ADR-5）
+  res.json(page);
+});
+
+/**
+ * 页内跳转许可（§14.2）。**只有用户在确认条上点过「在侧栏打开」才会走到这里**，
+ * 登记后随后的 `/read`、`/view`、`/probe`、`/shot` 才认这个网址。
+ *
+ * 这里不抓页、不解析，只记一条许可；真正的 SSRF 防护在取页时由 `fetchSafe` 逐跳负责。
+ * 撞上限回 429 并说清怎么办——静默丢弃会让人点了确认却跳不动，还不知道为什么。
+ */
+sourcesRouter.post('/follow', (req: Request, res: Response) => {
+  const body: unknown = req.body;
+  const b = (typeof body === 'object' && body !== null ? body : {}) as { session?: unknown; url?: unknown };
+  const sessionId = String(b.session ?? '');
+  const raw = String(b.url ?? '');
+  if (!sessionId || !raw) {
+    res.status(400).json({ error: '缺 session 或 url' });
+    return;
+  }
+  if (!canAccessSession(sessionId, ownerIdOf(req))) {
+    res.status(404).json({ error: '会话不存在' });
+    return;
+  }
+  const url = normalizeSourceUrl(raw);
+  if (!/^https?:\/\//i.test(url)) {
+    res.status(400).json({ error: '只支持 http(s) 网址' });
+    return;
+  }
+  if (!approveFollow(sessionId, url)) {
+    res.status(429).json({ error: `这个会话里已经跟进过 ${FOLLOW_MAX_PER_SESSION} 个网址，新开一个会话再继续` });
+    return;
+  }
+  res.json({ ok: true, url, site: siteOf(url) });
 });
 
 sourcesRouter.get('/pdf', async (req: Request, res: Response) => {

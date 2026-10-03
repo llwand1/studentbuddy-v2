@@ -271,6 +271,7 @@ export function primeReaderHtml(url: string, html: string): void {
 
 /** 测试用：清空缓存 */
 export function resetReaderCache(): void {
+  structCache.clear();
   docCache.clear();
   primed.clear();
   inflight.clear();
@@ -305,6 +306,21 @@ async function readCapped(res: Response, max: number): Promise<Uint8Array> {
 /** `thin`：正文太短（脚本渲染页），面板据此提供「服务器截图看全」的出口（契约 §13.1） */
 export type ReaderLoad = { ok: true; html: string; thin: boolean } | { ok: false; status: number; reason: string };
 
+/** 块模型（§14.1）要的是结构而不是 HTML 字符串；与 `/view` **同一次取页、同一份 TTL**，不多拉上游 */
+export type ReaderStruct = { ok: true; doc: ReaderDoc; thin: boolean } | { ok: false; status: number; reason: string };
+const structCache = new Map<string, { doc: ReaderDoc; thin: boolean; at: number }>();
+
+export function loadReaderStruct(url: string, title: string, signal?: AbortSignal): Promise<ReaderStruct> {
+  const hit = structCache.get(url);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return Promise.resolve({ ok: true, doc: hit.doc, thin: hit.thin });
+  return loadReaderDoc(url, title, signal).then((r) => {
+    if (!r.ok) return r;
+    const s = structCache.get(url);
+    // 走到这里 html 已经产出，结构必然同时入过缓存；真缺了就如实报，不猜
+    return s ? ({ ok: true, doc: s.doc, thin: s.thin } as ReaderStruct) : ({ ok: false, status: 500, reason: '结构缓存缺失' } as ReaderStruct);
+  });
+}
+
 /**
  * 取一条资料的阅读页 HTML（带缓存 + 同网址并发合流）；失败原因给面板显示，不泄内部细节。
  * 合流时沿用**第一个**调用方的 signal：两个请求来自同一块面板，一起来一起走。
@@ -323,6 +339,8 @@ async function fetchReaderDoc(url: string, title: string, signal?: AbortSignal):
   if (detectSourceKind(url) === 'image') {
     const html = renderImageDoc(url, title);
     cachePut(docCache, url, { html, thin: false, at: Date.now() }, CACHE_MAX);
+    const imgDoc: ReaderDoc = { title: title || siteOf(url), site: siteOf(url), body: `<img src="${esc(url)}" alt="${esc(title)}">`, textLen: 0, kind: 'page' };
+    cachePut(structCache, url, { doc: imgDoc, thin: false, at: Date.now() }, CACHE_MAX);
     return { ok: true, html, thin: false };
   }
   let source = primed.get(url);
@@ -352,5 +370,6 @@ async function fetchReaderDoc(url: string, title: string, signal?: AbortSignal):
   const html = renderReaderDoc(doc, url);
   const thin = doc.kind === 'page' && doc.textLen < 200;
   cachePut(docCache, url, { html, thin, at: Date.now() }, CACHE_MAX);
+  cachePut(structCache, url, { doc, thin, at: Date.now() }, CACHE_MAX);
   return { ok: true, html, thin };
 }

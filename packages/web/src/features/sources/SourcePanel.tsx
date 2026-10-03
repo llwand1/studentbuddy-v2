@@ -25,6 +25,7 @@ import { getPreview, subscribePreview } from '../../lib/preview-store';
 import { closeSources, readerUrl, removeSource, selectSource, useSources } from '../../lib/sources-store';
 import { closeVideoRoute, openVideoRoute, useVideoRoute } from '../../lib/video-route-store';
 import { ReaderFrame } from './ReaderFrame';
+import { ReaderView } from './ReaderView';
 import { SaveAsDocButton } from './SaveAsDocButton';
 import { VideoRouteView } from './VideoRouteView';
 import { useSourceKeys } from './useSourceKeys';
@@ -53,7 +54,10 @@ function SourceFrame({ sessionId, item }: { sessionId: string; item: SourceItem 
     const src = readerUrl(sessionId, item);
     return <iframe key={src} className="sb-browser-frame src-frame" src={src} title={item.title} />;
   }
-  return <ReaderFrame sessionId={sessionId} item={item} />;
+  // 图片仍走旧的 iframe 外壳（一张原图没有正文可划、也没有链接可跳）；
+  // 网页类改走 ReaderView：主文档渲染 ⇒ 页内跳转可拦、选区可读（契约 §14）
+  if (item.kind === 'image') return <ReaderFrame sessionId={sessionId} item={item} />;
+  return <ReaderView sessionId={sessionId} item={item} />;
 }
 
 export function SourcePanel() {

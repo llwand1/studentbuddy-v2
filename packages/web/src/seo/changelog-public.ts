@@ -31,6 +31,15 @@ export const RELEASE_SCOPE = {
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
   {
+    version: 'v0.2.158',
+    date: '2026-10-04',
+    headline: '阅读器里划词就能速查，答案不塞进对话',
+    items: [
+      '在阅读器里选中一个词或一句话，就地弹出速查小窗给答案——答案不写进对话，不打断正在进行的会话。',
+      '速查优先走维基（免费词条）：不必为一次划词就动用模型额度。',
+    ],
+  },
+  {
     version: 'v0.2.157',
     date: '2026-10-04',
     headline: '番茄钟的方向真管住刷词了；资料能就地读完、划线提问',

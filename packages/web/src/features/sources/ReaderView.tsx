@@ -15,7 +15,6 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { buildReaderSelection, type ReaderSelection, type SourceItem } from '@sb/shared';
-import { api } from '../../lib/api';
 import { followSource, readReaderPage } from '../../lib/api-sources';
 import {
   askFollow,
@@ -29,7 +28,7 @@ import {
   useReaderNav,
 } from '../../lib/reader-store';
 import { ReaderBlocks } from './ReaderBlocks';
-import { buildExplainPrompt, buildQuizPrompt, buildTermSource, requestReaderAsk } from './reader-ask';
+import { openLookup } from '../lookup/lookup-store';
 import { clampToolbar, readReaderSelection, type ReaderHit } from './reader-selection';
 import './sources.css';
 
@@ -97,26 +96,26 @@ export function ReaderView({ sessionId, item }: { sessionId: string; item: Sourc
     [nav.page],
   );
 
+  /**
+   * 划线动作：统一**开速查小窗**，不碰对话（LOOKUP-SPEC §1）。
+   * 上一版把提示词塞进输入框，既污染主对话、又让"选区丢没丢"不可见——实测就栽在这。
+   * 现在三个动作都在小窗里完成，划中的原文还会原样显示在窗口顶部，一眼可查。
+   */
   const act = (kind: 'explain' | 'quiz' | 'term'): void => {
     if (!hit) return;
     const sel = selectionOf(hit);
+    const anchor = { x: hit.x, y: hit.y };
     setHit(null);
-    if (!sel) return;
-    if (kind === 'explain') {
-      requestReaderAsk(buildExplainPrompt(sel));
-      setActing('已把这段放进对话输入框，按发送就开讲');
+    if (!sel) {
+      setActing('这段没取到原文，换一段再划一次');
       return;
     }
-    if (kind === 'quiz') {
-      requestReaderAsk(buildQuizPrompt(sel));
-      setActing('出题要求已放进输入框，按发送');
-      return;
-    }
-    setActing('正在从这段里抽词条…');
-    api.terms
-      .extract(buildTermSource(sel), sessionId)
-      .then((r) => setActing(r.added > 0 ? `已收入 ${r.added} 条词条：${r.items.map((t) => t.term).join('、')}` : '这段里没抽到值得单独记的词条'))
-      .catch((e: unknown) => setActing(`没存上：${e instanceof Error ? e.message : '稍后再试'}`));
+    openLookup(
+      { text: sel.text, heading: sel.heading, section: sel.section, sourceTitle: sel.sourceTitle, sourceUrl: sel.sourceUrl },
+      anchor.x,
+      anchor.y,
+      kind === 'term' ? 'wiki' : kind,
+    );
   };
 
   /** 确认跳转：先登记许可，再在本面板内翻页 */
@@ -209,7 +208,7 @@ export function ReaderView({ sessionId, item }: { sessionId: string; item: Sourc
             出题
           </button>
           <button type="button" className="rd-tool" onClick={() => act('term')}>
-            存词条
+            查词条
           </button>
         </div>
       )}

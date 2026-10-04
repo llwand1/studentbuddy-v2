@@ -11,13 +11,12 @@
  */
 // 基础样式先于面板组件引入（chat-extras.css 由面板组件引入、建立在 chat.css 之上）——顺序契约由 chat-css-order.test.ts 锁
 import './chat.css';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useChatStream } from './useChatStream';
 import { useScrollAnchor } from './useScrollAnchor';
 import { useSessionDraft } from './useSessionDraft';
 import { useBusyTitle } from './useBusyTitle';
 import { QuoteAsk } from './QuoteAsk';
-import { useReaderAsk } from '../sources/reader-ask';
 import { ChatErrorBar } from './ChatErrorBar';
 import { buildQuote, mergeQuoteIntoInput } from './quote-ask';
 import { ThoughtPanel } from './ThoughtPanel';
@@ -137,8 +136,6 @@ export function ChatView({
   }, [sessionId]);
   /** 草稿按会话各记各的（切走存、切回取）；生成中把「● 回复中」写进标签页标题 */
   useSessionDraft(sessionId, input, setInput);
-  // 侧栏阅读器划线后的「讲解 / 出题」落进输入框（SOURCE-TRACE-SPEC §14.4：用户仍是最后一道闸）
-  useReaderAsk(useCallback((t: string) => { setInput((v) => (v.trim() ? `${v}\n\n${t}` : t)); inputRef.current?.focus(); }, []));
   useBusyTitle(busy);
 
   const blocked = quick.starting || (sessionId !== null && (ready !== 'open' || busy));

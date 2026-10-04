@@ -30,6 +30,7 @@ export * from './continent-wild.js';
 export * from './continent-upkeep.js';
 export * from './drill.js';
 export * from './reader-doc.js';
+export * from './lookup.js';
 export * from './guide.js';
 export * from './typing.js';
 export * from './sources.js';

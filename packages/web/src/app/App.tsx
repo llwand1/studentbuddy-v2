@@ -31,6 +31,7 @@ import { PreviewPanel } from '../features/preview/PreviewPanel';
 import { SourcePanel } from '../features/sources/SourcePanel';
 import { CoachDock } from '../features/coach/CoachDock';
 import { WaitDrill } from '../features/drill/WaitDrill';
+import { LookupPopup } from '../features/lookup/LookupPopup';
 import { useQuizWait } from '../features/drill/quiz-wait';
 import { loadPomodoroState } from '../features/pomodoro/pomodoro-store';
 import { HuntAlert } from '../features/hunt/HuntAlert';
@@ -295,6 +296,8 @@ export function App() {
         而弹窗、配乐与本局战绩不该因为切页被重置；`active` 只管"自动弹"是否允许（不在对话页不弹）。
       */}
       <WaitDrill busySessionId={localBusySid ?? quizWaitSid} active={view === 'chat'} />
+      {/* 划词速查小窗：常驻壳层，一次只开一个（LOOKUP-SPEC §5） */}
+      <LookupPopup />
       {/* 「刷新了新的怪物」：每轮收口后与大陆同一口径算话题怪，新冒出的就提醒；「一键讨伐」切到大陆自动寻路开打 */}
       <HuntAlert active={view === 'chat'} roundTick={roundTick} onGoContinent={() => setView('continent')} />
     </div>

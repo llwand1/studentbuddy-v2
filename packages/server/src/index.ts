@@ -18,6 +18,7 @@ import { activityRouter } from './routes/activity.js';
 import { obsRouter } from './routes/obs.js';
 import { previewRouter } from './routes/preview.js';
 import { sourcesRouter } from './routes/sources.js';
+import { lookupRouter } from './routes/lookup.js';
 import { imagesRouter } from './routes/images.js';
 import { pkRouter } from './routes/pk.js';
 import { pkInviteRouter } from './routes/pk-invite.js';
@@ -179,6 +180,7 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/preview', previewRouter);
 // 资料溯源（契约 docs/SOURCE-TRACE-SPEC.md §6）：阅读页 / PDF 转发 / 历史资料，只服务架上的网址
 app.use('/api/sources', sourcesRouter);
+app.use('/api/lookup', lookupRouter);
 app.use('/api/images', imagesRouter);
 app.use('/api/pk', pkRouter);
 // §15.4 B4 情景题两端口（回传判分 / demo 页）：独立路由文件，错误映射仍引 routes/pk.ts 同一份

@@ -482,3 +482,47 @@
   opacity: 0.6;
   cursor: default;
 }
+
+/* ── 侧栏阅读器（契约 SOURCE-TRACE-SPEC §14）──────────────────────────────
+   阅读内容从 iframe 改为主文档渲染，于是这里要自带正文排版（原来那套在 reader.ts 的
+   SHELL_CSS 里，沙箱内联）。配色一律走 tokens 变量，不再内联色值。 */
+.rd-wrap { display: flex; flex-direction: column; flex: 1; min-height: 0; position: relative; }
+.rd-bar, .rd-ask, .rd-note {
+  display: flex; align-items: center; gap: var(--sb-sp-2);
+  padding: var(--sb-sp-2) var(--sb-sp-3); border-bottom: 1px solid var(--sb-line);
+  font-size: var(--sb-fs-xs); flex-wrap: wrap;
+}
+.rd-bar-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sb-ink-tertiary); }
+.rd-ask { background: var(--sb-pixel-gold); color: var(--sb-gold); border-bottom-color: var(--sb-gold-edge); }
+.rd-ask-txt { flex: 1 1 180px; min-width: 0; }
+.rd-ask-url { display: block; color: var(--sb-ink-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-note { background: var(--sb-primary-weak); color: var(--sb-ink); }
+.rd-acting { justify-content: space-between; }
+
+.rd-body { flex: 1; overflow: auto; min-height: 0; }
+.rd-article { max-width: 760px; margin: 0 auto; padding: var(--sb-sp-4) var(--sb-sp-5) var(--sb-sp-6); overflow-wrap: anywhere; }
+.rd-title { font-size: var(--sb-fs-lg); line-height: 1.35; margin-bottom: var(--sb-sp-2); }
+.rd-byline, .rd-wait { color: var(--sb-ink-tertiary); font-size: var(--sb-fs-sm); }
+.rd-wait { padding: var(--sb-sp-5); text-align: center; }
+.rd-thin { background: var(--sb-pixel-gold); color: var(--sb-gold); padding: var(--sb-sp-2); font-size: var(--sb-fs-sm); margin: var(--sb-sp-2) 0; }
+.rd-p, .rd-quote, .rd-li { margin: var(--sb-sp-3) 0; }
+.rd-h { line-height: 1.35; color: #fff3e0; margin: var(--sb-sp-5) 0 var(--sb-sp-2); }
+.rd-h1 { font-size: var(--sb-fs-lg); } .rd-h2 { font-size: var(--sb-fs-md); } .rd-h3 { font-size: var(--sb-fs-md); }
+.rd-quote { padding: var(--sb-sp-1) var(--sb-sp-4); border-left: 3px solid var(--sb-primary); color: var(--sb-ink-secondary); }
+.rd-pre { background: var(--sb-bg); padding: var(--sb-sp-3); overflow: auto; border: 1px solid var(--sb-line); font-size: var(--sb-fs-sm); }
+.rd-img { max-width: 100%; max-height: 50vh; width: auto; height: auto; object-fit: contain; display: block; margin: var(--sb-sp-3) auto; border: 1px solid var(--sb-line); }
+.rd-hr { border: none; border-top: 1px solid var(--sb-line); margin: var(--sb-sp-4) 0; }
+.rd-li { display: flex; gap: var(--sb-sp-2); }
+.rd-li-d1 { padding-left: var(--sb-sp-4); } .rd-li-d2 { padding-left: var(--sb-sp-6); } .rd-li-d3 { padding-left: var(--sb-sp-6); }
+.rd-li-dot { color: var(--sb-ink-tertiary); flex: none; }
+/* 正文链接渲染成按钮：点 / 中键 / Ctrl+点 全部只能走确认条，不留绕过的后门（§14.2） */
+.rd-link { color: var(--sb-gold); text-decoration: underline; text-underline-offset: 2px; padding: 0; font: inherit; text-align: left; }
+.rd-link:hover { background: var(--sb-pixel-gold); }
+
+.rd-tools {
+  position: fixed; left: var(--rd-x, 50vw); top: var(--rd-y, 50vh); transform: translateX(-50%);
+  display: flex; gap: 1px; background: var(--sb-pixel-edge); border: 1px solid var(--sb-pixel-edge);
+  box-shadow: var(--sb-shadow-1); z-index: 40;
+}
+.rd-tool { background: var(--sb-surface); color: var(--sb-ink); padding: var(--sb-sp-2) var(--sb-sp-3); font-size: var(--sb-fs-sm); white-space: nowrap; }
+.rd-tool:hover { background: var(--sb-primary); color: #fff; }

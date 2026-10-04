@@ -222,3 +222,10 @@
 .coach-cap-pomo.is-break {
   color: var(--sb-ink-tertiary);
 }
+
+/* 「读哪篇」网址输入（契约 POMODORO-SPEC §5.5）：和方向输入同一行高，占满剩余宽度。
+   它是可选项，所以不加强调色——别让一个选填框看起来像必填。 */
+.pomo-input.pomo-doc {
+  flex: 1 1 180px;
+  min-width: 0;
+}

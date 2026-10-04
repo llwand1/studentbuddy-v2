@@ -8,10 +8,10 @@
  *
  * 正文只随会话存服务端，刷新后靠 GET meta 复原——长资料也没必要反复过网络。
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type DocMeta } from '../../lib/api';
 import { splitDocName } from './doc-name';
-import { DOC_CHANGED_EVENT } from './doc-events';
+import { DOC_CHANGED_EVENT, DOC_URL_REQUEST_EVENT, readDocUrlRequest } from './doc-events';
 import { MAX_DOC_CHARS } from '@sb/shared';
 
 /** 服务端 express.json 上限 2mb，留余量给 JSON 转义膨胀 */
@@ -162,6 +162,23 @@ export function useDocMode(sessionId: string | null, onLoaded?: () => void): Doc
       setBusy(false);
     }
   };
+
+  /**
+   * 番茄钟开钟卡发来的「载入这个网址」（`DOC_URL_REQUEST_EVENT`，契约 POMODORO-SPEC §5.5）。
+   * 落点放这里而不是 `ChatView`：抓取、提示、失败不碰旧资料这套行为只有 `submitUrl` 一份，
+   * 换个地方接就会多一份。`submitUrl` 每次渲染都是新函数 ⇒ 用 ref 订阅一次，不随渲染反复增删监听。
+   * ★ 对话页没挂载时没人接（番茄钟那边已如实提示「交给对话页，去那边看结果」）。
+   */
+  const submitUrlRef = useRef(submitUrl);
+  submitUrlRef.current = submitUrl;
+  useEffect(() => {
+    const on = (e: Event): void => {
+      const target = readDocUrlRequest(e);
+      if (target) void submitUrlRef.current(target);
+    };
+    window.addEventListener(DOC_URL_REQUEST_EVENT, on);
+    return () => window.removeEventListener(DOC_URL_REQUEST_EVENT, on);
+  }, []);
 
   return {
     meta,

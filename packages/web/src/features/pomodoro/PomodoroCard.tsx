@@ -21,6 +21,7 @@ import {
   pomodoroRemainingMs,
 } from '@sb/shared';
 import { api } from '../../lib/api';
+import { requestDocUrl } from '../chat/doc-events';
 import { advanceFocus, skipFocusBreak, startFocus, stopFocus, usePomodoro } from './pomodoro-store';
 import { usePomodoroClock } from './use-pomodoro-clock';
 import './pomodoro.css';
@@ -33,6 +34,22 @@ export function PomodoroCard() {
   const [domains, setDomains] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  /** 这一段要读的网页（契约 §5.5）：定方向时顺手指定材料，省得开钟后再翻去对话页的「+」菜单 */
+  const [docUrl, setDocUrl] = useState('');
+  const [docNote, setDocNote] = useState('');
+
+  /**
+   * 把网址交给对话页载入。这里**够不着 sessionId**（开钟卡长在督促抽屉 / 词条页，不持有会话），
+   * 所以只发一条请求事件，由 `useDocMode` 接住去抓——抓取与错误提示仍只有那一份实现。
+   * ★ 没打开过对话 ⇒ 没人接。所以文案只说「交给对话页了」，不说「已载入」（ADR-5 不静默、不谎报）。
+   */
+  const sendDoc = (): void => {
+    const target = docUrl.trim();
+    if (!target) return;
+    requestDocUrl(target);
+    setDocUrl('');
+    setDocNote('已交给对话页载入，结果看输入框上方的资料条');
+  };
 
   useEffect(() => {
     let alive = true;
@@ -117,14 +134,39 @@ export function PomodoroCard() {
             onClick={() =>
               void run(async () => {
                 const s = await startFocus({ subject, workMin });
-                if (!s) setError('先写下学什么');
+                if (!s) {
+                  setError('先写下学什么');
+                  return;
+                }
+                // 开钟成功才载材料：钟没开起来就把资料塞进会话，是改了用户没要求改的东西
+                sendDoc();
               })
             }
           >
             开始专注
           </button>
         </div>
+        <div className="pomo-row">
+          <span className="pomo-label">读哪篇</span>
+          <input
+            className="pomo-input pomo-doc"
+            type="url"
+            inputMode="url"
+            placeholder="可选：粘一个网址，这一段就围着它学"
+            value={docUrl}
+            disabled={busy}
+            onChange={(e) => setDocUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') sendDoc();
+            }}
+            aria-label="这一段的资料网址"
+          />
+          <button type="button" className="pomo-btn" disabled={busy || docUrl.trim() === ''} onClick={sendDoc}>
+            先载入
+          </button>
+        </div>
         <p className="pomo-tip">每轮结束后休息 5 分钟，每 4 轮一次 15 分钟长休；到点只提醒、不替你翻页。</p>
+        {docNote && <p className="pomo-tip">{docNote}</p>}
         {error && <div className="pomo-error">{error}</div>}
       </div>
     );
@@ -164,6 +206,29 @@ export function PomodoroCard() {
           结束番茄钟
         </button>
       </div>
+      {/* 工作段才给换材料：休息段不是「学数学」，这时候塞资料与口径 1 冲突 */}
+      {working && (
+        <div className="pomo-row">
+          <span className="pomo-label">读哪篇</span>
+          <input
+            className="pomo-input pomo-doc"
+            type="url"
+            inputMode="url"
+            placeholder="换一篇网页资料"
+            value={docUrl}
+            disabled={busy}
+            onChange={(e) => setDocUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') sendDoc();
+            }}
+            aria-label="这一段的资料网址"
+          />
+          <button type="button" className="pomo-btn" disabled={busy || docUrl.trim() === ''} onClick={sendDoc}>
+            载入
+          </button>
+        </div>
+      )}
+      {docNote && <p className="pomo-tip">{docNote}</p>}
       {error && <div className="pomo-error">{error}</div>}
     </div>
   );

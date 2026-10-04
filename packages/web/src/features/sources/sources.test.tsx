@@ -26,6 +26,8 @@ import { handleSourceKey } from './useSourceKeys';
 
 // 网页格会顺手探测阅读页（截图保底，见 ReaderFrame.test）：这里桩成永不返回，面板行为与探测无关
 vi.mock('../../lib/api-sources', () => ({
+  readReaderPage: () => new Promise(() => undefined),
+  followSource: () => Promise.resolve({ ok: true, url: '', site: '' }),
   probeReader: () => new Promise(() => undefined),
   shotUrl: (sessionId: string, url: string) => `/api/sources/shot?session=${sessionId}&url=${encodeURIComponent(url)}`,
   searchVideos: () => new Promise(() => undefined),
@@ -58,9 +60,11 @@ describe('① SourcePanel', () => {
     expect(container.querySelector('.src-tab-reading')).not.toBeNull();
     expect(container.querySelector('.src-note.pick')?.textContent).toContain('官方文档');
     expect(container.querySelector('.sb-browser-badge')?.textContent).toBe('AI 在看');
-    const frame = container.querySelector('iframe') as HTMLIFrameElement;
-    expect(frame.getAttribute('src')).toMatch(/^\/api\/sources\/view\?session=s1&url=https%3A%2F%2Fx\.example\.com%2F3/);
-    expect(frame.getAttribute('sandbox')).toBe('allow-popups allow-popups-to-escape-sandbox');
+    // 2026-10-04（SOURCE-TRACE-SPEC §14.1）：网页类资料不再是 sandbox iframe，而是主文档里的 ReaderView
+    // ——这是划线功能的前提（iframe 不给 allow-same-origin 就读不到选区）。
+    // 这里钉「网页类不再出现 iframe」：一旦有人把它改回 iframe，划线会整条静默失效。
+    expect(container.querySelector('[data-testid="reader-body"]')).not.toBeNull();
+    expect(container.querySelector('iframe')).toBeNull();
     fireEvent.click(container.querySelectorAll('.src-tab')[2] as HTMLElement);
     expect(getSources().activeN).toBe(1);
     expect(container.querySelector('.src-foot')?.textContent).toContain('3 / 3');

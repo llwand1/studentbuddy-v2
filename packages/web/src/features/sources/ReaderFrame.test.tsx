@@ -14,6 +14,8 @@ import { ReaderFrame } from './ReaderFrame';
 
 const api = vi.hoisted(() => ({ probeReader: vi.fn() }));
 vi.mock('../../lib/api-sources', () => ({
+  readReaderPage: () => new Promise(() => undefined),
+  followSource: () => Promise.resolve({ ok: true, url: '', site: '' }),
   probeReader: (...a: unknown[]) => api.probeReader(...a),
   shotUrl: (sessionId: string, url: string) => `/api/sources/shot?session=${sessionId}&url=${encodeURIComponent(url)}`,
   searchVideos: () => new Promise(() => undefined),

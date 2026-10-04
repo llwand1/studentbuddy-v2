@@ -17,6 +17,8 @@ import { SourcePanel } from './SourcePanel';
 
 const api = vi.hoisted(() => ({ searchVideos: vi.fn(), probeReader: vi.fn() }));
 vi.mock('../../lib/api-sources', () => ({
+  readReaderPage: () => new Promise(() => undefined),
+  followSource: () => Promise.resolve({ ok: true, url: '', site: '' }),
   searchVideos: (...a: unknown[]) => api.searchVideos(...a),
   probeReader: (...a: unknown[]) => api.probeReader(...a),
   shotUrl: () => '/api/sources/shot?x',

@@ -8,7 +8,7 @@
  *  - `searchVideos`：视频线路，一次一条线路一个词。
  * 单独成文件是为了让面板组件保持「只认形状不认网络」（测试里整模块桩掉）。
  */
-import type { VideoRoute, VideoRouteResult } from '@sb/shared';
+import type { ReaderPageResult, VideoRoute, VideoRouteResult } from '@sb/shared';
 import { request } from './api-request';
 
 export interface ReaderProbe {
@@ -36,4 +36,18 @@ export function shotUrl(sessionId: string, url: string): string {
 export function searchVideos(route: VideoRoute, query: string, signal?: AbortSignal): Promise<VideoRouteResult> {
   const q = new URLSearchParams({ route, q: query }).toString();
   return request<VideoRouteResult>(`/api/sources/videos?${q}`, { signal, timeoutMs: 25_000 });
+}
+
+/** 阅读页块模型（契约 §14.1）：失败也回 200 + ok:false，由面板把原因显示在阅读区里 */
+export function readReaderPage(sessionId: string, url: string, title: string, signal?: AbortSignal): Promise<ReaderPageResult> {
+  const q = new URLSearchParams({ session: sessionId, url, title });
+  return request<ReaderPageResult>(`/api/sources/read?${q.toString()}`, { signal });
+}
+
+/** 页内跳转许可（契约 §14.2）：用户在确认条上点过「在侧栏打开」才调 */
+export function followSource(sessionId: string, url: string): Promise<{ ok: true; url: string; site: string }> {
+  return request<{ ok: true; url: string; site: string }>('/api/sources/follow', {
+    method: 'POST',
+    body: JSON.stringify({ session: sessionId, url }),
+  });
 }

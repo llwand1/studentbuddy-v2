@@ -21,6 +21,7 @@ import { BootScreen } from './components/BootScreen';
 import { SceneTransition } from './components/SceneTransition';
 import { PkApp } from './features/pk/PkApp';
 import { api } from './lib/api';
+import { initReadingSize } from './lib/reading-prefs';
 import { sanitizeReturnTo } from './features/pk/pk-view';
 import type { AuthUser, DeployForm } from '@sb/shared';
 import './styles/tokens.css';
@@ -30,6 +31,8 @@ import './styles/pixel-scene.css';
 import './styles/pixel-motion.css';
 import './styles/grimoire.css';
 import './styles/grimoire-chat.css';
+// 阅读区字号（docs/READING-SIZE-SPEC.md）：要压过 terms.css 里写死的 .term-def 13px，所以排在功能样式之后
+import './styles/reading.css';
 // 手机端专项（docs/MOBILE-SPEC.md）：必须是最后一个样式引入——它要压过上面所有功能样式的桌面口径
 import './styles/mobile.css';
 
@@ -118,6 +121,9 @@ function Root() {
     </SceneTransition>
   );
 }
+
+// 阅读区字号：首帧之前就把 `<html data-reading>` 写上，避免「先小后大」闪一下（READING-SIZE-SPEC §3）
+initReadingSize();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

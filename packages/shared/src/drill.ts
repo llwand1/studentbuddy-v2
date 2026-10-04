@@ -179,6 +179,19 @@ export interface DrillQueueItem {
 }
 
 /**
+ * 番茄钟方向在刷词上的力度（契约 POMODORO-SPEC §5.3）：
+ * - `soft`：方向内的词条在各段内部排前，方向外仍会出（v0.2.156 之前的唯一行为）；
+ * - `hard`：工作段**只出方向内的词条**，方向外整条不进队列。
+ *
+ * ★ 为什么要 hard：soft 只在「同优先级内部」微调，而到期词条（艾宾浩斯驱动）恒压在最上面，
+ *   于是定了「数学 30 分钟」照样刷到满屏英语单词——用户侧的体感是「方向根本没生效」。
+ *   方向是用户**显式定下**的，它应该赢过到期排序，而不是在它后面排队。
+ * ★ hard 的代价是队列可能被排空，这由调用方按三级兜底处理（现场出题 → 重复巩固 → 如实说空），
+ *   取词口径见 `web/features/drill/drill-focus.ts`；这里只负责「过滤」这一件事。
+ */
+export type DrillFocusMode = 'soft' | 'hard';
+
+/**
  * 排队：到期（＝大陆上的怪）在前，其余在后；两段内部各按「日历日 × id」哈希——当天恒同。
  * `exclude` 是今天「斩」掉的（认识，不用再出）。
  */
@@ -186,11 +199,15 @@ export function orderDrillQueue(
   terms: readonly DrillQueueTerm[],
   dayKey: string,
   exclude: ReadonlySet<string> = new Set(),
-  /** 番茄钟方向（契约 POMODORO-SPEC §5.3）：两段**各自内部**方向内的词条排前；不改到期 / 非到期的先后 */
+  /** 番茄钟方向（契约 POMODORO-SPEC §5.3）：soft 下两段**各自内部**方向内排前；hard 下方向外不出 */
   focusSubject: string | null = null,
+  /** 缺省 `soft` ⇒ 不传这个参数的调用方行为逐字不变 */
+  focusMode: DrillFocusMode = 'soft',
 ): DrillQueueItem[] {
   const rank = (t: DrillQueueTerm): number => continentHash(`${dayKey}|drill|${t.id}`);
-  const live = terms.filter((t) => !exclude.has(t.id) && t.term.trim() !== '' && t.definition.trim() !== '');
+  const usable = terms.filter((t) => !exclude.has(t.id) && t.term.trim() !== '' && t.definition.trim() !== '');
+  // 硬过滤：方向外的词条在工作段里**不存在**，而不是排在后面
+  const live = focusSubject && focusMode === 'hard' ? usable.filter((t) => domainMatchesFocus(t.domain, focusSubject)) : usable;
   const due = live.filter((t) => monsterOccupies(t.status, t.inScope));
   const rest = live.filter((t) => !monsterOccupies(t.status, t.inScope));
   const inFocus = (t: DrillQueueTerm): number => (focusSubject && domainMatchesFocus(t.domain, focusSubject) ? 0 : 1);

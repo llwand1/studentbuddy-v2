@@ -21,6 +21,7 @@ import { SpeechCard } from './SpeechCard';
 import { AiHealthCard } from './AiHealthCard';
 import { PlatformChannelCard } from './PlatformChannelCard';
 import { WaitDrillCard } from './WaitDrillCard';
+import { ReadingSizeCard } from './ReadingSizeCard';
 import { RoleRow, providersForRole } from './RoleRow';
 import type { ProviderRow } from './RoleRow';
 
@@ -262,6 +263,7 @@ export function SettingsView() {
       <SearchKeysCard flash={flash} />
       <SpeechCard flash={flash} />
       <WaitDrillCard />
+      <ReadingSizeCard />
       <ToolsCard flash={flash} />
       <AiHealthCard flash={flash} />
     </div>

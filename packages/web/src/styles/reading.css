@@ -1,0 +1,36 @@
+/**
+ * 阅读区字号（契约 `docs/READING-SIZE-SPEC.md`；状态在 `lib/reading-prefs.ts`）。
+ *
+ * 口径：**只缩要逐字读的那两处**——对话正文（`.chat-bubble`，内含 markdown 整棵树）与
+ * 词条释义（`.term-def`）。导航 / 卡牌 / 知识大陆是固定网格的像素布局，整体放大会撑破版面。
+ *
+ * 做法不是逐条写 font-size，而是在阅读区容器上**重新定义 `--sb-fs-*` 这组 token**：
+ * `markdown.css` 本来就全走 token（h1/h2/代码/表格/脚注…），于是整棵树按同一比例变大，
+ * 版面层级关系不走样；以后在阅读区里新增的元素只要继续用 token，就自动跟着缩放，不用再改这里。
+ *
+ * ★ 缩放比只有 `:root[data-reading]` 这一个来源（由 `applyReadingSize` 写），缺省 1 ＝ 改动前的像素。
+ */
+:root {
+  --sb-reading-scale: 1;
+}
+
+:root[data-reading='s'] { --sb-reading-scale: 0.93; }
+:root[data-reading='m'] { --sb-reading-scale: 1; }
+:root[data-reading='l'] { --sb-reading-scale: 1.14; }
+:root[data-reading='xl'] { --sb-reading-scale: 1.29; }
+
+/* 阅读区：把这组 token 换成「基准 × 缩放比」，内部一切沿用 token 的元素一起缩放 */
+.chat-bubble,
+.term-def {
+  --sb-fs-xs: calc(11px * var(--sb-reading-scale));
+  --sb-fs-sm: calc(12.5px * var(--sb-reading-scale));
+  --sb-fs-md: calc(14px * var(--sb-reading-scale));
+  --sb-fs-lg: calc(16px * var(--sb-reading-scale));
+  --sb-fs-xl: calc(20px * var(--sb-reading-scale));
+  font-size: var(--sb-fs-md);
+}
+
+/* `.term-def` 原本写死 13px（没走 token）：换成按基准缩放，口径与对话一致 */
+.term-def {
+  font-size: calc(13px * var(--sb-reading-scale));
+}

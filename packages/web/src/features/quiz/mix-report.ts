@@ -3,6 +3,7 @@
  * 契约 QuizMixReport 由服务端给出，本文件只做「说人话」，不重新判定缺什么。
  */
 import type {
+  ExamScopeReport,
   QuizMix,
   QuizMixReport,
   QuizImageReport,
@@ -80,6 +81,29 @@ export function searchNote(report?: QuizSearchReport | null): string | null {
 export function refsList(report?: QuizSearchReport | null): QuizRef[] {
   if (!report || !report.on) return [];
   return report.refs ?? [];
+}
+
+/**
+ * 应试范围账（契约 docs/EXAM-MODE-SPEC.md §5.3，EXAM-1004）：开着模式就**必须**说一句，
+ * 与「有没有取到参考」无关——用户选的范围是不是真的在起作用，只能从这一句看出来。
+ * 关着返 null（不占文案位，也不提醒一个没开功能的人）。
+ *
+ * ★ 三条措辞是分开的，因为行动不同：
+ *  · 范围内取到了 ⇒ 报数（顺带说明范围外滤掉了多少，避免用户以为"就这点资料"）；
+ *  · 范围内零命中 ⇒ 说「本套题由 AI 按常见考法出」，绝不写成「搜索失败」；
+ *  · 范围为空 ⇒ 说「先去设置里勾选考试范围」，因为这一条是配置缺失、不是网上没题。
+ */
+export function examNote(scope?: ExamScopeReport | null): string | null {
+  if (!scope || !scope.on) return null;
+  if (scope.hostsEmpty) return `应试模式已开启，但还没勾选考试范围：外部检索暂时全部关闭，本套题只由模型自身知识出。`;
+  if (scope.empty) {
+    return `应试模式：在你选的范围内（${scope.summary}）没取到资料与真题${
+      scope.dropped > 0 ? `，范围外已过滤 ${scope.dropped} 条` : ''
+    }。本套题由 AI 按该范围的常见考法出，不冒充真题。`;
+  }
+  return `应试模式：范围内取到 ${scope.kept} 条${scope.dropped > 0 ? `，范围外已过滤 ${scope.dropped} 条` : ''}${
+    scope.directSites.length > 0 ? `，题源站内直达 ${scope.directSites.join('、')}` : ''
+  }。`;
 }
 
 /**

@@ -49,6 +49,8 @@
 - **考试信号** `classifyExamSource`：标题/URL/正文前 400 字里的考试词（高考/中考/考研/期末/四六级/…）+ 年份 + 已登记 exam 题源，**≥ 2 票**才判「考试真题页」；
   判中的页在 `CollectPageRecord.exam/signals` 回显，来源标题追加「（考试真题页）」。判不中的仍是真题档（摘录经过 verbatim 锁），只是不加考试标签。
 - **题源登记表** `KNOWN_QUESTION_SOURCES`：配置不是白名单——只影响 `rankPicks` 的抓页顺序（登记题源 → 带考试信号 → 其余，组内稳定）与 exam 一票。
+  〔2026-10-04 EXAM-1004 补〕应试模式另有一张**范围**表 `EXAM_SOURCES`（`docs/EXAM-MODE-SPEC.md`）：两张表**同域不同职**，
+  一张管「先抓谁」，一张管「允许抓谁」；★ 改了一张不许顺手动另一张，也不许从一张的存在推断另一张的口径。
   入选标准：公开可访问、正文含完整题干与答案、不是纯 SPA 壳。每一行都应能在 `tools/eval/` 里单独跑一遍摘录成功率（§7 待办）。
 - 搜集词多一条 `「主题 真题」`（首位）。
 - 锚点三件套（`normalizeForAnchor` / `pickAnchor` / `verbatimHit`）迁入本文件，`collect.ts` 原路径 re-export（旧调用点与测试零改动）。

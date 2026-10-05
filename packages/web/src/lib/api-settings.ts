@@ -21,9 +21,9 @@ import type {
 import { request } from './api-request.js';
 
 export const settingsApi = {
-  searchKeys: () => request<{ configured: Record<'exa' | 'tavily' | 'zhipu', boolean> }>('/api/settings/search-keys'),
-  saveSearchKeys: (patch: Partial<Record<'exa' | 'tavily' | 'zhipu', string>>) =>
-    request<{ ok: boolean; configured: Record<'exa' | 'tavily' | 'zhipu', boolean> }>('/api/settings/search-keys', {
+  searchKeys: () => request<{ configured: Record<'tinyfish' | 'exa' | 'tavily' | 'zhipu', boolean> }>('/api/settings/search-keys'),
+  saveSearchKeys: (patch: Partial<Record<'tinyfish' | 'exa' | 'tavily' | 'zhipu', string>>) =>
+    request<{ ok: boolean; configured: Record<'tinyfish' | 'exa' | 'tavily' | 'zhipu', boolean> }>('/api/settings/search-keys', {
       method: 'PUT',
       body: JSON.stringify(patch),
     }),

@@ -53,7 +53,7 @@ beforeEach(() => {
   bodies.length = 0;
   getDb().prepare('DELETE FROM search_cache').run();
   getDb().prepare('DELETE FROM app_settings').run();
-  for (const k of ['EXA_API_KEY', 'TAVILY_API_KEY', 'ZHIPU_API_KEY']) delete process.env[k];
+  for (const k of ['TINYFISH_API_KEY', 'EXA_API_KEY', 'TAVILY_API_KEY', 'ZHIPU_API_KEY']) delete process.env[k];
   mockFetch();
 });
 

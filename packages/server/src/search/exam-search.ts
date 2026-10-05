@@ -9,7 +9,7 @@ import { quizTopicScope } from './exam-topic-scope.js';
 import { combineSignals } from './combine.js';
 import { examDirectPages, examEntryLinks } from './exam-direct.js';
 import { conflictingLanguage, directoryPage, examTopicQuery, questionPage, relevantTopicText, studyPageAllowed, topicLinksOf, topicLinkScore, topicScore } from './exam-query.js';
-import { fetchPageText } from './page-text.js';
+import { fetchExamPage } from './exam-page.js';
 import type { SearchResult } from './types.js';
 
 export const MAX_EXAM_ENTRY_PAGES = 6;
@@ -66,7 +66,7 @@ export async function searchExamWeb(
     if (signal.aborted || !examUrlAllowed(hit.url, exam.hosts) || readUrls.has(hit.url)) return;
     readUrls.add(hit.url);
     try {
-      const page = await fetchPageText(hit.url, { signal, timeoutMs: PAGE_TIMEOUT_MS, allowHosts: exam.hosts });
+      const page = await fetchExamPage(hit.url, ownerId, { signal, timeoutMs: PAGE_TIMEOUT_MS, allowHosts: exam.hosts });
       if (!page.ok) {
         failed.push(`${new URL(hit.url).hostname}: ${page.kind === 'fetch' ? page.reason : page.kind === 'empty' ? '无正文' : page.what}`);
         return;

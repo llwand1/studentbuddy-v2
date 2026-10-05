@@ -1,7 +1,7 @@
 /**
  * search/index — 联网搜索聚合（学环核心件）。
- * Provider 矩阵（规划 §1.5.6 实测换血）：Exa 主 + Tavily 备 + 智谱国产兜底，
- * 三家全无 key 时退回 Bing 免费通道（免 key 兜底，端点现指 www.bing.com；
+ * Provider 矩阵（规划 §1.5.6 实测换血）：TinyFish + Exa + Tavily + 智谱，
+ * 未配置 key 或托管通道无结果时退回 Bing 免费通道（免 key 兜底，端点现指 www.bing.com；
  * 2026-09-17 由 DDG 换入、2026-09-25 由 cn 子域换到 www，RSS 主 + HTML 兜底双通道不变）；
  * 并行聚合、单家失败跳过、URL 去重；search_cache 单表 TTL（强化包）。
  * key 优先取环境变量，其次 app_settings（密文，见 storage/crypto）。
@@ -12,6 +12,7 @@ import { examScopeSignature, splitByExamScope } from '@sb/shared';
 import { bingSearch } from './bing-channel.js';
 import { combineSignals } from './combine.js';
 import { fetchSafe } from './ssrf-guard.js';
+import { tinyfishSearch } from './tinyfish.js';
 import type { SearchResult } from './types.js';
 import { publishEvent } from '../events/bus.js';
 import { ownerForWrite } from '../auth/ownership.js';
@@ -23,7 +24,7 @@ export { combineSignals } from './combine.js';
 export type { SearchResult } from './types.js';
 
 /** 需要 key 的托管服务商（bing 免 key，故不在此列） */
-export const KEYED_PROVIDERS = ['exa', 'tavily', 'zhipu'] as const;
+export const KEYED_PROVIDERS = ['tinyfish', 'exa', 'tavily', 'zhipu'] as const;
 export type KeyedProvider = (typeof KEYED_PROVIDERS)[number];
 
 /** 平时每家取回几条（沿用 2026-09-20 定的 6 条口径，不动既有计费假设） */
@@ -56,6 +57,7 @@ function keyFromEnv(type: string): string {
     exa: process.env.EXA_API_KEY,
     tavily: process.env.TAVILY_API_KEY,
     zhipu: process.env.ZHIPU_API_KEY,
+    tinyfish: process.env.TINYFISH_API_KEY,
   };
   return env[type] ?? '';
 }
@@ -71,7 +73,7 @@ export function getProviderKey(type: string, ownerId: string | null): string {
   return keyFromEnv(type) || keyFromSettings(type, ownerId);
 }
 
-/** 三家 key 的配置状态（只回布尔，明文/密文都不出响应）。 */
+/** 各家 key 的配置状态（只回布尔，明文/密文都不出响应）。 */
 export function listKeyStatus(ownerId: string | null): Record<KeyedProvider, boolean> {
   const out = {} as Record<KeyedProvider, boolean>;
   for (const p of KEYED_PROVIDERS) out[p] = getProviderKey(p, ownerId).length > 0;
@@ -185,6 +187,7 @@ async function zhipuSearch(
 }
 
 const IMPL: Record<string, (q: string, key: string, signal?: AbortSignal, want?: number, allowHosts?: readonly string[]) => Promise<SearchResult[]>> = {
+  tinyfish: tinyfishSearch,
   exa: exaSearch,
   tavily: tavilySearch,
   zhipu: zhipuSearch,
@@ -236,13 +239,14 @@ export async function searchWeb(
 ): Promise<{ results: SearchResult[]; providers: string[]; failed: string[]; dropped: number }> {
   const keyed = (
     [
+      { type: 'tinyfish', priority: 0 },
       { type: 'exa', priority: 1 },
       { type: 'tavily', priority: 2 },
       { type: 'zhipu', priority: 3 },
     ] as SearchProviderConfig[]
   ).filter((p) => getProviderKey(p.type, ownerId));
 
-  // 三家全无 key → Bing 免费通道兜底（绝不让搜索整条路走死）
+  // 无 key → Bing 免费通道兜底（绝不让搜索整条路走死）
   const active: SearchProviderConfig[] = keyed.length > 0 ? keyed : [{ type: 'bing', priority: 4 }];
   const scoped = opts.allowHosts !== undefined;
   const want = scoped ? PROVIDER_SCOPED_WANT : PROVIDER_DEFAULT_WANT;
@@ -274,6 +278,15 @@ export async function searchWeb(
       failed.push(`${p.type}: ${errText(r.reason)}`);
     }
   });
+  const available = [...byUrl.values()];
+  if (keyed.length > 0 && !opts.signal?.aborted
+    && (scoped ? splitByExamScope(available, opts.allowHosts!).kept.length : available.length) === 0) {
+    try {
+      const fallback = await bingSearch(query, opts.signal);
+      if (fallback.length > 0) used.push('bing');
+      for (const item of fallback) if (item.url && !byUrl.has(item.url)) byUrl.set(item.url, item);
+    } catch (err) { failed.push(`bing: ${errText(err)}`); }
+  }
   const merged = [...byUrl.values()];
   const { kept, dropped } = scoped
     ? splitByExamScope(merged, opts.allowHosts!)
@@ -287,7 +300,8 @@ export async function searchWeb(
       payload: { query: query.slice(0, 200), failed: failed.join('; ').slice(0, 500) },
     });
   }
-  if (results.length > 0) cacheSet(cacheKey, results);
+  // 临时备用结果不盖住已配置的实时通道 24 小时；下一次仍尝试原服务商。
+  if (results.length > 0 && !(keyed.length > 0 && used.includes('bing'))) cacheSet(cacheKey, results);
   return { results, providers: used, failed, dropped: dropped.length };
 }
 

@@ -189,7 +189,7 @@ export async function collectQuiz(
 
   // ③ 抓页（top N 成功页；失败页也进逐页记录）
   const pages = await collectPages(ordered, report, {
-    signal: opts.signal, ...(exam.on ? { topic, allowHosts: exam.hosts } : {}),
+    signal: opts.signal, ownerId: opts.ownerId ?? null, ...(exam.on ? { topic, allowHosts: exam.hosts } : {}),
   });
   if (pages.length === 0) return { report, candidates };
 

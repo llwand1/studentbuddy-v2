@@ -53,7 +53,7 @@ beforeEach(() => {
   calls.length = 0;
   getDb().prepare('DELETE FROM search_cache').run();
   getDb().prepare('DELETE FROM app_settings').run();
-  for (const k of ['EXA_API_KEY', 'TAVILY_API_KEY', 'ZHIPU_API_KEY']) delete process.env[k];
+  for (const k of ['TINYFISH_API_KEY', 'EXA_API_KEY', 'TAVILY_API_KEY', 'ZHIPU_API_KEY']) delete process.env[k];
 });
 
 afterEach(() => vi.unstubAllGlobals());
@@ -193,6 +193,36 @@ describe('search 聚合', () => {
 
     saveProviderKey('zhipu', '', null);
     expect(listKeyStatus(null).zhipu).toBe(false);
+  });
+
+  it('TinyFish 有 key 时真实接入聚合，失败降级保留原因且不缓存备用结果', async () => {
+    process.env.TINYFISH_API_KEY = 'tinyfish-fallback-test';
+    mockFetch((url) => url.startsWith('https://api.search.tinyfish.ai') ? { status: 401 } : { text: BING_RSS });
+    const first = await searchWeb('tinyfish-fallback', null);
+    expect(first.providers).toEqual(['bing']);
+    expect(first.failed).toEqual(['tinyfish: TinyFish search HTTP 401']);
+    expect(first.results).toHaveLength(2);
+    mockFetch((url) => url.startsWith('https://api.search.tinyfish.ai') ? { json: { results: [{ title: '恢复', url: 'https://study.example/q', snippet: '资料' }] } } : { text: BING_RSS });
+    const next = await searchWeb('tinyfish-fallback', null);
+    expect(next.providers).toEqual(['tinyfish']);
+    expect(next.results[0]?.title).toBe('恢复');
+  });
+
+  it('有 key 但无范围内结果时仍尝试备用，最终范围限制保持有效', async () => {
+    process.env.TINYFISH_API_KEY = 'tinyfish-scope-fallback';
+    mockFetch((url) => url.startsWith('https://api.search.tinyfish.ai') ? { json: { results: [{ title: '范围外', url: 'https://outside.example/q' }] } } : { text: BING_RSS });
+    const r = await searchWeb('tinyfish-empty-scope', null, { allowHosts: ['baike.example'] });
+    expect(r.providers).toEqual(['tinyfish', 'bing']);
+    expect(r.results.map((v) => v.url)).toEqual(['https://baike.example/newton']);
+    expect(r.dropped).toBe(2);
+  });
+
+  it('停止后的请求不发起备用搜索', async () => {
+    process.env.TINYFISH_API_KEY = 'tinyfish-cancelled';
+    mockFetch(() => ({ status: 401 }));
+    const r = await searchWeb('cancelled', null, { signal: AbortSignal.abort() });
+    expect(r.results).toEqual([]);
+    expect(calls).toEqual([]);
   });
 
   it('resultsToContext 带来源编号与 URL（供模型引用溯源）', () => {

@@ -13,7 +13,8 @@
  * 本件只管「取到文本」，不管回灌措辞——给模型看的话术留在工具侧，给人看的话术留在路由侧。
  */
 import { fetchSafe } from './ssrf-guard.js';
-import { combineSignals, htmlToText } from './index.js';
+import { combineSignals } from './combine.js';
+import { htmlToText } from './bing-channel.js';
 import { decodeText } from './decode-text.js';
 
 /** 单页抓取超时：与 `fetch_page` 原值一致（抓单页 15s 足够，失败也要失败得快） */

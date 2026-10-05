@@ -5,7 +5,7 @@ import { htmlToText } from '../search/bing-channel.js';
 import { studyTextOf } from '../search/study-text.js';
 import { combineSignals } from '../search/combine.js';
 import { examTopicQuery, relevantTopicText } from '../search/exam-query.js';
-import { fetchPageText } from '../search/page-text.js';
+import { fetchExamPage } from '../search/exam-page.js';
 import { fetchSafe } from '../search/ssrf-guard.js';
 import { retrieveDoc } from './doc-retrieve.js';
 import { classifyExamSource, normalizeForAnchor } from './collect-quality.js';
@@ -19,7 +19,7 @@ export interface CollectedPage extends CollectPageRecord {
   normText: string;
   figures: PageFigure[];
 }
-type PageOptions = { signal?: AbortSignal; topic?: string; allowHosts?: readonly string[] };
+type PageOptions = { signal?: AbortSignal; topic?: string; allowHosts?: readonly string[]; ownerId?: string | null };
 
 /** 长文只喂主题附近的原文；保持完整的大块上下文，给选项、答案和材料留位置。 */
 export function selectCollectText(text: string, topic: string, title = ''): string {
@@ -36,7 +36,7 @@ async function fetchPage(rec: { url: string; title: string }, startN: number, op
   try {
     let html: string;
     if (opts.topic !== undefined) {
-      const fetched = await fetchPageText(rec.url, { signal: opts.signal, timeoutMs: 15_000, allowHosts: opts.allowHosts });
+      const fetched = await fetchExamPage(rec.url, opts.ownerId ?? null, { signal: opts.signal, timeoutMs: 15_000, allowHosts: opts.allowHosts });
       if (!fetched.ok) {
         page.reason = fetched.kind === 'fetch' ? fetched.reason : fetched.kind === 'empty' ? '无正文' : fetched.what;
         return page;

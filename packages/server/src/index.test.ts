@@ -78,7 +78,7 @@ describe('搜索 key 接口（密钥永不回显）', () => {
 
   beforeEach(() => {
     // getProviderKey 环境变量优先于库：不清会让真机上的"未配置"断言变脆
-    for (const k of ['EXA_API_KEY', 'TAVILY_API_KEY', 'ZHIPU_API_KEY']) delete process.env[k];
+    for (const k of ['TINYFISH_API_KEY', 'EXA_API_KEY', 'TAVILY_API_KEY', 'ZHIPU_API_KEY']) delete process.env[k];
   });
 
   it('写操作无 Origin → 403', async () => {
@@ -88,7 +88,7 @@ describe('搜索 key 接口（密钥永不回显）', () => {
   it('保存后 GET 只回已配置状态，明文与密文都不出接口', async () => {
     const saved = await request(app).put('/api/settings/search-keys').set('Origin', origin).send({ exa: 'sk-secret-abcdef' });
     expect(saved.status).toBe(200);
-    expect(saved.body.configured).toEqual({ exa: true, tavily: false, zhipu: false });
+    expect(saved.body.configured).toEqual({ tinyfish: false, exa: true, tavily: false, zhipu: false });
 
     const got = await request(app).get('/api/settings/search-keys').expect(200);
     expect(got.body.configured.exa).toBe(true);
@@ -110,13 +110,23 @@ describe('搜索 key 接口（密钥永不回显）', () => {
       .send({ exa: 'x'.repeat(301), tavily: 'short-ok' });
     expect(res.status).toBe(400);
     const got = await request(app).get('/api/settings/search-keys');
-    expect(got.body.configured).toEqual({ exa: false, tavily: false, zhipu: false });
+    expect(got.body.configured).toEqual({ tinyfish: false, exa: false, tavily: false, zhipu: false });
   });
 
   it('非 string 字段忽略（不被伪造类型写脏库）', async () => {
     await request(app).put('/api/settings/search-keys').set('Origin', origin).send({ exa: 123, tavily: { a: 1 } });
     const res = await request(app).get('/api/settings/search-keys');
-    expect(res.body.configured).toEqual({ exa: false, tavily: false, zhipu: false });
+    expect(res.body.configured).toEqual({ tinyfish: false, exa: false, tavily: false, zhipu: false });
+  });
+
+  it('TinyFish 密钥保存后只回状态，清空后恢复未配置', async () => {
+    const saved = await request(app).put('/api/settings/search-keys').set('Origin', origin).send({ tinyfish: 'tinyfish-test-secret' }).expect(200);
+    expect(saved.body.configured.tinyfish).toBe(true);
+    expect(JSON.stringify(saved.body)).not.toContain('tinyfish-test-secret');
+    const got = await request(app).get('/api/settings/search-keys').expect(200);
+    expect(got.body.configured.tinyfish).toBe(true);
+    await request(app).put('/api/settings/search-keys').set('Origin', origin).send({ tinyfish: '' }).expect(200);
+    expect((await request(app).get('/api/settings/search-keys')).body.configured.tinyfish).toBe(false);
   });
 });
 

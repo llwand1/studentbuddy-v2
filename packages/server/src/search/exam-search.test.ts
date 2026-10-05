@@ -3,7 +3,7 @@ import type { ExamContext } from '../learning/exam-mode.js';
 
 const mock = vi.hoisted(() => ({ search: vi.fn(), page: vi.fn(), direct: vi.fn() }));
 vi.mock('./index.js', () => ({ searchWeb: mock.search }));
-vi.mock('./page-text.js', () => ({ fetchPageText: mock.page }));
+vi.mock('./exam-page.js', () => ({ fetchExamPage: mock.page }));
 vi.mock('./exam-direct.js', async (original) => ({
   ...await original<typeof import('./exam-direct.js')>(), examDirectPages: mock.direct,
 }));
@@ -57,7 +57,7 @@ describe('应试搜索的真实页面补充', () => {
     const r = await searchExamWeb('Java 并发', null, context());
     expect(r.results.map((h) => h.url)).toEqual(['https://study.example/java']);
     expect(mock.page.mock.calls.map((c: unknown[]) => c[0])).toEqual(['https://study.example/guide', 'https://study.example/java']);
-    expect(mock.page).toHaveBeenLastCalledWith('https://study.example/java', expect.objectContaining({ allowHosts: ['study.example'], timeoutMs: 6000 }));
+    expect(mock.page).toHaveBeenLastCalledWith('https://study.example/java', null, expect.objectContaining({ allowHosts: ['study.example'], timeoutMs: 6000 }));
   });
 
   it('单站抓取失败不阻断其它站；站内检索结果也必须实际读取正文', async () => {

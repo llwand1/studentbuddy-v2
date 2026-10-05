@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { emptyCollectReport } from '@sb/shared';
 const fetchMock = vi.hoisted(() => vi.fn());
+vi.mock('../search/index.js', () => ({ getProviderKey: () => '' }));
 vi.mock('../search/ssrf-guard.js', () => ({ fetchSafe: fetchMock }));
 const { collectPages, selectCollectText } = await import('./collect-pages.js');
 const answer = 'Java 并发线程池的拒绝策略有哪些？AbortPolicy 会抛出异常，CallerRunsPolicy 由调用线程执行任务。';

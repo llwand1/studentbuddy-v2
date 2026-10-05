@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-05T14:49:38.751Z",
+  "generatedAt": "2026-10-05T15:17:54.361Z",
   "code": {
     "rows": [
       {
@@ -11,23 +11,23 @@
       },
       {
         "pkg": "server",
-        "srcFiles": 272,
-        "testFiles": 189,
-        "srcLines": 39311,
-        "testLines": 36312
+        "srcFiles": 274,
+        "testFiles": 191,
+        "srcLines": 39455,
+        "testLines": 36498
       },
       {
         "pkg": "web",
         "srcFiles": 337,
         "testFiles": 145,
-        "srcLines": 41419,
+        "srcLines": 41420,
         "testLines": 18631
       }
     ],
-    "srcFiles": 665,
-    "testFiles": 377,
-    "srcLines": 90501,
-    "testLines": 60568,
+    "srcFiles": 667,
+    "testFiles": 379,
+    "srcLines": 90646,
+    "testLines": 60754,
     "tsxTestFiles": 69
   },
   "routes": {
@@ -85,20 +85,20 @@
     "probes": 15
   },
   "repo": {
-    "head": "22d55fa",
+    "head": "ea3e320",
     "headDate": "2026-10-05",
-    "commitsLast14d": 259,
+    "commitsLast14d": 260,
     "branch": "fix/exam-search-recall",
-    "dirtyFiles": 34
+    "dirtyFiles": 19
   },
   "tests": {
     "available": true,
-    "ranNow": false,
-    "wallSec": 0,
+    "ranNow": true,
+    "wallSec": 61.5,
     "staleDays": 0,
-    "files": 377,
-    "cases": 4352,
-    "passed": 4350,
+    "files": 379,
+    "cases": 4368,
+    "passed": 4366,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -110,14 +110,14 @@
     {
       "label": "badge 测试文件",
       "claimed": "377",
-      "measured": "377",
-      "ok": true
+      "measured": "379",
+      "ok": false
     },
     {
       "label": "badge 测试用例",
       "claimed": "4352",
-      "measured": "4352",
-      "ok": true
+      "measured": "4368",
+      "ok": false
     },
     {
       "label": "badge REST 路由",
@@ -158,8 +158,8 @@
     {
       "label": "正文基线句",
       "claimed": "377 文件 / 4352 例",
-      "measured": "377 文件 / 4352 例",
-      "ok": true
+      "measured": "379 文件 / 4368 例",
+      "ok": false
     }
   ],
   "landingDrift": [

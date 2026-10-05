@@ -56,3 +56,5 @@ export * from './quiz-attempts.js';
 export * from './spell-chant.js';
 export * from './spell-kinds.js';
 export * from './fsrs-fit.js';
+export * from './exam-scope.js';
+export * from './exam-sources.js';

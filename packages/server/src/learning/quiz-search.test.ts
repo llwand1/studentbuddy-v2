@@ -68,7 +68,8 @@ describe('buildQuizSearchBlock — 注入段构造', () => {
     expect(block).toContain('[1] 标题1');
     expect(block).toContain('https://example.com/1');
     expect(block).toContain('摘要2');
-    expect(searchMock).toHaveBeenCalledWith('二重积分', 'u-1');
+    // 第三个入参是应试选项：关闭模式时是空对象（不带 allowHosts ⇒ searchWeb 不过滤）
+    expect(searchMock).toHaveBeenCalledWith('二重积分', 'u-1', {});
   });
 
   it('命中超过上限只取前 6 条（条数越多越挤占出题预算）', async () => {

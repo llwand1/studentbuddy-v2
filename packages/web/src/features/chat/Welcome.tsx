@@ -8,6 +8,7 @@
  */
 import { CardsIcon, ChatIcon, QuizIcon, StatsIcon } from '../../components/icons';
 import { PixelScene } from './PixelScene';
+import { useExamScope } from '../exam/useExamScope';
 
 const CARDS: Array<{ icon: typeof ChatIcon; ring: string; title: string; prompt: string }> = [
   { icon: ChatIcon, ring: '学', title: '问个概念', prompt: '用一句话讲清楚什么是向量数据库，再举一个学习场景里的例子' },
@@ -16,16 +17,34 @@ const CARDS: Array<{ icon: typeof ChatIcon; ring: string; title: string; prompt:
   { icon: StatsIcon, ring: '反馈', title: '看看进度', prompt: '总结一下我最近的学习情况，指出薄弱环节' },
 ];
 
+/**
+ * 应试模式下的四句提示语（按环取，缺环回落到通用那句）。
+ * ★ 通用那几句写着「不知道我在学什么就先问我」——开着应试模式时范围已经说清楚了，
+ *   再让 AI 反问一句就是没接住用户已经做过的选择（契约 EXAM-MODE-SPEC §11）。
+ */
+const examPrompts = (summary: string): Record<string, string> => ({
+  学: `讲讲${summary}范围内的一个高频考点，先说它常怎么考，再举一例`,
+  练: `围绕${summary}出 3 道单选题，附答案与解析，只出这个范围内会考的考法`,
+  忆: `把${summary}的核心术语整理成词条记进我的词条库，以后回答时优先使用这些术语`,
+  反馈: `总结一下我在${summary}范围内的学习情况，指出还没练到的薄弱处`,
+});
+
 export function Welcome({ onPick }: { onPick: (text: string) => void }) {
+  const exam = useExamScope();
+  const prompts = exam.on && exam.summary ? examPrompts(exam.summary) : null;
   return (
     <div className="welcome">
       <p className="welcome-eyebrow">CAMPFIRE · 篝火营地</p>
       <PixelScene />
       <p className="welcome-hi">今天想学点什么？</p>
-      <p className="welcome-sub">学 → 练 → 析 → 忆 → 反馈。点一张卡直接开聊，或者在下面的输入框里直接问。</p>
+      <p className="welcome-sub">
+        {prompts
+          ? `应试模式开着，范围＝${exam.summary}。点一张卡直接开聊，四句话都只问这个范围内的事。`
+          : '学 → 练 → 析 → 忆 → 反馈。点一张卡直接开聊，或者在下面的输入框里直接问。'}
+      </p>
       <div className="welcome-grid">
         {CARDS.map(({ icon: Icon, ring, title, prompt }) => (
-          <button key={title} className="welcome-card" onClick={() => onPick(prompt)}>
+          <button key={title} className="welcome-card" onClick={() => onPick(prompts?.[ring] ?? prompt)}>
             <span className="welcome-card-top">
               <Icon size={18} />
               <span className="welcome-card-ring">{ring}</span>

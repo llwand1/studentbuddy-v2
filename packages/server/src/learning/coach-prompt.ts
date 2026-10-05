@@ -61,6 +61,8 @@ export function buildCoachSystemPrompt(s: CoachSnapshot): string {
     COACH_PERSONA,
     '',
     buildCoachSnapshotBlock(s),
+    // 应试范围：督促的话术与"催他补的那笔账"都不能把人带出他圈定的范围（EXAM-MODE-SPEC §11）
+    ...(s.examLine ? ['', s.examLine] : []),
     '',
     '【本轮动作纪律】',
     '他要你出题时就地出一道小测（单问单答，别等他说"开始"）；他说"记住了/忘了"时，直接确认并报出这条的下一档间隔。',

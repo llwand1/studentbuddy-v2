@@ -12,6 +12,7 @@ import { api, ApiError } from '../../lib/api';
 import type { ModelRole } from '@sb/shared';
 import './settings.css';
 import { SearchKeysCard } from './SearchKeysCard';
+import { ExamModeCard } from './ExamModeCard';
 import { QuizMixCard } from './QuizMixCard';
 import { QuizImageCard } from './QuizImageCard';
 import { QuizRealFirstCard } from './QuizRealFirstCard';
@@ -257,6 +258,8 @@ export function SettingsView() {
           放最上面会把"你现在的绑定是什么"挡在首屏之外。 */}
       <PlatformChannelCard flash={flash} onConfigured={() => void reload()} />
       <AnswerStyleCard flash={flash} />
+      {/* 应试模式放在题型配比之前：它决定「资料与题库从哪些站来」，是出题这一串卡片的前提 */}
+      <ExamModeCard flash={flash} />
       <QuizMixCard flash={flash} />
       <QuizRealFirstCard flash={flash} />
       <QuizImageCard flash={flash} />

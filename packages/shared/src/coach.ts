@@ -55,6 +55,11 @@ export interface CoachSnapshot {
   maxOverdueDays: number;
   /** 连续复习天数（今天没复习则从昨天倒推） */
   streak: number;
+  /**
+   * 应试模式的范围前提一句话（契约 EXAM-MODE-SPEC §11）：开着且有范围时才有内容。
+   * 缺省/空串 ⇒ 督促的提示词与没这个功能时逐字一致（同 `focus` 一类的处理方式）。
+   */
+  examLine?: string;
   /** 最该复习的几个（逾期天数降序） */
   top: CoachTopTerm[];
 }

@@ -71,6 +71,7 @@ import {
   type ReviewState,
 } from '@sb/shared';
 import { fsrsStep, type FsrsRowInput } from './fsrs-review.js';
+import { termScopeSql } from './term-source.js';
 
 /** 近 N 天复习量（概览里的柱状输入） */
 export const REVIEW_RECENT_DAYS = 7;
@@ -209,16 +210,15 @@ export function toReviewTerm(row: TermReviewRow, now: Date): ReviewTerm {
  *   反选过词条"或"两个人有同名领域"时复现。
  */
 export function rowsAll(domain: string | undefined, ownerId: string | null): TermReviewRow[] {
-  const db = getDb();
-  const owner = ownerForWrite(ownerId);
+  const db = getDb(), owner = ownerForWrite(ownerId), scope = termScopeSql(ownerId); // 应试范围：概览与队列同一出口
   if (domain && domain !== 'all') {
     return db
-      .prepare(`SELECT ${SELECT_REVIEW_COLS} FROM ${SCOPE_FROM} WHERE ${IN_SCOPE} AND t.domain = ? AND t.owner_id = ?`)
-      .all(domain, owner) as TermReviewRow[];
+      .prepare(`SELECT ${SELECT_REVIEW_COLS} FROM ${SCOPE_FROM} WHERE ${IN_SCOPE} AND t.domain = ? AND t.owner_id = ?${scope.sql}`)
+      .all(domain, owner, ...scope.args) as TermReviewRow[];
   }
   return db
-    .prepare(`SELECT ${SELECT_REVIEW_COLS} FROM ${SCOPE_FROM} WHERE ${IN_SCOPE} AND t.owner_id = ?`)
-    .all(owner) as TermReviewRow[];
+    .prepare(`SELECT ${SELECT_REVIEW_COLS} FROM ${SCOPE_FROM} WHERE ${IN_SCOPE} AND t.owner_id = ?${scope.sql}`)
+    .all(owner, ...scope.args) as TermReviewRow[];
 }
 
 /**

@@ -11,6 +11,7 @@
  */
 
 import type { QuizSourceMix } from './quiz-source.js';
+import type { ExamScopeReport } from './exam-scope.js';
 
 export type BlockKind =
   | 'quiz' // [QUIZ] 协议题组（payload: QuizData）
@@ -370,6 +371,8 @@ export interface QuizSearchReport {
    * 条数与 `count` 一致——`count` 是「几条」，它是「哪几条」。
    */
   refs: QuizRef[];
+  /** 应试模式范围账（EXAM-1004）：范围内命中几条、范围外滤掉几条、走过哪几个站内直达。关着无此键 */
+  scope?: ExamScopeReport;
 }
 
 /** 零值报告：出题前先建好，传给 generateQuiz 当出参（避开 undefined 分支） */
@@ -414,6 +417,8 @@ export interface CollectReport {
   failure?: 'no-model' | 'parse';
   /** 自包含审查（契约 QUIZ-COMPLETE-SPEC §5）：摘到几道带材料的题、搬了几张原图、拒了几道无头题 */
   completeness?: CollectCompletenessReport;
+  /** 应试模式范围账（EXAM-1004）：真题侧同样要能报「范围内未取到真题」 */
+  scope?: ExamScopeReport;
 }
 
 export interface CollectCompletenessReport {

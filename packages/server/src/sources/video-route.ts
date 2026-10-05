@@ -29,6 +29,7 @@ import {
 import { fetchSafe } from '../search/ssrf-guard.js';
 import { combineSignals } from '../search/combine.js';
 import { searchWeb, type SearchResult } from '../search/index.js';
+import { examAllowed, loadExamContext } from '../learning/exam-mode.js';
 import { FETCH_UA } from '../media/image-download.js';
 
 export const BILI_SEARCH_API = 'https://api.bilibili.com/x/web-interface/search/type';
@@ -146,11 +147,14 @@ const errText = (e: unknown): string => (e instanceof Error ? e.message : String
 /** 一条线路搜一次；`query` 已清洗非空（路由层校验） */
 export async function searchVideoRoute(route: VideoRoute, rawQuery: string, ownerId: string | null, signal?: AbortSignal, deps: VideoRouteDeps = {}): Promise<VideoRouteResult> {
   const query = cleanVideoQuery(rawQuery);
-  const key = `${route}|${query.toLowerCase()}`;
+  // ★ 缓存键含应试范围签名（与 `search_cache` 同一条理由）：进程内这份 10 分钟缓存若不分范围，
+  //   关闭模式时搜到的全站结果会被开启模式的请求直接端走——用户看到的就成了「范围外视频」，且不报错。
+  const exam = loadExamContext(ownerId);
+  const key = `${route}|${exam.signature}|${query.toLowerCase()}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.result;
 
-  const search = deps.search ?? ((q: string, s?: AbortSignal) => searchWeb(q, ownerId, { signal: s }).then((r) => r.results));
+  const search = deps.search ?? ((q: string, s?: AbortSignal) => searchWeb(q, ownerId, { signal: s, ...(exam.on ? { allowHosts: exam.hosts } : {}) }).then((r) => r.results));
   const siteSearchUrl = videoSiteSearchUrl(route, query);
   let result: VideoRouteResult;
   if (route === 'bilibili') {
@@ -187,6 +191,22 @@ export async function searchVideoRoute(route: VideoRoute, rawQuery: string, owne
       hits.length > 0
         ? { route, query, hits, siteSearchUrl, via: 'web', note: '抖音不开放接口、不许嵌播：这些是联网搜到的视频页，点开在新标签页看' }
         : { route, query, hits: [], siteSearchUrl, via: 'none', note: `抖音不开放接口，联网搜索也${webErr ? '失败了' : '没搜到能直达的视频'}（搜索引擎几乎不收录抖音）；点下面去抖音站内搜` };
+  }
+  // 应试模式：B站接口这条路不吃搜索引擎，返回域恒为 bilibili.com ⇒ 白名单没放它时整条线路要如实为空，
+  // 不能因为「接口返了」就绕过范围（用户选的范围里没 B 站，就不该看到 B 站视频）。
+  if (exam.on && result.hits.length > 0) {
+    const kept = result.hits.filter((h) => examAllowed(h.url, exam));
+    if (kept.length !== result.hits.length) {
+      result =
+        kept.length > 0
+          ? { ...result, hits: kept }
+          : {
+              ...result,
+              hits: [],
+              via: 'none' as const,
+              note: `所选应试范围内没有这一路的视频源（范围：${exam.summary || '未选范围'}），可去站内搜`,
+            };
+    }
   }
   if (result.via !== 'none') {
     cache.delete(key);

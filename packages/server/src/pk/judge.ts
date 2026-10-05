@@ -22,6 +22,7 @@ import { repairJsonBrackets, repairJsonEscapes } from '../learning/quiz-json-rep
 import { routeRole } from '../llm/router.js';
 import { aiText } from '../ai/gateway.js';
 import { searchWeb, type SearchResult } from '../search/index.js';
+import { loadExamContext } from '../learning/exam-mode.js';
 
 /** 检索结果最多取几条（够了，多了既慢又稀释重点） */
 const MAX_REFS = 5;
@@ -82,7 +83,12 @@ async function gather(
   ownerId: string | null,
 ): Promise<{ block: string; refs: PkJudgeAdvice['refs'] }> {
   try {
-    const { results } = await searchWeb(`${topic} ${extra}`.trim(), ownerId);
+    const exam = loadExamContext(ownerId);
+    const { results } = await searchWeb(
+      `${topic} ${extra}`.trim(),
+      ownerId,
+      exam.on ? { allowHosts: exam.hosts } : {},
+    );
     return { block: searchBlock(results), refs: toRefs(results) };
   } catch {
     return { block: '', refs: [] };

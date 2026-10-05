@@ -19,6 +19,8 @@ import { CATALOG_PATH } from '../../seo/paths';
 import { TermRelations } from './TermRelations';
 import { TermCardFace } from './TermCardFace';
 import { CardsView } from '../game/CardsView';
+import { ExamEmptyHint } from '../exam/ExamEmptyHint';
+import { useExamScope } from '../exam/useExamScope';
 import type { CardsStore } from '../game/use-cards-state';
 import './terms.css';
 
@@ -62,6 +64,7 @@ export function TermsPage({
     preferred: [],
   });
   const [terms, setTerms] = useState<TermItem[]>([]);
+  const exam = useExamScope(); // 应试范围：空态要说「范围内还没有」而不是「库是空的」
   const [relOpen, setRelOpen] = useState<string | null>(null); // 展开「关联」的词条 id（一次只开一条）
   const [domain, setDomain] = useState('all');
   const [keyword, setKeyword] = useState(initialKeyword);
@@ -198,10 +201,9 @@ export function TermsPage({
         {terms.length === 0 && (
           <div className="term-empty">
             <CardsIcon size={26} />
-            <p>{keyword || domain !== 'all' ? '没有匹配的词条' : '词条库还是空的'}</p>
-            <p className="term-empty-sub">
-              AI 会在每次对话/搜索后自动把重要术语存进来；也可以手动添加。
-            </p>
+            <p>{keyword || domain !== 'all' ? '没有匹配的词条' : exam.on ? '你选的范围内还没有词条' : '词条库还是空的'}</p>
+            {!exam.on && <p className="term-empty-sub">AI 会在每次对话/搜索后自动把重要术语存进来；也可以手动添加。</p>}
+            <ExamEmptyHint what="词条" />
             {/* 空态才有这条：还没有词条的人正是「这些概念到底在说什么」的读者。
                 新开标签——SPA 没有路由，同标签跳走等于丢掉整个应用状态。 */}
             <a

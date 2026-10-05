@@ -1,54 +1,54 @@
 {
-  "generatedAt": "2026-10-04T08:16:35.234Z",
+  "generatedAt": "2026-10-05T05:34:03.379Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
-        "srcFiles": 54,
-        "testFiles": 41,
-        "srcLines": 9062,
-        "testLines": 5258
+        "srcFiles": 56,
+        "testFiles": 43,
+        "srcLines": 9770,
+        "testLines": 5625
       },
       {
         "pkg": "server",
-        "srcFiles": 263,
-        "testFiles": 178,
-        "srcLines": 38046,
-        "testLines": 34945
+        "srcFiles": 266,
+        "testFiles": 182,
+        "srcLines": 38977,
+        "testLines": 35682
       },
       {
         "pkg": "web",
-        "srcFiles": 334,
-        "testFiles": 144,
-        "srcLines": 40953,
-        "testLines": 18528
+        "srcFiles": 337,
+        "testFiles": 145,
+        "srcLines": 41407,
+        "testLines": 18624
       }
     ],
-    "srcFiles": 651,
-    "testFiles": 363,
-    "srcLines": 88061,
-    "testLines": 58731,
-    "tsxTestFiles": 68
+    "srcFiles": 659,
+    "testFiles": 370,
+    "srcLines": 90154,
+    "testLines": 59931,
+    "tsxTestFiles": 69
   },
   "routes": {
-    "total": 175,
+    "total": 179,
     "byMethod": {
-      "get": 77,
+      "get": 79,
       "post": 69,
       "delete": 12,
-      "put": 16,
+      "put": 18,
       "patch": 1
     },
     "apiMounts": 39
   },
   "contracts": {
-    "iface": 167,
-    "type": 86,
-    "total": 253
+    "iface": 176,
+    "type": 88,
+    "total": 264
   },
   "migrations": {
-    "count": 54,
-    "max": 54,
+    "count": 55,
+    "max": 55,
     "gaps": 0
   },
   "deps": {
@@ -80,56 +80,89 @@
     ]
   },
   "docs": {
-    "specs": 50,
-    "all": 68,
+    "specs": 51,
+    "all": 69,
     "probes": 15
   },
   "repo": {
-    "head": "6e9ff10",
-    "headDate": "2026-10-04",
-    "commitsLast14d": 239,
-    "branch": "merge/reader-lookup",
-    "dirtyFiles": 22
+    "head": "c2810e0",
+    "headDate": "2026-10-05",
+    "commitsLast14d": 250,
+    "branch": "feat/exam-mode-whitelist",
+    "dirtyFiles": 13
   },
   "tests": {
     "available": true,
-    "ranNow": false,
-    "wallSec": 0,
+    "ranNow": true,
+    "wallSec": 57.6,
     "staleDays": 0,
-    "files": 363,
-    "cases": 4192,
-    "passed": 4189,
+    "files": 370,
+    "cases": 4293,
+    "passed": 4291,
     "skipped": 2,
-    "failed": 1,
-    "success": false
+    "failed": 0,
+    "success": true
   },
   "coverage": {
-    "available": false
+    "available": true,
+    "staleDays": 14,
+    "perPkg": {
+      "shared": {
+        "lines": 99.3,
+        "branches": 91.2,
+        "stmts": 99.3,
+        "funcs": 100
+      },
+      "server": {
+        "lines": 88.9,
+        "branches": 83,
+        "stmts": 88.9,
+        "funcs": 93.1
+      },
+      "web": {
+        "lines": 43.9,
+        "branches": 83.7,
+        "stmts": 43.9,
+        "funcs": 60.2
+      }
+    },
+    "allPackages": {
+      "lines": 67.7,
+      "branches": 83.8,
+      "stmts": 67.7,
+      "funcs": 78.7
+    },
+    "repoTotal": {
+      "lines": 53.9,
+      "branches": 83.4,
+      "stmts": 53.9,
+      "funcs": 76.7
+    }
   },
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "363",
-      "measured": "363",
+      "claimed": "370",
+      "measured": "370",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4192",
-      "measured": "4192",
-      "ok": true
+      "claimed": "4282",
+      "measured": "4293",
+      "ok": false
     },
     {
       "label": "badge REST 路由",
-      "claimed": "175",
-      "measured": "175",
+      "claimed": "179",
+      "measured": "179",
       "ok": true
     },
     {
       "label": "badge 契约类型",
-      "claimed": "253",
-      "measured": "253",
-      "ok": true
+      "claimed": "262",
+      "measured": "264",
+      "ok": false
     },
     {
       "label": "badge 外部运行时依赖",
@@ -145,21 +178,21 @@
     },
     {
       "label": "badge 版本",
-      "claimed": "0.2.157",
-      "measured": "0.2.157",
+      "claimed": "0.2.158",
+      "measured": "0.2.158",
       "ok": true
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.157",
-      "measured": "v0.2.157",
+      "claimed": "v0.2.158",
+      "measured": "v0.2.158",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "363 文件 / 4192 例",
-      "measured": "363 文件 / 4192 例",
-      "ok": true
+      "claimed": "370 文件 / 4282 例",
+      "measured": "370 文件 / 4293 例",
+      "ok": false
     }
   ],
   "landingDrift": [

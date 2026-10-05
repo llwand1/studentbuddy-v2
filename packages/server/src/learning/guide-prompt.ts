@@ -93,6 +93,8 @@ export function buildGuidePrompt(f: GuideFacts, stage: GuideStage, eligible: rea
     `- 所在页面：${VIEW_NAME[f.view]}`,
     `- 阶段：${STAGE_MEANING[stage]}`,
   ];
+  // 应试范围：引路灯挑的「下一步」不能把人带出他圈定的范围（契约 EXAM-MODE-SPEC §11）
+  if (f.examLine) lines.push('', f.examLine);
   if (f.chat) {
     lines.push(`- 这场对话：共 ${f.chat.rounds} 轮；本会话已出过 ${f.chat.quizzes} 组题`);
     if (f.chat.lastUser) lines.push(`- 用户最近一问：「${f.chat.lastUser}」`);

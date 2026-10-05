@@ -260,6 +260,15 @@ describe('⑦ 提示词', () => {
     expect(buildGuidePrompt(quizzed(), 'quizzed', ['quiz.explain'])).toContain('必须包含，hint 写明「结合你的作答」');
   });
 
+  it('★ 应试范围：开着时范围前提进提示词，没开时一字不加', () => {
+    const on = buildGuidePrompt(facts({ examLine: '他开着**应试模式**，范围＝考研。' }), 'chatted', ['quiz.start']);
+    expect(on).toContain('应试模式');
+    expect(on).toContain('范围＝考研');
+    // 缺省（没这个字段）与显式空串都必须与改动前逐字一致——引路灯不能因为加了字段就改文案
+    expect(buildGuidePrompt(facts(), 'chatted', ['quiz.start'])).toBe(buildGuidePrompt(facts({ examLine: '' }), 'chatted', ['quiz.start']));
+    expect(buildGuidePrompt(facts({ examLine: '' }), 'chatted', ['quiz.start'])).not.toContain('应试模式');
+  });
+
   it('按 lang 换语言指令；长度上限按语言给（英文更宽）', () => {
     const zh = buildGuidePrompt(facts(), 'chatted', ['quiz.start']);
     const en = buildGuidePrompt(facts({ lang: 'en' }), 'chatted', ['quiz.start']);

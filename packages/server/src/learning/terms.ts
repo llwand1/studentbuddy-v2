@@ -33,6 +33,7 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
+import { applyTermScope, deleteTermSources, recordTermSourceIfAny, type TermSourceInput } from './term-source.js';
 import { publishEvent } from '../events/bus.js';
 // 入库前要归一（抽取侧的 `normalizeTerms`）；类型 `TermItem` 同源，避免两处各写一份形状。
 import { normalizeTerms, type TermItem } from './term-extract.js';
@@ -158,6 +159,7 @@ export function saveTerms(
   items: TermItem[],
   sourceSessionId: string | null,
   ownerId: string | null,
+  source?: TermSourceInput,
 ): number {
   const db = getDb();
   const norm = normalizeTerms(items);
@@ -212,6 +214,8 @@ export function saveTerms(
     }
   });
   tx();
+  // 来源登记（v55）：只记服务端事实（本轮资料架收口留下的条目），模型自报的 url 一律不算
+  recordTermSourceIfAny(touched, ownerId, source);
   publishEvent({ type: 'term_added', count: norm.length, ownerId, termIds: touched });
   return norm.length;
 }
@@ -222,6 +226,7 @@ export function saveOneTerm(
   definition: string,
   domain: string | undefined,
   ownerId: string | null,
+  source?: TermSourceInput,
 ): TermApiRow {
   const db = getDb();
   const owner = ownerForWrite(ownerId);
@@ -250,6 +255,7 @@ export function saveOneTerm(
   // 用回读到的 `raw.id` 而不是上面的 `rowId`：`rowId` 的类型含 null（它初值是 `find` 的
   // 结果），而回读成功即证明该行确实存在 ⇒ 取真实主键，不靠类型断言。
   indexRow('term', raw.id);
+  recordTermSourceIfAny([raw.id], ownerId, source);
   return { ...raw, aliases: parseAliases(raw.aliases) };
 }
 
@@ -281,14 +287,13 @@ export function listTerms(
     conds.push('t.term LIKE ?');
     args.push(`${keyword.trim()}%`);
   }
-  const where = `WHERE ${conds.join(' AND ')}`;
-  const rows = db
-    .prepare(
+  applyTermScope(ownerId, conds, args); // 应试范围（v55）：只认来源站在范围内的词条；未开模式时什么都不加
+  const rows = db    .prepare(
       `SELECT t.*, s.title AS source_title, ${SCOPE_FLAG} AS review_in_scope
          FROM term_library t
          ${SCOPE_JOIN}
          LEFT JOIN sessions s ON s.id = t.source_session_id
-       ${where} ORDER BY t.importance DESC, t.usage_count DESC, t.updated_at DESC LIMIT 500`,
+       WHERE ${conds.join(' AND ')} ORDER BY t.importance DESC, t.usage_count DESC, t.updated_at DESC LIMIT 500`,
     )
     .all(...args) as Array<TermRow & { source_title: string | null; review_in_scope: number }>;
   return rows.map((r) => ({ ...r, aliases: parseAliases(r.aliases) }));
@@ -339,6 +344,8 @@ export function removeTerm(id: string, ownerId: string | null): void {  getDb()
   // ★ 删索引行是**必须**的，不是优化：索引是派生表，源行删了它不会自己消失，
   //   不删就会留下一条「搜得到、点进去 404」的幽灵结果，直到下次全量重建。
   dropRow('term', id);
+  // 来源行同步清（v55 旁表无外键）：留着会让范围判定偏松，派生表脏在库里比脏在内存里难查
+  deleteTermSources(id, ownerId);
 }
 
 /** 编辑词条（列表页编辑：释义/领域/重要度）。 */

@@ -25,6 +25,7 @@ import {
   type ReviewTerm,
   type TermReviewRow,
 } from './term-review.js';
+import { termScopeSql } from './term-source.js';
 
 /**
  * 地图上的一条词条 = 复习条目 + **有效**复习范围（1 = 该词条要复习，0 = 只铺地块不冒怪）
@@ -44,14 +45,17 @@ export interface ContinentMapTerm extends ReviewTerm {
  *   就是为了不可能漏掉那个条件。
  */
 export function continentMap(ownerId: string | null): ContinentMapTerm[] {
+  const scope = termScopeSql(ownerId); // 应试范围：地块与怪只认范围内的词条（v55 来源站判定）
   const rows = getDb()
     .prepare(
       `SELECT ${SELECT_REVIEW_COLS}, ${SCOPE_FLAG} AS review_in_scope, t.last_used_at
          FROM ${SCOPE_FROM}
-        WHERE t.owner_id = ?
+        WHERE t.owner_id = ?${scope.sql}
         ORDER BY t.created_at, t.id`,
     )
-    .all(ownerForWrite(ownerId)) as Array<TermReviewRow & { review_in_scope: number; last_used_at: string | null }>;
+    .all(ownerForWrite(ownerId), ...scope.args) as Array<
+    TermReviewRow & { review_in_scope: number; last_used_at: string | null }
+  >;
   const now = new Date();
   // 同一个 `now` 算完所有词条：不然 140 条里有几条会落在"跨天"的两侧，地图上出现
   // 「同一天入库、状态却差一天」的鬼影（先例：概览也是取一次 now 算全表）。

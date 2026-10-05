@@ -309,11 +309,12 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     }
 
     if (reasoningStartMs && !thinkingMs) thinkingMs = Date.now() - reasoningStartMs; // 只有思考没有正文（纯工具轮收口）：终点=收口时刻
+    const settledSources = shelf.settle(acc); // 先算一次：落库与词条来源共用，别 settle 两遍
     const assistantId = persistRounds(sessionId, rounds, acc, usage?.completionTokens ?? estimateTokens(acc), {
       reasoning: reasoningAcc,
       tasks: latestTasks,
       thinkingMs: thinkingMs || undefined,
-      sources: shelf.settle(acc), // 收口只留读过/精选/引用到的（SOURCE-TRACE-SPEC §4 规则 6）
+      sources: settledSources, // 收口只留读过/精选/引用到的（SOURCE-TRACE-SPEC §4 规则 6）
     });
     // ★ v29 起带上 user_id（契约 TENANCY-SPEC §8.1.2）：**只用于归属与诊断**，不是配额账本
     //   （§8.1.3 已把免费通道改成「额度不限、只限并发」⇒ 不做 token 聚合）。
@@ -335,7 +336,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     // 2026-09-20 整段搬到 `chat/post-turn.ts`（本文件 394 行 + 这一步会顶到 server ≤400 红线；
     // 按仓规拆文件不压注释）。那些注释（必须带 ownerId、压缩为何串行在抽词之后不 await）
     // 已随代码一起搬过去，此处不抄第二遍——两份说明迟早会分叉。
-    afterTurn({ sessionId, text: opts.text, answer: acc, ownerId: opts.ownerId ?? null });
+    afterTurn({ sessionId, text: opts.text, answer: acc, ownerId: opts.ownerId ?? null, sourceUrls: settledSources.map((x) => x.url) });
     // 归属随聊天链路下来（同 compactIfNeeded）：词条库本身尚无归属列，但流水按人记，
     // 将来词条库归主时可直接支撑"按人统计"（契约 MEMORY-TREND-SPEC §6）
     countUsage(acc, opts.ownerId ?? null);

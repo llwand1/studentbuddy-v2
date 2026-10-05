@@ -43,6 +43,7 @@ import { attachQuizPhotos } from './quiz-photo.js';
 import { enforceSelfContained, foldMaterial } from './quiz-selfcontained.js';
 import { buildQuizSearchBlock, mapQuizSources } from './quiz-search.js';
 import { buildTierInstruction, fillTiers } from './quiz-tier.js';
+import { buildExamPromptBlock } from './exam-mode.js';
 
 // 配图三件的实现已搬到 quiz-image.ts（本文件行数红线所迫，见该文件头注）。
 // 这里原样转出，既有调用方 routes.ts / quiz.test.ts / quiz-image.test.ts 的 import 路径零改动。
@@ -326,7 +327,7 @@ export async function generateQuiz(
     : { block: '', refs: [] };
   const refsBlock = found.block;
   // 分级提示（契约 QUIZ-TIER-SPEC §2）：有联网参考 ⇒ 模拟题写法，没有 ⇒ 基础题写法（`quiz-tier.ts`）
-  const prompt = `${QUIZ_PROTOCOL}\n${buildMixInstruction(wanted)}\n${buildTierInstruction(!!refsBlock)}\n${buildImageInstruction(imageOn)}\n${buildAnswerStyleBlock(styleArg ?? loadAnswerStyle(owner), 'quiz')}\n${buildLearnerQuizBlock(owner)}${buildDifficultyBlock(owner)}${refsBlock}${refsBlock ? '\n' : ''}\n材料：\n${material ? material.slice(0, MAX_DOC_CHARS) : `主题：${topic}`}`;
+  const prompt = `${QUIZ_PROTOCOL}\n${buildMixInstruction(wanted)}\n${buildExamPromptBlock(owner)}${buildTierInstruction(!!refsBlock)}\n${buildImageInstruction(imageOn)}\n${buildAnswerStyleBlock(styleArg ?? loadAnswerStyle(owner), 'quiz')}\n${buildLearnerQuizBlock(owner)}${buildDifficultyBlock(owner)}${refsBlock}${refsBlock ? '\n' : ''}\n材料：\n${material ? material.slice(0, MAX_DOC_CHARS) : `主题：${topic}`}`;
   const r = await aiText({
     purpose: 'quiz.generate',
     ownerId: owner,

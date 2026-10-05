@@ -26,6 +26,24 @@ import {
 } from '../storage/answer-style.js';
 import { loadSpeechSettings, saveSpeechSettings, resetSpeechSettings } from '../storage/speech.js';
 import { DEFAULT_ANSWER_STYLE, DEFAULT_SPEECH_SETTINGS, normalizeQuizMix } from '@sb/shared';
+import {
+  EXAM_GROUPS,
+  EXAM_PACKS,
+  EXAM_SOURCES,
+  examScopeSummary,
+  normalizeExamHost,
+  resolveExamHosts,
+  resolveExamSources,
+  type ExamGroup,
+  type ExamPacksView,
+} from '@sb/shared';
+import {
+  loadExamContext,
+  loadExamMode,
+  loadExamScope,
+  saveExamMode,
+  saveExamScope,
+} from '../learning/exam-mode.js';
 import { ownerIdOf } from '../auth/ownership.js';
 
 // ── settings（搜索 key：密文落库，响应只回状态）──────────────
@@ -145,11 +163,90 @@ settingsRouter.delete('/speech', (req, res) => {
 /** 搜索连通性自检：真发一次（国产网络可用性必须实测，不接受纸面判断；绕缓存才叫自检）。 */
 settingsRouter.post('/search/test', async (req: Request, res: Response) => {
   const query = String((req.body as { query?: unknown }).query ?? '学习 方法').slice(0, 80);
+  // 自检也要照应试范围：开着模式却自检出范围外的站，用户读到的就是「白名单没生效」的直接证据
+  const exam = loadExamContext(ownerIdOf(req));
   try {
     // ★ 自检必须用**请求者自己的** key：用别人的 key 自检，通过与否都不代表他的配置可用
-    const { results, providers, failed } = await searchWeb(query, ownerIdOf(req), { skipCache: true });
-    res.json({ ok: results.length > 0, count: results.length, providers, failed });
+    const { results, providers, failed, dropped } = await searchWeb(query, ownerIdOf(req), {
+      skipCache: true,
+      ...(exam.on ? { allowHosts: exam.hosts } : {}),
+    });
+    res.json({
+      ok: results.length > 0,
+      count: results.length,
+      providers,
+      failed,
+      ...(exam.on ? { scope: { summary: exam.summary, dropped } } : {}),
+    });
   } catch (err) {
     res.json({ ok: false, count: 0, providers: [], failed: [err instanceof Error ? err.message : String(err)] });
   }
+});
+
+// ── settings：应试模式与范围（契约 docs/EXAM-MODE-SPEC.md；老板 2026-10-04 EXAM-1004）──
+
+/** 登记表全量（预置包 + 大类 + 题源站）：UI 渲染勾选项用，纯静态数据、不读库 */
+settingsRouter.get('/exam-packs', (_req, res) => {
+  // 组名从 `EXAM_GROUPS` 现推——写死一份 id 列表就会变成第二处真相
+  const groups: ExamPacksView['groups'] = (Object.keys(EXAM_GROUPS) as ExamGroup[]).map((id) => ({
+    id,
+    ...EXAM_GROUPS[id],
+  }));
+  res.json({
+    packs: EXAM_PACKS,
+    groups,
+    sources: EXAM_SOURCES.map((s) => ({
+      host: s.host,
+      label: s.label,
+      tier: s.tier,
+      packs: s.packs,
+      note: s.note ?? '',
+      // 端点存在与否要看得见（用户才知道「直达」这个词在这个站上是不是真的）
+      direct: s.direct ? { verifiedAt: s.direct.verifiedAt } : null,
+    })),
+  });
+});
+
+settingsRouter.get('/exam-mode', (req, res) => {
+  const scope = loadExamScope(ownerIdOf(req));
+  const ctx = loadExamContext(ownerIdOf(req));
+  res.json({
+    on: loadExamMode(ownerIdOf(req)),
+    scope,
+    summary: ctx.on ? ctx.summary : examScopeSummary(scope),
+    hosts: resolveExamHosts(scope),
+    // 范围内哪些站有站内直达（用户最关心的一条：范围窄了还剩几个题源）
+    directSites: resolveExamSources(scope).filter((s) => s.direct).map((s) => s.label),
+  });
+});
+
+settingsRouter.put('/exam-mode', (req: Request, res: Response) => {
+  const raw = (req.body as { on?: unknown }).on;
+  const on = saveExamMode(typeof raw === 'boolean' ? raw : undefined, ownerIdOf(req));
+  const scope = loadExamScope(ownerIdOf(req));
+  res.json({
+    ok: true,
+    on,
+    scope,
+    summary: examScopeSummary(scope),
+    hosts: resolveExamHosts(scope),
+    directSites: resolveExamSources(scope).filter((s) => s.direct).map((s) => s.label),
+  });
+});
+
+settingsRouter.put('/exam-scope', (req: Request, res: Response) => {
+  const body = req.body as { packs?: unknown; custom?: unknown };
+  const scope = saveExamScope({ packs: body.packs, custom: body.custom }, ownerIdOf(req));
+  res.json({
+    ok: true,
+    on: loadExamMode(ownerIdOf(req)),
+    scope,
+    summary: examScopeSummary(scope),
+    hosts: resolveExamHosts(scope),
+    directSites: resolveExamSources(scope).filter((s) => s.direct).map((s) => s.label),
+    // 归一化后丢掉了几条自填域名（非法输入不静默吞掉，要能当面说）
+    rejectedCustom: (Array.isArray(body.custom) ? body.custom : []).filter(
+      (x) => typeof x !== 'string' || !normalizeExamHost(x),
+    ).length,
+  });
 });

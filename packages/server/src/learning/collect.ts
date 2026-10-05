@@ -20,10 +20,12 @@ import type {
   QuizQuestion,
   QuizSourceMix,
 } from '@sb/shared';
-import { MIX_KINDS, MIX_KIND_LABELS, emptyCollectCompleteness } from '@sb/shared';
+import { MIX_KINDS, MIX_KIND_LABELS, emptyCollectCompleteness, emptyExamScopeReport } from '@sb/shared';
 import { normalizeQuiz, parseQuizBlock } from './quiz.js';
 import { classifyExamSource, normalizeForAnchor, rankPicks, strongVerbatim, verbatimHit } from './collect-quality.js';
 import { searchWeb, htmlToText } from '../search/index.js';
+import { examDirectPages, examEntryLinks } from '../search/exam-direct.js';
+import { examAllowed, examDirectQueries, loadExamContext, type ExamContext } from './exam-mode.js';
 import { fetchSafe } from '../search/ssrf-guard.js';
 import { routeRole } from '../llm/router.js';
 import { aiText } from '../ai/gateway.js';
@@ -220,20 +222,54 @@ export interface CollectResult {
 export async function collectQuiz(
   topic: string,
   report: CollectReport,
-  opts: { signal?: AbortSignal; ownerId?: string | null; quota?: QuizSourceMix } = {},
+  opts: { signal?: AbortSignal; ownerId?: string | null; quota?: QuizSourceMix; exam?: ExamContext } = {},
 ): Promise<CollectResult> {
   const candidates: CollectCandidate[] = [];
+  // 应试模式（EXAM-1004）：两处来源都要过闸——通用搜索的后置过滤，加题源站的站内直达。
+  // 只闸一处会出现「资料架干净、题卡里冒出范围外站点」，那比不设界更难解释。
+  const exam = opts.exam ?? loadExamContext(opts.ownerId ?? null);
+  report.scope = emptyExamScopeReport(exam.on, exam.on ? exam.summary : '');
   report.queries = buildCollectQueries(topic);
   if (report.queries.length === 0) return { report, candidates };
+  if (exam.on && exam.hosts.length === 0) {
+    // 一个范围都没选 ⇒ 不发外部请求。这不是「搜索失败」，如实标 hostsEmpty 让路由说「请先选考试范围」
+    report.scope.hostsEmpty = true;
+    report.scope.empty = true;
+    return { report, candidates };
+  }
 
   // ① 检索（searchWeb 自带并行/去重/缓存/逐源降级；搜集要新结果，跳缓存按主题词量小不设防）
   const seen = new Set<string>();
-  const picks: Array<{ url: string; title: string }> = [];
+  const picks: Array<{ url: string; title: string; direct?: boolean }> = [];
+  const addLinks = (links: readonly { url: string; title: string }[]) => {
+    for (const l of links) {
+      if (!l.url.startsWith('http') || seen.has(l.url)) continue;
+      seen.add(l.url);
+      picks.push({ url: l.url, title: l.title || l.url, direct: true });
+    }
+  };
+  if (exam.on) {
+    // ⓪ 固定入口页：登记表上「打开就是题目」的长文页。求职面试组全靠它——那些站是文档站、
+    //    检索在客户端做，而通用搜索引擎对面试类查询几乎不返它们（2026-10-05 实测 80 条命中里 4 条在范围内）。
+    addLinks(examEntryLinks(exam.sources, exam.hosts));
+    // ① 站内直达：免 key 通道不理 `site:`，通用引擎下钻 33 条只有 1 条能抽题（2026-10-04 实测），
+    // 所以题源站自己的检索入口才是这一层的产出主力。单站失败逐条记进 failed，不阻断。
+    const hits = examDirectQueries(topic, exam);
+    const direct = await examDirectPages(hits, exam.hosts, { signal: opts.signal });
+    addLinks(direct.links);
+    if (direct.links.length > 0) report.providers.push('direct');
+    report.failed.push(...direct.failed);
+    report.scope!.directSites = direct.sites;
+  }
   for (const q of report.queries) {
     try {
-      const res = await searchWeb(q, opts.ownerId ?? null, { signal: opts.signal });
+      const res = await searchWeb(q, opts.ownerId ?? null, {
+        signal: opts.signal,
+        ...(exam.on ? { allowHosts: exam.hosts } : {}),
+      });
       report.providers.push(...res.providers);
       report.failed.push(...res.failed);
+      if (report.scope) report.scope.dropped += res.dropped ?? 0;
       for (const r of res.results) {
         if (!r.url.startsWith('http') || seen.has(r.url)) continue;
         seen.add(r.url);
@@ -243,9 +279,17 @@ export async function collectQuiz(
       report.failed.push(`${q}: ${errText(err)}`);
     }
   }
+  // ② 抓页前再过一次闸（纵深防御：候选链接可能来自缓存里的旧结果，那时无白名单）
+  const gated = exam.on ? picks.filter((p) => examAllowed(p.url, exam)) : picks;
+  if (report.scope) report.scope.kept = gated.length;
+  if (exam.on && gated.length === 0 && picks.length > 0) report.scope.dropped += picks.length - gated.length;
+  // 直达候选排在前：它们本来就是从题源站检索页里挑出来的题页，比通用搜索命中更接近「有题可摘」
+  const ranked = rankPicks(gated);
+  const ordered = [...gated.filter((p) => p.direct), ...ranked.filter((p) => !p.direct)];
+  if (report.scope && ordered.length === 0) report.scope.empty = true;
 
-  // ② 抓页（top N 成功页；失败页也进逐页记录）。先重排：已登记题源与带考试信号的页先抓（`collect-quality.ts`）
-  const pages = await collectPages(rankPicks(picks), report, opts.signal);
+  // ③ 抓页（top N 成功页；失败页也进逐页记录）
+  const pages = await collectPages(ordered, report, opts.signal);
   if (pages.length === 0) return { report, candidates };
 
   // ③ 模型摘录（出题角色现成绑定；搜集不配新角色——「摘录器」没有独立调优需求）

@@ -5,8 +5,8 @@
  * ★ 用 `mk()` 造 fixture 而非手写全字段：契约加字段（如 `refs`）时本文件不必逐条补。
  */
 import { describe, it, expect } from 'vitest';
-import type { QuizBlendReport, QuizMix, QuizQuestion, QuizSearchReport, QuizSourceMix } from '@sb/shared';
-import { mixTipText, searchNote, refsList, scenarioMixNote, blendNote } from './mix-report';
+import type { ExamScopeReport, QuizBlendReport, QuizMix, QuizQuestion, QuizSearchReport, QuizSourceMix } from '@sb/shared';
+import { examNote, mixTipText, searchNote, refsList, scenarioMixNote, blendNote } from './mix-report';
 
 /** 只写关心的字段，其余走零值 */
 const mk = (p: Partial<QuizSearchReport>): QuizSearchReport => ({
@@ -240,6 +240,52 @@ describe('mixTipText — 配比摘要一行（QUIZ-BLEND-SPEC §3.5/§8.3）', (
     const tip = mixTipText(ai, { ...realZero, single: 2 });
     expect(tip).toContain('真题 2 题');
     expect(tip).toContain('可能更久');
+  });
+});
+
+describe('examNote：应试范围账（EXAM-1004）', () => {
+  const mkScope = (p: Partial<ExamScopeReport>): ExamScopeReport => ({
+    on: true,
+    summary: '高考、考研',
+    kept: 0,
+    dropped: 0,
+    directSites: [],
+    empty: false,
+    hostsEmpty: false,
+    ...p,
+  });
+
+  it('关着 / 没有范围账 ⇒ 不占文案位（不给没开功能的人加一句噪音）', () => {
+    expect(examNote(undefined)).toBeNull();
+    expect(examNote(null)).toBeNull();
+    expect(examNote(mkScope({ on: false }))).toBeNull();
+  });
+
+  it('★ 一个范围都没勾 ≠ 搜索失败：说法必须是「还没勾选范围」', () => {
+    const t = examNote(mkScope({ hostsEmpty: true, empty: true, summary: '' })) ?? '';
+    expect(t).toContain('还没勾选考试范围');
+    expect(t).not.toContain('没搜到');
+    expect(t).not.toContain('失败');
+  });
+
+  it('★ 范围内零命中：明说是 AI 按常见考法出、不冒充真题', () => {
+    const t = examNote(mkScope({ empty: true, dropped: 7 })) ?? '';
+    expect(t).toContain('没取到资料与真题');
+    expect(t).toContain('范围外已过滤 7 条');
+    expect(t).toContain('不冒充真题');
+  });
+
+  it('范围内取到了：报命中数、过滤数、走过哪几个站内直达', () => {
+    const t = examNote(mkScope({ kept: 4, dropped: 11, directSites: ['爱真题', '华图题库'] })) ?? '';
+    expect(t).toContain('范围内取到 4 条');
+    expect(t).toContain('范围外已过滤 11 条');
+    expect(t).toContain('爱真题、华图题库');
+  });
+
+  it('零过滤时不写「过滤 0 条」这种废话', () => {
+    const t = examNote(mkScope({ kept: 3 })) ?? '';
+    expect(t).not.toContain('过滤 0 条');
+    expect(t).toContain('范围内取到 3 条');
   });
 });
 

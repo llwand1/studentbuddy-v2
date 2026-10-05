@@ -243,6 +243,11 @@ export interface GuideFacts {
   sessions: number;
   /** 番茄钟当前方向（契约 POMODORO-SPEC §5）：工作段才有；没开钟 / 休息段 ⇒ null 或缺省 */
   focus?: PomodoroFocus | null;
+  /**
+   * 应试模式的范围前提一句话（契约 EXAM-MODE-SPEC §11）：开着且有范围时才有内容。
+   * ★ 缺省/空串 ⇒ 提示词与没这个功能时逐字一致（同 `focus` 的处理方式）。
+   */
+  examLine?: string;
 }
 
 export interface GuideItem {

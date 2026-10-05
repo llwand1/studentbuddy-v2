@@ -17,7 +17,7 @@
  * 弱模型写幻觉 URL 是常态，而「来源指向一个不存在的网页」比「没有来源」更糟。
  */
 import type { QuizPayload, QuizQuestion, QuizRef, QuizSearchReport } from '@sb/shared';
-import { searchWeb } from '../search/index.js';
+import { searchExamWeb } from '../search/exam-search.js';
 import { loadExamContext } from './exam-mode.js';
 
 /** 参考条数上限：条数越多提示词越长，出题预算被挤压；6 与 searchWeb 各家默认量一致 */
@@ -89,7 +89,7 @@ export async function buildQuizSearchBlock(
   }
   if (!query) return { block: '', refs: [] };
   try {
-    const res = await searchWeb(query, ownerId, scoped ? { allowHosts: exam.hosts } : {});
+    const res = await searchExamWeb(query, ownerId, exam);
     const dropped = res.dropped ?? 0;
     if (report) {
       report.scope = {
@@ -97,7 +97,7 @@ export async function buildQuizSearchBlock(
         summary: scoped ? exam.summary : '',
         kept: 0,
         dropped,
-        directSites: [],
+        directSites: res.directSites,
         empty: scoped && res.results.length === 0,
         hostsEmpty: false,
       };

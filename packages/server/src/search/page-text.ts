@@ -107,7 +107,7 @@ export function pageTitleOf(html: string): string {
  */
 export async function fetchPageText(
   url: string,
-  opts: { signal?: AbortSignal; timeoutMs?: number } = {},
+  opts: { signal?: AbortSignal; timeoutMs?: number; allowHosts?: readonly string[] } = {},
 ): Promise<PageText | PageTextFail> {
   let bytes: Uint8Array;
   let ct = '';
@@ -115,7 +115,7 @@ export async function fetchPageText(
     const res = await fetchSafe(url, {
       headers: { 'User-Agent': FETCH_UA, 'Accept-Language': 'zh-CN,zh;q=0.9' },
       signal: combineSignals(opts.signal, opts.timeoutMs ?? PAGE_FETCH_TIMEOUT_MS),
-    });
+    }, 4, opts.allowHosts);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     ct = (res.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
     if (ct && !TEXTUAL_CT.test(ct)) {

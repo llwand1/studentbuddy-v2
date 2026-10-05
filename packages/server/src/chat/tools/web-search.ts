@@ -3,7 +3,8 @@
  *
  * description 的写法教训留在定义注释里，别在后续改写时丢掉。
  */
-import { searchWeb, resultsToContext } from '../../search/index.js';
+import { resultsToContext } from '../../search/index.js';
+import { searchExamWeb } from '../../search/exam-search.js';
 import { loadExamContext } from '../../learning/exam-mode.js';
 import { registerTool } from './registry.js';
 
@@ -51,21 +52,27 @@ registerTool('search_web', {
           `请如实告诉学习者「先在设置里选择应试范围」，本轮只基于已有资料与常识作答；不要声称没有联网能力。`,
       };
     }
-    const { results, providers, failed, dropped } = await searchWeb(
+    const { results, providers, failed, dropped, unavailable } = await searchExamWeb(
       query,
       ctx.ownerId ?? null,
-      exam.on ? { signal: ctx.signal, allowHosts: exam.hosts } : { signal: ctx.signal },
+      exam,
+      { signal: ctx.signal },
     );
     if (results.length === 0) {
       if (exam.on) {
+        if (unavailable ?? (providers.length === 0 && failed.length > 0)) {
+          ctx.onStep('search_web', 'error', '本次检索通道暂不可用');
+          return { content: '本次范围内检索通道暂不可用。请如实说明本次未取到资料，稍后重试；不要说范围内没有资料，也不要编造来源网址。' };
+        }
         // 范围内的零结果≠通用零结果：行动是「扩范围」或「换词」，不是「重试」。
         // 不分开就会重演 2026-09-17 那次的口径事故——模型把内部限制转述成「我没有联网功能」。
-        ctx.onStep('search_web', 'error', `范围内无结果（范围：${exam.summary}）`);
+        ctx.onStep('search_web', 'done', `范围内无结果（范围：${exam.summary}）`);
         return {
           content:
-            `在学习者设定的应试范围内（${exam.summary || '未选范围'}）没有检索到相关资料。` +
-            '你**具备**联网检索能力，只是这次范围里没有命中；可换更具体的词再试一次，' +
-            '仍无结果就如实告诉学习者「所选范围内没找到」，并建议他扩大范围，不要说自己没有联网能力。',
+            `在学习者设定的应试范围内（${exam.summary || '未选范围'}），本次检索预算内没有找到可用参考资料。` +
+            '已尝试通用检索及所选站点的补充检索；本轮不要仅换措辞重复搜索，' +
+            '请如实告诉学习者「所选范围内没找到」，可建议调整范围或提供具体资料。' +
+            '不要说自己没有联网能力，不要编造、引用或推荐未经检索的网址。',
         };
       }
       // 回灌口径（2026-09-17 重写）：此前把「未配置搜索 key（免 key 兜底）/

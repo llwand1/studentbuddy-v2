@@ -140,7 +140,7 @@ export async function examDirectPages(
   const links: SearchResult[] = [];
   const seen = new Set<string>();
   const settled = await Promise.allSettled(
-    picked.map(async (hit) => ({ hit, page: await fetchPageText(hit.url, { signal: opts.signal, timeoutMs: opts.timeoutMs }) })),
+    picked.map(async (hit) => ({ hit, page: await fetchPageText(hit.url, { signal: opts.signal, timeoutMs: opts.timeoutMs, allowHosts: hosts }) })),
   );
   for (const r of settled) {
     if (r.status === 'rejected') {

@@ -26,15 +26,20 @@ export const POST_TURN_JOB = 'chat.post_turn';
 interface PostTurnPayload {
   sessionId: string;
   material: string;
+  /**
+   * 本轮真正读过／精选／引用到的网页（v55 词条来源）。可选：
+   * 任务会落队列，**改前入队、改后消费**的旧任务没这个字段 ⇒ 缺字段是正常态，不是坏数据。
+   */
+  sourceUrls?: string[];
 }
 
 /** 任务处理函数（导出给测试） */
 export async function runPostTurn(payload: unknown, ownerId: string | null): Promise<void> {
-  const { sessionId, material } = payload as PostTurnPayload;
+  const { sessionId, material, sourceUrls = [] } = payload as PostTurnPayload;
   try {
     const r = await runTermExtraction(material, ownerId);
     if (r.ok) {
-      if (r.items.length > 0) saveTerms(r.items, sessionId, ownerId);
+      if (r.items.length > 0) saveTerms(r.items, sessionId, ownerId, sourceUrls.length > 0 ? { urls: sourceUrls, origin: 'chat' } : undefined);
     } else if (r.reason === 'no-model') {
       throw new PermanentJobError(r.error);
     } else {
@@ -56,11 +61,13 @@ export function afterTurn(input: {
   /** 模型这一轮的完整回答 */
   answer: string;
   ownerId: string | null;
+  /** 本轮资料架收口后留下的网页地址（服务端事实，不是模型给的） */
+  sourceUrls?: string[];
 }): void {
-  const { sessionId, text, answer, ownerId } = input;
+  const { sessionId, text, answer, ownerId, sourceUrls = [] } = input;
   dispatchJob({
     kind: POST_TURN_JOB,
     ownerId,
-    payload: { sessionId, material: `${text}\n\n${answer}`.slice(0, POST_TURN_TEXT_MAX) } satisfies PostTurnPayload,
+    payload: { sessionId, material: `${text}\n\n${answer}`.slice(0, POST_TURN_TEXT_MAX), sourceUrls } satisfies PostTurnPayload,
   });
 }

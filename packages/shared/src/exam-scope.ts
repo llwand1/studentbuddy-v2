@@ -83,8 +83,21 @@ export function normalizeExamHost(input: unknown): string | null {
   return host;
 }
 
+/** 主机名是否落在白名单内（后缀式：登记 `eol.cn` 放行 `gaokao.eol.cn`，但不放 `xeol.cn`） */
+export function examHostAllowed(host: string, hosts: readonly string[]): boolean {
+  if (typeof host !== 'string') return false;
+  const h = host.trim().toLowerCase().replace(/\.+$/, '');
+  if (!h) return false;
+  for (const raw of hosts) {
+    const e = normalizeExamHost(raw);
+    if (!e) continue;
+    if (h === e || h.endsWith(`.${e}`)) return true;
+  }
+  return false;
+}
+
 /** URL 是否落在白名单内（解析失败＝不允许，宁可漏一条真结果也不放一个坏 URL 进闸） */
-export function examHostAllowed(url: unknown, hosts: readonly string[]): boolean {
+export function examUrlAllowed(url: unknown, hosts: readonly string[]): boolean {
   if (typeof url !== 'string' || !url) return false;
   let host = '';
   let protocol = '';
@@ -98,13 +111,7 @@ export function examHostAllowed(url: unknown, hosts: readonly string[]): boolean
   // ★ 协议也在闸内：只比主机名会让 `ftp://eol.cn`、`view-source://eol.cn` 这类"同一域的不同通道"
   //   被判成范围内（下游 fetchSafe 会挡，但那是别人的防线，本闸的承诺是「范围内＝站内可取的 http(s) 页」）。
   if (protocol !== 'http:' && protocol !== 'https:') return false;
-  if (!host) return false;
-  for (const raw of hosts) {
-    const h = normalizeExamHost(raw);
-    if (!h) continue;
-    if (host === h || host.endsWith(`.${h}`)) return true;
-  }
-  return false;
+  return examHostAllowed(host, hosts);
 }
 
 /**
@@ -118,7 +125,7 @@ export function splitByExamScope<T extends { url?: string }>(
 ): { kept: T[]; dropped: T[] } {
   const kept: T[] = [];
   const dropped: T[] = [];
-  for (const it of items) (examHostAllowed(it.url, hosts) ? kept : dropped).push(it);
+  for (const it of items) (examUrlAllowed(it.url, hosts) ? kept : dropped).push(it);
   return { kept, dropped };
 }
 

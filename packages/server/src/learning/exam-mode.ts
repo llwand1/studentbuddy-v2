@@ -13,7 +13,7 @@ import type { ExamScopeSetting, ExamSource } from '@sb/shared';
 import {
   SETTING_KEY_EXAM_MODE,
   SETTING_KEY_EXAM_SOURCES,
-  examHostAllowed,
+  examUrlAllowed,
   normalizeExamMode,
   normalizeExamScope,
   examScopeSummary,
@@ -115,7 +115,7 @@ export function saveExamScope(value: unknown, ownerId: string | null): ExamScope
 export function examAllowed(url: string, ctx: ExamContext): boolean {
   if (!ctx.on) return true;
   if (ctx.hosts.length === 0) return false;
-  return examHostAllowed(url, ctx.hosts);
+  return examUrlAllowed(url, ctx.hosts);
 }
 
 /** 站内直达：登记表上配了检索端点、且这次确实在范围内的那些站 */

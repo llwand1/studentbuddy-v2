@@ -13,7 +13,7 @@
  *   这是外部依赖，站改版即过期，不在仓内写死第二份 URL，也不在本文件里猜 URL。
  * 单站失败（403/超时/JS 壳）一律跳过、不阻断：实测 gk100 与 med66 都有详情页 403 的反爬。
  */
-import { examHostAllowed } from '@sb/shared';
+import { examUrlAllowed } from '@sb/shared';
 import type { ExamDirectHit } from '../learning/exam-mode.js';
 import { fetchPageText } from './page-text.js';
 import type { SearchResult } from './types.js';
@@ -69,7 +69,7 @@ export function directLinksOf(html: string, baseUrl: string, hosts: readonly str
     const u = new URL(url);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;
     if (SKIP_HREF.test(url)) continue;
-    if (!examHostAllowed(url, hosts)) continue;
+    if (!examUrlAllowed(url, hosts)) continue;
     const title = anchorText(m[2] ?? '');
     // 没有锚文本的链接（图标链、空 `<a>`）留不下标题，进参考资料列表就是给用户一条看不见名的链接 ⇒ 丢
     if (!title) continue;

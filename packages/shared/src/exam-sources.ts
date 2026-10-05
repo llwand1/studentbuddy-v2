@@ -14,6 +14,7 @@
  */
 import {
   MAX_EXAM_CUSTOM_HOSTS,
+  examHostAllowed,
   examScopeSignature,
   normalizeExamHost,
   scopeHosts,
@@ -243,6 +244,29 @@ export function resolveExamHosts(scope: ExamScopeSetting): string[] {
 export function resolveExamSources(scope: ExamScopeSetting): ExamSource[] {
   const hosts = new Set(resolveExamHosts(scope));
   return EXAM_SOURCES.filter((s) => hosts.has(s.host));
+}
+
+/**
+ * 一个主机名属于哪些考试类目（词条范围联动的唯一推导口径）。
+ *
+ * ★ 只对**登记表上的站**返回类目：用户自填的域名不在表上 ⇒ 返回空数组，
+ *   于是它在应试模式下"算范围内、但不属于任何类目"。这不是漏判——
+ *   类目是给用户勾范围用的标签，自填站已经通过"在范围内"这件事生效了，
+ *   再替它编一个类目就是替用户做他没做过的判断。
+ * @param host 归一化后或带 `www.` 的主机名（不是 URL）
+ */
+export function examPacksForHost(host: string): string[] {
+  const out: string[] = [];
+  for (const s of EXAM_SOURCES) {
+    if (!examHostAllowed(host, [s.host])) continue;
+    for (const p of s.packs) if (!out.includes(p)) out.push(p);
+  }
+  return out;
+}
+
+/** 这个主机名在不在登记表上（用于区分「范围内但有类目」与「范围内、无类目」） */
+export function isRegisteredExamHost(host: string): boolean {
+  return EXAM_SOURCES.some((s) => examHostAllowed(host, [s.host]));
 }
 
 /** 范围签名：进缓存键与「来源已按范围过滤」提示 */

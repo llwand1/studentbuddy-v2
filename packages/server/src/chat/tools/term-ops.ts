@@ -135,7 +135,9 @@ registerTool('upsert_term', {
       items: [`新建「${term}」：${definition.length > 40 ? `${definition.slice(0, 39)}…` : definition}`],
       apply: async () => {
         // saveOneTerm 本身是 upsert 语义：间隙里同名行出现会走它的更新分支，与用户意图一致
-        const row = saveOneTerm(term, definition, domain, ctx.ownerId);
+        // 来源（v55）：只带本轮**真的读过／精选过**的页；模型自己写的 url 一律不算（它给不出可信地址）
+        const readUrls = (ctx.sources?.items() ?? []).filter((x) => x.origin === 'read' || x.origin === 'pick').map((x) => x.url);
+        const row = saveOneTerm(term, definition, domain, ctx.ownerId, readUrls.length > 0 ? { urls: readUrls, origin: 'tool' } : undefined);
         ctx.onStep('upsert_term', 'done', `词条「${row.term}」已入库（${row.domain}）`);
         return {
           content: `词条已入库：${row.term}（领域 ${row.domain}）。请用一句话向用户确认，不要输出本 JSON。`,

@@ -9,6 +9,7 @@ import {
   MAX_EXAM_CUSTOM_HOSTS,
   emptyExamScopeReport,
   examHostAllowed,
+  examUrlAllowed,
   examScopeSignature,
   normalizeExamHost,
   normalizeExamMode,
@@ -68,7 +69,7 @@ describe('白名单命中＝后缀式（登记域 itself 或它的子域）', ()
       'https://www.jyeoo.com/math/ques/search?q=1',
       'https://search.bilibili.com/all?keyword=x',
     ]) {
-      expect(examHostAllowed(url, hosts), url).toBe(true);
+      expect(examUrlAllowed(url, hosts), url).toBe(true);
     }
   });
 
@@ -80,19 +81,23 @@ describe('白名单命中＝后缀式（登记域 itself 或它的子域）', ()
       'https://notbilibili.com/video',
       'https://eol.cn.evil.cn/',
     ]) {
-      expect(examHostAllowed(url, hosts), url).toBe(false);
+      expect(examUrlAllowed(url, hosts), url).toBe(false);
     }
   });
 
   it('坏 URL / 空 url / 非法协议都算不允许（宁漏一条真结果也不放一个坏链）', () => {
     for (const url of ['', 'not a url', 'ftp://eol.cn/x', 'javascript:alert(1)', undefined, 7]) {
-      expect(examHostAllowed(url as unknown, hosts), String(url)).toBe(false);
+      expect(examUrlAllowed(url as unknown, hosts), String(url)).toBe(false);
     }
   });
 
   it('★ 空白名单＝全拦，不是「不设界」', () => {
-    expect(examHostAllowed('https://eol.cn/', [])).toBe(false);
+    expect(examUrlAllowed('https://eol.cn/', [])).toBe(false);
     expect(splitByExamScope([{ url: 'https://eol.cn/' }], []).kept).toHaveLength(0);
+    // 主机名形态（term_source 存的是 host，不是 url）
+    expect(examHostAllowed('gaokao.eol.cn', hosts)).toBe(true);
+    expect(examHostAllowed('xeol.cn', hosts)).toBe(false);
+    expect(examHostAllowed('https://eol.cn/', hosts)).toBe(false); // 塞 URL 进去不算主机名
   });
 });
 

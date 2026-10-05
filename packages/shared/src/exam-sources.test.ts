@@ -17,7 +17,7 @@ import {
   resolveExamHosts,
   resolveExamSources,
 } from './exam-sources.js';
-import { MAX_EXAM_CUSTOM_HOSTS, examHostAllowed, normalizeExamHost } from './exam-scope.js';
+import { MAX_EXAM_CUSTOM_HOSTS, examUrlAllowed, normalizeExamHost } from './exam-scope.js';
 
 describe('预置包与登记表的结构完整性', () => {
   it('包 id 唯一，且有题源可选（空包在设置页上就是死勾选项）', () => {
@@ -74,7 +74,7 @@ describe('站内直达端点', () => {
     for (const s of EXAM_SOURCES) {
       if (!s.direct) continue;
       const url = s.direct.search.replace('{q}', 'x');
-      expect(examHostAllowed(url, [s.host]), `${s.direct.search} 落在 ${s.host} 之外`).toBe(true);
+      expect(examUrlAllowed(url, [s.host]), `${s.direct.search} 落在 ${s.host} 之外`).toBe(true);
     }
   });
 

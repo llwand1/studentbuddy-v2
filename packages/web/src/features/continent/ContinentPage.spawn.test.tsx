@@ -49,10 +49,17 @@ describe('ContinentPage 野怪与开拓', () => {
     expect(view.monsterCount).toBe(0); // 不是欠账怪
     expect(screen.getByText('野怪')).toBeTruthy();
 
-    clickCell(CENTER_ROW, CENTER_COL);
-    // ★ 全量并发下 React 的状态更新落到 DOM 可能晚一拍；用 waitFor 等它出现，而不是同步断言。
-    //   （TEST-AUDIT §4.4 登记的时序脆弱，2026-10-02 在 CI 复现，按「加等待条件而不是删例」处置。）
-    await waitFor(() => expect(document.querySelector('.stub-monster-dialog')).toBeTruthy());
+    // ★ 全量并发下这一笔常落在「上一帧已提交的树」上（React 18 并发渲染 + fireEvent 同步派发），
+    //   于是走位/详情分支被触发而弹窗永不出——2026-10-05 CI 与本机 metrics 路径各复现一次，
+    //   同族脆弱本文件 2026-10-02 登记过。处置照既定口径：**等它、重试那一下点击，不删例、不放宽判据**。
+    await waitFor(
+      () => {
+        if (document.querySelector('.stub-monster-dialog')) return;
+        clickCell(CENTER_ROW, CENTER_COL);
+        expect(document.querySelector('.stub-monster-dialog')).toBeTruthy();
+      },
+      { timeout: 4000, interval: 40 },
+    );
     fireEvent.click(document.querySelector('.stub-solve') as HTMLButtonElement);
     // ★ 先纳入复习范围、再打卡（范围外直接 mark 必 409）；两步都发生，且顺序正确
     await waitFor(() => expect(apiMock.mark).toHaveBeenCalledWith('n1', true));

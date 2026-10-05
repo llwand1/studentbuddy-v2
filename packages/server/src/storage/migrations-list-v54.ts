@@ -25,7 +25,7 @@ export const MIGRATIONS_V54: Array<{ version: number; statements: string[] }> = 
     ],
   },
   /**
-   * v55（2026-10-05 应试模式范围联动：词条的**真来源**，契约 docs/EXAM-MODE-SPEC.md §7）
+   * v55（2026-10-05 应试模式范围联动：词条的**真来源**，契约 docs/EXAM-MODE-SPEC.md §11）
    *
    * `term_source` ＝ 「这个词条是从哪个网址长出来的」。**旁表而不是给 `term_library` 加列**，
    * 理由与 v47 那条一字不差：`ALTER TABLE ADD COLUMN` 不幂等，`db.test.ts` 那批

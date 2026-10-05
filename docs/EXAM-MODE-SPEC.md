@@ -160,3 +160,22 @@
 - `docs/QUIZ-SEARCH-SPEC.md`：参考条数上限在带范围时 6 → 10（`MAX_REFS_SCOPED`），其余口径不动。
 - `docs/SOURCE-TRACE-SPEC.md`：资料架条目来源恒为范围内 URL（因为进架前已过闸）。
 - `TENANCY-SPEC`：两把新键都走 `ownerForWrite(ownerId)`，与 `search_key_*`／`quiz_*` 同族。
+
+---
+
+## 11. 词条族的范围联动（迁移 v55，2026-10-05）
+
+老板判决三条：范围只靠**来源站**反推（不加 AI 打标、不做手动归类）、范围外**完全不出现**、XP 与连签**保留全局账**只过滤视图。
+
+**为什么必须新表**：范围是按站点定义的，而知识大陆地块／卡牌／刷词／复习队列的对象是**词条**，两边此前没有连接键。
+现查：`term_library` 18 列无任何来源网址，只有 `source_session_id`（会话粒度、N:M，手输／宝箱／开拓／刷词四条路径为 NULL）；本机真库 331 条词条、`message_source` **0 行** ⇒ 借会话反推既给不出「这个词是哪一站喂的」，也没有存量可推。
+
+**形状**：旁表 `term_source(owner_id, term_id, url, host, origin)`，`(term_id,url)` 唯一。走旁表而不是给 `term_library` 加列，理由与 v47 一字不差（`ADD COLUMN` 不幂等，退版本重放的锁会撞 duplicate column）。
+
+**判据只有一份**：`termScopeFilter` 返回**裸谓词**（`1 = 0` 或 `t.id IN (?)`），`applyTermScope`（条件数组形态，词条页用）与 `termScopeSql`（字符串模板形态，大陆／队列／卡牌用）各自加自己的前缀。★ 子句自带前导 `AND` 时与 `conds.join(' AND ')` 拼出双 AND 直接语法错——这条是四个面的测试当场逮到的，不是评审看出来的。
+
+**四个读面**：`listTerms`、`continentMap`、`rowsAll`（复习概览与队列的共同出口）、`cardsByTerm`（卡墙与宝箱同源）。**未过滤**：`listTermsByIds`（按 id 回灌已知词条，过滤会把已经渲染出来的行抽走）。
+
+**空态是必需品不是装饰**：老库升级后 `term_source` 为空 ⇒ 一开模式词条页／大陆／卡墙全空，用户读到的是"我的数据被删了"。`features/exam/ExamEmptyHint.tsx` 三态分开（没勾范围／范围内没词／关着不渲染），并明说「范围外的没有丢，放宽或关掉就能看到」。范围状态由 `useExamScope` 模块级共享一份，设置页写完调 `setExamScopeCached` 广播——三处各查各的会拿到不一致的开关状态（改完设置先刷新的页面对、后刷的页面错）。
+
+**已知代价**：只有从网页侧长出来的词条带来源。对话里 AI 抽的词，若那一轮确实读过页面则记账（`origin:chat`），纯凭对话记忆抽出来的没有 ⇒ 这些词在应试模式下不出现，直到用户从范围内的站再学一次。

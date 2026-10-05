@@ -12,6 +12,7 @@ import { MAX_EXAM_CUSTOM_HOSTS } from '@sb/shared';
 import { api } from '../../lib/api';
 import { setExamScopeCached } from '../exam/useExamScope';
 import './settings.css';
+import '../exam/exam.css';
 
 export function ExamModeCard({ flash }: { flash: (ok: boolean, text: string) => void }) {
   const [on, setOn] = useState(false);
@@ -123,23 +124,35 @@ export function ExamModeCard({ flash }: { flash: (ok: boolean, text: string) => 
         </button>
       </div>
 
-      <h4>考试范围（勾选即生效）</h4>
-      <div className="quiz-mix-presets">
-        {(meta?.packs ?? []).map((p) => {
-          const picked = scope.packs.includes(p.id);
-          return (
-            <button
-              key={p.id}
-              className={picked ? 'quiz-mix-chip active' : 'quiz-mix-chip'}
-              disabled={loading || busy}
-              title={p.hint}
-              onClick={() => togglePack(p.id)}
-            >
-              {p.label}
-            </button>
-          );
-        })}
-      </div>
+      <h4>范围（勾选即生效）</h4>
+      {(meta?.groups ?? []).map((g) => {
+        const packs = (meta?.packs ?? []).filter((p) => p.group === g.id);
+        if (packs.length === 0) return null;
+        return (
+          <div key={g.id} className="exam-pack-group">
+            <p className="exam-pack-group-head">
+              <b>{g.label}</b>
+              <span className="exam-pack-group-hint">{g.hint}</span>
+            </p>
+            <div className="quiz-mix-presets">
+              {packs.map((p) => {
+                const picked = scope.packs.includes(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    className={picked ? 'quiz-mix-chip active' : 'quiz-mix-chip'}
+                    disabled={loading || busy}
+                    title={p.hint}
+                    onClick={() => togglePack(p.id)}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
 
       <h4>自己加站点</h4>
       <p className="settings-hint">

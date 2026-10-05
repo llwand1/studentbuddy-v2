@@ -20,6 +20,24 @@ export interface ExamDirectEndpoint {
   verifiedAt: string;
 }
 
+/**
+ * 固定入口页：不查任何搜索引擎、打开就是题目与答案的那一页。
+ *
+ * ★ 为什么需要第三种来源（2026-10-05 实测）：求职面试类站点**根本没有可用的站内检索**
+ *   （JavaGuide / 小林 coding / 面试鸭都是文档站，搜索是客户端做的），
+ *   而 Bing 对「Java 面试 多线程」这类查询 80 条命中里只有 4 条落在范围内（5%，
+ *   传统考试那批是 38%）——它返的是 oracle、runoob、CSDN、知乎。
+ *   ⇒ 光靠"过滤 + 检索端点"求职面试组等于没做。把这些长文页**登记成入口**，
+ *     才是这一类真正取到题的方式。
+ */
+export interface ExamEntry {
+  url: string;
+  /** 这一页是什么（用户看得见，也进题卡的来源名） */
+  label: string;
+  /** 实测日期与读数摘要，改版即过期 */
+  verifiedAt: string;
+}
+
 export interface ExamSource {
   /** 归一化域：无协议、无路径、无 `www.` */
   host: string;
@@ -29,15 +47,32 @@ export interface ExamSource {
   /** 所属考试类目 id（见 exam-sources.ts 的 EXAM_PACKS） */
   packs: readonly string[];
   direct?: ExamDirectEndpoint;
+  /** 固定入口页（求职面试组的主力：文档站没有服务端检索，只能直接给页） */
+  entries?: readonly ExamEntry[];
   /** 实测读数——只写观察到的事实，不写「质量好」这类承诺 */
   note?: string;
 }
+
+/**
+ * 范围的两条大类（老板 2026-10-05：「你有按求职面试、传统考试来分吗，这两个都要有」）。
+ * 这两类的**取材方式根本不同**：传统考试的题在题库站与真题卷里，
+ * 求职面试的题在面经、题库（面试鸭/JavaGuide/小林）与结构化面试参考答案里。
+ * 混成一排勾选项会让人勾不出自己要的范围，所以组是数据的一部分，不是 UI 的分组样式。
+ */
+export type ExamGroup = 'exam' | 'job';
+
+export const EXAM_GROUPS: Readonly<Record<ExamGroup, { label: string; hint: string }>> = {
+  exam: { label: '传统考试', hint: '升学、执业与职业资格——题在真题卷与题库站里' },
+  job: { label: '求职面试', hint: '技术面试、笔试算法、结构化与教师面试、银行国企校招' },
+};
 
 export interface ExamPack {
   id: string;
   label: string;
   /** 一句话说明这一类包含什么，出现在设置页 */
   hint: string;
+  /** 所属大类（设置页按组分区显示） */
+  group: ExamGroup;
 }
 
 // ── app_settings 键 ──

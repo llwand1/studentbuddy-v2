@@ -11,9 +11,11 @@ import {
   DEFAULT_EXAM_PACK_IDS,
   EXAM_PACKS,
   EXAM_SOURCES,
+  examPackGroup,
   examScopeSummary,
   normalizeExamScope,
   packHosts,
+  packsByGroup,
   resolveExamHosts,
   resolveExamSources,
 } from './exam-sources.js';
@@ -81,6 +83,70 @@ describe('站内直达端点', () => {
   it('question 档至少要有几站能直达（否则「题源站内直达」这层是空的）', () => {
     const directQuestion = EXAM_SOURCES.filter((s) => s.tier === 'question' && s.direct);
     expect(directQuestion.length).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe('两大类分组（求职面试 / 传统考试）', () => {
+  it('每个包都属于一个合法大类，且**两类各自成规模**（只有一类就是没做另一半）', () => {
+    for (const p of EXAM_PACKS) expect(['exam', 'job']).toContain(p.group);
+    const groups = packsByGroup();
+    expect(groups.map((g) => g.group)).toEqual(['exam', 'job']);
+    for (const g of groups) {
+      expect(g.packs.length, `${g.label} 一组只有 ${g.packs.length} 个包`).toBeGreaterThanOrEqual(5);
+      expect(g.label.length).toBeGreaterThan(0);
+    }
+    // 分区不许漏包：两组加起来必须等于全表
+    expect(groups.reduce((n, g) => n + g.packs.length, 0)).toBe(EXAM_PACKS.length);
+  });
+
+  it('★ 求职面试组要有**真能抽题**的站（只收资讯站等于没做这一类）', () => {
+    const jobPackIds = new Set(EXAM_PACKS.filter((p) => p.group === 'job').flatMap((p) => [p.id]));
+    const jobSources = EXAM_SOURCES.filter((s) => s.packs.some((p) => jobPackIds.has(p)));
+    expect(jobSources.length).toBeGreaterThanOrEqual(8);
+    const question = jobSources.filter((s) => s.tier === 'question');
+    expect(question.length).toBeGreaterThanOrEqual(5);
+    for (const s of question) expect((s.note ?? '').length).toBeGreaterThan(10);
+  });
+
+  it('examPackGroup：认得的包回大类，认不回的回 null（不猜）', () => {
+    expect(examPackGroup('gaokao')).toBe('exam');
+    expect(examPackGroup('tech-interview')).toBe('job');
+    expect(examPackGroup('不存在的包')).toBeNull();
+  });
+
+  it('旧 `it` 包已被两组取代（留着会让老设置勾到一个不存在的包上静默失效）', () => {
+    expect(EXAM_PACKS.some((p) => p.id === 'it')).toBe(false);
+    for (const s of EXAM_SOURCES) expect(s.packs).not.toContain('it');
+  });
+});
+
+describe('固定入口页（求职面试组的取题方式）', () => {
+  const withEntries = EXAM_SOURCES.filter((s) => (s.entries?.length ?? 0) > 0);
+
+  it('★ 入口页总量要够：求职面试组在通用搜索上几乎不产出（实测 80 条命中里 4 条在范围内），全靠这一层', () => {
+    expect(withEntries.length).toBeGreaterThanOrEqual(5);
+    const total = withEntries.reduce((n, s) => n + (s.entries?.length ?? 0), 0);
+    expect(total).toBeGreaterThanOrEqual(10);
+    const jobEntries = withEntries
+      .filter((s) => s.packs.some((p) => examPackGroup(p) === 'job'))
+      .reduce((n, s) => n + (s.entries?.length ?? 0), 0);
+    expect(jobEntries).toBeGreaterThanOrEqual(8);
+  });
+
+  it('每条入口页：https、带 label、带实测日期，且**落在自己登记的域内**', () => {
+    for (const s of withEntries) {
+      for (const e of s.entries ?? []) {
+        expect(e.url.startsWith('https://'), `${s.host} 的入口页必须 https：${e.url}`).toBe(true);
+        expect(e.label.trim().length).toBeGreaterThan(0);
+        expect(e.verifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        expect(examUrlAllowed(e.url, [s.host]), `${e.url} 落在 ${s.host} 之外`).toBe(true);
+      }
+    }
+  });
+
+  it('同一 URL 不在两个站之间重复登记（重复会让候选去重结果依赖表序）', () => {
+    const urls = withEntries.flatMap((s) => (s.entries ?? []).map((e) => e.url));
+    expect(new Set(urls).size).toBe(urls.length);
   });
 });
 

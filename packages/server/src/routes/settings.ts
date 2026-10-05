@@ -27,12 +27,15 @@ import {
 import { loadSpeechSettings, saveSpeechSettings, resetSpeechSettings } from '../storage/speech.js';
 import { DEFAULT_ANSWER_STYLE, DEFAULT_SPEECH_SETTINGS, normalizeQuizMix } from '@sb/shared';
 import {
+  EXAM_GROUPS,
   EXAM_PACKS,
   EXAM_SOURCES,
   examScopeSummary,
   normalizeExamHost,
   resolveExamHosts,
   resolveExamSources,
+  type ExamGroup,
+  type ExamPacksView,
 } from '@sb/shared';
 import {
   loadExamContext,
@@ -182,10 +185,16 @@ settingsRouter.post('/search/test', async (req: Request, res: Response) => {
 
 // ── settings：应试模式与范围（契约 docs/EXAM-MODE-SPEC.md；老板 2026-10-04 EXAM-1004）──
 
-/** 登记表全量（预置包 + 题源站）：UI 渲染勾选项用，纯静态数据、不读库 */
+/** 登记表全量（预置包 + 大类 + 题源站）：UI 渲染勾选项用，纯静态数据、不读库 */
 settingsRouter.get('/exam-packs', (_req, res) => {
+  // 组名从 `EXAM_GROUPS` 现推——写死一份 id 列表就会变成第二处真相
+  const groups: ExamPacksView['groups'] = (Object.keys(EXAM_GROUPS) as ExamGroup[]).map((id) => ({
+    id,
+    ...EXAM_GROUPS[id],
+  }));
   res.json({
     packs: EXAM_PACKS,
+    groups,
     sources: EXAM_SOURCES.map((s) => ({
       host: s.host,
       label: s.label,

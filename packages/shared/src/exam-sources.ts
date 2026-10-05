@@ -19,21 +19,30 @@ import {
   normalizeExamHost,
   scopeHosts,
 } from './exam-scope.js';
-import type { ExamPack, ExamSource, ExamSourceTier } from './exam-scope.js';
+import { EXAM_GROUPS } from './exam-scope.js';
+import type { ExamGroup, ExamPack, ExamSource, ExamSourceTier } from './exam-scope.js';
 
-/** 考试类目预置包：用户勾的是这些，不是域名 */
+/** 考试类目预置包：用户勾的是这些，不是域名。★ 两大类各自成组（见 `EXAM_GROUPS`） */
 export const EXAM_PACKS: readonly ExamPack[] = [
-  { id: 'gaokao', label: '高考', hint: '全国卷与新高考的真题、试卷解析、一轮二轮资料' },
-  { id: 'zhongkao', label: '中考', hint: '各省市中考真题与模拟题' },
-  { id: 'kaoyan', label: '考研', hint: '考研政治、英语、数学的历年真题与大纲政策' },
-  { id: 'cet', label: '大学英语四六级', hint: 'CET 大纲与题型口径（官方考试网为主）' },
-  { id: 'gongkao', label: '公务员／事业单位', hint: '行测、申论历年真题与题库' },
-  { id: 'jiaoshi', label: '教师资格／教师招聘', hint: '教资笔试面试真题与官方考试院口径' },
-  { id: 'caikuai', label: '财会', hint: '初级中级会计师、注册会计师、税务师' },
-  { id: 'jianzao', label: '建造与工程', hint: '一建二建、造价、消防、监理' },
-  { id: 'yixue', label: '医药卫生', hint: '执业医师、护士、药师' },
-  { id: 'it', label: '计算机／IT', hint: '软考、数据结构与机试题' },
-  { id: 'video', label: '视频讲解', hint: '题目与知识点的讲解视频（B 站检索）' },
+  // ── 传统考试 ──
+  { id: 'gaokao', label: '高考', hint: '全国卷与新高考的真题、试卷解析、一轮二轮资料', group: 'exam' },
+  { id: 'zhongkao', label: '中考', hint: '各省市中考真题与模拟题', group: 'exam' },
+  { id: 'kaoyan', label: '考研', hint: '考研政治、英语、数学的历年真题与大纲政策', group: 'exam' },
+  { id: 'cet', label: '大学英语四六级', hint: 'CET 大纲与题型口径（官方考试网为主）', group: 'exam' },
+  { id: 'gongkao', label: '公务员／事业单位（笔试）', hint: '行测、申论历年真题与题库', group: 'exam' },
+  { id: 'jiaoshi', label: '教师资格／教师招聘（笔试）', hint: '教资笔试真题与官方考试院口径', group: 'exam' },
+  { id: 'caikuai', label: '财会', hint: '初级中级会计师、注册会计师、税务师', group: 'exam' },
+  { id: 'jianzao', label: '建造与工程消防', hint: '一建二建、造价、消防、监理、注安', group: 'exam' },
+  { id: 'yixue', label: '医药卫生', hint: '执业医师、护士、药师', group: 'exam' },
+  { id: 'ruankao', label: '软考与计算机等级', hint: '软件设计师、系统集成、三级四级与 NCRE', group: 'exam' },
+  { id: 'video', label: '视频讲解', hint: '题目与知识点的讲解视频（B 站检索），两类都用得上', group: 'exam' },
+  // ── 求职面试 ──
+  { id: 'tech-interview', label: '技术面试（后端／前端／计算机基础）', hint: 'Java/Go/前端/数据库/网络/操作系统面经与参考答案', group: 'job' },
+  { id: 'algo-interview', label: '算法与笔试（刷题）', hint: 'LeetCode 类题目的考法、题解与公司笔试真题', group: 'job' },
+  { id: 'structured-interview', label: '结构化面试（公务员／事业编）', hint: '真题题干与参考答案、无领导小组', group: 'job' },
+  { id: 'teacher-interview', label: '教师面试（试讲／说课／答辩）', hint: '各学科试讲范例与结构化问答', group: 'job' },
+  { id: 'bank-soe', label: '银行／国企／运营商招聘', hint: 'EPI、综合知识、英语与面试真题', group: 'job' },
+  { id: 'campus-info', label: '校招与实习信息', hint: '网申时间线、笔试题库、面经（信息类，不成套题目）', group: 'job' },
 ];
 
 /**
@@ -61,7 +70,7 @@ export const EXAM_SOURCES: readonly ExamSource[] = [
     host: 'huatu.com',
     label: '华图题库',
     tier: 'question',
-    packs: ['gongkao', 'jiaoshi'],
+    packs: ['gongkao', 'jiaoshi', 'structured-interview'],
     direct: { search: 'https://so.huatu.com/index/search/search.html?q={q}', verifiedAt: '2026-10-04' },
     note: '行测真题页 5968 字／14 个问句／带答案解析；选项多为图片，逐字摘选项不保证',
   },
@@ -69,7 +78,7 @@ export const EXAM_SOURCES: readonly ExamSource[] = [
     host: 'offcn.com',
     label: '中公题库',
     tier: 'question',
-    packs: ['gongkao', 'jiaoshi'],
+    packs: ['gongkao', 'jiaoshi', 'structured-interview', 'teacher-interview'],
     note: '行测／申论题库栏目 4.5K–4.7K 字含答案与考点；首页同域题链 100 条；未挖到可拼的检索端点',
   },
   {
@@ -173,8 +182,8 @@ export const EXAM_SOURCES: readonly ExamSource[] = [
     host: 'nowcoder.com',
     label: '牛客网',
     tier: 'reference',
-    packs: ['it'],
-    note: '首页 6157 字含真题解析；题库详情页 53 字（JS 壳）',
+    packs: ['tech-interview', 'algo-interview', 'campus-info'],
+    note: '10-05 复测：首页 5720 字含真题·题库·面试·面经，同域题链 34；但题目页由 JS 渲染（/exam/company 1718 字、零问句）⇒ 只当面经与资讯源',
   },
   {
     host: '233.com',
@@ -187,7 +196,7 @@ export const EXAM_SOURCES: readonly ExamSource[] = [
     host: 'icourse163.org',
     label: '中国大学 MOOC',
     tier: 'reference',
-    packs: ['it', 'kaoyan'],
+    packs: ['ruankao', 'kaoyan'],
     note: '首页 69KB 可达；习题需登录，未实测到可直抓的题目页',
   },
   {
@@ -198,6 +207,128 @@ export const EXAM_SOURCES: readonly ExamSource[] = [
     direct: { search: 'https://search.bilibili.com/all?keyword={q}', verifiedAt: '2026-10-04' },
     note: '检索页 303KB 可达；「找视频」链路本来就走这里，纳入白名单是为了应试模式下不被闸死',
   },
+  // ── 2026-10-05 第二版扩充：求职面试组 + 传统考试扩类 ──
+  {
+    host: 'mianshiya.com',
+    label: '面试鸭',
+    tier: 'question',
+    packs: ['tech-interview', 'algo-interview'],
+    entries: [
+      { url: 'https://www.mianshiya.com/', label: '面试鸭·题库首页（服务端渲染，含 39 个问句与答案解析）', verifiedAt: '2026-10-05' },
+      { url: 'https://www.mianshiya.com/banks', label: '面试鸭·题库分类（9176 字，含答案·解析·考点）', verifiedAt: '2026-10-05' },
+    ],    note: '10-05 实测：首页 11255 字 39 个问句；/banks 9176 字含答案·解析·考点。★ 它是文档站，搜索在客户端 ⇒ 只能走入口页',
+  },
+  {
+    host: 'xiaolincoding.com',
+    label: '小林 coding',
+    tier: 'question',
+    packs: ['tech-interview'],
+    entries: [
+      { url: 'https://www.xiaolincoding.com/interview/cpp.html', label: '小林·C++ 面试题（75554 字 234 问句含解析）', verifiedAt: '2026-10-05' },
+      { url: 'https://www.xiaolincoding.com/interview/golang.html', label: '小林·Go 面试题（59891 字 197 问句含解析）', verifiedAt: '2026-10-05' },
+      { url: 'https://www.xiaolincoding.com/interview/python.html', label: '小林·Python 面试题（51713 字 382 问句含解析）', verifiedAt: '2026-10-05' },
+      { url: 'https://www.xiaolincoding.com/interview/', label: '小林·后端/全栈面经汇总（4509 字含解析）', verifiedAt: '2026-10-05' },
+    ],    note: '10-05 实测：单页就是几百道题的长文（cpp 75554 字 234 问句 / python 51713 字 382 问句），全站无服务端检索 ⇒ 入口页是唯一取题方式',
+  },
+  {
+    host: 'javaguide.cn',
+    label: 'JavaGuide',
+    tier: 'question',
+    packs: ['tech-interview', 'algo-interview'],
+    entries: [
+      { url: 'https://javaguide.cn/zhuanlan/interview-guide.html', label: 'JavaGuide·面试指南（13036 字 26 问句含答案）', verifiedAt: '2026-10-05' },
+      { url: 'https://www.javaguide.cn/interview-preparation/backend-interview-plan.html', label: 'JavaGuide·后端面试准备（6060 字 16 问句）', verifiedAt: '2026-10-05' },
+      { url: 'https://javaguide.cn/zhuanlan/back-end-interview-high-frequency-system-design-and-scenario-questions.html', label: 'JavaGuide·高频场景题与设计题（2615 字 21 问句）', verifiedAt: '2026-10-05' },
+    ],    note: '10-05 实测：面试专栏页每页 20+ 问句带答案；文档站无服务端检索 ⇒ 走入口页',
+  },
+  {
+    host: 'zgjsks.com',
+    label: '中公教师网',
+    tier: 'question',
+    packs: ['teacher-interview', 'jiaoshi'],
+    entries: [
+      { url: 'https://www.zgjsks.com/html/jszg/kaoshitiku/', label: '中公教师·考试题库（3463 字含答案与解析）', verifiedAt: '2026-10-05' },
+      { url: 'https://www.zgjsks.com/html/zgks/', label: '中公教师·招考资讯与真题（4470 字 6 问句含考点）', verifiedAt: '2026-10-05' },
+    ],    note: '10-05 实测：首页 18965 字 12 问句含答案解析；题库与招考两栏各自可抽 ⇒ 教师面试与笔试两侧都用得上',
+  },
+  {
+    host: 'jinrongren.net',
+    label: '金融人（银行国企招聘）',
+    tier: 'question',
+    packs: ['bank-soe'],
+    note: '10-05 实测：首页 5801 字，命中答案·解析·试题·题库·面试·模拟·考点，同域题链 193；★ 站内检索端点坏了（返回 154 字）⇒ 只能走栏目页',
+  },
+  {
+    host: 'acwing.com',
+    label: 'AcWing',
+    tier: 'reference',
+    packs: ['algo-interview'],
+    note: '10-05 实测：首页 1437 字、题目页 1488 字含题干；站内检索是 CSRF 表单 ⇒ 拼不出直达 URL，只当题解资料',
+  },
+  {
+    host: 'yingjiesheng.com',
+    label: '应届生求职网',
+    tier: 'reference',
+    packs: ['campus-info'],
+    note: '10-05 实测：首页 815 字（列表由脚本渲染）⇒ 只当校招时间线与网申信息源，取不到成形的题',
+  },
+  {
+    host: 'shixiseng.com',
+    label: '实习僧',
+    tier: 'reference',
+    packs: ['campus-info'],
+    note: '10-05 实测：检索页 4404 字可达但零题干 ⇒ 实习信息源，不是题源',
+  },
+  {
+    host: 'cnitpm.com',
+    label: '信管网（软考）',
+    tier: 'question',
+    packs: ['ruankao'],
+    entries: [
+      { url: 'https://www.cnitpm.com/zt/2026xzkz/', label: '信管网·软考真题专题（2749 字 4 问句含答案）', verifiedAt: '2026-10-05' },
+    ],    note: '10-05 实测：首页 9306 字 23 问句命中 7 个题词，同域题链 71；真题专题页 2749 字含答案',
+  },
+  {
+    host: 'ruankao.org.cn',
+    label: '中国计算机技术职业资格网（官方）',
+    tier: 'reference',
+    packs: ['ruankao'],
+    note: '10-05 实测：首页 2364 字含模拟；软考大纲、科目与报名口径的权威来源，无题目',
+  },
+  {
+    host: 'ncre.neea.edu.cn',
+    label: '教育部教育考试院（NCRE）',
+    tier: 'reference',
+    packs: ['ruankao', 'cet'],
+    note: '10-05 实测：845 字含试题；计算机等级与四六级的科目、大纲、考试时间权威来源，无题目',
+  },
+  {
+    host: 'daliedu.cn',
+    label: '大立教育（建造消防）',
+    tier: 'question',
+    packs: ['jianzao'],
+    entries: [
+      { url: 'https://www.daliedu.cn/yijian/zhenti/', label: '大立·一建真题栏目（6970 字含答案与解析）', verifiedAt: '2026-10-05' },
+    ],    note: '10-05 实测：首页 30360 字 53 问句；/yijian/zhenti/ 6970 字含答案解析（列表页比详情页划算）',
+  },
+  {
+    host: 'hqwx.com',
+    label: '环球网校',
+    tier: 'question',
+    packs: ['jianzao', 'yixue'],
+    entries: [
+      { url: 'https://www.hqwx.com/ejjzs-kaoshi/zhenti/', label: '环球·二建真题（2359 字 6 问句含答案与解析）', verifiedAt: '2026-10-05' },
+      { url: 'https://www.hqwx.com/yjjzhus-kaoshi/zhenti/', label: '环球·一建注护真题（2488 字含答案与解析）', verifiedAt: '2026-10-05' },
+    ],    note: '10-05 实测：首页 60867 字 304 问句（本批最强的一页）；各资格 `/zhenti/` 栏目页 2.3K–5.7K 字含答案解析；★ 详情页多是直播课介绍 ⇒ 取栏目页',
+  },
+  {
+    host: 'youlu.com',
+    label: '优路教育',
+    tier: 'question',
+    packs: ['jianzao', 'yixue', 'caikuai'],
+    note: '10-05 实测：首页 32828 字命中真题·答案·解析·题库·模拟·考点，同域题链 107；详情页含答案解析',
+  },
+
 ];
 
 /** 默认范围＝全部预置包：先把「来源有界」做到位，用户再按自己要考的类目往下收 */
@@ -225,6 +356,26 @@ export function normalizeExamScope(input: unknown): ExamScopeSetting {
     if (n && !custom.includes(n) && custom.length < MAX_EXAM_CUSTOM_HOSTS) custom.push(n);
   }
   return { packs, custom };
+}
+
+/**
+ * 按大类分组的预置包（设置页两块的分隔就靠它，组顺序固定：传统考试在前）。
+ * ★ 组是数据不是样式：求职面试与传统考试的取材方式根本不同（前者在面经与题库站，
+ *   后者在真题卷与题库站），混成一排勾选项会让人勾不出自己要的范围。
+ */
+export function packsByGroup(): Array<{ group: ExamGroup; label: string; hint: string; packs: ExamPack[] }> {
+  const order: ExamGroup[] = ['exam', 'job'];
+  return order.map((g) => ({
+    group: g,
+    label: EXAM_GROUPS[g].label,
+    hint: EXAM_GROUPS[g].hint,
+    packs: EXAM_PACKS.filter((p) => p.group === g),
+  }));
+}
+
+/** 某个包属于哪个组（空态与范围话术要说"求职面试·技术面试"而不是只说包名） */
+export function examPackGroup(packId: string): ExamGroup | null {
+  return EXAM_PACKS.find((p) => p.id === packId)?.group ?? null;
 }
 
 /** 预置包里的域名（按 pack 收集，跨包去重） */
@@ -288,7 +439,9 @@ export function examScopeSummary(scope: ExamScopeSetting): string {
 
 /** `GET /api/settings/exam-packs`：静态登记表，UI 渲染勾选项 */
 export interface ExamPacksView {
-  packs: { id: string; label: string; hint: string }[];
+  packs: { id: string; label: string; hint: string; group: ExamGroup }[];
+  /** 两个大类的名字与说明（UI 分区标题用它，别在前端再抄一份中文） */
+  groups: { id: ExamGroup; label: string; hint: string }[];
   sources: {
     host: string;
     label: string;

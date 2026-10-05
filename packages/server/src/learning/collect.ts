@@ -24,7 +24,7 @@ import { MIX_KINDS, MIX_KIND_LABELS, emptyCollectCompleteness, emptyExamScopeRep
 import { normalizeQuiz, parseQuizBlock } from './quiz.js';
 import { classifyExamSource, normalizeForAnchor, rankPicks, strongVerbatim, verbatimHit } from './collect-quality.js';
 import { searchWeb, htmlToText } from '../search/index.js';
-import { examDirectPages } from '../search/exam-direct.js';
+import { examDirectPages, examEntryLinks } from '../search/exam-direct.js';
 import { examAllowed, examDirectQueries, loadExamContext, type ExamContext } from './exam-mode.js';
 import { fetchSafe } from '../search/ssrf-guard.js';
 import { routeRole } from '../llm/router.js';
@@ -241,16 +241,22 @@ export async function collectQuiz(
   // ① 检索（searchWeb 自带并行/去重/缓存/逐源降级；搜集要新结果，跳缓存按主题词量小不设防）
   const seen = new Set<string>();
   const picks: Array<{ url: string; title: string; direct?: boolean }> = [];
-  if (exam.on) {
-    // 站内直达：免 key 通道不理 `site:`，通用引擎下钻 33 条只有 1 条能抽题（2026-10-04 实测），
-    // 所以题源站自己的检索入口才是这一层的产出主力。单站失败逐条记进 failed，不阻断。
-    const hits = examDirectQueries(topic, exam);
-    const direct = await examDirectPages(hits, exam.hosts, { signal: opts.signal });
-    for (const l of direct.links) {
+  const addLinks = (links: readonly { url: string; title: string }[]) => {
+    for (const l of links) {
       if (!l.url.startsWith('http') || seen.has(l.url)) continue;
       seen.add(l.url);
       picks.push({ url: l.url, title: l.title || l.url, direct: true });
     }
+  };
+  if (exam.on) {
+    // ⓪ 固定入口页：登记表上「打开就是题目」的长文页。求职面试组全靠它——那些站是文档站、
+    //    检索在客户端做，而通用搜索引擎对面试类查询几乎不返它们（2026-10-05 实测 80 条命中里 4 条在范围内）。
+    addLinks(examEntryLinks(exam.sources, exam.hosts));
+    // ① 站内直达：免 key 通道不理 `site:`，通用引擎下钻 33 条只有 1 条能抽题（2026-10-04 实测），
+    // 所以题源站自己的检索入口才是这一层的产出主力。单站失败逐条记进 failed，不阻断。
+    const hits = examDirectQueries(topic, exam);
+    const direct = await examDirectPages(hits, exam.hosts, { signal: opts.signal });
+    addLinks(direct.links);
     if (direct.links.length > 0) report.providers.push('direct');
     report.failed.push(...direct.failed);
     report.scope!.directSites = direct.sites;

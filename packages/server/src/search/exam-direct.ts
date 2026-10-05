@@ -13,7 +13,8 @@
  *   这是外部依赖，站改版即过期，不在仓内写死第二份 URL，也不在本文件里猜 URL。
  * 单站失败（403/超时/JS 壳）一律跳过、不阻断：实测 gk100 与 med66 都有详情页 403 的反爬。
  */
-import { examUrlAllowed } from '@sb/shared';
+import { examHostAllowed, examUrlAllowed } from '@sb/shared';
+import type { ExamSource } from '@sb/shared';
 import type { ExamDirectHit } from '../learning/exam-mode.js';
 import { fetchPageText } from './page-text.js';
 import type { SearchResult } from './types.js';
@@ -92,6 +93,35 @@ function urlOf(href: string, base: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * 固定入口页：登记表上「打开就是题目」的那几页，不查任何搜索引擎。
+ *
+ * 纯函数、零 IO ⇒ 可在测试里逐条锁。求职面试组全靠它：JavaGuide / 小林 coding / 面试鸭
+ * 都是文档站，检索在客户端做，而 Bing 对面试类查询 80 条命中里只有 4 条落在范围内（2026-10-05 实测）
+ * ⇒ 不登记入口页，这一类等于没接。
+ *
+ * ★ 仍然过一遍 `examHostAllowed`：表上的行也可能被改成范围外（用户取消勾选那个类目），
+ *   那时入口页必须一起消失，不能因为"它在表上"就绕过范围。
+ */
+export function examEntryLinks(
+  sources: readonly ExamSource[],
+  hosts: readonly string[],
+): SearchResult[] {
+  const out: SearchResult[] = [];
+  const seen = new Set<string>();
+  for (const s of sources) {
+    if (!s.entries || s.entries.length === 0) continue;
+    if (!examHostAllowed(s.host, hosts)) continue;
+    for (const e of s.entries) {
+      if (seen.has(e.url) || out.length >= MAX_DIRECT_TOTAL) continue;
+      if (!examUrlAllowed(e.url, hosts)) continue;
+      seen.add(e.url);
+      out.push({ title: `${s.label}｜${e.label}`, url: e.url, snippet: '', source: 'entry' });
+    }
+  }
+  return out;
 }
 
 /**

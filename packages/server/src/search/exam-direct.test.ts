@@ -3,6 +3,7 @@
  * 零真实网络——检索页 HTML 用桩，`fetchPageText` 整体 mock（它是全仓「网址→正文」的唯一实现）。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { ExamSource } from '@sb/shared';
 
 const pageTextMock = vi.hoisted(() => vi.fn());
 vi.mock('../search/page-text.js', () => ({
@@ -10,7 +11,8 @@ vi.mock('../search/page-text.js', () => ({
   PAGE_FETCH_TIMEOUT_MS: 15000,
 }));
 
-const { directLinksOf, examDirectPages, MAX_DIRECT_LINKS_PER_SITE, MAX_DIRECT_TOTAL } = await import('./exam-direct.js');
+const { directLinksOf, examDirectPages, examEntryLinks, MAX_DIRECT_LINKS_PER_SITE, MAX_DIRECT_TOTAL } =
+  await import('./exam-direct.js');
 
 const HOSTS = ['huatu.com', 'aipta.com', 'jianshe99.com'];
 const SEARCH_URL = 'https://so.huatu.com/index/search/search.html?q=%E5%9B%BD%E8%80%83';
@@ -90,6 +92,47 @@ describe('directLinksOf：从检索页挑同域题页', () => {
   it('坏 baseUrl / 无锚文本时不抛，返回空', () => {
     expect(directLinksOf('<a href="x">真题</a>', '不是 URL', HOSTS)).toEqual([]);
     expect(directLinksOf('<a href="/tiku/1.html"></a>', SEARCH_URL, HOSTS)).toEqual([]);
+  });
+});
+
+describe('examEntryLinks：固定入口页（求职面试组的取题主力）', () => {
+  const src = (over: Partial<ExamSource>): ExamSource => ({
+    host: 'javaguide.cn',
+    label: 'JavaGuide',
+    tier: 'question',
+    packs: ['tech-interview'],
+    entries: [
+      { url: 'https://javaguide.cn/zhuanlan/interview-guide.html', label: '面试指南', verifiedAt: '2026-10-05' },
+      { url: 'https://www.javaguide.cn/interview-preparation/backend-interview-plan.html', label: '后端面试准备', verifiedAt: '2026-10-05' },
+    ],
+    ...over,
+  });
+
+  it('范围内的站 ⇒ 入口页原样进候选（不查任何搜索引擎）', () => {
+    const out = examEntryLinks([src({})], ['javaguide.cn']);
+    expect(out.map((r) => r.url)).toEqual([
+      'https://javaguide.cn/zhuanlan/interview-guide.html',
+      'https://www.javaguide.cn/interview-preparation/backend-interview-plan.html',
+    ]);
+    expect(out[0]?.title).toBe('JavaGuide｜面试指南');
+    expect(out[0]?.source).toBe('entry');
+  });
+
+  it('★ 站被取消勾选 ⇒ 入口页一起消失（不许因为"它在表上"就绕过范围）', () => {
+    expect(examEntryLinks([src({})], ['other.example'])).toEqual([]);
+    expect(examEntryLinks([src({})], [])).toEqual([]);
+  });
+
+  it('没有 entries 的站返回空；重复 URL 只留一条', () => {
+    expect(examEntryLinks([src({ entries: undefined })], ['javaguide.cn'])).toEqual([]);
+    const dup = src({ host: 'x.com', entries: [{ url: 'https://x.com/a', label: 'A', verifiedAt: '2026-10-05' }] });
+    const dup2 = src({ host: 'x.com', label: 'X2', entries: [{ url: 'https://x.com/a', label: 'A2', verifiedAt: '2026-10-05' }] });
+    expect(examEntryLinks([dup, dup2], ['x.com'])).toHaveLength(1);
+  });
+
+  it('入口页 URL 落在站域之外 ⇒ 丢（登记表写错也不越界）', () => {
+    const bad = src({ entries: [{ url: 'https://evil.example/x', label: '坏行', verifiedAt: '2026-10-05' }] });
+    expect(examEntryLinks([bad], ['javaguide.cn'])).toEqual([]);
   });
 });
 

@@ -3,7 +3,7 @@
 [![CI](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml)
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![version](https://img.shields.io/badge/version-0.2.159-orange)
+![version](https://img.shields.io/badge/version-0.2.160-orange)
 ![tests](https://img.shields.io/badge/tests-379%20files%20%2F%204368%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-179-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-264%20types-8a63f6)

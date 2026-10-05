@@ -842,7 +842,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | 测试文件 | 用例 | 不变量 |
 |---|---:|---|
 | `src/search/exam-search.test.ts` | 10 | 通用结果全被过滤仍能检索长文后半段；仅登记入口或导航词不算命中；真实发现详情页；单站失败保留其它结果；空范围与取消零请求；关闭模式保持原调用；入口页与详情页预算；拒绝范围外候选；语言与主题匹配 |
-| `src/search/exam-search-wiring.test.ts` | 5 | 真实聊天工具、设置试搜路由与出题参考共用补充检索；资料架编号与 URL 一致；出题范围账带实际站点；通道故障与范围内无结果分开；无结果不诱导重复换词或编造 URL |
+| `src/search/exam-search-wiring.test.ts` | 5 | 真实聊天工具、设置试搜路由与出题参考共用补充检索；资料架编号与 URL 一致；出题范围账带实际站点，300 字预算保留长片段后半段主题；通道故障与范围内无结果分开；无结果不诱导重复换词或编造 URL |
 | `src/search/exam-redirect.test.ts` | 3 | 实际 fetchPageText/fetchSafe 链中，范围外重定向在第二个 HTTP 请求之前拒绝；同范围子域可读；首地址越界或空范围零 HTTP 请求 |
 
 ## 4. 已发现 Bug（登记簿）

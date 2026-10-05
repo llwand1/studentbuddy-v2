@@ -42,16 +42,19 @@ describe('三个实际入口共用应试补充检索', () => {
     expect(mock).toHaveBeenCalledWith('Java 并发', null, expect.objectContaining({ on: true }), { skipCache: true });
   });
 
-  it('出题参考保留真实来源，300 字预算仍能取到长片段后半段的主题', async () => {
-    mock.mockResolvedValue({ results: [{ ...hit, snippet: `${'无关填充。'.repeat(140)}Java 并发的线程池控制并发` }], providers: ['entry'], failed: [], dropped: 8, directSites: ['JavaGuide'] });
+  it('出题参考实时检索真实来源，以 1800 字预算保留后半段主题和上下文', async () => {
+    mock.mockResolvedValue({ results: [{ ...hit, snippet: `${'无关填充。'.repeat(700)}Java 并发的线程池控制并发。${'核心线程数、任务队列和拒绝策略。'.repeat(25)}` }], providers: ['entry'], failed: [], dropped: 8, directSites: ['JavaGuide'] });
     const report: import('@sb/shared').QuizSearchReport = { on: true, count: 0, providers: [], failed: [], refs: [] };
     const r = await buildQuizSearchBlock('Java 并发', '', report, null);
     expect(r.block).toContain('线程池控制并发');
     expect(r.refs[0]?.url).toBe(hit.url);
     expect(report.scope?.directSites).toEqual(['JavaGuide']);
     const snippet = r.block.split(`${hit.url}\n`)[1]?.split('\n如果你出某道题')[0] ?? '';
-    expect(snippet.length).toBeLessThanOrEqual(300);
+    expect(snippet.length).toBeLessThanOrEqual(1800);
+    expect(snippet.length).toBeGreaterThan(300);
     expect(snippet).toContain('Java 并发');
+    expect(snippet).toContain('拒绝策略');
+    expect(mock).toHaveBeenCalledWith('Java 并发', null, expect.objectContaining({ on: true }), { skipCache: true, purpose: 'quiz' });
   });
 
   it('真正的通道故障不被说成范围内没资料', async () => {
@@ -68,5 +71,15 @@ describe('三个实际入口共用应试补充检索', () => {
     expect(r.content).toContain('本轮不要仅换措辞重复搜索');
     expect(r.content).toContain('未经检索的网址');
     expect(step).toHaveBeenLastCalledWith('search_web', 'done', expect.stringContaining('范围内无结果'));
+  });
+
+  it('出题无命中仍保留验证码与搜索故障，不能被提前返回吞掉', async () => {
+    mock.mockResolvedValue({ results: [], providers: ['bing'], failed: ['页面要求验证，无法读取正文'], dropped: 8, directSites: [], unavailable: false });
+    const report: import('@sb/shared').QuizSearchReport = { on: true, count: 0, providers: [], failed: [], refs: [] };
+    const r = await buildQuizSearchBlock('Java 并发', '', report, null);
+    expect(r.refs).toEqual([]);
+    expect(report.providers).toEqual(['bing']);
+    expect(report.failed).toEqual(['页面要求验证，无法读取正文']);
+    expect(report.scope?.empty).toBe(true);
   });
 });

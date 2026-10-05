@@ -105,6 +105,7 @@ async function exaSearch(
   apiKey: string,
   signal?: AbortSignal,
   want: number = PROVIDER_DEFAULT_WANT,
+  allowHosts?: readonly string[],
 ): Promise<SearchResult[]> {
   const res = await fetchSafe('https://api.exa.ai/search', {
     method: 'POST',
@@ -114,7 +115,8 @@ async function exaSearch(
     //   而不是整页正文。原先取 `text` 再硬截 500 字，截到的是**页面开头**（与查询词无关）；
     //   highlights 截的是**跟问题最相关的段落**，这正是回灌质量的要害。
     //   计费口径：搜索结果**前 10 条**带 contents 不额外计费（`want` 封顶 10 就来自这句）。
-    body: JSON.stringify({ query, numResults: want, type: 'auto', contents: { highlights: true } }),
+    body: JSON.stringify({ query, numResults: want, type: 'auto', contents: { highlights: true },
+      ...(allowHosts?.length ? { includeDomains: allowHosts } : {}) }),
     signal: combineSignals(signal, 12_000),
   });
   if (!res.ok) throw new Error(`Exa ${res.status}`);
@@ -137,11 +139,13 @@ async function tavilySearch(
   apiKey: string,
   signal?: AbortSignal,
   want: number = PROVIDER_DEFAULT_WANT,
+  allowHosts?: readonly string[],
 ): Promise<SearchResult[]> {
   const res = await fetchSafe('https://api.tavily.com/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ query, max_results: want, search_depth: 'basic' }),
+    body: JSON.stringify({ query, max_results: want, search_depth: 'basic',
+      ...(allowHosts?.length ? { include_domains: allowHosts } : {}) }),
     signal: combineSignals(signal, 12_000),
   });
   if (!res.ok) throw new Error(`Tavily ${res.status}`);
@@ -180,7 +184,7 @@ async function zhipuSearch(
   }));
 }
 
-const IMPL: Record<string, (q: string, key: string, signal?: AbortSignal, want?: number) => Promise<SearchResult[]>> = {
+const IMPL: Record<string, (q: string, key: string, signal?: AbortSignal, want?: number, allowHosts?: readonly string[]) => Promise<SearchResult[]>> = {
   exa: exaSearch,
   tavily: tavilySearch,
   zhipu: zhipuSearch,
@@ -221,8 +225,8 @@ function cacheSet(key: string, results: SearchResult[]): void {
  *
  * ★ `allowHosts`（应试模式 EXAM-1004）：给了就在**合并之后**按域一刀切，`dropped` 是被砍掉的条数。
  *   为什么是后置而不是查询期：免 key 兜底的 Bing 通道**不理 `site:` 操作符**
- *   （2026-10-04 实测三例，带与不带 `site:` 的结果集几乎逐条相同），三家托管服务商的域过滤参数
- *   本机无 key 未实测 ⇒ 第一版不接（接错了是静默降级，比砍条数更坏）。
+ *   （2026-10-04 实测三例，带与不带 `site:` 的结果集几乎逐条相同）。Exa / Tavily 另带原生域过滤，
+ *   最终闸口仍核验它们返回的 URL；其它通道保留后置过滤。
  *   ⚠️ 传 `[]` 是「全拦」，不是「不设界」；不设界请干脆不传这个字段。
  */
 export async function searchWeb(
@@ -254,7 +258,7 @@ export async function searchWeb(
   }
 
   const settled = await Promise.allSettled(
-    active.map((p) => IMPL[p.type]!(query, getProviderKey(p.type, ownerId), opts.signal, want)),
+    active.map((p) => IMPL[p.type]!(query, getProviderKey(p.type, ownerId), opts.signal, want, opts.allowHosts)),
   );
   const failed: string[] = [];
   const byUrl = new Map<string, SearchResult>();

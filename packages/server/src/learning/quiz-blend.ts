@@ -128,7 +128,7 @@ export async function generateBlendedQuiz(
   styleArg: AnswerStyle | undefined,
   online: boolean,
   ownerId: string | null,
-  opts: { realFirst?: boolean } = {},
+  opts: { realFirst?: boolean; searchTopic?: string } = {},
 ): Promise<BlendResult> {
   // 真题优先（契约 QUIZ-TIER-SPEC §4）：用户没配真题 ⇒ 拿 AI 配比当搜集配额，摘到几道顶替几道；
   // 不加总题数、不加等待（与 AI 出题**并行**跑）。`realFirst` 省略时读用户设置（缺省开）。
@@ -142,7 +142,7 @@ export async function generateBlendedQuiz(
 
   // ── ① AI 侧（异步启动，与真题侧并行） ──
   const aiTask: Promise<QuizPayload | null> =
-    mixTotal(aiMix) > 0 ? generateQuiz(topic, material, aiMix, imageReport, styleArg, online, ownerId) : Promise.resolve(null);
+    mixTotal(aiMix) > 0 ? generateQuiz(topic, material, aiMix, imageReport, styleArg, online, ownerId, false, opts.searchTopic) : Promise.resolve(null);
 
   // ── ② 真题侧 ──
   const realTask = (async (): Promise<QuizQuestion[]> => {
@@ -151,7 +151,7 @@ export async function generateBlendedQuiz(
     report.collect = collectReport;
     try {
       // `quota` 进搜集提示词（契约 §3.3 第 2 条）：不告诉模型要哪几类题，它会按自己的偏好全摘选择题
-      const { candidates } = await collectQuiz(topic, collectReport, { ownerId, quota: realRequested });
+      const { candidates } = await collectQuiz(opts.searchTopic ?? topic, collectReport, { ownerId, quota: realRequested });
       const picked = pickByQuota(candidates, realRequested);
       report.real.actual = picked.actual;
       report.real.missing = blendMissing(realRequested, picked.actual);

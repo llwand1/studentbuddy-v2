@@ -30,6 +30,8 @@ import {
 
 let quizJson = '';
 let modelAvailable = true;
+const searchMock = vi.hoisted(() => vi.fn(async () => ({ results: [], providers: ['bing'], failed: [], dropped: 0, directSites: [] })));
+vi.mock('../../search/exam-search.js', () => ({ searchExamWeb: searchMock }));
 /** 真题搜集侧的桩：本次不验搜集链路，只验它**该不该被触发**（口径 1） */
 const collectCalls: string[] = [];
 
@@ -68,6 +70,7 @@ const { scaleMixToCount, quizToolSummary } = await import('./generate-quiz-forma
 const { saveQuizMix } = await import('../../learning/quiz.js');
 const { saveQuizSourceMix } = await import('../../learning/quiz-source-mix.js');
 const { saveQuizRealFirst } = await import('../../learning/quiz-tier.js');
+const { saveExamMode } = await import('../../learning/exam-mode.js');
 const { SYSTEM_PROMPT } = await import('../system-prompt.js');
 const { CONFIRM_DENY_HINT } = await import('./write-gate.js');
 const { quizRowContent } = await import('../../learning/quiz-announce.js');
@@ -80,6 +83,7 @@ beforeEach(() => {
   quizJson = GOOD_JSON;
   modelAvailable = true;
   collectCalls.length = 0;
+  searchMock.mockClear();
 });
 afterEach(() => {
   closeDb();
@@ -163,6 +167,16 @@ describe('注册与下发（模型拿不到工具 = 全都白做）', () => {
     expect(tooBig.content).toContain(`不得大于 ${MAX_QUIZ_TOTAL}`);
     expect(rows('SELECT id FROM messages')).toHaveLength(0);
   });
+});
+
+it('应试聊天出题省略开关时实时检索，显式 false 时尊重关闭', async () => {
+  saveExamMode(true, null);
+  const plan = toolMeta('generate_quiz')!.planWrite!;
+  await plan({ topic: 'Java 线程池', count: 2 }, ctx());
+  expect(searchMock).toHaveBeenCalledWith('Java 线程池', null, expect.objectContaining({ on: true }), { skipCache: true, purpose: 'quiz' });
+  searchMock.mockClear();
+  await plan({ topic: 'Java 线程池', count: 2, search: false }, ctx());
+  expect(searchMock).not.toHaveBeenCalled();
 });
 
 describe('scaleMixToCount（点名题量时按题型相对比例缩放，口径 1）', () => {

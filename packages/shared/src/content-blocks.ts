@@ -289,11 +289,12 @@ export interface QuizImageReport {
   search?: QuizSearchReport;
   /**
    * 出题失败的**真因**（2026-09-13）：`'no-model'`＝出题角色没绑模型（怎么重试都没用，要去设置页）；
-   * `'parse'`＝模型给了输出但解不出题组（可重试/换模型）。由**确实知道原因的一方**（出题引擎）填写，
+   * `'parse'`＝模型给了输出但解不出题组；`'ungrounded'`＝本次联网题全缺少有效引用。
+   * 由**确实知道原因的一方**（出题引擎）填写，
    * 路由只据此选文案——不靠反向探测「模型配没配」来猜，那种猜法在被 mock 的测试里、在角色绑定
    * 存在但 provider 被停用的边缘态里都会判错。
    */
-  failure?: 'no-model' | 'parse' | 'incomplete';
+  failure?: 'no-model' | 'parse' | 'incomplete' | 'ungrounded';
   /** 自包含审查报告（契约 QUIZ-COMPLETE-SPEC §4）。可选：没跑审查的调用方不填。 */
   completeness?: QuizCompletenessReport;
 }

@@ -18,6 +18,8 @@ import type { Request, Response } from 'express';
 import { loadQuizMix } from '../learning/quiz.js';
 import { loadQuizSourceMix } from '../learning/quiz-source-mix.js';
 import { generateBlendedQuiz } from '../learning/quiz-blend.js';
+import { loadExamContext } from '../learning/exam-mode.js';
+import { isPlaceholderTopic } from '../learning/quiz-search.js';
 import { announceQuizToSession } from '../learning/quiz-announce.js';
 import { announceScenarioToSession, generateScenario } from '../learning/scenario.js';
 import { emptyScenarioGenReport } from '../learning/scenario-protocol.js';
@@ -87,7 +89,7 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
     sessionId?: string;
     mix?: unknown;
     style?: unknown;
-    /** 本次是否联网检索（省略＝不联网；两条 UI 入口与 PK 显式传，契约 docs/QUIZ-SEARCH-SPEC.md §2.2） */
+    /** 本次是否联网检索；应试模式下省略默认开，其它模式省略默认关，显式 false 关闭。 */
     search?: boolean;
     /**
      * 本次的**真题**配比（省略＝用设置页存的那份；契约 docs/QUIZ-BLEND-SPEC.md §3.1）。
@@ -168,8 +170,9 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
       requestedReal,
       images,
       styleArg,
-      search === true,
+      search === true || (search === undefined && loadExamContext(ownerIdOf(req)).on),
       ownerIdOf(req),
+      { searchTopic: rawTopic && !isPlaceholderTopic(rawTopic) ? rawTopic.trim() : topic },
     );
     // 502 按**真因**分开说：v1.0 把「模型不可用 / JSON 解不出 / 配比裁空」混成一句，照着重试永远调不对（契约 §2.4）
     if (!blended.quiz) {
@@ -187,6 +190,8 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
       res.status(502).json({
         error: notConfigured
           ? `出题失败：${roleReady('quiz-generator', ownerIdOf(req)).reason || '出题模型没配好'}——请到「设置」→「角色模型绑定」为「出题」绑定模型后再试`
+          : images.failure === 'ungrounded'
+            ? '出题失败：模型没有引用本次检索资料或题目偏离了主题，已剔除；请重试或更换出题模型'
           : incomplete
             ? '出题失败：这一批题都依赖没能取到的材料或图，已全部剔除（不给你无头题）——可重试，或换个更具体的主题、直接贴上材料'
             : trimmedEmpty

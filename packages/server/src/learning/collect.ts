@@ -14,7 +14,6 @@
  */
 import type {
   CollectCandidate,
-  CollectPageRecord,
   CollectReport,
   QuizPayload,
   QuizQuestion,
@@ -22,31 +21,26 @@ import type {
 } from '@sb/shared';
 import { MIX_KINDS, MIX_KIND_LABELS, emptyCollectCompleteness, emptyExamScopeReport } from '@sb/shared';
 import { normalizeQuiz, parseQuizBlock } from './quiz.js';
-import { classifyExamSource, normalizeForAnchor, rankPicks, strongVerbatim, verbatimHit } from './collect-quality.js';
-import { searchWeb, htmlToText } from '../search/index.js';
-import { examDirectPages, examEntryLinks } from '../search/exam-direct.js';
-import { examAllowed, examDirectQueries, loadExamContext, type ExamContext } from './exam-mode.js';
-import { fetchSafe } from '../search/ssrf-guard.js';
+import { normalizeForAnchor, rankPicks, strongVerbatim, verbatimHit } from './collect-quality.js';
+import { searchWeb } from '../search/index.js';
+import { searchExamWeb } from '../search/exam-search.js';
+import { conflictingLanguage } from '../search/exam-query.js';
+import { examAllowed, loadExamContext, type ExamContext } from './exam-mode.js';
+import { collectPages, type CollectedPage } from './collect-pages.js';
 import { routeRole } from '../llm/router.js';
 import { aiText } from '../ai/gateway.js';
 import { getQuizMaxOutputTokens } from '../llm/model-limits.js';
-import { markImages, resolveCandidate, stripMarkers, type PageFigure } from './collect-figures.js';
+import { resolveCandidate } from './collect-figures.js';
 import { sanitizePhoto } from './quiz-completeness.js';
 
 /** 抓页上限（契约 §2.2：单页、不遍历——只对检索返回的 URL 逐条动手） */
-export const MAX_COLLECT_PAGES = 3;
-/** 单页进提示词的正文上限：3 页堆叠后仍要给模型输出留预算 */
-const PAGE_TEXT_CHARS = 25_000;
-/** 页抓超时（契约 §2.3：★ 现状「单工具超时未设」是已知风险，新管子自设死线，不扩大它） */
-const COLLECT_TIMEOUT_MS = 15_000;
+export { MAX_COLLECT_PAGES } from './collect-pages.js';
 /** 单次搜集摘题上限：宁少而真，不多而杂 */
 export const MAX_COLLECT_QUESTIONS = 10;
 /** 摘录者不该有创造力：比出题 0.4 更低（契约 §3.3） */
 export const COLLECT_TEMPERATURE = 0.2;
 /** 锚点长度（提示词里告诉模型抄几个字；真正的校验尺子在 `collect-quality.ts`，两处数值须一致） */
 const ANCHOR_CHARS = 20;
-/** 正文短于这个长度判「没抓到有效内容」（SPA 壳页/反爬占位页的典型形状，逐页记录不硬喂） */
-const MIN_PAGE_TEXT_CHARS = 500;
 
 // 锚点三件套 2026-09-29 迁入 `collect-quality.ts`（加强校验要共用同一把尺子）；此处 re-export 只为既有调用点/测试零改动。
 export { normalizeForAnchor, pickAnchor, verbatimHit } from './collect-quality.js';
@@ -126,80 +120,8 @@ export function buildQuotaLine(quota?: QuizSourceMix): string {
     (t) => `${MIX_KIND_LABELS[t]}最多 ${quota[t]} 道`,
   );
   if (parts.length === 0) return '';
-  return `\n- ★ 本次用户指定的题型配比：${parts.join('、')}。请优先照这个配比摘；某一类在页面上确实找不到就少摘或不摘，**绝不要用别的题型凑数**。`;
-}
-
-/** 抓页结果（report 用的记录 + 正文与锚点缓存） */
-interface CollectedPage extends CollectPageRecord {
-  text: string;
-  normText: string;
-  /** 本页登记的配图（正文里的 `[图N]` 标记，契约 QUIZ-COMPLETE-SPEC §5） */
-  figures: PageFigure[];
-}
-
-/** 页抓 + 剥正文。一切失败都以逐页记录的形式返回，不抛出（ADR-4）。 */
-async function fetchPage(rec: { url: string; title: string }, startN: number, signal?: AbortSignal): Promise<CollectedPage> {
-  const page: CollectedPage = { url: rec.url, title: rec.title, fetched: false, text: '', normText: '', figures: [] };
-  try {
-    const res = await fetchSafe(rec.url, {
-      headers: { 'User-Agent': 'StudentBuddy/2.0 (personal study tool; 127.0.0.1)', 'Accept-Language': 'zh-CN,zh;q=0.9' },
-      signal: combineSignal(signal),
-    });
-    if (!res.ok) {
-      page.reason = `HTTP ${res.status}`;
-      return page;
-    }
-    const ct = res.headers.get('content-type') ?? '';
-    if (!ct.includes('text/html')) {
-      page.reason = `非 HTML 内容（${ct.slice(0, 40) || '未知类型'}）`;
-      return page;
-    }
-    const html = (await res.text()).slice(0, 1_000_000);
-    const marked = markImages(html, rec.url, startN); // <img> → [图N]，htmlToText 才不会把题图连标签一起吞掉
-    const text = htmlToText(marked.html);
-    if (text.length < MIN_PAGE_TEXT_CHARS) {
-      page.reason = `正文过短（${text.length} 字，疑似动态渲染页或反爬占位页）`;
-      return page;
-    }
-    page.fetched = true;
-    page.text = text.slice(0, PAGE_TEXT_CHARS);
-    page.normText = normalizeForAnchor(stripMarkers(page.text)); // 标记不参与锚点：它可能夹在题干中间
-    page.figures = marked.figures;
-    // 页面级考试信号如实进逐页记录（用户在报告里看得见「为什么这页算真题页」）
-    const exam = classifyExamSource({ title: rec.title, url: rec.url, text: page.text });
-    if (exam.exam) page.exam = true;
-    if (exam.signals.length) page.signals = exam.signals;
-    return page;
-  } catch (err) {
-    page.reason = errText(err).slice(0, 200);
-    return page;
-  }
-}
-
-function combineSignal(signal?: AbortSignal): AbortSignal {
-  const timeout = AbortSignal.timeout(COLLECT_TIMEOUT_MS);
-  if (!signal || typeof AbortSignal.any !== 'function') return timeout;
-  return AbortSignal.any([signal, timeout]);
-}
-
-/** 抓页总入口：按搜索结果顺序逐页抓，够 MAX_COLLECT_PAGES 个成功页即停（记录含失败页，如实全量）。 */
-async function collectPages(picks: Array<{ url: string; title: string }>, report: CollectReport, signal?: AbortSignal): Promise<CollectedPage[]> {
-  const pages: CollectedPage[] = [];
-  for (const p of picks) {
-    if (pages.length >= MAX_COLLECT_PAGES) break;
-    const page = await fetchPage(p, pages.reduce((n, x) => n + x.figures.length, 0), signal);
-    report.pages.push({
-      url: page.url, title: page.title, fetched: page.fetched,
-      ...(page.reason ? { reason: page.reason } : {}),
-      ...(page.exam ? { exam: true } : {}),
-      ...(page.signals ? { signals: page.signals } : {}),
-    });
-    if (page.fetched) {
-      pages.push(page);
-      (report.completeness ??= emptyCollectCompleteness()).figuresSeen += page.figures.length;
-    }
-  }
-  return pages;
+  const total = Math.min(MAX_COLLECT_QUESTIONS, MIX_KINDS.filter((t) => t !== 'scenario').reduce((n, t) => n + quota[t], 0));
+  return `\n- ★ 本次用户指定的题型配比：${parts.join('、')}，总共最多 ${total} 道。请优先照这个配比摘；某一类在页面上确实找不到就少摘或不摘，**绝不要用别的题型凑数**。`;
 }
 
 /** 喂模型的页面正文段（素材不是指令的声明照 quiz-search 口径写在段首） */
@@ -225,11 +147,10 @@ export async function collectQuiz(
   opts: { signal?: AbortSignal; ownerId?: string | null; quota?: QuizSourceMix; exam?: ExamContext } = {},
 ): Promise<CollectResult> {
   const candidates: CollectCandidate[] = [];
-  // 应试模式（EXAM-1004）：两处来源都要过闸——通用搜索的后置过滤，加题源站的站内直达。
-  // 只闸一处会出现「资料架干净、题卡里冒出范围外站点」，那比不设界更难解释。
+  // 应试模式按本次主题找相关正文，不能让固定的 C++/Go/Python 入口吃掉 Java 的抓页窗口。
   const exam = opts.exam ?? loadExamContext(opts.ownerId ?? null);
   report.scope = emptyExamScopeReport(exam.on, exam.on ? exam.summary : '');
-  report.queries = buildCollectQueries(topic);
+  report.queries = exam.on ? (topic.trim() ? [topic.trim().slice(0, 100)] : []) : buildCollectQueries(topic);
   if (report.queries.length === 0) return { report, candidates };
   if (exam.on && exam.hosts.length === 0) {
     // 一个范围都没选 ⇒ 不发外部请求。这不是「搜索失败」，如实标 hostsEmpty 让路由说「请先选考试范围」
@@ -238,38 +159,18 @@ export async function collectQuiz(
     return { report, candidates };
   }
 
-  // ① 检索（searchWeb 自带并行/去重/缓存/逐源降级；搜集要新结果，跳缓存按主题词量小不设防）
+  // ① 应试实时检索；关闭模式仍按原三条派生词走通用搜索。
   const seen = new Set<string>();
-  const picks: Array<{ url: string; title: string; direct?: boolean }> = [];
-  const addLinks = (links: readonly { url: string; title: string }[]) => {
-    for (const l of links) {
-      if (!l.url.startsWith('http') || seen.has(l.url)) continue;
-      seen.add(l.url);
-      picks.push({ url: l.url, title: l.title || l.url, direct: true });
-    }
-  };
-  if (exam.on) {
-    // ⓪ 固定入口页：登记表上「打开就是题目」的长文页。求职面试组全靠它——那些站是文档站、
-    //    检索在客户端做，而通用搜索引擎对面试类查询几乎不返它们（2026-10-05 实测 80 条命中里 4 条在范围内）。
-    addLinks(examEntryLinks(exam.sources, exam.hosts));
-    // ① 站内直达：免 key 通道不理 `site:`，通用引擎下钻 33 条只有 1 条能抽题（2026-10-04 实测），
-    // 所以题源站自己的检索入口才是这一层的产出主力。单站失败逐条记进 failed，不阻断。
-    const hits = examDirectQueries(topic, exam);
-    const direct = await examDirectPages(hits, exam.hosts, { signal: opts.signal });
-    addLinks(direct.links);
-    if (direct.links.length > 0) report.providers.push('direct');
-    report.failed.push(...direct.failed);
-    report.scope!.directSites = direct.sites;
-  }
+  const picks: Array<{ url: string; title: string }> = [];
   for (const q of report.queries) {
     try {
-      const res = await searchWeb(q, opts.ownerId ?? null, {
-        signal: opts.signal,
-        ...(exam.on ? { allowHosts: exam.hosts } : {}),
-      });
+      const res = exam.on
+        ? await searchExamWeb(q, opts.ownerId ?? null, exam, { skipCache: true, signal: opts.signal, purpose: 'collect' })
+        : { ...await searchWeb(q, opts.ownerId ?? null, { signal: opts.signal }), directSites: [] };
       report.providers.push(...res.providers);
       report.failed.push(...res.failed);
       if (report.scope) report.scope.dropped += res.dropped ?? 0;
+      if (report.scope) report.scope.directSites = res.directSites;
       for (const r of res.results) {
         if (!r.url.startsWith('http') || seen.has(r.url)) continue;
         seen.add(r.url);
@@ -283,13 +184,13 @@ export async function collectQuiz(
   const gated = exam.on ? picks.filter((p) => examAllowed(p.url, exam)) : picks;
   if (report.scope) report.scope.kept = gated.length;
   if (exam.on && gated.length === 0 && picks.length > 0) report.scope.dropped += picks.length - gated.length;
-  // 直达候选排在前：它们本来就是从题源站检索页里挑出来的题页，比通用搜索命中更接近「有题可摘」
-  const ranked = rankPicks(gated);
-  const ordered = [...gated.filter((p) => p.direct), ...ranked.filter((p) => !p.direct)];
+  const ordered = exam.on ? gated : rankPicks(gated);
   if (report.scope && ordered.length === 0) report.scope.empty = true;
 
   // ③ 抓页（top N 成功页；失败页也进逐页记录）
-  const pages = await collectPages(ordered, report, opts.signal);
+  const pages = await collectPages(ordered, report, {
+    signal: opts.signal, ...(exam.on ? { topic, allowHosts: exam.hosts } : {}),
+  });
   if (pages.length === 0) return { report, candidates };
 
   // ③ 模型摘录（出题角色现成绑定；搜集不配新角色——「摘录器」没有独立调优需求）
@@ -299,7 +200,8 @@ export async function collectQuiz(
     report.failure = 'no-model';
     return { report, candidates };
   }
-  const prompt = `${COLLECT_PROTOCOL}${buildQuotaLine(opts.quota)}\n\n${buildPagesBlock(pages)}`;
+  const topicLine = exam.on ? `\n本次主题：${topic}。只摘录与该主题直接相关的题，不摘其它语言或其它考点的题。` : '';
+  const prompt = `${COLLECT_PROTOCOL}${buildQuotaLine(opts.quota)}${topicLine}\n\n${buildPagesBlock(pages)}`;
   const r = await aiText({
     purpose: 'collect.draft', ownerId: opts.ownerId ?? null, target, signal: opts.signal,
     messages: [{ role: 'user', content: prompt }],
@@ -323,6 +225,10 @@ export async function collectQuiz(
   for (const raw of parsed.questions) {
     // anchor/page 是搜集协议附加键，**必须剥掉**——留着会顺着落库污染题库（quiz-search refs 同款教训）
     const { anchor: _anchor, page: _page, ...question } = raw as QuizQuestion & { anchor?: unknown; page?: unknown; figures?: unknown };
+    if (exam.on && conflictingLanguage(`${question.question} ${question.material ?? ''}`, topic)) {
+      candidates.push({ question, ok: false, reason: '题目语言与本次主题不匹配' });
+      continue;
+    }
     const hit = verbatimHit(question.question ?? '', normPages);
     if (hit < 0) {
       candidates.push({ question, ok: false, reason: '题干未在页面原文命中（verbatim 校验未过，疑似非摘录）' });
@@ -330,7 +236,7 @@ export async function collectQuiz(
     }
     const src = pages[hit]!;
     // 加强校验（`collect-quality.ts`）：尾锚点 + 选项命中率——挡「首句抄、后半编」与「题干抄、选项编」
-    const strong = strongVerbatim(question, src.normText);
+    const strong = strongVerbatim(question, src.normText, { strict: exam.on });
     if (!strong.ok) {
       candidates.push({ question, ok: false, reason: strong.reason ?? '原文比对未过' });
       continue;

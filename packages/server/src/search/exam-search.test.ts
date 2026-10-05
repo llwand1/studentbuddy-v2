@@ -77,16 +77,19 @@ describe('应试搜索的真实页面补充', () => {
     expect(mock.page).not.toHaveBeenCalled();
   });
 
-  it('关模式保持原入口、owner、选项与结果；已足够的通用命中不触发补充抓页', async () => {
+  it('关模式保持原入口、owner、选项与结果；范围内通用命中仍需正文验证', async () => {
     const base = { results: [1, 2, 3].map((i) => ({ title: 'Java', url: `https://study.example/${i}`, snippet: 'Java', source: 'bing' })), providers: ['bing'], failed: [], dropped: 0 };
     mock.search.mockResolvedValue(base);
     const options = { skipCache: true, signal: new AbortController().signal };
     const c = context(); c.on = false;
     expect(await searchExamWeb('Java', 'u1', c, options)).toEqual({ ...base, directSites: [], unavailable: false });
     expect(mock.search).toHaveBeenLastCalledWith('Java', 'u1', options);
-    await searchExamWeb('Java', 'u1', context());
     expect(mock.page).not.toHaveBeenCalled();
     expect(mock.direct).not.toHaveBeenCalled();
+    mock.page.mockImplementation(async (url: string) => page(url.endsWith('/1') ? 'Java 泛型采用类型擦除实现。' : '没有相关正文'));
+    const r = await searchExamWeb('Java', 'u1', context());
+    expect(r.results.map((h) => h.url)).toEqual(['https://study.example/1']);
+    expect(mock.page).toHaveBeenCalled();
   });
 
   it('入口页与详情页都有硬数量预算，不会递归遍历', async () => {
@@ -120,5 +123,69 @@ describe('应试搜索的真实页面补充', () => {
     expect((await searchExamWeb('Java 并发', null, context())).results).toEqual([]);
     mock.page.mockResolvedValue(page('Java 学习目录和安装配置。'));
     expect((await searchExamWeb('Java 并发', null, context())).results).toEqual([]);
+  });
+
+  it('不能用培训广告页的关键词堆叠冒充学习资料', async () => {
+    mock.page.mockResolvedValue({ ...page('Java 并发线程池的培训内容'), title: 'Java 私教求职辅导' });
+    expect((await searchExamWeb('Java 并发', null, context())).results).toEqual([]);
+    await searchExamWeb('Java 并发', null, context(['https://study.example/sijiao_offer.html']));
+    expect(mock.page).toHaveBeenCalledTimes(1);
+  });
+
+  it('具体长主题需要足够的正文覆盖，只有三个泛化词不能算相关', async () => {
+    mock.page.mockResolvedValue(page('Java 并发 线程 学习目录'));
+    expect((await searchExamWeb('Java 并发 线程池 拒绝策略 核心线程数', null, context())).results).toEqual([]);
+    mock.page.mockResolvedValue(page('Java 并发的线程池包含核心线程数、队列以及拒绝策略。'));
+    expect((await searchExamWeb('Java 并发 线程池 拒绝策略 核心线程数', null, context())).results).toHaveLength(1);
+  });
+
+  it('高考英语的科目导航不能代替定语从句这个具体考点', async () => {
+    mock.page.mockResolvedValue(page('高考英语的真题目录和英语复习计划'));
+    expect((await searchExamWeb('高考英语 定语从句', null, context())).results).toEqual([]);
+    mock.page.mockResolvedValue(page('英语定语从句使用关系代词连接先行词与从句。'));
+    expect((await searchExamWeb('高考英语 定语从句', null, context())).results).toHaveLength(1);
+  });
+
+  it('题库目录只能用于发现真实详情，不能直接当作出题参考', async () => {
+    mock.page.mockImplementation(async (url: string) => url.endsWith('/java')
+      ? page('Java 并发线程池的拒绝策略包括抛出异常与调用者执行。')
+      : { ...page('Java 并发线程池目录', '<a href="/java">Java 并发线程池</a>'), title: '题库大全' });
+    const r = await searchExamWeb('Java 并发线程池', null, context(), { purpose: 'quiz' });
+    expect(r.results.map((h) => h.url)).toEqual(['https://study.example/java']);
+  });
+
+  it('HashMap 查询优先发现集合题页，不能被线程安全等泛化链接吃掉预算', async () => {
+    const noise = Array.from({ length: 8 }, (_, i) => `<a href="/pool-${i}">Java 线程池的线程安全</a>`).join('');
+    mock.page.mockImplementation(async (url: string) => url.endsWith('/collections')
+      ? { ...page('Java HashMap 是非线程安全的，并发写入可能丢失数据。'), title: 'Java集合面试题' }
+      : page('栏目目录', `${noise}<a href="/collections">Java 集合面试题</a>`));
+    const r = await searchExamWeb('Java HashMap 的线程安全', null, context(), { purpose: 'quiz' });
+    expect(r.results.map((h) => h.url)).toEqual(['https://study.example/collections']);
+    expect(mock.page.mock.calls.some((c: unknown[]) => String(c[0]).includes('collections'))).toBe(true);
+    expect(mock.page.mock.calls.length).toBeLessThanOrEqual(1 + MAX_EXAM_DETAIL_PAGES);
+  });
+
+  it('站内候选只有目录时，在同一抓页预算里继续读其具体题页', async () => {
+    mock.direct.mockResolvedValue({ links: [{ title: 'Java 并发题库大全', url: 'https://study.example/banks', snippet: '', source: 'direct' }], sites: ['技术资料'], failed: [] });
+    mock.page.mockImplementation(async (url: string) => url.endsWith('/banks')
+      ? { ...page('Java 并发题库列表', '<a href="/question/1">Java 并发拒绝策略</a>'), title: 'Java 并发题库大全' }
+      : url.endsWith('/question/1') ? page('Java 并发线程池的拒绝策略包括抛出异常与调用者执行。') : page('无关内容'));
+    const r = await searchExamWeb('Java 并发', null, context(), { purpose: 'collect' });
+    expect(r.results.map((h) => h.url)).toEqual(['https://study.example/question/1']);
+    expect(mock.page).toHaveBeenCalledTimes(3);
+  });
+
+  it('验证码占位页明确报无法读取，不当作零命中或相关资料', async () => {
+    mock.page.mockResolvedValue({ ...page('Java 并发资料'), title: '滑动验证页面' });
+    const r = await searchExamWeb('Java 并发', null, context(), { purpose: 'quiz' });
+    expect(r.results).toEqual([]);
+    expect(r.failed.join()).toContain('页面要求验证，无法读取正文');
+  });
+
+  it('英文主题都出现仍须覆盖中文考点，HashMap 加线程目录不代表线程安全资料', async () => {
+    mock.page.mockResolvedValue(page('Java HashMap 底层是数组，线程池题目请点击其它栏目。'));
+    expect((await searchExamWeb('Java HashMap 的线程安全', null, context())).results).toEqual([]);
+    mock.page.mockResolvedValue(page('Java HashMap 是非线程安全的，多线程并发写入需要同步。'));
+    expect((await searchExamWeb('Java HashMap 的线程安全', null, context())).results).toHaveLength(1);
   });
 });

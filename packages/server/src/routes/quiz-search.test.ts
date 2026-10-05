@@ -13,6 +13,9 @@ import type { QuizPayload, QuizRef } from '@sb/shared';
 process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-quiz-search-test-'));
 const { app } = await import('../index.js');
 const { closeDb } = await import('../storage/db.js');
+const { saveExamMode } = await import('../learning/exam-mode.js');
+const { savePomodoro, clearPomodoro } = await import('../storage/pomodoro.js');
+const { startPomodoro } = await import('@sb/shared');
 const request = (await import('supertest')).default;
 
 // 只桩「模型出题」这一段：要验的是路由与引擎之间的接线，故连 report 回填都自己模拟
@@ -20,7 +23,7 @@ const quizStub = vi.hoisted(() => ({
   result: null as QuizPayload | null,
   calls: [] as unknown[][],
   /** 模拟引擎回填的失败真因（空串＝不回填） */
-  failure: '' as '' | 'no-model' | 'parse',
+  failure: '' as '' | 'no-model' | 'parse' | 'ungrounded',
   /** 模拟引擎回填的联网报告（null＝不回填，走「本次没联网」那条） */
   search: null as { on: boolean; count: number; providers: string[]; failed: string[]; refs: QuizRef[] } | null,
 }));
@@ -53,6 +56,8 @@ const generate = (body: Record<string, unknown>) =>
 const onlineArg = () => quizStub.calls.at(-1)?.at(5);
 
 beforeEach(() => {
+  saveExamMode(false, null);
+  clearPomodoro(null);
   quizStub.result = OK_QUIZ;
   quizStub.calls = [];
   quizStub.failure = '';
@@ -81,6 +86,23 @@ describe('/api/quiz/generate 的联网开关透传（契约 §3）', () => {
     await generate({ topic: 't', search: 'true' }).expect(200);
     expect(onlineArg()).toBe(false);
   });
+
+  it('应试模式省略开关会实时联网，显式关闭和非法值仍不联网', async () => {
+    saveExamMode(true, null);
+    await generate({ topic: 'Java 线程池' }).expect(200);
+    expect(onlineArg()).toBe(true);
+    await generate({ topic: 'Java 线程池', search: false }).expect(200);
+    expect(onlineArg()).toBe(false);
+    await generate({ topic: 'Java 线程池', search: 'true' }).expect(200);
+    expect(onlineArg()).toBe(false);
+  });
+
+  it('番茄钟标签保留在教学主题里，原始主题单独送到检索入口', async () => {
+    savePomodoro(startPomodoro({ subject: 'AI 全栈知识' }, new Date()), null);
+    await generate({ topic: 'Java 线程池', search: true }).expect(200);
+    expect(quizStub.calls.at(-1)?.[0]).toBe('【AI 全栈知识】Java 线程池');
+    expect(quizStub.calls.at(-1)?.[8]).toBe('Java 线程池');
+  });
 });
 
 describe('/api/quiz/generate 的联网报告回传（契约 §3）', () => {
@@ -104,6 +126,13 @@ describe('/api/quiz/generate 的联网报告回传（契约 §3）', () => {
 });
 
 describe('/api/quiz/generate 的失败真因（契约 §5，2026-09-13 拆开）', () => {
+  it('没有依据的题被剔除时如实报告，而非误报 JSON 解析失败', async () => {
+    quizStub.result = null;
+    quizStub.failure = 'ungrounded';
+    const res = await generate({ topic: 'Java' }).expect(502);
+    expect(res.body.error).toContain('没有引用本次检索资料');
+    expect(res.body.error).not.toContain('解析');
+  });
   it('引擎报 no-model → 文案指路设置页，且**不**说「可重试」', async () => {
     quizStub.result = null;
     quizStub.failure = 'no-model';

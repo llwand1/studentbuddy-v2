@@ -130,8 +130,29 @@ describe('带范围时放宽每家的取回量', () => {
     saveProviderKey('exa', 'k-exa', null);
     await searchWeb('q-exa-off', null);
     await searchWeb('q-exa-on', null, { allowHosts: HOSTS });
-    const json = bodies.map((b) => JSON.parse(b) as { numResults?: number });
+    const json = bodies.map((b) => JSON.parse(b) as { numResults?: number; includeDomains?: string[] });
     expect(json[0]?.numResults).toBe(6);
     expect(json[1]?.numResults).toBe(10);
+    expect(json[0]?.includeDomains).toBeUndefined();
+    expect(json[1]?.includeDomains).toEqual(HOSTS);
+  });
+
+  it('Tavily 使用原生域过滤，但返回范围外结果仍必须被最终闸口拦住', async () => {
+    saveProviderKey('tavily', 'k-tavily', null);
+    vi.stubGlobal('fetch', vi.fn(async (_input: string | URL, init?: { body?: string }) => {
+      if (init?.body) bodies.push(init.body);
+      return { ok: true, status: 200, json: async () => ({ results: [
+        { title: '范围外', url: 'https://news.example/exam', content: '不能信任服务商过滤' },
+        { title: '范围内', url: 'https://www.51jiaoxi.com/exam', content: '试题' },
+      ] }) } as unknown as Response;
+    }));
+    await searchWeb('tavily-off', null);
+    const r = await searchWeb('tavily-on', null, { allowHosts: HOSTS });
+    const json = bodies.map((b) => JSON.parse(b) as { max_results: number; include_domains?: string[] });
+    expect(json[0]?.include_domains).toBeUndefined();
+    expect(json[1]?.include_domains).toEqual(HOSTS);
+    expect(json[1]?.max_results).toBe(10);
+    expect(r.results.map((h) => h.url)).toEqual(['https://www.51jiaoxi.com/exam']);
+    expect(r.dropped).toBe(1);
   });
 });

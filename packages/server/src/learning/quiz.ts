@@ -42,6 +42,7 @@ import { loadQuizImage, buildImageInstruction } from './quiz-image.js';
 import { attachQuizPhotos } from './quiz-photo.js';
 import { enforceSelfContained, foldMaterial } from './quiz-selfcontained.js';
 import { buildQuizSearchBlock, mapQuizSources } from './quiz-search.js';
+import { groundQuiz } from './quiz-grounding.js';
 import { buildTierInstruction, fillTiers } from './quiz-tier.js';
 import { buildExamPromptBlock } from './exam-mode.js';
 
@@ -300,6 +301,7 @@ export async function generateQuiz(
   online = false,
   ownerId?: string | null, // 归属（契约 TENANCY-SPEC §8.1.4）；尾参可选，见下
   verify = false, // 盲解验算（issue #71）：solver 角色对选择类题验答案，不一致丢题。默认 false＝历史调用点行为不变；PK 三味显式开
+  searchTopic?: string, // REST 方向标签与用户实际检索主题分开，省略时仍用 topic
 ): Promise<QuizPayload | null> {
   // ★ 出题是**本仓最贵的 LLM 调用之一**（还带联网检索），归属不能含糊。
   //   尾参放最后且可选：本函数的调用点有 6 处（chat 工具循环 / REST / PK 人出题 / PK AI 出题 /
@@ -323,11 +325,11 @@ export async function generateQuiz(
   if (report && searchReport) report.search = searchReport;
   // 检索先于出题（拿到资料才可能出时效题）；失败返回空段，下面的提示词与旧版逐字一致
   const found = searchReport
-    ? await buildQuizSearchBlock(topic, material, searchReport, owner)
+    ? await buildQuizSearchBlock(searchTopic ?? topic, material, searchReport, owner)
     : { block: '', refs: [] };
   const refsBlock = found.block;
   // 分级提示（契约 QUIZ-TIER-SPEC §2）：有联网参考 ⇒ 模拟题写法，没有 ⇒ 基础题写法（`quiz-tier.ts`）
-  const prompt = `${QUIZ_PROTOCOL}\n${buildMixInstruction(wanted)}\n${buildExamPromptBlock(owner)}${buildTierInstruction(!!refsBlock)}\n${buildImageInstruction(imageOn)}\n${buildAnswerStyleBlock(styleArg ?? loadAnswerStyle(owner), 'quiz')}\n${buildLearnerQuizBlock(owner)}${buildDifficultyBlock(owner)}${refsBlock}${refsBlock ? '\n' : ''}\n材料：\n${material ? material.slice(0, MAX_DOC_CHARS) : `主题：${topic}`}`;
+  const prompt = `${QUIZ_PROTOCOL}\n${buildMixInstruction(wanted)}\n${buildExamPromptBlock(owner)}${buildTierInstruction(found.refs.length > 0)}\n${buildImageInstruction(imageOn)}\n${buildAnswerStyleBlock(styleArg ?? loadAnswerStyle(owner), 'quiz')}\n${buildLearnerQuizBlock(owner)}${buildDifficultyBlock(owner)}${refsBlock}${refsBlock ? '\n' : ''}\n材料：\n${material ? material.slice(0, MAX_DOC_CHARS) : `主题：${topic}`}`;
   const r = await aiText({
     purpose: 'quiz.generate',
     ownerId: owner,
@@ -348,7 +350,7 @@ export async function generateQuiz(
   // 来源标注（契约 QUIZ-SEARCH-SPEC §2.8）：把模型给的编号翻译成真实 title/url 填 source。
   // 网址一律取自 found.refs（真实检索结果），模型写什么都丢——这是「来源不可幻觉」的唯一保证。
   // tier 按来源事实落（web ⇒ simulated、其余 ⇒ basic；模型自报覆盖掉）
-  const mapped = parsed ? fillTiers(mapQuizSources(parsed, found.refs)) : null;
+  const mapped = groundQuiz(parsed ? fillTiers(mapQuizSources(parsed, found.refs)) : null, searchReport, searchTopic ?? topic, report);
   // 自包含闸门（契约 QUIZ-COMPLETE-SPEC §3）：引用了没给的材料/图/表的题——补全、搬原图、或剔除；全剔光＝null
   const gated = mapped ? await enforceSelfContained(mapped, { ownerId: owner, refsBlock, allowPhoto: imageOn && !verify, report: report && (report.completeness ??= emptyQuizCompletenessReport()) }) : null;
   if (mapped && !gated && report) report.failure = 'incomplete';

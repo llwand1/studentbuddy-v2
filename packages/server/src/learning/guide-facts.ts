@@ -14,6 +14,7 @@ import { routeRole } from '../llm/router.js';
 import { coachSnapshot } from './coach.js';
 import { pomodoroFocus } from '@sb/shared';
 import { loadPomodoro } from '../storage/pomodoro.js';
+import { buildExamScopeLine } from './exam-mode.js';
 
 /** 末一问 / 末一答放进提示词的字数上限（够判断话题，不把整段对话送出去） */
 export const GUIDE_LAST_USER_MAX = 160;
@@ -99,6 +100,7 @@ export function buildGuideFacts(ownerId: string | null, req: GuideNextRequest): 
     terms: readGuideTermFacts(ownerId),
     sessions: countSessions(ownerId),
     focus: readGuideFocus(ownerId),
+    examLine: buildExamScopeLine(ownerId),
   };
 }
 

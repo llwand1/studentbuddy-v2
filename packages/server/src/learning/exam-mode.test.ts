@@ -13,6 +13,7 @@ const { getDb } = await import('../storage/db.js');
 const {
   EXAM_CTX_OFF,
   buildExamPromptBlock,
+  buildExamScopeLine,
   examAllowed,
   examDirectQueries,
   loadExamContext,
@@ -127,7 +128,7 @@ describe('buildExamPromptBlock', () => {
     expect(buildExamPromptBlock('u1')).toBe('');
   });
 
-  it('开着 ⇒ 范围与「不得伪称真题」两句都在，且自带行尾换行', () => {
+  it('开着 ⇒ 范围与「不得声称出处与年份」两句都在，且自带行尾换行', () => {
     saveExamMode(true, 'u1');
     saveExamScope({ packs: ['gongkao'], custom: [] }, 'u1');
     const block = buildExamPromptBlock('u1');
@@ -135,5 +136,27 @@ describe('buildExamPromptBlock', () => {
     expect(block).toContain('公务员');
     expect(block).toContain('不得声称出处与年份');
     expect(block.endsWith('\n')).toBe(true);
+  });
+});
+
+describe('buildExamScopeLine：引路灯／督促／刷词共用的范围前提', () => {
+  it('关着 ⇒ 空串（三处提示词与没这功能时逐字一致）', () => {
+    expect(buildExamScopeLine('u9')).toBe('');
+  });
+
+  it('★ 开着但一个范围都没勾 ⇒ 也是空串（不拿"范围"这句话去约束一个没圈范围的人）', () => {
+    saveExamMode(true, 'u9');
+    saveExamScope({ packs: [], custom: [] }, 'u9');
+    expect(buildExamScopeLine('u9')).toBe('');
+  });
+
+  it('开着且有范围 ⇒ 范围话术与"范围外的不要提"都在', () => {
+    saveExamMode(true, 'u9');
+    saveExamScope({ packs: ['kaoyan'], custom: ['my-school.example'] }, 'u9');
+    const line = buildExamScopeLine('u9');
+    expect(line).toContain('应试模式');
+    expect(line).toContain('考研');
+    expect(line).toContain('1 个自填站');
+    expect(line).toContain('范围外的内容不要提');
   });
 });

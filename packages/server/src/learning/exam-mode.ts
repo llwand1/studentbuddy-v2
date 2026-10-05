@@ -118,6 +118,23 @@ export function examAllowed(url: string, ctx: ExamContext): boolean {
   return examUrlAllowed(url, ctx.hosts);
 }
 
+/**
+ * 通用「范围前提」一句（引路灯／督促／刷词新词这三处 AI 文案共用）。
+ *
+ * 与 `buildExamPromptBlock` 的分工：那一段是**出题**的写作要求（题型、卷面、不许伪称真题），
+ * 这一段只交代「这个人的学习被圈在什么范围内」——建议、督促话术、新词条都得落在范围内，
+ * 但它们不需要出题那三条纪律。关着返回空串 ⇒ 三处提示词与改动前逐字一致。
+ */
+export function buildExamScopeLine(ownerId: string | null): string {
+  const ctx = loadExamContext(ownerId);
+  if (!ctx.on || ctx.hosts.length === 0) return '';
+  return (
+    `他开着**应试模式**，学习范围＝${ctx.summary}（资料与题库只来自这些站）。` +
+    '给建议、说话术、出题、挑词条都只挑与该范围直接相关的；范围外的内容不要提，' +
+    '也不要用「你之前学过」这类话把范围外的东西带回来。'
+  );
+}
+
 /** 站内直达：登记表上配了检索端点、且这次确实在范围内的那些站 */
 export interface ExamDirectHit {
   host: string;

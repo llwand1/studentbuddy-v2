@@ -26,6 +26,7 @@ import { listDueQueue } from './review-queue.js';
 import { termScope } from './term-review-scope.js';
 import { MENTION_WINDOW_DAYS } from './mention.js';
 import { buildCoachSystemPrompt } from './coach-prompt.js';
+import { buildExamScopeLine } from './exam-mode.js';
 import {
   COACH_HISTORY_TURNS,
   COACH_MAX_REPLY_CHARS,
@@ -85,6 +86,7 @@ export function coachSnapshot(ownerId: string | null): CoachSnapshot {
     // ★ 一本账（契约 `GAMIFIED-AGENT-SPEC` §8.3）：这里读的是**全行为**连签，不再是只数复习的
     //   `reviewStreak`（已退役）⇒ 提示词与面板上「连续 N 天」的语义＝「连续学习 N 天」。
     streak: computeStreak(ownerId),
+    examLine: buildExamScopeLine(ownerId),
     top,
   };
 }

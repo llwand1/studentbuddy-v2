@@ -11,6 +11,7 @@
  */
 import { SparkleIcon, MascotIcon, StarIcon, TaskIcon, KeyIcon, DeckIcon } from '../../components/game-icons';
 import type { CardsStore } from './use-cards-state';
+import { ExamEmptyHint } from '../exam/ExamEmptyHint';
 import { CardWall } from './CardWall';
 import { TaskListPanel } from './TaskListPanel';
 import { ChestPanel } from './ChestPanel';
@@ -114,6 +115,9 @@ export function CardsView({
         almostThere={summary.almostThere}
         earnedKeys={chest.earnedKeys}
       />
+
+      {/* 应试模式下卡墙可能整面为空（服务端已按来源站过滤）——不解释就会被读成"卡没了" */}
+      {summary.totalTerms === 0 && <ExamEmptyHint what="卡" />}
 
       {/* 失败时**不清空已读到的那一版**（旧读数 + 一句"这次没刷新成功"，比整页消失有用） */}
       {s.error && (

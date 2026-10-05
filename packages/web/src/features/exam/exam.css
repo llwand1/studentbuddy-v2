@@ -1,0 +1,37 @@
+/* exam.css — 应试模式空态与范围提示（禁内联样式，门禁按仓规扫 web/src） */
+
+.exam-empty {
+  margin: var(--sb-sp-3) 0;
+  padding: var(--sb-sp-3);
+  border: 1px solid var(--sb-border);
+  border-radius: var(--sb-radius, 8px);
+  background: var(--sb-bg-secondary, rgba(255, 255, 255, 0.03));
+}
+
+.exam-empty-title {
+  margin: 0 0 var(--sb-sp-2);
+  font-size: var(--sb-fs-md);
+  color: var(--sb-ink);
+}
+
+.exam-empty-note {
+  margin: 0 0 var(--sb-sp-2);
+  font-size: var(--sb-fs-sm);
+  line-height: 1.6;
+  color: var(--sb-ink-secondary);
+}
+
+.exam-empty-btn {
+  padding: var(--sb-sp-1) var(--sb-sp-3);
+  border: 1px solid var(--sb-primary);
+  border-radius: var(--sb-radius, 8px);
+  background: transparent;
+  color: var(--sb-primary);
+  font-size: var(--sb-fs-sm);
+  cursor: pointer;
+}
+
+.exam-empty-btn:hover {
+  background: var(--sb-primary);
+  color: #fff;
+}

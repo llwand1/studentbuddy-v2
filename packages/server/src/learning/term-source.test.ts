@@ -11,6 +11,7 @@ process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-termsrc-test
 
 const { getDb } = await import('../storage/db.js');
 const { removeTerm, saveOneTerm, saveTerms } = await import('./terms.js');
+const { saveExamMode, saveExamScope } = await import('./exam-mode.js');
 const {
   MAX_TERM_SOURCE_URLS,
   deleteTermSources,
@@ -22,19 +23,14 @@ const {
 
 const OWNER = 'u-src';
 
-const idOf = (term: string): string => {
-  const row = getDb().prepare('SELECT id FROM term_library WHERE term = ? AND owner_id = ?').get(term, OWNER) as
-    | { id: string }
-    | undefined;
-  if (!row) throw new Error(`词条没落库：${term}`);
-  return row.id;
-};
-
 beforeEach(() => {
   const db = getDb();
   db.prepare('DELETE FROM term_source').run();
   db.prepare('DELETE FROM term_library').run();
   db.prepare('DELETE FROM term_domain').run();
+  // ★ 必须一起清：本文件的用例会开应试模式，`app_settings` 不清的话，
+  //   前一条留下的 `exam_mode=true` 会让后面那条"关着模式"的断言测的其实是开着。
+  db.prepare('DELETE FROM app_settings').run();
 });
 
 describe('v55 表结构', () => {
@@ -151,5 +147,78 @@ describe('删除联动', () => {
     removeTerm(id, OWNER);
     const left = getDb().prepare('SELECT COUNT(*) c FROM term_source WHERE term_id = ?').get(id) as { c: number };
     expect(left.c).toBe(0);
+  });
+});
+
+describe('★ 四个读面的范围过滤（开着模式才生效，关着一字不加）', () => {
+  const seedThree = () => {
+    const a = saveOneTerm('范围内词', '来自菁优网', '数学', OWNER, { urls: ['https://www.jyeoo.com/math/1'], origin: 'chat' }).id!;
+    const b = saveOneTerm('范围外词', '来自百科', '数学', OWNER, { urls: ['https://baike.baidu.com/x'], origin: 'chat' }).id!;
+    const c = saveOneTerm('无来源词', '用户手输', '数学', OWNER).id!;
+    return { a, b, c };
+  };
+  const turnOn = (packs: string[], custom: string[] = []) => {
+    saveExamMode(true, OWNER);
+    saveExamScope({ packs, custom }, OWNER);
+  };
+  const names = (rows: Array<{ term: string }>) => rows.map((r) => r.term).sort();
+
+  it('listTerms：只回来源在范围内的词条', async () => {
+    const { a } = seedThree();
+    const { listTerms } = await import('./terms.js');
+    expect(names(listTerms(undefined, undefined, OWNER))).toContain('范围内词'); // 关着 ⇒ 三条都在
+    turnOn([], ['jyeoo.com']);
+    const rows = listTerms(undefined, undefined, OWNER);
+    expect(names(rows)).toEqual(['范围内词']);
+    expect(rows[0]?.id).toBe(a);
+  });
+
+  it('rowsAll（复习概览与队列的共同出口）同样过滤', async () => {
+    seedThree();
+    // rowsAll 带 `IN_SCOPE`（v28 起复习是选择式的：COALESCE(t.review_enabled, d.review_enabled, 0)=1），
+    // 新建词条默认不在复习范围内 ⇒ 夹具要先纳入复习，否则"关着模式也应有 3 条"这条断言测的是别的口径
+    getDb().prepare('UPDATE term_library SET review_enabled = 1 WHERE owner_id = ?').run(OWNER);
+    const { rowsAll } = await import('./term-review.js');
+    expect(rowsAll(undefined, OWNER)).toHaveLength(3);
+    turnOn([], ['jyeoo.com']);
+    expect(rowsAll(undefined, OWNER).map((r) => r.term)).toEqual(['范围内词']);
+    // 带 domain 的那条分支也要过闸：漏一支就是「按领域看干净、全量看漏」
+    expect(rowsAll('数学', OWNER).map((r) => r.term)).toEqual(['范围内词']);
+  });
+
+  it('continentMap：范围外的地块与怪不出现', async () => {
+    seedThree();
+    const { continentMap } = await import('./continent.js');
+    expect(continentMap(OWNER)).toHaveLength(3);
+    turnOn([], ['jyeoo.com']);
+    expect(continentMap(OWNER).map((t) => t.term)).toEqual(['范围内词']);
+  });
+
+  it('cardsByTerm：范围外的词条不出卡', async () => {
+    const { a, b, c } = seedThree();
+    const { cardsByTerm } = await import('./term-cards.js');
+    expect(cardsByTerm(OWNER).size).toBe(3);
+    turnOn([], ['jyeoo.com']);
+    const cards = cardsByTerm(OWNER);
+    expect([...cards.keys()].sort()).toEqual([a].sort());
+    expect(cards.has(b)).toBe(false);
+    expect(cards.has(c)).toBe(false);
+  });
+
+  it('★ 开了模式但一个范围都没勾 ⇒ 不过滤（不拿配置缺失去清空用户的数据视图）', async () => {
+    seedThree();
+    const { listTerms } = await import('./terms.js');
+    saveExamMode(true, OWNER);
+    saveExamScope({ packs: [], custom: [] }, OWNER);
+    expect(listTerms(undefined, undefined, OWNER)).toHaveLength(3);
+  });
+
+  it('范围内为空时返回空集而不是报错（`AND 0` 形态，SQL 不会因 IN () 崩）', async () => {
+    seedThree();
+    turnOn([], ['never-matched.example']);
+    const { listTerms } = await import('./terms.js');
+    expect(listTerms(undefined, undefined, OWNER)).toEqual([]);
+    const { continentMap } = await import('./continent.js');
+    expect(continentMap(OWNER)).toEqual([]);
   });
 });

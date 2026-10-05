@@ -21,6 +21,7 @@ import { randomUUID } from 'node:crypto';
 import { examHostAllowed } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
+import { loadExamContext } from './exam-mode.js';
 
 /** 一轮最多给一个词条记几条来源（资料架收口常有 5–12 条，全记等于没记） */
 export const MAX_TERM_SOURCE_URLS = 3;
@@ -119,4 +120,74 @@ export function termSourceHosts(termId: string, ownerId: string | null): string[
     .prepare('SELECT host FROM term_source WHERE term_id = ? AND owner_id = ? ORDER BY created_at, id')
     .all(termId, ownerForWrite(ownerId)) as Array<{ host: string }>;
   return rows.map((r) => r.host);
+}
+
+/** 一条范围过滤子句：`clause` 是**裸谓词**（不含前导 AND），`args` 跟着占位符走 */
+export interface TermScopeFilter {
+  clause: string;
+  args: unknown[];
+  /** 开着模式但范围内一个词条都没有 ⇒ 空态文案用它；SQL 侧已由 `clause` 自己兜住 */
+  none: boolean;
+}
+
+/**
+ * 各读路径共用的那一句范围过滤。**只允许这一份实现**：
+ * 词条页、知识大陆、复习队列、卡牌、刷词五处各自写一遍 `id IN (...)`，
+ * 就会有一处忘了判空、一处把无来源的词当范围内——那正是「看起来过滤了、实际漏一条」的形状。
+ *
+ * ★ `clause` 存的是**裸谓词**（`1 = 0` 或 `t.id IN (?,?)`），不带前导 `AND`：
+ *   一半调用方是"条件数组 + join(' AND ')"的写法（`listTerms`），另一半是字符串模板直拼
+ *   （大陆/队列/卡牌）。子句自带前导 AND 时，前者会拼出 `... AND AND 1 = 0` 直接语法错
+ *   ——2026-10-05 写这四个面的测试当场逮到。前缀由两种接线各自负责。
+ * ★ 范围内为空时给 `1 = 0`，**不是** `IN ()`（SQLite 语法错），也不要求每个调用方记得早退：
+ *   少一处"必须记得判空"就少一类静默崩，空态另外用 `none` 告诉调用方。
+ *
+ * @param hosts 生效域名；`null` 或空数组 ⇒ 返回 null（调用方**不加任何过滤**）
+ */
+export function termScopeFilter(ownerId: string | null, hosts: readonly string[] | null): TermScopeFilter | null {
+  if (!hosts || hosts.length === 0) return null;
+  const ids = termIdsInScope(ownerId, hosts);
+  if (ids === null || ids.size === 0) return { clause: '1 = 0', args: [], none: true };
+  const list = [...ids];
+  return { clause: `t.id IN (${list.map(() => '?').join(',')})`, args: list, none: false };
+}
+
+/**
+ * 按这个人当前的应试设置取过滤子句。
+ * ★ 「开了模式但一个范围都没勾」返回 null（＝不过滤）：把整个词条库清空成"你还没有词"
+ *   是拿一个配置缺失去惩罚用户的数据视图；那种情况该由空态文案说「先去设置里选范围」。
+ */
+export function termScopeFilterForOwner(ownerId: string | null): TermScopeFilter | null {
+  const ctx = loadExamContext(ownerId);
+  return termScopeFilter(ownerId, ctx.on && ctx.hosts.length > 0 ? ctx.hosts : null);
+}
+
+/**
+ * 把范围子句**注入到调用方的 WHERE 条件数组**里，一行搞定（返回子句本身，供空态判 `none`）。
+ *
+ * 为什么是这个形状而不是返回 clause/args 让五处各自 push 两行：那五处每多写一行，
+ * 就多一次"某处忘了判空 / 忘了加"的机会——本仓的教训是这类漏口不报错，只让范围看起来生效了。
+ */
+export function applyTermScope(ownerId: string | null, conds: string[], args: unknown[]): TermScopeFilter | null {
+  const scope = termScopeFilterForOwner(ownerId);
+  if (scope) {
+    conds.push(scope.clause);
+    args.push(...scope.args);
+  }
+  return scope;
+}
+
+/**
+ * 给"一条写死的 SQL"用的形态：返回可直接拼进 WHERE 尾部的片段与参数（未开过滤 ⇒ 空片段）。
+ * 与 `applyTermScope` 是同一个判据的两种接线，不另立口径。
+ */
+export function termScopeSql(ownerId: string | null): { sql: string; args: unknown[] } {
+  const scope = termScopeFilterForOwner(ownerId);
+  return scope ? { sql: ` AND ${scope.clause}`, args: scope.args } : { sql: '', args: [] };
+}
+
+/** 范围内词条数；`null` ＝ 没开过滤。空态文案要说「范围内目前 0 个词条」，不靠前端数返回条数 */
+export function termScopeCount(ownerId: string | null): number | null {
+  const f = termScopeFilterForOwner(ownerId);
+  return f === null ? null : f.args.length;
 }

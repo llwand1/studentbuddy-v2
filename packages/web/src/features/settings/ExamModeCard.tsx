@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import type { ExamPacksView, ExamScopeSetting } from '@sb/shared';
 import { MAX_EXAM_CUSTOM_HOSTS } from '@sb/shared';
 import { api } from '../../lib/api';
+import { setExamScopeCached } from '../exam/useExamScope';
 import './settings.css';
 
 export function ExamModeCard({ flash }: { flash: (ok: boolean, text: string) => void }) {
@@ -44,6 +45,7 @@ export function ExamModeCard({ flash }: { flash: (ok: boolean, text: string) => 
       setHosts(r.hosts);
       setDirectSites(r.directSites);
       setOn(r.on);
+      setExamScopeCached({ on: r.on, scope: r.scope, summary: r.summary, hosts: r.hosts, directSites: r.directSites });
       if (r.rejectedCustom > 0) flash(false, `有 ${r.rejectedCustom} 条域名不合法，已丢弃（填站点域名即可，不用带 https:// 或路径）`);
     } catch (e) {
       flash(false, e instanceof Error ? e.message : String(e));
@@ -58,6 +60,7 @@ export function ExamModeCard({ flash }: { flash: (ok: boolean, text: string) => 
     try {
       const r = await api.settings.saveExamMode(next);
       setOn(r.on);
+      setExamScopeCached(r);
       flash(true, r.on ? `已开启：外部资料只从范围内的站取（${r.summary}）` : '已关闭：恢复不设来源边界');
     } catch (e) {
       flash(false, e instanceof Error ? e.message : String(e));

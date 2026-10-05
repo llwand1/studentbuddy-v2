@@ -33,7 +33,7 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
-import { deleteTermSources, recordTermSourceIfAny, type TermSourceInput } from './term-source.js';
+import { applyTermScope, deleteTermSources, recordTermSourceIfAny, type TermSourceInput } from './term-source.js';
 import { publishEvent } from '../events/bus.js';
 // 入库前要归一（抽取侧的 `normalizeTerms`）；类型 `TermItem` 同源，避免两处各写一份形状。
 import { normalizeTerms, type TermItem } from './term-extract.js';
@@ -287,14 +287,13 @@ export function listTerms(
     conds.push('t.term LIKE ?');
     args.push(`${keyword.trim()}%`);
   }
-  const where = `WHERE ${conds.join(' AND ')}`;
-  const rows = db
-    .prepare(
+  applyTermScope(ownerId, conds, args); // 应试范围（v55）：只认来源站在范围内的词条；未开模式时什么都不加
+  const rows = db    .prepare(
       `SELECT t.*, s.title AS source_title, ${SCOPE_FLAG} AS review_in_scope
          FROM term_library t
          ${SCOPE_JOIN}
          LEFT JOIN sessions s ON s.id = t.source_session_id
-       ${where} ORDER BY t.importance DESC, t.usage_count DESC, t.updated_at DESC LIMIT 500`,
+       WHERE ${conds.join(' AND ')} ORDER BY t.importance DESC, t.usage_count DESC, t.updated_at DESC LIMIT 500`,
     )
     .all(...args) as Array<TermRow & { source_title: string | null; review_in_scope: number }>;
   return rows.map((r) => ({ ...r, aliases: parseAliases(r.aliases) }));

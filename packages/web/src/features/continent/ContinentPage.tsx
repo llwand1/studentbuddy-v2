@@ -26,6 +26,7 @@ import { ContinentDetail } from './ContinentDetail';
 import { ContinentHeader } from './ContinentHeader';
 import { ContinentMap, type ContinentChestDrop } from './ContinentMap';
 import { ContinentNav } from './ContinentNav';
+import { ExamEmptyHint } from '../exam/ExamEmptyHint';
 import { ContinentPartners, useContinentPartners } from './continent-partners';
 import { ContinentDpad } from './continent-dpad';
 import { ExpandDialog } from './ExpandDialog';
@@ -286,6 +287,8 @@ export function ContinentPage() {
         {showCodex && <CodexPanel found={view.codexFound} onClose={() => setPanel('none')} />}
         {panel === 'nav' && <ContinentNav view={view} hero={heroCtl.hero} hunt={hunt} onClose={() => setPanel('none')} />}
       </div>
+
+      {terms && terms.length === 0 && <ExamEmptyHint what="地块与怪" />}
 
       {/* D-pad：键盘之外的走位入口（已拆成 `continent-dpad.tsx`——本文件贴 `.tsx ≤300` 红线） */}
       <ContinentDpad

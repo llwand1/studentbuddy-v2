@@ -50,6 +50,7 @@
 import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
 import { starOf, rarityOf, nextStarProgress, CARD_STAR_CAP, type CardRarity } from '@sb/shared';
+import { termScopeSql } from './term-source.js';
 
 /** 一条词条的卡牌读数（全部派生，无一行存在库里） */
 export interface TermCards {
@@ -82,6 +83,7 @@ export interface TermCards {
  */
 export function cardsByTerm(ownerId: string | null): Map<string, TermCards> {
   const owner = ownerForWrite(ownerId);
+  const scope = termScopeSql(ownerId); // 应试范围：范围外的词条不出卡（卡墙与宝箱同源）
   const rows = getDb()
     .prepare(
       `SELECT t.id AS term_id,
@@ -92,9 +94,9 @@ export function cardsByTerm(ownerId: string | null): Map<string, TermCards> {
               (SELECT COUNT(*) FROM chest_open c
                 WHERE c.term_id = t.id AND c.owner_id = t.owner_id AND c.accepted = 1) AS chest_grants
          FROM term_library t
-        WHERE t.owner_id = ?`,
+        WHERE t.owner_id = ?${scope.sql}`,
     )
-    .all(owner) as Array<{ term_id: string; mentions: number; review_days: number; chest_grants: number }>;
+    .all(owner, ...scope.args) as Array<{ term_id: string; mentions: number; review_days: number; chest_grants: number }>;
 
   const out = new Map<string, TermCards>();
   for (const r of rows) out.set(r.term_id, toCards(r.term_id, r.mentions, r.review_days, r.chest_grants));

@@ -8,6 +8,7 @@
  */
 import { getDb } from '../storage/db.js';
 import { encryptSecret, decryptSecret } from '../storage/crypto.js';
+import { examScopeSignature, splitByExamScope } from '@sb/shared';
 import { bingSearch } from './bing-channel.js';
 import { combineSignals } from './combine.js';
 import { fetchSafe } from './ssrf-guard.js';
@@ -24,6 +25,16 @@ export type { SearchResult } from './types.js';
 /** 需要 key 的托管服务商（bing 免 key，故不在此列） */
 export const KEYED_PROVIDERS = ['exa', 'tavily', 'zhipu'] as const;
 export type KeyedProvider = (typeof KEYED_PROVIDERS)[number];
+
+/** 平时每家取回几条（沿用 2026-09-20 定的 6 条口径，不动既有计费假设） */
+const PROVIDER_DEFAULT_WANT = 6;
+/**
+ * 带白名单时每家取回几条：**放宽到 10**。
+ * 依据两处：① 本文件 Exa 段注释的计费口径「前 10 条带 contents 不额外计费」；
+ * ② 2026-10-04 实测 88 条命中里 33 条落在白名单内（38%），按 6 条取回再过滤常常只剩 1～2 条，
+ *   出题参考段会经常为空——那不是「范围内没资料」，是「取回太少」。
+ */
+const PROVIDER_SCOPED_WANT = 10;
 
 export interface SearchProviderConfig {
   type: KeyedProvider | 'bing';
@@ -84,7 +95,17 @@ export function saveProviderKey(type: KeyedProvider, plain: string, ownerId: str
 
 // ── 三家实现（各 ~20 行独立函数，简单组合原则）──
 
-async function exaSearch(query: string, apiKey: string, signal?: AbortSignal): Promise<SearchResult[]> {
+/**
+ * `want`：这次希望拿回几条。**带白名单时放宽到 10**（同下注释的计费口径上限），
+ * 因为后置过滤会砍掉大部分命中——2026-10-04 实测：11 个应试主题共 88 条命中，
+ * 落进 22 域白名单的只有 33 条（38%），按 6 条取回再过滤常常只剩 1～2 条，出题参考就空了。
+ */
+async function exaSearch(
+  query: string,
+  apiKey: string,
+  signal?: AbortSignal,
+  want: number = PROVIDER_DEFAULT_WANT,
+): Promise<SearchResult[]> {
   const res = await fetchSafe('https://api.exa.ai/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
@@ -92,15 +113,15 @@ async function exaSearch(query: string, apiKey: string, signal?: AbortSignal): P
     //   在 /search 上带 `contents:{highlights:true}` —— 返回的是**按查询相关度选出的片段**，
     //   而不是整页正文。原先取 `text` 再硬截 500 字，截到的是**页面开头**（与查询词无关）；
     //   highlights 截的是**跟问题最相关的段落**，这正是回灌质量的要害。
-    //   计费口径：搜索结果**前 10 条**带 contents 不额外计费（本处 numResults=6 在额度内）⇒ 零新增成本。
-    body: JSON.stringify({ query, numResults: 6, type: 'auto', contents: { highlights: true } }),
+    //   计费口径：搜索结果**前 10 条**带 contents 不额外计费（`want` 封顶 10 就来自这句）。
+    body: JSON.stringify({ query, numResults: want, type: 'auto', contents: { highlights: true } }),
     signal: combineSignals(signal, 12_000),
   });
   if (!res.ok) throw new Error(`Exa ${res.status}`);
   const data = (await res.json()) as {
     results?: Array<{ title?: string; url?: string; text?: string; highlights?: string[] }>;
   };
-  return (data.results ?? []).slice(0, 6).map((r) => ({
+  return (data.results ?? []).slice(0, want).map((r) => ({
     title: r.title ?? '',
     url: r.url ?? '',
     // highlights 优先、text 兜底。★ 判空用 `length` 不用真值：`[]` 是**真值**，
@@ -111,16 +132,21 @@ async function exaSearch(query: string, apiKey: string, signal?: AbortSignal): P
   }));
 }
 
-async function tavilySearch(query: string, apiKey: string, signal?: AbortSignal): Promise<SearchResult[]> {
+async function tavilySearch(
+  query: string,
+  apiKey: string,
+  signal?: AbortSignal,
+  want: number = PROVIDER_DEFAULT_WANT,
+): Promise<SearchResult[]> {
   const res = await fetchSafe('https://api.tavily.com/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ query, max_results: 6, search_depth: 'basic' }),
+    body: JSON.stringify({ query, max_results: want, search_depth: 'basic' }),
     signal: combineSignals(signal, 12_000),
   });
   if (!res.ok) throw new Error(`Tavily ${res.status}`);
   const data = (await res.json()) as { results?: Array<{ title?: string; url?: string; content?: string }> };
-  return (data.results ?? []).slice(0, 6).map((r) => ({
+  return (data.results ?? []).slice(0, want).map((r) => ({
     title: r.title ?? '',
     url: r.url ?? '',
     snippet: (r.content ?? '').slice(0, 500),
@@ -129,11 +155,16 @@ async function tavilySearch(query: string, apiKey: string, signal?: AbortSignal)
 }
 
 /** 智谱 web-search-pro（国产兜底：字段名接入前以实测为准，失败自动跳过不阻塞降级链） */
-async function zhipuSearch(query: string, apiKey: string, signal?: AbortSignal): Promise<SearchResult[]> {
+async function zhipuSearch(
+  query: string,
+  apiKey: string,
+  signal?: AbortSignal,
+  want: number = PROVIDER_DEFAULT_WANT,
+): Promise<SearchResult[]> {
   const res = await fetchSafe('https://open.bigmodel.cn/api/paas/v4/web_search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ query, count: 6 }),
+    body: JSON.stringify({ query, count: want }),
     signal: combineSignals(signal, 12_000),
   });
   if (!res.ok) throw new Error(`Zhipu ${res.status}`);
@@ -141,7 +172,7 @@ async function zhipuSearch(query: string, apiKey: string, signal?: AbortSignal):
     search_result?: Array<{ title?: string; link?: string; content?: string; url?: string }>;
   };
   const list = data.search_result ?? [];
-  return list.slice(0, 6).map((r) => ({
+  return list.slice(0, want).map((r) => ({
     title: r.title ?? '',
     url: r.link ?? r.url ?? '',
     snippet: (r.content ?? '').slice(0, 500),
@@ -149,7 +180,7 @@ async function zhipuSearch(query: string, apiKey: string, signal?: AbortSignal):
   }));
 }
 
-const IMPL: Record<string, (q: string, key: string, signal?: AbortSignal) => Promise<SearchResult[]>> = {
+const IMPL: Record<string, (q: string, key: string, signal?: AbortSignal, want?: number) => Promise<SearchResult[]>> = {
   exa: exaSearch,
   tavily: tavilySearch,
   zhipu: zhipuSearch,
@@ -187,12 +218,18 @@ function cacheSet(key: string, results: SearchResult[]): void {
  * ★ `ownerId` **必填**（`string | null`）——`search_key_*` 现在是**每个用户自己的 key**
  *   （v30 归主），漏传的后果是「读不到自己配的 key ⇒ 静默退回 Bing 免费通道」：
  *   功能看着还在、质量悄悄降级，任何测试都不会红。
+ *
+ * ★ `allowHosts`（应试模式 EXAM-1004）：给了就在**合并之后**按域一刀切，`dropped` 是被砍掉的条数。
+ *   为什么是后置而不是查询期：免 key 兜底的 Bing 通道**不理 `site:` 操作符**
+ *   （2026-10-04 实测三例，带与不带 `site:` 的结果集几乎逐条相同），三家托管服务商的域过滤参数
+ *   本机无 key 未实测 ⇒ 第一版不接（接错了是静默降级，比砍条数更坏）。
+ *   ⚠️ 传 `[]` 是「全拦」，不是「不设界」；不设界请干脆不传这个字段。
  */
 export async function searchWeb(
   query: string,
   ownerId: string | null,
-  opts: { skipCache?: boolean; signal?: AbortSignal } = {},
-): Promise<{ results: SearchResult[]; providers: string[]; failed: string[] }> {
+  opts: { skipCache?: boolean; signal?: AbortSignal; allowHosts?: readonly string[] } = {},
+): Promise<{ results: SearchResult[]; providers: string[]; failed: string[]; dropped: number }> {
   const keyed = (
     [
       { type: 'exa', priority: 1 },
@@ -203,14 +240,21 @@ export async function searchWeb(
 
   // 三家全无 key → Bing 免费通道兜底（绝不让搜索整条路走死）
   const active: SearchProviderConfig[] = keyed.length > 0 ? keyed : [{ type: 'bing', priority: 4 }];
+  const scoped = opts.allowHosts !== undefined;
+  const want = scoped ? PROVIDER_SCOPED_WANT : PROVIDER_DEFAULT_WANT;
 
   // 缓存键含 provider 组合签名：配 key 前拿到的兜底结果，不能在建 key 后继续被端出 24h
-  const cacheKey = `q:${active.map((p) => p.type).join('+')}|${query}`;
+  // ★ 且必须含**范围签名**：否则 A 用户的全站命中会被 B 用户的窄范围查询复用 24 小时，
+  //   同一查询开关应试模式还拿到同一份结果——那等于白名单形同虚设。
+  const cacheKey = `q:${active.map((p) => p.type).join('+')}|${query}${scoped ? `|${examScopeSignature(opts.allowHosts!)}` : ''}`;
   const cached = opts.skipCache ? null : cacheGet(cacheKey);
-  if (cached) return { results: cached, providers: ['cache'], failed: [] };
+  if (cached) {
+    // 缓存里存的是**过滤后**的条目，直接命中时不会再砍一遍（dropped 归 0：这条已经是范围内的结果）
+    return { results: cached, providers: ['cache'], failed: [], dropped: 0 };
+  }
 
   const settled = await Promise.allSettled(
-    active.map((p) => IMPL[p.type]!(query, getProviderKey(p.type, ownerId), opts.signal)),
+    active.map((p) => IMPL[p.type]!(query, getProviderKey(p.type, ownerId), opts.signal, want)),
   );
   const failed: string[] = [];
   const byUrl = new Map<string, SearchResult>();
@@ -226,7 +270,11 @@ export async function searchWeb(
       failed.push(`${p.type}: ${errText(r.reason)}`);
     }
   });
-  const results = [...byUrl.values()];
+  const merged = [...byUrl.values()];
+  const { kept, dropped } = scoped
+    ? splitByExamScope(merged, opts.allowHosts!)
+    : { kept: merged, dropped: [] as SearchResult[] };
+  const results = kept;
   if (results.length === 0) {
     // 观测接线（可观测地基 M-A）：零结果也是信号。payload 只存截断查询词与失败摘要（隐私口径见 shared/obs.ts）。
     publishEvent({
@@ -236,7 +284,7 @@ export async function searchWeb(
     });
   }
   if (results.length > 0) cacheSet(cacheKey, results);
-  return { results, providers: used, failed };
+  return { results, providers: used, failed, dropped: dropped.length };
 }
 
 /**

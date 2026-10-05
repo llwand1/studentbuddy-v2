@@ -32,6 +32,7 @@ import { loadReaderPage } from '../sources/reader-page.js';
 import { approveFollow, isFollowApproved, FOLLOW_MAX_PER_SESSION } from '../sources/follow.js';
 import { ShotError, shotAvailable, takeScreenshot } from '../sources/shot.js';
 import { searchVideoRoute } from '../sources/video-route.js';
+import { examAllowed, loadExamContext } from '../learning/exam-mode.js';
 import { VIDEO_ROUTES, cleanVideoQuery, detectSourceKind, siteOf, type VideoRoute } from '@sb/shared';
 import { fetchSafe } from '../search/ssrf-guard.js';
 import { combineSignals } from '../search/combine.js';
@@ -52,6 +53,12 @@ function authorize(req: Request): { ok: true; url: string } | { ok: false; statu
   if (!canAccessSession(sessionId, ownerIdOf(req))) return { ok: false, status: 404, error: '会话不存在' };
   const url = normalizeSourceUrl(raw);
   if (!/^https?:\/\//i.test(url)) return { ok: false, status: 400, error: '只支持 http(s) 网址' };
+  // 应试模式（EXAM-1004）：阅读页是用户直接看到外部原文的地方，即使架上那条是过滤前进来的也要拦
+  // （架上条目可能来自开启模式之前——那是历史数据，不能因为「它在架上」就默认放行）。
+  const exam = loadExamContext(ownerIdOf(req));
+  if (exam.on && !examAllowed(url, exam)) {
+    return { ok: false, status: 403, error: `该网址不在你设定的应试范围内（${exam.summary || '未选范围'}）` };
+  }
   // 三条来源任一即可：在线架 / 已落库 / 用户在跳转确认条上亲自放行过（§14.2）
   if (!liveShelfKnows(sessionId, url) && !sourceKnownInSession(getDb(), sessionId, url) && !isFollowApproved(sessionId, url)) {
     return { ok: false, status: 403, error: '这个网址不在本会话的资料架上' };

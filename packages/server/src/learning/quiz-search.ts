@@ -18,9 +18,15 @@
  */
 import type { QuizPayload, QuizQuestion, QuizRef, QuizSearchReport } from '@sb/shared';
 import { searchWeb } from '../search/index.js';
+import { loadExamContext } from './exam-mode.js';
 
 /** 参考条数上限：条数越多提示词越长，出题预算被挤压；6 与 searchWeb 各家默认量一致 */
 const MAX_REFS = 6;
+/**
+ * 应试模式下的上限：通用搜索已被白名单砍掉约六成（2026-10-04 实测 88 条命中里 33 条在范围内），
+ * 再加站内直达候选，6 条会把这些挤掉——10 条是「参考够出题」与「提示词不爆」的折中。
+ */
+const MAX_REFS_SCOPED = 10;
 
 /** 单条摘要进提示词的长度：搜索源给的 snippet 已是 500 字，这里再压一次防多源堆叠 */
 const REF_SNIPPET_CHARS = 300;
@@ -72,9 +78,42 @@ export async function buildQuizSearchBlock(
 ): Promise<QuizSearchBlock> {
   if (report) report.on = true;
   const query = buildQuizQuery(topic, material);
+  // 应试模式（EXAM-1004）：范围由用户选，检索只允许落在白名单站内；范围为空 ⇒ 不发请求（不是发出去再全滤掉）
+  const exam = loadExamContext(ownerId);
+  const scoped = exam.on;
+  if (scoped && exam.hosts.length === 0) {
+    if (report) {
+      report.scope = { on: true, summary: exam.summary, kept: 0, dropped: 0, directSites: [], empty: true, hostsEmpty: true };
+    }
+    return { block: '', refs: [] };
+  }
   if (!query) return { block: '', refs: [] };
   try {
-    const res = await searchWeb(query, ownerId);
+    const res = await searchWeb(query, ownerId, scoped ? { allowHosts: exam.hosts } : {});
+    const dropped = res.dropped ?? 0;
+    if (report) {
+      report.scope = {
+        on: scoped,
+        summary: scoped ? exam.summary : '',
+        kept: 0,
+        dropped,
+        directSites: [],
+        empty: scoped && res.results.length === 0,
+        hostsEmpty: false,
+      };
+    }
+    if (scoped && res.results.length === 0) {
+      // 范围内一条都没有：不能退回「让模型凭记忆编」还不吭声——那正是白名单要治的病。
+      // 这段提示词把「无参考」变成模型要如实交代的前提，而不是让它自己发挥成假真题。
+      return {
+        block: [
+          `本次处于**应试模式**，检索范围＝${exam.summary || '未选范围'}。`,
+          '范围内没有检索到任何参考资料：请只出与所选考试范围直接相关的基础巩固题，',
+          '不要在题干里写「某年某地真题」之类的出处字样，refs 一律填空数组。',
+        ].join('\n'),
+        refs: [],
+      };
+    }
     // 去重按 url（无 url 退标题）：编号必须能一对一映射回来源，重复条目会让 [n] 指向两处
     const seen = new Set<string>();
     const picked = res.results
@@ -85,7 +124,7 @@ export async function buildQuizSearchBlock(
         seen.add(key);
         return true;
       })
-      .slice(0, MAX_REFS);
+      .slice(0, scoped ? MAX_REFS_SCOPED : MAX_REFS);
     const refs: QuizRef[] = picked.map((r, i) => ({
       n: i + 1,
       title: r.title || r.url || `参考资料 ${i + 1}`,
@@ -97,6 +136,7 @@ export async function buildQuizSearchBlock(
       report.providers = [...res.providers];
       report.failed = [...res.failed];
       report.refs = refs;
+      if (report.scope) report.scope.kept = refs.length;
     }
     if (refs.length === 0) return { block: '', refs: [] };
     const lines = picked.map(

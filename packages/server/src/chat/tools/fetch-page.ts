@@ -18,6 +18,7 @@
  */
 import { registerTool } from './registry.js';
 import { fetchPageText } from '../../search/page-text.js';
+import { examAllowed, loadExamContext } from '../../learning/exam-mode.js';
 import { combineSignals } from '../../search/index.js';
 import { primeReaderHtml } from '../../sources/reader.js';
 
@@ -68,6 +69,18 @@ registerTool('fetch_page', {
     if (!url) {
       ctx.onStep('fetch_page', 'error', '网址为空');
       return { content: '网址为空，请带 url 重新调用 fetch_page。' };
+    }
+    // 应试模式（EXAM-1004）：模型递进来的网址也要过闸——它是「用户能感知的外部内容」的一条独立入口。
+    // 只闸搜索而放过这里，模型换个说法就能把范围外的页面读回上下文，白名单当场失效。
+    const exam = loadExamContext(ctx.ownerId ?? null);
+    if (exam.on && !examAllowed(url, exam)) {
+      ctx.onStep('fetch_page', 'error', '范围外网址');
+      return {
+        content:
+          `这个网址不在学习者设定的应试范围内（${exam.summary || '未选范围'}），本次不读它。` +
+          '请改从他范围内的站点里找同类资料（可再调 search_web，结果已按范围过滤）；' +
+          '不要向学习者复述这个网址，也不要因为它读不到就说网上没有这个资料。',
+      };
     }
     ctx.onStep('fetch_page', 'running', url);
     ctx.sources?.reading(url); // 资料溯源：右侧面板打「在读」标

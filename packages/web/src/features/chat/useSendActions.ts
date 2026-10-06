@@ -9,6 +9,7 @@
  * 与 useChatStream 之间只有 `StreamMessage` 一个 **type-only** 依赖，不构成运行时循环。
  */
 import { useCallback } from 'react';
+import type { GrillScope } from '@sb/shared';
 import type { Dispatch, SetStateAction } from 'react';
 import type { SseReadyState } from '../../lib/sse-client';
 import { api } from '../../lib/api';
@@ -47,6 +48,7 @@ export function useSendActions(deps: SendActionsDeps) {
       text: string,
       images?: Array<{ dataUrl: string; name?: string }>,
       grillMe?: boolean,
+      grillScope?: GrillScope,
     ): Promise<{ ok: boolean; error?: string }> => {
       if (!sessionId) return { ok: false, error: '无会话' };
       if (ready !== 'open') return { ok: false, error: `连接${ready === 'reconnecting' ? '重连中' : '建立中'}，稍候再发` };
@@ -60,7 +62,8 @@ export function useSendActions(deps: SendActionsDeps) {
         { role: 'user', content: text, ts: new Date().toISOString(), ...(images && images.length > 0 ? { images } : {}) },
       ]);
       try {
-        await api.chat.send(sessionId, text, images, grillMe, online);
+        if (grillScope) await api.chat.send(sessionId, text, images, grillMe, online, grillScope);
+        else await api.chat.send(sessionId, text, images, grillMe, online);
         setBusy(true);
         return { ok: true };
       } catch (err) {
@@ -78,7 +81,7 @@ export function useSendActions(deps: SendActionsDeps) {
    * 只保留最后一条提问及其之前（resend 再把该提问内容替换成新文案），否则新回答会接在旧回答后面。
    */
   const rerun = useCallback(
-    async (mode: 'regen' | 'resend', text?: string): Promise<{ ok: boolean; error?: string }> => {
+    async (mode: 'regen' | 'resend', text?: string, grillMe?: boolean, grillScope?: GrillScope): Promise<{ ok: boolean; error?: string }> => {
       if (!sessionId) return { ok: false, error: '无会话' };
       if (ready !== 'open')
         return { ok: false, error: `连接${ready === 'reconnecting' ? '重连中' : '建立中'}，稍候再试` };
@@ -95,7 +98,10 @@ export function useSendActions(deps: SendActionsDeps) {
         return edited ? [...kept, edited] : kept;
       });
       try {
-        if (mode === 'resend') await api.chat.resend(sessionId, text ?? '', online);
+        if (mode === 'resend') {
+          if (grillMe) await api.chat.resend(sessionId, text ?? '', online, grillMe, grillScope);
+          else await api.chat.resend(sessionId, text ?? '', online);
+        } else if (grillMe) await api.chat.regenerate(sessionId, online, grillMe, grillScope);
         else await api.chat.regenerate(sessionId, online);
         setBusy(true);
         return { ok: true };
@@ -109,9 +115,9 @@ export function useSendActions(deps: SendActionsDeps) {
   );
 
   /** 重新生成：服务端已把最后一条提问之后的产物删掉（含工具轮与中止半截）后原样重跑 */
-  const regenerate = useCallback(() => rerun('regen'), [rerun]);
+  const regenerate = useCallback((grillMe?: boolean, scope?: GrillScope) => rerun('regen', undefined, grillMe, scope), [rerun]);
   /** 编辑重发（v13 体验升级）：把最后一条提问改成新文案后重跑（只挂最后一条提问，改写更早的是分叉，不做） */
-  const resend = useCallback((text: string) => rerun('resend', text), [rerun]);
+  const resend = useCallback((text: string, grillMe?: boolean, scope?: GrillScope) => rerun('resend', text, grillMe, scope), [rerun]);
 
   /** 停止生成：服务端 abort 桥接至底层 fetch；挂起的方案选择由服务端连带作废（SPEC §5 逃生口①） */
   const stop = useCallback(async () => {

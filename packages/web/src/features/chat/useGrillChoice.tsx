@@ -11,11 +11,12 @@
  * - post 段：本轮已结束、答复**不回灌** ⇒ 前端必须把选中项作为**新一轮提问**发出，
  *   否则点了选项毫无反应。
  */
-import { useState } from 'react';
-import type { AskChoiceRecord } from '@sb/shared';
+import { useEffect, useRef, useState } from 'react';
+import { normalizeGrillScope, type AskChoiceRecord, type GrillScope } from '@sb/shared';
 import { ChoiceCard, type ChoiceReplyPayload } from './ChoiceCard';
 
 export interface GrillChoiceDeps {
+  sessionId?: string | null;
   /** 队首挂起项（来自 useChoiceQueue）；带 grillPhase 的才是 grill-me 的卡 */
   pendingChoice: AskChoiceRecord | null;
   replyChoice: (requestId: string, reply: { optionId?: string; custom?: string }) => void;
@@ -26,7 +27,10 @@ export interface GrillChoiceDeps {
     text: string,
     images?: Array<{ dataUrl: string; name?: string }>,
     grillMe?: boolean,
+    grillScope?: GrillScope,
   ) => Promise<{ ok: boolean; error?: string }>;
+  regenerate?: (grillMe?: boolean, scope?: GrillScope) => Promise<{ ok: boolean; error?: string }>;
+  resend?: (text: string, grillMe?: boolean, scope?: GrillScope) => Promise<{ ok: boolean; error?: string }>;
   /**
    * post 点选后 send 失败的上报口（v18.3）：此前 `void send(...)` 把 {ok:false}
    * 整个吞掉——busy 门禁拒绝时**零提示**，用户看到的就是「点了卡模型不动」。
@@ -34,12 +38,37 @@ export interface GrillChoiceDeps {
   onSendError?: (msg: string) => void;
 }
 
-export function useGrillChoice({ pendingChoice, replyChoice, skipChoice, send, onSendError }: GrillChoiceDeps) {
-  /**
-   * 模式开关：**会话级前端状态**（与文档模式、联网 pill 同口径，不落库）。
-   * 切会话靠 ChatView 重新挂载而重置——这就是「会话级」的全部含义。
-   */
+export function useGrillChoice({ sessionId, pendingChoice, replyChoice, skipChoice, send, regenerate, resend, onSendError }: GrillChoiceDeps) {
   const [grillMe, setGrillMe] = useState(false);
+  const [grillScope, setGrillScope] = useState<GrillScope>({ kind: 'conversation' });
+  const previousSession = useRef(sessionId);
+  useEffect(() => {
+    // 空入口创建出的第一间会话继承已选范围；切到其他会话才重置。
+    if (previousSession.current != null && previousSession.current !== sessionId) {
+      setGrillMe(false);
+      setGrillScope({ kind: 'conversation' });
+    }
+    previousSession.current = sessionId;
+  }, [sessionId]);
+  const validScope = () => normalizeGrillScope(grillScope);
+  const invalidScope = () => Promise.resolve({ ok: false, error: '请填写自定义学习主题（1–160 字）' });
+  const sendWithGrill = (text: string, images?: Array<{ dataUrl: string; name?: string }>) => {
+    if (!grillMe) return send(text, images, false);
+    const scope = validScope();
+    return scope ? send(text, images, true, scope) : invalidScope();
+  };
+  const regenerateWithGrill = () => {
+    if (!regenerate) return Promise.resolve({ ok: false, error: '无法重新生成' });
+    if (!grillMe) return regenerate();
+    const scope = validScope();
+    return scope ? regenerate(true, scope) : invalidScope();
+  };
+  const resendWithGrill = (text: string) => {
+    if (!resend) return Promise.resolve({ ok: false, error: '无法编辑重发' });
+    if (!grillMe) return resend(text);
+    const scope = validScope();
+    return scope ? resend(text, true, scope) : invalidScope();
+  };
 
   /** 沉在消息流里的那张卡：只有带 `grillPhase` 的才算；普通 ask_choice 仍走浮层，两边不重复 */
   const grillCard = pendingChoice?.grillPhase ? pendingChoice : null;
@@ -51,7 +80,7 @@ export function useGrillChoice({ pendingChoice, replyChoice, skipChoice, send, o
     const label = reply.custom ?? grillCard?.options.find((o) => o.id === reply.optionId)?.label ?? '';
     if (!label.trim()) return;
     // v18.3：不再 void 吞错——send 被拒（busy/断连等）必须浮出来，否则就是「点了没反应」
-    void send(label, undefined, grillMe).then((r) => {
+    void sendWithGrill(label).then((r) => {
       if (!r.ok) onSendError?.(r.error ?? '发送失败，请重试');
     });
   };
@@ -69,12 +98,11 @@ export function useGrillChoice({ pendingChoice, replyChoice, skipChoice, send, o
 
   return {
     /** 直接展开给 ChatComposer：模式开关与它的 setter */
-    composerProps: { grillMe, setGrillMe },
+    composerProps: { grillMe, setGrillMe, grillScope, setGrillScope },
     grillNode,
     /** 带模式标记地发一条提问（submit 用） */
-    sendWithGrill: (
-      text: string,
-      images?: Array<{ dataUrl: string; name?: string }>,
-    ): Promise<{ ok: boolean; error?: string }> => send(text, images, grillMe),
+    sendWithGrill,
+    regenerate: regenerateWithGrill,
+    resend: resendWithGrill,
   };
 }

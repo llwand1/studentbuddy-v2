@@ -13,6 +13,7 @@ import type {
   PkQuizKind,
   AskChoiceRecord,
   FollowUpResult,
+  GrillScope,
 } from '@sb/shared';
 
 import { ApiError, request } from './api-request.js';
@@ -238,6 +239,7 @@ export const api = {
       grillMe?: boolean,
       /** v18.4 联网开关（UI「联网已开」pill）：本轮首轮强绑 search_web（服务端 chat/opening.ts） */
       online?: boolean,
+      grillScope?: GrillScope,
     ) =>
       request<{ ok: boolean }>('/api/chat/send', {
         method: 'POST',
@@ -246,6 +248,7 @@ export const api = {
           text,
           ...(images && images.length > 0 ? { images } : {}),
           ...(grillMe ? { grillMe: true } : {}),
+          ...(grillMe && grillScope ? { grillScope } : {}),
           ...(online ? { online: true } : {}),
         }),
       }),
@@ -261,16 +264,16 @@ export const api = {
      */
     active: () => request<{ sessionIds: string[] }>('/api/chat/active'),
     /** 重新生成：服务端作废最后一条提问之后的全部产物并重跑（提问不重复落库） */
-    regenerate: (sessionId: string, online?: boolean) =>
+    regenerate: (sessionId: string, online?: boolean, grillMe?: boolean, grillScope?: GrillScope) =>
       request<{ ok: boolean }>('/api/chat/regenerate', {
         method: 'POST',
-        body: JSON.stringify({ sessionId, ...(online ? { online: true } : {}) }),
+        body: JSON.stringify({ sessionId, ...(online ? { online: true } : {}), ...(grillMe ? { grillMe: true, grillScope } : {}) }),
       }),
     /** 编辑重发：把最后一条提问改成新文案后重跑（旧回答及工具轮作废） */
-    resend: (sessionId: string, text: string, online?: boolean) =>
+    resend: (sessionId: string, text: string, online?: boolean, grillMe?: boolean, grillScope?: GrillScope) =>
       request<{ ok: boolean }>('/api/chat/resend', {
         method: 'POST',
-        body: JSON.stringify({ sessionId, text, ...(online ? { online: true } : {}) }),
+        body: JSON.stringify({ sessionId, text, ...(online ? { online: true } : {}), ...(grillMe ? { grillMe: true, grillScope } : {}) }),
       }),
   },
 

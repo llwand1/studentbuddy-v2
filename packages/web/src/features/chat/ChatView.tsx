@@ -75,8 +75,8 @@ export function ChatView({
     startedAtMs,
     send,
     stop,
-    regenerate,
-    resend,
+    regenerate: streamRegenerate,
+    resend: streamResend,
     pendingChoice,
     replyChoice,
     dismissChoice,
@@ -90,7 +90,7 @@ export function ChatView({
   const [input, setInput] = useState('');
   const [sendError, setSendError] = useState('');
   // v18.3：grill 收尾卡点选后 send 失败要浮出来（此前 void 吞掉 {ok:false}＝点了没反应）
-  const { composerProps, grillNode, sendWithGrill } = useGrillChoice({ pendingChoice, replyChoice, skipChoice, send, onSendError: setSendError });
+  const { composerProps, grillNode, sendWithGrill, regenerate, resend } = useGrillChoice({ sessionId, pendingChoice, replyChoice, skipChoice, send, regenerate: streamRegenerate, resend: streamResend, onSendError: setSendError });
   /** 空会话直接开聊（CHAT-UX §2.9）：没会话 ⇒ 暂存这一问、开新会话、就绪后自动发；开会话期间 `starting` 禁发（连按不开两间，见 `blocked`） */
   const quick = useQuickStart({ sessionId, ready, busy, onNewSession, send: sendWithGrill, onError: setSendError });
   /** v17 看图：待发送的图片附件（base64 dataURL）。随会话切换清空，避免串台 */

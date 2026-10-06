@@ -9,7 +9,7 @@
  *   所以 `ownerId` 必填。漏传的后果是匿名口径（`ownerForWrite(null)` = 空串行）——
  *   A 用户开了应试模式、B 用户跟着一起被过滤，而且不报错。
  */
-import type { ExamScopeSetting, ExamSource } from '@sb/shared';
+import type { ExamModeView, ExamScopeSetting, ExamSource } from '@sb/shared';
 import {
   SETTING_KEY_EXAM_MODE,
   SETTING_KEY_EXAM_SOURCES,
@@ -112,6 +112,13 @@ export function saveExamScope(value: unknown, ownerId: string | null): ExamScope
   const clean = normalizeExamScope(value);
   writeSetting(ownerId, SETTING_KEY_EXAM_SOURCES, JSON.stringify(clean));
   return clean;
+}
+
+/** 配置回读：关闭模式时仍返回保存的范围，与设置页同口径。 */
+export function readExamModeView(ownerId: string | null): ExamModeView {
+  const scope = loadExamScope(ownerId);
+  return { on: loadExamMode(ownerId), scope, summary: examScopeSummary(scope), hosts: resolveExamHosts(scope),
+    directSites: resolveExamSources(scope).filter(s => s.direct).map(s => s.label) };
 }
 
 /** 外部 URL 能不能进这一轮（关着⇒一律放行；开着且范围空⇒一律拦下） */

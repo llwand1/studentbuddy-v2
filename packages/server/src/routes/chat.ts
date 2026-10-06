@@ -12,6 +12,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { handleMessage } from '../chat/flow.js';
+import { parseGrillRequest } from '../chat/grill-scope.js';
 import { parseIncomingImages } from '../chat/vision.js';
 import { planRegenerate } from '../chat/regenerate.js';
 import { planResend } from '../chat/resend.js';
@@ -103,12 +104,17 @@ export function startFollowUpRun(input: {
   );
 }
 
+function grillRequest(req: Request, res: Response, ownerId: string | null) {
+  const parsed = parseGrillRequest(req.body, ownerId);
+  if (!parsed.ok) res.status(400).json({ error: parsed.error });
+  return parsed;
+}
+
 chatRouter.post('/send', (req: Request, res: Response) => {
-  const { sessionId, text, images, grillMe, online } = req.body as {
+  const { sessionId, text, images, online } = req.body as {
     sessionId?: string;
     text?: string;
     images?: Array<{ dataUrl?: string; name?: string }>;
-    grillMe?: boolean;
     online?: boolean;
   };
   // v17 看图：闸门在 chat/vision.ts；空提问＝「字和图都没有」（纯图片提问正当，别在这 400）
@@ -126,6 +132,8 @@ chatRouter.post('/send', (req: Request, res: Response) => {
     res.status(404).json({ error: '会话不存在' });
     return;
   }
+  const grill = grillRequest(req, res, ownerId);
+  if (!grill.ok) return;
   const controller = new AbortController();
   // 异步执行，立即返回（流式走 SSE）
   trackRun(sessionId, ownerId, controller, () =>
@@ -133,7 +141,8 @@ chatRouter.post('/send', (req: Request, res: Response) => {
       sessionId,
       text,
       images: parsed.images.length > 0 ? parsed.images : undefined,
-      grillMe: grillMe === true,
+      grillMe: grill.grillMe,
+      grillScope: grill.grillScope,
       online: online === true,
       signal: controller.signal,
       ownerId,
@@ -153,6 +162,8 @@ chatRouter.post('/regenerate', (req: Request, res: Response) => {
     res.status(404).json({ error: '会话不存在' });
     return;
   }
+  const grill = grillRequest(req, res, ownerId);
+  if (!grill.ok) return;
   const plan = planRegenerate(sessionId);
   if (!plan.ok || !plan.text) {
     res.status(400).json({ error: plan.error ?? '无法重新生成' });
@@ -166,6 +177,8 @@ chatRouter.post('/regenerate', (req: Request, res: Response) => {
     handleMessage({
       sessionId,
       text: prompt,
+      grillMe: grill.grillMe,
+      grillScope: grill.grillScope,
       online: online === true,
       signal: controller.signal,
       skipUserPersist: true,
@@ -191,6 +204,8 @@ chatRouter.post('/resend', (req: Request, res: Response) => {
     res.status(404).json({ error: '会话不存在' });
     return;
   }
+  const grill = grillRequest(req, res, ownerId);
+  if (!grill.ok) return;
   const plan = planResend(sessionId, text);
   if (!plan.ok || !plan.text) {
     res.status(400).json({ error: plan.error ?? '无法编辑重发' });
@@ -202,6 +217,8 @@ chatRouter.post('/resend', (req: Request, res: Response) => {
     handleMessage({
       sessionId,
       text: prompt,
+      grillMe: grill.grillMe,
+      grillScope: grill.grillScope,
       online: online === true,
       signal: controller.signal,
       skipUserPersist: true,

@@ -116,6 +116,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     // 画面里的信息完全用不上（无图时两者恒等，老行为不变）
     text: userText,
     ownerId: opts.ownerId ?? null,
+    grillScope: opts.grillMe ? opts.grillScope ?? { kind: 'conversation' } : undefined,
   });
   // 顺序不可换：截断要用段清单算出的预算，装配要用截断后的历史（截断含工具轮对齐）
   const truncated = truncateHistoryToBudget(liveHistory, {

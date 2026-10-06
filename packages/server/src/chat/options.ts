@@ -6,7 +6,7 @@
  * `flow.ts` 装的是「这一轮**怎么跑**」的编排，本文件只是「这一轮的输入输出**长什么样**」，
  * 而且两者的读者不同——路由层（`routes/chat.ts`）只关心本文件。
  */
-import type { ModelRole } from '@sb/shared';
+import type { GrillScope, ModelRole } from '@sb/shared';
 import type { UploadedImage } from '../llm/types.js';
 
 export interface ChatOptions {
@@ -20,6 +20,7 @@ export interface ChatOptions {
   skipUserPersist?: boolean;
   /** v18 grill-me（见 `chat/grill.ts`）：本轮必出选择框——开场问方向（答复回灌）＋收尾问下一步（不等待） */
   grillMe?: boolean;
+  grillScope?: GrillScope;
   /** v18.4 联网开关（UI「联网已开」pill）：打开则**首轮**强绑 search_web，turn 1 起放开（见 `chat/opening.ts`） */
   online?: boolean;
   /**

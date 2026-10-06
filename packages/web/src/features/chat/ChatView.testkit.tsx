@@ -61,10 +61,12 @@ export const stream = { current: null as unknown };
 
 /** submit / 建议卡最终都走 sendWithGrill：可观测才能锁「发了没、发了几次、发的什么」 */
 export const grillSend = vi.fn(async (_text: string, _images?: unknown) => ({ ok: true, error: null }));
-export const grillStub = () => ({
+export const grillStub = (deps: { regenerate: () => Promise<unknown>; resend: (text: string) => Promise<unknown> }) => ({
   composerProps: { grillMe: false, setGrillMe: () => {} },
   grillNode: null,
   sendWithGrill: grillSend,
+  regenerate: deps.regenerate,
+  resend: deps.resend,
 });
 export const quizStub = () => ({
   quizzing: false,

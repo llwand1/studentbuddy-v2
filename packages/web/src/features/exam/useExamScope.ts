@@ -16,6 +16,7 @@ type Listener = (v: ExamModeView | null) => void;
 
 let cached: ExamModeView | null = null;
 let inflight: Promise<ExamModeView | null> | null = null;
+let queuedRefresh: Promise<ExamModeView | null> | null = null;
 const listeners = new Set<Listener>();
 
 function publish(v: ExamModeView | null) {
@@ -26,7 +27,14 @@ function publish(v: ExamModeView | null) {
 /** 拉一次（并发调用共用同一个请求）；失败不缓存，下次挂载会再试 */
 export function refreshExamScope(force = false): Promise<ExamModeView | null> {
   if (cached && !force) return Promise.resolve(cached);
-  if (inflight) return inflight;
+  if (inflight) {
+    if (!force) return inflight;
+    // 工具保存可能赶上旧请求仍在途；旧结果不能吞掉这次强制刷新。
+    return queuedRefresh ??= inflight.then(() => {
+      queuedRefresh = null;
+      return refreshExamScope(true);
+    });
+  }
   const p: Promise<ExamModeView | null> = (async () => {
     try {
       // ★ 取 `api.settings.examMode` 这件事本身就可能抛（调用方只 mock 了 `api.terms` 的组件测试

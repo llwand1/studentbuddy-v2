@@ -20,11 +20,11 @@ import path from 'node:path';
 process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-chat-send-test-'));
 
 const flowStub = vi.hoisted(() => ({
-  calls: [] as Array<{ sessionId?: string; text?: string; images?: unknown; grillMe?: boolean }>,
+  calls: [] as Array<{ sessionId?: string; text?: string; images?: unknown; grillMe?: boolean; grillScope?: unknown }>,
 }));
 
 vi.mock('../chat/flow.js', () => ({
-  handleMessage: (opts: { sessionId?: string; text?: string; images?: unknown; grillMe?: boolean }) => {
+  handleMessage: (opts: { sessionId?: string; text?: string; images?: unknown; grillMe?: boolean; grillScope?: unknown }) => {
     flowStub.calls.push(opts);
     return Promise.resolve({ ok: true });
   },
@@ -133,6 +133,26 @@ describe('/api/chat/send — grill-me 开关（v18）', () => {
     await send({ sessionId: sid, text: 'b', grillMe: 'yes' });
     expect(flowStub.calls[0]?.grillMe).toBe(false);
     expect(flowStub.calls[1]?.grillMe).toBe(false);
+  });
+});
+
+describe('GrillMe 学习范围的三条发起路径', () => {
+  it('send、regenerate、resend 均传递范围，非法范围先拒绝再保留历史', async () => {
+    const { getDb } = await import('../storage/db.js');
+    const { randomUUID } = await import('node:crypto');
+    for (const endpoint of ['send', 'regenerate', 'resend']) {
+      const sid = await newSession();
+      const insert = getDb().prepare('INSERT INTO messages (id, session_id, role, content) VALUES (?, ?, ?, ?)');
+      insert.run(randomUUID(), sid, 'user', '原提问'); insert.run(randomUUID(), sid, 'assistant', '原回答');
+      const body = { sessionId: sid, text: '修改提问', grillMe: true, grillScope: { kind: 'custom', topic: ' ' } };
+      const bad = await request(app).post(`/api/chat/${endpoint}`).set('Origin', origin).send(body);
+      expect(bad.status).toBe(400); expect(flowStub.calls).toHaveLength(0);
+      const rows = getDb().prepare('SELECT content FROM messages WHERE session_id = ? ORDER BY rowid').all(sid);
+      expect(rows).toEqual([{ content: '原提问' }, { content: '原回答' }]);
+      const good = await request(app).post(`/api/chat/${endpoint}`).set('Origin', origin).send({ ...body, grillScope: { kind: 'custom', topic: '  线性代数  ' } });
+      expect(good.status).toBe(200); expect(flowStub.calls[0]?.grillMe).toBe(true);
+      expect(flowStub.calls[0]?.grillScope).toEqual({ kind: 'custom', topic: '线性代数' }); flowStub.calls.length = 0;
+    }
   });
 });
 

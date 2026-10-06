@@ -16,6 +16,7 @@ import { useConfirmQueue } from './useConfirmQueue';
 import { usePkInviteQueue } from './usePkInviteQueue';
 import { useSendActions } from './useSendActions';
 import { useRoundBegin } from './useRoundBegin';
+import { useRoundActivity } from './useRoundActivity';
 import { applyToolStep } from './tool-step';
 import type { ToolStep } from './step-fold';
 import { applyChatBlock, takeTurnSources, type QuizBlockView, type ScenarioBlockView } from './chat-blocks';
@@ -110,6 +111,7 @@ export function useChatStream(
     setTasks(next);
   }, []);
   const [busy, setBusy] = useState(false);
+  const onActivity = useRoundActivity(setBusy);
   const [ready, setReady] = useState<SseReadyState>('connecting');
   const [error, setError] = useState('');
   /** 方案选择框（契约 docs/ASK-CHOICE-SPEC.md）：队列与答复动作全在 `useChoiceQueue`，本 hook 只把
@@ -275,6 +277,7 @@ export function useChatStream(
     clientRef.current = client;
     const offState = client.onStateChange(setReady);
     const offEvent = client.onEvent((ev: SseEvent) => {
+      onActivity(ev);
       // 方案选择框的三种帧（asked/replied/cancelled）由 useChoiceQueue 自行消化；
       // 消化掉就 return，其余事件照旧往下分发
       if (applyChoiceEvent(ev)) return;
@@ -286,15 +289,12 @@ export function useChatStream(
         setRoundStartedAt(ev.startedAt);
       } else if (ev.type === 'token') {
         pushTokens(ev.content);
-        setBusy(true);
       } else if (ev.type === 'reasoning') {
         pushReasoning(ev.content);
       } else if (ev.type === 'step') {
-        setBusy(true);
         commitSteps(applyToolStep(stepsRef.current, ev, Date.now()));
       } else if (ev.type === 'tasks') {
         // 任务清单是全量覆盖语义：面板整表替换，模型每次 update_tasks 都发完整列表
-        setBusy(true);
         commitTasks(ev.items);
       } else if (ev.type === 'done') {
         // 有积压（含池中一次性整块答案）时延迟收口：等打字机吐完再归并，否则半截文本判等必失败

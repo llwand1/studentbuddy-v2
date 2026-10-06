@@ -39,6 +39,7 @@ export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
     items: [
       '桌面对话底部预留督促胶囊空间，发送和停止按钮可以直接点击。',
       '保持像素冒险风格和手机布局，GrillMe 学习范围与追问操作仍在输入区。',
+      'GrillMe 回答完成后，收尾工具步骤不会把输入区重新锁为生成中；选择下一步可继续追问。',
     ],
   },
   {

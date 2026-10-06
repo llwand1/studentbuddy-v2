@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-06T11:29:33.968Z",
+  "generatedAt": "2026-10-06T11:43:01.509Z",
   "code": {
     "rows": [
       {
@@ -18,17 +18,17 @@
       },
       {
         "pkg": "web",
-        "srcFiles": 341,
-        "testFiles": 148,
-        "srcLines": 41625,
-        "testLines": 18755
+        "srcFiles": 342,
+        "testFiles": 149,
+        "srcLines": 41646,
+        "testLines": 18852
       }
     ],
-    "srcFiles": 679,
-    "testFiles": 388,
-    "srcLines": 91201,
-    "testLines": 61229,
-    "tsxTestFiles": 70
+    "srcFiles": 680,
+    "testFiles": 389,
+    "srcLines": 91222,
+    "testLines": 61326,
+    "tsxTestFiles": 71
   },
   "routes": {
     "total": 180,
@@ -85,20 +85,20 @@
     "probes": 15
   },
   "repo": {
-    "head": "57444cb",
+    "head": "81b483d",
     "headDate": "2026-10-06",
-    "commitsLast14d": 273,
+    "commitsLast14d": 274,
     "branch": "fix/chat-coach-send-clearance",
-    "dirtyFiles": 13
+    "dirtyFiles": 8
   },
   "tests": {
     "available": true,
-    "ranNow": false,
-    "wallSec": 0,
+    "ranNow": true,
+    "wallSec": 47.8,
     "staleDays": 0,
-    "files": 388,
-    "cases": 4428,
-    "passed": 4426,
+    "files": 389,
+    "cases": 4433,
+    "passed": 4431,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -110,14 +110,14 @@
     {
       "label": "badge 测试文件",
       "claimed": "388",
-      "measured": "388",
-      "ok": true
+      "measured": "389",
+      "ok": false
     },
     {
       "label": "badge 测试用例",
       "claimed": "4428",
-      "measured": "4428",
-      "ok": true
+      "measured": "4433",
+      "ok": false
     },
     {
       "label": "badge REST 路由",
@@ -158,8 +158,8 @@
     {
       "label": "正文基线句",
       "claimed": "388 文件 / 4428 例",
-      "measured": "388 文件 / 4428 例",
-      "ok": true
+      "measured": "389 文件 / 4433 例",
+      "ok": false
     }
   ],
   "landingDrift": [

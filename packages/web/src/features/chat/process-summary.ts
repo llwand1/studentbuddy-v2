@@ -22,6 +22,8 @@ const TOOL_LABELS: Record<string, string> = {
   lookup_terms: '查词条库',
   upsert_term: '增改词条',
   delete_terms: '删除词条',
+  read_exam_scope: '查看应试白名单',
+  update_exam_scope: '调整应试白名单',
   update_tasks: '规划任务',
 };
 

@@ -23,7 +23,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-10-06 12:44:36（本机时区）｜ 基准 `0c10c7b` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-06 19:43:49（本机时区）｜ 基准 `81b483d` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
@@ -31,8 +31,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 |---|---|---|---|---|---|
 | shared | 58 | 9,840 | 45 | 5,675 | 58% |
 | server | 280 | 39,736 | 195 | 36,799 | 93% |
-| web | 340 | 41,607 | 148 | 18,755 | 45% |
-| **合计** | **678** | **91,183** | **388** | **61,229** | **67%** |
+| web | 342 | 41,646 | 149 | 18,852 | 45% |
+| **合计** | **680** | **91,222** | **389** | **61,326** | **67%** |
 
 ## 接口与契约
 
@@ -43,9 +43,9 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 测试基线（vitest 实跑）
 
-- **388 文件 / 4428 例**（4426 passed + 2 skipped + 0 failed）⇒ 全绿
-- ⚠️ 本次未重跑 vitest，读的是 今日的 test-results 产物——要新鲜数字加 `--tests`
-- jsdom 交互测试文件（`.test.tsx`）70 个
+- **389 文件 / 4433 例**（4431 passed + 2 skipped + 0 failed）⇒ 全绿
+- 本次本机实跑（Node v22.23.2）全量耗时 47.8s
+- jsdom 交互测试文件（`.test.tsx`）71 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
 
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 51 份 · md 共 69 份 · 真机探针 15 个
-- git：feat/ai-exam-scope-grill @ `0c10c7b`（2026-10-06）· 近 14 天 277 commits · 工作区未提交 2 文件
+- git：fix/chat-coach-send-clearance @ `81b483d`（2026-10-06）· 近 14 天 274 commits · 工作区未提交 8 文件
 
 <!-- metrics:end -->
 

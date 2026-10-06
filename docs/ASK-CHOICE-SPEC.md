@@ -178,6 +178,7 @@ wc -l packages/server/src/chat/*.ts packages/web/src/features/chat/*.tsx
 
 1. **`tool_choice` 只绑 turn 0**。turn 1 起必须放开，否则模型被锁死在「调用 ask_choice」上，正文永远出不来。
 2. **收尾失败一律静默**。问不出「下一步」不该把已经上屏的回答标成出错（`ok:false` 会）。
+   前端收到 `done` 后，收尾工具的 step/token/tasks 事件不能重新开启 busy；只有新的 `round-start` 才开启下一轮。REST 发起请求的迟到回执也不能覆盖已完成状态，正文积压仍按打字机排空后收口。
 3. **`pre` 的卡必须带 `grillPhase='pre'`**。不打标记 ⇒ 前端认不出它是 grill 卡 ⇒ 掉回输入框上方浮层，与「专属消息流 UI」的决策相违（`useGrillChoice` 的筛选条件就是这个字段）。
 
 ### 9.5 新增出口

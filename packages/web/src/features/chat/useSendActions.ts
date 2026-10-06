@@ -56,6 +56,7 @@ export function useSendActions(deps: SendActionsDeps) {
       if (!historyLoadedRef.current) return { ok: false, error: HISTORY_LOADING_ERROR };
       setError('');
       beginRound();
+      setBusy(true);
       // 乐观渲染用户气泡（含图片缩略图）；图片随消息落库，历史回显走 /messages 的 images 列
       setMessages((ms) => [
         ...ms,
@@ -64,9 +65,9 @@ export function useSendActions(deps: SendActionsDeps) {
       try {
         if (grillScope) await api.chat.send(sessionId, text, images, grillMe, online, grillScope);
         else await api.chat.send(sessionId, text, images, grillMe, online);
-        setBusy(true);
         return { ok: true };
       } catch (err) {
+        setBusy(false);
         const msg = err instanceof Error ? err.message : String(err);
         setError(msg);
         return { ok: false, error: msg };
@@ -88,6 +89,7 @@ export function useSendActions(deps: SendActionsDeps) {
       if (busy) return { ok: false, error: '生成中，请先停止' };
       setError('');
       beginRound();
+      setBusy(true);
       setMessages((ms) => {
         const lastUser = ms.reduce((acc, m, i) => (m.role === 'user' ? i : acc), -1);
         if (lastUser < 0) return ms;
@@ -103,9 +105,9 @@ export function useSendActions(deps: SendActionsDeps) {
           else await api.chat.resend(sessionId, text ?? '', online);
         } else if (grillMe) await api.chat.regenerate(sessionId, online, grillMe, grillScope);
         else await api.chat.regenerate(sessionId, online);
-        setBusy(true);
         return { ok: true };
       } catch (err) {
+        setBusy(false);
         const msg = err instanceof Error ? err.message : String(err);
         setError(msg);
         return { ok: false, error: msg };

@@ -397,7 +397,17 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，如实记录）**：本次在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（现基线：379 文件 / 4368 例，4366 passed + 2 skipped，2026-10-05 TinyFish 接入全量实跑）
+## 3. 用例清单（现基线：381 文件 / 4386 例，4384 passed + 2 skipped，2026-10-06 篝火现场开场题全量实跑）
+
+2026-10-06 篝火现场开场题（CHAT-UX-SPEC §2.10）：
+
+| 文件 | 用例 | 不变量 |
+| --- | ---: | --- |
+| `src/campfire-opener.test.ts`（shared） | 9 | 非法答案、重复选项与缺材料的题不交付；规范化排重；首问带全题与选择；排重请求有界 |
+| `src/routes/campfire-opener.test.ts`（server） | 7 | 真路由/库/网关：每次现出、no-store、不落聊天、刷新排重、重复修复与明确失败、账号范围和摘要隔离、Origin 闸门 |
+| `src/features/chat/Welcome.test.tsx`（web，既有） | 5 | 新题到达才入场；换题立即撤旧；失败不回显；切范围取消与迟到响应隔离；重新挂载现出；减少动态与直接提问 |
+| `src/features/chat/Welcome.exam.test.tsx`（web，既有） | 1 | 应试范围文案保留，固定四卡移除，等待时直接提问可用 |
+
 
 | 测试文件 | 用例 | 不变量 |
 |---|---:|---|

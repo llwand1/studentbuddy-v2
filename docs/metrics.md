@@ -23,37 +23,37 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-10-04 16:16:35（本机时区）｜ 基准 `6e9ff10` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-06 11:05:35（本机时区）｜ 基准 `367878c` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
-| shared | 54 | 9,062 | 41 | 5,258 | 58% |
-| server | 263 | 38,046 | 178 | 34,945 | 92% |
-| web | 334 | 40,953 | 144 | 18,528 | 45% |
-| **合计** | **651** | **88,061** | **363** | **58,731** | **67%** |
+| shared | 57 | 9,824 | 44 | 5,652 | 58% |
+| server | 277 | 39,566 | 192 | 36,617 | 93% |
+| web | 339 | 41,505 | 145 | 18,665 | 45% |
+| **合计** | **673** | **90,895** | **381** | **60,934** | **67%** |
 
 ## 接口与契约
 
-- REST 路由注册：**175**（get 77 / post 69 / delete 12 / put 16 / patch 1）· 另 /api 挂载点 39 个
-- shared 契约类型：**253**（export interface 167 + export type 86）
+- REST 路由注册：**180**（get 79 / post 70 / delete 12 / put 18 / patch 1）· 另 /api 挂载点 40 个
+- shared 契约类型：**266**（export interface 178 + export type 88）
 - 外部运行时依赖：**6** 个 —— better-sqlite3, cors, express, pino, react, react-dom
-- 迁移水位：代码侧 **v54**（54 个 version 条目，非连续号 0 处）
+- 迁移水位：代码侧 **v55**（55 个 version 条目，非连续号 0 处）
 
 ## 测试基线（vitest 实跑）
 
-- **363 文件 / 4192 例**（4189 passed + 2 skipped + 1 failed）⇒ **1 红**
-- ⚠️ 本次未重跑 vitest，读的是 今日的 test-results 产物——要新鲜数字加 `--tests`
-- jsdom 交互测试文件（`.test.tsx`）68 个
+- **381 文件 / 4386 例**（4384 passed + 2 skipped + 0 failed）⇒ 全绿
+- 本次本机实跑（Node v22.23.2）全量耗时 52.3s
+- jsdom 交互测试文件（`.test.tsx`）69 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
 
 - ⬜ 无覆盖率产物（跑 `node tools/metrics.mjs --tests --coverage` 生成，**不编数**）
 
 ## 文档与仓库
-- docs/：SPEC 契约 50 份 · md 共 68 份 · 真机探针 15 个
-- git：merge/reader-lookup @ `6e9ff10`（2026-10-04）· 近 14 天 239 commits · 工作区未提交 22 文件
+- docs/：SPEC 契约 51 份 · md 共 69 份 · 真机探针 15 个
+- git：feat/campfire-fresh-question @ `367878c`（2026-10-06）· 近 14 天 268 commits · 工作区未提交 28 文件
 
 <!-- metrics:end -->
 

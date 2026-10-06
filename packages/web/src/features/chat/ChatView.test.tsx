@@ -37,8 +37,8 @@ describe('ChatView 空会话合规渲染', () => {
   it('没会话且无消息 → 渲染 Welcome（新用户第一屏该看到什么）', () => {
     const { container } = setup();
     expect(container.querySelector('.welcome')).toBeTruthy();
-    expect(container.textContent).toContain('今天想学点什么？');
-    expect(container.textContent).toContain('学 → 练 → 析 → 忆 → 反馈');
+      expect(container.textContent).toContain('先来一道，聊起来就容易了。');
+      expect(container.textContent).toContain('从一个小问题，开启今天的冒险。');
   });
 
   it('轮次元信息 / 工具 / 等待态在空态一概不渲染（不出现「0 tokens」废话）', () => {

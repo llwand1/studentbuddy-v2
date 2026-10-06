@@ -31,6 +31,8 @@ export function normalizeCampfireQuestion(value: unknown, exclude: string[] = []
   if (!topic || !question || !explanation || !Array.isArray(q.options) || q.options.length < 2 || q.options.length > 4) return null;
   const options = q.options.map(v => text(v, 160));
   if (options.some(v => v === null) || new Set(options.map(v => openerFingerprint(v ?? ''))).size !== options.length) return null;
+  // 卷轴是纯文字；模型偶尔违反提示返回代码围栏，交由网关重新出题。
+  if ([topic, question, explanation, ...options].some(v => /```|~~~/.test(v ?? ''))) return null;
   if (typeof q.answer !== 'number' || !Number.isInteger(q.answer) || q.answer < 0 || q.answer >= options.length) return null;
   if (/根据(?:上|下|所给)(?:图|表|文|材料)|如图所示|见图|见表/.test(question)) return null;
   if (exclude.some(stem => openerFingerprint(stem) === openerFingerprint(question))) return null;

@@ -31,6 +31,15 @@ export const RELEASE_SCOPE = {
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
   {
+    version: 'v0.2.161',
+    date: '2026-10-06',
+    headline: '题源直读超时时，仍可尝试 TinyFish 补读',
+    items: [
+      '给网页补读保留时间，直接读取题源超时或遇到服务故障时，仍尝试 TinyFish 读取正文。',
+      '补读遵守同一来源范围和总时限，用户取消后停止；无法确认最终来源的页面仍会排除。',
+    ],
+  },
+  {
     version: 'v0.2.160',
     date: '2026-10-06',
     headline: '应试出题按主题实时搜索，题目附上本次资料来源',

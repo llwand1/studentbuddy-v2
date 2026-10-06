@@ -32,7 +32,7 @@ export const RELEASE_SCOPE = {
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
   {
     version: 'v0.2.160',
-    date: '2026-10-05',
+    date: '2026-10-06',
     headline: '应试出题按主题实时搜索，题目附上本次资料来源',
     items: [
       '实时出题根据原始主题检索所选题源，读取考点附近的正文；目录只用于找文章，过滤无关语言、导航和培训广告。',

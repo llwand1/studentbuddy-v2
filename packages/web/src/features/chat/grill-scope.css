@@ -20,4 +20,7 @@ body .chat-grill-pill.grill-scope-pill {
   .grill-scope-label { margin-left: 0; flex: 1; }
   .grill-scope-label select { min-width: 0; flex: 1; }
 }
-@media (pointer: coarse) { .grill-scope-label select, .grill-scope-topic { min-height: 44px; } }
+@media (pointer: coarse) {
+  .grill-scope-label select, .grill-scope-topic { min-height: 44px; font-size: 16px; }
+  .grill-scope-pill .chat-grill-off { min-height: 44px; }
+}

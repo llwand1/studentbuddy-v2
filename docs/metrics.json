@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-06T04:38:52.472Z",
+  "generatedAt": "2026-10-06T04:44:00.609Z",
   "code": {
     "rows": [
       {
@@ -13,8 +13,8 @@
         "pkg": "server",
         "srcFiles": 280,
         "testFiles": 195,
-        "srcLines": 39728,
-        "testLines": 36788
+        "srcLines": 39736,
+        "testLines": 36799
       },
       {
         "pkg": "web",
@@ -26,8 +26,8 @@
     ],
     "srcFiles": 678,
     "testFiles": 388,
-    "srcLines": 91175,
-    "testLines": 61218,
+    "srcLines": 91183,
+    "testLines": 61229,
     "tsxTestFiles": 70
   },
   "routes": {
@@ -85,11 +85,11 @@
     "probes": 15
   },
   "repo": {
-    "head": "eb6cde5",
+    "head": "9f35316",
     "headDate": "2026-10-06",
-    "commitsLast14d": 275,
+    "commitsLast14d": 276,
     "branch": "feat/ai-exam-scope-grill",
-    "dirtyFiles": 8
+    "dirtyFiles": 10
   },
   "tests": {
     "available": true,
@@ -97,8 +97,8 @@
     "wallSec": 0,
     "staleDays": 0,
     "files": 388,
-    "cases": 4426,
-    "passed": 4424,
+    "cases": 4428,
+    "passed": 4426,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -115,8 +115,8 @@
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4426",
-      "measured": "4426",
+      "claimed": "4428",
+      "measured": "4428",
       "ok": true
     },
     {
@@ -157,8 +157,8 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "388 文件 / 4426 例",
-      "measured": "388 文件 / 4426 例",
+      "claimed": "388 文件 / 4428 例",
+      "measured": "388 文件 / 4428 例",
       "ok": true
     }
   ],

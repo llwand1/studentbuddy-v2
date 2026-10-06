@@ -41,9 +41,11 @@ registerTool('update_exam_scope', {
     try {
       const edit = (current: string[], set: string, add: string, remove: string, domain: boolean): string[] => {
         const additions = list(add, domain), removals = list(remove, domain), replacement = list(set, domain);
-        if (args[set] !== undefined && (args[add] !== undefined || args[remove] !== undefined)) throw new Error(`${set} 不能与 ${add}/${remove} 混用`);
         if (additions.some(v => removals.includes(v))) throw new Error('不能同时新增和移除同一项');
-        return args[set] !== undefined ? replacement : [...new Set([...current.filter(v => !removals.includes(v)), ...additions])];
+        const edited = [...new Set([...current.filter(v => !removals.includes(v)), ...additions])];
+        if (args[set] !== undefined && (args[add] !== undefined || args[remove] !== undefined)
+          && JSON.stringify([...edited].sort()) !== JSON.stringify([...replacement].sort())) throw new Error(`${set} 与 ${add}/${remove} 的结果冲突；只选一种方式`);
+        return args[set] !== undefined ? replacement : edited;
       };
       next = { packs: edit(before.scope.packs, 'setPacks', 'addPacks', 'removePacks', false), custom: edit(before.scope.custom, 'setHosts', 'addHosts', 'removeHosts', true) };
       if (next.custom.length > MAX_EXAM_CUSTOM_HOSTS) throw new Error(`自填域名最多 ${MAX_EXAM_CUSTOM_HOSTS} 个`);

@@ -53,6 +53,11 @@ describe('AI 应试白名单：真实确认门与按账号写入', () => {
     resolveConfirmation((await frame(c.sessionId!)).requestId, 'deny'); await pending;
     expect(readExamModeView('alice')).toEqual(before);
   });
+  it('模型重复提供等价增删与结果集合，只接受完全相同的结果', async () => {
+    const c = ctx(), pending = run({ addHosts: ['new.example.org'], removeHosts: ['old.example.org'], setHosts: ['new.example.org'] }, c);
+    resolveConfirmation((await frame(c.sessionId!)).requestId, 'allow_once'); await pending;
+    expect(readExamModeView('alice').scope.custom).toEqual(['new.example.org']);
+  });
   it('等待期间界面改设置，中止整批且不覆盖新值', async () => {
     const c = ctx(), pending = run({ addHosts: ['new.example.org'], on: true }, c);
     const f = await frame(c.sessionId!);

@@ -11,8 +11,14 @@ export function examScopeToolChoice(text: string, turn: number, opening: Opening
   if (turn === 0 && opening.toolChoice) return opening.toolChoice;
   if (!wantsExamScopeChange(text)) return undefined;
   const calls = rounds.flatMap(r => r.calls);
-  // 已提交过的计划不强绑重试：拒绝、取消、非法参数由正常回灌解释，不重复弹批准卡。
-  if (calls.some(c => c.name === 'update_exam_scope')) return undefined;
+  // 仅非法参数允许一次纠正；拒绝、取消、无变化与配置竞争均不重复弹批准卡。
+  const writes = calls.filter(c => c.name === 'update_exam_scope');
+  if (writes.length) {
+    const last = writes.at(-1)!;
+    const result = rounds.flatMap(r => r.results).find(r => r.toolCallId === last.id);
+    return writes.length === 1 && typeof result?.content === 'string' && result.content.startsWith('白名单未修改：')
+      ? { type: 'function', name: 'update_exam_scope' } : undefined;
+  }
   const read = calls.find(c => c.name === 'read_exam_scope');
   if (!read) return { type: 'function', name: 'read_exam_scope' };
   const result = rounds.flatMap(r => r.results).find(r => r.toolCallId === read.id);

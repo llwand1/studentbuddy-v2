@@ -19,3 +19,9 @@ it('只查看、步骤咨询、明确不改不强绑写；失败读取和已尝�
   expect(examScopeToolChoice(text, 1, opening, [{ ...read[0]!, results: [] }])).toBeUndefined();
   expect(examScopeToolChoice(text, 2, opening, [...read, { calls: [{ id: 'w', name: 'update_exam_scope', arguments: '{}' }], results: [] }])).toBeUndefined();
 });
+it('参数错误最多纠正一次；用户拒绝不能触发重试', () => {
+  const bad = { calls: [{ id: 'w', name: 'update_exam_scope', arguments: '{}' }], results: [{ role: 'tool' as const, toolCallId: 'w', content: '白名单未修改：参数冲突' }] };
+  expect(examScopeToolChoice(text, 2, opening, [...read, bad])).toEqual({ type: 'function', name: 'update_exam_scope' });
+  expect(examScopeToolChoice(text, 3, opening, [...read, bad, bad])).toBeUndefined();
+  expect(examScopeToolChoice(text, 2, opening, [...read, { ...bad, results: [{ ...bad.results[0]!, content: '用户拒绝了本次修改' }] }])).toBeUndefined();
+});

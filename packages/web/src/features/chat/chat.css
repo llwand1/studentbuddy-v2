@@ -4,6 +4,11 @@
   flex-direction: column;
 }
 
+/* 桌面同样为底部督促胶囊留一行，发送/停止键不能被 fixed 控件挡住。 */
+@media (min-width: 701px) {
+  body .chat-view { padding-bottom: 64px; }
+}
+
 .chat-scroll {
   flex: 1;
   overflow-y: auto;

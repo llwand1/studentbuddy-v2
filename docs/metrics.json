@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-06T04:44:35.903Z",
+  "generatedAt": "2026-10-06T11:29:33.968Z",
   "code": {
     "rows": [
       {
@@ -18,15 +18,15 @@
       },
       {
         "pkg": "web",
-        "srcFiles": 340,
+        "srcFiles": 341,
         "testFiles": 148,
-        "srcLines": 41607,
+        "srcLines": 41625,
         "testLines": 18755
       }
     ],
-    "srcFiles": 678,
+    "srcFiles": 679,
     "testFiles": 388,
-    "srcLines": 91183,
+    "srcLines": 91201,
     "testLines": 61229,
     "tsxTestFiles": 70
   },
@@ -85,11 +85,11 @@
     "probes": 15
   },
   "repo": {
-    "head": "0c10c7b",
+    "head": "57444cb",
     "headDate": "2026-10-06",
-    "commitsLast14d": 277,
-    "branch": "feat/ai-exam-scope-grill",
-    "dirtyFiles": 2
+    "commitsLast14d": 273,
+    "branch": "fix/chat-coach-send-clearance",
+    "dirtyFiles": 13
   },
   "tests": {
     "available": true,
@@ -145,14 +145,14 @@
     },
     {
       "label": "badge 版本",
-      "claimed": "0.2.163",
-      "measured": "0.2.163",
+      "claimed": "0.2.164",
+      "measured": "0.2.164",
       "ok": true
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.163",
-      "measured": "v0.2.163",
+      "claimed": "v0.2.164",
+      "measured": "v0.2.164",
       "ok": true
     },
     {

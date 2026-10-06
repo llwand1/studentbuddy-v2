@@ -23,7 +23,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-10-06 12:44:36（本机时区）｜ 基准 `0c10c7b` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-06 19:29:34（本机时区）｜ 基准 `57444cb` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
@@ -31,8 +31,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 |---|---|---|---|---|---|
 | shared | 58 | 9,840 | 45 | 5,675 | 58% |
 | server | 280 | 39,736 | 195 | 36,799 | 93% |
-| web | 340 | 41,607 | 148 | 18,755 | 45% |
-| **合计** | **678** | **91,183** | **388** | **61,229** | **67%** |
+| web | 341 | 41,625 | 148 | 18,755 | 45% |
+| **合计** | **679** | **91,201** | **388** | **61,229** | **67%** |
 
 ## 接口与契约
 
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 51 份 · md 共 69 份 · 真机探针 15 个
-- git：feat/ai-exam-scope-grill @ `0c10c7b`（2026-10-06）· 近 14 天 277 commits · 工作区未提交 2 文件
+- git：fix/chat-coach-send-clearance @ `57444cb`（2026-10-06）· 近 14 天 273 commits · 工作区未提交 13 文件
 
 <!-- metrics:end -->
 

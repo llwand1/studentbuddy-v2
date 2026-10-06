@@ -14,6 +14,7 @@ import type { PkInviteQueue } from './usePkInviteQueue';
 
 /** 出题配比摘要两份一起拉（真题配比并入同一行，QUIZ-BLEND-SPEC §3.5）：都给空 */
 export const apiStub = {
+  request: vi.fn().mockRejectedValue(new Error('test model unavailable')),
   settings: {
     quizMix: vi.fn().mockResolvedValue({ mix: {} }),
     quizSourceMix: vi.fn().mockResolvedValue({ mix: {} }),

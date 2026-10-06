@@ -3,10 +3,10 @@
 [![CI](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml)
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![version](https://img.shields.io/badge/version-0.2.161-orange)
-![tests](https://img.shields.io/badge/tests-379%20files%20%2F%204369%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-179-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-264%20types-8a63f6)
+![version](https://img.shields.io/badge/version-0.2.162-orange)
+![tests](https://img.shields.io/badge/tests-381%20files%20%2F%204386%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-180-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-266%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -41,7 +41,7 @@
   - 有真欠账 → **督促胶囊**主动敲门（没欠账不敲、2 小时冷却、逾期 ≥3 天或堆到 10 条才敲）
   - 讲完一段成体系的内容 → AI 自己递 **PK 邀请卡**（每会话 5 分钟冷却、每人每天 ≤3 次，闸门在数据库里、重启不归零）
   - 地图页开着时 → **学习伙伴**主动搭话（真模型；每位 6 分钟、全局间隔 90 秒、每小时 ≤8 次；没模型宁可沉默）
-  - 走到岔路口 → AI 主动问一句并给 2–4 个选项（`ask_choice`）；开局就是「开始」——空会话四张建议卡一点即发；出题前就地问一次回答方式
+  - 走到岔路口 → AI 主动问一句并给 2–4 个选项（`ask_choice`）；开局先来一题——空会话现场召来热身题，答完顺着聊，也可直接提问；出题前就地问一次回答方式
   - 做完题 → 「一键讲解」「再练一遍」；每条回答下「找视频」；网页打不开 → 自动换服务器截图
   - 回答本身也会把东西递到眼前 → AI 一联网，右侧**资料架**自己上架（中途关掉则本轮不再弹）；回复里命中词库的词自动下划线，悬停速览、点开是完整卡；题卡在做之前就标着「真题·必刷 / 模拟题·建议做 / 基础题·可选做」，重开做过的题时标出刷过几遍与「上次 ✓／↗」
 - **对话本身就能干活**：流式回答 + 思考链可见，模型自己决定何时搜网、查你的词条库、出题、画图；资料架随搜索上架，回答里的 `[n]` 点得回原文；绑定长资料走 BM25 检索注入、带段号可溯源。
@@ -49,7 +49,7 @@
 - **数据归你**：SQLite 单文件、可自托管、开源。
 - **前端依赖极少**：`@sb/web` 运行时依赖只有 react / react-dom；Markdown / SVG 净化 / 图表自绘，不可信内容的渲染契约见 [`docs/UNTRUSTED-RENDER-SPEC.md`](docs/UNTRUSTED-RENDER-SPEC.md)。
 
-- **在线体验**：<https://11wand.com>（**已上线到 v0.2.161**）。首页「免注册，直接体验」直连公用体验账号；⚠️ 公用池全站共享、访客彼此可见，别放个人信息。
+- **在线体验**：<https://11wand.com>（**已上线到 v0.2.162**）。首页「免注册，直接体验」直连公用体验账号；⚠️ 公用池全站共享、访客彼此可见，别放个人信息。
 - **不想点网页？** clone 后 `npm run demo:e2e` 跑完确定性全栈演示（用户 → API → 假 LLM → SSE → 落库 → 杀进程重启后逐字仍在；零 API key、零真实外呼）。
 - v2 是全新重写仓（v1 [`llwand1/studentbuddy`](https://github.com/llwand1/studentbuddy) 已冻结）。每个功能为什么这么做、产品为什么砍功能转游戏化，见 [`docs/FEATURES.md`](docs/FEATURES.md)。
 
@@ -81,7 +81,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼 |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **379 文件 / 4369 例**，全绿（4367 passed / 2 skipped；2026-10-06 应试实时出题全量实跑）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
+当前测试基线 **381 文件 / 4386 例**，全绿（4384 passed / 2 skipped；2026-10-06 篝火现场开场题全量实跑）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
 ### 为什么有四千条测试——它们不是数字游戏
 
 一个常见的第一印象是「4000 例太多了，多半是凑数」。2026-10-02 我们按**风险驱动测试**的口径把全部用例逐条过了一遍（方法与局限见 [`docs/TEST-AUDIT.md`](docs/TEST-AUDIT.md)，逐例明细 [`docs/test-audit-cases.csv`](docs/test-audit-cases.csv)），每条用例回答三问：**挡住什么失败？别处（tsc / eslint / 门禁 / 其他测试）能不能挡？代价多大？** 结果：

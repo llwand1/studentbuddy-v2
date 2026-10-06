@@ -46,6 +46,7 @@ export * from './chest-pool.js';
 export * from './tool-ecosystem.js';
 export * from './fts.js';
 export * from './chat-limits.js';
+export * from './campfire-opener.js';
 export * from './speech.js';
 export * from './follow-up.js';
 export * from './platform-quota.js';

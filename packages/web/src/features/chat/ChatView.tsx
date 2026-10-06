@@ -213,7 +213,7 @@ export function ChatView({
         </header>
       )}
       <div className="chat-scroll" ref={scrollRef} onScroll={onScroll} role="log" aria-live="polite" aria-busy={busy}>
-        {isEmpty && <Welcome onPick={pick} />}
+        {isEmpty && <Welcome key={sessionId ?? 'campfire'} onPick={pick} blocked={blocked} onAsk={() => inputRef.current?.focus()} />}
         {messages.map((m, i) => (
           <MessageRow
             key={`${sessionId}-${i}`}

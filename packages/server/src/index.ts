@@ -36,6 +36,7 @@ import { continentRouter } from './routes/continent.js';
 // 等待时刷词（契约 docs/WAIT-DRILL-SPEC.md §4）：新词三件套，独立前缀
 import { drillRouter } from './routes/drill.js';
 import { guideRouter } from './routes/guide.js';
+import { campfireOpenerRouter } from './routes/campfire-opener.js';
 import { pomodoroRouter } from './routes/pomodoro.js';
 import { toolsRouter } from './routes/tools.js';
 import { searchRouter } from './routes/search.js';
@@ -169,6 +170,7 @@ app.use('/api/auth', githubAuthRouter);
 app.use('/api/growth', growthRouter);
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/chat', chatRouter);
+app.use('/api/chat', campfireOpenerRouter);
 app.use('/api/providers', providersRouter);
 app.use('/api/quiz', quizRouter);
 app.use('/api/terms', termsRouter);

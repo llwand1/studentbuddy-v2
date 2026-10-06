@@ -17,6 +17,8 @@ vi.mock('./useGrillChoice', () => ({ useGrillChoice: grillStub }));
 vi.mock('./useQuizActions', () => ({ useQuizActions: quizStub }));
 vi.mock('./useDocMode', () => ({ useDocMode: docStub }));
 vi.mock('./AskStyleCard', () => ({ useAskStyle: askStyleStub }));
+// 题目生成/入场由 Welcome.test 锁，这里只验带题首问接到既有 quick-start 的一次发送。
+vi.mock('./Welcome', () => ({ Welcome: ({ onPick }: { onPick: (text: string) => void }) => <button className="opener-talk" onClick={() => onPick('讲讲这道新出的概率热身题：公平硬币正面概率是 50%，为什么？')}>聊聊为什么</button> }));
 
 const { ChatView } = await import('./ChatView');
 
@@ -31,7 +33,7 @@ const sendBtn = (c: HTMLElement) => c.querySelector('.chat-send') as HTMLButtonE
 describe('空会话直接开聊：ChatView 接线', () => {
   it('没会话点建议卡：开新会话、输入框不被占用，新会话就绪后提示语作为第一问自动发出（只发一次）', async () => {
     const { container, onNewSession, arrive } = renderChatView(ChatView);
-    fireEvent.click(container.querySelector('.welcome-card')!);
+    fireEvent.click(container.querySelector('.opener-talk')!);
     expect(onNewSession).toHaveBeenCalledTimes(1); // 无会话时点卡 ⇒ 请 App 开一间
     expect(textarea(container).value).toBe(''); // 不再填进输入框
     expect(grillSend).not.toHaveBeenCalled(); // 会话还没到，不能发
@@ -40,7 +42,7 @@ describe('空会话直接开聊：ChatView 接线', () => {
     expect(grillSend).not.toHaveBeenCalled(); // 会话到了但 SSE 未就绪：还不发（send 的前置门不跳）
     await arrive('s-new', { ready: 'open' });
     expect(grillSend).toHaveBeenCalledTimes(1);
-    expect(grillSend.mock.calls[0]?.[0]).toContain('向量数据库'); // 第一张卡「问个概念」的提示语就是第一问
+    expect(grillSend.mock.calls[0]?.[0]).toContain('公平硬币'); // 完整热身题随首问进入新会话
     await arrive('s-new', { ready: 'open', busy: true }); // 发出后 busy 翻真 ⇒ 不重复发
     expect(grillSend).toHaveBeenCalledTimes(1);
   });
@@ -65,10 +67,10 @@ describe('空会话直接开聊：ChatView 接线', () => {
 
   it('已有（空）会话点建议卡：直接发出提示语，不开新会话、不填输入框', () => {
     const { container, onNewSession } = renderChatView(ChatView, { sessionId: 's1' });
-    fireEvent.click(container.querySelector('.welcome-card')!);
+    fireEvent.click(container.querySelector('.opener-talk')!);
     expect(onNewSession).not.toHaveBeenCalled();
     expect(grillSend).toHaveBeenCalledTimes(1);
-    expect(grillSend.mock.calls[0]?.[0]).toContain('向量数据库');
+    expect(grillSend.mock.calls[0]?.[0]).toContain('公平硬币');
     expect(textarea(container).value).toBe('');
   });
 });

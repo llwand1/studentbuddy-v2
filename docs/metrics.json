@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-06T04:31:50.052Z",
+  "generatedAt": "2026-10-06T04:38:52.472Z",
   "code": {
     "rows": [
       {
@@ -11,23 +11,23 @@
       },
       {
         "pkg": "server",
-        "srcFiles": 279,
-        "testFiles": 194,
-        "srcLines": 39702,
-        "testLines": 36766
+        "srcFiles": 280,
+        "testFiles": 195,
+        "srcLines": 39728,
+        "testLines": 36788
       },
       {
         "pkg": "web",
         "srcFiles": 340,
         "testFiles": 148,
-        "srcLines": 41601,
+        "srcLines": 41607,
         "testLines": 18755
       }
     ],
-    "srcFiles": 677,
-    "testFiles": 387,
-    "srcLines": 91143,
-    "testLines": 61196,
+    "srcFiles": 678,
+    "testFiles": 388,
+    "srcLines": 91175,
+    "testLines": 61218,
     "tsxTestFiles": 70
   },
   "routes": {
@@ -85,20 +85,20 @@
     "probes": 15
   },
   "repo": {
-    "head": "73da16f",
+    "head": "eb6cde5",
     "headDate": "2026-10-06",
-    "commitsLast14d": 272,
+    "commitsLast14d": 275,
     "branch": "feat/ai-exam-scope-grill",
-    "dirtyFiles": 43
+    "dirtyFiles": 8
   },
   "tests": {
     "available": true,
     "ranNow": false,
     "wallSec": 0,
     "staleDays": 0,
-    "files": 387,
-    "cases": 4423,
-    "passed": 4421,
+    "files": 388,
+    "cases": 4426,
+    "passed": 4424,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -109,14 +109,14 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "387",
-      "measured": "387",
+      "claimed": "388",
+      "measured": "388",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4423",
-      "measured": "4423",
+      "claimed": "4426",
+      "measured": "4426",
       "ok": true
     },
     {
@@ -157,8 +157,8 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "387 文件 / 4423 例",
-      "measured": "387 文件 / 4423 例",
+      "claimed": "388 文件 / 4426 例",
+      "measured": "388 文件 / 4426 例",
       "ok": true
     }
   ],

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-06T04:44:00.609Z",
+  "generatedAt": "2026-10-06T04:44:35.903Z",
   "code": {
     "rows": [
       {
@@ -85,11 +85,11 @@
     "probes": 15
   },
   "repo": {
-    "head": "9f35316",
+    "head": "0c10c7b",
     "headDate": "2026-10-06",
-    "commitsLast14d": 276,
+    "commitsLast14d": 277,
     "branch": "feat/ai-exam-scope-grill",
-    "dirtyFiles": 10
+    "dirtyFiles": 2
   },
   "tests": {
     "available": true,

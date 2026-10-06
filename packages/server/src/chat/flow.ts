@@ -25,8 +25,7 @@ import type { ChatMessage, ToolCall } from '../llm/types.js';
 import { contentToText } from '../llm/types.js';
 import { describeImages } from './vision.js';
 import { runGrillClosing } from './grill.js';
-import { buildOpening, dropOpening } from './opening.js';
-import { examScopeToolChoice } from './exam-scope-action.js';
+import { buildOpening, dropOpening, examScopeToolChoice } from './opening.js';
 import type { ChatOptions, ChatResult } from './options.js';
 
 /**

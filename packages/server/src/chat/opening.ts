@@ -24,6 +24,7 @@
  */
 import type { ChatMessage, ChatRequest } from '../llm/types.js';
 import { GRILL_PRE, GRILL_TOOL_CHOICE } from './grill.js';
+export { examScopeToolChoice } from './exam-scope-action.js';
 
 /**
  * 联网开关的硬指令（随开场指令一并 push 进 messages）。

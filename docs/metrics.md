@@ -23,7 +23,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-10-06 12:44:01（本机时区）｜ 基准 `9f35316` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-06 12:44:36（本机时区）｜ 基准 `0c10c7b` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 51 份 · md 共 69 份 · 真机探针 15 个
-- git：feat/ai-exam-scope-grill @ `9f35316`（2026-10-06）· 近 14 天 276 commits · 工作区未提交 10 文件
+- git：feat/ai-exam-scope-grill @ `0c10c7b`（2026-10-06）· 近 14 天 277 commits · 工作区未提交 2 文件
 
 <!-- metrics:end -->
 

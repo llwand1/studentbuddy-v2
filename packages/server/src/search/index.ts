@@ -1,7 +1,7 @@
 /**
  * search/index — 联网搜索聚合（学环核心件）。
- * Provider 矩阵（规划 §1.5.6 实测换血）：Exa 主 + Tavily 备 + 智谱国产兜底，
- * 三家全无 key 时退回 Bing 免费通道（免 key 兜底，端点现指 www.bing.com；
+ * Provider 矩阵（规划 §1.5.6 实测换血）：TinyFish + Exa + Tavily + 智谱，
+ * 未配置 key 或托管通道无结果时退回 Bing 免费通道（免 key 兜底，端点现指 www.bing.com；
  * 2026-09-17 由 DDG 换入、2026-09-25 由 cn 子域换到 www，RSS 主 + HTML 兜底双通道不变）；
  * 并行聚合、单家失败跳过、URL 去重；search_cache 单表 TTL（强化包）。
  * key 优先取环境变量，其次 app_settings（密文，见 storage/crypto）。
@@ -12,6 +12,7 @@ import { examScopeSignature, splitByExamScope } from '@sb/shared';
 import { bingSearch } from './bing-channel.js';
 import { combineSignals } from './combine.js';
 import { fetchSafe } from './ssrf-guard.js';
+import { tinyfishSearch } from './tinyfish.js';
 import type { SearchResult } from './types.js';
 import { publishEvent } from '../events/bus.js';
 import { ownerForWrite } from '../auth/ownership.js';
@@ -23,7 +24,7 @@ export { combineSignals } from './combine.js';
 export type { SearchResult } from './types.js';
 
 /** 需要 key 的托管服务商（bing 免 key，故不在此列） */
-export const KEYED_PROVIDERS = ['exa', 'tavily', 'zhipu'] as const;
+export const KEYED_PROVIDERS = ['tinyfish', 'exa', 'tavily', 'zhipu'] as const;
 export type KeyedProvider = (typeof KEYED_PROVIDERS)[number];
 
 /** 平时每家取回几条（沿用 2026-09-20 定的 6 条口径，不动既有计费假设） */
@@ -56,6 +57,7 @@ function keyFromEnv(type: string): string {
     exa: process.env.EXA_API_KEY,
     tavily: process.env.TAVILY_API_KEY,
     zhipu: process.env.ZHIPU_API_KEY,
+    tinyfish: process.env.TINYFISH_API_KEY,
   };
   return env[type] ?? '';
 }
@@ -71,7 +73,7 @@ export function getProviderKey(type: string, ownerId: string | null): string {
   return keyFromEnv(type) || keyFromSettings(type, ownerId);
 }
 
-/** 三家 key 的配置状态（只回布尔，明文/密文都不出响应）。 */
+/** 各家 key 的配置状态（只回布尔，明文/密文都不出响应）。 */
 export function listKeyStatus(ownerId: string | null): Record<KeyedProvider, boolean> {
   const out = {} as Record<KeyedProvider, boolean>;
   for (const p of KEYED_PROVIDERS) out[p] = getProviderKey(p, ownerId).length > 0;
@@ -105,6 +107,7 @@ async function exaSearch(
   apiKey: string,
   signal?: AbortSignal,
   want: number = PROVIDER_DEFAULT_WANT,
+  allowHosts?: readonly string[],
 ): Promise<SearchResult[]> {
   const res = await fetchSafe('https://api.exa.ai/search', {
     method: 'POST',
@@ -114,7 +117,8 @@ async function exaSearch(
     //   而不是整页正文。原先取 `text` 再硬截 500 字，截到的是**页面开头**（与查询词无关）；
     //   highlights 截的是**跟问题最相关的段落**，这正是回灌质量的要害。
     //   计费口径：搜索结果**前 10 条**带 contents 不额外计费（`want` 封顶 10 就来自这句）。
-    body: JSON.stringify({ query, numResults: want, type: 'auto', contents: { highlights: true } }),
+    body: JSON.stringify({ query, numResults: want, type: 'auto', contents: { highlights: true },
+      ...(allowHosts?.length ? { includeDomains: allowHosts } : {}) }),
     signal: combineSignals(signal, 12_000),
   });
   if (!res.ok) throw new Error(`Exa ${res.status}`);
@@ -137,11 +141,13 @@ async function tavilySearch(
   apiKey: string,
   signal?: AbortSignal,
   want: number = PROVIDER_DEFAULT_WANT,
+  allowHosts?: readonly string[],
 ): Promise<SearchResult[]> {
   const res = await fetchSafe('https://api.tavily.com/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ query, max_results: want, search_depth: 'basic' }),
+    body: JSON.stringify({ query, max_results: want, search_depth: 'basic',
+      ...(allowHosts?.length ? { include_domains: allowHosts } : {}) }),
     signal: combineSignals(signal, 12_000),
   });
   if (!res.ok) throw new Error(`Tavily ${res.status}`);
@@ -180,7 +186,8 @@ async function zhipuSearch(
   }));
 }
 
-const IMPL: Record<string, (q: string, key: string, signal?: AbortSignal, want?: number) => Promise<SearchResult[]>> = {
+const IMPL: Record<string, (q: string, key: string, signal?: AbortSignal, want?: number, allowHosts?: readonly string[]) => Promise<SearchResult[]>> = {
+  tinyfish: tinyfishSearch,
   exa: exaSearch,
   tavily: tavilySearch,
   zhipu: zhipuSearch,
@@ -221,8 +228,8 @@ function cacheSet(key: string, results: SearchResult[]): void {
  *
  * ★ `allowHosts`（应试模式 EXAM-1004）：给了就在**合并之后**按域一刀切，`dropped` 是被砍掉的条数。
  *   为什么是后置而不是查询期：免 key 兜底的 Bing 通道**不理 `site:` 操作符**
- *   （2026-10-04 实测三例，带与不带 `site:` 的结果集几乎逐条相同），三家托管服务商的域过滤参数
- *   本机无 key 未实测 ⇒ 第一版不接（接错了是静默降级，比砍条数更坏）。
+ *   （2026-10-04 实测三例，带与不带 `site:` 的结果集几乎逐条相同）。Exa / Tavily 另带原生域过滤，
+ *   最终闸口仍核验它们返回的 URL；其它通道保留后置过滤。
  *   ⚠️ 传 `[]` 是「全拦」，不是「不设界」；不设界请干脆不传这个字段。
  */
 export async function searchWeb(
@@ -232,13 +239,14 @@ export async function searchWeb(
 ): Promise<{ results: SearchResult[]; providers: string[]; failed: string[]; dropped: number }> {
   const keyed = (
     [
+      { type: 'tinyfish', priority: 0 },
       { type: 'exa', priority: 1 },
       { type: 'tavily', priority: 2 },
       { type: 'zhipu', priority: 3 },
     ] as SearchProviderConfig[]
   ).filter((p) => getProviderKey(p.type, ownerId));
 
-  // 三家全无 key → Bing 免费通道兜底（绝不让搜索整条路走死）
+  // 无 key → Bing 免费通道兜底（绝不让搜索整条路走死）
   const active: SearchProviderConfig[] = keyed.length > 0 ? keyed : [{ type: 'bing', priority: 4 }];
   const scoped = opts.allowHosts !== undefined;
   const want = scoped ? PROVIDER_SCOPED_WANT : PROVIDER_DEFAULT_WANT;
@@ -254,7 +262,7 @@ export async function searchWeb(
   }
 
   const settled = await Promise.allSettled(
-    active.map((p) => IMPL[p.type]!(query, getProviderKey(p.type, ownerId), opts.signal, want)),
+    active.map((p) => IMPL[p.type]!(query, getProviderKey(p.type, ownerId), opts.signal, want, opts.allowHosts)),
   );
   const failed: string[] = [];
   const byUrl = new Map<string, SearchResult>();
@@ -270,6 +278,15 @@ export async function searchWeb(
       failed.push(`${p.type}: ${errText(r.reason)}`);
     }
   });
+  const available = [...byUrl.values()];
+  if (keyed.length > 0 && !opts.signal?.aborted
+    && (scoped ? splitByExamScope(available, opts.allowHosts!).kept.length : available.length) === 0) {
+    try {
+      const fallback = await bingSearch(query, opts.signal);
+      if (fallback.length > 0) used.push('bing');
+      for (const item of fallback) if (item.url && !byUrl.has(item.url)) byUrl.set(item.url, item);
+    } catch (err) { failed.push(`bing: ${errText(err)}`); }
+  }
   const merged = [...byUrl.values()];
   const { kept, dropped } = scoped
     ? splitByExamScope(merged, opts.allowHosts!)
@@ -283,7 +300,8 @@ export async function searchWeb(
       payload: { query: query.slice(0, 200), failed: failed.join('; ').slice(0, 500) },
     });
   }
-  if (results.length > 0) cacheSet(cacheKey, results);
+  // 临时备用结果不盖住已配置的实时通道 24 小时；下一次仍尝试原服务商。
+  if (results.length > 0 && !(keyed.length > 0 && used.includes('bing'))) cacheSet(cacheKey, results);
   return { results, providers: used, failed, dropped: dropped.length };
 }
 

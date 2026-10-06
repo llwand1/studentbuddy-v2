@@ -43,6 +43,23 @@ describe('strongVerbatim（尾锚点 + 选项命中率）', () => {
     expect(v.ok).toBe(true);
     expect(v.optionTotal).toBe(0);
   });
+  it('应试摘录必须完整连续抄题，首尾相同但中间改写不能过', () => {
+    const changed = q({ question: STEM.replace('内阻为 1Ω', '内阻为 2Ω') });
+    expect(strongVerbatim(changed, PAGE).ok).toBe(true);
+    expect(strongVerbatim(changed, PAGE, { strict: true }).reason).toContain('完整题干');
+  });
+  it('英语常见词散落全页不代表原题有这些选项，不能把填空题冒充选择题', () => {
+    const stem = 'The book ____ cover is blue belongs to my sister.';
+    const page = normalizeForAnchor(`${stem} 答案 whose；who 和 which 引导其它从句，where 与 that 的用法见另一个专题。`);
+    const changed = q({ question: stem, options: ['A. where', 'B. that', 'C. whose', 'D. which'] });
+    expect(strongVerbatim(changed, page).ok).toBe(true);
+    expect(strongVerbatim(changed, page, { strict: true }).reason).toContain('成组命中');
+  });
+  it('应试完整选项组在题干附近可通过，带编号或无编号都可', () => {
+    expect(strongVerbatim(q(), PAGE, { strict: true }).ok).toBe(true);
+    const unlabeled = normalizeForAnchor(`${STEM}\n1A\n2A\n3A\n4A\n答案 2A`);
+    expect(strongVerbatim(q(), unlabeled, { strict: true }).ok).toBe(true);
+  });
 });
 
 describe('classifyExamSource（≥2 票才算真题页）', () => {

@@ -30,6 +30,8 @@ export interface ExamContext {
   on: boolean;
   /** 生效域名（预置包 + 自填，已归一化排序）。开且为空 ⇒ 外部检索整条关掉 */
   hosts: string[];
+  /** 用户显式自填的域，包括登记表上已有的站；主题筛选也须保留。 */
+  customHosts?: string[];
   /** hosts 里在登记表上的条目（自填域名不在表上） */
   sources: ExamSource[];
   /** 给用户看的一句话范围（`高考、中考＋2 个自填站`） */
@@ -93,6 +95,7 @@ export function loadExamContext(ownerId: string | null): ExamContext {
   return {
     on: true,
     hosts,
+    customHosts: scope.custom,
     sources: resolveExamSources(scope),
     summary: examScopeSummary(scope),
     signature: resolveExamSignature(scope),

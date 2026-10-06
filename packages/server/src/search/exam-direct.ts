@@ -18,6 +18,7 @@ import type { ExamSource } from '@sb/shared';
 import type { ExamDirectHit } from '../learning/exam-mode.js';
 import { fetchPageText } from './page-text.js';
 import type { SearchResult } from './types.js';
+import { topicScore } from './exam-query.js';
 
 /** 一次最多打几个站的检索页（每站一次 HTTP，站多即慢；6 站是「够出题」与「不拖出题」的折中） */
 export const MAX_DIRECT_SITES = 6;
@@ -47,7 +48,7 @@ function anchorText(inner: string): string {
  * 从一张检索结果页里挑同域题页链接（纯函数，零 IO ⇒ 可在测试里逐条锁）。
  * 判据顺序即防线：能解析 → 不是壳链 → 落在白名单内 → 有考试特征 → 不是本页自己。
  */
-export function directLinksOf(html: string, baseUrl: string, hosts: readonly string[]): SearchResult[] {
+export function directLinksOf(html: string, baseUrl: string, hosts: readonly string[], topic?: string): SearchResult[] {
   const out: SearchResult[] = [];
   const seen = new Set<string>();
   let self: URL;
@@ -56,7 +57,8 @@ export function directLinksOf(html: string, baseUrl: string, hosts: readonly str
   } catch {
     return out;
   }
-  for (const m of html.matchAll(/<a\b[^>]*href=["']([^"']{2,600})["'][^>]*>([\s\S]{0,300}?)<\/a>/gi)) {
+  const content = topic ? html.replace(/<(nav|header|footer)\b[^>]*>[\s\S]*?<\/\1>/gi, '') : html;
+  for (const m of content.matchAll(/<a\b[^>]*href=["']([^"']{2,600})["'][^>]*>([\s\S]{0,300}?)<\/a>/gi)) {
     const rawHref = m[1]!;
     // ★ 壳链判据要**同时**量原始 href 与解析后的绝对地址：`href="#x"` 解析后就变成检索页自己，
     //   只比绝对地址会让锚点链绕过 `SKIP_HREF`（2026-10-04 写测试时当场逮到）。
@@ -81,9 +83,10 @@ export function directLinksOf(html: string, baseUrl: string, hosts: readonly str
     if (seen.has(key)) continue;
     seen.add(key);
     out.push({ title, url: key, snippet: '', source: 'direct' });
-    if (out.length >= MAX_DIRECT_LINKS_PER_SITE) break;
+    if (!topic && out.length >= MAX_DIRECT_LINKS_PER_SITE) break;
   }
-  return out;
+  return topic ? out.sort((a, b) => topicScore(`${b.title} ${b.url}`, topic) - topicScore(`${a.title} ${a.url}`, topic))
+    .slice(0, MAX_DIRECT_LINKS_PER_SITE) : out;
 }
 
 /** 安全解析：解不出来返回 null（不抛，纯函数要在脏 HTML 上稳定） */
@@ -132,7 +135,7 @@ export function examEntryLinks(
 export async function examDirectPages(
   queries: readonly ExamDirectHit[],
   hosts: readonly string[],
-  opts: { signal?: AbortSignal; timeoutMs?: number } = {},
+  opts: { signal?: AbortSignal; timeoutMs?: number; topic?: string } = {},
 ): Promise<{ links: SearchResult[]; failed: string[]; sites: string[] }> {
   const picked = queries.slice(0, MAX_DIRECT_SITES);
   const failed: string[] = [];
@@ -140,7 +143,7 @@ export async function examDirectPages(
   const links: SearchResult[] = [];
   const seen = new Set<string>();
   const settled = await Promise.allSettled(
-    picked.map(async (hit) => ({ hit, page: await fetchPageText(hit.url, { signal: opts.signal, timeoutMs: opts.timeoutMs }) })),
+    picked.map(async (hit) => ({ hit, page: await fetchPageText(hit.url, { signal: opts.signal, timeoutMs: opts.timeoutMs, allowHosts: hosts }) })),
   );
   for (const r of settled) {
     if (r.status === 'rejected') {
@@ -154,7 +157,7 @@ export async function examDirectPages(
       failed.push(`${hit.label}: ${why}`);
       continue;
     }
-    const found = directLinksOf(page.html, hit.url, hosts);
+    const found = directLinksOf(page.html, hit.url, hosts, opts.topic);
     if (found.length > 0) sites.push(hit.label);
     for (const link of found) {
       if (seen.has(link.url) || links.length >= MAX_DIRECT_TOTAL) continue;

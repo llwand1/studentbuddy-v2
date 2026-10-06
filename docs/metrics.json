@@ -1,33 +1,33 @@
 {
-  "generatedAt": "2026-10-05T05:34:03.379Z",
+  "generatedAt": "2026-10-05T15:17:54.361Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
         "srcFiles": 56,
         "testFiles": 43,
-        "srcLines": 9770,
+        "srcLines": 9771,
         "testLines": 5625
       },
       {
         "pkg": "server",
-        "srcFiles": 266,
-        "testFiles": 182,
-        "srcLines": 38977,
-        "testLines": 35682
+        "srcFiles": 274,
+        "testFiles": 191,
+        "srcLines": 39455,
+        "testLines": 36498
       },
       {
         "pkg": "web",
         "srcFiles": 337,
         "testFiles": 145,
-        "srcLines": 41407,
-        "testLines": 18624
+        "srcLines": 41420,
+        "testLines": 18631
       }
     ],
-    "srcFiles": 659,
-    "testFiles": 370,
-    "srcLines": 90154,
-    "testLines": 59931,
+    "srcFiles": 667,
+    "testFiles": 379,
+    "srcLines": 90646,
+    "testLines": 60754,
     "tsxTestFiles": 69
   },
   "routes": {
@@ -85,71 +85,38 @@
     "probes": 15
   },
   "repo": {
-    "head": "c2810e0",
+    "head": "ea3e320",
     "headDate": "2026-10-05",
-    "commitsLast14d": 250,
-    "branch": "feat/exam-mode-whitelist",
-    "dirtyFiles": 13
+    "commitsLast14d": 260,
+    "branch": "fix/exam-search-recall",
+    "dirtyFiles": 19
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 57.6,
+    "wallSec": 61.5,
     "staleDays": 0,
-    "files": 370,
-    "cases": 4293,
-    "passed": 4291,
+    "files": 379,
+    "cases": 4368,
+    "passed": 4366,
     "skipped": 2,
     "failed": 0,
     "success": true
   },
   "coverage": {
-    "available": true,
-    "staleDays": 14,
-    "perPkg": {
-      "shared": {
-        "lines": 99.3,
-        "branches": 91.2,
-        "stmts": 99.3,
-        "funcs": 100
-      },
-      "server": {
-        "lines": 88.9,
-        "branches": 83,
-        "stmts": 88.9,
-        "funcs": 93.1
-      },
-      "web": {
-        "lines": 43.9,
-        "branches": 83.7,
-        "stmts": 43.9,
-        "funcs": 60.2
-      }
-    },
-    "allPackages": {
-      "lines": 67.7,
-      "branches": 83.8,
-      "stmts": 67.7,
-      "funcs": 78.7
-    },
-    "repoTotal": {
-      "lines": 53.9,
-      "branches": 83.4,
-      "stmts": 53.9,
-      "funcs": 76.7
-    }
+    "available": false
   },
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "370",
-      "measured": "370",
-      "ok": true
+      "claimed": "377",
+      "measured": "379",
+      "ok": false
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4282",
-      "measured": "4293",
+      "claimed": "4352",
+      "measured": "4368",
       "ok": false
     },
     {
@@ -160,9 +127,9 @@
     },
     {
       "label": "badge 契约类型",
-      "claimed": "262",
+      "claimed": "264",
       "measured": "264",
-      "ok": false
+      "ok": true
     },
     {
       "label": "badge 外部运行时依赖",
@@ -178,20 +145,20 @@
     },
     {
       "label": "badge 版本",
-      "claimed": "0.2.158",
-      "measured": "0.2.158",
+      "claimed": "0.2.159",
+      "measured": "0.2.159",
       "ok": true
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.158",
-      "measured": "v0.2.158",
+      "claimed": "v0.2.159",
+      "measured": "v0.2.159",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "370 文件 / 4282 例",
-      "measured": "370 文件 / 4293 例",
+      "claimed": "377 文件 / 4352 例",
+      "measured": "379 文件 / 4368 例",
       "ok": false
     }
   ],

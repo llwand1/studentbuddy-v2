@@ -129,8 +129,8 @@
 | GET/POST/PUT/DELETE | `/api/providers` | 服务商 CRUD（api_key 密文入库，**永不出现在响应**） |
 | GET | `/api/providers/roles` | 五角色定义 + 当前绑定 |
 | PUT | `/api/providers/roles/:role` | `{ providerId, model }` 角色绑定（演进①） |
-| GET | `/api/settings/search-keys` | `{ configured: { exa, tavily, zhipu } }` — **只回布尔**，明文与密文都不出响应 |
-| PUT | `/api/settings/search-keys` | `{ exa?, tavily?, zhipu? }` 存 key（AES-GCM 密文入库）；空串=删除；非 string 字段忽略；单值上限 300 字符——**先全量校验再落库**，任一超限 → 400 且一字不写（无半写） |
+| GET | `/api/settings/search-keys` | `{ configured: { exa, tavily, zhipu, tinyfish } }` — **只回布尔**，明文与密文都不出响应 |
+| PUT | `/api/settings/search-keys` | `{ exa?, tavily?, zhipu?, tinyfish? }` 存 key（AES-GCM 密文入库）；空串=删除；非 string 字段忽略；单值上限 300 字符——**先全量校验再落库**，任一超限 → 400 且一字不写（无半写） |
 | POST | `/api/settings/search/test` | `{ query? }` 真发一次连通性自检（跳过 24h 缓存，保证"真发"）→ `{ ok, count, providers, failed }`（query 截 80 字，providers 只列真出结果的来源，响应不含密钥） |
 | GET | `/api/doc?sessionId=` | 文档模式：读该会话当前资料元信息 → `{ doc: { name, chars, truncated } | null }`。**永不回原文**（正文只在 POST 时过一次网络，前端刷新重绘不需要 60k 文本）；缺 `sessionId` → 400 |
 | POST | `/api/doc` | `{ sessionId, name?, text }` 载入/整篇替换该会话的资料 → `{ doc: DocMeta }`。`text` 空/纯空白 → 400；会话不存在 → 404。**不落盘**（进 `sessions.doc_text`，故无 multer/上传目录/路径穿越面）；**扩展名不在此校验**（粘贴文本本无文件名，txt/md 约束留在 UI 的 `accept`） |

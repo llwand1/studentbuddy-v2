@@ -51,6 +51,7 @@ import {
 import { generateBlendedQuiz } from '../../learning/quiz-blend.js';
 import { loadQuizMix } from '../../learning/quiz.js';
 import { loadQuizSourceMix } from '../../learning/quiz-source-mix.js';
+import { loadExamContext } from '../../learning/exam-mode.js';
 import { announceQuizToSession } from '../../learning/quiz-announce.js';
 import { buildDocMaterial, getSessionDoc } from '../../learning/document.js';
 import { publishEvent } from '../../events/bus.js';
@@ -76,14 +77,14 @@ registerTool('generate_quiz', {
         '没有题卡、他点选不了、也不会自动判分对错，而这些都是本产品出题的意义所在。' +
         '参数：`topic` 说清出什么主题的题；`count` 只在学习者点名题量时给（省略＝用他在设置页配的题型配比）；' +
         '`material` 可选，把你刚讲过、要针对它出题的要点原文放进来（省略时用本会话载入的资料，都没有就按主题出）；' +
-        '`search` 要时效性题目时才开。返回题干清单与统计（**不含答案**），题面不要再抄一遍。',
+        '`search` 开启后先实时检索资料再出题；应试模式缺省开启，显式 false 才关闭。返回题干清单与统计（**不含答案**），题面不要再抄一遍。',
       parameters: {
         type: 'object',
         properties: {
           topic: { type: 'string', description: '出题主题（如「高一数学 正弦定理」「词根 spect 的衍生词」）' },
           count: { type: 'integer', minimum: 1, maximum: MAX_QUIZ_TOTAL, description: '本次题数；省略＝用设置里的配比' },
           material: { type: 'string', description: '可选：出题依据的材料原文（你刚讲过的要点、公式、课文片段）' },
-          search: { type: 'boolean', description: '可选：本次是否联网检索真题材料，默认关' },
+          search: { type: 'boolean', description: '可选：本次是否实时联网检索资料；应试模式默认开，其余默认关' },
         },
         required: ['topic'],
       },
@@ -131,7 +132,7 @@ registerTool('generate_quiz', {
       realMix,
       images,
       undefined, // 风格：不显式给 ⇒ 引擎自己读库内偏好（与 REST 入口同语义）
-      args.search === true,
+      args.search === true || (args.search === undefined && loadExamContext(owner).on),
       owner,
     );
     const quiz = blended.quiz;

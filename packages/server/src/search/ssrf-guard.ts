@@ -4,6 +4,7 @@
  */
 import { lookup } from 'node:dns/promises';
 import net from 'node:net';
+import { examUrlAllowed } from '@sb/shared';
 
 function ipIsBlocked(ip: string): boolean {
   if (net.isIPv4(ip)) {
@@ -58,14 +59,21 @@ export async function assertSafeUrl(raw: string): Promise<URL> {
 }
 
 /** fetch + 重定向逐跳复检（每跳重新过 assertSafeUrl） */
-export async function fetchSafe(raw: string, init?: RequestInit, maxRedirects = 4): Promise<Response> {
+export async function fetchSafe(raw: string, init?: RequestInit, maxRedirects = 4, allowHosts?: readonly string[]): Promise<Response> {
+  const checkScope = (url: URL): void => {
+    if (allowHosts !== undefined && !examUrlAllowed(url.href, allowHosts)) {
+      throw new Error('该地址不在所选应试范围内');
+    }
+  };
   let current = await assertSafeUrl(raw);
+  checkScope(current);
   let resp = await fetch(current, { ...init, redirect: 'manual' });
   let hops = 0;
   while ([301, 302, 303, 307, 308].includes(resp.status) && hops < maxRedirects) {
     const loc = resp.headers.get('location');
     if (!loc) break;
     current = await assertSafeUrl(new URL(loc, current).toString());
+    checkScope(current);
     resp = await fetch(current, { ...init, redirect: 'manual' });
     hops += 1;
   }

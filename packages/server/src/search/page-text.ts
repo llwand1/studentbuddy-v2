@@ -13,7 +13,8 @@
  * 本件只管「取到文本」，不管回灌措辞——给模型看的话术留在工具侧，给人看的话术留在路由侧。
  */
 import { fetchSafe } from './ssrf-guard.js';
-import { combineSignals, htmlToText } from './index.js';
+import { combineSignals } from './combine.js';
+import { htmlToText } from './bing-channel.js';
 import { decodeText } from './decode-text.js';
 
 /** 单页抓取超时：与 `fetch_page` 原值一致（抓单页 15s 足够，失败也要失败得快） */
@@ -107,7 +108,7 @@ export function pageTitleOf(html: string): string {
  */
 export async function fetchPageText(
   url: string,
-  opts: { signal?: AbortSignal; timeoutMs?: number } = {},
+  opts: { signal?: AbortSignal; timeoutMs?: number; allowHosts?: readonly string[] } = {},
 ): Promise<PageText | PageTextFail> {
   let bytes: Uint8Array;
   let ct = '';
@@ -115,7 +116,7 @@ export async function fetchPageText(
     const res = await fetchSafe(url, {
       headers: { 'User-Agent': FETCH_UA, 'Accept-Language': 'zh-CN,zh;q=0.9' },
       signal: combineSignals(opts.signal, opts.timeoutMs ?? PAGE_FETCH_TIMEOUT_MS),
-    });
+    }, 4, opts.allowHosts);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     ct = (res.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
     if (ct && !TEXTUAL_CT.test(ct)) {

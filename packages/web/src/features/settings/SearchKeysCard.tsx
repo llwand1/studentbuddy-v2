@@ -5,16 +5,17 @@ import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import './settings.css';
 
-type KeyType = 'exa' | 'tavily' | 'zhipu';
+type KeyType = 'tinyfish' | 'exa' | 'tavily' | 'zhipu';
 const KEY_FIELDS: Array<{ type: KeyType; label: string; placeholder: string }> = [
+  { type: 'tinyfish', label: 'TinyFish', placeholder: 'TINYFISH_API_KEY' },
   { type: 'exa', label: 'Exa（主）', placeholder: 'EXA_API_KEY' },
   { type: 'tavily', label: 'Tavily（备）', placeholder: 'TAVILY_API_KEY' },
   { type: 'zhipu', label: '智谱（国产兜底）', placeholder: 'ZHIPU_API_KEY' },
 ];
 
 export function SearchKeysCard({ flash }: { flash: (ok: boolean, text: string) => void }) {
-  const [configured, setConfigured] = useState<Record<KeyType, boolean>>({ exa: false, tavily: false, zhipu: false });
-  const [vals, setVals] = useState<Record<KeyType, string>>({ exa: '', tavily: '', zhipu: '' });
+  const [configured, setConfigured] = useState<Record<KeyType, boolean>>({ tinyfish: false, exa: false, tavily: false, zhipu: false });
+  const [vals, setVals] = useState<Record<KeyType, string>>({ tinyfish: '', exa: '', tavily: '', zhipu: '' });
   const [test, setTest] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -36,7 +37,7 @@ export function SearchKeysCard({ flash }: { flash: (ok: boolean, text: string) =
     setBusy(true);
     try {
       const r = await api.settings.saveSearchKeys(patch);
-      setVals({ exa: '', tavily: '', zhipu: '' });
+      setVals({ tinyfish: '', exa: '', tavily: '', zhipu: '' });
       setConfigured(r.configured);
       flash(true, '已保存（密文存储）');
     } catch (e) {
@@ -63,7 +64,7 @@ export function SearchKeysCard({ flash }: { flash: (ok: boolean, text: string) =
   return (
     <section className="settings-sec">
       <h3>联网搜索</h3>
-      <p className="settings-hint">三家 key 全未配置时自动走 Bing 免费通道兜底；key 加密存本地库，只回显配置状态。</p>
+      <p className="settings-hint">搜索服务不可用时自动尝试备用通道；key 加密保存，只回显配置状态。平台已配置的服务可直接使用。</p>
       <div className="settings-keys">
         {KEY_FIELDS.map((f) => (
           <div key={f.type} className="settings-key-row">

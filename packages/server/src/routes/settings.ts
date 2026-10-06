@@ -14,7 +14,8 @@
  */
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { searchWeb, listKeyStatus, saveProviderKey, KEYED_PROVIDERS } from '../search/index.js';
+import { listKeyStatus, saveProviderKey, KEYED_PROVIDERS } from '../search/index.js';
+import { searchExamWeb } from '../search/exam-search.js';
 import { loadQuizMix, saveQuizMix, loadQuizImage, saveQuizImage } from '../learning/quiz.js';
 import { loadQuizSourceMix, saveQuizSourceMix } from '../learning/quiz-source-mix.js';
 import { loadQuizRealFirst, saveQuizRealFirst } from '../learning/quiz-tier.js';
@@ -167,9 +168,8 @@ settingsRouter.post('/search/test', async (req: Request, res: Response) => {
   const exam = loadExamContext(ownerIdOf(req));
   try {
     // ★ 自检必须用**请求者自己的** key：用别人的 key 自检，通过与否都不代表他的配置可用
-    const { results, providers, failed, dropped } = await searchWeb(query, ownerIdOf(req), {
+    const { results, providers, failed, dropped } = await searchExamWeb(query, ownerIdOf(req), exam, {
       skipCache: true,
-      ...(exam.on ? { allowHosts: exam.hosts } : {}),
     });
     res.json({
       ok: results.length > 0,

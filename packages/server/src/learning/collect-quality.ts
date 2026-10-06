@@ -154,7 +154,7 @@ export interface VerbatimVerdict {
  *   · 选项命中：选择题的选项去掉「A.」前缀后 normalize，命中率 < 50% 拒——挡「题干抄、选项编」。
  * 两条都只在样本够长时启用；不够长就只信头锚点（保守方向是**少杀**，误杀真题比漏一道更伤信任）。
  */
-export function strongVerbatim(q: QuizQuestion, normPage: string): VerbatimVerdict {
+export function strongVerbatim(q: QuizQuestion, normPage: string, verify: { strict?: boolean } = {}): VerbatimVerdict {
   const opts = q.options ?? [];
   const normOpts = opts
     .map((o) => normalizeForAnchor(o.replace(/^[A-Ha-h][.、．:：)）]\s*/, '')))
@@ -165,6 +165,19 @@ export function strongVerbatim(q: QuizQuestion, normPage: string): VerbatimVerdi
   if (!pickAnchor(q.question ?? '')) return { ok: false, reason: '题干过短，无法做原文比对', ...base };
 
   const n = normalizeForAnchor(q.question ?? '');
+  if (verify.strict) {
+    const at = normPage.indexOf(n);
+    if (at < 0) return { ok: false, reason: '完整题干未在原文连续命中', ...base };
+    if (q.type === 'single' || q.type === 'multiple') {
+      const values = optsOf(q);
+      const plain = values.join('');
+      const labeled = values.map((v, i) => `${String.fromCharCode(97 + i)}${v}`).join('');
+      const near = normPage.slice(at + n.length, at + n.length + Math.max(256, labeled.length * 3));
+      if (values.length < 2 || values.some((v) => !v) || (!near.includes(labeled) && !near.includes(plain))) {
+        return { ok: false, reason: '选项未在题干附近成组命中（不可把填空题改写为原题选择题）', ...base };
+      }
+    }
+  }
   if (n.length >= TAIL_MIN_CHARS && !normPage.includes(n.slice(-TAIL_CHARS))) {
     return { ok: false, reason: '题干后半段未在页面原文命中（疑似只抄了开头、后半自行续写）', ...base };
   }
@@ -172,4 +185,8 @@ export function strongVerbatim(q: QuizQuestion, normPage: string): VerbatimVerdi
     return { ok: false, reason: `选项在页面原文命中过少（${optionHits}/${optionTotal}，疑似选项系自行编写）`, ...base };
   }
   return { ok: true, ...base };
+}
+
+function optsOf(q: QuizQuestion): string[] {
+  return (q.options ?? []).map((o) => normalizeForAnchor(o.replace(/^(?:[A-Ha-h][.、．:：)）]\s*|[（(][A-Ha-h][)）]\s*)/, '')));
 }

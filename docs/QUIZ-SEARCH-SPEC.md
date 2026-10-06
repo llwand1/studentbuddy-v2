@@ -66,7 +66,7 @@ function emptyQuizSearchReport(on = false): QuizSearchReport;
 - 调用免费 Search API（`GET https://api.search.tinyfish.ai`，`X-API-Key` 鉴权）；中文查询使用 `language=zh`、`location=CN`。范围通过原生 `include_domains` 传入，合并后仍检查每条 URL。不调用收费 Agent / Browser API。
 - 搜索总预算 12 秒；503 最多短退避重试一次；429 按 Retry-After 冷却，缺省 60 秒。单 key 在进程内每分钟最多 30 次。错误只报告状态与固定原因，不透传上游响应体或密钥。
 - 所有有 key 的通道失败、空结果或过滤后无范围内结果时，尝试 Bing 备用通道；保留失败原因与范围限制。取消后不启动备用请求。
-- 应试抓页先走现有安全抓取；403、空正文、验证页或纯脚本短页可用免费 TinyFish Fetch 补读（`format=html`、`ttl=0`）。发送前校验 URL 与范围，返回后验证 `final_url` 安全且仍在范围内。补读仍受调用方总预算限制。
+- 应试抓页先走现有安全抓取；403、412、429、5xx、网络超时、空正文、验证页或纯脚本短页可用免费 TinyFish Fetch 补读（`format=html`、`ttl=0`）。有密钥时直读最多占单页预算的一半且不超过 3 秒，剩余预算留给补读；用户取消或整页预算耗尽则停止。发送前校验 URL 与范围，返回后验证 `final_url` 安全且仍在范围内。安全拒绝、404 和二进制不补读。
 - 原题逐字锚定、主题相关性、语言和来源校验不因更换通道而放宽。
 
 ### 2.2 开关（三条入口统一，默认开）

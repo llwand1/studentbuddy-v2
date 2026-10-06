@@ -25,7 +25,7 @@ import type { ChatMessage, ToolCall } from '../llm/types.js';
 import { contentToText } from '../llm/types.js';
 import { describeImages } from './vision.js';
 import { runGrillClosing } from './grill.js';
-import { buildOpening, dropOpening } from './opening.js';
+import { buildOpening, dropOpening, examScopeToolChoice } from './opening.js';
 import type { ChatOptions, ChatResult } from './options.js';
 
 /**
@@ -116,6 +116,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     // 画面里的信息完全用不上（无图时两者恒等，老行为不变）
     text: userText,
     ownerId: opts.ownerId ?? null,
+    grillScope: opts.grillMe ? opts.grillScope ?? { kind: 'conversation' } : undefined,
   });
   // 顺序不可换：截断要用段清单算出的预算，装配要用截断后的历史（截断含工具轮对齐）
   const truncated = truncateHistoryToBudget(liveHistory, {
@@ -214,8 +215,8 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         messages,
         signal: opts.signal,
         tools,
-        // 强绑只到 turn 0：turn 1 起必须放开，否则模型被锁死在开场动作上，正文永远出不来
-        toolChoice: turn === 0 ? opening.toolChoice : undefined,
+        // 开场只绑首轮；明确修改范围则读后提交一次计划，确认门仍负责写入。
+        toolChoice: examScopeToolChoice(opts.text, turn, opening, rounds),
         // 显式传输出上限（B 系列防御）：不再依赖适配器 ?? getMaxOutputTokens 兜底，
         // 新增适配器漏写兜底时 Anthropic 会直接 400——类型层由 ChatRequest.maxTokens 承载。
         maxTokens: getMaxOutputTokens(target.model),

@@ -1,3 +1,16 @@
+> 2026-10-06 AI 应试白名单与 GrillMe 范围（`EXAM-MODE-SPEC §5.0`、`ASK-CHOICE-SPEC §9.7`）：新增 7 文件 39 例，既有路由 +1 例。确认门使用真实写入口与隔离数据库；渲染使用 jsdom。
+>
+> | 本批测试文件 | 用例 | 不变量 |
+> |---|---:|---|
+> | `packages/shared/src/grill-scope.test.ts` | 10 | 默认范围、主题规范化、非法输入拒绝、客户端伪造域名不透传 |
+> | `packages/server/src/chat/tools/exam-scope.test.ts` | 13 | 两工具下发；批准前零写入；实际增删保留其它项；账号隔离；拒绝、取消、配置竞争均不覆盖；非法整批拒绝；等价冗余归一；总量限制与空改动 |
+> | `packages/server/src/chat/grill-scope.test.ts` | 4 | 当前账号应试开关/空范围闸门；自定义目标作为数据；真实上下文装配与首轮后保留 |
+> | `packages/server/src/chat/exam-scope-action.test.ts` | 4 | 明确修改读后提交计划；grill/联网开场优先；只读、咨询、拒绝不重复强绑；参数纠正最多一次 |
+> | `packages/web/src/features/chat/useGrillChoice.test.tsx` | 5 | 发送/重跑/编辑/收尾携带范围；空主题零副作用；会话切换与首次建会话；三项选择和忙碌禁用 |
+> | `packages/web/src/features/chat/tool-step.test.ts` | 2 | 白名单工具完成强制刷新共享范围；挂起和其它工具不刷新；原过程卡正常折叠 |
+> | `packages/web/src/features/exam/exam-refresh.test.ts` | 1 | 旧读取在途时工具触发的强刷不能被吞；重复通知合并，最终缓存为新配置 |
+> | `packages/server/src/routes/chat-send.test.ts` | +1 | 三条请求路径传递范围；非法范围 400 时旧消息及旧回答保留 |
+
 > 2026-10-02 番茄钟搬进督促小窗 + 专注统计（分支 `feat/pomodoro-in-coach`，契约 `docs/POMODORO-SPEC.md` v0.2；迁移 **v54** 新表 `pomodoro_log`；新路由 `GET /api/pomodoro/stats`）：用户纠正「番茄钟应在右下角复习督促小窗，和它的学习可视化做到一起」——开钟卡从词条页复习列表搬到督促抽屉顶部第一区，下面是近 7 天专注分钟折线（复用趋势卡 `renderTrendSvg`）与按方向汇总；流水由服务端在 PUT 里按 `completed +1` 记行。**新增 1 个测试文件 2 例、既有 `routes/pomodoro.test.ts` 7→10 例**。★ 两把锁：① 流水只认 completed 恰好 +1 且上一份在工作段（原样重存 / 换方向重开 / DELETE / 再来一轮翻两段都不多记）；② 统计数字只来自服务端（面板不累加），completed 变才重拉。`ReviewPanel.tsx` 301→286 行（入口移除），既有词条页用例零改动。
 >
 > | 本批测试文件 | 用例 | 不变量 |
@@ -397,7 +410,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，如实记录）**：本次在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（现基线：381 文件 / 4388 例，4386 passed + 2 skipped，2026-10-06 篝火现场开场题全量实跑）
+## 3. 用例清单（现基线：388 文件 / 4428 例，4426 passed + 2 skipped，2026-10-06 AI 白名单与 GrillMe 范围全量实跑）
 
 2026-10-06 篝火现场开场题（CHAT-UX-SPEC §2.10）：
 

@@ -31,6 +31,16 @@ export const RELEASE_SCOPE = {
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
   {
+    version: 'v0.2.163',
+    date: '2026-10-06',
+    headline: '在对话里调整题源，追问时选择学习范围',
+    items: [
+      '可以让 AI 查看并调整应试白名单；具体增删项会显示在确认卡里，批准后保存。',
+      'GrillMe 追问模式新增当前对话、当前应试范围和自定义主题三个选择。',
+      '后续追问、重新生成和编辑重发沿用所选范围，输入区显示当前学习目标。',
+    ],
+  },
+  {
     version: 'v0.2.162',
     date: '2026-10-06',
     headline: '篝火开场先来一题，像素卷轴现场浮现',

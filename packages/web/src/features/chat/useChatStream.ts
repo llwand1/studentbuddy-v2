@@ -16,7 +16,8 @@ import { useConfirmQueue } from './useConfirmQueue';
 import { usePkInviteQueue } from './usePkInviteQueue';
 import { useSendActions } from './useSendActions';
 import { useRoundBegin } from './useRoundBegin';
-import { foldStepEvent, type ToolStep } from './step-fold';
+import { applyToolStep } from './tool-step';
+import type { ToolStep } from './step-fold';
 import { applyChatBlock, takeTurnSources, type QuizBlockView, type ScenarioBlockView } from './chat-blocks';
 export type { TaskItem, TaskStatus } from '@sb/shared';
 
@@ -290,8 +291,7 @@ export function useChatStream(
         pushReasoning(ev.content);
       } else if (ev.type === 'step') {
         setBusy(true);
-        // 折叠（含 toolCallId 配对）在 step-fold.ts——纯函数才能上测链路
-        commitSteps(foldStepEvent(stepsRef.current, ev, Date.now()));
+        commitSteps(applyToolStep(stepsRef.current, ev, Date.now()));
       } else if (ev.type === 'tasks') {
         // 任务清单是全量覆盖语义：面板整表替换，模型每次 update_tasks 都发完整列表
         setBusy(true);

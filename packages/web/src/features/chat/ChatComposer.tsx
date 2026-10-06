@@ -33,6 +33,7 @@ import type { ConfirmItem } from './useConfirmQueue';
 import { DocModeControl } from './DocModeControl';
 import { menuStatus } from './composer-status';
 import { GrillPill } from './GrillPill';
+import type { GrillScope } from '@sb/shared';
 import { DrillParkedPill } from '../drill/DrillParkedPill';
 import { AttachmentTray } from './AttachmentTray';
 import type { DocMode } from './useDocMode';
@@ -54,6 +55,8 @@ export function ChatComposer({
   setAttachments,
   grillMe,
   setGrillMe,
+  grillScope,
+  setGrillScope,
   onSubmit,
   onStop,
   quizzing,
@@ -97,6 +100,8 @@ export function ChatComposer({
   /** v18 grill-me：打开后每轮必出方案选择框（会话级前端状态，不落库） */
   grillMe: boolean;
   setGrillMe: (v: boolean) => void;
+  grillScope?: GrillScope;
+  setGrillScope?: (scope: GrillScope) => void;
   onSubmit: () => void;
   onStop: () => void;
   quizzing: boolean;
@@ -221,7 +226,7 @@ export function ChatComposer({
         </div>
       )}
       {askHint && <div className="ask-style-hint">{askHint}</div>}
-      {grillMe && <GrillPill onClose={() => setGrillMe(false)} />}
+      {grillMe && <GrillPill scope={grillScope} onScopeChange={setGrillScope} disabled={busy || blocked} onClose={() => setGrillMe(false)} />}
       <DrillParkedPill />
       {askCard && <AskStyleCard {...askCard} busy={quizzing} />}
       {/* 确认门卡浮在选择卡之上：它阻塞的是工具执行，比"AI 在等你选方向"更急 */}

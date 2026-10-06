@@ -22,7 +22,8 @@
  *   会合并成一段故无差异），所以位置对模型有语义；回归锁见 `flow.test.ts`
  *   的「长期记忆注入」describe（六段全满的顺序 + 画像段不插队）。
  */
-import { buildAnswerStyleBlock } from '@sb/shared';
+import { buildAnswerStyleBlock, type GrillScope } from '@sb/shared';
+import { buildGrillScopeBlock } from './grill-scope.js';
 import { estimateTokens } from './context.js';
 import { buildMemoryContext } from './compact.js';
 import { choiceNudge } from './choice-nudge.js';
@@ -50,7 +51,7 @@ function neighborTermsSafe(ownerId: string | null, hits: TermRow[]): TermRow[] {
     return [];
   }
 }
-export type ContextSegmentKind = 'summary' | 'date' | 'terms' | 'doc' | 'style' | 'focus' | 'memory' | 'learner' | 'nudge';
+export type ContextSegmentKind = 'summary' | 'date' | 'terms' | 'doc' | 'style' | 'focus' | 'memory' | 'learner' | 'nudge' | 'grill';
 
 export interface ContextSegment {
   kind: ContextSegmentKind;
@@ -84,6 +85,7 @@ export interface ContextInputs {
   text: string;
   /** 归属用户 id：长期画像**按人隔离**（契约 docs/TENANCY-SPEC.md §7）。缺省 null＝本地单人模式 */
   ownerId?: string | null;
+  grillScope?: GrillScope;
 }
 
 export interface CollectedContext {
@@ -155,6 +157,7 @@ export function collectContextSegments(inputs: ContextInputs): CollectedContext 
     // 是**动作指令**不是岔路，而实测里模型偏偏在这时弹了 ask_choice 让他先选择（一次现场实测），
     // 故不给它"先问再搜"的机会（理由详见 `search-nudge.ts` 文件头「与 choice-nudge 的差异」）。
     { kind: 'nudge', content: searchNudge(text) ?? choiceNudge(text) ?? '' },
+    { kind: 'grill', content: buildGrillScopeBlock(inputs.grillScope, ownerId ?? null) },
   ];
 
   // 空段统一剔除：预算与组装看到的是**同一份**清单，不可能一边算一边不算

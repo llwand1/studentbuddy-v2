@@ -1,33 +1,33 @@
 {
-  "generatedAt": "2026-10-06T03:04:42.317Z",
+  "generatedAt": "2026-10-06T03:22:37.732Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
         "srcFiles": 57,
         "testFiles": 44,
-        "srcLines": 9824,
-        "testLines": 5652
+        "srcLines": 9826,
+        "testLines": 5659
       },
       {
         "pkg": "server",
         "srcFiles": 277,
         "testFiles": 192,
         "srcLines": 39566,
-        "testLines": 36617
+        "testLines": 36624
       },
       {
         "pkg": "web",
         "srcFiles": 339,
         "testFiles": 145,
         "srcLines": 41505,
-        "testLines": 18665
+        "testLines": 18669
       }
     ],
     "srcFiles": 673,
     "testFiles": 381,
-    "srcLines": 90895,
-    "testLines": 60934,
+    "srcLines": 90897,
+    "testLines": 60952,
     "tsxTestFiles": 69
   },
   "routes": {
@@ -85,20 +85,20 @@
     "probes": 15
   },
   "repo": {
-    "head": "367878c",
+    "head": "a914c2e",
     "headDate": "2026-10-06",
-    "commitsLast14d": 268,
-    "branch": "feat/campfire-fresh-question",
-    "dirtyFiles": 28
+    "commitsLast14d": 270,
+    "branch": "fix/opener-plain-text",
+    "dirtyFiles": 7
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 52.3,
+    "wallSec": 51.8,
     "staleDays": 0,
     "files": 381,
-    "cases": 4386,
-    "passed": 4384,
+    "cases": 4388,
+    "passed": 4386,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -109,27 +109,27 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "379",
+      "claimed": "381",
       "measured": "381",
-      "ok": false
+      "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4369",
-      "measured": "4386",
+      "claimed": "4386",
+      "measured": "4388",
       "ok": false
     },
     {
       "label": "badge REST 路由",
-      "claimed": "179",
+      "claimed": "180",
       "measured": "180",
-      "ok": false
+      "ok": true
     },
     {
       "label": "badge 契约类型",
-      "claimed": "264",
+      "claimed": "266",
       "measured": "266",
-      "ok": false
+      "ok": true
     },
     {
       "label": "badge 外部运行时依赖",
@@ -145,20 +145,20 @@
     },
     {
       "label": "badge 版本",
-      "claimed": "0.2.161",
+      "claimed": "0.2.162",
       "measured": "0.2.162",
-      "ok": false
+      "ok": true
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.161",
+      "claimed": "v0.2.162",
       "measured": "v0.2.162",
-      "ok": false
+      "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "379 文件 / 4369 例",
-      "measured": "381 文件 / 4386 例",
+      "claimed": "381 文件 / 4386 例",
+      "measured": "381 文件 / 4388 例",
       "ok": false
     }
   ],

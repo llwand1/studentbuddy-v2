@@ -16,7 +16,7 @@ export async function generateCampfireOpener(ownerId: string | null, exclude: st
   const scope = exam.on ? exam.summary : '';
   const prompt = [
     '为刚进入篝火营地的学习者现场创作一道新的单选热身题，让人能从题目自然开始对话。',
-    '只出一道，题干清晰、简短、自包含，2–4 个不同选项，只有一个正确答案；解析解释原因。不要图表、外部材料、代码块，不把答案透露在题干里。',
+    '只出一道，题干清晰、简短、自包含，2–4 个不同选项，只有一个正确答案；解析解释原因。所有字段使用纯文字，不要 Markdown 代码围栏、图表或外部材料；代码仅用短行内表达式，不把答案透露在题干里。',
     '优先遵守下面的当前学习方向和应试范围；未指定具体学科时，在允许范围内自行选择一个具体常见考点。不追问用户、不引用上一次题目、不冒充真题或联网搜到的题。',
     buildExamPromptBlock(ownerId),
     buildFocusBlock(loadPomodoro(ownerId)),
@@ -33,7 +33,7 @@ export async function generateCampfireOpener(ownerId: string | null, exclude: st
       const q = normalizeCampfireQuestion(extractJsonObject(text), exclude);
       return q && !openerAlreadySeen(ownerId, q.question) ? q : null;
     },
-    repairHint: '请重新创作一题，只回符合指定结构的 JSON；不要重复近期题干，选项必须不同，answer 必须是唯一正确选项的有效下标。',
+    repairHint: '请重新创作一题，只回符合指定结构的 JSON；所有字段使用纯文字，不含 Markdown 代码围栏，代码或表达式直接写在句子里。不要重复近期题干，选项必须不同，answer 必须是唯一正确选项的有效下标。',
   });
   if (r.ok) {
     if (signal.aborted) return { ok: false, status: 499, error: '召题已取消。' };

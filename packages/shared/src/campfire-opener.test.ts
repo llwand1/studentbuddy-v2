@@ -11,6 +11,13 @@ describe('开场题交付契约', () => {
   it('不同标点与空白不能绕过近期题排重', () => {
     expect(normalizeCampfireQuestion(q, ['公平硬币 下一次为正面的概率？'])).toBeNull();
   });
+  it('卷轴拒绝各字段的代码围栏，但保留纯文字代码表达式', () => {
+    for (const field of ['topic', 'question', 'explanation']) {
+      expect(normalizeCampfireQuestion({ ...q, [field]: '```python\nlen([1, 2])\n```' })).toBeNull();
+    }
+    expect(normalizeCampfireQuestion({ ...q, options: ['~~~python\nlen([1, 2])\n~~~', '50%'] })).toBeNull();
+    expect(normalizeCampfireQuestion({ ...q, question: 'Python 中 len([1, 2]) 的返回值是多少？' })).not.toBeNull();
+  });
   it('带题开聊不依赖上一段会话，保留题目、选项与用户选择', () => {
     const prompt = openerChatPrompt(q, 0);
     expect(prompt).toContain(q.question);

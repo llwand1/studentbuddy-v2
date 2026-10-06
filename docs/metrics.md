@@ -23,16 +23,16 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-10-06 11:05:35（本机时区）｜ 基准 `367878c` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-06 11:23:30（本机时区）｜ 基准 `a914c2e` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
-| shared | 57 | 9,824 | 44 | 5,652 | 58% |
-| server | 277 | 39,566 | 192 | 36,617 | 93% |
-| web | 339 | 41,505 | 145 | 18,665 | 45% |
-| **合计** | **673** | **90,895** | **381** | **60,934** | **67%** |
+| shared | 57 | 9,826 | 44 | 5,659 | 58% |
+| server | 277 | 39,566 | 192 | 36,624 | 93% |
+| web | 339 | 41,505 | 145 | 18,669 | 45% |
+| **合计** | **673** | **90,897** | **381** | **60,952** | **67%** |
 
 ## 接口与契约
 
@@ -43,8 +43,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 测试基线（vitest 实跑）
 
-- **381 文件 / 4386 例**（4384 passed + 2 skipped + 0 failed）⇒ 全绿
-- 本次本机实跑（Node v22.23.2）全量耗时 52.3s
+- **381 文件 / 4388 例**（4386 passed + 2 skipped + 0 failed）⇒ 全绿
+- 本次本机实跑（Node v22.23.2）全量耗时 51.8s
 - jsdom 交互测试文件（`.test.tsx`）69 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 51 份 · md 共 69 份 · 真机探针 15 个
-- git：feat/campfire-fresh-question @ `367878c`（2026-10-06）· 近 14 天 268 commits · 工作区未提交 28 文件
+- git：fix/opener-plain-text @ `a914c2e`（2026-10-06）· 近 14 天 270 commits · 工作区未提交 7 文件
 
 <!-- metrics:end -->
 

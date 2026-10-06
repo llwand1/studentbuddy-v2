@@ -68,6 +68,13 @@ describe('篝火现场召题', () => {
     await post({ exclude: Array(9).fill('旧题') }).expect(400);
     expect(llm.calls).toHaveLength(0);
   });
+  it('真实模型式代码围栏触发重新出题，只交付合格纯文字题', async () => {
+    llm.reply = [q('Python 中下面代码的结果是什么？\n```python\nlen([1, 2])\n```'), q('Python 中 len([1, 2]) 的返回值是多少？')];
+    const result = await post().expect(200);
+    expect(result.body.question.question).toBe('Python 中 len([1, 2]) 的返回值是多少？');
+    expect(llm.calls).toHaveLength(2);
+    expect(llm.calls[1]).toContain('不含 Markdown 代码围栏');
+  });
   it('没模型给可行动的错误，上游失败不会回固定题', async () => {
     llm.ready = false;
     const missing = await post().expect(503);

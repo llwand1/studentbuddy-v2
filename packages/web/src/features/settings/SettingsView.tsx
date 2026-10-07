@@ -23,6 +23,7 @@ import { AiHealthCard } from './AiHealthCard';
 import { PlatformChannelCard } from './PlatformChannelCard';
 import { WaitDrillCard } from './WaitDrillCard';
 import { ReadingSizeCard } from './ReadingSizeCard';
+import { AgentTermsCard } from './AgentTermsCard';
 import { RoleRow, providersForRole } from './RoleRow';
 import type { ProviderRow } from './RoleRow';
 
@@ -260,6 +261,7 @@ export function SettingsView() {
       <AnswerStyleCard flash={flash} />
       {/* 应试模式放在题型配比之前：它决定「资料与题库从哪些站来」，是出题这一串卡片的前提 */}
       <ExamModeCard flash={flash} />
+      <AgentTermsCard flash={flash} />
       <QuizMixCard flash={flash} />
       <QuizRealFirstCard flash={flash} />
       <QuizImageCard flash={flash} />

@@ -3,10 +3,10 @@
 [![CI](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml)
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![version](https://img.shields.io/badge/version-0.2.165-orange)
-![tests](https://img.shields.io/badge/tests-389%20files%20%2F%204446%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-180-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-267%20types-8a63f6)
+![version](https://img.shields.io/badge/version-0.2.166-orange)
+![tests](https://img.shields.io/badge/tests-392%20files%20%2F%204465%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-187-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-272%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
@@ -49,7 +49,7 @@
 - **数据归你**：SQLite 单文件、可自托管、开源。
 - **前端依赖极少**：`@sb/web` 运行时依赖只有 react / react-dom；Markdown / SVG 净化 / 图表自绘，不可信内容的渲染契约见 [`docs/UNTRUSTED-RENDER-SPEC.md`](docs/UNTRUSTED-RENDER-SPEC.md)。
 
-- **在线体验**：<https://11wand.com>（**已上线到 v0.2.165**）。首页「免注册，直接体验」直连公用体验账号；⚠️ 公用池全站共享、访客彼此可见，别放个人信息。
+- **在线体验**：<https://11wand.com>（**已上线到 v0.2.166**）。首页「免注册，直接体验」直连公用体验账号；⚠️ 公用池全站共享、访客彼此可见，别放个人信息。
 - **不想点网页？** clone 后 `npm run demo:e2e` 跑完确定性全栈演示（用户 → API → 假 LLM → SSE → 落库 → 杀进程重启后逐字仍在；零 API key、零真实外呼）。
 - v2 是全新重写仓（v1 [`llwand1/studentbuddy`](https://github.com/llwand1/studentbuddy) 已冻结）。每个功能为什么这么做、产品为什么砍功能转游戏化，见 [`docs/FEATURES.md`](docs/FEATURES.md)。
 
@@ -81,7 +81,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼 |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **389 文件 / 4446 例**，全绿（4444 passed / 2 skipped；2026-10-07 交互 AI 可靠性全量实跑）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
+当前测试基线 **392 文件 / 4465 例**，全绿（4463 passed / 2 skipped；2026-10-07 外部 agent 词条接口全量实跑）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
 ### 为什么有四千条测试——它们不是数字游戏
 
 一个常见的第一印象是「4000 例太多了，多半是凑数」。2026-10-02 我们按**风险驱动测试**的口径把全部用例逐条过了一遍（方法与局限见 [`docs/TEST-AUDIT.md`](docs/TEST-AUDIT.md)，逐例明细 [`docs/test-audit-cases.csv`](docs/test-audit-cases.csv)），每条用例回答三问：**挡住什么失败？别处（tsc / eslint / 门禁 / 其他测试）能不能挡？代价多大？** 结果：
@@ -123,11 +123,12 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 
 按 ADR-2「安全做必要最小」：
 
-- **Origin 校验**：写操作校验 Origin，**不放行 `'null'`**（sandbox 预览页的源就是字符串 null，放行等于让模型写的网页能调写接口——情景题与沙箱卡的整条信任边界就建在这条上）
+- **Origin 校验**：浏览器业务写操作校验 Origin，**不放行 `'null'`**（sandbox 预览页的源就是字符串 null）；专用 `/api/open/v1` 使用词条权限密钥独立鉴权，CLI 无需 Origin，不能借此访问其他接口。
 - **口令与会话**：`crypto.scrypt` 派生且**参数随哈希自描述落库**；库里只存 `SHA-256(sessionToken)` + `HttpOnly` cookie；「邮箱不存在」与「密码错」回同一个错误码
 - **验证码**：签发即哈希入库、一次性靠**原子认领**（先查后改会让同一个码用两次）；真正的防线是尝试上限 + 发送侧限流
 - **模型产出不裸跑**：```html 走 `CSP: sandbox`（无 allow-same-origin）＋ iframe 双层沙箱，页面源为 `null`；```svg 走**白名单净化器**（HTML 解析 → 元素/属性白名单 → `XMLSerializer` 重排，剥 `<image>` 外链与全部脚本载体，输出幂等），28 例攻击语料 + 确定性模糊测试守着，契约见 [`docs/UNTRUSTED-RENDER-SPEC.md`](docs/UNTRUSTED-RENDER-SPEC.md)
 - **密钥不出接口**：搜索 key 与模型 key AES-GCM 密文入库，响应只回布尔；搜索 / 抓取出网走 **SSRF 护栏 + 白名单**，抓页单页不遍历
+- **外部 agent 存词**：设置页生成专用密钥，仅允许读取本人词库和批量新增；明文仅创建时返回一次。规范与批次/去重/来源语义见 [`AGENT-TERMS-SPEC.md`](docs/AGENT-TERMS-SPEC.md)。桌面导出 JSON 可用 `node tools/import-agent-terms.mjs --file terms.json` 导入（私有环境变量 `STUDENTBUDDY_TERMS_TOKEN`），先加 `--dry-run` 查看批次规模。
 - **归属过滤按读形状分两把锁**：读「一批行」用 `ownerFilter`，读「一个值/聚合」用 `ownerForWrite`；跨用户访问一律 **404 不回 403**（403 等于承认「这个 id 存在」）
 - **资料阅读页不是开放代理**：`GET /api/sources/{view,pdf}` 只服务**本会话资料架上的网址**（授权 = 会话可访问 **且** 网址在该会话的在线注册表或 `message_source` 表里），否则 403；抓取一律走同一套 SSRF 逐跳复检。阅读页零脚本——CSP `default-src 'none'` + 白名单清洗双保险，`sandbox` 不给 `allow-same-origin`，图片 `no-referrer`；PDF 转发校前 5 字节魔数、上限 25 MB。截图保底 `/shot` 同一套许可，且截图浏览器的**每一个**出站连接（含重定向、子资源、回环）都经本机守门代理按同一套内网规则放行、按解析出的 IP 钉住连；并发 2 / 排队 4 / 20 秒 / 8 MB 封顶
 

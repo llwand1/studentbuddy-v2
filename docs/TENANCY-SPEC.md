@@ -496,3 +496,7 @@ routeRole(role: ModelRole, fallbackModel?: string, ownerId?: string | null)
 4. **`/chat/active` 隔离**：A 正在生成时，B 的 `/chat/active` 返回空数组。
 5. **鉴权关闭时旧行为不变**：无登录态请求仍能列全量会话（不回归本地单人模式）。
 6. **真机冒烟**：隔离实例 + 两个账号，逐条跑上述断言。
+
+## 外部 agent 词库授权
+
+外部词条读写仅以专用密钥的 owner 为归属，不能由请求体、查询参数或 cookie 指定。批次回执以 `(owner_id,batch_id)` 隔离；相同名称、批次 ID 在不同用户间互不冲突。凭证管理用现有登录会话归属，跨账号撤销返回 404。见 [AGENT-TERMS-SPEC](AGENT-TERMS-SPEC.md)。

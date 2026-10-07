@@ -411,7 +411,13 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，如实记录）**：本次在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（现基线：389 文件 / 4446 例，4444 passed + 2 skipped，2026-10-07 交互 AI 可靠性全量实跑）
+## 3. 用例清单（现基线：392 文件 / 4465 例，4463 passed + 2 skipped，2026-10-07 外部 agent 词条接口全量实跑）
+
+| 新增测试 | 用例 | 不变量 |
+|---|---:|---|
+| `src/agent-terms.test.ts`（shared） | 6 | 兼容桌面导出、严禁越权字段、不静默截短、来源 URL 形状与集合限额、复制说明不带密钥 |
+| `src/routes/agent-terms.test.ts`（server） | 10 | 无 Origin 的专用 key 导入；哈希存储与一次性明文；登录与管理通道隔离、账号隔离；完整批次零写入错误；回放和冲突；重复不覆盖旧词或进度；新增索引与复习同步；来源范围回执；撤销/过期/请求大小/分页/owner 限流 |
+| `src/features/settings/AgentTermsCard.test.tsx`（web） | 3 | 初始读取竞态、密钥生成与独立复制、说明不含密钥、撤销清除明文、错误不伪造成功 |
 
 2026-10-06 篝火现场开场题（CHAT-UX-SPEC §2.10）：
 

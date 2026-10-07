@@ -103,12 +103,12 @@ export function parseAliases(raw: string | null | undefined): string[] {
  *   **并入 B 的行**（`mergeInto` 拿的是 A 的 id，但索引给的是 B 的 id）——写反了不报错，
  *   只是 A 的词条凭空消失、B 的释义被 A 覆盖。故 `WHERE owner_id = ?` 不是优化，是正确性。
  */
-interface TermIndex {
+export interface TermIndex {
   find(term: string, domain: string): string | null;
   add(term: string, domain: string, id: string, aliases?: string[]): void;
 }
 
-function buildTermIndex(ownerId: string | null): TermIndex {
+export function buildTermIndex(ownerId: string | null): TermIndex {
   const rows = getDb()
     .prepare('SELECT id, term, domain, aliases FROM term_library WHERE owner_id = ?')
     .all(ownerForWrite(ownerId)) as Array<Pick<TermRow, 'id' | 'term' | 'domain' | 'aliases'>>;
@@ -227,6 +227,7 @@ export function saveOneTerm(
   domain: string | undefined,
   ownerId: string | null,
   source?: TermSourceInput,
+  preparedIndex?: TermIndex,
 ): TermApiRow {
   const db = getDb();
   const owner = ownerForWrite(ownerId);
@@ -234,7 +235,7 @@ export function saveOneTerm(
   const t = term.trim();
   // 同 saveTerms：先登记领域再落词条（v19 不变式）——列表页「添加」与对话工具 upsert_term 都走这里
   db.prepare('INSERT OR IGNORE INTO term_domain (owner_id, name) VALUES (?, ?)').run(owner, d);
-  const hit = buildTermIndex(ownerId).find(t, d);
+  const hit = (preparedIndex ?? buildTermIndex(ownerId)).find(t, d);
   let rowId = hit;
   if (hit) {
     db.prepare(

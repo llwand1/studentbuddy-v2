@@ -8,9 +8,10 @@
  * 本机库 331 条词条、`message_source` 0 行，连可借的存量都没有。⇒ 只能把键补在写入侧。
  *
  * ★ 三条口径：
- *  - **只记服务端事实，不记模型自报的网址**：来源取自本轮资料架（`shelf.settle()` 之后留下的
+ *  - 对话与工具路径**只记服务端事实，不记模型自报的网址**：来源取自本轮资料架（`shelf.settle()` 之后留下的
  *    读过／精选／引用到的条目）。让模型顺手写一个 url，就会重演「来源指向不存在的网页」——
- *    那条教训已经写在 `quiz-search.ts` 的头注里。
+ *    那条教训已经写在 `quiz-search.ts` 的头注里。外部授权导入单列 origin=agent，代表导入者
+ *    提供的来源，不宣称服务端已抓取核实；见 AGENT-TERMS-SPEC。
  *  - **范围判定取「任一来源命中即算在内」**：一个词可能被两三个页面喂出来，全不在范围才算范围外。
  *    宁可少滤一条，不可错杀一片（错杀的表现为「我明明学过这个词，大陆上没有了」）。
  *  - **没有来源行的词条在应试模式下不出现**（老板 2026-10-05 拍：范围内有什么就是什么）。
@@ -27,7 +28,7 @@ import { loadExamContext } from './exam-mode.js';
 export const MAX_TERM_SOURCE_URLS = 3;
 
 /** 来源是哪条路带来的：对话后抽词 / 对话工具存词。新路径再扩值，别塞进 `origin` 里自由发挥 */
-export type TermSourceOrigin = 'chat' | 'tool';
+export type TermSourceOrigin = 'chat' | 'tool' | 'agent';
 
 /** 写入口带的来源（可选参数：手动添加、宝箱、大陆开拓、刷词存词这些路径**没有** URL，就不传） */
 export interface TermSourceInput {

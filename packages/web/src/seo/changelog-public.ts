@@ -33,6 +33,15 @@ export const RELEASE_SCOPE = {
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
   {
+    version: 'v0.2.166', date: '2026-10-07', headline: '外部 coding agent 直接批量存词',
+    items: [
+      '设置页可生成有期限、可撤销的词条专用密钥，并复制给外部 agent 的使用说明。',
+      '让外部 agent 用自己的搜索能力整理词条，直接批量存进当前授权账号，导入不再等待站内模型抽取。',
+      '重复批次可安全重试，已有词条和复习进度保留；新词默认加入复习。',
+      '保留外部提供的来源，沿用应试白名单，并在导入回执中说明当前范围是否显示。桌面评审台导出 JSON 也可用脚本导入。',
+    ],
+  },
+  {
     version: 'v0.2.165',
     date: '2026-10-07',
     headline: '引路灯与现场开场题减少超时和截断失败',

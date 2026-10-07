@@ -37,6 +37,8 @@ import { continentRouter } from './routes/continent.js';
 import { drillRouter } from './routes/drill.js';
 import { guideRouter } from './routes/guide.js';
 import { campfireOpenerRouter } from './routes/campfire-opener.js';
+import { agentTermsRouter } from './routes/agent-terms.js';
+import { agentKeysRouter } from './routes/agent-keys.js';
 import { pomodoroRouter } from './routes/pomodoro.js';
 import { toolsRouter } from './routes/tools.js';
 import { searchRouter } from './routes/search.js';
@@ -108,6 +110,7 @@ app.use(
 //   （2026-09-20 收敛）：此前三处各写一遍、靠注释互指，实测已经不平——单张 700 万字符 × 4 张
 //   ≈ 28MB > 24mb body ⇒ 4 张各自合法的图一起发会撞 413。改限额去 chat-limits.ts，
 //   改完跑 `chat-limits.test.ts` 的「满额请求必须装得进 body」那条，它会告诉你账平不平。
+app.use('/api/open/v1', agentTermsRouter);
 const jsonSmall = express.json({ limit: '2mb' });
 const jsonForImages = express.json({ limit: CHAT_BODY_LIMIT });
 app.use((req, res, next) => {
@@ -174,6 +177,7 @@ app.use('/api/chat', campfireOpenerRouter);
 app.use('/api/providers', providersRouter);
 app.use('/api/quiz', quizRouter);
 app.use('/api/terms', termsRouter);
+app.use('/api/settings/agent-keys', agentKeysRouter);
 app.use('/api/memory', memoryRouter);
 app.use('/api/doc', documentRouter);
 app.use('/api/activity', activityRouter);

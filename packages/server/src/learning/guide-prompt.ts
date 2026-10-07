@@ -119,6 +119,7 @@ export function buildGuidePrompt(f: GuideFacts, stage: GuideStage, eligible: rea
     '',
     '【输出】严格只回一个 JSON 对象，不要代码块、不要解释：',
     '这是简短的下一步建议，直接输出完整 JSON，不展开推导过程。',
+    '文案里的引用用「」，不要在字符串内容里使用英文双引号；数学概念用纯文字或 Unicode 表达，不用 LaTeX 命令。',
     '{"headline":"…","items":[{"kind":"…","label":"…","hint":"…","text":"…"}]}',
     `- headline：一句话开场，不超过 ${lim.headline} 字，像提灯在跟用户说话，别复述页面名`,
     `- label：动词短语，不超过 ${lim.label} 字；hint：不超过 ${lim.hint} 字，说清点了会发生什么，结合他刚聊的内容`,

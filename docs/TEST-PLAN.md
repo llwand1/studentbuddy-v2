@@ -61,7 +61,7 @@
 > | 本批测试文件 | 用例 | 不变量 |
 > |---|---:|---|
 > | `src/guide.test.ts`（shared） | 47 | 纯函数。目录完整（13 种动作中英齐、长度不超各自语言的上限、话题 12 条各是能直接发出去的一句话）；阶段判定表（没模型压一切 > 非对话页 tour > 忙 busy > can 里有解析 / 重练 quizzed > 没会话或零轮 fresh > chatted）；可选集合 ＝ 阶段白名单 ∩ can 且不含当前页；★ 三个必备时刻在规则推荐里都是第一项；规则推荐 ≤4 项、中英成对、副行带现场数据（欠账条数 / 词条数 / 上一问）、随机话题只来自 seed（可复现）；校验器 `normalizeGuideReply`：丢白名单外与此刻不可选的 kind、去重与配额（带文本的各 ≤2、同一句话不发两次）、label / hint 不合格换默认文案、★ 英文 27 字符标签原样保留、文本压成一行并去控制字符、非文本动作丢 text、必备项缺了补到第一位（满 4 条顶掉末尾）、一条合格的都没有 ⇒ null；`parseGuideRequest` 白名单外 kind / 非法视图 / 超长 can ⇒ null |
-> | `src/learning/guide.test.ts`（server） | 25 | 现场与模型都是桩。忙态与没模型**零模型调用**；合格输出 ⇒ ai、夹带文字与代码围栏也抠得出 JSON；第一次打开温度高、其余低；★ 必备项兜底（话题 / 出题 / 解析各一例）；白名单外 / 不可选 / 注入话术 / 客户端没声明的能力都进不了结果；乱码 ⇒ 网关修复一次（带错因与上次输出）再合格算 ai，仍不合格 ⇒ 规则 + parse；上游炸 / 取消 ⇒ 规则 + upstream / aborted、不抛；提示词只列可选动作、对话节选在「」里并写明不执行、按 lang 换语言与长度上限、阶段必备项写进去；`guide.next` 已登记（讲解角色、main、40 秒总预算低于客户端 45 秒；截断提高输出上限修复一次） |
+> | `src/learning/guide.test.ts`（server） | 27 | 现场与模型都是桩。忙态与没模型**零模型调用**；合格输出 ⇒ ai、夹带文字与代码围栏也抠得出 JSON；第一次打开温度高、其余低；★ 必备项兜底（话题 / 出题 / 解析各一例）；白名单外 / 不可选 / 注入话术 / 客户端没声明的能力都进不了结果；乱码 ⇒ 网关修复一次（带错因与上次输出）再合格算 ai，仍不合格 ⇒ 规则 + parse；上游炸 / 取消 ⇒ 规则 + upstream / aborted、不抛；提示词只列可选动作、对话节选在「」里并写明不执行、按 lang 换语言与长度上限、阶段必备项写进去；`guide.next` 已登记（讲解角色、main、40 秒总预算低于客户端 45 秒；截断提高输出上限修复一次；真实未转义引号首轮保留；合法转义不改、歧义不猜） |
 > | `src/routes/guide.test.ts`（server） | 19 | supertest 真库 + 假 `routeRole`。六种坏请求 ⇒ 400、跨源写 ⇒ 403；★ 没模型 ⇒ 200 + rules + no-model；第一次 ⇒ 话题第一位、模型现想的话题原样保留；★ 末一问 / 轮数 / 出过几组题进了提示词、题卡登记行不被当成最近一答（变异验过）；做完题 ⇒ 解析第一，乱码走规则兜底也一样；上游炸仍 200；忙态无项；非对话页 ⇒ tour；★ 多租户：B 带着 A 的会话 id 来问，A 的内容不进 B 的提示词（变异验过）、非对话页带 sessionId 也不读会话 |
 > | `src/features/guide/guide-store.test.ts`（web） | 12 | jsdom。能力登记 / 注销、kinds 按白名单序；同一种动作多登记者 ⇒ 最近的生效、注销后退回上一个；`runGuideCap` 没人登记 ⇒ false；★ 没变就不通知、快照引用稳定；对话现场设置 / 撤销；信箱放 / 取 / 覆盖、★ 5 秒过期当没有并清掉；`useGuideLive` 随变化重渲染、重置回出厂 |
 > | `src/features/guide/Lantern.test.tsx`（web） | 7 | `lanternSpriteErrors()` 为空（16×16、图例登记、★ 火苗只压在灯罩玻璃上）且校验器自己会红；两帧火苗形状不同但像素数一样；渲染一个 16×16 svg 全是 rect；三个状态只换类名；★ 图例里每个类名在 `guide.css` 都有 `fill`、火苗第二帧默认隐藏、动画全用 `steps()` |
@@ -411,7 +411,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，如实记录）**：本次在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（现基线：389 文件 / 4440 例，4438 passed + 2 skipped，2026-10-07 交互 AI 可靠性全量实跑）
+## 3. 用例清单（现基线：389 文件 / 4442 例，4440 passed + 2 skipped，2026-10-07 交互 AI 可靠性全量实跑）
 
 2026-10-06 篝火现场开场题（CHAT-UX-SPEC §2.10）：
 

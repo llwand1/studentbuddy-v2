@@ -287,6 +287,23 @@ describe('⑦ 提示词', () => {
 });
 
 describe('extractJsonObject 与用途登记', () => {
+  it('真实模型式未转义文案引号保留原文，建议首轮即可交付，不白花修复调用', async () => {
+    h.facts.mockReturnValue(fresh());
+    modelSays('```json\n{"headline":"灯亮啦","items":[{"kind":"chat.topic","label":"聊聊特征向量","hint":"讲清核心概念","text":"考研线性代数里总说"找到特征向量就能把矩阵变简单"，但它凭什么让矩阵"分解"？"}]}\n```');
+    const r = await guideNext(null, REQ);
+    expect(r.mode).toBe('ai');
+    expect(r.items[0]?.text).toBe('考研线性代数里总说"找到特征向量就能把矩阵变简单"，但它凭什么让矩阵"分解"？');
+    expect(h.chat).toHaveBeenCalledTimes(1);
+  });
+
+  it('合法引用与转义不改；确定非法的反斜杠可修，逗号边界歧义或截断不猜', () => {
+    const legal = { text: '合法 "路径" 与 \\目录' };
+    expect(extractJsonObject(JSON.stringify(legal))).toEqual(legal);
+    expect(extractJsonObject(String.raw`{"text":"向量 \alpha"}`)).toEqual({ text: '向量 \\alpha' });
+    expect(extractJsonObject('{"text":"引用"，然后继续。"}')).toEqual({ text: '引用"，然后继续。' });
+    expect(extractJsonObject('{"text":"引用",然后继续"}')).toBeNull();
+    expect(extractJsonObject('{"text":"末尾没写完')).toBeNull();
+  });
   it('引路灯截断后在提高上限的修复里得到完整建议，而非直接降级', async () => {
     let n = 0;
     h.chat.mockImplementation(async function* () {

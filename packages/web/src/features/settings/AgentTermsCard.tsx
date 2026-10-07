@@ -7,7 +7,7 @@ export function AgentTermsCard({ flash }: { flash: (ok: boolean, text: string) =
   const [keys, setKeys] = useState<AgentKeyView[]>([]);
   const [name, setName] = useState('我的 coding agent');
   const [days, setDays] = useState(30);
-  const [fresh, setFresh] = useState<{ id: string; token: string } | null>(null);
+  const [fresh, setFresh] = useState<{ id: string; value: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -25,7 +25,7 @@ export function AgentTermsCard({ flash }: { flash: (ok: boolean, text: string) =
     setBusy(true); setError('');
     try {
       const r = await agentKeysApi.create(name, days);
-      setFresh({ id: r.key.id, token: r.token });
+      setFresh({ id: r.key.id, value: r.token });
       setKeys((all) => [r.key, ...all]);
       flash(true, '密钥已生成，可以交给外部 agent 存词');
     } catch (e) { setError(e instanceof Error ? e.message : '创建密钥失败'); }
@@ -51,17 +51,17 @@ export function AgentTermsCard({ flash }: { flash: (ok: boolean, text: string) =
       </select></label>
       <button className="settings-add" disabled={loading || busy || !name.trim()} onClick={() => void create()}>生成专用密钥</button>
     </div>
-    {fresh && <div className="agent-terms-secret">
+    {fresh && <div className="agent-terms-issued">
       <p>完整密钥仅在这次生成后可复制，离开页面后不能再次读取。</p>
-      <label>新密钥<input type="password" readOnly value={fresh.token} autoComplete="off" /></label>
-      <button className="settings-add" disabled={busy} onClick={() => void copy(fresh.token)}>复制密钥</button>
+      <label>新密钥<input type="password" readOnly value={fresh.value} autoComplete="off" /></label>
+      <button className="settings-add" disabled={busy} onClick={() => void copy(fresh.value)}>复制密钥</button>
     </div>}
     <div className="settings-actions">
       <button className="settings-add" onClick={() => void copy(instructions)}>复制 agent 使用说明</button>
       <a href="/api/open/v1/openapi.json" target="_blank" rel="noreferrer">接口规范</a>
     </div>
     <details className="agent-terms-help"><summary>如何交给 agent 使用</summary>
-      <p>生成并复制密钥，让 agent 存入私有环境变量 STUDENTBUDDY_TERMS_TOKEN，再把下面的说明交给它。也可以用仓库的 tools/import-agent-terms.mjs 导入桌面词条评审台导出的 JSON。</p>
+      <p>生成并复制密钥，让 agent 存入私有环境变量 STUDENTBUDDY_TERMS_TOKEN，再把下面的说明交给它。也可以用仓库提供的桌面导入脚本保存词条评审台导出的 JSON。</p>
       <textarea aria-label="agent 使用说明" readOnly value={instructions} rows={8} />
       <p>新词默认加入复习。应试模式沿用来源白名单；没有完整网页来源或来源不在范围内的词仍会保存，导入回执会说明当前视图是否显示。</p>
     </details>

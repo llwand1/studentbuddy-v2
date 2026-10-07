@@ -192,6 +192,20 @@ describe('aiJson', () => {
     expect(records.map(r => r.status)).toEqual(['ok']);
   });
 
+  it('模型加异步核对共享总预算，超时核对的迟到通过结果也不能交付', async () => {
+    vi.useFakeTimers(); route.target = says('{"n":6}');
+    const pending = aiJson({ ...base, totalTimeoutMs: 40_000, parse: async () => {
+      await new Promise(resolve => setTimeout(resolve, 50_000));
+      return { n: 6 };
+    } });
+    await vi.advanceTimersByTimeAsync(40_000);
+    const r = await pending;
+    expect(!r.ok && r.reason).toBe('timeout');
+    expect(r.latencyMs).toBe(40_000);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(records.map(r => r.status)).toEqual(['timeout']);
+  });
+
   it('首次坏 JSON 花 30 秒后修复只剩 10 秒，不能重新获得 40 秒', async () => {
     vi.useFakeTimers(); let calls = 0;
     route.target = targetWith(async function* (req) {

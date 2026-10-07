@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-07T13:04:58.410Z",
+  "generatedAt": "2026-10-07T13:53:44.523Z",
   "code": {
     "rows": [
       {
@@ -11,23 +11,23 @@
       },
       {
         "pkg": "server",
-        "srcFiles": 281,
+        "srcFiles": 282,
         "testFiles": 195,
-        "srcLines": 39784,
-        "testLines": 36895
+        "srcLines": 39845,
+        "testLines": 36928
       },
       {
         "pkg": "web",
         "srcFiles": 342,
         "testFiles": 149,
-        "srcLines": 41665,
+        "srcLines": 41666,
         "testLines": 18865
       }
     ],
-    "srcFiles": 682,
+    "srcFiles": 683,
     "testFiles": 389,
-    "srcLines": 91302,
-    "testLines": 61442,
+    "srcLines": 91364,
+    "testLines": 61475,
     "tsxTestFiles": 71
   },
   "routes": {
@@ -85,11 +85,11 @@
     "probes": 15
   },
   "repo": {
-    "head": "2a4e92e",
+    "head": "f160b9c",
     "headDate": "2026-10-07",
-    "commitsLast14d": 277,
+    "commitsLast14d": 278,
     "branch": "fix/interactive-ai-reliability",
-    "dirtyFiles": 4
+    "dirtyFiles": 14
   },
   "tests": {
     "available": true,
@@ -97,8 +97,8 @@
     "wallSec": 0,
     "staleDays": 0,
     "files": 389,
-    "cases": 4443,
-    "passed": 4441,
+    "cases": 4446,
+    "passed": 4444,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -115,8 +115,8 @@
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4443",
-      "measured": "4443",
+      "claimed": "4446",
+      "measured": "4446",
       "ok": true
     },
     {
@@ -157,8 +157,8 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "389 文件 / 4443 例",
-      "measured": "389 文件 / 4443 例",
+      "claimed": "389 文件 / 4446 例",
+      "measured": "389 文件 / 4446 例",
       "ok": true
     }
   ],

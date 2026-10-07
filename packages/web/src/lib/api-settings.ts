@@ -59,7 +59,7 @@ export const settingsApi = {
    *   前端拿回读值回填才是所见即所得。
    */
   examPacks: () => request<ExamPacksView>('/api/settings/exam-packs'),
-  examMode: () => request<ExamModeView>('/api/settings/exam-mode'),
+  examMode: () => request<ExamModeView>('/api/settings/exam-mode', { timeoutMs: 5_000 }),
   saveExamMode: (on: boolean) =>
     request<ExamModeView & { ok: boolean }>('/api/settings/exam-mode', { method: 'PUT', body: JSON.stringify({ on }) }),
   saveExamScope: (scope: ExamScopeSetting) =>

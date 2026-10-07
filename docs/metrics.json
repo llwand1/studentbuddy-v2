@@ -1,33 +1,33 @@
 {
-  "generatedAt": "2026-10-06T11:43:01.509Z",
+  "generatedAt": "2026-10-07T13:53:44.523Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
-        "srcFiles": 58,
+        "srcFiles": 59,
         "testFiles": 45,
-        "srcLines": 9840,
-        "testLines": 5675
+        "srcLines": 9853,
+        "testLines": 5682
       },
       {
         "pkg": "server",
-        "srcFiles": 280,
+        "srcFiles": 282,
         "testFiles": 195,
-        "srcLines": 39736,
-        "testLines": 36799
+        "srcLines": 39845,
+        "testLines": 36928
       },
       {
         "pkg": "web",
         "srcFiles": 342,
         "testFiles": 149,
-        "srcLines": 41646,
-        "testLines": 18852
+        "srcLines": 41666,
+        "testLines": 18865
       }
     ],
-    "srcFiles": 680,
+    "srcFiles": 683,
     "testFiles": 389,
-    "srcLines": 91222,
-    "testLines": 61326,
+    "srcLines": 91364,
+    "testLines": 61475,
     "tsxTestFiles": 71
   },
   "routes": {
@@ -85,20 +85,20 @@
     "probes": 15
   },
   "repo": {
-    "head": "81b483d",
-    "headDate": "2026-10-06",
-    "commitsLast14d": 274,
-    "branch": "fix/chat-coach-send-clearance",
-    "dirtyFiles": 8
+    "head": "f160b9c",
+    "headDate": "2026-10-07",
+    "commitsLast14d": 278,
+    "branch": "fix/interactive-ai-reliability",
+    "dirtyFiles": 14
   },
   "tests": {
     "available": true,
-    "ranNow": true,
-    "wallSec": 47.8,
+    "ranNow": false,
+    "wallSec": 0,
     "staleDays": 0,
     "files": 389,
-    "cases": 4433,
-    "passed": 4431,
+    "cases": 4446,
+    "passed": 4444,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -109,15 +109,15 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "388",
+      "claimed": "389",
       "measured": "389",
-      "ok": false
+      "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4428",
-      "measured": "4433",
-      "ok": false
+      "claimed": "4446",
+      "measured": "4446",
+      "ok": true
     },
     {
       "label": "badge REST 路由",
@@ -145,21 +145,21 @@
     },
     {
       "label": "badge 版本",
-      "claimed": "0.2.164",
-      "measured": "0.2.164",
+      "claimed": "0.2.165",
+      "measured": "0.2.165",
       "ok": true
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.164",
-      "measured": "v0.2.164",
+      "claimed": "v0.2.165",
+      "measured": "v0.2.165",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "388 文件 / 4428 例",
-      "measured": "389 文件 / 4433 例",
-      "ok": false
+      "claimed": "389 文件 / 4446 例",
+      "measured": "389 文件 / 4446 例",
+      "ok": true
     }
   ],
   "landingDrift": [

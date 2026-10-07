@@ -8,7 +8,7 @@
  *   - `version` 跟着提示词改 ⇒ 改一次提示词就 +1，前后两版的成功率能直接对比。
  * ★ 改提示词时**必须**把对应条目的 `version` +1（`purposes.test.ts` 锁了"每条都有正整数版本"）。
  */
-import type { ModelRole } from '@sb/shared';
+import { INTERACTIVE_AI_BUDGET, type ModelRole } from '@sb/shared';
 import type { UpstreamPurpose } from '../llm/types.js';
 
 export interface AiPurposeInfo {
@@ -26,7 +26,8 @@ export interface AiPurposeInfo {
 
 export const AI_PURPOSES = {
   'chat.turn': { label: '对话回答', role: 'explain', version: 3, upstream: 'main', timeoutMs: 180_000 },
-  'chat.opener': { label: '篝火开场题', role: 'quiz-generator', version: 1, upstream: 'main', timeoutMs: 20_000 },
+  'chat.opener': { label: '篝火开场题', role: 'quiz-generator', version: 2, upstream: 'main', timeoutMs: INTERACTIVE_AI_BUDGET.totalMs },
+  'chat.opener.check': { label: '开场题答案核对', role: 'solver', version: 1, upstream: 'main', timeoutMs: INTERACTIVE_AI_BUDGET.totalMs },
   'chat.compact': { label: '会话压缩与画像', role: 'summarizer', version: 1, upstream: 'background', timeoutMs: 120_000 },
   'chat.vision': { label: '看图', role: 'vision', version: 1, upstream: 'main', timeoutMs: 90_000 },
   'image.verify': { label: '配图核验', role: 'vision', version: 1, upstream: 'main', timeoutMs: 45_000 },
@@ -51,7 +52,7 @@ export const AI_PURPOSES = {
   'chat.grill': { label: '收尾追问选项', role: 'explain', version: 1, upstream: 'main', timeoutMs: 60_000 },
   'lookup.explain': { label: '划词速查讲解', role: 'explain', version: 1, upstream: 'main', timeoutMs: 60_000 },
   'lookup.quiz': { label: '划词速查出题', role: 'explain', version: 1, upstream: 'main', timeoutMs: 90_000 },
-  'guide.next': { label: '下一步引导', role: 'explain', version: 2, upstream: 'main', timeoutMs: 20_000 },
+  'guide.next': { label: '下一步引导', role: 'explain', version: 3, upstream: 'main', timeoutMs: INTERACTIVE_AI_BUDGET.totalMs },
   'pk.judge': { label: '对战裁判', role: 'judge', version: 1, upstream: 'main', timeoutMs: 60_000 },
   'pk.bot': { label: '对战 AI 选手', role: 'solver', version: 1, upstream: 'main', timeoutMs: 45_000 },
 } as const satisfies Record<string, AiPurposeInfo>;

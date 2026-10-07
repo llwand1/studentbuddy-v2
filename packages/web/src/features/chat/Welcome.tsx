@@ -11,8 +11,8 @@ export function Welcome({ onPick, blocked = false, onAsk }: {
   onAsk?: () => void;
 }) {
   const exam = useExamScope();
-  const scopeKey = `${exam.loaded}:${exam.on}:${exam.summary}`;
-  const opener = useCampfireOpener(scopeKey, !blocked);
+  const scopeKey = `${exam.on}:${exam.summary}`;
+  const opener = useCampfireOpener(scopeKey, !blocked && !exam.loading);
   return (
     <div className="welcome welcome-campfire">
       <p className="welcome-eyebrow">CAMPFIRE · 篝火营地</p>

@@ -33,6 +33,10 @@ export function normalizeCampfireQuestion(value: unknown, exclude: string[] = []
   if (options.some(v => v === null) || new Set(options.map(v => openerFingerprint(v ?? ''))).size !== options.length) return null;
   // 卷轴是纯文字；模型偶尔违反提示返回代码围栏，交由网关重新出题。
   if ([topic, question, explanation, ...options].some(v => /```|~~~/.test(v ?? ''))) return null;
+  // 热身只考概念或一步运算；多行数值矩阵易在转写或计算时出错，交由模型重创作。
+  const content = [question, explanation, ...options].join('\n');
+  if (/\bdiag\s*\(\s*[-+]?\d/i.test(content) || (content.match(/\[[^\]]*\]/g) ?? []).some(block => block.split(/[;；\n]/).filter(row => /\d/.test(row)).length > 1)) return null;
+  if (options.some(v => /^[A-D][.、:：)]\s+/.test(v ?? ''))) return null;
   if (typeof q.answer !== 'number' || !Number.isInteger(q.answer) || q.answer < 0 || q.answer >= options.length) return null;
   if (/根据(?:上|下|所给)(?:图|表|文|材料)|如图所示|见图|见表/.test(question)) return null;
   if (exclude.some(stem => openerFingerprint(stem) === openerFingerprint(question))) return null;

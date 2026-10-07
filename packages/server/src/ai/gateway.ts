@@ -122,6 +122,7 @@ async function attempt(opts: AiCallOptions, messages: ChatMessage[], n: number):
   const timer = setTimeout(() => timeout.abort(), opts.timeoutMs ?? info.timeoutMs);
   const onOuterAbort = () => timeout.abort();
   opts.signal?.addEventListener('abort', onOuterAbort, { once: true });
+  if (opts.signal?.aborted) onOuterAbort();
   let text = '';
   let finishReason: string | undefined;
   let usage: AiUsage | undefined;
@@ -132,6 +133,7 @@ async function attempt(opts: AiCallOptions, messages: ChatMessage[], n: number):
       status: override?.status ?? status, error: override?.error ?? error,
     });
   try {
+    if (timeout.signal.aborted) throw new Error('aborted');
     for await (const chunk of target.adapter.chat({
       model: target.model,
       apiKey: target.apiKey,
@@ -178,41 +180,76 @@ export async function aiText(opts: AiCallOptions): Promise<AiTextResult> {
 
 export interface AiJsonOptions<T> extends AiCallOptions {
   /** 解析 + 校验：返回 null 表示"不成形"。★ 由调用方提供——各协议（[TERMS]、题组 JSON…）形状各不相同 */
-  parse: (text: string) => T | null;
+  parse: (text: string) => T | null | Promise<T | null>;
   /** 解析失败后最多修复几次（缺省 1）。每次修复都是一次真实调用，也各记一行账 */
   repairs?: number;
   /** 修复时告诉模型输出应该长什么样（缺省一句通用话） */
   repairHint?: string;
+  /** 首次调用与所有修复共用的总预算；排队也计入。未传时沿用单次超时。 */
+  totalTimeoutMs?: number;
+  /** 修复输出上限；仅显式提高上限时才允许修复 length 截断，最多仍为 repairs 次。 */
+  repairMaxTokens?: number;
 }
 
 export type AiJsonResult<T> =
   | (Extract<AiTextResult, { ok: true }> & { value: T; repaired: boolean })
   | Extract<AiTextResult, { ok: false }>;
 
+/** 核对可以异步，但不能让它越过本次总预算；迟到的结果也不会再交付。 */
+async function parseWithinBudget<T>(parse: AiJsonOptions<T>['parse'], text: string, deadline: number, signal?: AbortSignal): Promise<T | null> {
+  if (signal?.aborted || Date.now() >= deadline) return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
+  const stopped = new Promise<null>(resolve => {
+    if (Number.isFinite(deadline)) timer = setTimeout(() => resolve(null), Math.max(0, deadline - Date.now()));
+    onAbort = () => resolve(null);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+  try { return await Promise.race([Promise.resolve().then(() => parse(text)), stopped]); }
+  finally { if (timer) clearTimeout(timer); if (onAbort) signal?.removeEventListener('abort', onAbort); }
+}
+
 /**
  * 结构化调用：解析失败时把"你上次的输出"和"应该的形状"回喂给模型修复。
- * ★ 截断（finish_reason=length）不修复：那是输出上限不够，再问一次大概率同样被截，白花一次钱。
+ * ★ 截断只在调用方显式提高输出上限时修复，且受总预算约束；同一上限下不盲重试。
  */
 export async function aiJson<T>(opts: AiJsonOptions<T>): Promise<AiJsonResult<T>> {
+  const started = Date.now();
+  const deadline = opts.totalTimeoutMs === undefined ? Infinity : started + opts.totalTimeoutMs;
   let messages = opts.messages;
   const repairs = opts.repairs ?? 1;
   for (let n = 1; ; n += 1) {
-    const a = await attempt(opts, messages, n);
+    const maxTokens = n > 1 ? opts.repairMaxTokens ?? opts.maxTokens : opts.maxTokens;
+    const a = await attempt({
+      ...opts,
+      timeoutMs: Math.min(opts.timeoutMs ?? AI_PURPOSES[opts.purpose].timeoutMs, Math.max(0, deadline - Date.now())),
+      maxTokens,
+    }, messages, n);
     const r = a.res;
     if (!r.ok) {
-      a.log();
-      return r;
+      const error = r.reason === 'timeout' && opts.totalTimeoutMs !== undefined
+        ? `模型在 ${Math.round(opts.totalTimeoutMs / 1000)} 秒总预算内没有完成回答或修复` : r.error;
+      a.log({ status: r.reason, error });
+      return { ...r, error, latencyMs: Date.now() - started };
     }
     let value: T | null = null;
     try {
-      value = opts.parse(r.text);
+      value = await parseWithinBudget(opts.parse, r.text, deadline, opts.signal);
     } catch {
       value = null; // 解析函数自己抛了也按"不成形"处理，不把异常漏给调用方
     }
-    a.log(value === null ? { status: 'parse', error: '输出不符合约定格式' } : undefined);
-    if (value !== null) return { ...r, value, repaired: n > 1 };
-    if (n > repairs || r.finishReason === 'length') {
-      return { ok: false, reason: 'parse', error: '模型的输出不符合约定格式', text: r.text, model: r.model, latencyMs: r.latencyMs };
+    if (opts.signal?.aborted || Date.now() >= deadline) {
+      const reason = opts.signal?.aborted ? 'aborted' : 'timeout';
+      const error = reason === 'aborted' ? '已取消' : `模型在 ${Math.round((opts.totalTimeoutMs ?? 0) / 1000)} 秒总预算内没有完成回答或核对`;
+      a.log({ status: reason, error });
+      return { ok: false, reason, error, text: r.text, model: r.model, latencyMs: Date.now() - started };
+    }
+    const parseError = r.finishReason === 'length' ? '输出达到 token 上限，结构化结果未完成' : '输出不符合约定格式';
+    a.log(value === null ? { status: 'parse', error: parseError } : undefined);
+    if (value !== null) return { ...r, value, repaired: n > 1, latencyMs: Date.now() - started };
+    const canRepairLength = (opts.repairMaxTokens ?? 0) > (maxTokens ?? Infinity);
+    if (n > repairs || (r.finishReason === 'length' && !canRepairLength) || Date.now() >= deadline) {
+      return { ok: false, reason: 'parse', error: parseError, text: r.text, model: r.model, latencyMs: Date.now() - started };
     }
     messages = [
       ...opts.messages,

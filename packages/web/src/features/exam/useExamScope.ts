@@ -68,15 +68,21 @@ export interface ExamScopeState {
   /** 范围内有站内直达端点的站名 */
   directSites: string[];
   loaded: boolean;
+  /** 初始读取进行中；失败也结束，召题不能依靠短延迟猜测读取已完成。 */
+  loading: boolean;
 }
 
 export function useExamScope(): ExamScopeState {
   const [v, setV] = useState<ExamModeView | null>(cached);
+  const [loading, setLoading] = useState(cached === null);
   useEffect(() => {
+    let alive = true;
     const l: Listener = (next) => setV(next);
     listeners.add(l);
-    if (cached === null) void refreshExamScope();
+    if (cached === null) void refreshExamScope().finally(() => { if (alive) setLoading(false); });
+    else { setV(cached); setLoading(false); }
     return () => {
+      alive = false;
       listeners.delete(l);
     };
   }, []);
@@ -86,5 +92,6 @@ export function useExamScope(): ExamScopeState {
     hosts: v?.hosts.length ?? 0,
     directSites: v?.directSites ?? [],
     loaded: v !== null,
+    loading: loading && v === null,
   };
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { normalizeCampfireQuestion, OPENER_HISTORY_LIMIT, type CampfireOpener } from '@sb/shared';
+import { INTERACTIVE_AI_BUDGET, normalizeCampfireQuestion, OPENER_HISTORY_LIMIT, type CampfireOpener } from '@sb/shared';
 import { api } from '../../lib/api';
 
 type Result = { key: string; status: 'loading' | 'ready' | 'error'; value?: CampfireOpener; error?: string };
@@ -18,7 +18,7 @@ export function useCampfireOpener(scopeKey: string, enabled: boolean) {
     const timer = window.setTimeout(() => {
       const exclude = [...recent.current];
       void api.request<CampfireOpener>('/api/chat/opener', {
-        method: 'POST', body: JSON.stringify({ exclude }), cache: 'no-store', signal: controller.signal, timeoutMs: 45_000,
+        method: 'POST', body: JSON.stringify({ exclude }), cache: 'no-store', signal: controller.signal, timeoutMs: INTERACTIVE_AI_BUDGET.clientMs,
       }).then(value => {
         if (!alive || controller.signal.aborted) return;
         const question = normalizeCampfireQuestion(value.question, exclude);

@@ -10,6 +10,7 @@
  */
 import {
   GUIDE_TOPICS,
+  INTERACTIVE_AI_BUDGET,
   eligibleKinds,
   guideStage,
   normalizeGuideReply,
@@ -22,23 +23,12 @@ import { routeRole } from '../llm/router.js';
 import { aiJson } from '../ai/gateway.js';
 import { buildGuideFacts } from './guide-facts.js';
 import { buildGuidePrompt } from './guide-prompt.js';
+import { extractJsonObject } from './json-object.js';
+export { extractJsonObject } from './json-object.js';
 
-const AI_MAX_TOKENS = 600;
 /** 第一次打开要「每次都不一样」的话题，温度给高一点；其余阶段要的是贴着现场说话，低一点 */
 const TEMPERATURE_FRESH = 0.95;
 const TEMPERATURE_DEFAULT = 0.6;
-
-/** 从模型输出里抠出第一个 JSON 对象（容忍前后夹带文字 / 代码围栏）；抠不出 ⇒ null */
-export function extractJsonObject(text: string): unknown {
-  const at = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (at < 0 || end <= at) return null;
-  try {
-    return JSON.parse(text.slice(at, end + 1)) as unknown;
-  } catch {
-    return null;
-  }
-}
 
 export async function guideNext(
   ownerId: string | null,
@@ -68,11 +58,13 @@ export async function guideNext(
     target,
     messages,
     temperature: stage === 'fresh' ? TEMPERATURE_FRESH : TEMPERATURE_DEFAULT,
-    maxTokens: AI_MAX_TOKENS,
+    maxTokens: INTERACTIVE_AI_BUDGET.maxTokens,
+    repairMaxTokens: INTERACTIVE_AI_BUDGET.repairMaxTokens,
+    totalTimeoutMs: INTERACTIVE_AI_BUDGET.totalMs,
     streamMode: 'once',
     signal: opts.signal,
     parse: (text) => normalizeGuideReply(extractJsonObject(text), facts, seed),
-    repairHint: `只回 {"headline":"…","items":[{"kind":"…","label":"…","hint":"…","text":"…"}]} 这一个 JSON 对象；kind 只能取【可选动作】里列出的。`,
+    repairHint: `只回 {"headline":"…","items":[{"kind":"…","label":"…","hint":"…","text":"…"}]} 这一个 JSON 对象；kind 只能取【可选动作】里列出的。文案里的引用改用「」，不要未转义的英文双引号；重新写完整文案，不复制损坏的字符串。`,
   });
   if (r.ok) return { mode: 'ai', ...r.value };
   return { mode: 'rules', reason: r.reason, ...rules };

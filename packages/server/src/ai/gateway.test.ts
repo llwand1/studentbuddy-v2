@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { TokenChunk } from '../llm/types.js';
+import { INTERACTIVE_AI_BUDGET } from '@sb/shared';
 
 const route = vi.hoisted(() => ({ target: null as unknown }));
 vi.mock('../llm/router.js', () => ({ routeRole: () => route.target }));
@@ -21,7 +22,7 @@ type Rec = import('./gateway.js').LlmCallRecord;
 let records: Rec[] = [];
 let off: () => void = () => undefined;
 
-function targetWith(chat: (req: { signal?: AbortSignal; messages: unknown[] }) => AsyncIterable<TokenChunk>) {
+function targetWith(chat: (req: { signal?: AbortSignal; messages: unknown[]; maxTokens?: number }) => AsyncIterable<TokenChunk>) {
   return {
     adapter: { type: 'openai' as const, chat, listModels: async () => [] },
     model: 'm1', apiKey: 'k', baseUrl: '', streamMode: 'once' as const, type: 'openai' as const,
@@ -109,6 +110,16 @@ describe('aiText', () => {
     expect(!r.ok && r.reason).toBe('aborted');
   });
 
+  it('请求开始前已取消，不再调用上游或等待模型超时', async () => {
+    const chat = vi.fn(async function* () { yield { content: '不应发出', done: true }; });
+    route.target = targetWith(chat);
+    const ac = new AbortController(); ac.abort();
+    const r = await aiText({ ...base, signal: ac.signal });
+    expect(!r.ok && r.reason).toBe('aborted');
+    expect(chat).not.toHaveBeenCalled();
+    expect(records.map(r => r.status)).toEqual(['aborted']);
+  });
+
   it('onChunk 逐块回调（流式调用点边收边推）；工具调用带回来', async () => {
     route.target = targetWith(async function* () {
       yield { content: 'a', done: false };
@@ -164,6 +175,67 @@ describe('aiJson', () => {
     const r = await aiJson({ ...base, parse: () => null });
     expect(!r.ok && r.reason).toBe('parse');
     expect(records).toHaveLength(1);
+  });
+
+  it('短 JSON 慢于旧 20 秒上限仍能交付，客户端预算留传输余量', async () => {
+    vi.useFakeTimers();
+    route.target = targetWith(async function* () {
+      await new Promise(resolve => setTimeout(resolve, 25_000));
+      yield { content: '{"n":4}', done: true };
+    });
+    const pending = aiJson({ ...base, purpose: 'guide.next', totalTimeoutMs: INTERACTIVE_AI_BUDGET.totalMs, parse });
+    await vi.advanceTimersByTimeAsync(25_000);
+    const r = await pending;
+    expect(r.ok && r.value.n).toBe(4);
+    expect(r.latencyMs).toBe(25_000);
+    expect(INTERACTIVE_AI_BUDGET.clientMs).toBeGreaterThan(r.latencyMs);
+    expect(records.map(r => r.status)).toEqual(['ok']);
+  });
+
+  it('模型加异步核对共享总预算，超时核对的迟到通过结果也不能交付', async () => {
+    vi.useFakeTimers(); route.target = says('{"n":6}');
+    const pending = aiJson({ ...base, totalTimeoutMs: 40_000, parse: async () => {
+      await new Promise(resolve => setTimeout(resolve, 50_000));
+      return { n: 6 };
+    } });
+    await vi.advanceTimersByTimeAsync(40_000);
+    const r = await pending;
+    expect(!r.ok && r.reason).toBe('timeout');
+    expect(r.latencyMs).toBe(40_000);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(records.map(r => r.status)).toEqual(['timeout']);
+  });
+
+  it('首次坏 JSON 花 30 秒后修复只剩 10 秒，不能重新获得 40 秒', async () => {
+    vi.useFakeTimers(); let calls = 0;
+    route.target = targetWith(async function* (req) {
+      const first = calls++ === 0;
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, first ? 30_000 : 20_000);
+        req.signal?.addEventListener('abort', () => { clearTimeout(timer); reject(new Error('aborted')); }, { once: true });
+      });
+      yield { content: first ? '{bad' : '{"n":5}', done: true };
+    });
+    const pending = aiJson({ ...base, purpose: 'guide.next', totalTimeoutMs: INTERACTIVE_AI_BUDGET.totalMs, parse });
+    await vi.advanceTimersByTimeAsync(40_000);
+    const r = await pending;
+    expect(!r.ok && r.reason).toBe('timeout');
+    expect(r.latencyMs).toBe(40_000);
+    expect(records.map(r => [r.status, r.latencyMs])).toEqual([['parse', 30_000], ['timeout', 10_000]]);
+    expect(records[1]?.error).toContain('40 秒总预算');
+  });
+
+  it('截断仅在提高 token 上限后修复一次，再次截断保留真实失败', async () => {
+    const caps: Array<number | undefined> = [];
+    route.target = targetWith(async function* (req) {
+      caps.push(req.maxTokens);
+      yield { content: '{"n":', done: true, finishReason: 'length' };
+    });
+    const r = await aiJson({ ...base, maxTokens: 2048, repairMaxTokens: 4096, totalTimeoutMs: 40_000, parse });
+    expect(!r.ok && r.reason).toBe('parse');
+    expect(caps).toEqual([2048, 4096]);
+    expect(records.map(r => [r.status, r.attempt])).toEqual([['parse', 1], ['parse', 2]]);
+    expect(records[1]?.error).toContain('token 上限');
   });
 
   it('解析函数自己抛错也按"不成形"处理，不把异常漏给调用方', async () => {

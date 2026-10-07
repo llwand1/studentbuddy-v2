@@ -5,6 +5,7 @@ const q = { topic: '概率', question: '公平硬币下一次为正面的概率�
 describe('开场题交付契约', () => {
   it('真实复杂矩阵错题不作为热身交付，概念判断与单行向量仍允许，选项不叠标签', () => {
     expect(normalizeCampfireQuestion({ ...q, question: 'A = [1 2 3 6; 2 4 5 10; 3 6 4 12] 的秩？' })).toBeNull();
+    expect(normalizeCampfireQuestion({ ...q, explanation: '取 A=diag(1,-1)，则 A 加 A 的逆矩阵为 diag(2,0)。' })).toBeNull();
     expect(normalizeCampfireQuestion({ ...q, question: '矩阵的秩是否等于线性无关列向量的最大个数？' })).not.toBeNull();
     expect(normalizeCampfireQuestion({ ...q, question: '向量 [1, 2, 3] 有几个分量？' })).not.toBeNull();
     expect(normalizeCampfireQuestion({ ...q, options: ['A: 25%', 'B: 50%', 'C: 75%'] })).toBeNull();

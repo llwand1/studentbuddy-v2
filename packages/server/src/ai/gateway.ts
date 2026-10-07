@@ -122,6 +122,7 @@ async function attempt(opts: AiCallOptions, messages: ChatMessage[], n: number):
   const timer = setTimeout(() => timeout.abort(), opts.timeoutMs ?? info.timeoutMs);
   const onOuterAbort = () => timeout.abort();
   opts.signal?.addEventListener('abort', onOuterAbort, { once: true });
+  if (opts.signal?.aborted) onOuterAbort();
   let text = '';
   let finishReason: string | undefined;
   let usage: AiUsage | undefined;
@@ -132,6 +133,7 @@ async function attempt(opts: AiCallOptions, messages: ChatMessage[], n: number):
       status: override?.status ?? status, error: override?.error ?? error,
     });
   try {
+    if (timeout.signal.aborted) throw new Error('aborted');
     for await (const chunk of target.adapter.chat({
       model: target.model,
       apiKey: target.apiKey,
@@ -183,6 +185,10 @@ export interface AiJsonOptions<T> extends AiCallOptions {
   repairs?: number;
   /** 修复时告诉模型输出应该长什么样（缺省一句通用话） */
   repairHint?: string;
+  /** 首次调用与所有修复共用的总预算；排队也计入。未传时沿用单次超时。 */
+  totalTimeoutMs?: number;
+  /** 修复输出上限；仅显式提高上限时才允许修复 length 截断，最多仍为 repairs 次。 */
+  repairMaxTokens?: number;
 }
 
 export type AiJsonResult<T> =
@@ -191,17 +197,26 @@ export type AiJsonResult<T> =
 
 /**
  * 结构化调用：解析失败时把"你上次的输出"和"应该的形状"回喂给模型修复。
- * ★ 截断（finish_reason=length）不修复：那是输出上限不够，再问一次大概率同样被截，白花一次钱。
+ * ★ 截断只在调用方显式提高输出上限时修复，且受总预算约束；同一上限下不盲重试。
  */
 export async function aiJson<T>(opts: AiJsonOptions<T>): Promise<AiJsonResult<T>> {
+  const started = Date.now();
+  const deadline = opts.totalTimeoutMs === undefined ? Infinity : started + opts.totalTimeoutMs;
   let messages = opts.messages;
   const repairs = opts.repairs ?? 1;
   for (let n = 1; ; n += 1) {
-    const a = await attempt(opts, messages, n);
+    const maxTokens = n > 1 ? opts.repairMaxTokens ?? opts.maxTokens : opts.maxTokens;
+    const a = await attempt({
+      ...opts,
+      timeoutMs: Math.min(opts.timeoutMs ?? AI_PURPOSES[opts.purpose].timeoutMs, Math.max(0, deadline - Date.now())),
+      maxTokens,
+    }, messages, n);
     const r = a.res;
     if (!r.ok) {
-      a.log();
-      return r;
+      const error = r.reason === 'timeout' && opts.totalTimeoutMs !== undefined
+        ? `模型在 ${Math.round(opts.totalTimeoutMs / 1000)} 秒总预算内没有完成回答或修复` : r.error;
+      a.log({ status: r.reason, error });
+      return { ...r, error, latencyMs: Date.now() - started };
     }
     let value: T | null = null;
     try {
@@ -209,10 +224,12 @@ export async function aiJson<T>(opts: AiJsonOptions<T>): Promise<AiJsonResult<T>
     } catch {
       value = null; // 解析函数自己抛了也按"不成形"处理，不把异常漏给调用方
     }
-    a.log(value === null ? { status: 'parse', error: '输出不符合约定格式' } : undefined);
-    if (value !== null) return { ...r, value, repaired: n > 1 };
-    if (n > repairs || r.finishReason === 'length') {
-      return { ok: false, reason: 'parse', error: '模型的输出不符合约定格式', text: r.text, model: r.model, latencyMs: r.latencyMs };
+    const parseError = r.finishReason === 'length' ? '输出达到 token 上限，结构化结果未完成' : '输出不符合约定格式';
+    a.log(value === null ? { status: 'parse', error: parseError } : undefined);
+    if (value !== null) return { ...r, value, repaired: n > 1, latencyMs: Date.now() - started };
+    const canRepairLength = (opts.repairMaxTokens ?? 0) > (maxTokens ?? Infinity);
+    if (n > repairs || (r.finishReason === 'length' && !canRepairLength) || Date.now() >= deadline) {
+      return { ok: false, reason: 'parse', error: parseError, text: r.text, model: r.model, latencyMs: Date.now() - started };
     }
     messages = [
       ...opts.messages,

@@ -10,6 +10,7 @@
  */
 import {
   GUIDE_TOPICS,
+  INTERACTIVE_AI_BUDGET,
   eligibleKinds,
   guideStage,
   normalizeGuideReply,
@@ -23,7 +24,6 @@ import { aiJson } from '../ai/gateway.js';
 import { buildGuideFacts } from './guide-facts.js';
 import { buildGuidePrompt } from './guide-prompt.js';
 
-const AI_MAX_TOKENS = 600;
 /** 第一次打开要「每次都不一样」的话题，温度给高一点；其余阶段要的是贴着现场说话，低一点 */
 const TEMPERATURE_FRESH = 0.95;
 const TEMPERATURE_DEFAULT = 0.6;
@@ -68,7 +68,9 @@ export async function guideNext(
     target,
     messages,
     temperature: stage === 'fresh' ? TEMPERATURE_FRESH : TEMPERATURE_DEFAULT,
-    maxTokens: AI_MAX_TOKENS,
+    maxTokens: INTERACTIVE_AI_BUDGET.maxTokens,
+    repairMaxTokens: INTERACTIVE_AI_BUDGET.repairMaxTokens,
+    totalTimeoutMs: INTERACTIVE_AI_BUDGET.totalMs,
     streamMode: 'once',
     signal: opts.signal,
     parse: (text) => normalizeGuideReply(extractJsonObject(text), facts, seed),

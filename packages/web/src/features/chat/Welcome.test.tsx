@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { CampfireOpener } from '@sb/shared';
 
-const h = vi.hoisted(() => ({ request: vi.fn(), scope: { on: false, summary: '', loaded: true } }));
+const h = vi.hoisted(() => ({ request: vi.fn(), scope: { on: false, summary: '', loaded: true, loading: false } }));
 vi.mock('../../lib/api', () => ({ api: { request: h.request } }));
 vi.mock('../exam/useExamScope', () => ({ useExamScope: () => h.scope }));
 const { Welcome } = await import('./Welcome');
@@ -15,10 +15,23 @@ function pending() {
   return { promise, resolve, reject };
 }
 const advance = async (ms = 100) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
-beforeEach(() => { vi.useFakeTimers(); h.request.mockReset(); h.scope = { on: false, summary: '', loaded: true }; });
+beforeEach(() => { vi.useFakeTimers(); h.request.mockReset(); h.scope = { on: false, summary: '', loaded: true, loading: false }; });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('像素营地现场开场题', () => {
+  it('范围读取慢于合并窗口也不提前召题，读完只发一次；读取失败也能召题', async () => {
+    h.request.mockReturnValue(pending().promise);
+    h.scope = { on: false, summary: '', loaded: false, loading: true };
+    const view = render(<Welcome onPick={vi.fn()} />);
+    await advance(2000); expect(h.request).not.toHaveBeenCalled();
+    h.scope = { on: true, summary: '考研', loaded: true, loading: false };
+    view.rerender(<Welcome onPick={vi.fn()} />); await advance();
+    expect(h.request).toHaveBeenCalledTimes(1);
+    view.unmount(); h.request.mockClear();
+    h.scope = { on: false, summary: '', loaded: false, loading: false };
+    render(<Welcome onPick={vi.fn()} />); await advance();
+    expect(h.request).toHaveBeenCalledTimes(1);
+  });
   it('加载时没有题或选项；完整结果到达才入场，结束后可答并带完整题开聊', async () => {
     const p = pending(); h.request.mockReturnValue(p.promise);
     const pick = vi.fn(); const { container } = render(<Welcome onPick={pick} />);
@@ -57,7 +70,7 @@ describe('像素营地现场开场题', () => {
     const view = render(<Welcome onPick={vi.fn()} />);
     await advance();
     const oldSignal = h.request.mock.calls[0]?.[1].signal as AbortSignal;
-    h.scope = { on: true, summary: '考研', loaded: true };
+    h.scope = { on: true, summary: '考研', loaded: true, loading: false };
     view.rerender(<Welcome onPick={vi.fn()} />);
     expect(oldSignal.aborted).toBe(true);
     await advance();

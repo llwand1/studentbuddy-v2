@@ -61,7 +61,7 @@
 > | 本批测试文件 | 用例 | 不变量 |
 > |---|---:|---|
 > | `src/guide.test.ts`（shared） | 47 | 纯函数。目录完整（13 种动作中英齐、长度不超各自语言的上限、话题 12 条各是能直接发出去的一句话）；阶段判定表（没模型压一切 > 非对话页 tour > 忙 busy > can 里有解析 / 重练 quizzed > 没会话或零轮 fresh > chatted）；可选集合 ＝ 阶段白名单 ∩ can 且不含当前页；★ 三个必备时刻在规则推荐里都是第一项；规则推荐 ≤4 项、中英成对、副行带现场数据（欠账条数 / 词条数 / 上一问）、随机话题只来自 seed（可复现）；校验器 `normalizeGuideReply`：丢白名单外与此刻不可选的 kind、去重与配额（带文本的各 ≤2、同一句话不发两次）、label / hint 不合格换默认文案、★ 英文 27 字符标签原样保留、文本压成一行并去控制字符、非文本动作丢 text、必备项缺了补到第一位（满 4 条顶掉末尾）、一条合格的都没有 ⇒ null；`parseGuideRequest` 白名单外 kind / 非法视图 / 超长 can ⇒ null |
-> | `src/learning/guide.test.ts`（server） | 23 | 现场与模型都是桩。忙态与没模型**零模型调用**；合格输出 ⇒ ai、夹带文字与代码围栏也抠得出 JSON；第一次打开温度高、其余低；★ 必备项兜底（话题 / 出题 / 解析各一例）；白名单外 / 不可选 / 注入话术 / 客户端没声明的能力都进不了结果；乱码 ⇒ 网关修复一次（带错因与上次输出）再合格算 ai，仍不合格 ⇒ 规则 + parse；上游炸 / 取消 ⇒ 规则 + upstream / aborted、不抛；提示词只列可选动作、对话节选在「」里并写明不执行、按 lang 换语言与长度上限、阶段必备项写进去；`guide.next` 已登记（讲解角色、main、超时 ≤30 秒） |
+> | `src/learning/guide.test.ts`（server） | 25 | 现场与模型都是桩。忙态与没模型**零模型调用**；合格输出 ⇒ ai、夹带文字与代码围栏也抠得出 JSON；第一次打开温度高、其余低；★ 必备项兜底（话题 / 出题 / 解析各一例）；白名单外 / 不可选 / 注入话术 / 客户端没声明的能力都进不了结果；乱码 ⇒ 网关修复一次（带错因与上次输出）再合格算 ai，仍不合格 ⇒ 规则 + parse；上游炸 / 取消 ⇒ 规则 + upstream / aborted、不抛；提示词只列可选动作、对话节选在「」里并写明不执行、按 lang 换语言与长度上限、阶段必备项写进去；`guide.next` 已登记（讲解角色、main、40 秒总预算低于客户端 45 秒；截断提高输出上限修复一次） |
 > | `src/routes/guide.test.ts`（server） | 19 | supertest 真库 + 假 `routeRole`。六种坏请求 ⇒ 400、跨源写 ⇒ 403；★ 没模型 ⇒ 200 + rules + no-model；第一次 ⇒ 话题第一位、模型现想的话题原样保留；★ 末一问 / 轮数 / 出过几组题进了提示词、题卡登记行不被当成最近一答（变异验过）；做完题 ⇒ 解析第一，乱码走规则兜底也一样；上游炸仍 200；忙态无项；非对话页 ⇒ tour；★ 多租户：B 带着 A 的会话 id 来问，A 的内容不进 B 的提示词（变异验过）、非对话页带 sessionId 也不读会话 |
 > | `src/features/guide/guide-store.test.ts`（web） | 12 | jsdom。能力登记 / 注销、kinds 按白名单序；同一种动作多登记者 ⇒ 最近的生效、注销后退回上一个；`runGuideCap` 没人登记 ⇒ false；★ 没变就不通知、快照引用稳定；对话现场设置 / 撤销；信箱放 / 取 / 覆盖、★ 5 秒过期当没有并清掉；`useGuideLive` 随变化重渲染、重置回出厂 |
 > | `src/features/guide/Lantern.test.tsx`（web） | 7 | `lanternSpriteErrors()` 为空（16×16、图例登记、★ 火苗只压在灯罩玻璃上）且校验器自己会红；两帧火苗形状不同但像素数一样；渲染一个 16×16 svg 全是 rect；三个状态只换类名；★ 图例里每个类名在 `guide.css` 都有 `fill`、火苗第二帧默认隐藏、动画全用 `steps()` |
@@ -267,7 +267,7 @@
 | 本次测试文件 | 用例 | 不变量 |
 |---|---:|---|
 | `src/components/PixelSidebar.test.tsx` | 4 | 手机导航打开/关闭；Escape 与遮罩关闭后归还焦点；导航点击仍执行；账号与历史输入交互不误关 |
-| `src/features/chat/Welcome.test.tsx` | 2 | 建议卡把所选提示语原样交给 `onPick`（2026-09-30 起 ChatView 把它作为第一问直接发出，见 `ChatView.test.tsx`）；营地装饰对辅助技术隐藏且不进入交互顺序 |
+| `src/features/chat/Welcome.test.tsx` | 6 | 现场新题完整返回才入场，换题撤旧、失败不回显；范围读取结束才召题，失败也继续；切范围与卸载取消，迟到结果隔离，初始范围慢加载不重复发起、读取失败也能召题；减少动态与直接提问 |
 | `src/features/chat/useScrollAnchor.test.tsx` | 3 | 欢迎空态从顶部开始；首条消息贴底；阅读历史不强拉；返回空态复位；减少动态效果时即时跳转 |
 > ★ **2026-09-26 题库功能整族下线改动（Qoder-c6246356，issue #32，拟 v0.2.135）对本表的改动清单**：**删 8 条登记行 72 例**＝`quiz-weak.test.ts`（shared）13＋`routes/collect.test.ts` 8＋`learning/quiz-weak.test.ts` 24＋`learning/quiz-edit.test.ts` 3＋`routes/quiz-tenancy.test.ts` 3＋`features/quiz/collect-view.test.ts` 6＋`weak-report.test.ts` 11＋`bank-view.test.ts` 4；★ **三处就地改例数**＝`routes/scenario` 13→**11**、`features/quiz/scenario-view` 6→**4**、`features/quiz/mix-report` 20→**22**（＋2＝bank-view 里 `mixTipText` 两例**搬家**至此，函数还活着）；★ **§3 基线 204／2766 → 196／2692**（−8 文件／−74 例，三包分别实跑求和闭合）；★ **三个分节头一次补齐**（shared／server／web 的小计此前分别停在 281／18、1746／121、790／69＝各自时点快照，中间阶段未回写）；★ **散文降格若干处**：上面八个文件名在 §3 顶注、版本 K 版本行、薄弱点分析改动的增量行与 §7/§8 的沿革里以带 `src/` 的形状出现过 ⇒ 一律降格为不带 `src/` 前缀的短写法（闸门 #4 双向查，历史行不许留幽灵，也不许为此删字）；★ **§6 新挂 2 行**（情景题无删除通道＝本次代价；`mixTipText` 漏 `judge` 档＝搬家时现查到的既有缺口）；★ **验证面搬家**：出题工具与合流端到端不再读 `quiz_bank`（表留在库里等 DROP 另行处理），改读**响应题组的逐题 `source.kind`** 与**会话里的 `[QUIZ]` 登记行**，并各带一条「`quiz_bank` 零行」的回归锁；⚠️ **一处本表自身的漂移，登记不改**：§8 变更记录自 v0.2.127 起断了六次记录（v0.2.128~134 都没入账），本次仍按表头约定在 §8 补一行——★ 但**不回补**那六次的历史行（补＝替别人编账）。
 
@@ -411,15 +411,15 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，如实记录）**：本次在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（现基线：389 文件 / 4433 例，4431 passed + 2 skipped，2026-10-06 AI 白名单与 GrillMe 范围全量实跑）
+## 3. 用例清单（现基线：389 文件 / 4440 例，4438 passed + 2 skipped，2026-10-07 交互 AI 可靠性全量实跑）
 
 2026-10-06 篝火现场开场题（CHAT-UX-SPEC §2.10）：
 
 | 文件 | 用例 | 不变量 |
 | --- | ---: | --- |
 | `src/campfire-opener.test.ts`（shared） | 10 | 非法答案、重复选项与缺材料的题不交付；各字段代码围栏拒绝而纯文字表达式保留；规范化排重；首问带全题与选择；排重请求有界 |
-| `src/routes/campfire-opener.test.ts`（server） | 8 | 真路由/库/网关：每次现出、no-store、不落聊天、刷新排重、重复及代码围栏修复与明确失败、账号范围和摘要隔离、Origin 闸门 |
-| `src/features/chat/Welcome.test.tsx`（web，既有） | 5 | 新题到达才入场；换题立即撤旧；失败不回显；切范围取消与迟到响应隔离；重新挂载现出；减少动态与直接提问 |
+| `src/routes/campfire-opener.test.ts`（server） | 9 | 真路由/库/网关：每次现出、no-store、不落聊天、刷新排重、重复、代码围栏与提高输出上限的截断修复及明确失败、账号范围和摘要隔离、Origin 闸门 |
+| `src/features/chat/Welcome.test.tsx`（web，既有） | 6 | 新题到达才入场；换题立即撤旧；失败不回显；切范围取消与迟到响应隔离；重新挂载现出；初始范围慢加载不重复发起、读取失败也能召题；减少动态与直接提问 |
 | `src/features/chat/Welcome.exam.test.tsx`（web，既有） | 1 | 应试范围文案保留，固定四卡移除，等待时直接提问可用 |
 
 
@@ -678,7 +678,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `src/chat/tools/term-ops.test.ts` | 18 | **词条三工具落库语义（契约 §5.1，P3 新建，openIsolated 隔离库——删除快照要写真表；门侧零 mock，write-gate/confirm 都是被测路径）**：lookup_terms 四段汇总（总数/命中/领域分布/汇报指令）、domain 与 keyword 前缀筛选、长释义截 60 字＋别名随行、31 条只回灌前 30 条并明说剩余；upsert_term 新建（general 缺省、未经门留痕 null）、同名更新不造第二行、**别名命中走更新**（与 findTermByName 同源的同概念口径）、释义与现状一致→零计划不碰库（updated_at 原样）、参数不全回灌「怎么改对」、§4.6-5 计划与执行之间被删→中止如实报不擅自改新建；delete_terms 全链路（弹卡帧 affected/items 只含找得到的 → allow_once → 行删 + `term_delete_log` 一批 N 行 actor ai_tool + 快照整行 JSON）、deny 零副作用、全落空不弹空卡、terms/ids 空给回灌「至少给一个」、超 50 条**报错不截断**、按 id 删＋未知 id 如实报（不存在与不可删同形）、terms/ids 指向同行去重、★ **plan/apply 间隙 UI 偷删一条 → allow 后整批中止、剩余行健在、零日志**（两阶段写最真实的 race 形态，假探针造不出来）。原 `term-manage.test.ts` 行随 manage_terms 退役作废，11 例语义由本文件 upsert/delete 路径与 schema 预闸行承接 | [DONE] 18 passed（实测，Node 22 本次） |
 | `src/storage/term-delete-log.test.ts` | 7 | **词条删除快照与按次撤销（契约 §4.5，迁移 v34，P3 收口改动新建，openIsolated）——「删除权限的授权前提是可撤销」这条前提的验证**：select→delete→log→undo 全环**逐字段可逆**（id/别名 JSON 串原文/usage/importance/created_at/source_session_id + ★ 深度理解三列 evo_level/best_level/evo_updated_at——复原列清单漏列不报错只回落 DEFAULT，撤销会静默清零用户进度）；撤成功日志行必删（留着＝「还没撤干净」的谎）；空 rows 不开空操作；冲突**不覆盖**：撤销前用户手建同名行→跳过复原、**日志行保留**、用户行不动；一批两条只撞一条→restored 1/conflicts 1/日志只剩冲突行（部分成功如实分层）；**归属即门禁不给探测面**：跨用户 undo 与版本不存在回同一个 null（404 同形）、select/list/count 全按人隔离；`listUndoableBatches` 一批一行 count/actor/tool（UI 删的 actor=ui/tool=null 同列）；`countDeleteLog` 按人 | [DONE] 7 passed（实测，Node 22 本次） |
 | `src/storage/tool-stats.test.ts` | 9 | **`tool_called` 订阅落库与窗口汇总（契约 §4.5，v1.4 ，P3 收口改动新建）——测接线不走直调**（发布方对落库零感知、订阅抛错 ADR-4 兜底正是选事件总线的理由，绕开总线测＝没测；tool-exec 侧「不触 DB」边界不被打穿）：publishEvent 同步落一行且哨兵口径原样（session_id `''`、**affected NULL≠0**、confirm null＝没经过门）；err 写侧截 200 字；`wireToolStats` 幂等不双写；summarizeToolStats 聚合锁（calls/failures/**p95 取上点** ceil(0.95n) 位——11 样本慢尾 999 不被均值洗掉、affectedTotal、confirmAllowed=allow_once+allow_session/confirmDenied=deny+timeout）；窗口按人隔离＋days 钳位 1..90、30 天窗外老行出局（改 created_at 验证）；mcp source 随行带出；`sessionAffectedTotal` 按 **(owner, session) 双条件**（NULL 行按 0、别人同会话名进不来——单条件就能探「他被 AI 改了多少条」） | [DONE] 9 passed（实测，Node 22 本次） |
-| `src/ai/gateway.test.ts` | 15 | **AI 网关（2026-09-29 Step 1 新建）**：五类失败分得开（no-model／timeout／aborted／upstream／parse）；★ 超时真能掐断挂住的上游；结构化输出坏了带原输出回喂**修复一次**、被截断（length）不修；解析函数抛错按不成形处理；★ 每次尝试恰好记一行账（经总线收集，网关不碰库）；流式计量器幂等、缺 quota 的目标不炸 | [DONE] 15 passed（实测，Node 22.20） |
+| `src/ai/gateway.test.ts` | 19 | **AI 网关（2026-09-29 Step 1 新建）**：五类失败分得开（no-model／timeout／aborted／upstream／parse）；★ 超时真能掐断挂住的上游；结构化输出坏了带原输出回喂**修复一次**、截断仅在提高上限后修复；25 秒回答可交付；首次 30 秒加修复只用 40 秒总预算；预取消零上游调用；解析函数抛错按不成形处理；★ 每次尝试恰好记一行账（经总线收集，网关不碰库）；流式计量器幂等、缺 quota 的目标不炸 | [DONE] 19 passed（实测，Node 22.23） |
 | `src/ai/call-log.test.ts` | 5 | **`llm_call` 落库与 `aiCallStats` 汇总**：按用途分组、失败按原因计数；★ 分位只算成功调用（超时不把 p95 拉成阈值）；只看得到自己的；窗口外不算、90 天清理只删过期；错误截 500 字；`percentile` 最近秩 | [DONE] 5 passed（实测） |
 | `src/learning/learner-model.test.ts` | 15 | **FSRS 写路径 + 学习者模型**（经真实 `markReviewed`）：★ 新词条首复习 fsrsInit、无预测 R；四档评分生效；★ 隔天复习记下预测 R 且 S 增长；★ 同日重复记住 S/D 不动、忘了照样更新；★ 老词条按旧间隔折算起点；误区去重计数、已解决再犯重开、按主题归类、手动解决只认自己的、归属隔离；快忘词条筛选与排序；★ 校准样本不足 null；题型正确率来自事件；注入段空模型为空串、有数据两类都写且声明不念给学生、库不可用回空串；★ 自适应：答题不足无档位、30 题全对进阶以上并写进出题段、事件按用户隔离 | [DONE] 15 passed（实测） |
 | `src/learning/quiz-attempts.test.ts` | 4 | **作答记录落 `quiz_stats`（2026-09-30 新建）**：同题累计与读回排序；归属读写同用 `ownerForWrite`、★ 主键被别人占着 ⇒ null 不覆盖；★ 题库时代裸文本老行按 streak 推判定、再记一笔转 `{v,a}` JSON；入参闸门 | [DONE] 4 passed |

@@ -6,15 +6,16 @@ import path from 'node:path';
 import { AUTH_COOKIE_NAME } from '@sb/shared';
 
 process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-opener-'));
-const llm = vi.hoisted(() => ({ ready: true, reply: [] as string[], calls: [] as string[], fail: '' }));
+const llm = vi.hoisted(() => ({ ready: true, reply: [] as string[], calls: [] as string[], caps: [] as Array<number | undefined>, finishes: [] as string[], fail: '' }));
 vi.mock('../llm/router.js', async importOriginal => ({
   ...await importOriginal<typeof import('../llm/router.js')>(),
   routeRole: () => llm.ready ? {
     model: 'test-model', apiKey: 'test', baseUrl: 'http://127.0.0.1:1/v1', streamMode: 'once' as const,
-    adapter: { type: 'openai' as const, async *chat(req: { messages: Array<{ content: string }> }) {
+    adapter: { type: 'openai' as const, async *chat(req: { messages: Array<{ content: string }>; maxTokens?: number }) {
       llm.calls.push(req.messages.map(m => m.content).join('\n'));
+      llm.caps.push(req.maxTokens);
       if (llm.fail) throw new Error(llm.fail);
-      yield { content: llm.reply.shift() ?? 'bad-json', done: true };
+      yield { content: llm.reply.shift() ?? 'bad-json', done: true, finishReason: llm.finishes.shift() ?? 'stop' };
     }, async listModels() { return []; } },
   } : null,
 }));
@@ -31,12 +32,20 @@ const post = (body: object = {}, cookie?: string) => {
   return (cookie ? r.set('Cookie', cookie) : r).send(body);
 };
 beforeEach(() => {
-  llm.ready = true; llm.reply = []; llm.calls = []; llm.fail = '';
+  llm.ready = true; llm.reply = []; llm.calls = []; llm.caps = []; llm.finishes = []; llm.fail = '';
   getDb().prepare("DELETE FROM app_settings WHERE key IN ('campfire_opener_seen', 'exam_mode', 'exam_sources')").run();
 });
 afterAll(closeDb);
 
 describe('篝火现场召题', () => {
+  it('真实截断式 JSON 提高上限重创作一次，只交付完整新题', async () => {
+    llm.reply = ['{"topic":"概率","question":', q('骰子掷出偶数的概率是多少？')];
+    llm.finishes = ['length', 'stop'];
+    const result = await post().expect(200);
+    expect(result.body.question.question).toBe('骰子掷出偶数的概率是多少？');
+    expect(llm.caps).toEqual([2048, 4096]);
+    expect(llm.calls).toHaveLength(2);
+  });
   it('现场调模型，no-store，题不落会话或消息，摘要不含原题', async () => {
     llm.reply = [q()];
     const before = getDb().prepare('SELECT COUNT(*) AS n FROM messages').get();

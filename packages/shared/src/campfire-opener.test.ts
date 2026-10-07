@@ -3,6 +3,12 @@ import { normalizeCampfireQuestion, openerChatPrompt, parseOpenerRequest } from 
 
 const q = { topic: '概率', question: '公平硬币下一次为正面的概率？', options: ['25%', '50%', '75%'], answer: 1, explanation: '每次独立，正面的概率是 50%。' };
 describe('开场题交付契约', () => {
+  it('真实复杂矩阵错题不作为热身交付，概念判断与单行向量仍允许，选项不叠标签', () => {
+    expect(normalizeCampfireQuestion({ ...q, question: 'A = [1 2 3 6; 2 4 5 10; 3 6 4 12] 的秩？' })).toBeNull();
+    expect(normalizeCampfireQuestion({ ...q, question: '矩阵的秩是否等于线性无关列向量的最大个数？' })).not.toBeNull();
+    expect(normalizeCampfireQuestion({ ...q, question: '向量 [1, 2, 3] 有几个分量？' })).not.toBeNull();
+    expect(normalizeCampfireQuestion({ ...q, options: ['A: 25%', 'B: 50%', 'C: 75%'] })).toBeNull();
+  });
   it.each([
     ['越界答案', { ...q, answer: 3 }], ['小数答案', { ...q, answer: .5 }],
     ['重复选项', { ...q, options: ['50%', '５０％'] }], ['缺外部图', { ...q, question: '根据下图，正面的概率是多少？' }],

@@ -17,6 +17,18 @@ const q = (c: HTMLElement, sel: string) => c.querySelector(sel);
 const qa = (c: HTMLElement, sel: string) => Array.from(c.querySelectorAll(sel));
 
 describe('Markdown 组件渲染', () => {
+  it('公式流式完成及历史显示可读符号，未知命令保留源码且模型 HTML 不变成元素', () => {
+    const text = '由 $2 \\times x = 16$ 得到：\n\n$$\\boxed{x = 16 \\div 2 = 8}$$';
+    const {container,rerender}=render(<Markdown text={text} streaming />);
+    expect(container.textContent).toContain('2 × x = 16');
+    expect(q(container,'.learning-formula')?.textContent).toContain('x = 16 ÷ 2 = 8');
+    expect(container.textContent).not.toContain('\\boxed');
+    const shown=container.textContent;rerender(<Markdown text={text}/>);expect(container.textContent).toBe(shown);
+    rerender(<Markdown text={'$$\\unknown{<img src=x onerror=x>}$$'}/>);
+    expect(q(container,'details summary')?.textContent).toContain('暂不支持');
+    expect(container.textContent).toContain('\\unknown');expect(q(container,'img')).toBeNull();
+    rerender(<Markdown text={'$$\\frac{x'} streaming/>);expect(container.textContent).toContain('正在书写公式');
+  });
   it('学习卡流式与历史呈现一致，支持安全的正文/链接且不把模型 HTML 变成元素', () => {
     const src = '> [!CORE] 牛顿第二定律\n> **合力**导致加速度。\n> 关键词：`合力` · `质量`\n\n> [!PITFALL] 看清条件\n> <img src=x onerror=alert(1)> [来源](javascript:evil())\n\n```svg\n<svg viewBox="0 0 680 480"><text fill="black">合力</text></svg>\n```';
     const { container, rerender } = render(<Markdown text={src} streaming />);

@@ -1,4 +1,26 @@
 import { describe, it, expect } from 'vitest';
+import { readableMath } from './math-text';
+
+describe('常见公式展示', () => {
+  it('转为可读符号并保持分数与上下标分组，未知或坏语法整式回退', () => {
+    expect(readableMath('\\boxed{x = 16 \\div 2}')).toBe('x = 16 ÷ 2');
+    expect(readableMath('F_{\\text{合}} = m \\cdot a')).toBe('F_合 = m · a');
+    expect(readableMath('F_{\\text{合外}} = m \\cdot a')).toBe('F_(合外) = m · a');
+    expect(readableMath('\\frac{a+b}{\\sqrt{x^{2}}}')).toBe('(a+b)/(√(x^2))');
+    expect(readableMath('\\unknown{x}')).toBeNull();
+    expect(readableMath('\\frac{a}{b')).toBeNull();
+    expect(readableMath('x'.repeat(4001))).toBeNull();
+  });
+  it('公式空行不割裂增量块，代码围栏和不完整公式保持原文', () => {
+    const text = '$$\nx = 16 \\div 2\n\n= 8\n$$\n\n结尾';
+    const cut = stableCut(text);
+    expect([...parseBlocks(text.slice(0, cut)), ...parseBlocks(text.slice(cut))]).toEqual(parseBlocks(text));
+    expect(parseBlocks('$$\\frac{a}{b}')[0]).toEqual({kind:'math',code:'\\frac{a}{b}',closed:false});
+    expect(parseBlocks('```text\n$$x=8$$\n```')[0]?.kind).toBe('code');
+    expect(JSON.stringify(parseBlocks('$$x=8$$ 后面的解释'))).toContain('后面的解释');
+    expect(parseInline('价格 $20 / $30').some(n=>n.t==='math')).toBe(false);
+  });
+});
 
 describe('显式学习卡片', () => {
   it('六种语义与标题/正文都保留，普通引用及未知标记不变', () => {

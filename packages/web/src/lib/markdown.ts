@@ -35,6 +35,7 @@ export type Block =
   | { kind: 'ol'; items: ListItem[]; start?: number }
   | { kind: 'quote'; lines: Inline[][] }
   | { kind: 'learning-card'; variant: LearningCardKind; title: Inline[]; lines: Inline[][] }
+  | { kind: 'math'; code: string; closed: boolean }
   | { kind: 'table'; head: Inline[][]; rows: Inline[][][] }
   | { kind: 'code'; lang: string; text: string; closed: boolean }
   | { kind: 'svg'; code: string; closed: boolean }
@@ -74,7 +75,7 @@ const LIST_MARK = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
 const TASK_BOX = /^\[([ xX])\]\s+/;
 
 function isBlockStart(line: string): boolean {
-  return !!(FENCE.test(line) || HEADING.test(line) || QUOTE.test(line) || LIST_MARK.test(line) || HR.test(line));
+  return !!(FENCE.test(line) || HEADING.test(line) || QUOTE.test(line) || LIST_MARK.test(line) || HR.test(line) || line.trim().startsWith('$$'));
 }
 
 /** 段内逐行 → inline 序列（行间插 br，行内标记各自解析）。 */
@@ -171,6 +172,16 @@ export function parseBlocks(src: string): Block[] {
     const line = at(i);
     if (!line.trim()) {
       i++;
+      continue;
+    }
+
+    if (line.trim().startsWith('$$')) {
+      const parts = [line.trim().slice(2)];
+      i++;
+      while (!parts.at(-1)?.includes('$$') && i < lines.length) parts.push(at(i++));
+      const joined = parts.join('\n'); const end = joined.indexOf('$$');
+      blocks.push({ kind: 'math', code: end < 0 ? joined : joined.slice(0, end), closed: end >= 0 });
+      if (end >= 0 && joined.slice(end + 2).trim()) blocks.push({ kind: 'para', inline: parseInline(joined.slice(end + 2).trim()) });
       continue;
     }
 
@@ -278,7 +289,8 @@ export function stableCut(src: string): number {
   for (;;) {
     const idx = src.lastIndexOf('\n\n', from - 1);
     if (idx <= 0) return 0;
-    if (countOf(src.slice(0, idx), '```') % 2 === 0) return idx + 2;
+    const prefix = src.slice(0, idx);
+    if (countOf(prefix, '```') % 2 === 0 && countOf(prefix, '$$') % 2 === 0) return idx + 2;
     from = idx;
   }
 }

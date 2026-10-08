@@ -17,6 +17,7 @@ import { SvgPreviewCard } from './SvgPreviewCard';
 import { ChartCard } from './ChartCard';
 import { HtmlCard } from './HtmlCard';
 import { LearningReplyCard } from './LearningReplyCard';
+import { MathFormula } from './MathFormula';
 import { TermText } from './TermText';
 import { CiteChip } from '../sources/cite';
 import './markdown.css';
@@ -35,6 +36,8 @@ function InlineNodes({ nodes }: { nodes: Inline[] }) {
             return <del key={i}><InlineNodes nodes={n.children} /></del>;
           case 'code':
             return <code key={i} className="md-inline-code">{n.v}</code>;
+          case 'math':
+            return <MathFormula key={i} code={n.code} inline />;
           case 'a':
             return (
               <a key={i} href={n.href} target="_blank" rel="noreferrer noopener">
@@ -195,6 +198,8 @@ const BlockNode = memo(function BlockNode({ block, streaming }: { block: Block; 
           ))}
         </LearningReplyCard>
       );
+    case 'math':
+      return <MathFormula code={block.code} closed={block.closed} />;
     case 'table':
       return (
         <div className="md-table-wrap">

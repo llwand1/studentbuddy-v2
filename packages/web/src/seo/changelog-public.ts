@@ -33,6 +33,14 @@ export const RELEASE_SCOPE = {
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
   {
+    version: 'v0.2.167', date: '2026-10-08', headline: '学习回复先给结论，步骤说明原因',
+    items: [
+      '知识讲解先给核心结论与关键词，每步说明做法、原因和所得结果，图解靠近解释。',
+      '根据相关概念的练习记录调整讲法；答错或遗忘时补讲关键环节，有充分记录时减少重复定义。',
+      '保留回答详略和引导式口吻，可自愿复述或用 GrillMe 继续练习。',
+    ],
+  },
+  {
     version: 'v0.2.166', date: '2026-10-07', headline: '外部 coding agent 直接批量存词',
     items: [
       '设置页可生成有期限、可撤销的词条专用密钥，并复制给外部 agent 的使用说明。',

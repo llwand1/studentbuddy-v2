@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T07:21:47.003Z",
+  "generatedAt": "2026-10-08T07:29:57.007Z",
   "code": {
     "rows": [
       {
@@ -13,8 +13,8 @@
         "pkg": "server",
         "srcFiles": 290,
         "testFiles": 197,
-        "srcLines": 40222,
-        "testLines": 37293
+        "srcLines": 40223,
+        "testLines": 37294
       },
       {
         "pkg": "web",
@@ -26,8 +26,8 @@
     ],
     "srcFiles": 697,
     "testFiles": 393,
-    "srcLines": 92028,
-    "testLines": 62014,
+    "srcLines": 92029,
+    "testLines": 62015,
     "tsxTestFiles": 72
   },
   "routes": {
@@ -85,11 +85,11 @@
     "probes": 15
   },
   "repo": {
-    "head": "1b4595d",
+    "head": "4ca3a23",
     "headDate": "2026-10-08",
-    "commitsLast14d": 279,
+    "commitsLast14d": 280,
     "branch": "feat/answer-cards-white-diagrams",
-    "dirtyFiles": 10
+    "dirtyFiles": 2
   },
   "tests": {
     "available": true,

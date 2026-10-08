@@ -22,7 +22,7 @@ export function fitSvgBounds(root: Element): void {
     if (left !== x || top !== y || right !== x + w || bottom !== y + h) {
       root.setAttribute('viewBox', [left, top, right - left, bottom - top].join(' '));
       root.setAttribute('width', String(Math.min(680, right - left)));
-      root.removeAttribute('height');
+      root.setAttribute('height', String(Math.min(680, right - left) * (bottom - top) / (right - left)));
     }
   } catch { /* 残缺图形或浏览器无测量能力时保留原视口。 */ }
   finally { host.remove(); }

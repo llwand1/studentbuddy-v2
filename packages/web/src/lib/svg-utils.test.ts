@@ -129,7 +129,7 @@ describe('安全净化 sanitizeSvg（白名单 DOM 路径）', () => {
       const twice = new DOMParser().parseFromString(prepareSvg(expanded), 'image/svg+xml').documentElement;
       expect(twice.querySelectorAll('rect')).toHaveLength(1);
       expect(twice.firstElementChild?.getAttribute('width')).toBe('258');
-      expect(twice.hasAttribute('height')).toBe(false);
+      expect(twice.getAttribute('height')).toBe('100');
       Object.defineProperty(SVGElement.prototype, 'getBBox', { configurable: true, value: () => { throw new Error('measurement unavailable'); } });
       expect(prepareSvg('<svg viewBox="0 0 200 100"><text>原图</text></svg>')).toContain('viewBox="0 0 200 100"');
       expect(document.body.childElementCount).toBe(children);

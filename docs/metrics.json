@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T08:48:13.163Z",
+  "generatedAt": "2026-10-08T08:52:45.878Z",
   "code": {
     "rows": [
       {
@@ -85,16 +85,16 @@
     "probes": 15
   },
   "repo": {
-    "head": "17a3119",
+    "head": "3b33566",
     "headDate": "2026-10-08",
-    "commitsLast14d": 284,
+    "commitsLast14d": 285,
     "branch": "feat/answer-cards-white-diagrams",
-    "dirtyFiles": 10
+    "dirtyFiles": 3
   },
   "tests": {
     "available": true,
-    "ranNow": true,
-    "wallSec": 52.7,
+    "ranNow": false,
+    "wallSec": 0,
     "staleDays": 0,
     "files": 393,
     "cases": 4498,

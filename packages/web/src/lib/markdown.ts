@@ -23,6 +23,7 @@ export interface ListItem {
 /** 一层列表：ordered 决定渲染 ul 还是 ol（子层可与父层不同类型） */
 export interface ListTree {
   ordered: boolean;
+  start?: number;
   items: ListItem[];
 }
 
@@ -30,7 +31,7 @@ export type Block =
   | { kind: 'heading'; level: number; inline: Inline[] }
   | { kind: 'para'; inline: Inline[] }
   | { kind: 'ul'; items: ListItem[] }
-  | { kind: 'ol'; items: ListItem[] }
+  | { kind: 'ol'; items: ListItem[]; start?: number }
   | { kind: 'quote'; lines: Inline[][] }
   | { kind: 'table'; head: Inline[][]; rows: Inline[][][] }
   | { kind: 'code'; lang: string; text: string; closed: boolean }
@@ -111,6 +112,8 @@ function collectList(lines: string[], start: number): { tree: ListTree; next: nu
       const top = topOf();
       if (!top || indent > top.indent) {
         const tree: ListTree = { ordered, items: [item] };
+        const first = Number.parseInt(g(mark, 2), 10);
+        if (ordered && Number.isSafeInteger(first) && first >= 0 && first !== 1) tree.start = first;
         // 挂到上一层最后一项的 children（top 存在时才可能走到这里）
         if (top) {
           const last = top.tree.items[top.tree.items.length - 1];
@@ -208,7 +211,7 @@ export function parseBlocks(src: string): Block[] {
 
     if (LIST_MARK.test(line)) {
       const { tree, next } = collectList(lines, i);
-      blocks.push(tree.ordered ? { kind: 'ol', items: tree.items } : { kind: 'ul', items: tree.items });
+      blocks.push(tree.ordered ? { kind: 'ol', items: tree.items, ...(tree.start === undefined ? {} : { start: tree.start }) } : { kind: 'ul', items: tree.items });
       i = next;
       continue;
     }

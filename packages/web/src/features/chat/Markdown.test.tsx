@@ -17,6 +17,16 @@ const q = (c: HTMLElement, sel: string) => c.querySelector(sel);
 const qa = (c: HTMLElement, sel: string) => Array.from(c.querySelectorAll(sel));
 
 describe('Markdown 组件渲染', () => {
+  it('流式及历史回读中，解释后的步骤与子步骤编号由源文本决定', () => {
+    const text = '1. 去括号\n\n为什么：展开后才能合并。\n\n2. 合并\n  4. 子步骤\n\n3. 移项';
+    const { container, rerender } = render(<Markdown text={text} streaming />);
+    const starts = () => (qa(container, 'ol') as HTMLOListElement[]).map((ol) => ol.start);
+    expect(starts()).toEqual([1, 2, 4, 3]);
+    rerender(<Markdown text={text} />);
+    expect(starts()).toEqual([1, 2, 4, 3]);
+    rerender(<Markdown text={'- 没有编号'} />);
+    expect(q(container, 'ul')?.hasAttribute('start')).toBe(false);
+  });
   it('标题按级降档：#→h3、##→h4、###及更深→h5（5/6 级收敛到 4 级字号）', () => {
     const { container } = render(<Markdown text={'# 一\n\n## 二\n\n### 三\n\n##### 五'} />);
     expect(q(container, 'h3.md-h1')?.textContent).toContain('一');

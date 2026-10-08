@@ -4,6 +4,13 @@ import { safeHref } from './markdown-inline';
 import type { Block } from './markdown';
 
 describe('markdown 块级切分', () => {
+  it('步骤插入解释后保留下一段起始编号，嵌套列表与零起点也保留', () => {
+    const bs = parseBlocks('1. 展开\n\n解释原因。\n\n2. 合并\n  4) 子步骤\n\n0. 从零开始\n\n- 普通列表');
+    const lists = bs.filter((b) => b.kind === 'ol');
+    expect(lists.map((b) => b.start ?? 1)).toEqual([1, 2, 0]);
+    expect(lists[1]?.items[0]?.children?.[0]?.start).toBe(4);
+    expect(bs.at(-1)).not.toHaveProperty('start');
+  });
   it('普通中文回答整段落成一个 para，不吞字', () => {
     const bs = parseBlocks('光合作用是植物利用光能的过程。\n它分光反应与暗反应两阶段。');
     expect(bs).toHaveLength(1);

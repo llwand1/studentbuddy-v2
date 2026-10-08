@@ -51,6 +51,15 @@ afterEach(() => {
 });
 
 describe('system 段合并回归', () => {
+  it('本轮学习记录在偏好之后仍完整下发，且不混入普通消息', async () => {
+    const body = await outbound([
+      { role: 'system', content: '学习回复结构' }, { role: 'user', content: '闭包是什么' },
+      { role: 'system', content: '表达偏好段' }, { role: 'system', content: '【本轮相关学习记录】三题正确，讲边界' },
+    ]);
+    expect(body.system).toBe('学习回复结构\n\n表达偏好段\n\n【本轮相关学习记录】三题正确，讲边界');
+    expect(body.messages).toHaveLength(1);
+    expect(body.messages[0]?.role).toBe('user');
+  });
   it('多条 system 全部合并进 body.system，顺序保持、用空行分隔', async () => {
     const body = await outbound([
       { role: 'system', content: '基础提示词' },

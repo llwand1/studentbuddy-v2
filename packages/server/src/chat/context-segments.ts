@@ -22,7 +22,8 @@
  *   会合并成一段故无差异），所以位置对模型有语义；回归锁见 `flow.test.ts`
  *   的「长期记忆注入」describe（六段全满的顺序 + 画像段不插队）。
  */
-import { buildAnswerStyleBlock, type GrillScope } from '@sb/shared';
+import { type GrillScope } from '@sb/shared';
+import { buildChatStyleBlock } from './learning-reply.js';
 import { buildGrillScopeBlock } from './grill-scope.js';
 import { estimateTokens } from './context.js';
 import { buildMemoryContext } from './compact.js';
@@ -41,6 +42,7 @@ import { buildLearnerBlock } from '../learning/learner-model.js';
 import { neighborTerms } from '../learning/term-graph.js';
 import { loadPomodoro } from '../storage/pomodoro.js';
 import { buildFocusBlock } from './focus-context.js';
+import { buildLearningContext } from './learning-context.js';
 import type { TermRow } from '../learning/terms.js';
 
 /** 图扩展失败（库没开、表不在）不能挡住对话：退回只有字面命中 */
@@ -51,7 +53,7 @@ function neighborTermsSafe(ownerId: string | null, hits: TermRow[]): TermRow[] {
     return [];
   }
 }
-export type ContextSegmentKind = 'summary' | 'date' | 'terms' | 'doc' | 'style' | 'focus' | 'memory' | 'learner' | 'nudge' | 'grill';
+export type ContextSegmentKind = 'summary' | 'date' | 'terms' | 'doc' | 'style' | 'focus' | 'memory' | 'learner' | 'learning' | 'nudge' | 'grill';
 
 export interface ContextSegment {
   kind: ContextSegmentKind;
@@ -141,10 +143,10 @@ export function collectContextSegments(inputs: ContextInputs): CollectedContext 
     { kind: 'summary', content: summaryBlock },
     { kind: 'terms', content: termBlock },
     { kind: 'doc', content: docBlock },
-    // 表达偏好段（契约 ANSWER-STYLE §3）：四维全默认时它只是重述现状口径、不改口吻。
+    // 表达偏好段：保留四维设置，并按 LEARNING-REPLY 追加本轮知识讲解结构。
     // 它**恒非空**（至少含 scope 那句），故无需条件判断——空内容段会在下面被统一剔除。
     // ★ `app_settings` 归主（v30）⇒ 必须带 `ownerId`——不带就会读到**别人的**口吻偏好。
-    { kind: 'style', content: buildAnswerStyleBlock(loadAnswerStyle(ownerId ?? null)) },
+    { kind: 'style', content: buildChatStyleBlock(loadAnswerStyle(ownerId ?? null), text) },
     // 番茄钟方向段（契约 POMODORO-SPEC §5.1）：工作段才有、休息段为 ''。排在偏好之后、记忆之前——
     // 它讲的是「这半小时在学什么」，属于回答口径而不是事实材料。
     { kind: 'focus', content: buildFocusBlock(loadPomodoro(ownerId ?? null)) },
@@ -152,6 +154,8 @@ export function collectContextSegments(inputs: ContextInputs): CollectedContext 
     // 学习者模型段（2026-09-29 Step 2）：快忘的词条（FSRS）＋ 未纠正的误区（评分诊断）。
     // 与画像段分开：画像是"他说过什么"，这段是"他会什么"；空模型为 ''，统一剔除不占窗口。
     { kind: 'learner', content: buildLearnerBlock(ownerId ?? null) },
+    // 本轮相关练习证据决定讲法；同一清单自动计入预算，没有真实记录时为空。
+    { kind: 'learning', content: buildLearningContext(ownerId ?? null, relevantTerms) },
     // 触发增强（2026-09-14 方案选择框 / 2026-09-17 联网搜索）：识别「这条提问是不是在做选择/规划
     // 或要求联网检索」，命中则追加硬指令。两者同时命中时 **search 优先**——学习者明说"搜一下"
     // 是**动作指令**不是岔路，而实测里模型偏偏在这时弹了 ask_choice 让他先选择（一次现场实测），

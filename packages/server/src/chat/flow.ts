@@ -25,7 +25,7 @@ import type { ChatMessage, ToolCall } from '../llm/types.js';
 import { contentToText } from '../llm/types.js';
 import { describeImages } from './vision.js';
 import { runGrillClosing } from './grill.js';
-import { buildOpening, dropOpening, examScopeToolChoice } from './opening.js';
+import { buildOpening, dropOpening, examScopeToolChoice, finishToolRound } from './opening.js';
 import type { ChatOptions, ChatResult } from './options.js';
 
 /**
@@ -124,7 +124,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     // §4.4 第 1 条：工具定义逐轮全量下发，与 system 段同口径进预算（此前不进任何账 ⇒ 截断恒少算）
     systemPromptTokens: systemPromptTokens + toolDefinitionTokens(tools),
   });
-  const { messages, nudgeMsg } = assembleContextMessages(segments, truncated);
+  const { messages, nudgeMsg, styleMsg } = assembleContextMessages(segments, truncated);
   // 开场硬指令（grill-me / 联网，装配见 chat/opening.ts）：只在内存 messages 里活，不落库——它是指令不是发言
   const opening = buildOpening({ grill: opts.grillMe === true, online: opts.online === true });
   if (opening.msg) messages.push(opening.msg);
@@ -287,12 +287,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         publish(sessionId, { type: 'token', sessionId, content: '\n\n' }); // 分隔符同样下发：屏上与库内文本逐字一致
       }
       pendingToolRound = true;
-      // 首轮一过就摘触发增强与开场指令（联网留着每轮重搜、nudge 留着会再问，都只对开场负责）
-      if (turn === 0) {
-        const i = nudgeMsg ? messages.indexOf(nudgeMsg) : -1;
-        if (i >= 0) messages.splice(i, 1);
-        dropOpening(messages, opening);
-      }
+      finishToolRound(messages, opening, nudgeMsg, styleMsg, turn);
       if (toolTokens > toolBudget) {
         budgetExceeded = true;
         break; // 预算耗尽，提前停止工具循环（预留收尾窗口）

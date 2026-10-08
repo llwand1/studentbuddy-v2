@@ -863,6 +863,19 @@ describe('日期段注入', () => {
  * 且只绑首轮、指令出循环即摘。
  */
 describe('联网开关的首轮强绑（v18.4）', () => {
+  it('连续工具轮之后仍下发同一条回答偏好，最终表达规则紧随工具结果且不重复', async () => {
+    const sid = newSession();
+    stub.turns = [toolCallTurn(''), toolCallTurn(''), [{ content: '解释', done: true }]];
+    await handleMessage({ sessionId: sid, text: '什么是牛顿第二定律？', online: true });
+    const style = stub.allMessages[0]?.find((m) => m.role === 'system' && String(m.content).includes('【本轮学习回复】'));
+    expect(style).toBeDefined();
+    for (const messages of stub.allMessages.slice(1)) {
+      expect(messages.at(-1)).toBe(style);
+      expect(messages.filter((m) => m === style)).toHaveLength(1);
+      expect(messages.at(-2)?.role).toBe('tool');
+      expect(messages.some((m) => String(m.content).includes('本会话已开启联网搜索'))).toBe(false);
+    }
+  });
   it('online=true → 首轮强绑 search_web，turn 1 起放开', async () => {
     const sid = newSession();
     stub.turns = [toolCallTurn(''), [{ content: '根据检索结果…', done: true }]];

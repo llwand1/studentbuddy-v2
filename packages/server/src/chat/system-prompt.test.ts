@@ -40,6 +40,8 @@ describe('普通对话学习结构', () => {
     for (const line of ['一句话给核心结论', '关键词：', '为什么这样做', '如何接下一步', '图配在对应解释旁']) expect(block).toContain(line);
     expect(block).toContain('计算题开篇先给求解路线，不先报最终数值');
     expect(block).toContain('把结果与代入验算放在一起');
+    expect(block).toContain('公式用直接可读符号或行内代码');
+    expect(block).toContain('用户明确要 LaTeX 源码时才用代码围栏');
     const calculation = buildChatStyleBlock(DEFAULT_ANSWER_STYLE, '解方程 2(x-3)+4=14。');
     expect(calculation).toContain('开篇只给求解路线');
     expect(calculation).not.toContain('先用一句话给核心结论');
@@ -60,5 +62,6 @@ describe('普通对话学习结构', () => {
     expect(block).toContain('选当前对话范围');
     expect(block).toContain('正式出题仍用 generate_quiz');
     expect(block).not.toContain('[LAYERS]');
+    expect(SYSTEM_PROMPT).toContain('完整讲解等所需工具返回后只给一次');
   });
 });

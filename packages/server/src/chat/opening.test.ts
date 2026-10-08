@@ -33,6 +33,15 @@ it('工具结果后偏好按引用移到末尾，多轮不重复，开场约束�
   const missing = [...messages];
   finishToolRound(messages, o, null, null, 2);
   expect(messages).toEqual(missing);
+  const original = style.content;
+  messages.push({ role: 'assistant', content: '> [!CORE] 上一轮历史\n> 内容' });
+  expect(finishToolRound(messages, o, null, style, 3, '我先查询')).toBe('');
+  expect(style.content).toBe(original);
+  const note = finishToolRound(messages, o, null, style, 4, '> [!CORE] 本轮已显示\n> 内容');
+  expect(note).toContain('【已交付学习开篇】');
+  expect(finishToolRound(messages, o, null, style, 5, '> [!ROUTE] 路线\n> 内容')).toBe('');
+  expect(String(style.content).split('【已交付学习开篇】')).toHaveLength(2);
+  expect(messages.filter((m) => m === style)).toHaveLength(1);
 });
 
 describe('buildOpening（开关 → 指令 + 首轮强绑）', () => {

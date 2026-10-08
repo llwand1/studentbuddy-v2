@@ -42,10 +42,10 @@ describe('L1 自愈 fixSvg', () => {
     expect(merged).toContain('viewBox="0 0 400 200"');
   });
 
-  it('纯黑/纯白描边换成主题变量（深色主题不再一团黑）', () => {
+  it('保留纯黑文字与白色绘图内容，不反转为夜间主题色', () => {
     const themed = fixSvg('<svg><text fill="#000" stroke="white">x</text></svg>').code;
-    expect(themed).toContain('fill="var(--sb-ink)"');
-    expect(themed).toContain('stroke="var(--sb-bg)"');
+    expect(themed).toContain('fill="#000"');
+    expect(themed).toContain('stroke="white"');
   });
 });
 
@@ -89,11 +89,54 @@ describe('安全净化 sanitizeSvg（白名单 DOM 路径）', () => {
     expect(out).toContain('</svg>');
   });
 
-  it('自愈产物（viewBox 合成 / 主题变量）能完整通过白名单', () => {
+  it('自愈产物保留黑白配色，并有同一份导出白底', () => {
     const out = prepareSvg('<svg width="400" height="200"><text fill="#000" stroke="white">x</text></svg>');
     expect(out).toContain('viewBox="0 0 400 200"');
-    expect(out).toContain('fill="var(--sb-ink)"');
-    expect(out).toContain('stroke="var(--sb-bg)"');
+    expect(out).toContain('fill="#000"');
+    expect(out).toContain('stroke="white"');
+    expect(out).toContain('fill="#ffffff"');
+  });
+
+  it('透明图的白底覆盖非零 viewBox，主题变量在独立 SVG 中为实体颜色', () => {
+    const out = prepareSvg('<svg viewBox="-40 20 320 200"><text fill="var(--sb-ink)" style="stroke:var(--sb-line)">流程</text><path stroke="red"/></svg>');
+    const root = new DOMParser().parseFromString(out, 'image/svg+xml').documentElement;
+    const paper = root.firstElementChild;
+    expect(paper?.getAttribute('x')).toBe('-40');
+    expect(paper?.getAttribute('y')).toBe('20');
+    expect(paper?.getAttribute('width')).toBe('320');
+    expect(paper?.getAttribute('height')).toBe('200');
+    expect(paper?.getAttribute('fill')).toBe('#ffffff');
+    expect(root.querySelector('text')?.getAttribute('fill')).toBe('#20242c');
+    expect(out).not.toContain('var(--sb-');
+    expect(root.querySelector('path')?.getAttribute('stroke')).toBe('red');
+  });
+
+  it('重复准备不会叠白底；模型样式不覆盖固定纸面，净化仍挡脚本', () => {
+    const original = '<svg viewBox="0 0 200 100"><style>rect{fill:black;opacity:0.5}</style><script>evil()</script><text fill="currentColor">默认文字</text></svg>';
+    const out = prepareSvg(prepareSvg(original));
+    const root = new DOMParser().parseFromString(out, 'image/svg+xml').documentElement;
+    expect(root.querySelectorAll('rect')).toHaveLength(1);
+    expect(root.firstElementChild?.getAttribute('style')).toContain('fill:#ffffff!important');
+    expect(root.getAttribute('color')).toBe('#20242c');
+    expect(out).not.toContain('evil()');
+    expect(root.querySelector('style')?.textContent).toContain('data-sb-scope');
+    const descriptor = Object.getOwnPropertyDescriptor(SVGElement.prototype, 'getBBox');
+    const children = document.body.childElementCount;
+    try {
+      Object.defineProperty(SVGElement.prototype, 'getBBox', { configurable: true, value: () => ({ x: 0, y: 0, width: 250, height: 100 }) });
+      const expanded = prepareSvg('<svg viewBox="0 0 200 100" height="100"><text x="230">边缘</text></svg>');
+      expect(expanded).toContain('viewBox="0 0 258 100"');
+      const twice = new DOMParser().parseFromString(prepareSvg(expanded), 'image/svg+xml').documentElement;
+      expect(twice.querySelectorAll('rect')).toHaveLength(1);
+      expect(twice.firstElementChild?.getAttribute('width')).toBe('258');
+      expect(twice.getAttribute('height')).toBe('100');
+      Object.defineProperty(SVGElement.prototype, 'getBBox', { configurable: true, value: () => { throw new Error('measurement unavailable'); } });
+      expect(prepareSvg('<svg viewBox="0 0 200 100"><text>原图</text></svg>')).toContain('viewBox="0 0 200 100"');
+      expect(document.body.childElementCount).toBe(children);
+    } finally {
+      if (descriptor) Object.defineProperty(SVGElement.prototype, 'getBBox', descriptor);
+      else Reflect.deleteProperty(SVGElement.prototype, 'getBBox');
+    }
   });
 
   it('没有 <svg> 根的输入净化为空串（卡片走「无法解析」降级，不注入任何东西）', () => {

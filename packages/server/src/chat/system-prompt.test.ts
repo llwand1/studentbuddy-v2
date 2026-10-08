@@ -35,6 +35,24 @@ describe('SYSTEM_PROMPT 图解引导（```svg 围栏）', () => {
 });
 
 describe('普通对话学习结构', () => {
+  it('模型获知可用卡片及白底图面，引导式不先交付答案', () => {
+    const ordinary = buildChatStyleBlock(DEFAULT_ANSWER_STYLE);
+    for (const variant of ['CORE', 'STEP', 'EXAMPLE', 'PITFALL', 'CHECK']) expect(ordinary).toContain(`[!${variant}]`);
+    expect(ordinary).toContain('简短档至多一张卡');
+    expect(ordinary).toContain('用户要求纯文本时不用卡');
+    const route = buildChatStyleBlock(DEFAULT_ANSWER_STYLE, '解方程 2x=16');
+    expect(route).toContain('[!ROUTE]');
+    expect(route).not.toContain('[!CORE] 惯性');
+    const socratic = buildChatStyleBlock({ ...DEFAULT_ANSWER_STYLE, tone: 'socratic' });
+    expect(socratic).not.toContain('[!CORE]');
+    expect(socratic).toContain('引导式先提问');
+    expect(SYSTEM_PROMPT).toContain('白色背景');
+    expect(SYSTEM_PROMPT).toContain('至少 16px');
+    expect(ordinary).toContain('不用 generate_image 或搜索图片代替');
+    expect(ordinary).toContain('绝不编造 /api/images/ 地址');
+    expect(ordinary).toContain('收尾邀请直接写一句，不用 ask_choice');
+    expect(ordinary).toContain('工具都返回后才交付完整回答一次');
+  });
   it('知识讲解结论先行、关键词定位、步骤解释原因与结果', () => {
     const block = buildChatStyleBlock(DEFAULT_ANSWER_STYLE);
     for (const line of ['一句话给核心结论', '关键词：', '为什么这样做', '如何接下一步', '图配在对应解释旁']) expect(block).toContain(line);

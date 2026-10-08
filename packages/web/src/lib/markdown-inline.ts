@@ -13,6 +13,7 @@ export type Inline =
   | { t: 'em'; children: Inline[] }
   | { t: 'del'; children: Inline[] }
   | { t: 'code'; v: string }
+  | { t: 'math'; code: string }
   | { t: 'a'; children: Inline[]; href: string }
   | { t: 'image'; alt: string; src: string }
   | { t: 'br' }
@@ -67,6 +68,7 @@ function safeImgSrc(raw: string): string | null {
 // 现改为先匹配最外层定界符、内部递归 parseInline，嵌套标记天然正确。code 内容是唯一不递归的例外。
 const INLINE_RULES: Array<{ re: RegExp; make: (m: RegExpExecArray) => Inline }> = [
   { re: /^`([^`\n]+)`/, make: (m) => ({ t: 'code', v: g(m, 1) }) },
+  { re: /^\$\$([^$\n]+)\$\$|^\$([A-Za-z\\][^$\n]*|[-+]?\d[^$\n]*[=+\-×÷^_][^$\n]*|[-+]?\d+(?:\.\d+)?)\$/, make: (m) => ({ t: 'math', code: g(m, 1) || g(m, 2) }) },
   { re: /^\*\*(.+?)\*\*/, make: (m) => ({ t: 'strong', children: parseInline(g(m, 1)) }) },
   { re: /^\*(.+?)\*/, make: (m) => ({ t: 'em', children: parseInline(g(m, 1)) }) },
   { re: /^~~(.+?)~~/, make: (m) => ({ t: 'del', children: parseInline(g(m, 1)) }) },

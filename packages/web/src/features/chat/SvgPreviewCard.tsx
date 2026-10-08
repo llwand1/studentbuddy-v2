@@ -1,6 +1,6 @@
 /**
  * SvgPreviewCard — ```svg 围栏的内联预览卡（port from v1 SvgPreviewCard，样式改 class）。
- * 渲染前必经 fixSvg（补闭合/钳宽/主题色）+ sanitizeSvg（剥 script、foreignObject、on 事件属性与 javascript: 协议）。
+ * 渲染前必经 prepareSvg（补闭合/钳宽/白名单净化/白底纸面）；预览和导出使用同一份安全图。
  */
 import { useMemo, useState } from 'react';
 import { openSvgDocument, parseSvgSize, prepareSvg } from '../../lib/svg-utils';
@@ -15,6 +15,7 @@ export function SvgPreviewCard({ code, streaming }: { code: string; streaming: b
 
   const safe = useMemo(() => prepareSvg(code), [code]);
   const { w, h } = useMemo(() => parseSvgSize(code), [code]);
+  const wide = (parseSvgSize(safe).w ?? w ?? 0) > 420;
   const hasSvg = safe.includes('<svg');
 
   const copy = async () => {
@@ -69,7 +70,12 @@ export function SvgPreviewCard({ code, streaming }: { code: string; streaming: b
       ) : (
         <div className="chat-svg-body">
           {/* 唯一注入点：内容已过 sanitizeSvg */}
-          <div className="chat-svg-canvas" dangerouslySetInnerHTML={{ __html: safe }} />
+          <div
+            className={wide ? 'chat-svg-canvas chat-svg-canvas-wide' : 'chat-svg-canvas'}
+            role="region" aria-label="SVG 图面" tabIndex={0}
+            dangerouslySetInnerHTML={{ __html: safe }}
+          />
+          {wide && <p className="chat-svg-hint">横向滑动查看全图 · 点「放大」查看细节</p>}
         </div>
       )}
 

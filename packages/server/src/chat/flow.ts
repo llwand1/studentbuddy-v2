@@ -279,15 +279,15 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         durations.push(o.durationMs);
       }
       rounds.push({ calls: turnToolCalls, results, durations });
-      messages.push({ role: 'assistant', content: '', toolCalls: turnToolCalls, reasoning: turnReasoning || undefined }, ...results);
-      toolTokens +=
+      messages.push({ role: 'assistant', content: turnText, toolCalls: turnToolCalls, reasoning: turnReasoning || undefined }, ...results);
+      toolTokens += estimateTokens(turnText) +
         estimateTokens(JSON.stringify(turnToolCalls)) + results.reduce((s, r) => s + estimateTokens(contentToText(r.content)), 0);
       if (turnText) {
         acc += '\n\n'; // 过程语与下一轮正文之间留分隔（已流式上屏，不能粘连）
         publish(sessionId, { type: 'token', sessionId, content: '\n\n' }); // 分隔符同样下发：屏上与库内文本逐字一致
       }
       pendingToolRound = true;
-      finishToolRound(messages, opening, nudgeMsg, styleMsg, turn);
+      toolTokens += estimateTokens(finishToolRound(messages, opening, nudgeMsg, styleMsg, turn, turnText));
       if (toolTokens > toolBudget) {
         budgetExceeded = true;
         break; // 预算耗尽，提前停止工具循环（预留收尾窗口）

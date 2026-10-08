@@ -1,4 +1,55 @@
 import { describe, it, expect } from 'vitest';
+import { readableMath } from './math-text';
+
+describe('常见公式展示', () => {
+  it('转为可读符号并保持分数与上下标分组，未知或坏语法整式回退', () => {
+    expect(readableMath('\\boxed{x = 16 \\div 2}')).toBe('x = 16 ÷ 2');
+    expect(readableMath('\\Rightarrow x = \\frac{16}{2}')).toBe('⇒ x = (16)/(2)');
+    expect(readableMath('F_{\\text{合}} = m \\cdot a')).toBe('F_合 = m · a');
+    expect(readableMath('F_{\\text{合外}} = m \\cdot a')).toBe('F_(合外) = m · a');
+    expect(readableMath('\\frac{a+b}{\\sqrt{x^{2}}}')).toBe('(a+b)/(√(x^2))');
+    expect(readableMath('\\unknown{x}')).toBeNull();
+    expect(readableMath('\\frac{a}{b')).toBeNull();
+    expect(readableMath('x'.repeat(4001))).toBeNull();
+  });
+  it('公式空行不割裂增量块，代码围栏和不完整公式保持原文', () => {
+    const text = '$$\nx = 16 \\div 2\n\n= 8\n$$\n\n结尾';
+    const cut = stableCut(text);
+    expect([...parseBlocks(text.slice(0, cut)), ...parseBlocks(text.slice(cut))]).toEqual(parseBlocks(text));
+    expect(parseBlocks('$$\\frac{a}{b}')[0]).toEqual({kind:'math',code:'\\frac{a}{b}',closed:false});
+    expect(parseBlocks('```text\n$$x=8$$\n```')[0]?.kind).toBe('code');
+    expect(JSON.stringify(parseBlocks('$$x=8$$ 后面的解释'))).toContain('后面的解释');
+    expect(parseInline('价格 $20 / $30').some(n=>n.t==='math')).toBe(false);
+    expect(parseInline('$-6 + 4$ 与 $-2$ 与 $8$').filter(n=>n.t==='math')).toHaveLength(3);
+  });
+});
+
+describe('显式学习卡片', () => {
+  it('六种语义与标题/正文都保留，普通引用及未知标记不变', () => {
+    for (const variant of ['CORE', 'ROUTE', 'STEP', 'EXAMPLE', 'PITFALL', 'CHECK']) {
+      const [card] = parseBlocks(`> [!${variant}] **标题**\n> 做法：展开。\n>\n> 理由：分配律。`);
+      expect(card?.kind).toBe('learning-card');
+      if (card?.kind === 'learning-card') {
+        expect(card.variant).toBe(variant);
+        expect(card.title[0]?.t).toBe('strong');
+        expect(card.lines).toHaveLength(3);
+      }
+    }
+    for (const src of ['> 普通引用\n> 内容', '> [!UNKNOWN] 标题\n> 内容', '> [!CORE] 标题']) {
+      expect(parseBlocks(src)[0]?.kind).toBe('quote');
+    }
+    expect(parseBlocks('```text\n> [!CORE] 不执行\n> 内容\n```')[0]?.kind).toBe('code');
+  });
+
+  it('卡片与独立图的每一个流式稳定切点同全量解析一致', () => {
+    const src = '> [!CORE] 结论\n> **力**改变运动状态。\n>\n> 关键词：`合力` · `加速度`\n\n```svg\n<svg viewBox="0 0 100 100"><text>图</text></svg>\n```\n\n> [!CHECK]\n> 验算成立。';
+    for (let i = 1; i <= src.length; i++) {
+      const prefix = src.slice(0, i);
+      const cut = stableCut(prefix);
+      expect([...parseBlocks(prefix.slice(0, cut)), ...parseBlocks(prefix.slice(cut))]).toEqual(parseBlocks(prefix));
+    }
+  });
+});
 import { parseBlocks, parseInline, remedy, stableCut } from './markdown';
 import { safeHref } from './markdown-inline';
 import type { Block } from './markdown';

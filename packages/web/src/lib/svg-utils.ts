@@ -1,6 +1,7 @@
 // svg-utils.ts —— SVG 画图能力的纯函数层（port from v1 chat/svgUtils.ts + parseWidget.fixSvg）。
 // 无 React 依赖；```svg 围栏 → 自愈（fixSvg）→ 白名单净化（svg-sanitize.ts，需 DOM）→ 内联渲染。
 import { sanitizeSvgDom } from './svg-sanitize';
+import { paperSvg } from './svg-paper';
 
 /** 卡片可视宽度上限：超宽图一律钳到该值（等比缩放靠 viewBox）。 */
 const MAX_SVG_W = 680;
@@ -81,12 +82,9 @@ export interface SvgFix {
   fixed: boolean;
 }
 
-const BLACK = /(fill|stroke)\s*=\s*["'](?:#000(?:000)?|black)["']/gi;
-const WHITE = /(fill|stroke)\s*=\s*["'](?:#fff(?:fff)?|white)["']/gi;
-
 /**
  * L1 自愈：① 补 </svg> 闭合（流式半截图不再白屏）；② 钳宽 680 / 缺 viewBox 时合成；
- * ③ 纯黑纯白 fill/stroke 换成主题变量（深色主题下不再一团黑）。
+ * 保留原始绘图配色，图面使用独立白底，不把黑线/白底反转成夜间主题色。
  */
 export function fixSvg(code: string): SvgFix {
   let s = (code || '').trim();
@@ -119,18 +117,13 @@ export function fixSvg(code: string): SvgFix {
       s = s.replace(/<svg\b[^>]*>/i, tag);
       fixed = true;
     }
-    const themed = s.replace(BLACK, '$1="var(--sb-ink)"').replace(WHITE, '$1="var(--sb-bg)"');
-    if (themed !== s) {
-      s = themed;
-      fixed = true;
-    }
   }
   return { code: s, fixed };
 }
 
 /** 自愈 + 净化的常用组合（渲染前一次调用）。 */
 export function prepareSvg(code: string): string {
-  return sanitizeSvg(fixSvg(code).code);
+  return paperSvg(sanitizeSvg(fixSvg(code).code));
 }
 
 /**

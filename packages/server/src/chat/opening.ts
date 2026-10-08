@@ -93,8 +93,8 @@ export function dropOpening(messages: ChatMessage[], opening: Opening): void {
 /** 工具后释放一次性开场约束，把本轮偏好移到结果后；复用原对象，不重复占预算。 */
 export function finishToolRound(
   messages: ChatMessage[], opening: Opening, nudge: ChatMessage | null,
-  style: ChatMessage | null, turn: number,
-): void {
+  style: ChatMessage | null, turn: number, delivered = '',
+): string {
   if (turn === 0) {
     const i = nudge ? messages.indexOf(nudge) : -1;
     if (i >= 0) messages.splice(i, 1);
@@ -102,4 +102,10 @@ export function finishToolRound(
   }
   const i = style ? messages.indexOf(style) : -1;
   if (i >= 0) messages.push(...messages.splice(i, 1));
+  const guard = '【已交付学习开篇】学生已经看到了本轮结论或路线卡。后续直接续写必要内容，不重开 CORE/ROUTE 卡、不重复定义或关键词；完整讲解已经交付时只给必要的简短工具回执。简短档的两三句限制适用于整轮，而非每次工具后的续写。';
+  if (style && typeof style.content === 'string' && /(?:^|\n)\s*>\s*\[!(?:CORE|ROUTE)\]/.test(delivered) && !style.content.includes('【已交付学习开篇】')) {
+    style.content += '\n' + guard;
+    return guard;
+  }
+  return '';
 }

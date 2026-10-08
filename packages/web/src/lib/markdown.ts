@@ -6,6 +6,7 @@
 // 在 `***`、词内记号、列表标记上的误判。仍零外部依赖（remend 是本仓内的纯函数模块）。
 
 import { remend } from './remend';
+import { learningCardHeader, type LearningCardKind } from './learning-card';
 import { countOf, parseInline } from './markdown-inline';
 import type { Inline } from './markdown-inline';
 
@@ -33,6 +34,8 @@ export type Block =
   | { kind: 'ul'; items: ListItem[] }
   | { kind: 'ol'; items: ListItem[]; start?: number }
   | { kind: 'quote'; lines: Inline[][] }
+  | { kind: 'learning-card'; variant: LearningCardKind; title: Inline[]; lines: Inline[][] }
+  | { kind: 'math'; code: string; closed: boolean }
   | { kind: 'table'; head: Inline[][]; rows: Inline[][][] }
   | { kind: 'code'; lang: string; text: string; closed: boolean }
   | { kind: 'svg'; code: string; closed: boolean }
@@ -72,7 +75,7 @@ const LIST_MARK = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
 const TASK_BOX = /^\[([ xX])\]\s+/;
 
 function isBlockStart(line: string): boolean {
-  return !!(FENCE.test(line) || HEADING.test(line) || QUOTE.test(line) || LIST_MARK.test(line) || HR.test(line));
+  return !!(FENCE.test(line) || HEADING.test(line) || QUOTE.test(line) || LIST_MARK.test(line) || HR.test(line) || line.trim().startsWith('$$'));
 }
 
 /** 段内逐行 → inline 序列（行间插 br，行内标记各自解析）。 */
@@ -172,6 +175,16 @@ export function parseBlocks(src: string): Block[] {
       continue;
     }
 
+    if (line.trim().startsWith('$$')) {
+      const parts = [line.trim().slice(2)];
+      i++;
+      while (!parts.at(-1)?.includes('$$') && i < lines.length) parts.push(at(i++));
+      const joined = parts.join('\n'); const end = joined.indexOf('$$');
+      blocks.push({ kind: 'math', code: end < 0 ? joined : joined.slice(0, end), closed: end >= 0 });
+      if (end >= 0 && joined.slice(end + 2).trim()) blocks.push({ kind: 'para', inline: parseInline(joined.slice(end + 2).trim()) });
+      continue;
+    }
+
     const fence = FENCE.exec(line);
     if (fence) {
       const lang = g(fence, 1).toLowerCase();
@@ -222,7 +235,10 @@ export function parseBlocks(src: string): Block[] {
         items.push(at(i).replace(QUOTE, ''));
         i++;
       }
-      blocks.push({ kind: 'quote', lines: items.map(parseInline) });
+      const card = learningCardHeader(items[0] ?? '');
+      blocks.push(card && items.slice(1).some((item) => item.trim())
+        ? { kind: 'learning-card', variant: card.variant, title: parseInline(card.title), lines: items.slice(1).map(parseInline) }
+        : { kind: 'quote', lines: items.map(parseInline) });
       continue;
     }
 
@@ -273,7 +289,8 @@ export function stableCut(src: string): number {
   for (;;) {
     const idx = src.lastIndexOf('\n\n', from - 1);
     if (idx <= 0) return 0;
-    if (countOf(src.slice(0, idx), '```') % 2 === 0) return idx + 2;
+    const prefix = src.slice(0, idx);
+    if (countOf(prefix, '```') % 2 === 0 && countOf(prefix, '$$') % 2 === 0) return idx + 2;
     from = idx;
   }
 }

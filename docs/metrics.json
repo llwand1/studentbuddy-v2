@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T04:41:45.555Z",
+  "generatedAt": "2026-10-08T04:49:48.238Z",
   "code": {
     "rows": [
       {
@@ -13,8 +13,8 @@
         "pkg": "server",
         "srcFiles": 290,
         "testFiles": 197,
-        "srcLines": 40214,
-        "testLines": 37275
+        "srcLines": 40215,
+        "testLines": 37276
       },
       {
         "pkg": "web",
@@ -26,8 +26,8 @@
     ],
     "srcFiles": 694,
     "testFiles": 393,
-    "srcLines": 91921,
-    "testLines": 61926,
+    "srcLines": 91922,
+    "testLines": 61927,
     "tsxTestFiles": 72
   },
   "routes": {
@@ -85,11 +85,11 @@
     "probes": 15
   },
   "repo": {
-    "head": "6a13773",
+    "head": "1a83c8e",
     "headDate": "2026-10-08",
-    "commitsLast14d": 279,
+    "commitsLast14d": 280,
     "branch": "fix/learning-replies-after-tools",
-    "dirtyFiles": 5
+    "dirtyFiles": 3
   },
   "tests": {
     "available": true,

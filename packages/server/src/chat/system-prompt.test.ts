@@ -62,5 +62,6 @@ describe('普通对话学习结构', () => {
     expect(block).toContain('选当前对话范围');
     expect(block).toContain('正式出题仍用 generate_quiz');
     expect(block).not.toContain('[LAYERS]');
+    expect(SYSTEM_PROMPT).toContain('完整讲解等所需工具返回后只给一次');
   });
 });

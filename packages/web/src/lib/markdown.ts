@@ -236,7 +236,7 @@ export function parseBlocks(src: string): Block[] {
         i++;
       }
       const card = learningCardHeader(items[0] ?? '');
-      blocks.push(card && items.slice(1).some((item) => item.trim())
+      blocks.push(card
         ? { kind: 'learning-card', variant: card.variant, title: parseInline(card.title), lines: items.slice(1).map(parseInline) }
         : { kind: 'quote', lines: items.map(parseInline) });
       continue;

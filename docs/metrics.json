@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T04:07:55.719Z",
+  "generatedAt": "2026-10-08T04:28:41.423Z",
   "code": {
     "rows": [
       {
@@ -13,21 +13,21 @@
         "pkg": "server",
         "srcFiles": 290,
         "testFiles": 197,
-        "srcLines": 40202,
-        "testLines": 37241
+        "srcLines": 40213,
+        "testLines": 37273
       },
       {
         "pkg": "web",
         "srcFiles": 344,
         "testFiles": 150,
-        "srcLines": 41780,
+        "srcLines": 41787,
         "testLines": 18934
       }
     ],
     "srcFiles": 694,
     "testFiles": 393,
-    "srcLines": 91901,
-    "testLines": 61892,
+    "srcLines": 91919,
+    "testLines": 61924,
     "tsxTestFiles": 72
   },
   "routes": {
@@ -85,20 +85,20 @@
     "probes": 15
   },
   "repo": {
-    "head": "7fa8914",
+    "head": "44e363b",
     "headDate": "2026-10-08",
-    "commitsLast14d": 281,
-    "branch": "feat/research-learning-replies",
-    "dirtyFiles": 7
+    "commitsLast14d": 278,
+    "branch": "fix/learning-replies-after-tools",
+    "dirtyFiles": 0
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 60.5,
+    "wallSec": 55.9,
     "staleDays": 0,
     "files": 393,
-    "cases": 4487,
-    "passed": 4485,
+    "cases": 4489,
+    "passed": 4487,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -115,8 +115,8 @@
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4485",
-      "measured": "4487",
+      "claimed": "4487",
+      "measured": "4489",
       "ok": false
     },
     {
@@ -145,20 +145,20 @@
     },
     {
       "label": "badge 版本",
-      "claimed": "0.2.167",
-      "measured": "0.2.167",
+      "claimed": "0.2.168",
+      "measured": "0.2.168",
       "ok": true
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.167",
-      "measured": "v0.2.167",
+      "claimed": "v0.2.168",
+      "measured": "v0.2.168",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "393 文件 / 4485 例",
-      "measured": "393 文件 / 4487 例",
+      "claimed": "393 文件 / 4487 例",
+      "measured": "393 文件 / 4489 例",
       "ok": false
     }
   ],

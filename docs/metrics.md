@@ -23,16 +23,16 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-10-08 11:40:37（本机时区）｜ 基准 `d577ad5` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-08 11:45:03（本机时区）｜ 基准 `92c8639` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
 | shared | 60 | 9,919 | 46 | 5,717 | 58% |
-| server | 289 | 40,185 | 197 | 37,227 | 93% |
+| server | 289 | 40,185 | 197 | 37,228 | 93% |
 | web | 344 | 41,777 | 150 | 18,917 | 45% |
-| **合计** | **693** | **91,881** | **393** | **61,861** | **67%** |
+| **合计** | **693** | **91,881** | **393** | **61,862** | **67%** |
 
 ## 接口与契约
 
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 53 份 · md 共 71 份 · 真机探针 15 个
-- git：feat/research-learning-replies @ `d577ad5`（2026-10-08）· 近 14 天 277 commits · 工作区未提交 6 文件
+- git：feat/research-learning-replies @ `92c8639`（2026-10-08）· 近 14 天 278 commits · 工作区未提交 5 文件
 
 <!-- metrics:end -->
 

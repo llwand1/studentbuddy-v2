@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T03:40:37.019Z",
+  "generatedAt": "2026-10-08T03:45:02.826Z",
   "code": {
     "rows": [
       {
@@ -14,7 +14,7 @@
         "srcFiles": 289,
         "testFiles": 197,
         "srcLines": 40185,
-        "testLines": 37227
+        "testLines": 37228
       },
       {
         "pkg": "web",
@@ -27,7 +27,7 @@
     "srcFiles": 693,
     "testFiles": 393,
     "srcLines": 91881,
-    "testLines": 61861,
+    "testLines": 61862,
     "tsxTestFiles": 72
   },
   "routes": {
@@ -85,11 +85,11 @@
     "probes": 15
   },
   "repo": {
-    "head": "d577ad5",
+    "head": "92c8639",
     "headDate": "2026-10-08",
-    "commitsLast14d": 277,
+    "commitsLast14d": 278,
     "branch": "feat/research-learning-replies",
-    "dirtyFiles": 6
+    "dirtyFiles": 5
   },
   "tests": {
     "available": true,

@@ -35,7 +35,8 @@ describe('SYSTEM_PROMPT 图解引导（```svg 围栏）', () => {
 describe('普通对话学习结构', () => {
   it('知识讲解结论先行、关键词定位、步骤解释原因与结果', () => {
     for (const line of ['一句话给核心结论', '关键词：', '为什么这样做', '如何接下一步', '图配在对应解释旁']) expect(SYSTEM_PROMPT).toContain(line);
-    expect(SYSTEM_PROMPT).toContain('先求解并验算，再写开篇结论');
+    expect(SYSTEM_PROMPT).toContain('计算题开篇先给求解路线，不先报最终数值');
+    expect(SYSTEM_PROMPT).toContain('把结果与代入验算放在一起');
   });
   it('引导式、闲聊和短回答不被统一模板覆盖', () => {
     for (const line of ['闲聊、操作回执和仅出题不用', '引导式口吻或 GrillMe', '不抢先泄露', '本轮明确请求', '简短档不强行展开']) expect(SYSTEM_PROMPT).toContain(line);

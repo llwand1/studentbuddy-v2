@@ -33,6 +33,10 @@ export const RELEASE_SCOPE = {
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
   {
+    version: 'v0.2.170', date: '2026-10-08', headline: '独立学习标题也显示为卡片',
+    items: ['学习卡的独立标题也显示为卡片，后续解释和表格继续保留。', '实时回复与历史回看使用相同格式。'],
+  },
+  {
     version: 'v0.2.169', date: '2026-10-08', headline: '白底思维图与学习回答卡片',
     items: [
       '矢量思维图使用白色图面，预览、放大和下载保留清晰的黑白配色。',

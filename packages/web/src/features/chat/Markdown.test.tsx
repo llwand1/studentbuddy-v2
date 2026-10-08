@@ -45,6 +45,15 @@ describe('Markdown 组件渲染', () => {
     expect(container.textContent).toBe(first);
     expect(qa(container, '.learning-reply-card')).toHaveLength(2);
     expect(container.textContent).not.toContain('[!CORE]');
+    const separate = '> [!STEP] 1. 展开括号\n\n把 2 乘到每一项。\n\n> [!STEP] 思路小结\n\n| 操作 | 依据 |\n|---|---|\n| 展开 | 分配律 |';
+    rerender(<Markdown text={separate} streaming />);
+    expect(qa(container, '.learning-reply-step')).toHaveLength(2);
+    expect(container.textContent).not.toContain('[!STEP]');
+    expect(container.textContent).toContain('把 2 乘到每一项');
+    expect(q(container, 'table')?.textContent).toContain('分配律');
+    const headings = container.textContent;
+    rerender(<Markdown text={separate} />);
+    expect(container.textContent).toBe(headings);
   });
   it('流式及历史回读中，解释后的步骤与子步骤编号由源文本决定', () => {
     const text = '1. 去括号\n\n为什么：展开后才能合并。\n\n2. 合并\n  4. 子步骤\n\n3. 移项';

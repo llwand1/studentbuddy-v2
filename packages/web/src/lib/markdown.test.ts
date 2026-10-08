@@ -35,8 +35,15 @@ describe('显式学习卡片', () => {
         expect(card.lines).toHaveLength(3);
       }
     }
-    for (const src of ['> 普通引用\n> 内容', '> [!UNKNOWN] 标题\n> 内容', '> [!CORE] 标题']) {
+    for (const src of ['> 普通引用\n> 内容', '> [!UNKNOWN] 标题\n> 内容']) {
       expect(parseBlocks(src)[0]?.kind).toBe('quote');
+    }
+    for (const variant of ['CORE', 'ROUTE', 'STEP', 'EXAMPLE', 'PITFALL', 'CHECK']) {
+      const [header, body] = parseBlocks(`> [!${variant}] **独立标题**\n\n后续解释仍保留。`);
+      expect(header?.kind).toBe('learning-card');
+      if (header?.kind === 'learning-card') expect(header.lines).toEqual([]);
+      expect(body?.kind).toBe('para');
+      expect(JSON.stringify(body)).toContain('后续解释仍保留');
     }
     expect(parseBlocks('```text\n> [!CORE] 不执行\n> 内容\n```')[0]?.kind).toBe('code');
   });

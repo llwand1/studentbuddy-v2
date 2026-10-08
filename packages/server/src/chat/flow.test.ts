@@ -247,6 +247,8 @@ describe('单轨工具循环', () => {
     // 过程语与最终正文都保留在同一条 assistant 消息里（流什么就存什么）
     expect(list[3]?.content).toBe('我先查一下\n\n答案正文');
     expect(streamed(sid)).toBe(list[3]?.content);
+    // 模型下一轮必须知道用户已看到什么；旧回灌把这段清空，会重复完整讲解。
+    expect(stub.allMessages[1]?.find((message) => message.role === 'assistant')?.content).toBe('我先查一下');
     expect(getDb().prepare('SELECT COUNT(*) c FROM token_usage').get()).toEqual({ c: 1 });
   });
 

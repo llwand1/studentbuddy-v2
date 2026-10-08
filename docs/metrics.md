@@ -23,16 +23,16 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-10-08 15:29:57（本机时区）｜ 基准 `4ca3a23` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-08 15:38:45（本机时区）｜ 基准 `35ebd03` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
 | shared | 60 | 9,919 | 46 | 5,717 | 58% |
-| server | 290 | 40,223 | 197 | 37,294 | 93% |
+| server | 290 | 40,223 | 197 | 37,296 | 93% |
 | web | 347 | 41,887 | 150 | 19,004 | 45% |
-| **合计** | **697** | **92,029** | **393** | **62,015** | **67%** |
+| **合计** | **697** | **92,029** | **393** | **62,017** | **67%** |
 
 ## 接口与契约
 
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 53 份 · md 共 71 份 · 真机探针 15 个
-- git：feat/answer-cards-white-diagrams @ `4ca3a23`（2026-10-08）· 近 14 天 280 commits · 工作区未提交 2 文件
+- git：feat/answer-cards-white-diagrams @ `35ebd03`（2026-10-08）· 近 14 天 281 commits · 工作区未提交 3 文件
 
 <!-- metrics:end -->
 

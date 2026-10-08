@@ -52,6 +52,8 @@ SVG 不再把纯黑/纯白改成夜间主题色。预览、放大和下载使用
 
 手机宽图（原宽 >420）维持至少 600px 图面并局部横向滚动，显示滑动与放大提示，不把所有标注缩成小字，不撑破页面。普通讲解的收尾练习邀请只用文字，不用 ask_choice 挂起；显式路线选择和 GrillMe 提问保留原流程。
 
+工具轮回灌的 assistant 消息保留该轮真实输出的 turnText，并计入工具回灌预算；不能用空字符串抹掉模型已经讲过的内容，否则后续轮不知道学生看过哪些解释，重复讲解。同一份正文继续正常流式上屏与最终落库，不事后改写。
+
 参考：[Brilliant 的图文互动学习](https://brilliant.org/)、[Anthropic Artifacts](https://www.anthropic.com/news/artifacts)、[GitHub Markdown Alerts](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts)。本项目只借鉴语义卡片与图文相邻的表现，不复制品牌或新增任意 HTML 注入。`chat.turn` 提示词版本 5→6。
 
 - [AITutor 实地研究](https://arxiv.org/abs/2607.01692)：12 人部署、7,379 条事件，支持先看结论作为诊断检查点、分层例题与图文关联的设计方向；不是所有用户学习效果提升的随机实验。

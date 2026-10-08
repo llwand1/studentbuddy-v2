@@ -22,7 +22,8 @@
  *   会合并成一段故无差异），所以位置对模型有语义；回归锁见 `flow.test.ts`
  *   的「长期记忆注入」describe（六段全满的顺序 + 画像段不插队）。
  */
-import { buildAnswerStyleBlock, type GrillScope } from '@sb/shared';
+import { type GrillScope } from '@sb/shared';
+import { buildChatStyleBlock } from './learning-reply.js';
 import { buildGrillScopeBlock } from './grill-scope.js';
 import { estimateTokens } from './context.js';
 import { buildMemoryContext } from './compact.js';
@@ -142,10 +143,10 @@ export function collectContextSegments(inputs: ContextInputs): CollectedContext 
     { kind: 'summary', content: summaryBlock },
     { kind: 'terms', content: termBlock },
     { kind: 'doc', content: docBlock },
-    // 表达偏好段（契约 ANSWER-STYLE §3）：四维全默认时它只是重述现状口径、不改口吻。
+    // 表达偏好段：保留四维设置，并按 LEARNING-REPLY 追加本轮知识讲解结构。
     // 它**恒非空**（至少含 scope 那句），故无需条件判断——空内容段会在下面被统一剔除。
     // ★ `app_settings` 归主（v30）⇒ 必须带 `ownerId`——不带就会读到**别人的**口吻偏好。
-    { kind: 'style', content: buildAnswerStyleBlock(loadAnswerStyle(ownerId ?? null)) },
+    { kind: 'style', content: buildChatStyleBlock(loadAnswerStyle(ownerId ?? null)) },
     // 番茄钟方向段（契约 POMODORO-SPEC §5.1）：工作段才有、休息段为 ''。排在偏好之后、记忆之前——
     // 它讲的是「这半小时在学什么」，属于回答口径而不是事实材料。
     { kind: 'focus', content: buildFocusBlock(loadPomodoro(ownerId ?? null)) },

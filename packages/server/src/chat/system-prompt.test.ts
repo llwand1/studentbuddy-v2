@@ -8,6 +8,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { SYSTEM_PROMPT } from './system-prompt.js';
+import { DEFAULT_ANSWER_STYLE } from '@sb/shared';
+import { buildChatStyleBlock } from './learning-reply.js';
 
 describe('SYSTEM_PROMPT 图解引导（```svg 围栏）', () => {
   it('★ 点名 ```svg 围栏并带渲染器认得的硬约束（viewBox / 宽 ≤680）', () => {
@@ -34,18 +36,25 @@ describe('SYSTEM_PROMPT 图解引导（```svg 围栏）', () => {
 
 describe('普通对话学习结构', () => {
   it('知识讲解结论先行、关键词定位、步骤解释原因与结果', () => {
-    for (const line of ['一句话给核心结论', '关键词：', '为什么这样做', '如何接下一步', '图配在对应解释旁']) expect(SYSTEM_PROMPT).toContain(line);
-    expect(SYSTEM_PROMPT).toContain('计算题开篇先给求解路线，不先报最终数值');
-    expect(SYSTEM_PROMPT).toContain('把结果与代入验算放在一起');
+    const block = buildChatStyleBlock(DEFAULT_ANSWER_STYLE);
+    for (const line of ['一句话给核心结论', '关键词：', '为什么这样做', '如何接下一步', '图配在对应解释旁']) expect(block).toContain(line);
+    expect(block).toContain('计算题开篇先给求解路线，不先报最终数值');
+    expect(block).toContain('把结果与代入验算放在一起');
   });
   it('引导式、闲聊和短回答不被统一模板覆盖', () => {
-    for (const line of ['闲聊、操作回执和仅出题不用', '引导式口吻或 GrillMe', '不抢先泄露', '本轮明确请求', '简短档不强行展开']) expect(SYSTEM_PROMPT).toContain(line);
+    const brief = buildChatStyleBlock({ ...DEFAULT_ANSWER_STYLE, verbosity: 'brief' });
+    const socratic = buildChatStyleBlock({ ...DEFAULT_ANSWER_STYLE, tone: 'socratic' });
+    expect(brief).toContain('两三句内，不强行分步');
+    expect(socratic).toContain('先问一个关键问题');
+    expect(socratic).not.toContain('先用一句话给核心结论');
+    expect(brief).toContain('闲聊、操作回执和仅出题不用');
     expect(SYSTEM_PROMPT).toContain('不能仅因为存在多种讲法就先弹选择卡');
   });
   it('自检自愿且用现役GrillMe，正式题继续走工具，不新增层协议', () => {
-    expect(SYSTEM_PROMPT).toContain('只给一个自愿的下一步');
-    expect(SYSTEM_PROMPT).toContain('选当前对话范围');
-    expect(SYSTEM_PROMPT).toContain('正式出题仍用 generate_quiz');
-    expect(SYSTEM_PROMPT).not.toContain('[LAYERS]');
+    const block = buildChatStyleBlock(DEFAULT_ANSWER_STYLE);
+    expect(block).toContain('只给一个自愿的下一步');
+    expect(block).toContain('选当前对话范围');
+    expect(block).toContain('正式出题仍用 generate_quiz');
+    expect(block).not.toContain('[LAYERS]');
   });
 });

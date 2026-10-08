@@ -33,6 +33,14 @@ export const RELEASE_SCOPE = {
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
   {
+    version: 'v0.2.169', date: '2026-10-08', headline: '白底思维图与学习回答卡片',
+    items: [
+      '矢量思维图使用白色图面，预览、放大和下载保留清晰的黑白配色。',
+      '学习回答支持结论、路线、步骤、例子、易错点与验算卡片，沿用像素冒险风格。',
+      '卡片在实时回复和历史回看中保持一致，并遵从简短与引导式回答偏好。',
+    ],
+  },
+  {
     version: 'v0.2.168', date: '2026-10-08', headline: '联网后的讲解保留学习结构',
     items: [
       '搜索、读取资料或绘图后，最终讲解继续遵从当前回答偏好与学习结构。',

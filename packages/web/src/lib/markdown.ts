@@ -6,6 +6,7 @@
 // 在 `***`、词内记号、列表标记上的误判。仍零外部依赖（remend 是本仓内的纯函数模块）。
 
 import { remend } from './remend';
+import { learningCardHeader, type LearningCardKind } from './learning-card';
 import { countOf, parseInline } from './markdown-inline';
 import type { Inline } from './markdown-inline';
 
@@ -33,6 +34,7 @@ export type Block =
   | { kind: 'ul'; items: ListItem[] }
   | { kind: 'ol'; items: ListItem[]; start?: number }
   | { kind: 'quote'; lines: Inline[][] }
+  | { kind: 'learning-card'; variant: LearningCardKind; title: Inline[]; lines: Inline[][] }
   | { kind: 'table'; head: Inline[][]; rows: Inline[][][] }
   | { kind: 'code'; lang: string; text: string; closed: boolean }
   | { kind: 'svg'; code: string; closed: boolean }
@@ -222,7 +224,10 @@ export function parseBlocks(src: string): Block[] {
         items.push(at(i).replace(QUOTE, ''));
         i++;
       }
-      blocks.push({ kind: 'quote', lines: items.map(parseInline) });
+      const card = learningCardHeader(items[0] ?? '');
+      blocks.push(card && items.slice(1).some((item) => item.trim())
+        ? { kind: 'learning-card', variant: card.variant, title: parseInline(card.title), lines: items.slice(1).map(parseInline) }
+        : { kind: 'quote', lines: items.map(parseInline) });
       continue;
     }
 

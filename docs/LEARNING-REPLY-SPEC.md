@@ -42,6 +42,16 @@
 
 ## 3. 研究依据与修正
 
+### v0.2.169：学习卡片与白底图面
+
+知识讲解可以输出 Markdown 引用卡：首行 `> [!CORE] 标题`，正文每行以 `>` 开头，空段用单独的 `>`。支持 CORE（核心结论）、ROUTE（求解路线）、STEP（推理步骤）、EXAMPLE（例子）、PITFALL（易错点）、CHECK（验算）；标题可省略。普通讲解优先 CORE，计算优先 ROUTE；仅有需要时选择其它卡片，不强制每轮填满，简短档至多一张，引导式不先给答案。关键词可放在首卡正文，图仍用独立 svg 围栏紧邻解释。格式不完整或未知类型按普通引用显示；不要求 JSON，不做额外模型修复调用，流式和历史使用同一解析器，原文落库不变。卡面沿用像素边框、余烬金/血红与正常正文，轻微阶梯入场并尊重系统减少动态效果偏好。
+
+SVG 不再把纯黑/纯白改成夜间主题色。预览、放大和下载使用同一净化后的白底图，旧主题变量解析为纸面深色文字和线条，透明图加白色底层，保留已有显式配色和绘图内容。模型生成的新图使用白底、深色文字/连线、至少 16px 标签；手机缩放后可点放大，避免密集小字。图表和题图共享该处理；外链、脚本与 CSS 作用域约束继续生效。
+
+实测旧模型将 SVG 请求误走生图工具并编造失败图片地址；本轮表达段明确思维图/流程图直接编写 svg 围栏，不用生图或图片搜索代替，真实图片才用图片工具。图片失败不得编造本地地址。
+
+参考：[Brilliant 的图文互动学习](https://brilliant.org/)、[Anthropic Artifacts](https://www.anthropic.com/news/artifacts)、[GitHub Markdown Alerts](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts)。本项目只借鉴语义卡片与图文相邻的表现，不复制品牌或新增任意 HTML 注入。`chat.turn` 提示词版本 5→6。
+
 - [AITutor 实地研究](https://arxiv.org/abs/2607.01692)：12 人部署、7,379 条事件，支持先看结论作为诊断检查点、分层例题与图文关联的设计方向；不是所有用户学习效果提升的随机实验。
 - [ICAP 原论文](https://doi.org/10.1080/00461520.2014.965823)：学习者自解释、主动构造有价值；据此提供自愿复述/练习，而非一律扣住答案。
 - [Dunlosky 等 2013](https://www.psychologicalscience.org/publications/journals/pspi/learning-techniques.html)：自测、分散练习为高效用。桌面文档的 Frontiers 2021 URL 不是该论文，应使用原出版信息；不改变现有复习算法。

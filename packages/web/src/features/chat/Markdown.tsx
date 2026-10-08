@@ -16,6 +16,7 @@ import { highlightCode, highlightStable, extFor } from '../../lib/highlight';
 import { SvgPreviewCard } from './SvgPreviewCard';
 import { ChartCard } from './ChartCard';
 import { HtmlCard } from './HtmlCard';
+import { LearningReplyCard } from './LearningReplyCard';
 import { TermText } from './TermText';
 import { CiteChip } from '../sources/cite';
 import './markdown.css';
@@ -185,6 +186,14 @@ const BlockNode = memo(function BlockNode({ block, streaming }: { block: Block; 
             </span>
           ))}
         </blockquote>
+      );
+    case 'learning-card':
+      return (
+        <LearningReplyCard variant={block.variant} title={<InlineNodes nodes={block.title} />}>
+          {block.lines.map((line, i) => (
+            <span key={i} className="learning-reply-line"><InlineNodes nodes={line} /></span>
+          ))}
+        </LearningReplyCard>
       );
     case 'table':
       return (

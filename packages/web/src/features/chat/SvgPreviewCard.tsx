@@ -1,6 +1,6 @@
 /**
  * SvgPreviewCard — ```svg 围栏的内联预览卡（port from v1 SvgPreviewCard，样式改 class）。
- * 渲染前必经 fixSvg（补闭合/钳宽/主题色）+ sanitizeSvg（剥 script、foreignObject、on 事件属性与 javascript: 协议）。
+ * 渲染前必经 prepareSvg（补闭合/钳宽/白名单净化/白底纸面）；预览和导出使用同一份安全图。
  */
 import { useMemo, useState } from 'react';
 import { openSvgDocument, parseSvgSize, prepareSvg } from '../../lib/svg-utils';

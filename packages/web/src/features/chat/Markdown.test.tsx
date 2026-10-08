@@ -17,6 +17,21 @@ const q = (c: HTMLElement, sel: string) => c.querySelector(sel);
 const qa = (c: HTMLElement, sel: string) => Array.from(c.querySelectorAll(sel));
 
 describe('Markdown 组件渲染', () => {
+  it('学习卡流式与历史呈现一致，支持安全的正文/链接且不把模型 HTML 变成元素', () => {
+    const src = '> [!CORE] 牛顿第二定律\n> **合力**导致加速度。\n> 关键词：`合力` · `质量`\n\n> [!PITFALL] 看清条件\n> <img src=x onerror=alert(1)> [来源](javascript:evil())\n\n```svg\n<svg viewBox="0 0 100 80"><text fill="black">合力</text></svg>\n```';
+    const { container, rerender } = render(<Markdown text={src} streaming />);
+    const first = container.textContent;
+    expect(q(container, 'section[aria-label="核心结论"] strong')?.textContent).toBe('合力');
+    expect(qa(container, '.learning-reply-card')).toHaveLength(2);
+    expect(q(container, '.learning-reply-pitfall')?.textContent).toContain('<img');
+    expect(q(container, '.learning-reply-pitfall img')).toBeNull();
+    expect(q(container, '.learning-reply-pitfall a')).toBeNull();
+    expect(q(container, '.chat-svg-canvas svg rect')?.getAttribute('fill')).toBe('#ffffff');
+    rerender(<Markdown text={src} />);
+    expect(container.textContent).toBe(first);
+    expect(qa(container, '.learning-reply-card')).toHaveLength(2);
+    expect(container.textContent).not.toContain('[!CORE]');
+  });
   it('流式及历史回读中，解释后的步骤与子步骤编号由源文本决定', () => {
     const text = '1. 去括号\n\n为什么：展开后才能合并。\n\n2. 合并\n  4. 子步骤\n\n3. 移项';
     const { container, rerender } = render(<Markdown text={text} streaming />);

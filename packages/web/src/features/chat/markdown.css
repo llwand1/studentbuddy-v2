@@ -263,6 +263,14 @@
 .chat-svg-body {
   padding: var(--sb-sp-3);
 }
+.chat-svg-canvas {
+  background: var(--sb-diagram-paper);
+  color: var(--sb-diagram-ink);
+  padding: var(--sb-sp-2);
+  color-scheme: light;
+}
+.chat-svg-head { flex-wrap: wrap; }
+.chat-svg-actions { flex-wrap: wrap; }
 /* 图再宽也不撑破气泡：等比缩到容器宽（viewBox 由 fixSvg 保证存在） */
 .chat-svg-canvas svg {
   display: block;

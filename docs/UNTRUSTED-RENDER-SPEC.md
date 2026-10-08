@@ -3,6 +3,8 @@
 > 版本：v1.0 | 状态：[已落地] | 日期：2026-09-30
 > 关联：`packages/web/src/lib/svg-sanitize.ts`（净化器）｜`svg-allowlist.ts`（白名单数据）｜`markdown-inline.ts`（链接 / 图片白名单）｜`docs/TEST-PLAN.md` §3（攻击语料 + 模糊测试登记）
 
+2026-10-08 白底图面：`prepareSvg` 在既有净化后用固定 DOM 属性添加白色底层，实体化原有主题变量；不扩大净化白名单，不加载资源。预览与 blob 下载/放大同一份 SVG。显式 Markdown 学习卡正文/标题继续走 React 文本及现有安全行内解析，不产生新的 HTML 注入点。
+
 ## 0. 立场
 
 `@sb/web` 不引 Markdown / 图表 / 净化库是一个刻意选择（README「前端零依赖是选择，不是省事」）。

@@ -1,0 +1,39 @@
+/* 学习回复沿用营地的像素边框；文字维持正文可读性。 */
+.learning-reply-card {
+  border: 1px solid var(--sb-pixel-edge);
+  border-left: 3px solid var(--sb-gold-edge);
+  background: var(--sb-surface);
+  padding: var(--sb-sp-4);
+  margin: var(--sb-sp-3) 0;
+  box-shadow: 3px 3px 0 var(--sb-pixel-shadow);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  animation: learning-reply-enter var(--sb-motion-base) steps(3) both;
+}
+.learning-reply-head { display: flex; align-items: center; gap: var(--sb-sp-2); margin-bottom: var(--sb-sp-2); }
+.learning-reply-mark {
+  width: 22px; height: 22px; display: grid; place-items: center;
+  border: 1px solid var(--sb-gold-edge); color: var(--sb-gold);
+  font: bold var(--sb-fs-sm) var(--sb-font-display);
+}
+.learning-reply-kind { color: var(--sb-ink-secondary); font-size: var(--sb-fs-xs); letter-spacing: .06em; }
+.learning-reply-title { font-size: var(--sb-fs-lg); line-height: 1.5; font-weight: 700; margin-bottom: var(--sb-sp-2); }
+.learning-reply-line { display: block; margin-top: var(--sb-sp-1); }
+.learning-reply-body { line-height: 1.75; }
+.learning-reply-core, .learning-reply-route { border-color: var(--sb-gold-edge); background: var(--sb-pixel-gold); }
+.learning-reply-core .md-inline-code, .learning-reply-route .md-inline-code {
+  border: 1px solid var(--sb-gold-edge); color: var(--sb-gold);
+  background: var(--sb-bg); padding: 1px 5px; white-space: normal;
+}
+.learning-reply-step { border-left-color: var(--sb-ink-tertiary); }
+.learning-reply-example { border-left-color: var(--sb-primary); }
+.learning-reply-pitfall { border-left-color: var(--sb-danger); }
+.learning-reply-pitfall .learning-reply-mark { color: var(--sb-danger); border-color: var(--sb-primary); }
+.learning-reply-check { border-left-color: var(--sb-success); background: var(--sb-pixel-green); }
+.learning-reply-check .learning-reply-mark { color: var(--sb-success); border-color: var(--sb-success); }
+@keyframes learning-reply-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (max-width: 600px) {
+  .learning-reply-card { padding: var(--sb-sp-3); }
+  .learning-reply-title { font-size: var(--sb-fs-md); }
+}
+@media (prefers-reduced-motion: reduce) { .learning-reply-card { animation: none; } }

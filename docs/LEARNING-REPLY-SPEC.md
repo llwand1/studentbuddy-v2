@@ -54,6 +54,8 @@ SVG 不再把纯黑/纯白改成夜间主题色。预览、放大和下载使用
 
 工具轮回灌的 assistant 消息保留该轮真实输出的 turnText，并计入工具回灌预算；不能用空字符串抹掉模型已经讲过的内容，否则后续轮不知道学生看过哪些解释，重复讲解。同一份正文继续正常流式上屏与最终落库，不事后改写。
 
+若本轮工具调用前已经输出 CORE/ROUTE 卡，在同一偏好消息尾部追加一次已交付提示，后续续写而不重开结论/路线卡；增加的文本计入工具预算。只检测当前轮输出，不把历史卡片当成本轮已讲过。简短限制作用于整轮，短讲解不额外查询维护词条；明确操作与必要检索按原流程。
+
 普通符号仍是首选；为模型偶尔产生的 `$...$` / `$$...$$` 增加安全公式条，支持常见乘除、分数、根号、上下标、希腊字母及文字/方框命令转为可读符号。不增加公式依赖，不是完整 LaTeX 渲染器；未知命令或坏括号整式回退源码，显示格式说明，不能删掉未知命令猜结果。代码围栏不解析公式，复杂源码可展开。流式未闭合显示占位，历史与完整流式同源。
 
 参考：[Brilliant 的图文互动学习](https://brilliant.org/)、[Anthropic Artifacts](https://www.anthropic.com/news/artifacts)、[GitHub Markdown Alerts](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts)。本项目只借鉴语义卡片与图文相邻的表现，不复制品牌或新增任意 HTML 注入。`chat.turn` 提示词版本 5→6。

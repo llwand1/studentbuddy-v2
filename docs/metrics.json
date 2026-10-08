@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T08:21:52.350Z",
+  "generatedAt": "2026-10-08T08:32:51.613Z",
   "code": {
     "rows": [
       {
@@ -13,8 +13,8 @@
         "pkg": "server",
         "srcFiles": 290,
         "testFiles": 197,
-        "srcLines": 40223,
-        "testLines": 37296
+        "srcLines": 40229,
+        "testLines": 37306
       },
       {
         "pkg": "web",
@@ -26,8 +26,8 @@
     ],
     "srcFiles": 699,
     "testFiles": 393,
-    "srcLines": 92104,
-    "testLines": 62051,
+    "srcLines": 92110,
+    "testLines": 62061,
     "tsxTestFiles": 72
   },
   "routes": {
@@ -85,16 +85,16 @@
     "probes": 15
   },
   "repo": {
-    "head": "5b81d49",
+    "head": "4d6f52d",
     "headDate": "2026-10-08",
-    "commitsLast14d": 282,
+    "commitsLast14d": 283,
     "branch": "feat/answer-cards-white-diagrams",
-    "dirtyFiles": 11
+    "dirtyFiles": 6
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 71.7,
+    "wallSec": 52,
     "staleDays": 0,
     "files": 393,
     "cases": 4498,

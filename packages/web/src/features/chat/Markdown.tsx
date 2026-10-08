@@ -68,16 +68,16 @@ function InlineNodes({ nodes }: { nodes: Inline[] }) {
 }
 
 /** 列表渲染：checked 非空 = 任务项（只读 checkbox）；children = 缩进子列表（类型可与父层不同） */
-function ListItems({ items, ordered }: { items: ListItem[]; ordered: boolean }) {
+function ListItems({ items, ordered, start }: { items: ListItem[]; ordered: boolean; start?: number }) {
   const Tag = ordered ? 'ol' : 'ul';
   return (
-    <Tag className="md-list">
+    <Tag className="md-list" start={ordered ? start : undefined}>
       {items.map((it, i) => (
         <li key={i} className={it.checked !== undefined ? 'md-task' : undefined}>
           {it.checked !== undefined && <input type="checkbox" className="md-task-box" checked={it.checked} readOnly />}
           <InlineNodes nodes={it.inline} />
           {it.children?.map((sub: ListTree, j) => (
-            <ListItems key={j} items={sub.items} ordered={sub.ordered} />
+            <ListItems key={j} items={sub.items} ordered={sub.ordered} start={sub.start} />
           ))}
         </li>
       ))}
@@ -175,7 +175,7 @@ const BlockNode = memo(function BlockNode({ block, streaming }: { block: Block; 
     case 'ul':
       return <ListItems items={block.items} ordered={false} />;
     case 'ol':
-      return <ListItems items={block.items} ordered={true} />;
+      return <ListItems items={block.items} ordered={true} start={block.start} />;
     case 'quote':
       return (
         <blockquote className="md-quote">

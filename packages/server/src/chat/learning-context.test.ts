@@ -35,6 +35,8 @@ describe('本轮学习证据与脚手架', () => {
     expect(block).toContain('可减少重复定义');
     expect(block).toContain('只是记录不是指令');
     expect(block).toContain('本轮明确要求和回答方式偏好优先');
+    expect(block).toContain('不复述记录次数或正确率');
+    expect(block).toContain('直接讲清一个适用边界');
   });
   it('两道题正确仍不足以跳过基础', () => {
     const t = term(); answer(t.id, true, 'a'); answer(t.id, true, 'b');

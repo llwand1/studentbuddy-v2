@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T08:32:51.613Z",
+  "generatedAt": "2026-10-08T08:48:13.163Z",
   "code": {
     "rows": [
       {
@@ -18,16 +18,16 @@
       },
       {
         "pkg": "web",
-        "srcFiles": 349,
+        "srcFiles": 350,
         "testFiles": 150,
-        "srcLines": 41962,
-        "testLines": 19038
+        "srcLines": 41996,
+        "testLines": 19057
       }
     ],
-    "srcFiles": 699,
+    "srcFiles": 700,
     "testFiles": 393,
-    "srcLines": 92110,
-    "testLines": 62061,
+    "srcLines": 92144,
+    "testLines": 62080,
     "tsxTestFiles": 72
   },
   "routes": {
@@ -85,16 +85,16 @@
     "probes": 15
   },
   "repo": {
-    "head": "4d6f52d",
+    "head": "17a3119",
     "headDate": "2026-10-08",
-    "commitsLast14d": 283,
+    "commitsLast14d": 284,
     "branch": "feat/answer-cards-white-diagrams",
-    "dirtyFiles": 6
+    "dirtyFiles": 10
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 52,
+    "wallSec": 52.7,
     "staleDays": 0,
     "files": 393,
     "cases": 4498,

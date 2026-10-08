@@ -120,6 +120,23 @@ describe('安全净化 sanitizeSvg（白名单 DOM 路径）', () => {
     expect(root.getAttribute('color')).toBe('#20242c');
     expect(out).not.toContain('evil()');
     expect(root.querySelector('style')?.textContent).toContain('data-sb-scope');
+    const descriptor = Object.getOwnPropertyDescriptor(SVGElement.prototype, 'getBBox');
+    const children = document.body.childElementCount;
+    try {
+      Object.defineProperty(SVGElement.prototype, 'getBBox', { configurable: true, value: () => ({ x: 0, y: 0, width: 250, height: 100 }) });
+      const expanded = prepareSvg('<svg viewBox="0 0 200 100" height="100"><text x="230">边缘</text></svg>');
+      expect(expanded).toContain('viewBox="0 0 258 100"');
+      const twice = new DOMParser().parseFromString(prepareSvg(expanded), 'image/svg+xml').documentElement;
+      expect(twice.querySelectorAll('rect')).toHaveLength(1);
+      expect(twice.firstElementChild?.getAttribute('width')).toBe('258');
+      expect(twice.hasAttribute('height')).toBe(false);
+      Object.defineProperty(SVGElement.prototype, 'getBBox', { configurable: true, value: () => { throw new Error('measurement unavailable'); } });
+      expect(prepareSvg('<svg viewBox="0 0 200 100"><text>原图</text></svg>')).toContain('viewBox="0 0 200 100"');
+      expect(document.body.childElementCount).toBe(children);
+    } finally {
+      if (descriptor) Object.defineProperty(SVGElement.prototype, 'getBBox', descriptor);
+      else Reflect.deleteProperty(SVGElement.prototype, 'getBBox');
+    }
   });
 
   it('没有 <svg> 根的输入净化为空串（卡片走「无法解析」降级，不注入任何东西）', () => {

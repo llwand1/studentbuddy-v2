@@ -4,6 +4,7 @@ import { readableMath } from './math-text';
 describe('常见公式展示', () => {
   it('转为可读符号并保持分数与上下标分组，未知或坏语法整式回退', () => {
     expect(readableMath('\\boxed{x = 16 \\div 2}')).toBe('x = 16 ÷ 2');
+    expect(readableMath('\\Rightarrow x = \\frac{16}{2}')).toBe('⇒ x = (16)/(2)');
     expect(readableMath('F_{\\text{合}} = m \\cdot a')).toBe('F_合 = m · a');
     expect(readableMath('F_{\\text{合外}} = m \\cdot a')).toBe('F_(合外) = m · a');
     expect(readableMath('\\frac{a+b}{\\sqrt{x^{2}}}')).toBe('(a+b)/(√(x^2))');
@@ -19,6 +20,7 @@ describe('常见公式展示', () => {
     expect(parseBlocks('```text\n$$x=8$$\n```')[0]?.kind).toBe('code');
     expect(JSON.stringify(parseBlocks('$$x=8$$ 后面的解释'))).toContain('后面的解释');
     expect(parseInline('价格 $20 / $30').some(n=>n.t==='math')).toBe(false);
+    expect(parseInline('$-6 + 4$ 与 $-2$ 与 $8$').filter(n=>n.t==='math')).toHaveLength(3);
   });
 });
 

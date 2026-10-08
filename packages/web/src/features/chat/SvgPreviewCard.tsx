@@ -15,6 +15,7 @@ export function SvgPreviewCard({ code, streaming }: { code: string; streaming: b
 
   const safe = useMemo(() => prepareSvg(code), [code]);
   const { w, h } = useMemo(() => parseSvgSize(code), [code]);
+  const wide = (parseSvgSize(safe).w ?? w ?? 0) > 420;
   const hasSvg = safe.includes('<svg');
 
   const copy = async () => {
@@ -70,11 +71,11 @@ export function SvgPreviewCard({ code, streaming }: { code: string; streaming: b
         <div className="chat-svg-body">
           {/* 唯一注入点：内容已过 sanitizeSvg */}
           <div
-            className={w !== null && w > 420 ? 'chat-svg-canvas chat-svg-canvas-wide' : 'chat-svg-canvas'}
+            className={wide ? 'chat-svg-canvas chat-svg-canvas-wide' : 'chat-svg-canvas'}
             role="region" aria-label="SVG 图面" tabIndex={0}
             dangerouslySetInnerHTML={{ __html: safe }}
           />
-          {w !== null && w > 420 && <p className="chat-svg-hint">横向滑动查看全图 · 点「放大」查看细节</p>}
+          {wide && <p className="chat-svg-hint">横向滑动查看全图 · 点「放大」查看细节</p>}
         </div>
       )}
 

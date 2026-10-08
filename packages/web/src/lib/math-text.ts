@@ -1,7 +1,7 @@
 /** 常见教学公式转为可读符号；未知命令/残缺括号整式回退，不猜数学含义。 */
 const SYMBOLS: Record<string, string> = {
   times: '×', cdot: '·', div: '÷', pm: '±', le: '≤', leq: '≤', ge: '≥', geq: '≥',
-  neq: '≠', approx: '≈', infty: '∞', to: '→', rightarrow: '→', sum: '∑', int: '∫',
+  neq: '≠', approx: '≈', infty: '∞', to: '→', rightarrow: '→', Rightarrow: '⇒', Leftrightarrow: '⇔', sum: '∑', int: '∫',
   alpha: 'α', beta: 'β', gamma: 'γ', theta: 'θ', pi: 'π', Delta: 'Δ', lambda: 'λ',
   mu: 'μ', sigma: 'σ', rho: 'ρ', omega: 'ω',
 };

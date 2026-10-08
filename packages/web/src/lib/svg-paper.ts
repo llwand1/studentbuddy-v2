@@ -1,4 +1,5 @@
 import { SVG_NS } from './svg-allowlist';
+import { fitSvgBounds } from './svg-bounds';
 
 /** 独立 SVG 也能读：主题变量实体化，不依赖宿主的夜间主题。 */
 const PAPER_COLORS: Record<string, string> = {
@@ -18,6 +19,8 @@ export function paperSvg(safe: string): string {
   if (root.localName !== 'svg' || doc.querySelector('parsererror')) return '';
   root.setAttribute('color', PAPER_COLORS.ink ?? '#20242c');
   if (!root.hasAttribute('fill')) root.setAttribute('fill', PAPER_COLORS.ink ?? '#20242c');
+  if (!root.hasAttribute('font-family')) root.setAttribute('font-family', 'sans-serif');
+  fitSvgBounds(root);
   const box = (root.getAttribute('viewBox') ?? '').trim().split(/[\s,]+/).map(Number);
   const hasBox = box.length === 4 && box.every(Number.isFinite) && (box[2] ?? 0) > 0 && (box[3] ?? 0) > 0;
   const coords = hasBox ? box.map(String) : ['0', '0', '100%', '100%'];

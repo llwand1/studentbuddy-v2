@@ -146,7 +146,7 @@ export function collectContextSegments(inputs: ContextInputs): CollectedContext 
     // 表达偏好段：保留四维设置，并按 LEARNING-REPLY 追加本轮知识讲解结构。
     // 它**恒非空**（至少含 scope 那句），故无需条件判断——空内容段会在下面被统一剔除。
     // ★ `app_settings` 归主（v30）⇒ 必须带 `ownerId`——不带就会读到**别人的**口吻偏好。
-    { kind: 'style', content: buildChatStyleBlock(loadAnswerStyle(ownerId ?? null)) },
+    { kind: 'style', content: buildChatStyleBlock(loadAnswerStyle(ownerId ?? null), text) },
     // 番茄钟方向段（契约 POMODORO-SPEC §5.1）：工作段才有、休息段为 ''。排在偏好之后、记忆之前——
     // 它讲的是「这半小时在学什么」，属于回答口径而不是事实材料。
     { kind: 'focus', content: buildFocusBlock(loadPomodoro(ownerId ?? null)) },

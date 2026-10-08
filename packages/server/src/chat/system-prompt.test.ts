@@ -40,6 +40,10 @@ describe('普通对话学习结构', () => {
     for (const line of ['一句话给核心结论', '关键词：', '为什么这样做', '如何接下一步', '图配在对应解释旁']) expect(block).toContain(line);
     expect(block).toContain('计算题开篇先给求解路线，不先报最终数值');
     expect(block).toContain('把结果与代入验算放在一起');
+    const calculation = buildChatStyleBlock(DEFAULT_ANSWER_STYLE, '解方程 2(x-3)+4=14。');
+    expect(calculation).toContain('开篇只给求解路线');
+    expect(calculation).not.toContain('先用一句话给核心结论');
+    expect(buildChatStyleBlock(DEFAULT_ANSWER_STYLE, '什么是计算机？')).toContain('先用一句话给核心结论');
   });
   it('引导式、闲聊和短回答不被统一模板覆盖', () => {
     const brief = buildChatStyleBlock({ ...DEFAULT_ANSWER_STYLE, verbosity: 'brief' });

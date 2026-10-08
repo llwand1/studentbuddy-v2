@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T08:52:45.878Z",
+  "generatedAt": "2026-10-08T09:30:25.453Z",
   "code": {
     "rows": [
       {
@@ -20,14 +20,14 @@
         "pkg": "web",
         "srcFiles": 350,
         "testFiles": 150,
-        "srcLines": 41996,
-        "testLines": 19057
+        "srcLines": 42000,
+        "testLines": 19073
       }
     ],
     "srcFiles": 700,
     "testFiles": 393,
-    "srcLines": 92144,
-    "testLines": 62080,
+    "srcLines": 92148,
+    "testLines": 62096,
     "tsxTestFiles": 72
   },
   "routes": {
@@ -85,16 +85,16 @@
     "probes": 15
   },
   "repo": {
-    "head": "3b33566",
+    "head": "4bb6e8b",
     "headDate": "2026-10-08",
-    "commitsLast14d": 285,
-    "branch": "feat/answer-cards-white-diagrams",
-    "dirtyFiles": 3
+    "commitsLast14d": 280,
+    "branch": "fix/standalone-learning-card-headings",
+    "dirtyFiles": 0
   },
   "tests": {
     "available": true,
-    "ranNow": false,
-    "wallSec": 0,
+    "ranNow": true,
+    "wallSec": 48.5,
     "staleDays": 0,
     "files": 393,
     "cases": 4498,
@@ -145,14 +145,14 @@
     },
     {
       "label": "badge 版本",
-      "claimed": "0.2.169",
-      "measured": "0.2.169",
+      "claimed": "0.2.170",
+      "measured": "0.2.170",
       "ok": true
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.169",
-      "measured": "v0.2.169",
+      "claimed": "v0.2.170",
+      "measured": "v0.2.170",
       "ok": true
     },
     {

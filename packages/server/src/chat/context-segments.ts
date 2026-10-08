@@ -190,9 +190,10 @@ export function countSegmentTokens(segments: ContextSegment[]): number {
 export function assembleContextMessages(
   segments: ContextSegment[],
   history: ChatMessage[],
-): { messages: ChatMessage[]; nudgeMsg: ChatMessage | null } {
+): { messages: ChatMessage[]; nudgeMsg: ChatMessage | null; styleMsg: ChatMessage | null } {
   const messages: ChatMessage[] = [{ role: 'system', content: SYSTEM_PROMPT }, ...history];
   let nudgeMsg: ChatMessage | null = null;
+  let styleMsg: ChatMessage | null = null;
   let headCount = 0;
   for (const seg of segments) {
     if (!seg.content) continue;
@@ -206,6 +207,7 @@ export function assembleContextMessages(
       messages.push(msg);
     }
     if (REMOVABLE_KINDS.has(seg.kind)) nudgeMsg = msg;
+    if (seg.kind === 'style') styleMsg = msg;
   }
-  return { messages, nudgeMsg };
+  return { messages, nudgeMsg, styleMsg };
 }

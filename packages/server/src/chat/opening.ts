@@ -89,3 +89,17 @@ export function dropOpening(messages: ChatMessage[], opening: Opening): void {
   const i = messages.indexOf(opening.msg);
   if (i >= 0) messages.splice(i, 1);
 }
+
+/** 工具后释放一次性开场约束，把本轮偏好移到结果后；复用原对象，不重复占预算。 */
+export function finishToolRound(
+  messages: ChatMessage[], opening: Opening, nudge: ChatMessage | null,
+  style: ChatMessage | null, turn: number,
+): void {
+  if (turn === 0) {
+    const i = nudge ? messages.indexOf(nudge) : -1;
+    if (i >= 0) messages.splice(i, 1);
+    dropOpening(messages, opening);
+  }
+  const i = style ? messages.indexOf(style) : -1;
+  if (i >= 0) messages.push(...messages.splice(i, 1));
+}

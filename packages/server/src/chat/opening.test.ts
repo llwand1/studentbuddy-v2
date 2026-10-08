@@ -11,10 +11,29 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatMessage } from '../llm/types.js';
 import { GRILL_PRE, GRILL_TOOL_CHOICE } from './grill.js';
-import { SEARCH_FORCE, SEARCH_TOOL_CHOICE, buildOpening, dropOpening } from './opening.js';
+import { SEARCH_FORCE, SEARCH_TOOL_CHOICE, buildOpening, dropOpening, finishToolRound } from './opening.js';
 
 /** 指令消息的文本（content 类型是 `string | ContentPart[]`，本层恒为纯文本） */
 const textOf = (msg: ChatMessage | null): string => String(msg?.content ?? '');
+
+it('工具结果后偏好按引用移到末尾，多轮不重复，开场约束只摘一次', () => {
+  const o = buildOpening({ grill: false, online: true });
+  const style: ChatMessage = { role: 'system', content: '本轮学习回复' };
+  const nudge: ChatMessage = { role: 'system', content: '首轮提示' };
+  const user: ChatMessage = { role: 'user', content: '问题' };
+  const tool: ChatMessage = { role: 'tool', content: '检索结果', toolCallId: 't' };
+  const messages: ChatMessage[] = [user, style, nudge, o.msg!, tool];
+  finishToolRound(messages, o, nudge, style, 0);
+  expect(messages).toEqual([user, tool, style]);
+  const next: ChatMessage = { role: 'tool', content: '后续结果', toolCallId: 't2' };
+  messages.push(next);
+  finishToolRound(messages, o, nudge, style, 1);
+  expect(messages).toEqual([user, tool, next, style]);
+  expect(messages.filter((m) => m === style)).toHaveLength(1);
+  const missing = [...messages];
+  finishToolRound(messages, o, null, null, 2);
+  expect(messages).toEqual(missing);
+});
 
 describe('buildOpening（开关 → 指令 + 首轮强绑）', () => {
   it('两个开关都关 → 不注入消息、不干预模型（auto）', () => {

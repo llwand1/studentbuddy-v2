@@ -33,6 +33,13 @@ export const RELEASE_SCOPE = {
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
   {
+    version: 'v0.2.168', date: '2026-10-08', headline: '联网后的讲解保留学习结构',
+    items: [
+      '搜索、读取资料或绘图后，最终讲解继续遵从当前回答偏好与学习结构。',
+      '本轮表达规则在工具结果后保持有效，不增加模型调用或重复占用上下文。',
+    ],
+  },
+  {
     version: 'v0.2.167', date: '2026-10-08', headline: '学习回复先给结论，步骤说明原因',
     items: [
       '知识讲解先给核心结论与关键词；计算题先给求解路线，结果和验算一起给。每步说明做法、原因和所得结果。',

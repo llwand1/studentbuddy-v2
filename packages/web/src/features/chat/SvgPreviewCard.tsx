@@ -69,7 +69,12 @@ export function SvgPreviewCard({ code, streaming }: { code: string; streaming: b
       ) : (
         <div className="chat-svg-body">
           {/* 唯一注入点：内容已过 sanitizeSvg */}
-          <div className="chat-svg-canvas" dangerouslySetInnerHTML={{ __html: safe }} />
+          <div
+            className={w !== null && w > 420 ? 'chat-svg-canvas chat-svg-canvas-wide' : 'chat-svg-canvas'}
+            role="region" aria-label="SVG 图面" tabIndex={0}
+            dangerouslySetInnerHTML={{ __html: safe }}
+          />
+          {w !== null && w > 420 && <p className="chat-svg-hint">横向滑动查看全图 · 点「放大」查看细节</p>}
         </div>
       )}
 

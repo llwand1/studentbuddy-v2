@@ -50,6 +50,7 @@ describe('普通对话学习结构', () => {
     expect(SYSTEM_PROMPT).toContain('至少 16px');
     expect(ordinary).toContain('不用 generate_image 或搜索图片代替');
     expect(ordinary).toContain('绝不编造 /api/images/ 地址');
+    expect(ordinary).toContain('收尾邀请直接写一句，不用 ask_choice');
   });
   it('知识讲解结论先行、关键词定位、步骤解释原因与结果', () => {
     const block = buildChatStyleBlock(DEFAULT_ANSWER_STYLE);

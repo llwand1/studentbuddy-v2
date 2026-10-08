@@ -186,4 +186,3 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | [`CHANGELOG.md`](CHANGELOG.md) | 已发布版本的对外更新记录 |
 
 ★ 完整契约清单（42 份 SPEC）直接看 `docs/` 目录。仓内以 `docs/` 与代码为准；文档与实现冲突时**以代码 + 测试为准**。
-

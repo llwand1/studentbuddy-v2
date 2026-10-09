@@ -1,10 +1,10 @@
 StudentBuddy Windows 本地版
 
-从开始菜单启动 StudentBuddy，默认浏览器会自动打开应用。
+从开始菜单启动 StudentBuddy，会打开应用窗口。
 第一次使用请在设置里配置自己的 AI 服务商与模型。
-窗口关闭后，服务仍在托盘运行；右键托盘图标可打开应用或退出。
+关闭窗口后，服务仍在托盘运行；右键托盘图标可打开应用或退出。
 
-支持 Windows 10/11 x64，无需另装 Node 或 npm。
+支持 Windows 10/11 x64，无需另装 Node 或 npm。应用窗口依赖系统自带的 WebView2 运行时（Windows 11、以及装过 Edge 的 Windows 10 自带）；若运行时缺失，会改用默认浏览器打开并在日志说明原因。
 学习数据使用既有 studentbuddy-v2 数据目录，升级和卸载不会删除学习数据。
 启动日志：%LOCALAPPDATA%\StudentBuddy\desktop.log
 

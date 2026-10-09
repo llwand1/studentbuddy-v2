@@ -23,7 +23,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-10-09 09:59:25（本机时区）｜ 基准 `30f2328` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-09 10:00:52（本机时区）｜ 基准 `621be95` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
@@ -31,8 +31,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 |---|---|---|---|---|---|
 | shared | 61 | 10,003 | 46 | 5,717 | 57% |
 | server | 295 | 40,365 | 198 | 37,423 | 93% |
-| web | 350 | 42,017 | 150 | 19,073 | 45% |
-| **合计** | **706** | **92,385** | **394** | **62,213** | **67%** |
+| web | 351 | 42,026 | 150 | 19,073 | 45% |
+| **合计** | **707** | **92,394** | **394** | **62,213** | **67%** |
 
 ## 接口与契约
 
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 54 份 · md 共 72 份 · 真机探针 15 个
-- git：feat/reply-practice @ `30f2328`（2026-10-08）· 近 14 天 280 commits · 工作区未提交 33 文件
+- git：feat/reply-practice @ `621be95`（2026-10-09）· 近 14 天 281 commits · 工作区未提交 2 文件
 
 <!-- metrics:end -->
 

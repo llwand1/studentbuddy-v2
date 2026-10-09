@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T01:59:24.768Z",
+  "generatedAt": "2026-10-09T02:00:52.003Z",
   "code": {
     "rows": [
       {
@@ -18,15 +18,15 @@
       },
       {
         "pkg": "web",
-        "srcFiles": 350,
+        "srcFiles": 351,
         "testFiles": 150,
-        "srcLines": 42017,
+        "srcLines": 42026,
         "testLines": 19073
       }
     ],
-    "srcFiles": 706,
+    "srcFiles": 707,
     "testFiles": 394,
-    "srcLines": 92385,
+    "srcLines": 92394,
     "testLines": 62213,
     "tsxTestFiles": 72
   },
@@ -85,11 +85,11 @@
     "probes": 15
   },
   "repo": {
-    "head": "30f2328",
-    "headDate": "2026-10-08",
-    "commitsLast14d": 280,
+    "head": "621be95",
+    "headDate": "2026-10-09",
+    "commitsLast14d": 281,
     "branch": "feat/reply-practice",
-    "dirtyFiles": 33
+    "dirtyFiles": 2
   },
   "tests": {
     "available": true,

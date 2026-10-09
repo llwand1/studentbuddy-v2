@@ -9,11 +9,12 @@ const network = vi.hoisted(() => ({
   send: vi.fn(async () => ({ ok: true })),
   regenerate: vi.fn(async () => ({ ok: true })),
   resend: vi.fn(async () => ({ ok: true })),
+  messages: vi.fn(async () => []),
 }));
 vi.mock('../../lib/api', () => ({
   ApiError: Error,
   api: {
-    sessions: { messages: async () => [] },
+    sessions: { messages: network.messages },
     choices: { pending: async () => [] },
     pkInvites: { pending: async () => [] },
     chat: { send: network.send, regenerate: network.regenerate, resend: network.resend },
@@ -43,6 +44,21 @@ async function mount() {
 }
 
 describe('对话真实 hook 的轮完成边界', () => {
+  it('SSE 先连接时仍等待历史，切会话与迟到历史不冒充已确认的空态', async () => {
+    let first = () => {}, second = () => {};
+    network.messages.mockImplementationOnce(() => new Promise<[]>(resolve => { first = () => resolve([]); }));
+    network.messages.mockImplementationOnce(() => new Promise<[]>(resolve => { second = () => resolve([]); }));
+    const h = renderHook(({ id }) => useChatStream(id), { initialProps: { id: 'first' } });
+    expect(h.result.current.ready).toBe('open');
+    expect(h.result.current.historyReady).toBe(false);
+    h.rerender({ id: 'second' });
+    await act(async () => first());
+    expect(h.result.current.historyReady).toBe(false);
+    await act(async () => { expect((await h.result.current.send('不要抢在历史前发送')).ok).toBe(false); });
+    await act(async () => second());
+    expect(h.result.current.historyReady).toBe(true);
+    expect(network.send).not.toHaveBeenCalled();
+  });
   it('收尾步骤和任务不会重新锁输入区，下一轮与错误状态仍正常', async () => {
     const h = await mount();
     act(() => { network.emit(start()); network.emit(done()); network.emit(step('running')); });

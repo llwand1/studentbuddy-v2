@@ -1,8 +1,9 @@
-> 2026-10-09 营地入场：仅新增 2 个本地回归用例；无模型评测或线上 AI 调用。
+> 2026-10-09 营地入场：仅新增 3 个本地回归用例；无模型评测或线上 AI 调用。
 >
 > | 本批测试文件 | 用例 | 不变量 |
 > |---|---:|---|
 > | `packages/web/src/features/chat/Welcome.test.tsx` | +2 | 两侧营灯/遗迹独立开关不召题；跳过入场保留本次题、中途减少动态效果立即可答 |
+> | `packages/web/src/features/chat/useChatStream.activity.test.tsx` | +1 | SSE 先连接、历史慢载与切会话迟到不能冒充已确认空态或放行发送 |
 
 > 2026-10-09 手机阅读与可调分屏：仅新增 5 例，不新增模型评测或线上 AI 调用。
 >
@@ -36,7 +37,7 @@
 > | `packages/server/src/chat/grill-scope.test.ts` | 4 | 当前账号应试开关/空范围闸门；自定义目标作为数据；真实上下文装配与首轮后保留 |
 > | `packages/server/src/chat/exam-scope-action.test.ts` | 4 | 明确修改读后提交计划；grill/联网开场优先；只读、咨询、拒绝不重复强绑；参数纠正最多一次 |
 > | `packages/web/src/features/chat/useGrillChoice.test.tsx` | 5 | 发送/重跑/编辑/收尾携带范围；空主题零副作用；会话切换与首次建会话；三项选择和忙碌禁用 |
-> | `packages/web/src/features/chat/useChatStream.activity.test.tsx` | 5 | 真实流 hook：done 后收尾步骤不重启 busy；下一轮及停止边界；正文排空不丢字；发送/重跑/编辑的迟到回执不覆盖完成态 |
+> | `packages/web/src/features/chat/useChatStream.activity.test.tsx` | 6 | 真实流 hook：done 后收尾步骤不重启 busy；下一轮及停止边界；正文排空不丢字；发送/重跑/编辑的迟到回执不覆盖完成态；历史与会话匹配后才确认空态或允许发送 |
 > | `packages/web/src/features/chat/tool-step.test.ts` | 2 | 白名单工具完成强制刷新共享范围；挂起和其它工具不刷新；原过程卡正常折叠 |
 > | `packages/web/src/features/exam/exam-refresh.test.ts` | 1 | 旧读取在途时工具触发的强刷不能被吞；重复通知合并，最终缓存为新配置 |
 > | `packages/server/src/routes/chat-send.test.ts` | +1 | 三条请求路径传递范围；非法范围 400 时旧消息及旧回答保留 |
@@ -440,7 +441,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，如实记录）**：本次在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（现基线：395 文件 / 4517 例，4515 passed + 2 skipped，2026-10-09 交互营地入场全量实跑）
+## 3. 用例清单（现基线：395 文件 / 4518 例，4516 passed + 2 skipped，2026-10-09 交互营地入场全量实跑）
 
 | 新增测试 | 用例 | 不变量 |
 |---|---:|---|

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T06:21:31.270Z",
+  "generatedAt": "2026-10-09T06:37:28.390Z",
   "code": {
     "rows": [
       {
@@ -20,14 +20,14 @@
         "pkg": "web",
         "srcFiles": 359,
         "testFiles": 151,
-        "srcLines": 42441,
-        "testLines": 19302
+        "srcLines": 42446,
+        "testLines": 19318
       }
     ],
     "srcFiles": 715,
     "testFiles": 395,
-    "srcLines": 92809,
-    "testLines": 62442,
+    "srcLines": 92814,
+    "testLines": 62458,
     "tsxTestFiles": 73
   },
   "routes": {
@@ -85,11 +85,11 @@
     "probes": 15
   },
   "repo": {
-    "head": "64166de",
+    "head": "b450fae",
     "headDate": "2026-10-09",
-    "commitsLast14d": 283,
+    "commitsLast14d": 284,
     "branch": "feat/campfire-entrance174",
-    "dirtyFiles": 20
+    "dirtyFiles": 8
   },
   "tests": {
     "available": true,
@@ -97,8 +97,8 @@
     "wallSec": 0,
     "staleDays": 0,
     "files": 395,
-    "cases": 4517,
-    "passed": 4515,
+    "cases": 4518,
+    "passed": 4516,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -115,8 +115,8 @@
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4517",
-      "measured": "4517",
+      "claimed": "4518",
+      "measured": "4518",
       "ok": true
     },
     {
@@ -157,8 +157,8 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "395 文件 / 4517 例",
-      "measured": "395 文件 / 4517 例",
+      "claimed": "395 文件 / 4518 例",
+      "measured": "395 文件 / 4518 例",
       "ok": true
     }
   ],

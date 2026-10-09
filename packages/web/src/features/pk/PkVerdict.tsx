@@ -7,6 +7,7 @@
  * ★ 图标是自绘 SVG 线条（本仓规矩：**禁 emoji 当图标**），24×24 viewBox、`stroke` 描边，
  *   与全局 line-icon 同一套手感。
  */
+import { AnswerImpact } from '../feedback/AnswerImpact';
 interface Props {
   /** `info` = 中性提示（错误原因／「已出类似题」这类），**不参与对错动画**——不能拿红叉配一句「求助失败」 */
   kind: 'correct' | 'wrong' | 'timeout' | 'info';
@@ -24,7 +25,8 @@ const ICON_PATH: Record<Props['kind'], string> = {
 
 export function PkVerdict({ kind, text }: Props) {
   return (
-    <div className={`sb-pk-verdict-flash ${kind}`} role="status" aria-live="polite">
+    <div className={`sb-pk-verdict-flash answer-surface ${kind}`} role="status" aria-live="polite">
+      {kind !== 'info' && <AnswerImpact verdict={kind === 'timeout' ? 'review' : kind} />}
       <svg className="sb-pk-verdict-icon" viewBox="0 0 24 24" aria-hidden="true">
         <circle className="sb-pk-verdict-ring" cx="12" cy="12" r="9.5" />
         <path className="sb-pk-verdict-mark" d={ICON_PATH[kind]} />

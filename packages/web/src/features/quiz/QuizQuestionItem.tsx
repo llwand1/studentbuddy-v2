@@ -7,6 +7,7 @@ import { fillCount, optionsFor, reviewAttempt } from './quiz-attempt';
 import { aiOpsApi, answerQType } from '../../lib/api-ai-ops';
 import { AiGradeNote } from './AiGradeNote';
 import { FillBlank } from './FillBlank';
+import { AnswerImpact } from '../feedback/AnswerImpact';
 
 function QuizPhotoFigure({ photo }: { photo: NonNullable<QuizQuestion['photo']> }) {
   return (
@@ -47,7 +48,8 @@ export function QuizQuestionItem({ q, index, onComplete, topic, last }: {
     }
   };
   return (
-    <section className={`quiz-q${result ? ` is-${result.verdict}` : ''}`} aria-label={`第 ${index + 1} 题`}>
+    <section className={`quiz-q answer-surface${result ? ` is-${result.verdict}` : ''}`} aria-label={`第 ${index + 1} 题`}>
+      {result && <AnswerImpact verdict={result.verdict} audible />}
       {/* 自包含（QUIZ-COMPLETE-SPEC §6）：题干依赖的材料与原图排在题干**之前**，读法顺序＝先材料、再问题 */}
       {q.material && <blockquote className="quiz-q-material" aria-label="材料">{q.material}</blockquote>}
       {q.photo?.essential && <QuizPhotoFigure photo={q.photo} />}

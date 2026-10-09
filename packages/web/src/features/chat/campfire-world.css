@@ -17,13 +17,11 @@
 .cw-near { fill: var(--sb-surface); }
 .cw-path { position: absolute; bottom: 0; width: 100%; height: 25%; opacity: .3; clip-path: polygon(39% 100%, 61% 100%, 54% 0, 46% 0); background: repeating-linear-gradient(0deg, var(--sb-gold-edge) 0 2px, transparent 2px 26px); }
 /* Native 96 × 144 architecture, at about 2×; the sprites have transparent margins. */
-.cw-waypoint { display: none; position: absolute; top: max(17%, 60px); width: 192px; padding: 0; pointer-events: auto; color: var(--sb-ink-tertiary); transform: translateX(-50%); animation: cw-land-in 1200ms steps(8) 180ms backwards; }
+.cw-waypoint { display: none; position: absolute; top: max(17%, 60px); width: 192px; padding: 0; pointer-events: none; color: var(--sb-ink-tertiary); transform: translateX(-50%); visibility: hidden; opacity: 0; transition: opacity 300ms steps(8), visibility 0s 300ms; }
 .cw-left { left: calc((100% - 760px) / 4); }
-.cw-right { left: calc(100% - (100% - 760px) / 4); animation-delay: 320ms; }
+.cw-right { left: calc(100% - (100% - 760px) / 4); }
 .cw-landmark { display: block; position: relative; width: 192px; height: 288px; }
 .cw-landmark img { display: block; width: 192px; height: 288px; image-rendering: pixelated; }
-.cw-left .cw-landmark { transform: translate(var(--cw-x), var(--cw-y)); }
-.cw-right .cw-landmark { transform: translate(calc(-1 * var(--cw-x)), var(--cw-y)); }
 .cw-waypoint-name { display: block; margin-top: 10px; font: 700 var(--sb-fs-sm) var(--sb-font-display); letter-spacing: 1px; color: var(--sb-ink-secondary); }
 .cw-waypoint-action { display: block; margin-top: 4px; font-size: var(--sb-fs-xs); color: var(--sb-ink-tertiary); }
 .cw-waypoint:hover .cw-waypoint-name, .cw-waypoint:focus-visible .cw-waypoint-name { color: var(--sb-gold); }
@@ -35,7 +33,7 @@
 .cw-waypoint:hover .cw-door-aura, .cw-waypoint:focus-visible .cw-door-aura { opacity: .2; }
 .cw-waypoint:hover .cw-door-spark, .cw-waypoint:focus-visible .cw-door-spark { animation: cw-portal-dust 2s steps(6) infinite; }
 .is-going-terms .cw-right .cw-door-aura, .is-going-continent .cw-left .cw-door-aura { opacity: .4; }
-.cw-shortcuts { display: flex; gap: 8px; width: 100%; max-width: 642px; margin: 20px auto 0; }
+.cw-shortcuts { display: flex; gap: 8px; width: 100%; max-width: 642px; max-height: 0; overflow: hidden; margin: 0 auto; visibility: hidden; opacity: 0; pointer-events: none; transition: opacity 240ms steps(6), max-height 300ms steps(8), margin 300ms steps(8), visibility 0s 240ms; }
 .cw-shortcut { display: grid; grid-template-columns: 20px 1fr; column-gap: 8px; text-align: left; flex: 1; min-width: 0; min-height: 56px; padding: 8px 10px; background: var(--sb-surface); border: 1px solid var(--sb-line); }
 .cw-shortcut svg { grid-row: span 2; align-self: center; color: var(--sb-gold-edge); }
 .cw-shortcut .cw-waypoint-name { margin: 0; font-size: var(--sb-fs-sm); letter-spacing: 0; }
@@ -52,6 +50,13 @@
 @container campfire (min-width: 1160px) { .cw-waypoint { display: block; } .cw-shortcuts { display: none; } }
 @container campfire (max-width: 700px) { .cw-horizon { opacity: .35; } .cw-sky i { opacity: .12; animation: none; } .cw-arrival span:nth-child(n+3) { display: none; } }
 .sb-shell.is-reading-focus .campfire-world { display: none; }
+.sb-shell.is-reading-focus .cw-shortcuts { display: none; }
+.sb-shell:has(> .sb-sidebar.is-collapsed):not(.is-reading-focus) :is(.cw-waypoint, .cw-shortcuts) { visibility: visible; opacity: 1; pointer-events: auto; transition-delay: 160ms, 160ms; }
+.sb-shell:has(> .sb-sidebar.is-collapsed):not(.is-reading-focus) .cw-shortcuts { max-height: 80px; margin-top: 20px; }
+@media (max-width: 700px) {
+  .sb-shell:has(> .sb-sidebar:not(.is-open)):not(.is-reading-focus) .cw-shortcuts { visibility: visible; opacity: 1; pointer-events: auto; max-height: 80px; margin-top: 20px; transition-delay: 100ms; }
+  .sb-shell:has(> .sb-sidebar.is-open) .cw-shortcuts { visibility: hidden; opacity: 0; pointer-events: none; transition-delay: 0s; }
+}
 @media (prefers-reduced-motion: reduce) {
   .campfire-world *, .campfire-world *::before, .campfire-world *::after { animation: none !important; transition: none !important; }
   .cw-landmark { transform: none !important; }

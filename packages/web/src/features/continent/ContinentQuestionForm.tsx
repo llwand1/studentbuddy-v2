@@ -40,7 +40,7 @@ export function correctText(q: ContinentQuestion): string {
 export function ContinentQuestionForm({ q, answer, onChange, onEnter }: Props) {
   const picks = q.type === 'match' && Array.isArray(answer) ? answer : [];
   return (
-    <div className="continent-q">
+    <div className="continent-q answer-surface">
       <p className="continent-q-type">{CONTINENT_QLABEL[q.type]}</p>
       {/* 情景题多一层"情境框"（照抄 demo 的 `SCENE_FRAME`）：它把题干放进一个场景里，
           其余作答手势与选择题完全一致——所以下面 options 与 choice 共用一段渲染 */}

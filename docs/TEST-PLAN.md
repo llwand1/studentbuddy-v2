@@ -1,3 +1,5 @@
+> 2026-10-09 导航场景与答题手感：新增 4 个普通回归用例（反馈层 3、题卡真实连续命中与重练 1）；既有热身和 AI 判定用例补断言，无模型评测或线上 AI 调用。
+
 > 2026-10-09 营地功能入口：仅新增 3 个普通回归用例；无模型评测或线上 AI 调用。
 >
 > | 本批测试文件 | 用例 | 不变量 |
@@ -258,7 +260,7 @@
 | `src/learning/quiz-explanation.test.ts` | 11 | 输入有界、逐题覆盖、必有图文、安全格式、模型角色/归属/重试/取消 |
 | `src/routes/quiz-explanation.test.ts` | 5 | 会话存在与归属、Origin、异常释放、同用户并发闸 |
 | `src/features/quiz/FillBlank.test.tsx` | 3 | 对话出题的一个填空（2026-09-30）：参考答案短 ⇒ 打字格子 +「自由输入」切回并清空；整句 / 满符号 / 无参考 ⇒ 普通框；两种框回车都提交 |
-| `src/features/quiz/QuizCard.test.tsx` | 7 | 五类题闭环、真实错答、重复点击、失败重试、取消与迟到结果、无图拒绝；★ 2026-09-29 **+1** 分级徽标（QUIZ-TIER-SPEC §1）——每题按来源标「真题·必刷／模拟题·建议做／基础题·可选做」、历史题无 tier 键按 `source.kind` 兜底、卡头汇总三档数、徽标 `title` 带「为什么这么标」 |
+| `src/features/quiz/QuizCard.test.tsx` | 8 | 五类题闭环、真实错答、重复点击、失败重试、取消与迟到结果、无图拒绝；★ 2026-09-29 **+1** 分级徽标（QUIZ-TIER-SPEC §1）——每题按来源标「真题·必刷／模拟题·建议做／基础题·可选做」、历史题无 tier 键按 `source.kind` 兜底、卡头汇总三档数、徽标 `title` 带「为什么这么标」 |
 | `src/features/quiz/QuizCard.attempts.test.tsx` | 3 | ★ 2026-09-30 作答记录：读回 ⇒ 汇总行 + 每题「上次」小标；答一题记一笔、乐观更新、本轮答过小标收起；读不到 / 记不上各一行说明且不回滚；老卡零请求、完成提示按有无 quizId 改口 |
 | `src/features/quiz/ScenarioPanel.test.tsx` | 3 | iframe来源、首判、真实操作、失败重试、空任务不解锁 |
 
@@ -448,7 +450,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，如实记录）**：本次在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（现基线：396 文件 / 4521 例，4519 passed + 2 skipped，2026-10-09 营地功能入口全量实跑）
+## 3. 用例清单（现基线：397 文件 / 4525 例，4523 passed + 2 skipped，2026-10-09 导航场景与答题手感全量实跑）
 
 | 新增测试 | 用例 | 不变量 |
 |---|---:|---|
@@ -803,6 +805,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `src/features/continent/SpellBook.test.tsx` | 3 | **咒语书死路锁（issue #85，2026-09-28 新建，jsdom；`api.sessions` 全桩）**：空咒语就地说明不回传、零会话引导去对话页、取数失败原样念出可重试、单本翻开失败其余仍可选。 | [DONE] 3 passed（实测，Node 22） |
 | `src/features/settings/PlatformChannelCard.test.tsx` | 6 | **「一键默认设置」的二次确认（jsdom 按文件 pragma）**：★ 依 §7 纪律**显式 `afterEach(cleanup)`**（本仓 `vitest.config.ts` **未开 `globals`** ⇒ RTL 自动清理不生效，残留 DOM 会让查询命中多个元素、看着像组件重复渲染）。★★ **本文件守的是全仓唯一一个会覆盖用户已有数据的实心主色键**——它落在「免费通道」卡里、文案写着"一键"，正是**新用户第一眼就会点**的那个；加确认之前，一个逐行调过 8 个角色的老用户误点一下，配置就没了（服务端 `ON CONFLICT DO UPDATE` 把自填的模型名一并清空）。① ★★ **首屏点一下不许发请求**（本次核心）——注意锁的是"点了**不该**有反应"，不是"点了没反应"：这两句在断言上长得像，在用户那里是完全相反的体验；② 首屏按钮文案仍是「一键默认设置」（没被确认态提前污染），且确认键带 `danger` 样式钩子（它得**看得出来**跟平时那个主色键不一样）；③ ★★ **代价说明点名后果**——逐字要求 `role="alert"` 里出现「覆盖」「模型名」「8 个角色」；只说"确定吗"而不说会覆盖什么的确认框，用户只会无脑点确定。`role="alert"` 是刻意的：确认态没有别的视觉位移（按钮原地换文案），不把代价念出来，读屏用户等于确认了个寂寞；④ **取消**能干净回退（首屏文案回来、代价说明消失）且**始终没有请求**；⑤ 只有**确认键**才调 `oneClickDefault`，成功后 flash 成功文案 ＋ **必须触发 `onConfigured`**——漏了它就是上一次真机逮到的那个"点了没反应"（提示说配好了、上面那张绑定表还是旧的）；⑥ ★ **失败也要退回首屏**，不许停在"再点一下就生效"的确认态：那一刻用户早忘了这按钮会覆盖什么，停在确认态等于把一次失败变成一次静默的误覆盖。★ 实现用**两段式按钮**而非 `window.confirm`（本仓已有先例：`terms/DomainBar.tsx` 的两段式删除，理由写在那个文件头注里——原生弹窗在本地 Web 里观感割裂）。★ `lib/api` 整体替身（同 `SpeechCard.test.tsx` 写法）：测的是**卡片的编排**，不是额度读取本身；★ 一处刻意措辞：首屏那发 `GET /quota` 是**允许**的（它只读、不改任何东西），故断言写"`oneClickDefault` 没被调用"而不是"一个请求都没有"。★★ **三把关键锁各按 §7 验证（故意改坏 → 确认红 → 恢复）**：拆掉确认闸门（首屏直连 `oneClick`）⇒ **6 例全红**、`finally` 里删 `setConfirming(false)` ⇒ **2 例红**、代价说明写模糊 ⇒ **1 例红**；恢复后 6/6 绿（`diff` 比对确认文件完整还原） | [DONE] 6 passed |
 | `src/features/settings/AiHealthCard.test.tsx` | 4 | **设置页「AI 运行状况」**：成功率、p50/p95、失败原因中文；★ 失败任务点重试→调接口、提示、重拉；★ 父组件换 flash 不反复拉取；空态 | [DONE] 4 passed（实测） |
+| `src/features/feedback/AnswerImpact.test.tsx` | 3 | 真实事件仅播放一次、到期不因回显重播；减少动态效果中途清理及卸载；音效默认关、共享偏好和不支持音频时安全降级 | [DONE] 3 passed（实测） |
 | `src/features/quiz/AiGradeNote.test.tsx` | 4 | **AI 评分提示**：★ 入参带齐（题目/参考/作答/题型/主题）、显示判定分数与误区；解答题映射 essay、答对不显示误区；★ 失败说清原因（503 指向设置页）；卸载即取消 | [DONE] 4 passed（实测） |
 | `src/features/terms/LearnerModelCard.test.tsx` | 7 | **复习面板「学习画像」**：快忘词条/误区次数/题型正确率/校准上屏；★「我懂了」调接口并移除；★ 空模型或失败整卡不渲染；refreshKey 变了才重拉；校准三种结论与稳定性人话；难度档位上屏；个人化记忆模型三种结论 | [DONE] 7 passed（实测） |
 | `src/features/terms/TermRelations.test.tsx` | 3 | **词条「关联」列表**：关系中文标签与词名、note 作悬停；空态说明由 AI 后台整理；失败提示 | [DONE] 3 passed（实测） |

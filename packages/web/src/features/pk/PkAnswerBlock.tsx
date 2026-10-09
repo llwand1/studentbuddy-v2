@@ -26,7 +26,7 @@ export function PkAnswerBlock({ question, helpLeft, disabled, onAnswer, onHelp, 
   const sec = Math.ceil(remainingMs(question.deadlineAt, now) / 1000);
   const isScenario = question.kind === 'scenario';
   return (
-    <section className="sb-pk-card sb-pk-block">
+    <section className="sb-pk-card sb-pk-block answer-surface">
       <div className="sb-pk-q-head">
         <span className="sb-pk-h2">
           {question.isRetry ? '补救题（答对 +2）' : isScenario ? '情景题（全中 +2 / 有错 −1）' : '轮到你答'}

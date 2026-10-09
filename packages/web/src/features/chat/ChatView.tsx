@@ -32,6 +32,7 @@ import { RefList } from '../quiz/RefList';
 
 import { Markdown } from './Markdown';
 import { Welcome } from './Welcome';
+import { CampfireWorld } from './CampfireWorld';
 import { Thinking } from './Thinking';
 import { ChatComposer } from './ChatComposer';
 import { PkInviteCard } from './PkInviteCard';
@@ -63,6 +64,7 @@ export function ChatView({
   const [online, setOnline] = useState(true);
   const {
     messages,
+    historyReady = true,
     streamingText,
     reasoning,
     steps,
@@ -92,7 +94,7 @@ export function ChatView({
   // v18.3：grill 收尾卡点选后 send 失败要浮出来（此前 void 吞掉 {ok:false}＝点了没反应）
   const { composerProps, grillNode, sendWithGrill, regenerate, resend } = useGrillChoice({ sessionId, pendingChoice, replyChoice, skipChoice, send, regenerate: streamRegenerate, resend: streamResend, onSendError: setSendError });
   /** 空会话直接开聊（CHAT-UX §2.9）：没会话 ⇒ 暂存这一问、开新会话、就绪后自动发；开会话期间 `starting` 禁发（连按不开两间，见 `blocked`） */
-  const quick = useQuickStart({ sessionId, ready, busy, onNewSession, send: sendWithGrill, onError: setSendError });
+  const quick = useQuickStart({ sessionId, ready: historyReady ? ready : 'connecting', busy, onNewSession, send: sendWithGrill, onError: setSendError });
   /** v17 看图：待发送的图片附件（base64 dataURL）。随会话切换清空，避免串台 */
   const [attachments, setAttachments] = useState<Array<{ dataUrl: string; name?: string }>>([]);
   const [mixTip, setMixTip] = useState('');
@@ -109,7 +111,7 @@ export function ChatView({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   /** 滚动锚定：贴底才跟随流式输出；离底时不打断用户上翻，改显示「回到底部」。
       来源清单也算锚：它随本轮落屏，贴底时该被带进视野 */
-  const isEmpty = messages.length === 0 && steps.length === 0 && tasks.length === 0 && !streamingText;
+  const isEmpty = historyReady && messages.length === 0 && steps.length === 0 && tasks.length === 0 && !streamingText;
   /** 轮数＝用户提问条数；只有题卡没有提问的会话不挂「0 轮」 */
   const rounds = messages.filter((x) => x.role === 'user').length;
   const { scrollRef, showJump, onScroll, jumpToBottom } = useScrollAnchor([
@@ -138,7 +140,7 @@ export function ChatView({
   useSessionDraft(sessionId, input, setInput);
   useBusyTitle(busy);
 
-  const blocked = quick.starting || (sessionId !== null && (ready !== 'open' || busy));
+  const blocked = quick.starting || (sessionId !== null && (!historyReady || ready !== 'open' || busy));
   /** 轮次元信息只在收口后显示：生成过程中显示「已用 x tokens」会随流式跳动，且中途的数没有意义 */
   const roundMeta = busy ? '' : formatRoundMeta(usage, elapsedMs);
   /** 「重新生成」只给最后一条回答：对中间某条重生成的语义是分叉，本版不做（会牵扯历史改写） */
@@ -203,6 +205,7 @@ export function ChatView({
 
   return (
     <div className="chat-view">
+      {isEmpty && <CampfireWorld key={sessionId ?? 'campfire'} />}
       <ChatSpeakerDefs />
       {/* 会话铭牌条（与其它页面的页标题同一套：角标 + 压印标题 + 荆棘分隔）；空会话由欢迎页自带角标，不重复 */}
       {!isEmpty && (

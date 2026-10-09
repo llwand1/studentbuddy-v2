@@ -117,6 +117,7 @@ export function useChatStream(
   const clientRef = useRef<ReturnType<typeof connectSse> | null>(null);
   /** 历史是否已落定：未落定前禁发，否则 messages 响应后到会把刚发的用户消息整表覆盖掉 */
   const historyLoadedRef = useRef(false);
+  const [historyFor, setHistoryFor] = useState<string | null | undefined>();
   /** 本轮起点（服务端 round-start 帧为唯一事实源；SSE 回调闭包读不到 state，ref 与镜像一起写，镜像在 useRoundBegin） */
   const startedAtRef = useRef(0);
   // busy 上报给壳层：ref 锁回调解耦渲染，effect 只在 busy/sessionId 翻转时触发
@@ -207,10 +208,12 @@ export function useChatStream(
     setSourceSession(sessionId);
     if (!sessionId) {
       historyLoadedRef.current = true;
+      setHistoryFor(null);
       setMessages([]);
       return;
     }
     historyLoadedRef.current = false;
+    setHistoryFor(undefined);
     let alive = true;
     api.sessions
       .messages(sessionId)
@@ -220,11 +223,10 @@ export function useChatStream(
         const folded = foldToolRounds(rows);
         rememberSessionSources(sessionId, [...folded].reverse().find((m) => m.sources?.length)?.sources ?? []);
         setMessages(folded);
-      })
-      .catch(() => setMessages([]))
-      .finally(() => {
+        setHistoryFor(sessionId);
         historyLoadedRef.current = true;
-      });
+      })
+      .catch(() => { if (alive) { setMessages([]); setError('历史对话暂时没有加载完成，请刷新后重试。'); } });
     return () => {
       alive = false;
     };
@@ -352,6 +354,7 @@ export function useChatStream(
 
   return {
     messages,
+    historyReady: !sessionId || historyFor === sessionId,
     streamingText,
     reasoning,
     steps,

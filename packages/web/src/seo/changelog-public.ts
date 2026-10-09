@@ -32,6 +32,9 @@ export const RELEASE_SCOPE = {
 
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
+  { version: 'v0.2.171', date: '2026-10-09', headline: '回答自动提炼为可练习的题目',
+    items: ['学习讲解完成后可自动提炼练习，想练时直接取用。', '题目跟随本次回答，支持作答与历史回看。'],
+  },
   {
     version: 'v0.2.170', date: '2026-10-08', headline: '独立学习标题也显示为卡片',
     items: ['学习卡的独立标题也显示为卡片，后续解释和表格继续保留。', '实时回复与历史回看使用相同格式。'],

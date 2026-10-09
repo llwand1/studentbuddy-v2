@@ -231,6 +231,19 @@ beforeEach(() => {
 });
 
 describe('单轨工具循环', () => {
+  it('完整学习回答自动提炼并在 done 提示；下一轮考我复用题卡，未调用新的对话模型', async () => {
+    const sid = newSession();
+    const answer = '> [!CORE] 牛顿第二定律\n> 合外力等于质量乘以加速度 F=ma，加速度方向由合外力决定。速度为零时，加速度仍可能不为零。';
+    stub.turns = [[{ content: answer, done: true }]];
+    const r = await handleMessage({ sessionId: sid, text: '解释牛顿第二定律' });
+    const done = snapshot(sid).reverse().find((e) => e.type === 'done');
+    expect(done).toMatchObject({ replyPractice: { messageId: r.assistantMessageId, title: '本次讲解 · 牛顿第二定律' } });
+    expect(streamed(sid)).toBe(answer);
+    const calls = stub.idx;
+    await handleMessage({ sessionId: sid, text: '考我' });
+    expect(stub.idx).toBe(calls);
+    expect(rows(sid).at(-1)!.content).toContain('[QUIZ]');
+  });
   it('工具轮 + 最终回答按 assistant→tool→assistant 顺序原子落库', async () => {
     const sid = newSession();
     stub.turns = [toolCallTurn('我先查一下'), [{ content: '答案正文', done: false }, { content: '', done: true }]];
@@ -249,7 +262,7 @@ describe('单轨工具循环', () => {
     expect(streamed(sid)).toBe(list[3]?.content);
     // 模型下一轮必须知道用户已看到什么；旧回灌把这段清空，会重复完整讲解。
     expect(stub.allMessages[1]?.find((message) => message.role === 'assistant')?.content).toBe('我先查一下');
-    expect(getDb().prepare('SELECT COUNT(*) c FROM token_usage').get()).toEqual({ c: 1 });
+    expect(getDb().prepare('SELECT COUNT(*) c FROM token_usage WHERE session_id=?').get(sid)).toEqual({ c: 1 });
   });
 
   it('step 事件三态进缓冲（联网搜索溯源可见）', async () => {

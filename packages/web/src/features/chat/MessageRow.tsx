@@ -25,6 +25,7 @@ import { ChevronDownIcon } from '../../components/icons';
 import { QuizCard } from '../quiz/QuizCard';
 import { ScenarioPanel } from '../quiz/ScenarioPanel';
 import { MessageSourcesProvider } from '../sources/cite';
+import './reply-practice.css';
 
 export function MessageRow({
   m,
@@ -186,6 +187,7 @@ export function MessageRow({
               <MessageSourcesProvider sessionId={sessionId ?? ''} sources={m.sources}>
                 <Markdown text={m.content} />
               </MessageSourcesProvider>
+              {m.replyPractice && <p className="reply-practice-hint" role="status"><span aria-hidden="true">◆</span> 本次回复已提炼为可练习的题目</p>}
             </div>
           )}
         </>

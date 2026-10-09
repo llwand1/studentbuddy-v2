@@ -1,0 +1,9 @@
+.reply-practice-hint {
+  margin: 14px 0 0;
+  padding-top: 9px;
+  border-top: 1px dashed var(--sb-line);
+  color: var(--sb-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.reply-practice-hint span { color: var(--sb-gold); font-size: 10px; }

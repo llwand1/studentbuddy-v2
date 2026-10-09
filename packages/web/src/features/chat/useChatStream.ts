@@ -6,7 +6,7 @@
  * 2026-09-14：方案选择框（契约 docs/ASK-CHOICE-SPEC.md）的挂起队列抽到 `useChoiceQueue`，本文件只在事件入口做一次转发（本文件贴着行数红线，装不下那 90 行）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SourceItem, SseEvent, TaskItem, TokenUsage } from '@sb/shared';
+import type { SseEvent, TaskItem, TokenUsage } from '@sb/shared';
 import { connectSse, type SseReadyState } from '../../lib/sse-client';
 import { api } from '../../lib/api';
 import { createTokenDrain, type TokenDrain } from './stream-smooth';
@@ -19,35 +19,11 @@ import { useRoundBegin } from './useRoundBegin';
 import { useRoundActivity } from './useRoundActivity';
 import { applyToolStep } from './tool-step';
 import type { ToolStep } from './step-fold';
-import { applyChatBlock, takeTurnSources, type QuizBlockView, type ScenarioBlockView } from './chat-blocks';
+import { applyChatBlock, takeTurnSources } from './chat-blocks';
 export type { TaskItem, TaskStatus } from '@sb/shared';
 
-export interface StreamMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  /** 消息时间：历史消息取库内 created_at（SQLite UTC 串），本轮新消息取本地 ISO */
-  ts?: string;
-  streaming?: boolean;
-  /** v17 看图：用户上传的图片（base64 dataURL），仅用于气泡内缩略图回显 */
-  images?: Array<{ dataUrl: string; name?: string }>;
-  quizBlock?: QuizBlockView;
-  /** 情景题卡片（契约 SCENARIO-SPEC §8）：live 走 block 事件、历史由 chat-blocks 还原 */
-  scenarioBlock?: ScenarioBlockView;
-  /**
-   * 这条回答的执行过程（工具卡片）。★ 归属到消息而非页面：
-   * 历史消息由 history-fold 从库里重建（tool_calls 展开 + tool 结果回填），
-   * 本轮消息由 step 事件累积、在 done 时归并进来。正文为空但有 steps 的消息同样要渲染
-   * （纯工具轮 / 被停止的半轮），否则过程又丢了。
-   */
-  steps?: ToolStep[];
-  /** 这条回答的思考链原文（v11 起落库；历史由 history-fold 读列、本轮由 done 归并） */
-  reasoning?: string;
-  /** 本轮思考耗时（服务端实测）：done 帧带来、历史读 `thinking_ms` 列——两者同源（§4.7） */
-  thinkingMs?: number;
-  /** 这条回答最终声明的任务清单（同上；update_tasks 是全量覆盖语义） */
-  tasks?: TaskItem[];
-  sources?: SourceItem[]; // 资料溯源（SOURCE-TRACE-SPEC §8）：done 时由 sources-store 归位、历史读 `sources` 列
-}
+import type { StreamMessage } from './stream-message';
+export type { StreamMessage } from './stream-message';
 
 /** 过程卡片形状与 step 帧折叠都在 `step-fold.ts`（2026-09-19 抽出；此处 re-export 保住既有导入面） */
 export type { ToolStep } from './step-fold';
@@ -194,7 +170,8 @@ export function useChatStream(
     const roundReasoning = reasoningRef.current;
     const roundTasks = tasksRef.current;
     /** 只挂有内容的那几项，别给每条普通回答塞一堆 undefined 键（导出/序列化都会带上） */
-    const proc: Pick<StreamMessage, 'steps' | 'reasoning' | 'tasks' | 'thinkingMs'> = {
+    const proc: Pick<StreamMessage, 'steps' | 'reasoning' | 'tasks' | 'thinkingMs' | 'replyPractice'> = {
+      ...(ev.replyPractice ? { replyPractice: ev.replyPractice } : {}),
       ...(roundSteps.length > 0 ? { steps: roundSteps } : {}),
       ...(roundReasoning ? { reasoning: roundReasoning } : {}),
       ...(ev.thinkingMs ? { thinkingMs: ev.thinkingMs } : {}), // 服务端实测值：done 帧带来，前端不掐表

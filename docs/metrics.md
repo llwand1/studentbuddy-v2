@@ -23,28 +23,28 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-10-08 17:31:14（本机时区）｜ 基准 `4bb6e8b` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-09 10:00:52（本机时区）｜ 基准 `621be95` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
-| shared | 60 | 9,919 | 46 | 5,717 | 58% |
-| server | 290 | 40,229 | 197 | 37,306 | 93% |
-| web | 350 | 42,000 | 150 | 19,073 | 45% |
-| **合计** | **700** | **92,148** | **393** | **62,096** | **67%** |
+| shared | 61 | 10,003 | 46 | 5,717 | 57% |
+| server | 295 | 40,365 | 198 | 37,423 | 93% |
+| web | 351 | 42,026 | 150 | 19,073 | 45% |
+| **合计** | **707** | **92,394** | **394** | **62,213** | **67%** |
 
 ## 接口与契约
 
-- REST 路由注册：**187**（get 83 / post 72 / delete 13 / put 18 / patch 1）· 另 /api 挂载点 42 个
-- shared 契约类型：**272**（export interface 183 + export type 89）
+- REST 路由注册：**188**（get 83 / post 73 / delete 13 / put 18 / patch 1）· 另 /api 挂载点 42 个
+- shared 契约类型：**273**（export interface 184 + export type 89）
 - 外部运行时依赖：**6** 个 —— better-sqlite3, cors, express, pino, react, react-dom
-- 迁移水位：代码侧 **v56**（56 个 version 条目，非连续号 0 处）
+- 迁移水位：代码侧 **v57**（57 个 version 条目，非连续号 0 处）
 
 ## 测试基线（vitest 实跑）
 
-- **393 文件 / 4498 例**（4496 passed + 2 skipped + 0 failed）⇒ 全绿
-- 本次本机实跑（Node v22.23.2）全量耗时 48.5s
+- **394 文件 / 4505 例**（4503 passed + 2 skipped + 0 failed）⇒ 全绿
+- ⚠️ 本次未重跑 vitest，读的是 今日的 test-results 产物——要新鲜数字加 `--tests`
 - jsdom 交互测试文件（`.test.tsx`）72 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
@@ -52,8 +52,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 - ⬜ 无覆盖率产物（跑 `node tools/metrics.mjs --tests --coverage` 生成，**不编数**）
 
 ## 文档与仓库
-- docs/：SPEC 契约 53 份 · md 共 71 份 · 真机探针 15 个
-- git：fix/standalone-learning-card-headings @ `4bb6e8b`（2026-10-08）· 近 14 天 280 commits · 工作区未提交 0 文件
+- docs/：SPEC 契约 54 份 · md 共 72 份 · 真机探针 15 个
+- git：feat/reply-practice @ `621be95`（2026-10-09）· 近 14 天 281 commits · 工作区未提交 2 文件
 
 <!-- metrics:end -->
 

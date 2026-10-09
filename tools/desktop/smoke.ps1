@@ -65,14 +65,19 @@ try {
     StopApp
     Assert ($app.WaitForExit(10000)) 'Stopping releases the launcher and its server'
     $occupied = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 18794)
-    try {
-        $occupied.Start()
-        $fallback = StartApp
-        Assert ($baseUrl -ne 'http://127.0.0.1:18794') 'Preferred port occupied: launcher falls back to another loopback port'
-        Assert ($occupied.Server.IsBound) 'Fallback leaves the occupying service untouched'
-        StopApp
-        Assert ($fallback.WaitForExit(10000)) 'Fallback instance stops cleanly'
-    } finally { $occupied.Stop() }
+    $canOccupy = $true
+    try { $occupied.Start() } catch { $canOccupy = $false }
+    if ($canOccupy) {
+        try {
+            $fallback = StartApp
+            Assert ($baseUrl -ne 'http://127.0.0.1:18794') 'Preferred port occupied: launcher falls back to another loopback port'
+            Assert ($occupied.Server.IsBound) 'Fallback leaves the occupying service untouched'
+            StopApp
+            Assert ($fallback.WaitForExit(10000)) 'Fallback instance stops cleanly'
+        } finally { $occupied.Stop() }
+    } else {
+        Write-Host 'SKIP Preferred port 18794 cannot be bound in this environment (OS port exclusion, e.g. Hyper-V/WSL); conflict case not exercised.'
+    }
     $app = StartApp
     RunSetup # Update while the installed application is running.
     Assert ($app.WaitForExit(10000)) 'Upgrade stops the old launcher'

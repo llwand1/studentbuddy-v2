@@ -13,19 +13,23 @@ import { capsuleTone } from './coach-cards';
 import { CardsIcon } from '../../components/icons';
 import { usePomodoro } from '../pomodoro/pomodoro-store';
 import { usePomodoroClock } from '../pomodoro/use-pomodoro-clock';
+import { useNarrow } from '../../lib/use-narrow';
 
 export function CoachCapsule({
   snapshot,
   open,
   nudge,
   onToggle,
+  fresh = false,
 }: {
   snapshot: CoachSnapshot | null;
   open: boolean;
   /** 服务端判定「该主动提醒」（`shouldNudge`）：只在欠账时才该亮 */
   nudge: boolean;
   onToggle: () => void;
+  fresh?: boolean;
 }) {
+  const narrow = useNarrow();
   const tone = snapshot ? capsuleTone(snapshot) : 'ok';
   const line = snapshot ? capsuleLine(snapshot) : '复习督促';
   // 番茄钟标签（契约 POMODORO-SPEC §7.1）：开着钟就把倒计时摆在欠账前面——它是此刻最要紧的那个数
@@ -37,13 +41,15 @@ export function CoachCapsule({
       className={`coach-cap ${tone}${open ? ' open' : ''}`}
       onClick={onToggle}
       aria-expanded={open}
-      title={open ? '收起督促小窗' : '打开督促小窗'}
+      aria-label={`${open ? '收起' : '打开'}复习督促：${line}${pomoLabel ? ` · ${pomoLabel}` : ''}${fresh ? ' · 新趋势' : ''}`}
+      title={`${line}${pomoLabel ? ` · ${pomoLabel}` : ''}${fresh ? ' · 新趋势' : ''}`}
     >
       <span className="coach-cap-icon">
         <CardsIcon size={15} />
       </span>
       {pomoLabel && <span className={`coach-cap-pomo${pomo?.phase === 'break' ? ' is-break' : ''}`}>{pomoLabel}</span>}
-      <span className="coach-cap-text">{line}</span>
+      <span className="coach-cap-text">{narrow ? '复习' : line}</span>
+      {fresh && <span className="coach-cap-new" title="有新的学习趋势">新</span>}
       {nudge && snapshot !== null && snapshot.due > 0 && <span className="coach-cap-dot" />}
     </button>
   );

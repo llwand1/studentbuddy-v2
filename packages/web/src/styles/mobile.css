@@ -61,9 +61,9 @@
 
 /* ── 底部安全区（口径 1）＋ 胶囊不再压住输入框 ────────────────────── */
 @media (max-width: 700px) {
-  /* 对话页：输入框下面留出胶囊那一条（pixel-shell 原给 44px；胶囊含阴影实测 50px ⇒ 56 + 安全区） */
+  /* 复习入口已移到顶栏，底部只留系统手势区。 */
   body .chat-view {
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   body .chat-composer-wrap {
     padding-bottom: 8px;
@@ -93,6 +93,56 @@
   body .sb-shell:has(.sb-browser) .coach-drawer {
     right: 0;
   }
+}
+
+/* Reply first: auxiliary status lives in the toolbar; actionable cards share one compact row. */
+@media (max-width: 700px) {
+  body .sb-shell { height: min(100dvh, var(--sb-visual-height, 100dvh)); }
+  body .reading-toolbar .coach-dock-rail { position: relative; inset: auto; display: flex; }
+  body .reading-toolbar .coach-cap { min-height: 36px; padding: 4px 6px; gap: 4px; }
+  body .reading-toolbar .coach-cap-icon { display: none; }
+  body .reading-toolbar .coach-cap-pomo { max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .reading-toolbar-start { gap: 6px; }
+  .reading-focus span { display: none; }
+  .reading-focus { min-width: 36px; justify-content: center; }
+  body .reading-toolbar .hunt-alert.is-compact { position: relative; inset: auto; max-width: none; padding: 0; gap: 0; border: 0; background: transparent; box-shadow: none; animation: none; }
+  body .hunt-alert.is-compact .hunt-alert-go { min-height: 36px; padding: 4px; font-size: 12px; border: 1px solid var(--sb-gold-edge); background: var(--sb-surface); color: var(--sb-gold); box-shadow: none; }
+  body .hunt-alert.is-compact .hunt-alert-x { display: none; }
+  body .sb-shell .chat-head { padding-top: 6px; padding-bottom: 6px; min-height: 32px; }
+  body .sb-shell .chat-head-eyebrow { display: none; }
+  body .sb-shell .chat-head-title { font-size: 14px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+  body .sb-shell .chat-composer-wrap { padding: 0 8px 4px; }
+  body .sb-shell .chat-composer { padding: 4px 6px; }
+  body .sb-shell .chat-composer textarea { height: var(--ta-h, 34px); min-height: 34px; max-height: min(96px, calc(var(--sb-visual-height, 100dvh) * .2)); }
+  .composer-fold, .composer-fold-stop { min-height: 32px; }
+  .composer-request-entry { display: flex; align-items: center; width: 100%; gap: 6px; min-height: 36px; padding: 4px 6px; margin-bottom: 4px; background: var(--sb-surface); border: 1px solid var(--sb-gold-edge); color: var(--sb-gold); font: 500 12px var(--sb-font); }
+  .composer-request-entry b, .composer-request-entry > span:last-child { flex: none; }
+  .composer-request-summary { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; color: var(--sb-ink-secondary); }
+  .composer-requests { position: relative; }
+  .composer-request-panel { max-height: min(320px, calc(var(--sb-visual-height, 100dvh) * .36)); }
+  .composer-request-panel .choice-card { margin-bottom: 4px; padding: 8px; }
+  .composer-request-panel .choice-head { flex-wrap: wrap; }
+  .composer-request-tabs { display: flex; gap: 4px; position: sticky; top: 0; background: var(--sb-bg); padding: 4px 0; z-index: 1; }
+  .composer-request-tabs button { min-height: 36px; padding: 4px 8px; color: var(--sb-ink-secondary); border: 1px solid var(--sb-line); }
+  .composer-request-tabs button[aria-pressed='true'] { color: var(--sb-gold); border-color: var(--sb-gold-edge); }
+  body .sb-shell .composer-menu-panel { max-height: 48dvh; overflow-y: auto; overscroll-behavior: contain; }
+  body .sb-shell .chat-doc-panel { max-height: 36dvh; overflow-y: auto; overscroll-behavior: contain; }
+  body .sb-shell .drill-stage { top: auto; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); width: auto; max-height: 62dvh; transform: none; animation: none; }
+  body .sb-shell .drill-head { position: sticky; top: -16px; background: var(--sb-bg); z-index: 10; touch-action: auto; }
+  body .sb-shell .lk-box { left: 8px; right: 8px; top: auto; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); transform: none; width: auto; max-height: 55dvh; }
+  body .sb-reading-content:has(.reading-split) { flex-direction: column; }
+  body .sb-reading-content:has(.reading-split) .sb-main { order: 2; min-height: 0; flex: 1; height: auto; }
+  body .sb-shell .chat-scroll { min-height: 0; }
+  body .sb-reading-content:has(.reading-split) .sb-browser { position: relative; inset: auto; order: 0; width: 100%; height: var(--reading-share, 50%); flex: 0 0 var(--reading-share, 50%); min-height: 0; border-left: 0; }
+  body .sb-reading-content .reading-split { order: 1; cursor: row-resize; }
+  .reading-split span { width: 40px; height: 2px; box-shadow: 0 3px 0 var(--sb-line); }
+  body .sb-reading-content .src-expand { display: inline-flex; }
+  body .sb-reading-content .sb-browser-head { flex-wrap: wrap; }
+  body .sb-reading-content .sb-browser-actions { width: 100%; flex-wrap: wrap; }
+  body .sb-reading-content .sb-browser-btn { min-height: 32px; padding: 2px 6px; }
+  body .sb-reading-content .sb-browser-close { margin-left: auto; min-width: 32px; }
+  body .sb-reading-content .sb-sources.is-expanded { height: 100%; flex: 1; }
+  body .sb-shell:has(.sb-browser) .coach-drawer { right: 0; }
 }
 
 /* ── 对话页：输入框上方的信息条在手机上只留必要的 ─────────────────── */

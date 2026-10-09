@@ -27,8 +27,8 @@ import { MAX_CHAT_IMAGES } from '@sb/shared';
 import type { AskChoiceRecord, ToolConfirmDecision } from '@sb/shared';
 import { judgeLoadedImage, intakeRejectHint, remainingSlots } from '../../lib/image-intake';
 import { AskStyleCard } from './AskStyleCard';
-import { ChoiceCard } from './ChoiceCard';
-import { ConfirmCard } from './ConfirmCard';
+import { ComposerRequests } from './ComposerRequests';
+import { ComposerDock } from './ComposerDock';
 import type { ConfirmItem } from './useConfirmQueue';
 import { DocModeControl } from './DocModeControl';
 import { menuStatus } from './composer-status';
@@ -225,19 +225,13 @@ export function ChatComposer({
           设置页可改
         </div>
       )}
+      <ComposerRequests ask={askCard ? { ...askCard, busy: quizzing } : null}
+        confirm={confirmCard ? { request: confirmCard, now: confirmNowMs, onReply: onConfirmReply, onDismiss: onDismissConfirm } : null}
+        choice={choiceCard && !choiceCard.grillPhase ? { request: choiceCard, onReply: onChoiceReply, onDismiss: onDismissChoice } : null} />
+      <ComposerDock busy={busy} draft={!!input.trim() || attachments.length > 0} onStop={onStop}>
       {askHint && <div className="ask-style-hint">{askHint}</div>}
       {grillMe && <GrillPill scope={grillScope} onScopeChange={setGrillScope} disabled={busy || blocked} onClose={() => setGrillMe(false)} />}
       <DrillParkedPill />
-      {askCard && <AskStyleCard {...askCard} busy={quizzing} />}
-      {/* 确认门卡浮在选择卡之上：它阻塞的是工具执行，比"AI 在等你选方向"更急 */}
-      {confirmCard && (
-        <ConfirmCard request={confirmCard} now={confirmNowMs} onReply={onConfirmReply} onDismiss={onDismissConfirm} />
-      )}
-      {/* grill-me 的卡**不在这里**浮——它渲染在消息流里（见 ChatView）。
-          同一次提问若两边都渲染，用户会看到两张一模一样的卡 */}
-      {choiceCard && !choiceCard.grillPhase && (
-        <ChoiceCard request={choiceCard} onReply={onChoiceReply} onDismiss={onDismissChoice} />
-      )}
       <DocModeControl doc={doc} open={docOpen} onClose={() => setDocOpen(false)} />
       <AttachmentTray images={attachments} onRemove={(i) => setAttachments(attachments.filter((_, j) => j !== i))} />
       {intakeHint && <div className="chat-att-hint">{intakeHint}</div>}
@@ -306,6 +300,7 @@ export function ChatComposer({
           </button>
         )}
       </div>
+      </ComposerDock>
     </div>
   );
 }

@@ -40,6 +40,7 @@ import { guideMainClass } from '../features/guide/guide-layout';
 import { TrialNotice } from '../components/TrialNotice';
 import { ReadingToolbar } from './ReadingToolbar';
 import { useReadingLayout } from './useReadingLayout';
+import { ReadingSplit } from './ReadingSplit';
 import './app.css';
 import './reading-workspace.css';
 
@@ -253,6 +254,8 @@ export function App() {
               setCurrentId(null);
             }}
           />
+          <CoachDock />
+          <HuntAlert active={view === 'chat'} roundTick={roundTick} onGoContinent={() => setView('continent')} />
         </ReadingToolbar>
         <div className="sb-reading-content">
           <main className={guideMainClass(view)}>
@@ -289,26 +292,19 @@ export function App() {
               {view === 'settings' && <SettingsView />}
             </SceneTransition>
           </main>
+          <ReadingSplit />
           <PreviewPanel />
           {/* 资料溯源（docs/SOURCE-TRACE-SPEC.md）：与演示面板同占右栏；有演示时它让位，演示关掉自动回来 */}
           <SourcePanel />
         </div>
       </section>
       {/*
-        复习督促小窗（v25 B+C+E）：挂在**主区之上、全局常驻**——它不是某个页面的附属功能，
-        而是"随时能点开看一眼欠了多少"的悬浮件，故不随 `view` 切换挂载/卸载
-        （卸载会断掉 SSE 与折叠状态，用户每次切页都看到它被重置）。
-      */}
-      <CoachDock />
-      {/*
-        等待时刷词（docs/WAIT-DRILL-SPEC.md）：同样全局常驻——它盯的是 `localBusySid`（发送后 2 秒还没回完就弹），
+        等待时刷词（docs/WAIT-DRILL-SPEC.md）：全局常驻，手机只手动开，桌面等待 2 秒后按许可弹出；
         而弹窗、配乐与本局战绩不该因为切页被重置；`active` 只管"自动弹"是否允许（不在对话页不弹）。
       */}
       <WaitDrill busySessionId={localBusySid ?? quizWaitSid} active={view === 'chat' && !reading.focused} />
       {/* 划词速查小窗：常驻壳层，一次只开一个（LOOKUP-SPEC §5） */}
       <LookupPopup />
-      {/* 「刷新了新的怪物」：每轮收口后与大陆同一口径算话题怪，新冒出的就提醒；「一键讨伐」切到大陆自动寻路开打 */}
-      <HuntAlert active={view === 'chat'} roundTick={roundTick} onGoContinent={() => setView('continent')} />
     </div>
   );
 }

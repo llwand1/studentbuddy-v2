@@ -1,17 +1,25 @@
 .answer-surface { position: relative; isolation: isolate; }
-.answer-impact { --impact: #e9bd70; position: absolute; inset: 0; max-height: 216px; overflow: clip; z-index: 4; pointer-events: none; contain: paint; }
-.answer-impact.is-wrong { --impact: #ec6377; }
-.answer-impact.is-review { --impact: #9babb5; }
-.answer-impact.is-partial { --impact: #d0ac73; }
-.answer-halo { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--impact) 26%, transparent), transparent 70%); animation: answer-halo 700ms steps(8) both; }
+.answer-impact { --impact: #e9bd70; --impact-echo: #7ee0ce; position: absolute; inset: 0; max-height: 216px; overflow: clip; z-index: 4; pointer-events: none; contain: paint; }
+.answer-impact.is-wrong { --impact: #ec6377; --impact-echo: #b191e2; }
+.answer-impact.is-review { --impact: #9babb5; --impact-echo: #7fadda; }
+.answer-impact.is-partial { --impact: #d0ac73; --impact-echo: #b59ad8; }
+.answer-impact.is-complete { --impact-echo: #b091e2; }
+.answer-halo { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at 45% 40%, color-mix(in srgb, var(--impact) 35%, transparent), transparent 65%), radial-gradient(ellipse at 65% 55%, color-mix(in srgb, var(--impact-echo) 24%, transparent), transparent 60%); animation: answer-halo 900ms steps(12) both; }
+.answer-spell { position: absolute; left: calc(50% - 86px); top: calc(45% - 86px); width: 172px; height: 172px; fill: none; stroke: var(--impact); stroke-width: 1.5; opacity: 0; animation: answer-spell-in 1050ms steps(14) both; }
+.answer-spell-orbit { transform-origin: center; animation: answer-orbit-turn 1050ms steps(14) both; }
+.answer-spell-echo, .answer-spell-prism { stroke: var(--impact-echo); }
+.answer-spell-runes { fill: var(--impact-echo); stroke: none; }
+.answer-impact.is-wrong .answer-spell { stroke-dasharray: 12 7; }
+.answer-impact:is(.is-review, .is-partial) .answer-spell { width: 132px; height: 132px; left: calc(50% - 66px); top: calc(45% - 66px); }
 .answer-slash { position: absolute; left: -10%; top: 45%; width: 120%; height: 4px; opacity: 0; background: linear-gradient(90deg, transparent 12%, var(--impact) 36%, #fff1d2 50%, var(--impact) 64%, transparent 88%); box-shadow: 0 0 0 2px color-mix(in srgb, var(--impact) 24%, transparent), 0 0 14px var(--impact); transform: rotate(-10deg); animation: answer-slash 360ms steps(6) both; }
-.answer-slash.echo { height: 2px; transform: rotate(8deg); animation-delay: 95ms; }
+.answer-slash.echo { height: 3px; transform: rotate(8deg); animation-delay: 95ms; background: linear-gradient(90deg, transparent 12%, var(--impact-echo) 36%, #e8f4ff 50%, var(--impact-echo) 64%, transparent 88%); box-shadow: 0 0 10px var(--impact-echo); }
 .answer-crest { position: absolute; left: calc(50% - 44px); top: calc(45% - 44px); width: 88px; height: 88px; opacity: 0; color: var(--impact); filter: drop-shadow(0 0 8px color-mix(in srgb, var(--impact) 50%, transparent)); animation: answer-crest 850ms steps(10) both; }
 .answer-crest-ring { fill: none; stroke: currentColor; stroke-width: 2; }
 .answer-crest-mark { fill: currentColor; }
 .answer-fragments i { position: absolute; top: 45%; left: 50%; width: 4px; height: 4px; opacity: 0; background: var(--impact); box-shadow: 1px 1px #150d12; animation: answer-fragment 900ms steps(12) both; }
 .answer-fragments i:nth-child(3n) { width: 6px; height: 2px; background: #f4e1b0; }
 .answer-fragments i:nth-child(2n) { animation-delay: 35ms; }
+.answer-fragments i:nth-child(4n) { background: var(--impact-echo); box-shadow: 0 0 6px color-mix(in srgb, var(--impact-echo) 60%, transparent); }
 .answer-fragments i:nth-child(n+13) { animation-delay: 75ms; width: 2px; height: 2px; }
 .answer-fragments i:nth-child(1) { --dx: -140px; --dy: -48px; }
 .answer-fragments i:nth-child(2) { --dx: -110px; --dy: -86px; }
@@ -65,6 +73,8 @@
 @keyframes answer-break { 0% { opacity: .75; clip-path: inset(0 0 0 0); } 45% { opacity: .4; clip-path: polygon(0 0, 34% 0, 34% 100%, 0 100%, 66% 100%, 66% 0, 100% 0, 100% 100%, 0 100%); } 100% { opacity: 0; clip-path: inset(0 40%); } }
 @keyframes answer-crest { 0% { opacity: 0; transform: scale(.4); } 18% { opacity: .75; transform: scale(1.12); } 36% { opacity: .65; transform: scale(1); } 100% { opacity: 0; transform: scale(1.5); } }
 @keyframes answer-fragment { 0% { opacity: 0; transform: translate(0, 0) scale(1.3); } 12%, 55% { opacity: .8; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.4); } }
+@keyframes answer-spell-in { 0% { opacity: 0; transform: scale(.45); } 15% { opacity: .65; } 40% { opacity: .5; transform: scale(1); } 100% { opacity: 0; transform: scale(1.3); } }
+@keyframes answer-orbit-turn { from { transform: rotate(-30deg); } to { transform: rotate(40deg); } }
 @keyframes answer-hit { 0%, 100% { transform: translate(0); } 30% { transform: translate(0, 2px); } 70% { transform: translate(0, -1px); } }
 @keyframes answer-recoil { 0%, 100% { transform: translate(0); } 20% { transform: translateX(-3px); } 45% { transform: translateX(2px); } 70% { transform: translateX(-1px); } }
 @keyframes answer-settle { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-2px); } }

@@ -2,11 +2,12 @@ import { CampfireAtmosphere } from './CampfireAtmosphere';
 import { StudyPortalLink, type StudyPortalControls } from './StudyPortalLink';
 import './campfire-world.css';
 import './campfire-atmosphere.css';
+import './campfire-arcana.css';
 export type { StudyPortalControls } from './StudyPortalLink';
 
 /** The two landmarks are real learning entrances; scenery never changes reading width. */
-export function CampfireWorld({ onEnter, travelling }: StudyPortalControls) {
-  return <div className={`campfire-world${travelling ? ` is-going-${travelling}` : ''}`}>
+export function CampfireWorld({ onEnter, travelling, exiting = false }: StudyPortalControls & { exiting?: boolean }) {
+  return <div className={`campfire-world${travelling ? ` is-going-${travelling}` : ''}${exiting ? ' is-leaving' : ''}`}>
     <div className="cw-sky" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /><i /></div>
     <div className="cw-horizon" aria-hidden="true">
       <svg viewBox="0 0 1000 200" preserveAspectRatio="none" focusable="false" shapeRendering="crispEdges">

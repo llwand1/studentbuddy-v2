@@ -1,0 +1,38 @@
+.chat-heading-slot { flex: none; max-height: 64px; overflow: hidden; }
+.chat-heading-slot.is-hidden { max-height: 0; }
+.chat-welcome-shell { display: contents; }
+.chat-view:has(.chat-welcome-shell) { position: relative; }
+.chat-view .chat-scroll { position: relative; }
+.chat-scroll:has(> .chat-welcome-shell.is-leaving) { display: block; }
+.chat-welcome-shell.is-leaving { position: absolute; inset: 0; display: flex; padding: var(--sb-sp-5) var(--sb-sp-4); pointer-events: none; z-index: 1; animation: campfire-fold 560ms steps(12) both; }
+.chat-welcome-shell.is-leaving .welcome { margin: auto; }
+.chat-welcome-shell.is-leaving :is(.welcome-eyebrow, .welcome-hi, .welcome-sub, .cw-shortcuts, .opener-stage, .opener-own) { animation: campfire-words-fold 160ms steps(6) both; }
+.is-campfire-handoff .chat-heading-slot { transition: max-height 520ms steps(12); }
+.is-campfire-handoff .chat-head { animation: chat-page-arrive 520ms steps(12) both; }
+.is-campfire-handoff .chat-scroll > :is(.chat-row, .tool-steps, .quiz-card, .scenario-panel) { position: relative; z-index: 2; animation: chat-page-arrive 360ms steps(10) both; }
+.campfire-world.is-leaving { pointer-events: none; animation: campfire-world-fold 600ms steps(12) both; }
+.campfire-world.is-leaving .cw-waypoint { pointer-events: none !important; visibility: hidden !important; }
+.chat-handoff-trace { position: absolute; inset: 40px 0 70px; z-index: 3; pointer-events: none; overflow: hidden; }
+.chat-handoff-thread { position: absolute; left: calc(50% - 1px); top: 12%; width: 2px; height: 46%; opacity: 0; background: linear-gradient(transparent, #84dccf, #eac477, transparent); box-shadow: 0 0 12px #9a88d6; animation: chat-thread-fold 650ms steps(14) both; }
+.chat-handoff-thread.echo { left: calc(50% + 8px); width: 1px; background: linear-gradient(transparent, #bc9aea, #7fc5ed, transparent); animation-delay: 60ms; }
+.chat-handoff-motes i { position: absolute; left: 50%; top: 35%; width: 4px; height: 4px; opacity: 0; background: #eac477; animation: chat-mote-fold 650ms steps(14) both; }
+.chat-handoff-motes i:nth-child(2n) { background: #84dccf; }
+.chat-handoff-motes i:nth-child(3n) { background: #bc9aea; }
+.chat-handoff-motes i:nth-child(1) { --trail-x: -140px; --trail-y: 80px; }
+.chat-handoff-motes i:nth-child(2) { --trail-x: 170px; --trail-y: 40px; }
+.chat-handoff-motes i:nth-child(3) { --trail-x: -90px; --trail-y: -70px; }
+.chat-handoff-motes i:nth-child(4) { --trail-x: 60px; --trail-y: 110px; }
+.chat-handoff-motes i:nth-child(5) { --trail-x: -170px; --trail-y: 0px; }
+.chat-handoff-motes i:nth-child(6) { --trail-x: 120px; --trail-y: -40px; }
+.chat-handoff-motes i:nth-child(7) { --trail-x: -50px; --trail-y: 90px; }
+.chat-handoff-motes i:nth-child(8) { --trail-x: 90px; --trail-y: 20px; }
+@keyframes campfire-fold { 0% { opacity: 1; transform: none; } 35% { opacity: .5; } 100% { opacity: 0; transform: translateY(-24px) scale(.94); } }
+@keyframes campfire-words-fold { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes campfire-world-fold { 0% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes chat-page-arrive { 0% { opacity: .6; transform: translateY(10px); } 100% { opacity: 1; transform: none; } }
+@keyframes chat-thread-fold { 0% { opacity: 0; transform: scaleY(.2); } 25% { opacity: .7; } 100% { opacity: 0; transform: translateY(-100px) scaleY(.6); } }
+@keyframes chat-mote-fold { 0% { opacity: 0; transform: translate(var(--trail-x), var(--trail-y)); } 20% { opacity: .85; } 70% { opacity: .6; transform: translate(0, -110px); } 100% { opacity: 0; transform: translate(0, -150px); } }
+@media (prefers-reduced-motion: reduce) {
+  .chat-welcome-shell.is-leaving, .chat-handoff-trace { display: none; }
+  .is-campfire-handoff *, .campfire-world.is-leaving { animation: none !important; transition: none !important; }
+}

@@ -65,7 +65,7 @@ describe('像素营地现场开场题', () => {
   });
   it('加载时没有题或选项；完整结果到达才入场，结束后可答并带完整题开聊', async () => {
     const p = pending(); h.request.mockReturnValue(p.promise);
-    const pick = vi.fn(); const { container } = render(<Welcome onPick={pick} />);
+    const pick = vi.fn(); const view = render(<Welcome onPick={pick} />); const { container } = view;
     expect(container.querySelector('.opener-option')).toBeNull();
     expect(container.querySelector('.pixel-scene')?.getAttribute('aria-hidden')).toBe('true');
     await advance();
@@ -84,6 +84,9 @@ describe('像素营地现场开场题', () => {
     expect(pick).toHaveBeenCalledOnce();
     expect(pick.mock.calls[0]?.[0]).toContain('抛硬币下一次');
     expect(pick.mock.calls[0]?.[0]).toContain('我选了 B');
+    view.rerender(<Welcome onPick={pick} blocked frozen />);
+    expect(screen.getByText('抛硬币下一次出现正面的概率是多少？')).toBeTruthy();
+    await advance(1000); expect(h.request).toHaveBeenCalledOnce();
   });
   it('换题立即撤掉旧题；新请求失败只显示重试，不能复用旧题', async () => {
     h.request.mockResolvedValueOnce(sample('one', '第一道现场题？'));

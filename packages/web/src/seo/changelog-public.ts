@@ -32,6 +32,9 @@ export const RELEASE_SCOPE = {
 
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
+  { version: 'v0.2.177', date: '2026-10-10', headline: '魔法光影、首问衔接与 UX 展示',
+    items: ['双色魔法结界、交错光柱与答题法阵丰富固定粗像素场景。', '首问流式回复与营地收束同步进入，历史与后续回复保持安静；README 展示实际 UX。'],
+  },
   { version: 'v0.2.176', date: '2026-10-09', headline: '导航退场与冒险答题反馈',
     items: ['导航收起后点亮学习建筑，展开后退场；固定建筑搭配暗黑像素光柱、雾与粒子。', '热身及各类答题加入命中、失误、完成和连答反馈，真实待核对与部分正确各自呈现。'],
   },

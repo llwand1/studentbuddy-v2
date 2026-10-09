@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { answerSoundEnabled, playAnswerSound, subscribeAnswerSound, toggleAnswerSound, type AnswerVerdict } from './answer-audio';
 import './answer-impact.css';
+import { AnswerSpell } from './AnswerSpell';
 
 /** Mount only for a real decision. Expired effects cannot replay when hidden chat returns. */
 export function AnswerImpact({ verdict, event = verdict, audible = false }: {
@@ -18,7 +19,7 @@ export function AnswerImpact({ verdict, event = verdict, audible = false }: {
   }, [verdict, event, audible]);
   if (!active) return null;
   return <div key={event} className={`answer-impact is-${verdict}`} aria-hidden="true">
-    <div className="answer-halo" /><i className="answer-slash" /><i className="answer-slash echo" />
+    <div className="answer-halo" /><AnswerSpell /><i className="answer-slash" /><i className="answer-slash echo" />
     <svg className="answer-crest" viewBox="0 0 64 64" shapeRendering="crispEdges" focusable="false">
       <path className="answer-crest-ring" d="M24 4h16v4h12v12h4v24h-4v12H40v4H24v-4H12V44H8V20h4V8h12z" />
       <path className="answer-crest-mark" d={verdict === 'wrong' ? 'M20 20h6v6h12v-6h6v6h-6v12h6v6h-6v-6H26v6h-6v-6h6V26h-6z'

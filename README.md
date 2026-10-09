@@ -3,27 +3,23 @@
 [![CI](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml)
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![version](https://img.shields.io/badge/version-0.2.176-orange)
-![tests](https://img.shields.io/badge/tests-397%20files%20%2F%204525%20cases-brightgreen)
+![version](https://img.shields.io/badge/version-0.2.177-orange)
+![tests](https://img.shields.io/badge/tests-398%20files%20%2F%204529%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-188-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-273%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
-**Windows 安装包：[下载本地版 0.1.0](https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-v0.1.0)**。Windows 10/11 x64，双击安装后从开始菜单启动，无需安装 Node 或 npm；浏览器自动打开，首次使用在设置里配置自己的 AI 服务商。关闭浏览器后可从托盘退出，升级和卸载保留学习数据。构建说明见 [Windows 本地安装包](docs/DESKTOP-SPEC.md)。
-
-**GitHub Packages：[studentbuddy-windows 0.1.0](https://github.com/users/llwand1/packages/npm/package/studentbuddy-windows)**。公开分发同一份安装程序、SHA-256 与许可证；npm 用户可按包内说明下载并运行安装命令。
-
 **像素风的游戏化学习 Agent：对话里学、出题里练、知识大陆上复习——你自己的词条库是主体，数据归你（SQLite 单文件，可自托管，开源）。** 在线：<https://11wand.com>（免注册可直接体验）· 本地：`npm install && npm run dev` · 零 key 全栈演示：`npm run demo:e2e`。
 
-**目录**：[为什么用它](#为什么用它) · [快速开始](#快速开始) · [验证：三条命令](#验证三条命令) · [架构](#架构) · [安全与隐私](#安全与隐私) · [已知限制](#已知限制) · [文档索引](#文档索引) —— 功能逐项的实现思路、产品判断与界面预览搬到了 [`docs/FEATURES.md`](docs/FEATURES.md)（长文），本页只留一页架构与三条验证命令。
+**目录**：[UX：从入场到复盘](#ux从入场到复盘) · [为什么用它](#为什么用它) · [快速开始](#快速开始) · [验证](#验证三条命令) · [架构](#架构) · [安全与隐私](#安全与隐私) · [已知限制](#已知限制) · [文档索引](#文档索引)。功能与实现细节见 [`docs/FEATURES.md`](docs/FEATURES.md)。
 
 **30 秒看懂：你想做什么 → 它怎么接**
 
 | 你想… | 它怎么接 |
 |---|---|
-| 不知道下一步干什么 | 左上角的**引路灯**：聊完一轮、做完一组题这类时刻它自己亮起来，点开是 AI 按你此刻处境现挑的 2–4 个下一步，一点即执行——第一次＝随机话题、聊完＝出题、做完题＝**一键解析**；迷路了翻「全部功能」，灰着的会告诉你怎么解锁 |
-| 问个问题 | 流式回答 + 思考链 + 工具步骤实时可见；模型自己决定何时搜网 / 查你的词条库 / 出题 / 画图；AI 一联网，右侧**资料架**同步上架，正文里的 `[n]` 点得回原文；「找视频」一键去 B站 / 抖音找讲解 |
+| 不知道下一步干什么 | 顶部的**引路灯**：聊完一轮、做完一组题这类时刻它自己亮起来，点开是 AI 按你此刻处境现挑的 2–4 个下一步，一点即执行——第一次＝随机话题、聊完＝出题、做完题＝**一键解析**；迷路了翻「全部功能」，灰着的会告诉你怎么解锁 |
+| 问个问题 | 流式回答 + 思考链 + 工具步骤实时可见；模型自己决定何时搜网 / 查你的词条库 / 出题 / 画图；AI 一联网，**资料入口**随搜索更新，主动打开可对照阅读，正文里的 `[n]` 点得回原文；「找视频」一键去 B站 / 抖音找讲解 |
 | 等回复的空档 | 桌面按许可在等待 2 秒后开启**词卡**；手机手动进入，避免遮住回复。到期词条答对＝一次真复习打卡 |
 | 让它考我 | 对话里说「考我」即可：六型配比、**真题缺省优先**、每道题标清「真题·必刷 / 模拟题·建议做 / 基础题·可选做」、材料与图必须随题带齐、答案先盲解验算 |
 | 把学过的记住 | 聊完的概念自动入库 → 回复里高亮 → 长成卡牌 → 铺进知识大陆；**FSRS-5** 按你的记忆决定何时复习，到期地块长草生怪，打败即收复；词条页里每条词都带卡面与星级，卡墙、宝箱、任务也在同一页 |
@@ -31,12 +27,49 @@
 | 用自己的资料学 | 绑定长文档走 BM25 检索注入、带段号可溯源，70 万字也能对答；粘贴图片提问走独立视觉角色 |
 | 不想注册 / 不想联网 | 首页「免注册，直接体验」；或 clone 后 `npm run demo:e2e`（零 API key、零外呼、杀进程重启后逐字仍在） |
 
+## UX：从入场到复盘
+
+**界面围绕“阅读 → 作答 → 理解 → 记住”组织。** 暗黑像素冒险场景提供明确的学习入口；进入对话后，主要空间交给回答与资料。引路灯、复习和输入保持可达，按需要展开。
+
+以下截图和动效来自实际前端，题目、回复与资料使用隔离演示数据。
+
+![魔法营地：固定像素建筑、双色结界与现场热身题](docs/images/ux177-campfire.png)
+
+**从一个问题开始。** 空对话现场召来热身题，答完可以接着问“为什么”，也能直接输入自己的问题。收起导航后，魔法图书馆接替词条库入口，遗迹接替知识大陆入口；展开导航时建筑退场。两者进入真实学习页面，返回保留当前题目、答案和草稿。
+
+<details>
+<summary>查看答题反馈与营地 → 首条回复的动态衔接</summary>
+
+![真实界面的魔法答题反馈与首问衔接](docs/images/ux177-arrival.gif)
+
+开会话时保留眼前的题目，首问实际发出后以魔法光痕收束营地，标题和回复同时进入。动画期间回复已经可读，输入和停止生成仍可操作；历史恢复与后续对话不重复播放。
+
+</details>
+
+**让正文拥有稳定的空间。** 搜索更新资料入口和引用，用户主动打开后才进入对照阅读。桌面左右、手机上下，可拖动分界线，也可展开资料单独阅读。导航、输入都能收起，草稿和题卡继续保留。
+
+![资料与结构化回答对照阅读，分界线调整两区比例](docs/images/ux177-reading.png)
+
+**手机同样围绕阅读设计。** 复习、导航和引路灯集中在顶部；输入靠底边并可收起。临时工具按需打开、限制高度，手机等待时刷词由用户主动进入。资料与对话分别滚动，切换布局保留正在阅读和作答的位置。
+
+<img src="docs/images/ux177-mobile.png" width="390" alt="手机上下对照阅读：顶部工具入口、可拖动分界线和收起的底边输入" />
+
+| 用户的下一步 | 界面如何接住 |
+|---|---|
+| 看懂回答 | 核心、步骤、例子、误区和自检以专属学习卡片组织；数学与白底 SVG 图解保留清晰度，引用点回资料 |
+| 把刚学的练一遍 | 可提炼的结构化回答完成后显示轻提示；用户再说“考我”时可取用这道练习，题卡沿用作答与复盘流程 |
+| 确认自己的答案 | 按压、命中斩光、失误碎光、连续命中与完成反馈响应真实判定；待评分与部分正确单独呈现，反馈音效主动开启 |
+| 理解为什么错 | 题目提交后展开答案与解析，完成一组可进入图文复盘、重练；GrillMe 可选当前对话、应试范围或自定义主题 |
+| 让知识留下来 | 对话概念沉淀为词条，回复里可速查，卡牌和知识大陆承接复习；外部 coding agent 也可通过专用接口存入带来源的词条 |
+
+建筑本体固定，魔法发生在光柱、门光、结界与粒子上；正文不叠加环境层。减少动态效果可中途停播，画面反馈不额外触发模型调用。相关契约：[阅读工作台](docs/READING-WORKSPACE-SPEC.md) · [学习入口](docs/STUDY-PORTAL-SPEC.md) · [答题反馈](docs/ANSWER-FEEL-SPEC.md) · [首问衔接](docs/CHAT-ARRIVAL-SPEC.md) · [回答提炼练习](docs/REPLY-PRACTICE-SPEC.md)。
+
 ## 为什么用它
 
 **StudentBuddy 是一个带工具循环、写操作确认门与长期记忆的学习 Agent；你自己的词条库是主体，游戏化（知识大陆、词条卡牌、对战、魔法吟唱）是同一个学习内核（学 → 练 → 析 → 忆 → 反馈）的表达方式，不是套在外面的皮。**
 
-- **本产品有「引导 + 主动呈现」的设计——功能会来找你，而不是让用户自己琢磨功能**：本产品的判断标准是「惰性功能不写」（[`docs/FEATURES.md`](docs/FEATURES.md#产品判断为什么砍功能为什么转向游戏化)）——必须先想起它存在才起作用、不会自己发起交互、拿掉没人察觉的功能，不做。落到界面上：**左上角的引路灯**按你此刻的处境由 AI 现挑下一步（[`GUIDE-SPEC.md`](docs/GUIDE-SPEC.md)）；另有几处各管一段的主动设计，**每一处都带克制的闸门，不是弹窗轰炸**（逐项数字与契约见 [`docs/FEATURES.md`](docs/FEATURES.md#功能来找你主动呈现设计一览)）：
-  - 等回复的空档 → 弹**词卡**（2 秒没回完才弹、秒回不打扰、关掉不作废、回复到了自动切回）
+- **本产品有「引导 + 主动呈现」的设计——功能会来找你，而不是让用户自己琢磨功能**：本产品的判断标准是「惰性功能不写」（[`docs/FEATURES.md`](docs/FEATURES.md#产品判断为什么砍功能为什么转向游戏化)）——必须先想起它存在才起作用、不会自己发起交互、拿掉没人察觉的功能，不做。落到界面上：**顶部的引路灯**按你此刻的处境由 AI 现挑下一步（[`GUIDE-SPEC.md`](docs/GUIDE-SPEC.md)）；另有几处各管一段的主动设计，**每一处都带克制的闸门，不是弹窗轰炸**（逐项数字与契约见 [`docs/FEATURES.md`](docs/FEATURES.md#功能来找你主动呈现设计一览)）：
+  - 等回复的空档 → 桌面按许可开启**词卡**，手机主动进入；回复到了可切回阅读，到期词条答对仍记一次真复习
   - 聊到词库里的词 → 对话页弹「刷新了新的怪物」+「一键讨伐」，直达战场开打
   - 有真欠账 → **督促胶囊**主动敲门（没欠账不敲、2 小时冷却、逾期 ≥3 天或堆到 10 条才敲）
   - 讲完一段成体系的内容 → AI 自己递 **PK 邀请卡**（每会话 5 分钟冷却、每人每天 ≤3 次，闸门在数据库里、重启不归零）
@@ -44,12 +77,12 @@
   - 走到岔路口 → AI 主动问一句并给 2–4 个选项（`ask_choice`）；开局先来一题——空会话现场召来热身题，答完顺着聊，也可直接提问；出题前就地问一次回答方式
   - 做完题 → 「一键讲解」「再练一遍」；每条回答下「找视频」；网页打不开 → 自动换服务器截图
   - 回答本身也会把东西递到眼前 → AI 联网后更新**资料入口**，主动打开可与聊天对照阅读；回复里命中词库的词自动下划线，悬停速览、点开是完整卡；题卡在做之前就标着「真题·必刷 / 模拟题·建议做 / 基础题·可选做」，重开做过的题时标出刷过几遍与「上次 ✓／↗」
-- **对话本身就能干活**：流式回答 + 思考链可见，模型自己决定何时搜网、查你的词条库、出题、画图；资料架随搜索上架，回答里的 `[n]` 点得回原文；绑定长资料走 BM25 检索注入、带段号可溯源。
+- **对话本身就能干活**：流式回答 + 思考链可见，模型自己决定何时搜网、查你的词条库、出题、画图；资料入口随搜索更新，主动打开进入对照阅读，回答里的 `[n]` 点得回原文；绑定长资料走 BM25 检索注入、带段号可溯源。
 - **词条是主体，学的痕迹自动沉淀**：聊完的概念自动入库 → 驱动出题 → FSRS-5 决定复习时机 → 回复里高亮 → 长成卡牌 → 铺进知识大陆。
 - **数据归你**：SQLite 单文件、可自托管、开源。
 - **前端依赖极少**：`@sb/web` 运行时依赖只有 react / react-dom；Markdown / SVG 净化 / 图表自绘，不可信内容的渲染契约见 [`docs/UNTRUSTED-RENDER-SPEC.md`](docs/UNTRUSTED-RENDER-SPEC.md)。
 
-- **在线体验**：<https://11wand.com>（**已上线到 v0.2.176**）。首页「免注册，直接体验」直连公用体验账号；⚠️ 公用池全站共享、访客彼此可见，别放个人信息。
+- **在线体验**：<https://11wand.com>（**已上线到 v0.2.177**）。首页「免注册，直接体验」直连公用体验账号；⚠️ 公用池全站共享、访客彼此可见，别放个人信息。
 - **不想点网页？** clone 后 `npm run demo:e2e` 跑完确定性全栈演示（用户 → API → 假 LLM → SSE → 落库 → 杀进程重启后逐字仍在；零 API key、零真实外呼）。
 - v2 是全新重写仓（v1 [`llwand1/studentbuddy`](https://github.com/llwand1/studentbuddy) 已冻结）。每个功能为什么这么做、产品为什么砍功能转游戏化，见 [`docs/FEATURES.md`](docs/FEATURES.md)。
 
@@ -57,6 +90,10 @@
 > 📌 本文所有定量数字**不许手抄**：由 `node tools/metrics.mjs` 产出，`--check` 在漂移时退出码 1（CI 跑的就是 `metrics --tests --check`）。
 
 ## 快速开始
+
+**Windows 安装包：[下载本地版 0.1.0](https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-v0.1.0)**。Windows 10/11 x64，双击安装后从开始菜单启动，无需安装 Node 或 npm；浏览器自动打开，首次使用在设置里配置自己的 AI 服务商。关闭浏览器后可从托盘退出，升级和卸载保留学习数据。构建说明见 [Windows 本地安装包](docs/DESKTOP-SPEC.md)。
+
+**GitHub Packages：[studentbuddy-windows 0.1.0](https://github.com/users/llwand1/packages/npm/package/studentbuddy-windows)**。公开分发同一份安装程序、SHA-256 与许可证；npm 用户可按包内说明下载并运行安装命令。
 
 **不想装环境？** 直接打开 **<https://11wand.com>**。**想完全本地、数据只留在自己机器上？** 按下文跑本地单机形态——两种形态**共用同一份代码**，差异只在环境变量。
 
@@ -81,8 +118,10 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼 |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **397 文件 / 4525 例**，全绿（4523 passed / 2 skipped；2026-10-09 导航场景与答题手感全量实跑）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
-### 为什么有四千条测试——它们不是数字游戏
+当前测试基线 **398 文件 / 4529 例**，全绿（4527 passed / 2 skipped；2026-10-10 魔法光影与首问衔接全量实跑）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
+<details>
+<summary>测试体系与风险审计：为什么有这些用例</summary>
+
 
 一个常见的第一印象是「4000 例太多了，多半是凑数」。2026-10-02 我们按**风险驱动测试**的口径把全部用例逐条过了一遍（方法与局限见 [`docs/TEST-AUDIT.md`](docs/TEST-AUDIT.md)，逐例明细 [`docs/test-audit-cases.csv`](docs/test-audit-cases.csv)），每条用例回答三问：**挡住什么失败？别处（tsc / eslint / 门禁 / 其他测试）能不能挡？代价多大？** 结果：
 
@@ -92,7 +131,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | **保底** | 挡住真实失败，但影响面小或与「必须」部分重叠：纯函数单点边界、渲染细节、双语完整性、像素资产一致性、公开页形状 | 992 | 24% |
 | **建议删除** | 不产生独立判定：常量＝常量、文案逐字相等、营销演示内容的形状、只验「能渲染不炸」 | 71 | 1% |
 
-第三档已全部删除（审计时的基线是 342 个文件、4038 例；并入时 main 已长到 344 / 4085，删掉这 71 例后即上面的现基线），**第二档刻意没按比例砍**：它们每条都对应一个真实失败模式，删掉换来的只是数字好看。
+第三档已全部删除（审计时的基线是 342 个文件、4038 例；并入时 main 已长到 344 / 4085，这 71 例删除后的基线记录在审计文档；当前计数以 metrics 实测为准），**第二档刻意没按比例砍**：它们每条都对应一个真实失败模式，删掉换来的只是数字好看。
 
 数量大的真正原因是**粒度**，不是冗余：
 
@@ -105,13 +144,15 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 
 另有几件不进 `check`、按需跑的仪器：`node tools/loadtest/sse-load.mjs`（单进程 SSE 容量探针，读数在 [`docs/SCALING.md`](docs/SCALING.md)）、`node tools/retention-report.mjs --db …`（只读留存报表，口径在 [`docs/RETENTION-SPEC.md`](docs/RETENTION-SPEC.md)）、`node tools/guard-audit.mjs`（把守门故意改坏，证明它们真的会红）。
 
+</details>
+
 ## 架构
 
 **单页架构图**（20 秒读法：从上往下＝一次请求的旅程；三条虚线＝三道边界——信任、归属、凭据）：
 
 ![架构总览：浏览器 → 信任边界 → App Server → 归属边界 → 域层 → SQLite；右侧凭据边界外是 LLM 上游](docs/images/architecture.svg)
 
-**三包职责**：`@sb/shared` 只放契约与纯函数（前后端共用一份，不允许各写一套）；`@sb/server` 承载全部业务域（Express + better-sqlite3，逐版本迁移 v1..v52）；`@sb/web` 是 React 18 前端，**零第三方运行时依赖**（无 UI 库 / 无 Markdown 库 / 无图表库）。
+**三包职责**：`@sb/shared` 只放契约与纯函数（前后端共用一份，不允许各写一套）；`@sb/server` 承载全部业务域（Express + better-sqlite3，版本化迁移）；`@sb/web` 是 React 18 前端，运行时依赖仅 React / react-dom（无 UI 库 / 无 Markdown 库 / 无图表库）。
 
 **一级视图四个**（`App.tsx` 的 `View` 联合）：对话 / 词条（含卡面、卡墙、宝箱与任务）/ 知识大陆 / 设置；卡牌已并入词条页，不再单独占导航；对战是 `#/pk` 独立页，督促是常驻胶囊。★ 新功能**默认不新增一级导航项**。
 
@@ -160,6 +201,8 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 |------|------|
 | [`FEATURES.md`](docs/FEATURES.md) | **功能与工程实现（长文）**：最近上新 / 产品判断 / 对话核 / 出题管道 / 记忆与 FSRS / 知识大陆 / 搜索 / AI 网关 / 测评体系 / 界面预览（2026-09-30 从 README 搬出） |
 | [`ENGINEERING.md`](docs/ENGINEERING.md) | **工程文档**：工程约定（规模约束 / 禁 `any` / 禁内联样式 / 测试登记 / 契约先行）/ 四条复验命令 / 三道最难的工程问题 / 仓库结构与代码地图 / 门禁与扩展模式 / 配置说明 |
+| [`READING-WORKSPACE-SPEC.md`](docs/READING-WORKSPACE-SPEC.md) · [`CHAT-ARRIVAL-SPEC.md`](docs/CHAT-ARRIVAL-SPEC.md) | 阅读布局、手机工具与分屏、魔法营地及首问衔接 |
+| [`LEARNING-REPLY-SPEC.md`](docs/LEARNING-REPLY-SPEC.md) · [`REPLY-PRACTICE-SPEC.md`](docs/REPLY-PRACTICE-SPEC.md) · [`ANSWER-FEEL-SPEC.md`](docs/ANSWER-FEEL-SPEC.md) | 专属回答卡片、回答提炼练习与真实答题反馈 |
 | [`GAMIFIED-AGENT-SPEC.md`](docs/GAMIFIED-AGENT-SPEC.md) | **游戏化产品口径契约**：一句话叙事 / 轻量化·可玩性·开放性判断标准 / 明确不做 / 分期 |
 | [`TOOL-ECOSYSTEM-SPEC.md`](docs/TOOL-ECOSYSTEM-SPEC.md) | 工具生态契约（注册表 / 元数据 / 确认门 / 场景裁剪） |
 | [`SCENARIO-SPEC.md`](docs/SCENARIO-SPEC.md) | 情景题契约（评分点判型 / 桥接脚本 / 沙箱边界） |
@@ -185,4 +228,4 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | [`DEPLOY.md`](DEPLOY.md) | **部署手册**：服务器 / systemd / 五条部署 env / TLS / 备份 / 回滚 |
 | [`CHANGELOG.md`](CHANGELOG.md) | 已发布版本的对外更新记录 |
 
-★ 完整契约清单（42 份 SPEC）直接看 `docs/` 目录。仓内以 `docs/` 与代码为准；文档与实现冲突时**以代码 + 测试为准**。
+★ 完整契约清单直接看 `docs/` 目录。仓内以 `docs/` 与代码为准；文档与实现冲突时**以代码 + 测试为准**。

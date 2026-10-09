@@ -6,14 +6,15 @@ import { OpenerQuestion } from './OpenerQuestion';
 import { CampfireShortcuts, type StudyPortalControls } from './StudyPortalLink';
 import './campfire-opener.css';
 
-export function Welcome({ onPick, blocked = false, onAsk, onEnter, travelling }: StudyPortalControls & {
+export function Welcome({ onPick, blocked = false, frozen = false, onAsk, onEnter, travelling }: StudyPortalControls & {
   onPick: (text: string) => void;
   blocked?: boolean;
+  frozen?: boolean;
   onAsk?: () => void;
 }) {
   const exam = useExamScope();
   const scopeKey = `${exam.on}:${exam.summary}`;
-  const opener = useCampfireOpener(scopeKey, !blocked && !exam.loading);
+  const opener = useCampfireOpener(scopeKey, !blocked && !frozen && !exam.loading, frozen);
   return (
     <div className="welcome welcome-campfire campfire-entering">
       <p className="welcome-eyebrow">CAMPFIRE · 篝火营地</p>

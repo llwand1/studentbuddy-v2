@@ -1,3 +1,5 @@
+> 2026-10-10 魔法光影与首问衔接：仅新增 4 个普通回归用例，既有热身用例补充开会话时保留本次题目断言；没有新增模型评测或线上 AI 调用。
+
 > 2026-10-09 导航场景与答题手感：新增 4 个普通回归用例（反馈层 3、题卡真实连续命中与重练 1）；既有热身和 AI 判定用例补断言，无模型评测或线上 AI 调用。
 
 > 2026-10-09 营地功能入口：仅新增 3 个普通回归用例；无模型评测或线上 AI 调用。
@@ -306,6 +308,7 @@
 | 本次测试文件 | 用例 | 不变量 |
 |---|---:|---|
 | `src/components/PixelSidebar.test.tsx` | 4 | 手机导航打开/关闭；Escape 与遮罩关闭后归还焦点；导航点击仍执行；账号与历史输入交互不误关 |
+| `src/features/chat/useCampfireHandoff.test.tsx` | 4 | 首问保留当前题并衔接流式回复、忙碌改变不延长退场；历史/后续不播放与切会话清理；失败取消与重试；减少动态效果中途清理及卸载 | [DONE] 4 passed（实测） |
 | `src/features/chat/Welcome.test.tsx` | 8 | 现场新题完整返回才入场，换题撤旧、失败不回显；范围读取结束才召题，失败也继续；切范围与卸载取消，迟到结果隔离，初始范围慢加载不重复发起、读取失败也能召题；减少动态、直接提问与学习入口导航 |
 | `src/features/chat/useScrollAnchor.test.tsx` | 3 | 欢迎空态从顶部开始；首条消息贴底；阅读历史不强拉；返回空态复位；减少动态效果时即时跳转 |
 > ★ **2026-09-26 题库功能整族下线改动（Qoder-c6246356，issue #32，拟 v0.2.135）对本表的改动清单**：**删 8 条登记行 72 例**＝`quiz-weak.test.ts`（shared）13＋`routes/collect.test.ts` 8＋`learning/quiz-weak.test.ts` 24＋`learning/quiz-edit.test.ts` 3＋`routes/quiz-tenancy.test.ts` 3＋`features/quiz/collect-view.test.ts` 6＋`weak-report.test.ts` 11＋`bank-view.test.ts` 4；★ **三处就地改例数**＝`routes/scenario` 13→**11**、`features/quiz/scenario-view` 6→**4**、`features/quiz/mix-report` 20→**22**（＋2＝bank-view 里 `mixTipText` 两例**搬家**至此，函数还活着）；★ **§3 基线 204／2766 → 196／2692**（−8 文件／−74 例，三包分别实跑求和闭合）；★ **三个分节头一次补齐**（shared／server／web 的小计此前分别停在 281／18、1746／121、790／69＝各自时点快照，中间阶段未回写）；★ **散文降格若干处**：上面八个文件名在 §3 顶注、版本 K 版本行、薄弱点分析改动的增量行与 §7/§8 的沿革里以带 `src/` 的形状出现过 ⇒ 一律降格为不带 `src/` 前缀的短写法（闸门 #4 双向查，历史行不许留幽灵，也不许为此删字）；★ **§6 新挂 2 行**（情景题无删除通道＝本次代价；`mixTipText` 漏 `judge` 档＝搬家时现查到的既有缺口）；★ **验证面搬家**：出题工具与合流端到端不再读 `quiz_bank`（表留在库里等 DROP 另行处理），改读**响应题组的逐题 `source.kind`** 与**会话里的 `[QUIZ]` 登记行**，并各带一条「`quiz_bank` 零行」的回归锁；⚠️ **一处本表自身的漂移，登记不改**：§8 变更记录自 v0.2.127 起断了六次记录（v0.2.128~134 都没入账），本次仍按表头约定在 §8 补一行——★ 但**不回补**那六次的历史行（补＝替别人编账）。
@@ -450,7 +453,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，如实记录）**：本次在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（现基线：397 文件 / 4525 例，4523 passed + 2 skipped，2026-10-09 导航场景与答题手感全量实跑）
+## 3. 用例清单（现基线：398 文件 / 4529 例，4527 passed + 2 skipped，2026-10-10 魔法光影与首问衔接全量实跑）
 
 | 新增测试 | 用例 | 不变量 |
 |---|---:|---|

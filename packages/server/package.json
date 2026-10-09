@@ -1,6 +1,6 @@
 {
   "name": "@sb/server",
-  "version": "0.2.176",
+  "version": "0.2.177",
   "private": true,
   "type": "module",
   "scripts": {

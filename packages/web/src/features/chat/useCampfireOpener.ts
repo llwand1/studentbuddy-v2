@@ -3,14 +3,14 @@ import { INTERACTIVE_AI_BUDGET, normalizeCampfireQuestion, OPENER_HISTORY_LIMIT,
 import { api } from '../../lib/api';
 
 type Result = { key: string; status: 'loading' | 'ready' | 'error'; value?: CampfireOpener; error?: string };
-export function useCampfireOpener(scopeKey: string, enabled: boolean) {
+export function useCampfireOpener(scopeKey: string, enabled: boolean, frozen = false) {
   /** 仅当前挂载的题干排重，账号之间不共享内容；跨刷新由服务端的归属摘要守。 */
   const recent = useRef<string[]>([]);
   const [attempt, setAttempt] = useState(0);
   const key = `${scopeKey}\u0000${attempt}`;
   const [result, setResult] = useState<Result>({ key, status: 'loading' });
   useEffect(() => {
-    if (!enabled) { setResult({ key, status: 'loading' }); return; }
+    if (!enabled) { if (!frozen) setResult({ key, status: 'loading' }); return; }
     let alive = true;
     const controller = new AbortController();
     setResult({ key, status: 'loading' });
@@ -32,8 +32,8 @@ export function useCampfireOpener(scopeKey: string, enabled: boolean) {
       });
     }, 100);
     return () => { alive = false; window.clearTimeout(timer); controller.abort(); };
-  }, [key, enabled]);
+  }, [key, enabled, frozen]);
   // render 阶段就隔离旧结果，不能等 effect 清掉上一范围的题再渲染。
-  const current = enabled && result.key === key ? result : { key, status: 'loading' as const };
+  const current = (enabled || frozen) && result.key === key ? result : { key, status: 'loading' as const };
   return { ...current, retry: () => setAttempt(value => value + 1) };
 }

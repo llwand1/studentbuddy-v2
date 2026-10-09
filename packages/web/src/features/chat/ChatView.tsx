@@ -31,7 +31,9 @@ import { useQuizActions } from './use-quiz-actions';
 import { RefList } from '../quiz/RefList';
 
 import { Markdown } from './Markdown';
-import { Welcome } from './Welcome';
+import { CampfireWelcome, CampfireHandoffTrace } from './CampfireWelcome';
+import { ChatHeading } from './ChatHeading';
+import { useCampfireHandoff } from './useCampfireHandoff';
 import { CampfireWorld, type StudyPortalControls } from './CampfireWorld';
 import { Thinking } from './Thinking';
 import { ChatComposer } from './ChatComposer';
@@ -114,6 +116,7 @@ export function ChatView({
   /** 滚动锚定：贴底才跟随流式输出；离底时不打断用户上翻，改显示「回到底部」。
       来源清单也算锚：它随本轮落屏，贴底时该被带进视野 */
   const isEmpty = historyReady && messages.length === 0 && steps.length === 0 && tasks.length === 0 && !streamingText;
+  const handoff = useCampfireHandoff({ sessionId, empty: isEmpty, historyReady, starting: quick.starting, busy, failed: !!(error || sendError) });
   /** 轮数＝用户提问条数；只有题卡没有提问的会话不挂「0 轮」 */
   const rounds = messages.filter((x) => x.role === 'user').length;
   const { scrollRef, showJump, onScroll, jumpToBottom } = useScrollAnchor([
@@ -122,7 +125,7 @@ export function ChatView({
     tasks.length,
     streamingText,
     quiz.quizRefs.length,
-  ], !isEmpty);
+  ], !isEmpty && !handoff.waiting);
   /** 输入框随内容自增高：高度写进 CSS 变量 --ta-h（chat.css），上限 200px 后内滚 */
   useAutoResize(inputRef, input);
 
@@ -173,6 +176,7 @@ export function ChatView({
     setSendError('');
     inputRef.current?.focus();
     quiz.resetRound();
+    handoff.begin();
     quick.fire(text, imgs);
   };
   /** 建议卡：点了就开聊——提示语作为第一问直接发出（没会话先开一间）；输入框里打了半句的按草稿带进新会话 */
@@ -206,19 +210,14 @@ export function ChatView({
   });
 
   return (
-    <div className="chat-view">
-      {isEmpty && <CampfireWorld key={sessionId ?? 'campfire'} onEnter={onEnter} travelling={travelling} />}
+    <div className={`chat-view${handoff.leaving ? ' is-campfire-handoff' : ''}`}>
+      {(isEmpty || handoff.keep) && <CampfireWorld key={handoff.heroKey} onEnter={onEnter} travelling={travelling} exiting={handoff.leaving} />}
+      {handoff.leaving && <CampfireHandoffTrace />}
       <ChatSpeakerDefs />
       {/* 会话铭牌条（与其它页面的页标题同一套：角标 + 压印标题 + 荆棘分隔）；空会话由欢迎页自带角标，不重复 */}
-      {!isEmpty && (
-        <header className="chat-head">
-          <span className="chat-head-eyebrow">CAMPFIRE · 篝火对谈</span>
-          <h2 className="chat-head-title">{sessionTitle?.trim() || '新对话'}</h2>
-          {rounds > 0 && <span className="chat-head-rounds">{rounds} 轮</span>}
-        </header>
-      )}
+      <ChatHeading hidden={isEmpty || handoff.waiting} title={sessionTitle} rounds={rounds} />
       <div className="chat-scroll" ref={scrollRef} onScroll={onScroll} role="log" aria-live="polite" aria-busy={busy}>
-        {isEmpty && <Welcome key={sessionId ?? 'campfire'} onPick={pick} blocked={blocked} onAsk={() => inputRef.current?.focus()} onEnter={onEnter} travelling={travelling} />}
+        {(isEmpty || handoff.keep) && <CampfireWelcome key={handoff.heroKey} frozen={handoff.keep} leaving={handoff.leaving} onPick={pick} blocked={blocked} onAsk={() => inputRef.current?.focus()} onEnter={onEnter} travelling={travelling} />}
         {messages.map((m, i) => (
           <MessageRow
             key={`${sessionId}-${i}`}

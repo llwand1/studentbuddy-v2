@@ -38,11 +38,15 @@ import { HuntAlert } from '../features/hunt/HuntAlert';
 import { GuideBeacon } from '../features/guide/GuideBeacon';
 import { guideMainClass } from '../features/guide/guide-layout';
 import { TrialNotice } from '../components/TrialNotice';
+import { ReadingToolbar } from './ReadingToolbar';
+import { useReadingLayout } from './useReadingLayout';
 import './app.css';
+import './reading-workspace.css';
 
 export function App() {
   /** 壳层框架文案（新对话 / 历史 / 搜索 / 导航标签）跟着全局语言走，词表见 app/shell-copy.ts */
   const { lang } = useLandingLang();
+  const reading = useReadingLayout();
   const [view, setView] = useState<View>('chat');
   /** 回答收口的轮次计数（`HuntAlert` 据此重取地图看有没有刷出话题怪；契约 KNOWLEDGE-CONTINENT-SPEC §「话题怪」） */
   const [roundTick, setRoundTick] = useState(0);
@@ -156,8 +160,8 @@ export function App() {
   const visible = q ? sessions.filter((s) => s.title.toLowerCase().includes(q)) : sessions;
 
   return (
-    <div className="sb-shell">
-      <PixelSidebar>
+    <div className={`sb-shell${reading.focused ? ' is-reading-focus' : ''}`}>
+      <PixelSidebar collapsed={reading.collapsed}>
         {/* 品牌 logo：吉祥物团子即入口（点击回对话主界面，对话不再占导航项） */}
         <button className="sb-logo" title="studentbuddy" onClick={() => setView('chat')}>
           <Mascot />
@@ -235,56 +239,61 @@ export function App() {
         {/* 全局语言切换（2026-09-28）：侧栏最底一行，任何视图下都在。样式复用 .landing-lang*（见 landing-lang 头注的命名债） */}
         <span className="sb-lang-bar"><LangToggle /></span>
       </PixelSidebar>
-      <main className={guideMainClass(view)}>
-        {/* 引路灯（docs/GUIDE-SPEC.md）：主区左上角的提灯。关键时刻自己亮，点开是 AI 现挑的下一步；
-            `position: fixed`，不占主区的盒子。「随机话题」要回到未选会话态再开新会话，故传 onFreshChat。 */}
-        <GuideBeacon
-          lang={lang}
-          view={view}
-          sessionId={currentId}
-          onView={goView}
-          onNewSession={() => void newSession()}
-          onFreshChat={() => {
-            setView('chat');
-            setCurrentId(null);
-          }}
-        />
-        {/* 四个视图之间的切换走像素幕布转场（components/SceneTransition）：内容同步换、幕布盖在上面掀开；
-            场景层不产生盒子，下面各页的 flex/height 口径与直接挂在 .sb-main 下时一字不差 */}
-        <SceneTransition scene={view}>
-          {view === 'chat' && (
-            /* 词条索引 Provider（契约 TERM-HIGHLIGHT-SPEC §5）：正文里的词条高亮与悬浮卡
-               都从这里取索引。两个跨页动作也从这里注入——`openTerms`＝卡片「打开词条库」，
-               `followUp`＝卡片「向 AI 追问」（契约 KNOWLEDGE-FOLLOWUP-SPEC §6）。
-               挂在这里而不是 ChatView 内部，是为了让 ChatView 零 props 改动。 */
-            <TermIndexProvider onOpenTerms={openTerms} onFollowUp={followUp}>
-              <ChatView
-                sessionId={currentId}
-                sessionTitle={sessions.find((s) => s.id === currentId)?.title}
-                onNewSession={() => void newSession()}
-                onRoundDone={() => {
-                  void reloadSessions();
-                  setRoundTick((n) => n + 1);
-                }}
-                onBusyChange={handleBusyChange}
-              />
-            </TermIndexProvider>
-          )}
-          {/* key 变化时重挂：从词条卡带词进来要重新初始化搜索框 */}
-          {view === 'terms' && (
-            <TermsLibraryView
-              key={termsKeyword}
-              initialKeyword={termsKeyword}
-              onGoContinent={() => setView('continent')}
-            />
-          )}
-          {view === 'continent' && <ContinentPage />}
-          {view === 'settings' && <SettingsView />}
-        </SceneTransition>
-      </main>
-      <PreviewPanel />
-      {/* 资料溯源（docs/SOURCE-TRACE-SPEC.md）：与演示面板同占右栏；有演示时它让位，演示关掉自动回来 */}
-      <SourcePanel />
+      <section className="sb-workspace" aria-label={SHELL.readingTools[lang]}>
+        <ReadingToolbar layout={reading} sessionId={currentId}
+          title={view === 'chat' ? sessions.find((s) => s.id === currentId)?.title || SHELL.newChat[lang] : NAV.find((n) => n.key === view)?.label[lang]}>
+          <GuideBeacon
+            lang={lang}
+            view={view}
+            sessionId={currentId}
+            onView={goView}
+            onNewSession={() => void newSession()}
+            onFreshChat={() => {
+              setView('chat');
+              setCurrentId(null);
+            }}
+          />
+        </ReadingToolbar>
+        <div className="sb-reading-content">
+          <main className={guideMainClass(view)}>
+            {/* 四个视图之间的切换走像素幕布转场（components/SceneTransition）：内容同步换、幕布盖在上面掀开；
+                场景层不产生盒子，下面各页的 flex/height 口径与直接挂在 .sb-main 下时一字不差 */}
+            <SceneTransition scene={view}>
+              {view === 'chat' && (
+                /* 词条索引 Provider（契约 TERM-HIGHLIGHT-SPEC §5）：正文里的词条高亮与悬浮卡
+                   都从这里取索引。两个跨页动作也从这里注入——`openTerms`＝卡片「打开词条库」，
+                   `followUp`＝卡片「向 AI 追问」（契约 KNOWLEDGE-FOLLOWUP-SPEC §6）。
+                   挂在这里而不是 ChatView 内部，是为了让 ChatView 零 props 改动。 */
+                <TermIndexProvider onOpenTerms={openTerms} onFollowUp={followUp}>
+                  <ChatView
+                    sessionId={currentId}
+                    sessionTitle={sessions.find((s) => s.id === currentId)?.title}
+                    onNewSession={() => void newSession()}
+                    onRoundDone={() => {
+                      void reloadSessions();
+                      setRoundTick((n) => n + 1);
+                    }}
+                    onBusyChange={handleBusyChange}
+                  />
+                </TermIndexProvider>
+              )}
+              {/* key 变化时重挂：从词条卡带词进来要重新初始化搜索框 */}
+              {view === 'terms' && (
+                <TermsLibraryView
+                  key={termsKeyword}
+                  initialKeyword={termsKeyword}
+                  onGoContinent={() => setView('continent')}
+                />
+              )}
+              {view === 'continent' && <ContinentPage />}
+              {view === 'settings' && <SettingsView />}
+            </SceneTransition>
+          </main>
+          <PreviewPanel />
+          {/* 资料溯源（docs/SOURCE-TRACE-SPEC.md）：与演示面板同占右栏；有演示时它让位，演示关掉自动回来 */}
+          <SourcePanel />
+        </div>
+      </section>
       {/*
         复习督促小窗（v25 B+C+E）：挂在**主区之上、全局常驻**——它不是某个页面的附属功能，
         而是"随时能点开看一眼欠了多少"的悬浮件，故不随 `view` 切换挂载/卸载
@@ -295,7 +304,7 @@ export function App() {
         等待时刷词（docs/WAIT-DRILL-SPEC.md）：同样全局常驻——它盯的是 `localBusySid`（发送后 2 秒还没回完就弹），
         而弹窗、配乐与本局战绩不该因为切页被重置；`active` 只管"自动弹"是否允许（不在对话页不弹）。
       */}
-      <WaitDrill busySessionId={localBusySid ?? quizWaitSid} active={view === 'chat'} />
+      <WaitDrill busySessionId={localBusySid ?? quizWaitSid} active={view === 'chat' && !reading.focused} />
       {/* 划词速查小窗：常驻壳层，一次只开一个（LOOKUP-SPEC §5） */}
       <LookupPopup />
       {/* 「刷新了新的怪物」：每轮收口后与大陆同一口径算话题怪，新冒出的就提醒；「一键讨伐」切到大陆自动寻路开打 */}

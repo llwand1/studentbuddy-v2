@@ -4,7 +4,7 @@ import { useLandingLang } from '../app/landing-lang';
 import { SHELL } from '../app/shell-copy';
 
 /** Mobile drawer keeps every existing navigation, history and account control reachable. */
-export function PixelSidebar({ children }: { children: ReactNode }) {
+export function PixelSidebar({ children, collapsed = false }: { children: ReactNode; collapsed?: boolean }) {
   const [open, setOpen] = useState(false);
   /** 抽屉按钮与遮罩的无障碍名跟着全局语言走（词表见 app/shell-copy.ts） */
   const { lang } = useLandingLang();
@@ -14,7 +14,7 @@ export function PixelSidebar({ children }: { children: ReactNode }) {
     toggle.current?.focus();
   };
   return (
-    <aside className={`sb-sidebar${open ? ' is-open' : ''}`} onKeyDown={(e) => {
+    <aside className={`sb-sidebar${open ? ' is-open' : ''}${collapsed ? ' is-collapsed' : ''}`} onKeyDown={(e) => {
       if (e.key === 'Escape' && open) { e.stopPropagation(); close(); }
     }}>
       <div className="sb-mobile-bar">

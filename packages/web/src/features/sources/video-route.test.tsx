@@ -9,7 +9,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, fireEvent, cleanup, act } from '@testing-library/react';
 import type { SourceItem, VideoRouteResult } from '@sb/shared';
-import { applyLiveSources, getSources, resetSourcesStore } from '../../lib/sources-store';
+import { applyLiveSources, getSources, reopenSources, resetSourcesStore } from '../../lib/sources-store';
 import { closePreview } from '../../lib/preview-store';
 import { getVideoRoute, resetVideoRouteStore } from '../../lib/video-route-store';
 import { MessageFoot } from '../chat/MessageFoot';
@@ -81,6 +81,7 @@ describe('② 命中卡', () => {
       route === 'bilibili' ? result(route, q, [bili(1), bili(2)]) : result(route, q, [dy(1)], { via: 'web', note: '抖音不开放接口、不许嵌播' }),
     );
     applyLiveSources({ kind: 'sources', sessionId: 's1', items: [item(1, { query: '牛顿' })] });
+    reopenSources();
     const { container } = render(<SourcePanel />);
     fireEvent.click(Array.from(container.querySelectorAll('.sb-browser-btn')).find((b) => b.textContent === '找视频') as HTMLElement);
     await flush();
@@ -120,6 +121,7 @@ describe('③ 零命中 / 出错 / 切回', () => {
   it('零命中只剩站内搜索出口；出错也给站内搜索；「资料 n」切回架子；× 全关', async () => {
     api.searchVideos.mockResolvedValueOnce(result('bilibili', '冷门词', [], { note: 'B站站内没搜到这个词的视频' }));
     applyLiveSources({ kind: 'sources', sessionId: 's1', items: [item(1, { query: '冷门词' }), item(2)] });
+    reopenSources();
     const { container } = render(<SourcePanel />);
     fireEvent.click(Array.from(container.querySelectorAll('.sb-browser-btn')).find((b) => b.textContent === '找视频') as HTMLElement);
     await flush();

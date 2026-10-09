@@ -4,6 +4,8 @@
 AI 自己再从中精选 1–3 条说明为什么值得看；回答里的 `[n]` 引用能点回对应资料；资料随回答落库，历史里照样能翻。
 v1.1 加两条腿：**视频线路**（§12，学习者自己一键去 B站 / 抖音找讲解视频）与**截图保底**（§13，阅读页打不开就让服务器用真浏览器截首屏）。
 
+v0.2.172：资料仍实时上架，但面板改为主动打开，工具条提供小入口，并支持展开阅读 / 对照阅读。阅读布局见 `READING-WORKSPACE-SPEC.md`。
+
 ## 1. 目标与不做
 
 - **目标**：等待时不再是黑箱——「AI 在看什么」一眼可见；回答有据可查（`[n]` 点得回去）；学习者能顺手把好资料读完。
@@ -17,7 +19,7 @@ v1.1 加两条腿：**视频线路**（§12，学习者自己一键去 B站 / �
 ## 2. 一轮回答里学习者看到什么
 
 ```
-提问 ──▶ search_web ──▶ 右侧弹出资料架：[1]…[5]（搜到）        ← 面板标「AI 在看」
+提问 ──▶ search_web ──▶ 资料入口更新：[1]…[5]（搜到）        ← 主动打开后面板标「AI 在看」
            │
            ├──▶ fetch_page(url) ──▶ 该条升格为「读过」+ 标「在读」；不在架上的网址补一个新编号
            │
@@ -27,7 +29,7 @@ v1.1 加两条腿：**视频线路**（§12，学习者自己一键去 B站 / �
 回答收口 ──▶ 面板标由「AI 在看」改「资料」；资料随回答落库；消息脚注常显「资料 n 条」
 ```
 
-- 学习者中途关掉面板 ⇒ **本轮**不再自动弹（下一轮照弹）；点脚注 / 点 `[n]` 随时重开。
+- v0.2.172 起资料默认收起，搜索只更新工具条的小入口；点入口、脚注或 `[n]` 随时重开，跨轮不会自动弹。布局见 `READING-WORKSPACE-SPEC.md`。
 - 键位：`[` / `]` 前后切，`Alt+←/→` 同义，`Alt+1–9` 直达面板第 k 个标签（§8.4）。
 - 手机（≤640px）：资料架与演示面板一样铺满内容区；刷词退回底部抽屉，两者不并排（先关一个）。
 
@@ -173,7 +175,10 @@ CREATE INDEX idx_message_source_url ON message_source(session_id, url);
 
 ```ts
 state = { open, sessionId, items, activeN, readingN, live }
-applyLiveSources(payload)   // SSE 帧：整表替换；首帧自动打开；已选中的条还在就不跳；首选 = 精选 > 在读 > 面板首条
+applyLiveSources(payload)   // SSE 帧：整表替换；不自动打开；已选中的条还在就不跳；首选 = 精选 > 在读 > 面板首条
+setSourceSession(sid)       // 切会话清空旧资料入口
+rememberSessionSources(sid, items) // 历史载入后恢复最新可用资料入口，不覆盖 live 或其他会话
+reopenSources()            // 主动重开当前资料，保留 activeN/live/readingN
 openSources(sid, items, n?) // 历史 / 脚注：指定 n（不存在落首选）；空架不开
 showSource(sid, items, n)   // 引用芯片：同一份架子只切条目并确保打开，不同架子按新架重开
 selectSource / stepSource(±1) / selectSourceAt(k) / closeSources()
@@ -182,8 +187,7 @@ takeTurnSources(sid)        // 回答收口：把本轮架子交给 finalizeRoun
 readerUrl(sid, item)        // pdf → /api/sources/pdf，其余 → /api/sources/view
 ```
 
-- **关过本轮不再弹**：`closeSources()` 在 live 时记下 `{sessionId, turn}`；同轮后续帧只更新内容不打开；`takeTurnSources` 结束一轮，
-  下一轮首帧重新弹。轮次用**单调计数**而不是时间戳（同一毫秒内收口又开新轮会撞号）。
+- **跨轮不自动弹**：只有主动打开的同会话资料架继续显示；关闭后 live 帧只更新资料入口和内容，下一轮也不会抢占阅读空间。
 - `takeTurnSources` 在 `setMessages` 的 updater 里被调（StrictMode 下同一 tick 调两次）：同秒重复取返回同一份；
   通知放到微任务（避免「渲染 ChatView 时更新 SourcePanel」告警）；1 s 后再取为空（防陈旧架子挂到下一条）。
 - **单条可叉掉**（2026-09-30）：`removeSource(n)` 从架上拿掉并按**网址**记入本会话的隐藏表；正在看的被叉掉 ⇒ 落到剩下里的首选；

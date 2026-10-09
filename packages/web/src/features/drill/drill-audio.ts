@@ -6,14 +6,14 @@
  * ★ 配乐：A 小调、132 BPM、8 小节循环——低音（三角波）+ 主旋律（方波）+ 琶音（方波、低音量）+ 鼓组
  *   （正弦下扫当底鼓、带通噪声当军鼓、高通噪声当踩镲）。用「前瞻调度」（lookahead 120ms、每 25ms 排一次）
  *   而不是 setTimeout 逐音符触发：后者在标签页失焦时会乱拍。
- * ★ 音效七款（答对 / 答错 / 斩 / 翻卡 / 连击 / 新词 / 回复到了），每款不超过三个振荡器，都在 300ms 内结束。
+ * ★ 音效八款（答对 / 答错 / 斩 / 收录 / 翻卡 / 连击 / 新词 / 回复到了），使用短促的芯片音。
  * ★ 浏览器自动播放策略：`AudioContext` 只在 `start()` 时创建并 `resume()`；发送消息那一下点击已给页面
  *   "用户激活"，多数浏览器允许随后出声；被拒时静默（`state` 仍是 suspended），首个点击选项时再 resume 一次。
  * ★ 静音是**主增益归零**而不是停调度：这样切回有声时音乐正好在拍上，不会从头开始。
  * ★ 可测：构造函数接受 `AudioContext` 工厂；jsdom 没有 Web Audio，单测注入桩。
  */
 
-export type DrillSfx = 'correct' | 'wrong' | 'slash' | 'flip' | 'combo' | 'new' | 'ready';
+export type DrillSfx = 'correct' | 'wrong' | 'slash' | 'flip' | 'combo' | 'new' | 'ready' | 'keep';
 
 const BPM = 132;
 const STEP = 60 / BPM / 4;
@@ -252,6 +252,10 @@ export class DrillAudio {
         return;
       case 'flip':
         this.tone(out, 'triangle', 900, t, 0.035, 0.07 * s);
+        return;
+      case 'keep':
+        [523, 659, 1047].forEach((hz, k) => this.tone(out, 'triangle', hz, t + k * 0.07, 0.11, 0.11 * s));
+        this.tone(out, 'sine', 262, t + 0.18, 0.1, 0.08 * s);
         return;
       case 'combo':
         [440, 523, 659, 880].forEach((hz, k) => this.tone(out, 'square', hz, t + k * 0.07, 0.09, 0.15 * s));

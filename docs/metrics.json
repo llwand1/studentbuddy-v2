@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T16:06:48.183Z",
+  "generatedAt": "2026-10-09T16:49:17.829Z",
   "code": {
     "rows": [
       {
@@ -18,17 +18,17 @@
       },
       {
         "pkg": "web",
-        "srcFiles": 370,
-        "testFiles": 154,
-        "srcLines": 42805,
-        "testLines": 19526
+        "srcFiles": 372,
+        "testFiles": 155,
+        "srcLines": 42878,
+        "testLines": 19605
       }
     ],
-    "srcFiles": 726,
-    "testFiles": 398,
-    "srcLines": 93173,
-    "testLines": 62666,
-    "tsxTestFiles": 76
+    "srcFiles": 728,
+    "testFiles": 399,
+    "srcLines": 93246,
+    "testLines": 62745,
+    "tsxTestFiles": 77
   },
   "routes": {
     "total": 188,
@@ -80,25 +80,25 @@
     ]
   },
   "docs": {
-    "specs": 59,
-    "all": 77,
+    "specs": 60,
+    "all": 78,
     "probes": 15
   },
   "repo": {
-    "head": "21702ca",
-    "headDate": "2026-10-09",
-    "commitsLast14d": 286,
-    "branch": "feat/arcane-ux177",
-    "dirtyFiles": 35
+    "head": "fd6ec4e",
+    "headDate": "2026-10-10",
+    "commitsLast14d": 287,
+    "branch": "feat/drill-actions178",
+    "dirtyFiles": 26
   },
   "tests": {
     "available": true,
     "ranNow": false,
     "wallSec": 0,
     "staleDays": 0,
-    "files": 398,
-    "cases": 4529,
-    "passed": 4527,
+    "files": 399,
+    "cases": 4532,
+    "passed": 4530,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -109,14 +109,14 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "398",
-      "measured": "398",
+      "claimed": "399",
+      "measured": "399",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4529",
-      "measured": "4529",
+      "claimed": "4532",
+      "measured": "4532",
       "ok": true
     },
     {
@@ -145,20 +145,20 @@
     },
     {
       "label": "badge 版本",
-      "claimed": "0.2.177",
-      "measured": "0.2.177",
+      "claimed": "0.2.178",
+      "measured": "0.2.178",
       "ok": true
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.177",
-      "measured": "v0.2.177",
+      "claimed": "v0.2.178",
+      "measured": "v0.2.178",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "398 文件 / 4529 例",
-      "measured": "398 文件 / 4529 例",
+      "claimed": "399 文件 / 4532 例",
+      "measured": "399 文件 / 4532 例",
       "ok": true
     }
   ],

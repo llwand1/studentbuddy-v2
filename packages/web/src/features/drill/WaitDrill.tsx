@@ -166,6 +166,7 @@ export function WaitDrill({ busySessionId, active }: { busySessionId: string | n
       queueLeft={s.queueLeft}
       notice={s.notice}
       newNote={s.newNote}
+      keepState={s.keepState}
       draft={s.draft}
       onDraft={s.setDraft}
       onToggleSound={toggleSound}

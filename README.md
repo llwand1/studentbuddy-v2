@@ -3,8 +3,8 @@
 [![CI](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/llwand1/studentbuddy-v2/actions/workflows/ci.yml)
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![version](https://img.shields.io/badge/version-0.2.177-orange)
-![tests](https://img.shields.io/badge/tests-398%20files%20%2F%204529%20cases-brightgreen)
+![version](https://img.shields.io/badge/version-0.2.178-orange)
+![tests](https://img.shields.io/badge/tests-399%20files%20%2F%204532%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-188-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-273%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
@@ -46,9 +46,25 @@
 
 </details>
 
+### 阅读模式：把外部资源变成学习材料
+
 **让正文拥有稳定的空间。** 搜索更新资料入口和引用，用户主动打开后才进入对照阅读。桌面左右、手机上下，可拖动分界线，也可展开资料单独阅读。导航、输入都能收起，草稿和题卡继续保留。
 
 ![资料与结构化回答对照阅读，分界线调整两区比例](docs/images/ux177-reading.png)
+
+**沿着资料继续探索。** 阅读器保留网页正文、章节、图片和出处。正文中的链接可确认后在阅读器内翻页，读完返回上一页；也能点“原网页”或“新标签页”去原平台。划选一段可进入速查，讲解、出题或提炼词条；“存为资料”把选中的来源绑定为当前会话材料，之后继续围绕它提问。
+
+**多平台资源有各自的入口。** 从回答脚注或资料头部点“找视频”，按知识点搜索并切换线路；资料并不局限于本站生成的内容。
+
+| 学习资源 | 如何使用 |
+|---|---|
+| 网页教程、官方文档与文章 | 联网找到的来源进入资料架，可对照/展开阅读、选段学习、跟随正文链接；原站始终可打开 |
+| B站讲解视频 | 视频线路搜索，命中后用官方播放器就地播放，也可打开原视频或带关键词的站内搜索 |
+| 抖音讲解视频 | 搜索结果与站内搜索入口跳转到抖音，在新标签页继续看 |
+| YouTube 来源视频 | 已识别的视频来源使用官方播放器，或通过原网页进入 YouTube |
+| PDF 与图片资料 | 按来源类型在资料架查看，引用回到出处，原网页继续可达 |
+
+需要登录、权限或无法嵌入的资源可以打开原站。内置阅读器无法取得完整正文时保留原网页出口；平台搜索没有命中时仍提供站内搜索。你可以在外部找到更好的讲解，再把资料带回 StudentBuddy，接着提问、练习和存词条。
 
 **手机同样围绕阅读设计。** 复习、导航和引路灯集中在顶部；输入靠底边并可收起。临时工具按需打开、限制高度，手机等待时刷词由用户主动进入。资料与对话分别滚动，切换布局保留正在阅读和作答的位置。
 
@@ -62,7 +78,11 @@
 | 理解为什么错 | 题目提交后展开答案与解析，完成一组可进入图文复盘、重练；GrillMe 可选当前对话、应试范围或自定义主题 |
 | 让知识留下来 | 对话概念沉淀为词条，回复里可速查，卡牌和知识大陆承接复习；外部 coding agent 也可通过专用接口存入带来源的词条 |
 
-建筑本体固定，魔法发生在光柱、门光、结界与粒子上；正文不叠加环境层。减少动态效果可中途停播，画面反馈不额外触发模型调用。相关契约：[阅读工作台](docs/READING-WORKSPACE-SPEC.md) · [学习入口](docs/STUDY-PORTAL-SPEC.md) · [答题反馈](docs/ANSWER-FEEL-SPEC.md) · [首问衔接](docs/CHAT-ARRIVAL-SPEC.md) · [回答提炼练习](docs/REPLY-PRACTICE-SPEC.md)。
+**刷词里的动作各有反馈。** 答题在五款特效间轮换；收入词库成功后书页聚拢、印记落库，保存期间不重复提交，失败留卡重试。“斩”用一刀切开词条与碎屑退场，表示今天不再出，不伪装成答对或永久掌握。两者保持独立的形状、颜色和短音，沿用音效开关与减少动态效果设置。
+
+![实际词卡：斩词退场与保存成功后的书页归档（隔离演示数据）](docs/images/ux178-drill-actions.gif)
+
+建筑本体固定，魔法发生在光柱、门光、结界与粒子上；正文不叠加环境层。减少动态效果可中途停播，画面反馈不额外触发模型调用。相关契约：[阅读工作台](docs/READING-WORKSPACE-SPEC.md) · [资料与视频](docs/SOURCE-TRACE-SPEC.md) · [刷词动作](docs/DRILL-ACTIONS-SPEC.md) · [学习入口](docs/STUDY-PORTAL-SPEC.md) · [答题反馈](docs/ANSWER-FEEL-SPEC.md) · [首问衔接](docs/CHAT-ARRIVAL-SPEC.md) · [回答提炼练习](docs/REPLY-PRACTICE-SPEC.md)。
 
 ## 为什么用它
 
@@ -82,7 +102,7 @@
 - **数据归你**：SQLite 单文件、可自托管、开源。
 - **前端依赖极少**：`@sb/web` 运行时依赖只有 react / react-dom；Markdown / SVG 净化 / 图表自绘，不可信内容的渲染契约见 [`docs/UNTRUSTED-RENDER-SPEC.md`](docs/UNTRUSTED-RENDER-SPEC.md)。
 
-- **在线体验**：<https://11wand.com>（**已上线到 v0.2.177**）。首页「免注册，直接体验」直连公用体验账号；⚠️ 公用池全站共享、访客彼此可见，别放个人信息。
+- **在线体验**：<https://11wand.com>（**已上线到 v0.2.178**）。首页「免注册，直接体验」直连公用体验账号；⚠️ 公用池全站共享、访客彼此可见，别放个人信息。
 - **不想点网页？** clone 后 `npm run demo:e2e` 跑完确定性全栈演示（用户 → API → 假 LLM → SSE → 落库 → 杀进程重启后逐字仍在；零 API key、零真实外呼）。
 - v2 是全新重写仓（v1 [`llwand1/studentbuddy`](https://github.com/llwand1/studentbuddy) 已冻结）。每个功能为什么这么做、产品为什么砍功能转游戏化，见 [`docs/FEATURES.md`](docs/FEATURES.md)。
 
@@ -118,7 +138,7 @@ npm run dev          # 一条命令并行拉起 api :18791 + web :5173（Ctrl+C 
 | `npm run demo:e2e` | **确定性全栈**：注册 → 假 LLM → SSE → 落库 → **杀进程重启后逐字仍在**，34 条断言全过，零 API key、零真实外呼 |
 | `node tools/metrics.mjs --tests --check` | 本文与首屏的**每个可核对数字**对代码实测对账，漂移即退出码 1（CI 跑的就是这条） |
 
-当前测试基线 **398 文件 / 4529 例**，全绿（4527 passed / 2 skipped；2026-10-10 魔法光影与首问衔接全量实跑）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
+当前测试基线 **399 文件 / 4532 例**，全绿（4530 passed / 2 skipped；2026-10-10 刷词动作与阅读模式全量实跑）。逐文件不变量见 [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) §3；三套离线评测（`npm run eval` / `eval:models` / `eval:agent`）见 [`docs/FEATURES.md`](docs/FEATURES.md#测评怎么证明上面每句话)。
 <details>
 <summary>测试体系与风险审计：为什么有这些用例</summary>
 

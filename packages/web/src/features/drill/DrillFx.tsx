@@ -11,7 +11,7 @@
  * ★ 粒子的方向 / 延迟全写在 `:nth-child` 规则里——仓规禁止内联 style，也不该为 12 粒方块生成 12 个类名。
  */
 
-import { AnswerImpact } from '../feedback/AnswerImpact';
+import { DrillActionFx } from './DrillActionFx';
 export type DrillFxKind = 'slash' | 'burst' | 'star' | 'bolt' | 'ink';
 
 export const DRILL_FX_KINDS: readonly DrillFxKind[] = ['slash', 'burst', 'star', 'bolt', 'ink'];
@@ -31,7 +31,8 @@ export function fxKindFor(correctCount: number): DrillFxKind {
 }
 
 export interface DrillFxState {
-  kind: DrillFxKind | 'wrong';
+  kind: DrillFxKind | 'wrong' | 'keep' | 'slay';
+  term?: string;
   /** 每次触发 +1：同款连续触发也能重放 */
   key: number;
   /** 连击里程碑（5、10…）：叠一层大字 */
@@ -42,10 +43,10 @@ const PARTICLES: Record<DrillFxKind, number> = { slash: 2, burst: 12, star: 2, b
 
 export function DrillFx({ fx }: { fx: DrillFxState | null }) {
   if (!fx) return null;
+  if (fx.kind === 'keep' || fx.kind === 'slay') return <DrillActionFx kind={fx.kind} term={fx.term ?? ''} event={fx.key} />;
   if (fx.kind === 'wrong') {
     return (
       <div className="drill-fx drill-fx-wrong" key={fx.key} aria-hidden="true">
-        <AnswerImpact verdict="wrong" event={fx.key} />
         <svg className="drill-fx-crack" viewBox="0 0 100 100" preserveAspectRatio="none" focusable="false">
           <path vectorEffect="non-scaling-stroke" d="M50 0 L46 22 L58 38 L44 55 L56 74 L48 100" />
           <path vectorEffect="non-scaling-stroke" d="M46 22 L28 30 M58 38 L78 34 M44 55 L22 66 M56 74 L80 82" />
@@ -56,7 +57,6 @@ export function DrillFx({ fx }: { fx: DrillFxState | null }) {
   const n = PARTICLES[fx.kind];
   return (
     <div className={`drill-fx drill-fx-${fx.kind}`} key={fx.key} aria-hidden="true">
-      <AnswerImpact verdict="correct" event={fx.key} />
       {fx.kind === 'bolt' ? (
         <svg className="drill-fx-boltline" viewBox="0 0 100 100" preserveAspectRatio="none" focusable="false">
           <path vectorEffect="non-scaling-stroke" d="M52 0 L40 34 L58 40 L38 72 L60 66 L46 100" />

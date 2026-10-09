@@ -18,6 +18,7 @@ interface Props {
   entry: DrillEntry | null;
   result: DrillResult | null;
   notice: string;
+  keepState: 'saving' | 'saved' | null;
   /** 拼写卡打到一半的字（住在 `useDrillSession` 里：小窗收起再唤回不丢，§2.1） */
   draft: string;
   onDraft: (v: string) => void;
@@ -37,7 +38,7 @@ function optionClass(i: number, card: DrillCard, result: DrillResult | null): st
   return 'drill-opt dim';
 }
 
-export function DrillQuestion({ phase, card, entry, result, notice, draft, onDraft, onAnswer, onDontKnow, onNext, onLearned, onSlay, onKeep, onDismiss }: Props) {
+export function DrillQuestion({ phase, card, entry, result, notice, keepState, draft, onDraft, onAnswer, onDontKnow, onNext, onLearned, onSlay, onKeep, onDismiss }: Props) {
 
   if (phase === 'loading') return <div className="drill-card drill-wait">正在翻词库…</div>;
   if (phase === 'empty' || !card || !entry) {
@@ -126,7 +127,7 @@ export function DrillQuestion({ phase, card, entry, result, notice, draft, onDra
       )}
 
       {result && (
-        <div className={result.correct ? 'drill-detail ok' : 'drill-detail bad'} role="status">
+        <div className={result.slain ? 'drill-detail cut' : result.correct ? 'drill-detail ok' : 'drill-detail bad'} role="status">
           <b>{result.slain ? '斩！今天不再出这条' : result.correct ? '对了' : result.answer === null ? '记一下' : '错了'}</b>
           <span>
             {card.term} —— {card.definition}
@@ -149,11 +150,11 @@ export function DrillQuestion({ phase, card, entry, result, notice, draft, onDra
         )}
         {phase === 'reveal' && isNew && (
           <>
-            <button type="button" className="drill-btn" onClick={onDismiss}>
+            <button type="button" className="drill-btn" disabled={keepState !== null} onClick={onDismiss}>
               不要 <kbd>X</kbd>
             </button>
-            <button type="button" className="drill-btn primary" onClick={onKeep}>
-              收入词库 <kbd>Enter</kbd>
+            <button type="button" className={`drill-btn primary drill-keep${keepState === 'saved' ? ' saved' : ''}`} disabled={keepState !== null} aria-busy={keepState === 'saving'} onClick={onKeep}>
+              {keepState === 'saving' ? '正在收入…' : keepState === 'saved' ? '已收入词库' : '收入词库'} <kbd>Enter</kbd>
             </button>
           </>
         )}

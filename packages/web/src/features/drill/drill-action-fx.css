@@ -1,0 +1,50 @@
+/* Coarse pixel feedback with different geometry and movement for each action. */
+.drill-action-fx { animation: drill-action-end 720ms steps(12) both; }
+.drill-action-label { position: absolute; left: 14px; bottom: 14px; max-width: calc(100% - 126px); padding: 6px 10px; border: 2px solid #76c9ba; background: #101e21; color: #b6ebda; box-shadow: 3px 3px #000; animation: drill-archive-label 650ms steps(10) both; }
+.drill-action-label b, .drill-action-label span { display: block; }
+.drill-action-label span { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; margin-top: 3px; }
+.drill-archive-book { position: absolute; right: 12px; top: 18px; width: 96px; height: 80px; filter: drop-shadow(0 0 9px #559fac); animation: drill-book-close 720ms steps(10) both; }
+.drill-archive-book svg { width: 100%; height: 100%; }
+.archive-cover { fill: #172f39; stroke: #80b9ca; stroke-width: 2; }
+.archive-paper { fill: #d8edce; stroke: #528775; stroke-width: 2; }
+.archive-lines { fill: none; stroke: #426a65; stroke-width: 2; }
+.archive-seal { fill: #194d40; stroke: #a4eed3; stroke-width: 3; animation: drill-archive-seal 650ms steps(8) both; transform-origin: 74px 54px; }
+.drill-archive-pages i { position: absolute; right: 46px; top: 58px; width: 12px; height: 16px; border: 2px solid #9fcebf; background: #293d41; box-shadow: 2px 2px #000; animation: drill-pages-gather 480ms steps(9) both; }
+.drill-archive-pages i:nth-child(1) { --page-x: -190px; --page-y: -150px; }
+.drill-archive-pages i:nth-child(2) { --page-x: -100px; --page-y: -200px; animation-delay: 30ms; }
+.drill-archive-pages i:nth-child(3) { --page-x: -230px; --page-y: -80px; animation-delay: 60ms; }
+.drill-archive-pages i:nth-child(4) { --page-x: 18px; --page-y: -210px; animation-delay: 90ms; }
+.drill-archive-pages i:nth-child(5) { --page-x: -140px; --page-y: -110px; animation-delay: 120ms; }
+.drill-archive-pages i:nth-child(6) { --page-x: -60px; --page-y: -160px; animation-delay: 150ms; }
+.drill-keep.saved { color: #b6ebda; border-color: #76c9ba; }
+.drill-action-slay { animation-duration: 520ms; }
+.drill-card.slain :is(.drill-term, .drill-prompt) { visibility: hidden; }
+.drill-detail.cut { border-left-color: #cf6a61; background: #26181e; }
+.drill-action-slay .drill-action-label { left: auto; right: 14px; bottom: 14px; max-width: none; color: #ffe3c4; border-color: #cf6a61; background: #351b20; animation: drill-cut-label 500ms steps(8) both; }
+.drill-action-slay .drill-action-label b { font-size: 22px; }
+.drill-cleaved-word { position: absolute; left: 8%; right: 8%; top: 18%; height: 50px; font-size: clamp(18px, 4vw, 30px); font-weight: 900; color: #fff0d5; text-shadow: 3px 3px #1b0d13; }
+.drill-cleaved-word span { position: absolute; inset: 0; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; animation: drill-word-split 500ms steps(8) both; }
+.drill-cleaved-word span:first-child { clip-path: inset(0 0 49%); --cut-x: -30px; --cut-y: -12px; }
+.drill-cleaved-word span:last-child { clip-path: inset(51% 0 0); --cut-x: 30px; --cut-y: 18px; color: #f3a885; }
+.drill-action-fx .drill-cut-blade, .drill-action-fx .drill-cut-scar { position: absolute; top: 29%; left: -10%; width: 120%; height: 4px; background: #fff5d7; box-shadow: 0 0 10px #ec805f; transform: rotate(-12deg); opacity: 0; animation: drill-cut-strike 280ms steps(6) both; }
+.drill-action-fx .drill-cut-scar { height: 2px; background: #d95657; animation: drill-cut-scar 480ms steps(8) both; }
+.drill-cut-chips i { position: absolute; left: 50%; top: 28%; width: 6px; height: 4px; background: #d67e68; opacity: 0; animation: drill-cut-chip 460ms steps(8) both; }
+.drill-cut-chips i:nth-child(1) { --cut-x: -120px; --cut-y: 60px; }
+.drill-cut-chips i:nth-child(2) { --cut-x: 90px; --cut-y: -30px; background: #ffe6c1; }
+.drill-cut-chips i:nth-child(3) { --cut-x: -90px; --cut-y: -40px; }
+.drill-cut-chips i:nth-child(4) { --cut-x: 130px; --cut-y: 60px; background: #cf535e; }
+.drill-cut-chips i:nth-child(5) { --cut-x: -60px; --cut-y: 80px; }
+.drill-cut-chips i:nth-child(6) { --cut-x: 70px; --cut-y: 90px; background: #ffe6c1; }
+.drill-cut-chips i:nth-child(7) { --cut-x: -150px; --cut-y: 0px; }
+.drill-cut-chips i:nth-child(8) { --cut-x: 140px; --cut-y: 10px; }
+@keyframes drill-action-end { 0%, 95% { opacity: 1; } to { opacity: 0; } }
+@keyframes drill-archive-label { from { opacity: 1; transform: translateY(8px); } 30%, to { opacity: 1; transform: none; } }
+@keyframes drill-book-close { from { opacity: 1; transform: translateY(12px) scale(.7); } 35% { opacity: 1; transform: scale(1.12); } 65%, to { opacity: 1; transform: none; } }
+@keyframes drill-archive-seal { 0%, 45% { opacity: 0; transform: scale(1.5); } 65%, to { opacity: 1; transform: none; } }
+@keyframes drill-pages-gather { from { opacity: 0; transform: translate(var(--page-x), var(--page-y)) rotate(-24deg); } 15% { opacity: 1; } 80% { opacity: 1; } to { opacity: 0; transform: translate(0, 0) rotate(0); } }
+@keyframes drill-word-split { 0%, 12% { opacity: 1; transform: none; } 70% { opacity: .7; } to { opacity: 0; transform: translate(var(--cut-x), var(--cut-y)); } }
+@keyframes drill-cut-strike { from { opacity: 0; clip-path: inset(0 100% 0 0); } 20%, 55% { opacity: 1; clip-path: inset(0); } to { opacity: 0; clip-path: inset(0 0 0 100%); } }
+@keyframes drill-cut-scar { from { opacity: 0; } 30% { opacity: .8; } to { opacity: 0; } }
+@keyframes drill-cut-chip { 0% { opacity: 0; transform: none; } 18% { opacity: 1; } to { opacity: 0; transform: translate(var(--cut-x), var(--cut-y)) rotate(60deg); } }
+@keyframes drill-cut-label { from { opacity: 0; transform: scale(1.35); } 35%, to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .drill-action-fx { display: none; } }

@@ -16,6 +16,7 @@ import type { DrillEntry, DrillPhase, DrillResult, DrillStats } from './useDrill
 import { useDragWindow, type WindowPos } from './useDragWindow';
 import './drill.css';
 import './drill-fx.css';
+import './drill-action-fx.css';
 
 export interface DrillOverlayProps {
   busy: boolean;
@@ -34,6 +35,7 @@ export interface DrillOverlayProps {
   queueLeft: number;
   notice: string;
   newNote: string;
+  keepState: 'saving' | 'saved' | null;
   draft: string;
   onDraft: (v: string) => void;
   onToggleSound: () => void;
@@ -136,6 +138,7 @@ export function DrillOverlay(p: DrillOverlayProps) {
             entry={p.entry}
             result={p.result}
             notice={p.notice}
+            keepState={p.keepState}
             draft={p.draft}
             onDraft={p.onDraft}
             onAnswer={p.onAnswer}

@@ -92,10 +92,10 @@ describe('DrillAudio', () => {
     expect(ctx.createOscillator.mock.calls.length).toBe(n + 4);
   });
 
-  it('七款音效每款都能出声（有节点、都 start/stop）', () => {
+  it('八款音效每款都能出声（有节点、都 start/stop）', () => {
     const ctx = fakeContext();
     const a = new DrillAudio(() => ctx as unknown as AudioContext);
-    for (const sfx of ['correct', 'wrong', 'slash', 'flip', 'combo', 'new', 'ready'] as const) {
+    for (const sfx of ['correct', 'wrong', 'slash', 'flip', 'combo', 'new', 'ready', 'keep'] as const) {
       const before = ctx.createOscillator.mock.calls.length + ctx.createBufferSource.mock.calls.length;
       a.play(sfx);
       expect(ctx.createOscillator.mock.calls.length + ctx.createBufferSource.mock.calls.length).toBeGreaterThan(before);

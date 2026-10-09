@@ -37,6 +37,7 @@ import { fxKindFor, type DrillFxState } from './DrillFx';
 import { loadDrillStats, saveDrillStats } from './drill-prefs';
 import { buildDrillQueue, drillFocusNotice, needsFocusRefill } from './drill-focus';
 import { readPomodoro } from '../pomodoro/pomodoro-store';
+import { useDrillKeep } from './useDrillKeep';
 
 /** 方向内排空后「现场出题」最多补几次：补不到就如实说空，不无限打网络 */
 const MAX_FOCUS_REFILL = 3;
@@ -68,6 +69,7 @@ export interface DrillResult {
 
 /** 答对后自动翻下一张的停留（百词斩式"对了就闪过"，但要能看清绿色亮的是哪条） */
 export const DRILL_ADVANCE_MS = 750;
+export const DRILL_KEEP_ADVANCE_MS = 720;
 /** 新词第一次见与词库卡之间隔几张 */
 const NEW_TERM_GAP = 4;
 
@@ -123,6 +125,13 @@ export function useDrillSession({ open, sessionId, dayKey, audio, onCardResolved
     advance.current = null;
   };
 
+  useEffect(() => {
+    if (!open) { setFx(null); return; }
+    if (!fx) return;
+    const timer = setTimeout(() => setFx(null), fx.kind === 'slay' ? 520 : fx.kind === 'keep' ? DRILL_KEEP_ADVANCE_MS : 1200);
+    return () => clearTimeout(timer);
+  }, [open, fx]);
+
   /**
    * 新词到了：第一条排成**下一张**（正在答的那张是词库的，已经进入节奏），之后每隔 `NEW_TERM_GAP` 张一条；
    * 正在 empty 就立刻续上。
@@ -176,6 +185,7 @@ export function useDrillSession({ open, sessionId, dayKey, audio, onCardResolved
   const serve = useCallback(() => {
     clearAdvance();
     setResult(null);
+    setFx(null);
     setDraft('');
     if (queue.current.length === 0) {
       // 番茄钟方向（POMODORO-SPEC §5.3）：工作段**硬过滤**——方向外的词条不进队列；
@@ -271,11 +281,18 @@ export function useDrillSession({ open, sessionId, dayKey, audio, onCardResolved
     serve();
   }, [serve]);
 
+  const onKept = useCallback((term: string) => {
+    fxKey.current += 1;
+    setFx({ kind: 'keep', key: fxKey.current, term });
+    advance.current = setTimeout(finishCard, DRILL_KEEP_ADVANCE_MS);
+  }, [finishCard]);
+  const keeper = useDrillKeep({ open, entry, phase, onSaved: onKept, onNotice: setNotice, audio });
+
   const next = useCallback(() => {
-    if (phase !== 'reveal' && phase !== 'learn') return;
+    if (keeper.isLocked() || (phase !== 'reveal' && phase !== 'learn')) return;
     audio?.play('flip');
     finishCard();
-  }, [phase, audio, finishCard]);
+  }, [phase, audio, finishCard, keeper]);
 
   const learned = useCallback(() => {
     if (phase !== 'learn') return;
@@ -321,39 +338,26 @@ export function useDrillSession({ open, sessionId, dayKey, audio, onCardResolved
 
   /** 斩：今天不再出这条（本机记 id）；新词没有"斩"（它还不在库里） */
   const slay = useCallback(() => {
-    if (!entry || entry.origin === 'new' || phase === 'loading' || phase === 'empty') return;
+    if (!entry || entry.origin === 'new' || phase === 'loading' || phase === 'empty' || slain.current.has(entry.term.id)) return;
     clearAdvance();
     slain.current.add(entry.term.id);
     queue.current = queue.current.filter((q) => q.term.id !== entry.term.id);
     setStats((s) => ({ ...s, slain: s.slain + 1 }));
     fxKey.current += 1;
-    setFx({ kind: 'slash', key: fxKey.current });
+    setFx({ kind: 'slay', key: fxKey.current, term: entry.term.term });
     audio?.play('slash');
     setPhase('reveal');
     setResult({ correct: true, answer: null, slain: true });
     advance.current = setTimeout(finishCard, 520);
   }, [entry, phase, audio, finishCard]);
 
-  /** 新词：收入词库 */
-  const keep = useCallback(() => {
-    const it = entry?.newItem;
-    if (!it || phase !== 'reveal') return;
-    void drillApi
-      .keep(it)
-      .then((r) => {
-        setNotice(`「${r.term}」已收入词库${it.source === 'fallback' ? '（来自内置词池）' : ''}`);
-        finishCard();
-      })
-      .catch((e: unknown) => setNotice(`收入词库没成：${errText(e, '稍后再试')}`));
-  }, [entry, phase, finishCard]);
-
   /** 新词：不要（候选标驳回；词池条目直接翻过） */
   const dismiss = useCallback(() => {
     const it = entry?.newItem;
-    if (!it || phase !== 'reveal') return;
+    if (keeper.isLocked() || !it || phase !== 'reveal') return;
     if (it.candidateId) void drillApi.dismiss(it.candidateId).catch(() => undefined);
     finishCard();
-  }, [entry, phase, finishCard]);
+  }, [entry, phase, finishCard, keeper]);
 
-  return { phase, entry, card, result, fx, notice, newNote, stats, queueLeft, draft, setDraft, answer, dontKnow, next, learned, slay, keep, dismiss };
+  return { phase, entry, card, result, fx, notice, newNote, stats, queueLeft, draft, setDraft, answer, dontKnow, next, learned, slay, keep: keeper.keep, keepState: keeper.state, dismiss };
 }

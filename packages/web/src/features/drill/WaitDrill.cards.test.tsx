@@ -84,7 +84,9 @@ describe('WaitDrill：卡怎么答', () => {
 
     pressKey('z');
     expect(document.querySelector('.drill-card.slain')).not.toBeNull();
-    expect(document.querySelector('.drill-fx-slash')).not.toBeNull();
+    expect(document.querySelector('.drill-action-slay')).not.toBeNull();
+    expect(document.querySelector('.answer-impact')).toBeNull();
+    pressKey('z'); // repeated action must not double count
     expect(screen.getByText('斩！今天不再出这条')).toBeTruthy();
     await act(async () => {
       vi.advanceTimersByTime(600);
@@ -167,6 +169,9 @@ describe('WaitDrill：卡怎么答', () => {
     await flush();
     expect(keepMock).toHaveBeenCalledWith(AI_ITEM);
     expect(screen.getByText(`「${AI_ITEM.term}」已收入词库`)).toBeTruthy();
+    expect(document.querySelector('.drill-action-keep')).not.toBeNull();
+    expect(prompt()).toBe(AI_ITEM.term);
+    await act(async () => vi.advanceTimersByTime(720));
     expect(prompt()).not.toBe(AI_ITEM.term);
   });
 

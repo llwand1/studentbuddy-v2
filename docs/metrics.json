@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T05:11:22.057Z",
+  "generatedAt": "2026-10-09T05:18:00.468Z",
   "code": {
     "rows": [
       {
@@ -21,13 +21,13 @@
         "srcFiles": 357,
         "testFiles": 151,
         "srcLines": 42337,
-        "testLines": 19271
+        "testLines": 19272
       }
     ],
     "srcFiles": 713,
     "testFiles": 395,
     "srcLines": 92705,
-    "testLines": 62411,
+    "testLines": 62412,
     "tsxTestFiles": 73
   },
   "routes": {
@@ -85,16 +85,16 @@
     "probes": 15
   },
   "repo": {
-    "head": "9cf1fe9",
+    "head": "4f95d1b",
     "headDate": "2026-10-09",
-    "commitsLast14d": 282,
+    "commitsLast14d": 283,
     "branch": "feat/mobile-reading-flow",
-    "dirtyFiles": 36
+    "dirtyFiles": 1
   },
   "tests": {
     "available": true,
-    "ranNow": false,
-    "wallSec": 0,
+    "ranNow": true,
+    "wallSec": 57.4,
     "staleDays": 0,
     "files": 395,
     "cases": 4515,

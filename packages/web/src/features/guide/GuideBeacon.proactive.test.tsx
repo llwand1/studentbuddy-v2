@@ -200,7 +200,8 @@ describe('④ 首次自动展开', () => {
       '手机宽度（≤700px 只靠亮灯，不盖屏）',
       {},
       () => {
-        window.matchMedia = ((q: string) => ({ matches: /max-width:\s*700px/.test(q) })) as unknown as typeof window.matchMedia;
+        window.matchMedia = (q: string) => ({ matches: /max-width:\s*700px/.test(q), media: q, onchange: null,
+          addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: () => true });
       },
     ],
   ];

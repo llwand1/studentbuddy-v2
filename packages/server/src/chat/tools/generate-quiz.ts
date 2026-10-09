@@ -57,6 +57,7 @@ import { buildDocMaterial, getSessionDoc } from '../../learning/document.js';
 import { publishEvent } from '../../events/bus.js';
 import { registerTool } from './registry.js';
 import { quizToolFailureHint, quizToolSummary, scaleMixToCount } from './generate-quiz-format.js';
+import { replyPracticePlan } from './reply-practice-plan.js';
 
 function zeroSourceMix(): QuizSourceMix {
   return { ...DEFAULT_QUIZ_SOURCE_MIX };
@@ -77,6 +78,7 @@ registerTool('generate_quiz', {
         '没有题卡、他点选不了、也不会自动判分对错，而这些都是本产品出题的意义所在。' +
         '参数：`topic` 说清出什么主题的题；`count` 只在学习者点名题量时给（省略＝用他在设置页配的题型配比）；' +
         '`material` 可选，把你刚讲过、要针对它出题的要点原文放进来（省略时用本会话载入的资料，都没有就按主题出）；' +
+        '`fromReply` 仅在学习者要求针对刚才讲解练一题时设 true，优先取已提炼的回忆题；要新主题、多题、选择题或真题时不要设。' +
         '`search` 开启后先实时检索资料再出题；应试模式缺省开启，显式 false 才关闭。返回题干清单与统计（**不含答案**），题面不要再抄一遍。',
       parameters: {
         type: 'object',
@@ -85,6 +87,7 @@ registerTool('generate_quiz', {
           count: { type: 'integer', minimum: 1, maximum: MAX_QUIZ_TOTAL, description: '本次题数；省略＝用设置里的配比' },
           material: { type: 'string', description: '可选：出题依据的材料原文（你刚讲过的要点、公式、课文片段）' },
           search: { type: 'boolean', description: '可选：本次是否实时联网检索资料；应试模式默认开，其余默认关' },
+          fromReply: { type: 'boolean', description: '取刚才讲解已提炼的 1 道回忆/解释练习；新主题、多题、指定题型或真题省略' },
         },
         required: ['topic'],
       },
@@ -98,6 +101,8 @@ registerTool('generate_quiz', {
   // 所以出题角色里拿不到本工具，不存在「出题触发出题」。
   scenes: ['explain'],
   async planWrite(args, ctx) {
+    const ready = replyPracticePlan(args, ctx);
+    if (ready) return ready;
     const topic = String(args.topic ?? '').trim().slice(0, 200);
     const owner = ctx.ownerId ?? null;
     if (!topic) {

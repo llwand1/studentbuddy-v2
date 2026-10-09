@@ -70,6 +70,8 @@ export type SseEvent =
       seq: number;
       sessionId: string;
       usage?: TokenUsage;
+      /** Prepared exercise metadata; never the question/answer itself. */
+      replyPractice?: import('./reply-practice.js').ReplyPracticeRef;
       /**
        * 服务端实测的本轮思考耗时（ms）：起点＝首个 reasoning 分片发出，终点＝首个正文分片（无正文则收口时刻）。
        * 未出过思考分片则不带（区别于 0）。落库先于本帧发布 ⇒ 线上值与 `messages.thinking_ms` 同源，

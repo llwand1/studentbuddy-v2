@@ -46,6 +46,14 @@ export function useQuizActions({ sessionId, input, online, getMaterial, clearInp
       onError('');
       setQuizNote('');
       try {
+        // Empty-topic default practice takes the exercise already prepared from the latest answer.
+        // Explicit subject/style and online search retain the existing generation pipeline.
+        if (!input.trim() && !style && !online) {
+          const ready = await api.request<{ available: boolean }>('/api/quiz/from-reply', {
+            method: 'POST', body: JSON.stringify({ sessionId }),
+          });
+          if (ready.available) { setQuizRefs([]); setQuizNote('练习来自刚才的讲解。'); clearInput(); return; }
+        }
         const r = await api.request<{
           error?: string;
           quiz?: QuizPayload;
@@ -92,7 +100,7 @@ export function useQuizActions({ sessionId, input, online, getMaterial, clearInp
       }
     },
     // 依赖刻意收窄：quizzing 是闸门不是依赖；input 每键入都变，进依赖会重建回调
-    [sessionId, online, getMaterial, clearInput, onError],
+    [sessionId, input, quizzing, online, getMaterial, clearInput, onError],
   );
 
   /**

@@ -40,10 +40,12 @@ import { getSessionDoc, buildDocMaterial } from '../learning/document.js';
 import { publishEvent } from '../events/bus.js';
 import { ownerIdOf } from '../auth/ownership.js';
 import { quizExplanationRouter } from './quiz-explanation.js';
+import { replyPracticeRouter } from './reply-practice.js';
 import { isQuizIdLike, listQuizAttempts, parseQuizAttemptInput, recordQuizAttempt } from '../learning/quiz-attempts.js';
 
 export const quizRouter = Router();
 quizRouter.use(quizExplanationRouter);
+quizRouter.use(replyPracticeRouter);
 
 /** 这组题的作答记录（只看自己的；没有 ⇒ 空 rows，不是 404——「没刷过」是正常态） */
 quizRouter.get('/:quizId/attempts', (req: Request, res: Response) => {

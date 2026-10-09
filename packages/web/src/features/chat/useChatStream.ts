@@ -6,7 +6,7 @@
  * 2026-09-14：方案选择框（契约 docs/ASK-CHOICE-SPEC.md）的挂起队列抽到 `useChoiceQueue`，本文件只在事件入口做一次转发（本文件贴着行数红线，装不下那 90 行）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SourceItem, SseEvent, TaskItem, TokenUsage } from '@sb/shared';
+import type { ReplyPracticeRef, SourceItem, SseEvent, TaskItem, TokenUsage } from '@sb/shared';
 import { connectSse, type SseReadyState } from '../../lib/sse-client';
 import { api } from '../../lib/api';
 import { createTokenDrain, type TokenDrain } from './stream-smooth';
@@ -23,6 +23,7 @@ import { applyChatBlock, takeTurnSources, type QuizBlockView, type ScenarioBlock
 export type { TaskItem, TaskStatus } from '@sb/shared';
 
 export interface StreamMessage {
+  replyPractice?: ReplyPracticeRef;
   role: 'user' | 'assistant';
   content: string;
   /** 消息时间：历史消息取库内 created_at（SQLite UTC 串），本轮新消息取本地 ISO */
@@ -194,7 +195,8 @@ export function useChatStream(
     const roundReasoning = reasoningRef.current;
     const roundTasks = tasksRef.current;
     /** 只挂有内容的那几项，别给每条普通回答塞一堆 undefined 键（导出/序列化都会带上） */
-    const proc: Pick<StreamMessage, 'steps' | 'reasoning' | 'tasks' | 'thinkingMs'> = {
+    const proc: Pick<StreamMessage, 'steps' | 'reasoning' | 'tasks' | 'thinkingMs' | 'replyPractice'> = {
+      ...(ev.replyPractice ? { replyPractice: ev.replyPractice } : {}),
       ...(roundSteps.length > 0 ? { steps: roundSteps } : {}),
       ...(roundReasoning ? { reasoning: roundReasoning } : {}),
       ...(ev.thinkingMs ? { thinkingMs: ev.thinkingMs } : {}), // 服务端实测值：done 帧带来，前端不掐表

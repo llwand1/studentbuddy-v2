@@ -15,6 +15,7 @@ import { normalizeFollowUpRequest } from '@sb/shared';
 import { createFollowUpSession } from './chat/follow-up.js';
 import { startFollowUpRun } from './routes/chat.js';
 import { loadSessionSources } from './sources/store.js';
+import { sessionPracticeRefs } from './learning/reply-practice.js';
 
 // ── sessions ──────────────────────────────────────────────
 export const sessionsRouter = Router();
@@ -100,11 +101,13 @@ sessionsRouter.get('/:id/messages', (req: Request, res: Response) => {
     .prepare(
       `SELECT id, role, content, tool_calls, tool_call_id, reasoning, tasks, images, thinking_ms, duration_ms, created_at FROM messages WHERE session_id = ? ORDER BY created_at, rowid`,
     )
-    .all(id) as Array<{ id: string; sources?: unknown }>;
+    .all(id) as Array<{ id: string; sources?: unknown; replyPractice?: unknown }>;
   // 资料溯源（SOURCE-TRACE-SPEC §7）：每条回答挂的资料架随行下发（`sources` 数组，无则不带键）——
   // 与 tool_calls/reasoning 同理，这是「资料 n 条」脚注与正文 [n] 可点的唯一持久化来源
   const shelves = loadSessionSources(getDb(), id);
   for (const r of rows) if (shelves[r.id]) r.sources = shelves[r.id];
+  const practices = sessionPracticeRefs(id);
+  for (const r of rows) if (practices[r.id]) r.replyPractice = practices[r.id];
   res.json(rows);
 });
 

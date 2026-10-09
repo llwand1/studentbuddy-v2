@@ -21,6 +21,8 @@ import { assembleContextMessages, collectContextSegments } from './context-segme
 import { TASKS_TOOL, type TaskItem } from './task-list.js';
 import { countUsage } from '../learning/terms.js';
 import { afterTurn } from './post-turn.js';
+import { cacheReplyPractice } from '../learning/reply-practice.js';
+import { tryReplyPracticeTurn } from './reply-practice.js';
 import type { ChatMessage, ToolCall } from '../llm/types.js';
 import { contentToText } from '../llm/types.js';
 import { describeImages } from './vision.js';
@@ -58,6 +60,8 @@ export function handleMessage(opts: ChatOptions): Promise<ChatResult> {
 }
 
 async function runTurn(opts: ChatOptions): Promise<ChatResult> {
+  const prepared = tryReplyPracticeTurn(opts);
+  if (prepared) return prepared;
   const { sessionId } = opts;
   const db = getDb();
 
@@ -333,12 +337,13 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     // 按仓规拆文件不压注释）。那些注释（必须带 ownerId、压缩为何串行在抽词之后不 await）
     // 已随代码一起搬过去，此处不抄第二遍——两份说明迟早会分叉。
     afterTurn({ sessionId, text: opts.text, answer: acc, ownerId: opts.ownerId ?? null, sourceUrls: settledSources.map((x) => x.url) });
-    // 归属随聊天链路下来（同 compactIfNeeded）：词条库本身尚无归属列，但流水按人记，
-    // 将来词条库归主时可直接支撑"按人统计"（契约 MEMORY-TREND-SPEC §6）
     countUsage(acc, opts.ownerId ?? null);
+    const replyPractice = !pendingToolRound && !opts.grillMe && !opts.signal?.aborted
+      ? cacheReplyPractice(assistantId, opts.text, acc) : undefined;
     publish(sessionId, {
       type: 'done',
       sessionId,
+      ...(replyPractice ? { replyPractice } : {}),
       // 思考耗时随收口帧下发（与刚落的 `thinking_ms` 同源——落库先于发布，屏上与库内不会分叉）
       ...(thinkingMs ? { thinkingMs } : {}),
       usage: {

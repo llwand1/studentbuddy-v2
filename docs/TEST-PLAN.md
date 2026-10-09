@@ -1,3 +1,10 @@
+> 2026-10-09 回答派生练习：新增 1 文件 6 例、既有 flow +1 例。只锁提炼依据、真实聊天/HTTP 交付、归属、失效与出题分流。
+>
+> | 本批测试文件 | 用例 | 不变量 |
+> |---|---:|---|
+> | `packages/server/src/routes/reply-practice.test.ts` | 6 | 核心/误区/独立步骤/原题条件；代码围栏边界；真实出卡/历史/作答；账号隔离；源变更/删除失效；最新回答不退旧题；直接出题与多题/新主题/否定分流 |
+> | `packages/server/src/chat/flow.test.ts` | +1 | 成功回答落库后提炼，done 与历史同源；下一轮考我不启动新对话模型 |
+
 > 2026-10-06 AI 应试白名单与 GrillMe 范围（`EXAM-MODE-SPEC §5.0`、`ASK-CHOICE-SPEC §9.7`）：新增 7 文件 39 例，既有路由 +1 例。确认门使用真实写入口与隔离数据库；渲染使用 jsdom。
 >
 > | 本批测试文件 | 用例 | 不变量 |
@@ -411,7 +418,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，如实记录）**：本次在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（现基线：393 文件 / 4489 例，4487 passed + 2 skipped，2026-10-08 学习回复优化全量实跑）
+## 3. 用例清单（现基线：394 文件 / 4505 例，4503 passed + 2 skipped，2026-10-09 回答派生练习全量实跑）
 
 | 新增测试 | 用例 | 不变量 |
 |---|---:|---|

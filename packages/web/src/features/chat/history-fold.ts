@@ -9,12 +9,13 @@
  *
  * 纯函数：吃原始行、吐 StreamMessage[]，不碰 DOM 也不碰 React，可直接单测。
  */
-import type { SourceItem } from '@sb/shared';
+import type { ReplyPracticeRef, SourceItem } from '@sb/shared';
 import type { StreamMessage, TaskItem, ToolStep } from './useChatStream';
 import { restoreQuizBlock, restoreScenarioBlock } from './chat-blocks';
 
 /** /messages 下发的原始行（口径见服务端 routes.ts 的 SELECT；多出的字段这里不用） */
 export interface HistoryRow {
+  replyPractice?: ReplyPracticeRef;
   id: string;
   role: string;
   content: string;
@@ -138,6 +139,7 @@ export function foldToolRounds(rows: HistoryRow[]): StreamMessage[] {
         role: 'assistant',
         content: r.content,
         ts: r.created_at,
+        ...(r.replyPractice ? { replyPractice: r.replyPractice } : {}),
         steps: pending.length > 0 ? pending : undefined,
         reasoning: r.reasoning || undefined,
         ...(r.thinking_ms != null ? { thinkingMs: r.thinking_ms } : {}), // 思考耗时与 done 帧同源（v32 列）

@@ -20,15 +20,16 @@ beforeEach(() => { vi.useFakeTimers(); h.request.mockReset(); h.scope = { on: fa
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('像素营地现场开场题', () => {
-  it('营灯与遗迹可独立唤醒和关闭，纯本地互动不召新题', () => {
-    render(<CampfireWorld />);
-    fireEvent.click(screen.getByRole('button', { name: '点亮营灯' }));
-    expect(screen.getByRole('button', { name: '熄灭营灯' }).getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(screen.getByRole('button', { name: '唤醒遗迹' }));
-    expect(screen.getByRole('button', { name: '让遗迹休眠' }).getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(screen.getByRole('button', { name: '熄灭营灯' }));
-    expect(screen.getByRole('button', { name: '点亮营灯' }).getAttribute('aria-pressed')).toBe('false');
-    expect(screen.getByRole('button', { name: '让遗迹休眠' }).getAttribute('aria-pressed')).toBe('true');
+  it('两处场景入口带正确目的地，旅行中禁重复点击，不召新题', () => {
+    const enter = vi.fn();
+    const view = render(<CampfireWorld onEnter={enter} />);
+    fireEvent.click(screen.getByRole('button', { name: '魔法图书馆，前往词条库' }));
+    expect(enter).toHaveBeenLastCalledWith('terms', expect.objectContaining({ x: 0, y: 0 }));
+    fireEvent.click(screen.getByRole('button', { name: '遗迹入口，前往知识大陆' }));
+    expect(enter).toHaveBeenLastCalledWith('continent', expect.objectContaining({ x: 0, y: 0 }));
+    view.rerender(<CampfireWorld onEnter={enter} travelling="terms" />);
+    fireEvent.click(screen.getByRole('button', { name: '遗迹入口，前往知识大陆' }));
+    expect(enter).toHaveBeenCalledTimes(2);
     expect(h.request).not.toHaveBeenCalled();
   });
   it('可跳过入场直接答本次新题，不换题；减少动态效果可中途生效', async () => {

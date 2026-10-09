@@ -1,0 +1,17 @@
+.study-portal-travel { --travel-x: 50%; --travel-y: 50%; --travel-glow: var(--sb-gold); position: absolute; inset: 0; z-index: 35; display: grid; place-content: center; justify-items: center; gap: 12px; pointer-events: none; color: var(--sb-ink); background: radial-gradient(ellipse at center, color-mix(in srgb, var(--travel-glow) 7%, var(--sb-bg)), var(--sb-bg) 65%); clip-path: circle(0 at 50% 50%); animation: study-portal-iris 820ms steps(18, end) both; }
+.study-portal-travel.is-continent { --travel-glow: #9ab9aa; }
+.study-travel-seal { width: 72px; height: 72px; position: relative; color: var(--travel-glow); animation: study-portal-seal 820ms steps(12, end) both; }
+.study-travel-seal i { position: absolute; width: 20px; height: 20px; border: 2px solid currentColor; }
+.study-travel-seal i:nth-child(1) { top: 0; left: 0; border-right: 0; border-bottom: 0; }
+.study-travel-seal i:nth-child(2) { top: 0; right: 0; border-left: 0; border-bottom: 0; }
+.study-travel-seal i:nth-child(3) { bottom: 0; left: 0; border-right: 0; border-top: 0; }
+.study-travel-seal i:nth-child(4) { bottom: 0; right: 0; border-left: 0; border-top: 0; }
+.study-travel-seal::after { content: ''; position: absolute; inset: 20px; border: 2px solid currentColor; box-shadow: inset 0 0 0 6px var(--sb-bg); transform: rotate(45deg); }
+.study-travel-title { font: 700 20px var(--sb-font-display); letter-spacing: 3px; color: var(--travel-glow); }
+.study-travel-sub { font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary); }
+.sb-chat-persist { display: contents; }
+.sb-chat-persist[hidden] { display: none; }
+@keyframes study-portal-iris { 0% { clip-path: circle(0 at var(--travel-x) var(--travel-y)); } 36%, 52% { clip-path: circle(180% at var(--travel-x) var(--travel-y)); } 100% { clip-path: circle(0 at 50% 50%); } }
+@keyframes study-portal-seal { 0%, 18% { opacity: 0; transform: scale(.7); } 36%, 58% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.2); } }
+@media (prefers-reduced-motion: reduce) { .study-portal-travel { display: none; animation: none; } }
+.sb-main:has(.study-portal-travel) { position: relative; isolation: isolate; }

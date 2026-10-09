@@ -57,6 +57,14 @@ describe('对话真实 hook 的轮完成边界', () => {
     await act(async () => { expect((await h.result.current.send('不要抢在历史前发送')).ok).toBe(false); });
     await act(async () => second());
     expect(h.result.current.historyReady).toBe(true);
+    network.messages.mockImplementationOnce(() => new Promise<[]>(() => {}));
+    h.rerender({ id: 'third' });
+    network.messages.mockRejectedValueOnce(new Error('历史读取失败'));
+    h.rerender({ id: 'second' });
+    await act(async () => {});
+    expect(h.result.current.historyReady).toBe(false);
+    expect(h.result.current.error).toContain('历史对话暂时没有加载完成');
+    await act(async () => { expect((await h.result.current.send('读取失败后不允许发送')).ok).toBe(false); });
     expect(network.send).not.toHaveBeenCalled();
   });
   it('收尾步骤和任务不会重新锁输入区，下一轮与错误状态仍正常', async () => {

@@ -213,6 +213,7 @@ export function useChatStream(
       return;
     }
     historyLoadedRef.current = false;
+    setHistoryFor(undefined);
     let alive = true;
     api.sessions
       .messages(sessionId)
@@ -223,11 +224,9 @@ export function useChatStream(
         rememberSessionSources(sessionId, [...folded].reverse().find((m) => m.sources?.length)?.sources ?? []);
         setMessages(folded);
         setHistoryFor(sessionId);
+        historyLoadedRef.current = true;
       })
-      .catch(() => { if (alive) { setMessages([]); setError('历史对话暂时没有加载完成，请刷新后重试。'); } })
-      .finally(() => {
-        if (alive) historyLoadedRef.current = true;
-      });
+      .catch(() => { if (alive) { setMessages([]); setError('历史对话暂时没有加载完成，请刷新后重试。'); } });
     return () => {
       alive = false;
     };

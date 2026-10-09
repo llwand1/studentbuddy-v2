@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T06:37:28.390Z",
+  "generatedAt": "2026-10-09T06:46:41.900Z",
   "code": {
     "rows": [
       {
@@ -20,14 +20,14 @@
         "pkg": "web",
         "srcFiles": 359,
         "testFiles": 151,
-        "srcLines": 42446,
-        "testLines": 19318
+        "srcLines": 42445,
+        "testLines": 19326
       }
     ],
     "srcFiles": 715,
     "testFiles": 395,
-    "srcLines": 92814,
-    "testLines": 62458,
+    "srcLines": 92813,
+    "testLines": 62466,
     "tsxTestFiles": 73
   },
   "routes": {
@@ -85,11 +85,11 @@
     "probes": 15
   },
   "repo": {
-    "head": "b450fae",
+    "head": "f4c612d",
     "headDate": "2026-10-09",
-    "commitsLast14d": 284,
+    "commitsLast14d": 285,
     "branch": "feat/campfire-entrance174",
-    "dirtyFiles": 8
+    "dirtyFiles": 4
   },
   "tests": {
     "available": true,

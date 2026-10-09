@@ -17,6 +17,7 @@ import { pickLookupTerm, wikiLangFor, type LookupContext, type WikiLookup } from
 import { api } from '../../lib/api';
 import { lookupExplain, lookupQuiz, lookupWiki } from '../../lib/api-lookup';
 import { closeLookup, useLookup } from './lookup-store';
+import { useMobilePanel } from '../../lib/use-mobile-panel';
 import './lookup.css';
 
 /** 小窗尺寸，夹取用（与 lookup.css 的 --lk-w 保持一致） */
@@ -35,6 +36,7 @@ type Tab = 'wiki' | 'explain' | 'quiz';
 
 export function LookupPopup() {
   const st = useLookup();
+  useMobilePanel(st.open, closeLookup);
   const boxRef = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState<Tab>('wiki');
   const [wiki, setWiki] = useState<WikiLookup | null>(null);

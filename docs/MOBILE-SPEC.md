@@ -1,6 +1,8 @@
 # MOBILE-SPEC — 手机端专项
 
 > 版本：v0.1 | 状态：[未发版] | 更新：2026-10-02 | 分支：`feat/mobile-polish`
+
+> v0.2.173（2026-10-09）：阅读工作台接管工具栏与输入区，以下旧版胶囊预留底部、资料整屏和输入区高度描述是历史基线；现行规则见文末与 `READING-WORKSPACE-SPEC.md`。
 >
 > 代码：`packages/web/src/styles/mobile.css`（唯一的手机规则文件，main.tsx 最后引入）／`packages/web/src/lib/use-narrow.ts`（JS 侧唯一断点）／
 > `packages/web/src/features/chat/composer-placeholder.ts`／`packages/web/index.html`（`viewport-fit=cover`）。
@@ -75,3 +77,9 @@
 
 ## 6. 修订记录
 - v0.1（2026-10-02）：首版。
+
+## 7. v0.2.173 回复期间的阅读规则
+
+复习入口移到顶部导航与引路灯旁，输入区贴底，可收起并保留草稿；底边只保留系统安全区。确认与选择共用一条可展开入口，倒计时不藏、批准仍需明确点击。刷词只手动进入；被动趋势和新怪不再在正文上方堆叠。资料与对话上下分屏，分界线可拖动、可键盘调整、可复原，资料也可单独展开阅读。具体契约与参考资料见 [阅读工作台](READING-WORKSPACE-SPEC.md#v02173手机回复与可调分屏)。
+
+浏览器验收覆盖 390×844、320×740 和 390×460 矮屏，注入真实 SSE 形状的持续 token、sources、choice 与 tool-confirm 事件，检查超过自动刷词延迟仍无弹窗、请求单卡、停止可用、分屏拖动和草稿/滚动保留；使用隔离 UI fixtures，不创建公用账号测试对话或追加模型调用。

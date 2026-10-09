@@ -2,7 +2,7 @@
  * CoachDock — 复习督促小窗（**B+C+E** 三合一）。
  *
  * 形态：**一个组件的两个状态**，不是两个功能——
- *   折叠态 = 右下角任务胶囊（B）：一行数字，零打扰；
+ *   折叠态 = 阅读工具条中的复习入口（B）：一行数字，零打扰；
  *   展开态 = 右侧抽屉（C）：上面是卡片流（E），下面是输入区。
  *
  * 三条状态纪律：
@@ -14,7 +14,7 @@
  *     （指数退避 + seq 去重 + `/live` 快照对齐）。这条连接很轻（15s 一个 ping），
  *     换来的是「打开就能发、发了就有字」，比"打开才连"值。
  *  ④ **服务端也能主动推卡**：定时任务生成的趋势卡经 `coach-card` 事件到达，
- *     抽屉关着时在胶囊旁冒个气泡——**不自动展开抽屉、不动胶囊红点**（契约 `MEMORY-TREND-SPEC` §4.4）。
+ *     抽屉关着时标记「新」——不自动展开、不动逾期红点；点击后定位到趋势卡。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CoachCard, CoachSnapshot } from '@sb/shared';
@@ -29,6 +29,7 @@ import { mergeCards, trendBubble, withStreaming, type CoachBubble } from './coac
 import { PomodoroBubble } from '../pomodoro/PomodoroBubble';
 import { POMODORO_OPEN_EVENT } from '../pomodoro/pomodoro-store';
 import './coach.css';
+import { useMobilePanel } from '../../lib/use-mobile-panel';
 
 /** 本次打开应用的时刻：「还没设番茄钟」的提醒要等人坐稳 3 分钟才敲（契约 POMODORO-SPEC §7.3） */
 const OPENED_AT = new Date();
@@ -65,6 +66,7 @@ export function CoachDock() {
     openRef.current = v;
     setOpen(v);
   }, []);
+  useMobilePanel(open, () => setOpenBoth(false));
 
   const refreshState = useCallback(async () => {
     try {
@@ -192,29 +194,15 @@ export function CoachDock() {
 
   return (
     <>
-      {/* 悬浮舱：胶囊与气泡**同舱**（`.coach-dock-rail` 的 flex 列），气泡天然排在胶囊正上方——
-          不靠"手算一个等于胶囊高度的 bottom 偏移"，那种写法在文案变长时会压上去。 */}
+      {/* 入口常驻工具条，SSE 与队列不随页面切换重置。 */}
       <div className="coach-dock-rail">
-        {/* 番茄提醒（契约 POMODORO-SPEC §7）：到点 / 休息结束 / 还没设钟，三种都在这枚气泡里，与趋势卡气泡同舱同纪律 */}
-        <PomodoroBubble openedAt={OPENED_AT} />
-        {/* 趋势卡气泡：★ 刻意**不是模态、也不自动展开抽屉**——要的是"冒出来一个
-            小的对话框"，自动弹开等于抢屏幕（与督促的克制同一条纪律，契约 §4.4）。
-            点它才把抽屉开开并滚到那张卡；右侧 × 是"先不看了"。 */}
-        {bubble && (
-          <div className="coach-bubble" role="status">
-            <button className="coach-bubble-main" onClick={() => void openDrawer(bubble.cardId)}>
-              {bubble.text}
-            </button>
-            <button className="coach-bubble-x" onClick={() => setBubble(null)} title="先不看了">
-              ×
-            </button>
-          </div>
-        )}
+        {/* 趋势在入口标记，番茄动作在主动打开的复习页；到点标签仍由胶囊显示。 */}
         <CoachCapsule
           snapshot={snapshot}
           open={open}
           nudge={nudge}
-          onToggle={() => (open ? setOpenBoth(false) : void openDrawer())}
+          fresh={bubble !== null}
+          onToggle={() => (open ? setOpenBoth(false) : void openDrawer(bubble?.cardId))}
         />
       </div>
       {open && (
@@ -233,6 +221,7 @@ export function CoachDock() {
             </button>
           </header>
           {error && <div className="coach-error">{error}</div>}
+          <PomodoroBubble openedAt={OPENED_AT} />
           <CoachFeed
             cards={visible}
             queue={queue}

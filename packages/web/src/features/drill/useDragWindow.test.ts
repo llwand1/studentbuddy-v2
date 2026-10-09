@@ -29,5 +29,5 @@ describe('centeredPos', () => {
 });
 
 it('窄屏断点与 drill.css 一致', () => {
-  expect(SHEET_MEDIA).toBe('(max-width: 640px)');
+  expect(SHEET_MEDIA).toBe('(max-width: 700px)');
 });

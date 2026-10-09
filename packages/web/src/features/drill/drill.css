@@ -373,7 +373,7 @@
   cursor: pointer;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 700px) {
   /* 窄屏不拖：贴底抽屉，位置变量失效（!important 压掉 useDragWindow 写的 transform 变量） */
   .drill-stage {
     position: fixed;

@@ -41,6 +41,21 @@ describe('useDrillTrigger', () => {
     expect(h.result.current.replyReady).toBe(false);
   });
 
+  it('倒计时期间离开对话、进入专注或关掉开关，不得按旧许可弹出；手动入口仍可用', () => {
+    const h = mount({ busySessionId: 's1', active: true, enabled: true });
+    act(() => vi.advanceTimersByTime(1000));
+    h.rerender({ busySessionId: 's1', active: false, enabled: true });
+    act(() => vi.advanceTimersByTime(2000));
+    expect(h.result.current.open).toBe(false);
+    act(() => h.result.current.openNow());
+    expect(h.result.current.open).toBe(true);
+    act(() => h.result.current.close());
+    h.rerender({ busySessionId: 's2', active: true, enabled: true });
+    h.rerender({ busySessionId: 's2', active: true, enabled: false });
+    act(() => vi.advanceTimersByTime(3000));
+    expect(h.result.current.open).toBe(false);
+  });
+
   it('手动关掉：本轮不再弹（哪怕还在生成很久）；下一轮照弹', () => {
     const h = mount({ busySessionId: 's1', active: true, enabled: true });
     act(() => vi.advanceTimersByTime(2000));

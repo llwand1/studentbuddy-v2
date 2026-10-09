@@ -37,7 +37,7 @@ export function useDrillTrigger({ busySessionId, active, enabled, delayMs = DRIL
       setReplyReady(false);
       if (!gate.current.active || !gate.current.enabled) return;
       const t = setTimeout(() => {
-        if (dismissed.current === r || openRef.current) return;
+        if (!gate.current.active || !gate.current.enabled || dismissed.current === r || openRef.current) return;
         setOpenSession(busySessionId);
         setOpen(true);
       }, delayMs);

@@ -20,6 +20,7 @@ import { GUIDE_COPY as T } from './guide-copy';
 import { getGuideChat, putGuideMail, runGuideCap } from './guide-store';
 import { useGuideCaps } from './use-guide-cap';
 import { GUIDE_HOVER_PREFETCH_MS, useGuide } from './use-guide';
+import { useMobilePanel } from '../../lib/use-mobile-panel';
 import './guide.css';
 
 interface Props {
@@ -35,6 +36,7 @@ interface Props {
 
 export function GuideBeacon({ lang, view, sessionId, onView, onNewSession, onFreshChat }: Props) {
   const g = useGuide({ lang, view, sessionId });
+  useMobilePanel(g.open, g.close);
   const uid = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);

@@ -2,7 +2,7 @@
  * WaitDrill — 「等待时刷词」的宿主（挂在 App 壳层，与 `CoachDock` 同层常驻）。
  *
  * 把三件事拼起来（契约 `docs/WAIT-DRILL-SPEC.md` §2–§3）：
- *   - `useDrillTrigger`：发送后 2 秒还没回完 ⇒ 弹；回复到了 ⇒ `replyReady`；手动关 ⇒ 本轮不再弹。
+ *   - `useDrillTrigger`：桌面发送后 2 秒还没回完 ⇒ 弹；手机仅手动开；回复到了 ⇒ `replyReady`。
  *   - `useDrillSession`：一局的状态机（取词 / 出卡 / 判分 / 记账 / 新词）。
  *   - `DrillAudio`：弹窗开着就放配乐，关了就停；音效由状态机按事件触发。
  * ★ 切回时机：**答完这张**再切（`onCardResolved` 返回 true 表示宿主接管）；回复到了却一直不答，
@@ -15,6 +15,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { localDayKey } from '@sb/shared';
+import { useNarrow } from '../../lib/use-narrow';
+import { useMobilePanel } from '../../lib/use-mobile-panel';
 import { DrillAudio } from './drill-audio';
 import { DrillOverlay } from './DrillOverlay';
 import { DRILL_END_EVENT, resetDrillDock, setDrillDock } from './drill-dock';
@@ -27,6 +29,7 @@ import { useDrillTrigger } from './useDrillTrigger';
 export const READY_GRACE_S = 8;
 
 export function WaitDrill({ busySessionId, active }: { busySessionId: string | null; active: boolean }) {
+  const narrow = useNarrow();
   const [prefs, setPrefs] = useState(loadDrillPrefs);
   useEffect(() => {
     const sync = () => setPrefs(loadDrillPrefs());
@@ -34,7 +37,8 @@ export function WaitDrill({ busySessionId, active }: { busySessionId: string | n
     return () => window.removeEventListener(DRILL_PREFS_EVENT, sync);
   }, []);
 
-  const trigger = useDrillTrigger({ busySessionId, active, enabled: prefs.enabled });
+  const trigger = useDrillTrigger({ busySessionId, active: active && !narrow, enabled: prefs.enabled });
+  useMobilePanel(trigger.open, trigger.close);
   const { openNow } = trigger;
   useEffect(() => {
     const onOpen = () => openNow();

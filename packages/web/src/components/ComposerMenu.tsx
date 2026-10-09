@@ -20,6 +20,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { PlusIcon, CheckIcon } from './icons';
 import './composer-menu.css';
+import { useMobilePanel } from '../lib/use-mobile-panel';
 
 export type ComposerMenuItem =
   | {
@@ -54,6 +55,7 @@ export function ComposerMenu({
   title?: string;
 }) {
   const [open, setOpen] = useState(false);
+  useMobilePanel(open, () => setOpen(false));
   const boxRef = useRef<HTMLDivElement>(null);
 
   // 点外部 / ESC 关闭：菜单是覆盖层，没有这两条就只能靠再点一次「+」

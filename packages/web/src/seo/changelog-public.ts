@@ -32,6 +32,9 @@ export const RELEASE_SCOPE = {
 
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
+  { version: 'v0.2.173', date: '2026-10-09', headline: '手机阅读优先：按需工具与可调分屏',
+    items: ['复习入口移到顶栏，输入区贴底并可收起。', '资料与对话可拖动分屏，手机回复时辅助工具按需展开。'],
+  },
   { version: 'v0.2.172', date: '2026-10-09', headline: '阅读工作台：可收起导航与按需资料',
     items: ['左侧导航可收起，专注阅读让正文拥有更多空间。', '资料按需打开，可在整页阅读和对照阅读之间切换。'],
   },

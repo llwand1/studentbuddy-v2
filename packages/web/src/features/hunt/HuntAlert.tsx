@@ -21,6 +21,7 @@ import { localDayKey, topicMonsterIds } from '@sb/shared';
 import { api } from '../../lib/api';
 import { requestHunt } from '../continent/continent-hunt-store';
 import './hunt-alert.css';
+import { useNarrow } from '../../lib/use-narrow';
 
 interface Props {
   /** 是否在对话页（不在就不显示，但状态保留） */
@@ -36,6 +37,7 @@ interface Fresh {
 }
 
 export function HuntAlert({ active, roundTick, onGoContinent }: Props) {
+  const narrow = useNarrow();
   const [fresh, setFresh] = useState<Fresh | null>(null);
   /** 上一次看到的话题怪集合；`null` = 基线还没取到 */
   const seenRef = useRef<Set<string> | null>(null);
@@ -67,23 +69,24 @@ export function HuntAlert({ active, roundTick, onGoContinent }: Props) {
   const listed = fresh.names.slice(0, 4).map((n) => `「${n}」`).join('');
   const more = fresh.names.length > 4 ? ` 等 ${fresh.names.length} 条` : '';
   return (
-    <div className="hunt-alert" role="status" aria-live="polite">
-      <span className="hunt-alert-sigil" aria-hidden="true" />
-      <span className="hunt-alert-text">
+    <div className={`hunt-alert${narrow ? ' is-compact' : ''}`} role="status" aria-live="polite">
+      {!narrow && <span className="hunt-alert-sigil" aria-hidden="true" />}
+      {!narrow && <span className="hunt-alert-text">
         <b>刷新了新的怪物</b>
         刚聊到的{listed}
         {more}在知识大陆上冒出了话题怪——趁热打一场，答对就算复习一次。
-      </span>
+      </span>}
       <button
         type="button"
         className="hunt-alert-go"
+        title={`刚聊到的${listed}${more}可以复习`}
         onClick={() => {
           requestHunt(fresh.ids);
           setFresh(null);
           onGoContinent();
         }}
       >
-        一键讨伐
+        {narrow ? `新怪 ${fresh.ids.length}` : '一键讨伐'}
       </button>
       <button type="button" className="hunt-alert-x" aria-label="忽略这次提醒" onClick={() => setFresh(null)}>
         ×

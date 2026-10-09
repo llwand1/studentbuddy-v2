@@ -38,8 +38,9 @@ export function ReadingToolbar({ layout, sessionId, title, children }: {
           }}>
           <DocIcon aria-hidden="true" /> {SHELL.sources[lang]} <span className="reading-count">{sources.items.length}</span>
         </button>}
-        <button className="reading-tool reading-focus" type="button" aria-pressed={layout.focused} onClick={layout.toggleFocus}>
-          <ReadingIcon aria-hidden="true" /> {layout.focused ? SHELL.focusExit[lang] : SHELL.focusEnter[lang]}
+        <button className="reading-tool reading-focus" type="button" aria-pressed={layout.focused} onClick={layout.toggleFocus}
+          aria-label={layout.focused ? SHELL.focusExit[lang] : SHELL.focusEnter[lang]} title={layout.focused ? SHELL.focusExit[lang] : SHELL.focusEnter[lang]}>
+          <ReadingIcon aria-hidden="true" /> <span>{layout.focused ? SHELL.focusExit[lang] : SHELL.focusEnter[lang]}</span>
         </button>
       </div>
     </header>

@@ -14,10 +14,11 @@
  *    会把一个看不见的位置写进偏好，回到宽屏时窗就跑到屏幕外。
  */
 import { useLayoutEffect, useRef, type RefObject } from 'react';
+import { NARROW_QUERY } from '../../lib/use-narrow';
 
 export const MIN_VISIBLE = 64;
 /** 与 drill.css 的窄屏断点一致 */
-export const SHEET_MEDIA = '(max-width: 640px)';
+export const SHEET_MEDIA = NARROW_QUERY;
 const isSheet = (): boolean => typeof window.matchMedia === 'function' && window.matchMedia(SHEET_MEDIA).matches;
 
 export interface WindowPos {

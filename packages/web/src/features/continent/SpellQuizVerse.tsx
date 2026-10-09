@@ -11,6 +11,7 @@ import { useState } from 'react';
 import type { QuizQuestion } from '@sb/shared';
 import { fillCount, optionsFor, reviewAttempt } from '../quiz/quiz-attempt';
 import { FillBlank } from '../quiz/FillBlank';
+import { AnswerImpact } from '../feedback/AnswerImpact';
 
 interface Props {
   question: QuizQuestion;
@@ -41,7 +42,8 @@ export function SpellQuizVerse({ question, title, onResult }: Props) {
   };
 
   return (
-    <div className="continent-q spell-quiz">
+    <div className="continent-q spell-quiz answer-surface">
+      {verdict && <AnswerImpact verdict={verdict.hit ? 'correct' : 'wrong'} />}
       <p className="spell-echo-label">出自题卡「{title}」</p>
       <p className="continent-q-prompt">{question.question}</p>
 

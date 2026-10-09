@@ -34,6 +34,7 @@ import { SpellBook } from './SpellBook';
 import { SpellChant } from './SpellChant';
 import type { SpellPlan } from './spell-chant-view';
 import './spell-chant.css';
+import { AnswerImpact } from '../feedback/AnswerImpact';
 
 interface Props {
   tile: ContinentTileView;
@@ -140,7 +141,8 @@ export function MonsterDialog({ tile, pool, onSolved, onClose }: Props) {
   const rebuild = tile.ruin && !tile.hasMonster;
   return (
     <div className="continent-modal continent-battle" role="dialog" aria-modal="true" aria-label={`${rebuild ? '重建' : '讨伐'} ${tile.term}`}>
-      <div className="continent-modal-card continent-battle-card">
+      <div className="continent-modal-card continent-battle-card answer-surface">
+        {event && <AnswerImpact verdict={event.kind === 'miss' ? 'wrong' : event.kind === 'defeat' ? 'complete' : 'correct'} event={event.seq} />}
         {/* 横版战场：地图 → 战场的转场由 `.continent-battle` 的 CSS 做；血量与下面的血条同源 */}
         <BattleStage tile={tile} hp={hp} maxHp={questions.length} event={event} />
         <header className="continent-modal-head">

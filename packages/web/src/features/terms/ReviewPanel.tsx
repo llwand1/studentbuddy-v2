@@ -20,6 +20,7 @@ import { ClockIcon, CheckIcon } from '../../components/icons';
 import { ReviewScopePicker } from './ReviewScopePicker';
 import { ReviewGoalCard } from './ReviewGoalCard';
 import { LearnerModelCard } from './LearnerModelCard';
+import { AnswerImpact } from '../feedback/AnswerImpact';
 
 const QUEUE_LIMIT = 20;
 
@@ -59,6 +60,7 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
   const [queueMeta, setQueueMeta] = useState<{ goal: ReviewGoal; doneCards: number; poolSize: number } | null>(null);
   const [revealed, setRevealed] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [saved, setSaved] = useState(0);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -82,6 +84,7 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
     setBusy(id);
     try {
       await api.terms.mark(id, remembered, grade);
+      setSaved(n => n + 1);
       // ★ v1.2：打卡后**整批重拉**，不再"本地删一条"就完事。队列现在会**补位**：
       //   真账刷完后服务端会把"提前背"的词条补进来；本地只删的话，用户会看到空队列却还没达标。
       //   重拉还顺带把 `doneCards`（进度）与服务端对齐——本地自增一旦分叉，
@@ -99,7 +102,8 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
   const peak = Math.max(1, ...(overview?.recent ?? []).map((d) => d.done));
 
   return (
-    <div className="rv-panel">
+    <div className="rv-panel answer-surface">
+      {saved > 0 && <AnswerImpact verdict="review" event={saved} />}
       <div className="rv-head">
         <ClockIcon size={15} />
         <b>复习计划</b>

@@ -76,6 +76,10 @@ describe('像素营地现场开场题', () => {
     await advance(2900);
     fireEvent.click(screen.getByRole('button', { name: /B.*50%/ }));
     expect(screen.getByText('每次抛掷独立。')).toBeTruthy();
+    expect(container.querySelector('.answer-impact.is-correct')).toBeTruthy();
+    expect((screen.getByRole('button', {name: /A.*25%/}) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', {name: /A.*25%/}));
+    expect(container.querySelector('.answer-impact.is-wrong')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /聊聊为什么/ }));
     expect(pick).toHaveBeenCalledOnce();
     expect(pick.mock.calls[0]?.[0]).toContain('抛硬币下一次');

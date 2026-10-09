@@ -18,6 +18,7 @@ import { progressSummary, scenarioProgress, validateScenarioReport, type TaskSta
 import './quiz.css';
 import './quiz-effects.css';
 import { QuizReview } from './QuizReview';
+import { AnswerImpact, AnswerSoundToggle } from '../feedback/AnswerImpact';
 
 interface Props {
   sessionId?: string | null;
@@ -99,6 +100,7 @@ export function ScenarioPanel({ quizId, payload, demoId, sessionId }: Props) {
     <div className="sb-scenario quiz-adventure" data-quiz-id={quizId}>
       <span className="quiz-eyebrow">情景试炼</span>
       <header className="sb-scenario-head">
+        <AnswerSoundToggle />
         <span className="sb-scenario-title">{payload.title}</span>
         <span className={connected ? 'sb-scenario-live' : 'sb-scenario-live off'}>
           {connected ? '沙箱已连接' : '沙箱连接中…'}
@@ -127,7 +129,8 @@ export function ScenarioPanel({ quizId, payload, demoId, sessionId }: Props) {
       />
       <ul className="sb-scenario-tasks">
         {progress.items.map(({ task, state }) => (
-          <li key={task.id} className={`sb-scenario-task is-${state}`}>
+          <li key={task.id} className={`sb-scenario-task answer-surface is-${state}`}>
+            {state !== 'pending' && <AnswerImpact verdict={state} audible />}
             <span className="sb-scenario-task-state">{STATE_LABEL[state]}</span>
             <span className="t">{task.prompt}</span>
             {task.hint && <span className="m">{task.hint}</span>}

@@ -1,14 +1,12 @@
-import { useRef } from 'react';
-import { useCampfireParallax } from './useCampfireParallax';
+import { CampfireAtmosphere } from './CampfireAtmosphere';
 import { StudyPortalLink, type StudyPortalControls } from './StudyPortalLink';
 import './campfire-world.css';
+import './campfire-atmosphere.css';
 export type { StudyPortalControls } from './StudyPortalLink';
 
 /** The two landmarks are real learning entrances; scenery never changes reading width. */
 export function CampfireWorld({ onEnter, travelling }: StudyPortalControls) {
-  const ref = useRef<HTMLDivElement>(null);
-  useCampfireParallax(ref);
-  return <div ref={ref} className={`campfire-world${travelling ? ` is-going-${travelling}` : ''}`}>
+  return <div className={`campfire-world${travelling ? ` is-going-${travelling}` : ''}`}>
     <div className="cw-sky" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /><i /></div>
     <div className="cw-horizon" aria-hidden="true">
       <svg viewBox="0 0 1000 200" preserveAspectRatio="none" focusable="false" shapeRendering="crispEdges">
@@ -17,6 +15,7 @@ export function CampfireWorld({ onEnter, travelling }: StudyPortalControls) {
       </svg>
     </div>
     <div className="cw-path" aria-hidden="true" />
+    <CampfireAtmosphere />
     <StudyPortalLink destination="continent" onEnter={onEnter} travelling={travelling} />
     <StudyPortalLink destination="terms" onEnter={onEnter} travelling={travelling} />
     <div className="cw-arrival" aria-hidden="true"><span /><span /><span /><span /></div>

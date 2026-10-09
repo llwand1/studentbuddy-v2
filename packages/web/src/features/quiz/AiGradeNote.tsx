@@ -11,6 +11,7 @@ import type { GradeResult, QuizQuestion, QuizReviewItem } from '@sb/shared';
 import { stemOf } from '@sb/shared';
 import { aiOpsApi } from '../../lib/api-ai-ops';
 import { ApiError } from '../../lib/api-request';
+import { AnswerImpact } from '../feedback/AnswerImpact';
 
 const VERDICT: Record<GradeResult['verdict'], string> = { correct: '✓ AI 判定：答对了', partial: '◐ AI 判定：部分正确', wrong: '✗ AI 判定：还不对' };
 
@@ -47,7 +48,8 @@ export function AiGradeNote({ q, result, topic }: { q: QuizQuestion; result: Qui
   if (error) return <p className="quiz-muted quiz-ai-grade">{error}</p>;
   if (!grade) return <p className="quiz-muted quiz-ai-grade" role="status">AI 正在按要点评分…</p>;
   return (
-    <div className={`quiz-ai-grade is-${grade.verdict}`} role="status">
+    <div className={`quiz-ai-grade answer-surface is-${grade.verdict}`} role="status">
+      <AnswerImpact verdict={grade.verdict} audible />
       <strong>{VERDICT[grade.verdict]}（{Math.round(grade.score * 100)} 分）</strong>
       <p>{grade.feedback}</p>
       {grade.misconception && <p className="quiz-ai-mis"><b>可能的误区：</b>{grade.misconception}（已记入学习画像）</p>}

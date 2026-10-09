@@ -74,7 +74,7 @@ export function DrillQuestion({ phase, card, entry, result, notice, draft, onDra
   }
 
   return (
-    <div className={`drill-card ${card.kind}${stateClass}`}>
+    <div className={`drill-card answer-surface ${card.kind}${stateClass}`}>
       <div className="drill-chips">
         <span className="drill-chip">{DRILL_KIND_LABEL[card.kind]}</span>
         {entry.origin === 'due' && <span className="drill-chip due">到期 · 答对即打卡</span>}

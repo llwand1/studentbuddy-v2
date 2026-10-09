@@ -51,6 +51,7 @@ interface JudgeView {
 interface Verdict {
   kind: 'correct' | 'wrong' | 'timeout' | 'info';
   text: string;
+  seq?: number;
 }
 
 const VERDICT_MS = 2500;
@@ -95,7 +96,7 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flash = useCallback((v: Verdict) => {
     if (flashTimer.current) clearTimeout(flashTimer.current);
-    setVerdict(v);
+    setVerdict(prev => ({...v, seq: (prev?.seq ?? 0) + 1}));
     flashTimer.current = setTimeout(() => setVerdict(null), VERDICT_MS);
   }, []);
 
@@ -217,7 +218,7 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
       <PkBattleFx fx={fx} />
       <PkTopicBar state={state} userId={userId} />
 
-      {verdict && <PkVerdict kind={verdict.kind} text={verdict.text} />}
+      {verdict && <PkVerdict key={verdict.seq} kind={verdict.kind} text={verdict.text} />}
 
       {judge && (
         <PkJudgePanel

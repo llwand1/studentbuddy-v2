@@ -18,6 +18,25 @@ beforeEach(() => { apiMock.request.mockReset(); report.mockReset(); });
 afterEach(cleanup);
 const complete = () => { fireEvent.click(screen.getByRole('button', { name: /吸收矿物质/ })); fireEvent.click(screen.getByText('确认作答')); };
 describe('普通题完成与图文复盘', () => {
+  it('连续命中按作答顺序统计，待核对打断；重练清空且不重复记账', () => {
+    render(<QuizCard title="连击" questions={[question, {...question, question:'第二题'}, {...question, question:'第三题'},
+      {type:'essay', question:'待核对题', answer:'要点'}]} />);
+    const rows = screen.getAllByRole('region', {name:/第 \d 题/});
+    const answer = (i: number) => {
+      const row = within(rows[i] as HTMLElement);
+      fireEvent.click(row.getByRole('button', {name:/光合作用/})); fireEvent.click(row.getByText('确认作答'));
+    };
+    answer(2); answer(0);
+    expect(screen.getByText('连续命中 2 题')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('你的解答'), {target:{value:'要点'}});
+    fireEvent.click(screen.getByText('提交并对照参考'));
+    expect(screen.queryByText(/连续命中/)).toBeNull();
+    answer(1); expect(screen.queryByText(/连续命中/)).toBeNull();
+    expect(report).toHaveBeenCalledTimes(3);
+    fireEvent.click(screen.getByText('再练一遍'));
+    expect(screen.queryByText(/连续命中/)).toBeNull();
+    expect(screen.getAllByText('确认作答')).toHaveLength(3);
+  });
   it('五类题均能完成；多空分开提交，主观题不伪装自动判分', () => {
     render(<QuizCard title="混合练习" sessionId="s" questions={[
       question, { type: 'multiple', question: '选两个', options: ['一', '二', '三'], answer: [0, 2] },

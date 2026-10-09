@@ -21,9 +21,12 @@ const result = { question: q.question, answer: 'H2O；CO2', expected: '水；二
 describe('AiGradeNote', () => {
   it('★ 入参：题目、参考、作答、题型、主题；显示判定、分数与误区', async () => {
     grade.mockResolvedValue({ verdict: 'partial', score: 0.6, feedback: '原料对了一半', misconception: '漏了水' });
-    render(<AiGradeNote q={q} result={result} topic="光合作用" />);
+    const {container} = render(<AiGradeNote q={q} result={result} topic="光合作用" />);
     expect(screen.getByText('AI 正在按要点评分…')).toBeTruthy();
+    expect(container.querySelector('.answer-impact')).toBeNull();
     expect(await screen.findByText('◐ AI 判定：部分正确（60 分）')).toBeTruthy();
+    expect(container.querySelector('.answer-impact.is-partial')).toBeTruthy();
+    expect(container.querySelector('.answer-impact.is-correct, .answer-impact.is-wrong')).toBeNull();
     expect(screen.getByText(/漏了水/)).toBeTruthy();
     expect(grade.mock.calls[0]?.[0]).toEqual({ question: '光合作用的原料', reference: '水；二氧化碳', answer: 'H2O；CO2', qtype: 'fill', topic: '光合作用' });
   });

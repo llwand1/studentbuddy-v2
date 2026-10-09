@@ -12,6 +12,7 @@
  * ★ 失败一律念出来、不吞：领不到词（409）/ 凭证过期（404）/ 落库失败 都留在弹窗里，并给"重新领一块"的路。
  */
 import { useCallback, useEffect, useState } from 'react';
+import { AnswerImpact } from '../feedback/AnswerImpact';
 import { CONTINENT_QLABEL, gradeAnswer, type ContinentAnswer, type ContinentExpandOffer, type ContinentExpandResult } from '@sb/shared';
 import { api } from '../../lib/api';
 import { ContinentQuestionForm, correctText } from './ContinentQuestionForm';
@@ -35,6 +36,7 @@ export function ExpandDialog({ cell, onExpanded, onClose }: Props) {
   const [answer, setAnswer] = useState<ContinentAnswer | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [impact, setImpact] = useState<{ verdict: 'correct' | 'wrong'; seq: number } | null>(null);
 
   /** ① 领地（打开即领；"重新领一块"也走这里） */
   const fetchOffer = useCallback(async () => {
@@ -65,8 +67,10 @@ export function ExpandDialog({ cell, onExpanded, onClose }: Props) {
     if (!offer || !current || busy || answer === null) return;
     if (!gradeAnswer(current, answer)) {
       setNote(`还不对。${correctText(current)}`);
+      setImpact(prev => ({verdict: 'wrong', seq: (prev?.seq ?? 0) + 1}));
       return;
     }
+    setImpact(prev => ({verdict: 'correct', seq: (prev?.seq ?? 0) + 1}));
     const all = [...answers, answer];
     if (qi + 1 < questions.length) {
       setAnswers(all);
@@ -95,7 +99,8 @@ export function ExpandDialog({ cell, onExpanded, onClose }: Props) {
 
   return (
     <div className="continent-modal" role="dialog" aria-modal="true" aria-label="开拓新地块">
-      <div className="continent-modal-card">
+      <div className="continent-modal-card answer-surface">
+        {impact && <AnswerImpact verdict={impact.verdict} event={impact.seq} />}
         <header className="continent-modal-head">
           <span className="continent-modal-title">
             开拓新地块

@@ -1,4 +1,4 @@
-# 营地学习入口（v0.2.175）
+# 营地学习入口（v0.2.176）
 
 两侧场景承担实际学习导航：右侧“魔法图书馆”打开既有词条库，左侧“遗迹入口”进入既有知识大陆。入口文案直接说出目的地。替代 v0.2.174 仅切换装饰亮灭的场景互动，保留中央现场新题与阅读布局。
 
@@ -9,7 +9,7 @@
 - 图书馆：尖拱、书架、浮空书、暖金烛光、冷灰紫石墙。
 - 遗迹：断裂扶壁、石拱、磨损刻纹；门内可见通向山脉与城堡的远景，浅灰绿光强调目的地。
 - 图景位置沿用正文两侧留白，不改变 760px 的阅读区。聊天区实际宽度至少 1160px 才显示两侧建筑；手机和资料分栏后以两枚紧凑的学习入口保留同一功能。
-- 指针视差仍限制横向 6px、纵向 4px，无持续 JavaScript 动画循环。悬停与键盘焦点只唤起门内光和少量像素尘，点击才进入目标页面。
+- 建筑本体固定，取消指针视差。收起导航才显示学习建筑，展开导航则退场；手机探索菜单与紧凑入口同样互斥。残墙、光柱、低雾与像素粒子填充两侧环境，悬停与键盘焦点唤起门光，点击才进入目标页面。详见 [ANSWER-FEEL-SPEC.md](ANSWER-FEEL-SPEC.md)。
 
 美术依据来自官方资料：[Chrono Sword](https://spaceduck0316.wixsite.com/chronosword)、[The Last Faith](https://store.steampowered.com/app/1274600/The_Last_Faith/)、[Blasphemous](https://store.steampowered.com/app/774361/Blasphemous/)、[Blasphemous II](https://www.blasphemous2game.com/mea-culpa)。建筑造型、固定色阶和交互节奏是本项目的设计判断，所有图形自行绘制。
 

@@ -5,6 +5,7 @@ import { Markdown } from '../chat/Markdown';
 import { SvgPreviewCard } from '../chat/SvgPreviewCard';
 import { prepareSvg } from '../../lib/svg-utils';
 import { useGuideCap } from '../guide/use-guide-cap';
+import { AnswerImpact } from '../feedback/AnswerImpact';
 
 /**
  * 普通题与情景题共用完成/复盘面板。图文讲解仅保留于当前打开的卡片；
@@ -61,7 +62,8 @@ export function QuizReview({ sessionId, title, kind, items, total, onRetry, reco
   } : null);
   const correct = items.filter((i) => i.verdict === 'correct').length;
   const review = items.filter((i) => i.verdict === 'review').length;
-  return <section ref={sectionRef} className={`quiz-review${complete ? ' is-complete' : ''}`} aria-label="练习进度与复盘">
+  return <section ref={sectionRef} className={`quiz-review answer-surface${complete ? ' is-complete' : ''}`} aria-label="练习进度与复盘">
+    {complete && <AnswerImpact verdict="complete" />}
     <div className="quiz-progress-label" role="status">
       <strong>{complete ? '本轮探索完成' : '探索进度'}</strong><span>{items.length} / {total}</span>
     </div>

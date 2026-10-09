@@ -1,0 +1,48 @@
+/* Reading surfaces keep their scroll and drafts when chrome is folded away. */
+.sb-workspace { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.sb-reading-content { display: flex; flex: 1; min-width: 0; min-height: 0; position: relative; }
+.reading-toolbar {
+  display: flex; align-items: center; justify-content: space-between; flex: none;
+  gap: 8px; min-height: 40px; padding: 4px 12px;
+  border-bottom: 1px solid var(--sb-line); background: var(--sb-bg);
+}
+.reading-toolbar-start, .reading-toolbar-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.reading-toolbar-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; color: var(--sb-gold); font: 600 var(--sb-fs-xs) var(--sb-font); }
+.reading-tool {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 8px;
+  border: 1px solid var(--sb-line); background: var(--sb-surface); color: var(--sb-ink-secondary);
+  font: 500 var(--sb-fs-xs) var(--sb-font); white-space: nowrap;
+}
+.reading-tool:hover { color: var(--sb-primary); border-color: var(--sb-primary); }
+.reading-tool[aria-pressed='true'] { color: var(--sb-gold); border-color: var(--sb-gold); box-shadow: 2px 2px 0 var(--sb-pixel-shadow); }
+.reading-count { min-width: 18px; text-align: center; color: var(--sb-gold); }
+/* The lantern now has a reserved cell instead of floating over a heading. */
+.reading-toolbar .guide-beacon { position: relative; top: auto; left: auto; right: auto; }
+.reading-toolbar .guide-lantern { width: 32px; height: 32px; box-shadow: none; }
+.reading-toolbar .guide-quick { display: none; }
+.sb-shell .sb-main { padding-left: 0; }
+.sb-shell.is-reading-focus :is(.guide-beacon, .coach-dock-rail, .coach-drawer, .hunt-alert) { display: none; }
+.sb-shell.is-reading-focus .chat-head, .sb-shell.is-reading-focus .chat-composer-wrap .chat-quiz-mix { display: none; }
+/* Quiet the decorative embers; headings remain available in the toolbar. */
+.sb-shell.is-reading-focus .chat-view::before { display: none; }
+body .sb-shell.is-reading-focus .chat-view { padding-bottom: env(safe-area-inset-bottom, 0px); }
+body .sb-shell.is-reading-focus :is(.term-page, .continent-page, .settings-view) { padding-bottom: 16px; }
+/* Full document reading leaves the toolbar and navigation available. */
+.sb-reading-content:has(.sb-sources.is-expanded) .sb-main { display: none; }
+body .sb-reading-content .sb-sources.is-expanded { width: 100%; flex: 1; }
+.sb-shell:has(.sb-sources.is-expanded) :is(.coach-dock-rail, .coach-drawer, .hunt-alert) { display: none; }
+.sb-sources.is-expanded .rd-body { padding: 12px max(16px, calc((100% - 880px) / 2)); }
+@media (min-width: 701px) {
+  body .sb-sidebar.is-collapsed { display: none; }
+}
+@media (max-width: 700px) {
+  .reading-nav-toggle { display: none; }
+  .reading-toolbar { min-height: 44px; padding: 4px 10px; }
+  .reading-toolbar-actions { gap: 6px; }
+  .reading-tool { min-height: 36px; padding: 4px 6px; }
+  body .sb-reading-content .sb-browser { inset: 0; }
+  .reading-toolbar .guide-beacon { z-index: 40; }
+  .reading-toolbar .guide-lantern { width: 36px; height: 36px; }
+  .reading-toolbar .guide-pop { position: absolute; top: calc(100% + 8px); left: 0; right: auto; width: min(312px, calc(100vw - 24px)); max-height: calc(100dvh - 130px); }
+  .src-expand { display: none; }
+}

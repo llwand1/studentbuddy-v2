@@ -6,6 +6,7 @@
  * 2026-09-14：方案选择框（契约 docs/ASK-CHOICE-SPEC.md）的挂起队列抽到 `useChoiceQueue`，本文件只在事件入口做一次转发（本文件贴着行数红线，装不下那 90 行）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { rememberSessionSources, setSourceSession } from '../../lib/sources-store';
 import type { SseEvent, TaskItem, TokenUsage } from '@sb/shared';
 import { connectSse, type SseReadyState } from '../../lib/sse-client';
 import { api } from '../../lib/api';
@@ -203,6 +204,7 @@ export function useChatStream(
 
   // 载入历史
   useEffect(() => {
+    setSourceSession(sessionId);
     if (!sessionId) {
       historyLoadedRef.current = true;
       setMessages([]);
@@ -215,7 +217,9 @@ export function useChatStream(
       .then((rows) => {
         if (!alive) return;
         // 工具轮（assistant.tool_calls + tool 结果）不当作独立消息，配对成 steps 挂回那条回答
-        setMessages(foldToolRounds(rows));
+        const folded = foldToolRounds(rows);
+        rememberSessionSources(sessionId, [...folded].reverse().find((m) => m.sources?.length)?.sources ?? []);
+        setMessages(folded);
       })
       .catch(() => setMessages([]))
       .finally(() => {

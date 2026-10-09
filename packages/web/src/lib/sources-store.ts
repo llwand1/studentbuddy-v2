@@ -8,7 +8,7 @@
  * 三条行为口径：
  *  - **live 帧整表替换、保持当前选中**：AI 每搜一次 / 读一页架子就变一次；用户正在看第 3 条时不能被跳走。
  *    只有「还没选过」或「选中的条目被挤掉了」才自动落到最值得看的那条（精选 > 在读 > 首条）。
- *  - **本轮关过就不再自动弹**：`dismissedTurn` 记住用户在这一轮点过关闭；下一轮（新的 turnKey）重新允许。
+ *  - **只在主动打开时展示**：live 帧更新资料入口，跨轮不会自动弹开；用户打开的同会话面板继续更新。
  *  - **归位到消息**：`takeTurnSources` 在回答收口时被 useChatStream 调一次，把本轮架子挂到那条回答上
  *    （随后同一份数据由 `/messages` 的 `sources` 列接力），消费后清标记，避免下一轮无搜索的回答误挂旧架。
  *  - **单条可叉掉**（2026-09-30，`removeSource`）：架子越堆越长时用户要能把没用的一条条清走。叉掉按**网址**记在
@@ -34,9 +34,6 @@ const EMPTY: SourcesState = { open: false, sessionId: '', items: [], activeN: nu
 let state: SourcesState = EMPTY;
 /** 本轮（sessionId 维度）尚未归位到消息的架子；`takenAt` 见 takeTurnSources */
 let pendingTurn: { sessionId: string; items: SourceItem[]; takenAt?: number } | null = null;
-/** 用户在这一轮里关过面板：sessionId → 该轮首帧到达时间戳（作为轮次身份） */
-let dismissed: { sessionId: string; turn: number } | null = null;
-let turnStamp = 0;
 /** 用户叉掉的资料：sessionId → 网址集合（页面级；见文件头「单条可叉掉」） */
 const hidden = new Map<string, Set<string>>();
 const listeners = new Set<() => void>();
@@ -69,21 +66,40 @@ function preferred(items: SourceItem[], readingN: number | null): number | null 
 
 /** live：SSE block(kind=sources) 整表替换（chat-blocks 分派调用） */
 export function applyLiveSources(p: SourcesBlockPayload): void {
-  const sameTurn = state.live && state.sessionId === p.sessionId && pendingTurn?.sessionId === p.sessionId && pendingTurn.takenAt === undefined;
-  if (!sameTurn) turnStamp += 1; // 单调计数而不是 Date.now()：同一毫秒内收口又开新轮会撞号
   const items = visible(p.sessionId, p.items);
   pendingTurn = { sessionId: p.sessionId, items };
   const readingN = p.readingN ?? null;
   const keep = state.activeN !== null && items.some((s) => s.n === state.activeN) && state.sessionId === p.sessionId;
-  const suppressed = dismissed !== null && dismissed.sessionId === p.sessionId && dismissed.turn === turnStamp;
   state = {
-    open: suppressed ? state.open && state.live : true,
+    open: state.open && state.sessionId === p.sessionId && items.length > 0,
     sessionId: p.sessionId,
     items,
     activeN: keep ? state.activeN : preferred(items, readingN),
     readingN,
     live: true,
   };
+  emit();
+}
+
+/** Changing conversations clears the visible shelf; pending streaming attribution is kept separately. */
+export function setSourceSession(sessionId: string | null): void {
+  if (state.sessionId === (sessionId ?? '')) return;
+  state = { ...EMPTY, sessionId: sessionId ?? '' };
+  emit();
+}
+
+/** On history load, make the latest available shelf reachable without opening it. */
+export function rememberSessionSources(sessionId: string, all: SourceItem[]): void {
+  if (state.sessionId !== sessionId || state.live || state.items.length > 0) return;
+  const items = visible(sessionId, all);
+  state = { ...state, items, activeN: preferred(items, null) };
+  emit();
+}
+
+/** Reopen the same shelf and selected article; do not reset a live frame to history mode. */
+export function reopenSources(): void {
+  if (state.items.length === 0 || state.open) return;
+  state = { ...state, open: true };
   emit();
 }
 
@@ -130,7 +146,6 @@ export function selectSourceAt(k: number): void {
 
 export function closeSources(): void {
   if (!state.open) return;
-  if (state.live) dismissed = { sessionId: state.sessionId, turn: turnStamp };
   state = { ...state, open: false };
   emit();
 }
@@ -184,8 +199,6 @@ export function takeTurnSources(sessionId: string | null): { sources?: SourceIte
 export function resetSourcesStore(): void {
   state = EMPTY;
   pendingTurn = null;
-  dismissed = null;
-  turnStamp = 0;
   hidden.clear();
   emit();
 }

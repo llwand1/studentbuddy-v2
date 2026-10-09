@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T02:00:52.003Z",
+  "generatedAt": "2026-10-09T04:20:20.561Z",
   "code": {
     "rows": [
       {
@@ -18,16 +18,16 @@
       },
       {
         "pkg": "web",
-        "srcFiles": 351,
+        "srcFiles": 353,
         "testFiles": 150,
-        "srcLines": 42026,
-        "testLines": 19073
+        "srcLines": 42143,
+        "testLines": 19163
       }
     ],
-    "srcFiles": 707,
+    "srcFiles": 709,
     "testFiles": 394,
-    "srcLines": 92394,
-    "testLines": 62213,
+    "srcLines": 92511,
+    "testLines": 62303,
     "tsxTestFiles": 72
   },
   "routes": {
@@ -80,16 +80,16 @@
     ]
   },
   "docs": {
-    "specs": 54,
-    "all": 72,
+    "specs": 55,
+    "all": 73,
     "probes": 15
   },
   "repo": {
-    "head": "621be95",
+    "head": "8acf2c6",
     "headDate": "2026-10-09",
     "commitsLast14d": 281,
-    "branch": "feat/reply-practice",
-    "dirtyFiles": 2
+    "branch": "feat/reading-workspace",
+    "dirtyFiles": 28
   },
   "tests": {
     "available": true,
@@ -97,8 +97,8 @@
     "wallSec": 0,
     "staleDays": 0,
     "files": 394,
-    "cases": 4505,
-    "passed": 4503,
+    "cases": 4510,
+    "passed": 4508,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -115,8 +115,8 @@
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4505",
-      "measured": "4505",
+      "claimed": "4510",
+      "measured": "4510",
       "ok": true
     },
     {
@@ -145,20 +145,20 @@
     },
     {
       "label": "badge 版本",
-      "claimed": "0.2.171",
-      "measured": "0.2.171",
+      "claimed": "0.2.172",
+      "measured": "0.2.172",
       "ok": true
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.171",
-      "measured": "v0.2.171",
+      "claimed": "v0.2.172",
+      "measured": "v0.2.172",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "394 文件 / 4505 例",
-      "measured": "394 文件 / 4505 例",
+      "claimed": "394 文件 / 4510 例",
+      "measured": "394 文件 / 4510 例",
       "ok": true
     }
   ],

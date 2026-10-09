@@ -13,7 +13,7 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, fireEvent, cleanup } from '@testing-library/react';
 import type { SourceItem } from '@sb/shared';
 import { parseInline } from '../../lib/markdown-inline';
-import { applyLiveSources, getSources, openSources, removeSource, resetSourcesStore, takeTurnSources } from '../../lib/sources-store';
+import { applyLiveSources, getSources, openSources, reopenSources, removeSource, resetSourcesStore, takeTurnSources } from '../../lib/sources-store';
 import { closePreview, openPreview } from '../../lib/preview-store';
 import { resetVideoRouteStore } from '../../lib/video-route-store';
 import { applyChatBlock } from '../chat/chat-blocks';
@@ -53,6 +53,7 @@ afterEach(cleanup);
 describe('① SourcePanel', () => {
   it('标签顺序精选→读过→搜到、当前高亮、在读标、精选理由、网页走沙箱阅读页', () => {
     applyLiveSources({ kind: 'sources', sessionId: 's1', items: [item(1), item(2, 'read'), item(3, 'pick', 'page', { why: '官方文档' })], readingN: 2 });
+    reopenSources();
     const { container } = render(<SourcePanel />);
     const tabs = Array.from(container.querySelectorAll('.src-tab')).map((t) => t.querySelector('.src-tab-n')?.textContent);
     expect(tabs).toEqual(['3', '2', '1']);
@@ -91,6 +92,7 @@ describe('① SourcePanel', () => {
 
   it('⑥ 单条 ✕：叉掉当前条 ⇒ 选中落到下一条；live 帧再来也不复活；收口归位时也不带它；叉光了面板收起', () => {
     applyLiveSources({ kind: 'sources', sessionId: 's1', items: [item(1), item(2, 'read'), item(3, 'pick', 'page', { why: '官方' })] });
+    reopenSources();
     const { container, rerender } = render(<SourcePanel />);
     expect(container.querySelectorAll('.src-tab-x')).toHaveLength(3);
     fireEvent.click(container.querySelector('.src-tab-wrap.active .src-tab-x') as HTMLElement); // 叉掉正在看的 3 号（精选）

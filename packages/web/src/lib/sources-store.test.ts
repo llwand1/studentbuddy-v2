@@ -1,6 +1,6 @@
 /**
  * sources-store 单测（契约 docs/SOURCE-TRACE-SPEC.md §8.1）。
- * 钉：① live 帧整表替换 + 首选（精选 > 在读 > 首条）+ 保持当前选中；② 本轮关过不再自动弹、下一轮恢复；
+ * 钉：① live 帧整表替换 + 首选（精选 > 在读 > 首条）+ 保持当前选中；② 跨轮不自动弹、主动重开保留 live 状态；
  * ③ 历史打开可指定 n；④ 前后切换按面板顺序回绕、Alt+k 直达；⑤ takeTurnSources 同秒重复取一致、
  * 过期后不再挂、会话不符为空；⑥ readerUrl 按类型选端点；⑦ showSource 同一份架子只切条目。
  */
@@ -11,6 +11,9 @@ import {
   closeSources,
   getSources,
   openSources,
+  reopenSources,
+  rememberSessionSources,
+  setSourceSession,
   readerUrl,
   resetSourcesStore,
   selectSourceAt,
@@ -32,9 +35,10 @@ const frame = (items: SourceItem[], readingN?: number): SourcesBlockPayload => (
 beforeEach(() => resetSourcesStore());
 
 describe('live 帧', () => {
-  it('① 首帧自动打开、首选精选 > 在读 > 首条；后续帧保持当前选中，选中被挤掉才重选', () => {
+  it('① 首帧只更新入口、首选精选 > 在读 > 首条；主动打开后保持当前选中，选中被挤掉才重选', () => {
     applyLiveSources(frame([item(1), item(2)]));
-    expect(getSources()).toMatchObject({ open: true, live: true, activeN: 1, sessionId: 's1' });
+    expect(getSources()).toMatchObject({ open: false, live: true, activeN: 1, sessionId: 's1' });
+    reopenSources();
     applyLiveSources(frame([item(1), item(2), item(3, 'read')], 3));
     expect(getSources().activeN).toBe(1); // 用户正在看 1，不跳
     expect(getSources().readingN).toBe(3);
@@ -45,7 +49,7 @@ describe('live 帧', () => {
     expect(getSources().activeN).toBe(2); // 无精选 ⇒ 在读
   });
 
-  it('② 本轮关过不再自动弹；回答收口后新一轮的首帧重新弹', () => {
+  it('② 关闭后跨轮不自动弹；主动重开保留选中条目与 AI 在读状态', () => {
     applyLiveSources(frame([item(1)]));
     closeSources();
     expect(getSources().open).toBe(false);
@@ -53,7 +57,23 @@ describe('live 帧', () => {
     expect(getSources().open).toBe(false);
     takeTurnSources('s1');
     applyLiveSources(frame([item(7)]));
-    expect(getSources().open).toBe(true);
+    expect(getSources().open).toBe(false);
+    reopenSources();
+    expect(getSources()).toMatchObject({ open: true, live: true, activeN: 7 });
+  });
+  it('切会话清掉旧入口；历史恢复不展开，也不覆盖新 live 帧或其他会话', () => {
+    openSources('s1', [item(1)]);
+    setSourceSession('s2');
+    expect(getSources()).toMatchObject({ sessionId: 's2', open: false, items: [] });
+    rememberSessionSources('s1', [item(1)]);
+    expect(getSources().items).toEqual([]);
+    rememberSessionSources('s2', [item(2)]);
+    expect(getSources()).toMatchObject({ open: false, activeN: 2 });
+    applyLiveSources({ ...frame([item(3)]), sessionId: 's2' });
+    rememberSessionSources('s2', [item(2)]);
+    expect(getSources().activeN).toBe(3);
+    setSourceSession(null);
+    expect(getSources().items).toEqual([]);
   });
 });
 

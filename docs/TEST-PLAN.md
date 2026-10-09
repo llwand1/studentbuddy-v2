@@ -1,3 +1,11 @@
+> 2026-10-09 阅读工作台：复用既有文件，仅新增 5 例；不新增模型测试或线上调用。
+>
+> | 本批测试文件 | 用例 | 不变量 |
+> |---|---:|---|
+> | `packages/web/src/components/PixelSidebar.test.tsx` | +4 | 折叠偏好与挂载状态、专注退出恢复、资料主动开合/预览切回/会话隔离、存储不可用 |
+> | `packages/web/src/lib/sources-store.test.ts` | +1 | 切会话清空、历史恢复、live 不被旧响应覆盖；既有两例改为跨轮不自动弹 |
+> | `packages/web/src/features/sources/sources.test.tsx` | 既有 10 例 | 面板选择、归位、引用、类型与预览让位保持 |
+
 > 2026-10-09 回答派生练习：新增 1 文件 6 例、既有 flow +1 例。只锁提炼依据、真实聊天/HTTP 交付、归属、失效与出题分流。
 >
 > | 本批测试文件 | 用例 | 不变量 |
@@ -418,7 +426,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，如实记录）**：本次在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（现基线：394 文件 / 4505 例，4503 passed + 2 skipped，2026-10-09 回答派生练习全量实跑）
+## 3. 用例清单（现基线：394 文件 / 4510 例，4508 passed + 2 skipped，2026-10-09 阅读工作台全量实跑）
 
 | 新增测试 | 用例 | 不变量 |
 |---|---:|---|

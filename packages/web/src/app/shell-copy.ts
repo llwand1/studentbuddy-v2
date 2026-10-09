@@ -41,6 +41,12 @@ export const SHELL = {
   drawerOpen: { zh: '探索菜单', en: 'Open menu' },
   drawerClose: { zh: '收起菜单', en: 'Close menu' },
   navClose: { zh: '关闭导航', en: 'Close navigation' },
+  sidebarOpen: { zh: '展开导航', en: 'Show navigation' },
+  sidebarClose: { zh: '收起导航', en: 'Hide navigation' },
+  readingTools: { zh: '阅读工具', en: 'Reading tools' },
+  focusEnter: { zh: '专注阅读', en: 'Focus reading' },
+  focusExit: { zh: '退出专注', en: 'Exit focus' },
+  sources: { zh: '资料', en: 'Sources' },
 
   /** 试用提醒（`components/TrialNotice.tsx`）。
    *  ★ EN 串尾那一个空格是**故意的**：中文在链接前不留白、英文必须留，故空格只放 en 侧，

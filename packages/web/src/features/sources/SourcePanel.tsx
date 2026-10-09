@@ -19,10 +19,10 @@
  * 与演示面板的关系：两者同占右栏，演示是用户点出来的、优先级更高——有演示时本面板让位（返回 null），
  * 演示关掉就回来（store 状态没丢）。
  */
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { orderSources, videoEmbedUrl, type SourceItem } from '@sb/shared';
 import { getPreview, subscribePreview } from '../../lib/preview-store';
-import { closeSources, readerUrl, removeSource, selectSource, useSources } from '../../lib/sources-store';
+import { closeSources, readerUrl, reopenSources, removeSource, selectSource, useSources } from '../../lib/sources-store';
 import { closeVideoRoute, openVideoRoute, useVideoRoute } from '../../lib/video-route-store';
 import { ReaderFrame } from './ReaderFrame';
 import { ReaderView } from './ReaderView';
@@ -61,12 +61,13 @@ function SourceFrame({ sessionId, item }: { sessionId: string; item: SourceItem 
 }
 
 export function SourcePanel() {
+  const [expanded, setExpanded] = useState(false);
   const st = useSources();
   const vr = useVideoRoute();
   const preview = useSyncExternalStore(subscribePreview, getPreview, getPreview);
-  const hasShelf = st.open && st.items.length > 0;
+  const hasShelf = st.items.length > 0;
   const videoMode = vr.open;
-  const visible = (hasShelf || videoMode) && !preview;
+  const visible = ((st.open && hasShelf) || videoMode) && !preview;
   useSourceKeys(visible && !videoMode);
   if (!visible) return null;
 
@@ -92,7 +93,7 @@ export function SourcePanel() {
               </button>
             )}
             {hasShelf && (
-              <button className="sb-browser-btn" onClick={closeVideoRoute} title="回到这条回答的资料架">
+              <button className="sb-browser-btn" onClick={() => { closeVideoRoute(); reopenSources(); }} title="回到这条回答的资料架">
                 资料 {ordered.length}
               </button>
             )}
@@ -114,13 +115,17 @@ export function SourcePanel() {
   const seed = st.items.find((s) => s.query)?.query ?? '';
 
   return (
-    <aside className="sb-browser sb-sources" aria-label="资料架">
+    <aside className={`sb-browser sb-sources${expanded ? ' is-expanded' : ''}`} aria-label="资料架">
       <header className="sb-browser-head">
         <span className="sb-browser-badge">{st.live ? 'AI 在看' : '资料'}</span>
         <span className="sb-browser-title" title={active.url}>
           {active.title}
         </span>
         <span className="sb-browser-actions">
+          <button type="button" className="sb-browser-btn src-expand" aria-pressed={expanded}
+            onClick={() => setExpanded(!expanded)} title={expanded ? '返回对话与资料对照' : '用整个主区阅读资料'}>
+            {expanded ? '对照阅读' : '展开阅读'}
+          </button>
           {/* 存为资料：学习者在这里已经选中了某一页，就地把它设成本会话资料（DOC-RAG-SPEC §10） */}
           <SaveAsDocButton key={active.url} sessionId={st.sessionId} item={active} />
           <button className="sb-browser-btn" onClick={() => openVideoRoute(st.sessionId, seed)} title="去 B站 / 抖音找这个知识点的讲解视频">

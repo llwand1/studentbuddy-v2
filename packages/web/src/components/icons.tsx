@@ -6,6 +6,14 @@ import type { SVGProps } from 'react';
 
 type IconProps = SVGProps<SVGSVGElement> & { size?: number };
 
+/** Navigation panel and a quiet reading frame, using the existing integer grid. */
+export function SidebarIcon(props: IconProps) {
+  return <svg {...base(props.size, props)}><path d="M4 4h16v16H4zM9 4v16M6 8h1M6 12h1" /></svg>;
+}
+export function ReadingIcon(props: IconProps) {
+  return <svg {...base(props.size, props)}><path d="M8 4H4v4M16 4h4v4M4 16v4h4M20 16v4h-4M8 9h8M8 13h8M8 17h5" /></svg>;
+}
+
 function base(size: number | undefined, props: IconProps) {
   const { size: _s, ...rest } = props;
   return {

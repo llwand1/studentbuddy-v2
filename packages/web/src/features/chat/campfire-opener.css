@@ -1,4 +1,4 @@
-/* 深色像素冒险风：复用营地 token；题目到达后才召卷轴，结束即静止。 */
+/* 深色像素冒险风：篝火点亮、符文聚拢，真实新题到达后再凝成卷轴。 */
 body .welcome-campfire { max-width: 650px; padding: 12px 8px 20px; }
 body .welcome-campfire .welcome-hi { font-size: clamp(21px, 3vw, 27px); }
 .welcome-campfire .pixel-scene, .welcome-campfire .pixel-scene-art { height: 112px; }
@@ -25,7 +25,8 @@ body .welcome-campfire .welcome-hi { font-size: clamp(21px, 3vw, 27px); }
 .opener-explanation { margin-top: 18px; padding-top: 14px; border-top: 2px dotted var(--sb-gold-edge); color: var(--sb-ink-secondary); font-size: var(--sb-fs-sm); line-height: 1.85; animation: opener-explanation-in var(--sb-motion-scene) steps(4) both; white-space: pre-wrap; overflow-wrap: anywhere; }
 .opener-feedback { color: var(--sb-gold); margin-bottom: 5px; font-weight: 600; }
 .opener-quest-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
-.opener-next, .opener-talk, .opener-own { min-height: 40px; font-size: var(--sb-fs-sm); padding: 6px 0; }
+.opener-next, .opener-talk, .opener-own, .opener-direct { min-height: 40px; font-size: var(--sb-fs-sm); padding: 6px 0; }
+.opener-direct { color: var(--sb-gold); }
 .opener-next, .opener-own { color: var(--sb-ink-secondary); }
 .opener-talk { color: var(--sb-gold); font-weight: 600; }
 .opener-next:hover, .opener-own:hover { color: var(--sb-gold); }
@@ -49,22 +50,41 @@ body .welcome-campfire .welcome-hi { font-size: clamp(21px, 3vw, 27px); }
 .opener-summon span:nth-child(4) { left: calc(50% - 62px); top: 12px; }
 .opener-summon span:nth-child(5) { left: calc(50% + 58px); top: 8px; }
 .opener-summon span:nth-child(6) { width: 8px; height: 8px; left: calc(50% - 4px); }
-.opener-arriving { animation: opener-scroll-in 1100ms steps(8) 180ms backwards; }
-.opener-arriving .opener-quest-head { animation: opener-line-in 500ms steps(5) 620ms backwards; }
-.opener-arriving .opener-stem { animation: opener-ink-in 1100ms steps(10) 900ms backwards; }
-.opener-arriving .opener-option { animation: opener-option-in 550ms steps(5) 1900ms backwards; }
-.opener-arriving .opener-option:nth-child(2) { animation-delay: 2040ms; }
-.opener-arriving .opener-option:nth-child(3) { animation-delay: 2180ms; }
-.opener-arriving .opener-option:nth-child(4) { animation-delay: 2320ms; }
-.opener-arriving .opener-quest-actions { animation: opener-line-in 350ms steps(4) 2500ms backwards; }
-.opener-arriving .opener-summon span { animation: opener-sparks-in 1400ms steps(7) both; }
-.opener-arriving .opener-summon span:nth-child(2n) { animation-delay: 100ms; }
-@keyframes opener-scroll-in { 0% { opacity: 0; transform: translateY(20px) scaleY(.92); border-color: var(--sb-gold); } 50% { opacity: 1; border-color: var(--sb-gold-edge); } 100% { opacity: 1; transform: none; border-color: var(--sb-pixel-edge); } }
-@keyframes opener-ink-in { 0% { opacity: 0; filter: blur(6px); transform: translateY(8px); clip-path: inset(0 0 100%); } 55% { opacity: 1; filter: blur(2px); } 100% { opacity: 1; filter: blur(0); transform: none; clip-path: inset(0); } }
-@keyframes opener-option-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.opener-arriving { animation: opener-scroll-in 700ms steps(8) 80ms backwards; }
+.opener-arriving .opener-quest-head { animation: opener-line-in 350ms steps(5) 400ms backwards; }
+.opener-arriving .opener-stem { animation: opener-ink-in 650ms steps(10) 580ms backwards; }
+.opener-arriving .opener-option { animation: opener-option-in 340ms steps(5) 1200ms backwards; }
+.opener-arriving .opener-option:nth-child(2) { animation-delay: 1330ms; }
+.opener-arriving .opener-option:nth-child(3) { animation-delay: 1460ms; }
+.opener-arriving .opener-option:nth-child(4) { animation-delay: 1590ms; }
+.opener-arriving .opener-talk { animation: opener-line-in 250ms steps(4) 1780ms backwards; }
+.opener-arriving .opener-summon span { animation: opener-sparks-in 1700ms steps(10) both; }
+.opener-arriving .opener-summon span:nth-child(2n) { animation-delay: 80ms; }
+.opener-sigil { position: absolute; top: -28px; left: calc(50% - 30px); width: 60px; height: 60px; border: 2px solid var(--sb-gold); clip-path: polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%); opacity: 0; }
+.opener-sigil::before, .opener-sigil::after { content: ''; position: absolute; background: var(--sb-gold); }
+.opener-sigil::before { left: 27px; top: 8px; width: 2px; height: 40px; }
+.opener-sigil::after { left: 8px; top: 27px; width: 40px; height: 2px; }
+.opener-beam { position: absolute; width: 2px; left: calc(50% - 1px); top: -40px; height: 140px; background: linear-gradient(transparent, var(--sb-gold), transparent); transform-origin: top; opacity: 0; }
+.opener-scan { position: absolute; left: 2px; right: 2px; top: 2px; height: 36px; background: linear-gradient(transparent, color-mix(in srgb, var(--sb-gold) 12%, transparent), transparent); opacity: 0; }
+.opener-arriving .opener-sigil { animation: opener-sigil-in 1500ms steps(10) both; }
+.opener-arriving .opener-beam { animation: opener-beam-in 1300ms steps(10) 180ms both; }
+.opener-arriving .opener-scan { animation: opener-scan-in 1200ms steps(12) 400ms both; }
+body .campfire-entering .pixel-scene { animation: campfire-scene-in 1100ms steps(10) backwards; }
+body .campfire-entering .welcome-eyebrow { animation: opener-line-in 500ms steps(5) 120ms backwards; }
+body .campfire-entering .welcome-hi { animation: opener-ink-in 650ms steps(8) 350ms backwards; }
+body .campfire-entering .welcome-sub { animation: opener-line-in 450ms steps(5) 550ms backwards; }
+.campfire-entering::before { content: ''; position: absolute; top: 116px; left: 8%; width: 84%; height: 2px; background: linear-gradient(90deg, transparent, var(--sb-gold-edge), transparent); opacity: 0; pointer-events: none; animation: campfire-horizon-in 1600ms steps(10) both; }
+@keyframes opener-scroll-in { 0% { opacity: 0; transform: translateY(12px); clip-path: inset(48% 0 48%); } 45% { opacity: 1; clip-path: inset(0); } 100% { opacity: 1; transform: none; clip-path: inset(0); } }
+@keyframes opener-ink-in { from { opacity: 0; transform: translateY(8px); clip-path: inset(0 0 100%); } to { opacity: 1; transform: none; clip-path: inset(0); } }
+@keyframes opener-option-in { from { opacity: 0; transform: translateX(-8px); clip-path: inset(0 100% 0 0); } to { opacity: 1; transform: none; clip-path: inset(0); } }
 @keyframes opener-line-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes opener-explanation-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@keyframes opener-sparks-in { 0% { opacity: 0; transform: translateY(-24px); } 25% { opacity: 1; } 55% { opacity: 1; transform: translateY(8px); } 100% { opacity: 0; transform: translateY(44px); } }
+@keyframes opener-sparks-in { 0% { opacity: 0; transform: translateY(-40px); } 25% { opacity: 1; } 55% { opacity: 1; transform: translateY(4px); } 100% { opacity: 0; transform: translateY(56px); } }
+@keyframes opener-sigil-in { 0% { opacity: 0; transform: scale(.4) rotate(-45deg); } 25% { opacity: .9; } 65% { opacity: .7; transform: scale(1) rotate(45deg); } 100% { opacity: 0; transform: scale(1.4) rotate(90deg); } }
+@keyframes opener-beam-in { 0% { opacity: 0; transform: scaleY(0); } 30% { opacity: .7; transform: scaleY(1); } 100% { opacity: 0; transform: scaleY(1.2); } }
+@keyframes opener-scan-in { 0% { opacity: 0; transform: translateY(0); } 20% { opacity: 1; } 100% { opacity: 0; transform: translateY(180px); } }
+@keyframes campfire-scene-in { from { opacity: 0; transform: translateY(12px); clip-path: inset(0 50%); } to { opacity: 1; transform: none; clip-path: inset(0); } }
+@keyframes campfire-horizon-in { 0% { opacity: 0; transform: scaleX(0); } 35% { opacity: .8; transform: scaleX(.7); } 75% { opacity: .4; transform: scaleX(1); } 100% { opacity: 0; transform: scaleX(1); } }
 @keyframes opener-rune-glow { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
 @media (max-width: 480px) {
   body .welcome-campfire { padding-inline: 2px; }
@@ -74,7 +94,7 @@ body .welcome-campfire .welcome-hi { font-size: clamp(21px, 3vw, 27px); }
   .opener-verdict span { display: none; }
   .opener-option { gap: 10px; }
 }
-@media (pointer: coarse) { .opener-next, .opener-talk, .opener-own, .opener-retry { min-height: 44px; } }
+@media (pointer: coarse) { .opener-next, .opener-talk, .opener-own, .opener-retry, .opener-direct { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) {
-  .opener-quest, .opener-quest *, .opener-pending *, .opener-option { animation: none !important; transition: none !important; }
+  .opener-quest, .opener-quest *, .opener-pending *, .opener-option, .campfire-entering *, .campfire-entering::before { animation: none !important; transition: none !important; }
 }

@@ -32,6 +32,9 @@ export const RELEASE_SCOPE = {
 
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
+  { version: 'v0.2.174', date: '2026-10-09', headline: '夜行营地入场：两侧可探索，首题凝成',
+    items: ['两侧留白变成可点亮的暗塔营灯与遗迹，保持暗黑像素冒险风。', '现场新题以符文与卷轴入场，手机轻量呈现，可跳过动画直接作答。'],
+  },
   { version: 'v0.2.173', date: '2026-10-09', headline: '手机阅读优先：按需工具与可调分屏',
     items: ['复习入口移到顶栏，输入区贴底并可收起。', '资料与对话可拖动分屏，手机回复时辅助工具按需展开。'],
   },

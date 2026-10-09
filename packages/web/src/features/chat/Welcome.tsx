@@ -14,7 +14,7 @@ export function Welcome({ onPick, blocked = false, onAsk }: {
   const scopeKey = `${exam.on}:${exam.summary}`;
   const opener = useCampfireOpener(scopeKey, !blocked && !exam.loading);
   return (
-    <div className="welcome welcome-campfire">
+    <div className="welcome welcome-campfire campfire-entering">
       <p className="welcome-eyebrow">CAMPFIRE · 篝火营地</p>
       <PixelScene />
       <p className="welcome-hi">先来一道，聊起来就容易了。</p>

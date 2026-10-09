@@ -32,6 +32,7 @@ import { RefList } from '../quiz/RefList';
 
 import { Markdown } from './Markdown';
 import { Welcome } from './Welcome';
+import { CampfireWorld } from './CampfireWorld';
 import { Thinking } from './Thinking';
 import { ChatComposer } from './ChatComposer';
 import { PkInviteCard } from './PkInviteCard';
@@ -203,6 +204,7 @@ export function ChatView({
 
   return (
     <div className="chat-view">
+      {isEmpty && <CampfireWorld key={sessionId ?? 'campfire'} />}
       <ChatSpeakerDefs />
       {/* 会话铭牌条（与其它页面的页标题同一套：角标 + 压印标题 + 荆棘分隔）；空会话由欢迎页自带角标，不重复 */}
       {!isEmpty && (

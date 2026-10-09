@@ -1,0 +1,67 @@
+/* Gutter scenery never changes the measured reading or composer layout. */
+.chat-view:has(.campfire-world) { position: relative; isolation: isolate; container: campfire / inline-size; }
+.chat-view:has(.campfire-world) > .chat-scroll { position: relative; z-index: 1; }
+.campfire-world { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; --cw-x: 0px; --cw-y: 0px; }
+.cw-sky { position: absolute; inset: 0 0 25%; }
+.cw-sky i { position: absolute; width: 2px; height: 2px; background: var(--sb-gold); opacity: .25; animation: cw-star 9s steps(3) infinite; }
+.cw-sky i:nth-child(1) { left: 7%; top: 18%; }
+.cw-sky i:nth-child(2) { left: 16%; top: 6%; animation-delay: -4s; }
+.cw-sky i:nth-child(3) { left: 25%; top: 27%; animation-delay: -2s; }
+.cw-sky i:nth-child(4) { right: 8%; top: 32%; animation-delay: -6s; }
+.cw-sky i:nth-child(5) { right: 14%; top: 9%; }
+.cw-sky i:nth-child(6) { right: 24%; top: 21%; animation-delay: -3s; }
+.cw-sky i:nth-child(7) { left: 4%; top: 53%; animation-delay: -5s; }
+.cw-sky i:nth-child(8) { right: 5%; top: 58%; animation-delay: -7s; }
+.cw-horizon { position: absolute; bottom: 12%; width: 100%; height: min(46%, 300px); opacity: .7; animation: cw-land-in 1400ms steps(10) backwards; }
+.cw-horizon svg { width: 100%; height: 100%; }
+.cw-far { fill: color-mix(in srgb, var(--sb-line) 35%, var(--sb-bg)); }
+.cw-near { fill: var(--sb-surface); }
+.cw-path { position: absolute; bottom: 0; width: 100%; height: 25%; opacity: .3; clip-path: polygon(39% 100%, 61% 100%, 54% 0, 46% 0); background: repeating-linear-gradient(0deg, var(--sb-gold-edge) 0 2px, transparent 2px 26px); }
+.cw-waypoint { display: none; position: absolute; top: max(16%, 50px); width: 176px; padding: 8px; pointer-events: auto; color: var(--sb-ink-tertiary); animation: cw-land-in 1200ms steps(8) 180ms backwards; }
+.cw-left { left: calc((100% - 760px) / 4 - 88px); }
+.cw-right { right: calc((100% - 760px) / 4 - 88px); animation-delay: 320ms; }
+.cw-waypoint svg { display: block; width: 160px; height: 240px; }
+.cw-tower { transform: translate(var(--cw-x), var(--cw-y)); }
+.cw-gate { transform: translate(calc(-1 * var(--cw-x)), var(--cw-y)); }
+.cw-waypoint-name { display: block; margin-top: 10px; font: 700 var(--sb-fs-sm) var(--sb-font-display); letter-spacing: 1px; }
+.cw-waypoint:hover .cw-waypoint-name, .cw-waypoint:focus-visible .cw-waypoint-name { color: var(--sb-gold); }
+.cw-stone-shadow { fill: var(--sb-bg); }
+.cw-stone { fill: var(--sb-line); }
+.cw-masonry { fill: var(--sb-bg); }
+.cw-window { fill: var(--sb-gold-edge); opacity: .35; }
+.cw-lamp-frame { fill: var(--sb-ink-tertiary); }
+.cw-lamp-light { fill: var(--sb-gold); opacity: .3; }
+.cw-lamp-halo { fill: var(--sb-gold); opacity: 0; }
+.cw-vines { fill: var(--sb-pixel-green); }
+.cw-fireflies { fill: var(--sb-gold); opacity: .3; }
+.cw-void { fill: var(--sb-bg); }
+.cw-gate-light { fill: var(--sb-primary); opacity: .2; }
+.cw-rune { fill: var(--sb-gold-edge); }
+.cw-tome { fill: var(--sb-primary-weak); }
+.cw-gate-dust { fill: var(--sb-gold); opacity: .25; }
+.cw-orbit { fill: var(--sb-gold); opacity: 0; transform-origin: 40px 70px; }
+.cw-waypoint:hover .cw-lamp-light, .cw-waypoint:focus-visible .cw-lamp-light, .is-lit .cw-lamp-light, .is-lit .cw-window { opacity: 1; }
+.is-lit .cw-lamp-halo { opacity: .15; transform-origin: 28px 80px; animation: cw-lamp-awaken 900ms steps(6); }
+.is-lit .cw-fireflies { animation: cw-fireflies 6s steps(6) infinite; }
+.cw-waypoint:hover .cw-gate-light, .cw-waypoint:focus-visible .cw-gate-light, .is-awake .cw-gate-light { opacity: .85; }
+.is-awake .cw-gate-dust { animation: cw-fireflies 5s steps(6) infinite; }
+.is-awake .cw-orbit { opacity: .55; animation: cw-orbit 14s steps(16) infinite; }
+.is-awake .cw-right .cw-rune, .is-lit .cw-left .cw-waypoint-name, .is-awake .cw-right .cw-waypoint-name { fill: var(--sb-gold); color: var(--sb-gold); }
+.cw-arrival { position: absolute; top: 20%; width: 100%; height: 50%; }
+.cw-arrival span { position: absolute; top: 40%; left: 50%; width: 4px; height: 4px; background: var(--sb-gold); opacity: 0; animation: cw-gather 1700ms steps(10) both; }
+.cw-arrival span:nth-child(2) { animation-delay: 100ms; --cw-from: 30vw; --cw-height: 70px; }
+.cw-arrival span:nth-child(3) { animation-delay: 200ms; --cw-from: -25vw; --cw-height: 130px; }
+.cw-arrival span:nth-child(4) { animation-delay: 300ms; --cw-from: 22vw; --cw-height: 140px; }
+@keyframes cw-star { 0%, 75%, 100% { opacity: .15; } 85% { opacity: .5; } }
+@keyframes cw-land-in { from { opacity: 0; transform: translateY(20px); } }
+@keyframes cw-gather { 0% { opacity: 0; transform: translate(var(--cw-from, -30vw), var(--cw-height, 60px)); } 20% { opacity: .8; } 70% { opacity: .9; transform: translate(0, 0); } 100% { opacity: 0; transform: translate(0, -32px); } }
+@keyframes cw-fireflies { 0%, 100% { opacity: .2; transform: translateY(0); } 50% { opacity: .9; transform: translateY(-6px); } }
+@keyframes cw-lamp-awaken { 0% { opacity: 0; transform: scale(.5); } 50% { opacity: .45; transform: scale(1.2); } 100% { opacity: .15; transform: scale(1); } }
+@keyframes cw-orbit { to { transform: rotate(360deg); } }
+@container campfire (min-width: 1160px) { .cw-waypoint { display: block; } }
+@container campfire (max-width: 700px) { .cw-horizon { opacity: .35; } .cw-sky i { opacity: .12; animation: none; } .cw-arrival span:nth-child(n+3) { display: none; } }
+.sb-shell.is-reading-focus .campfire-world { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .campfire-world *, .campfire-world *::before, .campfire-world *::after { animation: none !important; transition: none !important; }
+  .cw-tower, .cw-gate { transform: none; }
+}

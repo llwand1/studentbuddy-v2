@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({ request: vi.fn(), scope: { on: false, summary: '',
 vi.mock('../../lib/api', () => ({ api: { request: h.request } }));
 vi.mock('../exam/useExamScope', () => ({ useExamScope: () => h.scope }));
 const { Welcome } = await import('./Welcome');
+const { CampfireWorld } = await import('./CampfireWorld');
 const sample = (id: string, stem: string): CampfireOpener => ({ id, scope: '', question: { topic: '概率', question: stem, options: ['25%', '50%', '75%'], answer: 1, explanation: '每次抛掷独立。' } });
 function pending() {
   let resolve!: (value: CampfireOpener) => void;
@@ -19,6 +20,35 @@ beforeEach(() => { vi.useFakeTimers(); h.request.mockReset(); h.scope = { on: fa
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('像素营地现场开场题', () => {
+  it('营灯与遗迹可独立唤醒和关闭，纯本地互动不召新题', () => {
+    render(<CampfireWorld />);
+    fireEvent.click(screen.getByRole('button', { name: '点亮营灯' }));
+    expect(screen.getByRole('button', { name: '熄灭营灯' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: '唤醒遗迹' }));
+    expect(screen.getByRole('button', { name: '让遗迹休眠' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: '熄灭营灯' }));
+    expect(screen.getByRole('button', { name: '点亮营灯' }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByRole('button', { name: '让遗迹休眠' }).getAttribute('aria-pressed')).toBe('true');
+    expect(h.request).not.toHaveBeenCalled();
+  });
+  it('可跳过入场直接答本次新题，不换题；减少动态效果可中途生效', async () => {
+    let reduce = false;
+    let listener: (() => void) | undefined;
+    vi.stubGlobal('matchMedia', () => ({ get matches() { return reduce; }, addEventListener: (_: string, fn: () => void) => { listener = fn; }, removeEventListener: vi.fn() }));
+    h.request.mockResolvedValueOnce(sample('skip', '跳过动画仍是本次新题？'));
+    const view = render(<Welcome onPick={vi.fn()} />); await advance();
+    fireEvent.click(screen.getByRole('button', { name: '直接作答 ↓' }));
+    expect((screen.getByRole('button', { name: /B.*50%/ }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByText('跳过动画仍是本次新题？')).toBeTruthy();
+    expect(h.request).toHaveBeenCalledOnce();
+    view.unmount();
+    h.request.mockResolvedValueOnce(sample('reduce-change', '本次新的减少动态效果题？'));
+    render(<Welcome onPick={vi.fn()} />); await advance();
+    expect((screen.getByRole('button', { name: /B.*50%/ }) as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => { reduce = true; listener?.(); });
+    expect((screen.getByRole('button', { name: /B.*50%/ }) as HTMLButtonElement).disabled).toBe(false);
+    expect(h.request).toHaveBeenCalledTimes(2);
+  });
   it('范围读取慢于合并窗口也不提前召题，读完只发一次；读取失败也能召题', async () => {
     h.request.mockReturnValue(pending().promise);
     h.scope = { on: false, summary: '', loaded: false, loading: true };

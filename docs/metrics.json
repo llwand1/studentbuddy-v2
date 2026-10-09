@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T05:18:00.468Z",
+  "generatedAt": "2026-10-09T06:21:31.270Z",
   "code": {
     "rows": [
       {
@@ -18,16 +18,16 @@
       },
       {
         "pkg": "web",
-        "srcFiles": 357,
+        "srcFiles": 359,
         "testFiles": 151,
-        "srcLines": 42337,
-        "testLines": 19272
+        "srcLines": 42441,
+        "testLines": 19302
       }
     ],
-    "srcFiles": 713,
+    "srcFiles": 715,
     "testFiles": 395,
-    "srcLines": 92705,
-    "testLines": 62412,
+    "srcLines": 92809,
+    "testLines": 62442,
     "tsxTestFiles": 73
   },
   "routes": {
@@ -80,25 +80,25 @@
     ]
   },
   "docs": {
-    "specs": 55,
-    "all": 73,
+    "specs": 56,
+    "all": 74,
     "probes": 15
   },
   "repo": {
-    "head": "4f95d1b",
+    "head": "64166de",
     "headDate": "2026-10-09",
     "commitsLast14d": 283,
-    "branch": "feat/mobile-reading-flow",
-    "dirtyFiles": 1
+    "branch": "feat/campfire-entrance174",
+    "dirtyFiles": 20
   },
   "tests": {
     "available": true,
-    "ranNow": true,
-    "wallSec": 57.4,
+    "ranNow": false,
+    "wallSec": 0,
     "staleDays": 0,
     "files": 395,
-    "cases": 4515,
-    "passed": 4513,
+    "cases": 4517,
+    "passed": 4515,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -115,8 +115,8 @@
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4515",
-      "measured": "4515",
+      "claimed": "4517",
+      "measured": "4517",
       "ok": true
     },
     {
@@ -145,20 +145,20 @@
     },
     {
       "label": "badge 版本",
-      "claimed": "0.2.173",
-      "measured": "0.2.173",
+      "claimed": "0.2.174",
+      "measured": "0.2.174",
       "ok": true
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.173",
-      "measured": "v0.2.173",
+      "claimed": "v0.2.174",
+      "measured": "v0.2.174",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "395 文件 / 4515 例",
-      "measured": "395 文件 / 4515 例",
+      "claimed": "395 文件 / 4517 例",
+      "measured": "395 文件 / 4517 例",
       "ok": true
     }
   ],

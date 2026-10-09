@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 144" shape-rendering="crispEdges">
+<defs>
+  <pattern id="blocks" width="12" height="12" patternUnits="userSpaceOnUse"><path fill="#282a32" d="M0 0h12v12H0z"/><path fill="#3e4049" d="M0 0h11v5H0zM5 6h7v5H5zM0 6h4v5H0z"/><path fill="#5a5861" d="M0 0h10v1H0zM5 6h6v1H5z"/><path fill="#23212b" d="M0 5h12v1H0zM4 6h1v6H4zM10 0h1v5h-1z"/></pattern>
+</defs>
+<!-- Native 96 × 144 pixel ruin; the landscape exists inside its doorway. -->
+<path fill="#111016" d="M5 138v-8h7v-10h3V41h5V27h5V14h4v-4h6v12h5v13h9v-7h5v-6h9v7h9V12h5v10h6v19h3v80h5v12h3v7z"/>
+<path fill="#22222b" d="M12 124h76v13H12zM17 41h16v82H17zM67 41h16v82H67zM29 31h42v16H29z"/>
+<path fill="url(#blocks)" d="M19 42h12v81H19zM69 42h10v80H69zM27 28h9v13h-9zM65 29h9v13h-9zM34 30h8v14h-8zM41 23h9v15h-9zM49 20h10v11H49zM58 25h10v14H58z"/>
+<path fill="#69616c" d="M20 42h2v79h-2zM69 42h2v79h-2zM29 28h5v1h-5zM42 23h7v1h-7zM50 20h8v1h-8zM60 25h7v1h-7z"/>
+<!-- Broken pinnacles and staggered capitals. -->
+<path fill="#36343f" d="M22 27h9V15h-3v5h-3v4h-3zM72 28h8V22h-4V12h-2v10h-2z"/>
+<path fill="#73646c" d="M25 23h2v3h-2zM27 20h2v2h-2zM73 22h2v5h-2z"/>
+<path fill="#2b2833" d="M16 39h18v5H16zM66 39h17v5H66zM15 120h19v7H15zM66 120h17v7H66z"/>
+<path fill="#7b6b6e" d="M16 39h18v1H16zM66 39h17v1H66zM16 120h16v1H16zM67 120h14v1H67z"/>
+<!-- Pointed stone arch: deliberately chipped, with a dark inner reveal. -->
+<path fill="url(#blocks)" d="M29 50h7v71h-7zM35 44h6v10h-6zM40 38h7v10h-7zM46 34h7v8h-7zM53 40h7v9h-7zM60 47h6v74h-6z"/>
+<path fill="#171820" d="M36 55h5v-7h6v-5h5v6h6v7h2v63H36z"/>
+<path fill="#333e43" d="M39 59h5v-8h6v-4h1v5h5v7h2v60H39z"/>
+<path fill="#536463" d="M42 67h3v-7h3v-5h5v7h3v7h2v26H42z"/>
+<!-- A small navigable continent visible beyond the threshold. -->
+<path fill="#344346" d="M39 88h4v-5h3v-6h3v6h4v-3h3v8h3v14H39z"/>
+<path fill="#202a31" d="M39 97h5v-7h3v-9h4v9h3v-4h4v16H39z"/>
+<path fill="#a7b5a0" d="M49 81h1v8h-1zM46 89h5v1h-5z"/>
+<path fill="#777461" d="M48 92h2v2h-2z"/>
+<path fill="#1b222a" d="M39 107h7v-6h7v4h5v13H39z"/>
+<path fill="#53665d" d="M47 108h3v2h-3zM45 113h7v1h-7zM43 117h10v1H43z"/>
+<path fill="#94b3a4" d="M36 59h2v56h-2zM39 53h3v2h-3zM43 47h5v2h-5zM48 43h3v2h-3zM52 48h3v2h-3zM56 54h3v2h-3zM60 60h1v53h-1z"/>
+<path fill="#48615c" d="M36 83h2v9h-2zM60 74h1v5h-1zM41 118h17v2H41z"/>
+<!-- Carved runes, bronze edges and cracks. -->
+<path fill="#97866a" d="M24 56h1v10h-1zM22 60h5v1h-5zM73 72h5v1h-5zM75 69h1v9h-1zM48 27h6v1h-6zM51 24h1v7h-1z"/>
+<path fill="#1f1d27" d="M24 78h2v7h2v4h-2v-3h-2zM71 49h3v1h-2v6h-1zM53 32h2v5h-2zM22 105h3v1h-3z"/>
+<path fill="#758c7d" d="M44 70h1v2h-1zM55 94h1v2h-1zM41 101h1v1h-1z"/>
+<!-- Foreground buttresses and stepped platform. -->
+<path fill="#24232c" d="M12 87h7v35h-7zM79 80h6v42h-6zM9 122h13v8H9zM77 121h11v9H77zM8 130h81v8H8zM5 138h88v3H5z"/>
+<path fill="url(#blocks)" d="M13 88h4v33h-4zM80 81h3v39h-3z"/>
+<path fill="#5c5962" d="M13 88h1v31h-1zM80 81h1v37h-1zM10 122h11v2H10zM78 121h9v2h-9zM9 130h78v2H9zM6 138h85v1H6zM35 122h29v3H35zM31 126h37v3H31zM27 134h42v2H27z"/>
+<path fill="#92927c" d="M39 122h17v1H39zM37 126h20v1H37zM33 134h19v1H33z"/>
+<path fill="#303c33" d="M17 65h3v13h-3zM15 74h4v8h-4zM67 94h3v14h-3zM70 105h4v11h-4zM16 129h8v5h-8zM72 132h7v5h-7z"/>
+<path fill="#5d6450" d="M16 68h4v2h-4zM14 77h3v2h-3zM66 98h4v2h-4zM70 112h3v2h-3zM17 129h5v1h-5zM74 132h4v1h-4z"/>
+<path fill="#61505a" d="M14 76h2v1h-2zM73 111h2v1h-2zM72 135h2v1h-2z"/>
+</svg>

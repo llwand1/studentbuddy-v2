@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 144" shape-rendering="crispEdges">
+<defs>
+  <pattern id="stone" width="12" height="12" patternUnits="userSpaceOnUse"><path fill="#32303c" d="M0 0h12v12H0z"/><path fill="#45404b" d="M0 0h11v5H0zM5 6h7v5H5zM0 6h4v5H0z"/><path fill="#58505b" d="M0 0h10v1H0zM5 6h6v1H5z"/><path fill="#292630" d="M0 5h12v1H0zM4 6h1v6H4zM10 0h1v5h-1z"/></pattern>
+  <pattern id="books" width="17" height="14" patternUnits="userSpaceOnUse"><path fill="#1c161c" d="M0 0h17v14H0z"/><path fill="#694333" d="M0 11h17v2H0z"/><path fill="#bd8950" d="M0 11h17v1H0z"/><path fill="#81524b" d="M1 3h2v8H1zM11 4h3v7h-3z"/><path fill="#77725a" d="M4 2h2v9H4zM15 3h1v8h-1z"/><path fill="#af8252" d="M7 4h3v7H7zM4 3h2v1H4z"/><path fill="#3c2928" d="M8 5h1v5H8zM12 5h1v5h-1z"/></pattern>
+</defs>
+<!-- Native 96 × 144 pixel architecture, shaded with small fixed hue ramps. -->
+<path fill="#121016" d="M5 137v-6h5v-9h4V64h4V49h6V31h5v-8h5V12h4V7h4V2h4v5h4v5h4v12h5v9h7v12h6v10h6v26h4v37h5v11h4v11z"/>
+<path fill="#24202b" d="M9 131h78v8H9zM17 54h54v66H17zM23 39h40v21H23zM31 24h25v28H31z"/>
+<path fill="#393541" d="M17 53h49v69H17zM23 40h37v18H23zM33 23h21v21H33z"/>
+<path fill="#56505a" d="M35 23h17v2H35zM24 40h34v2H24zM18 53h46v2H18z"/>
+<path fill="#26242f" d="M41 9h6v6h3v6h-13v-6h4zM28 33h31v5H28z"/>
+<path fill="#69616b" d="M43 9h2v5h-2zM39 15h8v2h-8zM30 33h27v1H30z"/>
+<path fill="#b89762" d="M42 3h2v6h-2zM40 5h6v2h-6zM42 19h2v5h-2zM30 37h28v1H30z"/>
+<!-- Tall window with a stepped pointed arch. -->
+<path fill="#15131b" d="M37 35h13v14H37zM40 32h7v3h-7zM42 30h3v2h-3z"/>
+<path fill="#8c6345" d="M40 36h7v11h-7zM42 33h3v3h-3z"/>
+<path fill="#e1b465" d="M42 36h3v9h-3z"/><path fill="#47313a" d="M43 33h1v14h-1zM39 40h9v2h-9z"/>
+<!-- Main library arch. -->
+<path fill="url(#stone)" d="M20 60h8v59h-8zM28 55h5v8h-5zM33 50h6v8h-6zM39 47h9v6h-9zM48 51h5v9h-5zM53 56h6v8h-6zM59 63h7v56h-7z"/>
+<path fill="#b28d59" d="M27 62h2v58h-2zM29 58h4v2h-4zM33 53h6v2h-6zM39 50h8v2h-8zM47 54h5v2h-5zM52 59h5v2h-5zM57 63h2v57h-2z"/>
+<path fill="#151117" d="M30 68h5v-7h5v-5h6v5h5v7h5v52H30z"/>
+<path fill="url(#books)" d="M33 72h5v-8h4v-5h3v5h4v8h5v47H33z"/>
+<path fill="#37262a" d="M30 68h3v52h-3zM54 69h3v51h-3zM34 116h20v4H34z"/>
+<path fill="#c38c48" d="M33 118h22v2H33zM35 66h2v9h-2zM51 71h2v8h-2z"/>
+<!-- Buttresses and foreground depth. -->
+<path fill="#211f29" d="M13 64h6v60h-6zM66 57h8v65h-8zM73 83h8v39h-8z"/>
+<path fill="url(#stone)" d="M14 69h5v54h-5zM63 62h7v62h-7zM75 88h5v34h-5z"/>
+<path fill="#716975" d="M14 69h2v52h-2zM63 62h2v60h-2zM75 88h1v32h-1z"/>
+<path fill="#292531" d="M11 121h11v6H11zM61 122h12v5H61zM73 121h10v5H73zM11 64h10v5H11zM61 57h12v5H61zM73 83h10v5H73z"/>
+<path fill="#8e7c6d" d="M11 64h10v1H11zM61 57h12v1H61zM73 83h10v1H73z"/>
+<!-- Side windows, candles and an unmistakable open spellbook. -->
+<path fill="#18141d" d="M21 76h5v23h-5zM57 81h5v22h-5zM73 101h4v13h-4z"/>
+<path fill="#b07846" d="M22 78h2v18h-2zM59 84h2v17h-2zM75 103h1v8h-1z"/>
+<path fill="#ead394" d="M22 82h1v8h-1zM59 89h1v8h-1zM30 101h2v7h-2zM55 106h2v7h-2z"/>
+<path fill="#b88745" d="M29 108h4v2h-4zM54 113h4v2h-4z"/>
+<path fill="#f3d489" d="M30 98h2v3h-2zM55 103h2v3h-2z"/>
+<path fill="#141015" d="M36 91h7v2h4v-2h7v9h-7v3h-4v-3h-7z"/>
+<path fill="#88683e" d="M36 92h7v2h4v-2h7v7h-7v2h-4v-2h-7z"/>
+<path fill="#ebd4a0" d="M37 91h5v2h2v6h-2v-2h-5zM48 93h2v-2h3v6h-5v2h-2v-6z"/>
+<path fill="#9c835e" d="M38 93h3v1h-3zM38 95h3v1h-3zM49 94h3v1h-3zM49 96h2v1h-2z"/>
+<path fill="#cfab5d" d="M40 85h1v2h-1zM48 88h2v1h-2zM45 81h1v2h-1z"/>
+<!-- Stepped foundation and sparse ivy. -->
+<path fill="#2c2831" d="M10 125h72v7H10zM6 133h82v7H6z"/>
+<path fill="#625964" d="M11 125h68v2H11zM7 133h77v2H7zM29 122h30v3H29zM25 128h39v3H25zM23 136h43v2H23z"/>
+<path fill="#9c8160" d="M34 122h18v1H34zM31 128h24v1H31zM28 136h24v1H28z"/>
+<path fill="#323d35" d="M13 87h3v14h-3zM11 96h4v5h-4zM64 40h2v20h-2zM66 58h3v12h-3zM73 121h5v4h-5zM15 130h6v5h-6z"/>
+<path fill="#59604a" d="M12 91h4v2h-4zM10 99h3v2h-3zM63 48h4v2h-4zM67 64h4v2h-4zM73 121h3v1h-3zM16 130h4v1h-4z"/>
+<path fill="#71525d" d="M11 90h2v1h-2zM66 47h2v1h-2zM70 66h2v1h-2z"/>
+</svg>

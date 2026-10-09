@@ -2,7 +2,7 @@
  * SceneTransition —— 像素场景转场（2026-09-27）。
  *
  * 用在两处：应用壳 `<main>` 里的四个视图切换（`App.tsx`），以及根层落地页 ↔ 应用 ↔ 对战页换根（`main.tsx`）。
- * 它只做两件事，样式全在 `styles/pixel-motion.css`：
+ * 默认流程做两件事，样式在 `styles/pixel-motion.css`：
  *   ① 场景层按 `scene` 换 key ⇒ 新场景的根节点重挂、CSS 入场动画重播（与原先 `view === x && <X/>` 的
  *      挂载语义一致——旧场景本来就会被卸载，这里没有多卸一次）；
  *   ② 每次 `scene` **变化**时铺一块幕布压在舞台上、由 CSS 从上到下掀开露出新场景。
@@ -10,6 +10,8 @@
  * ★ 内容**同步**换、幕布只是盖在上面：不做「先播出场再换内容」那种两段式——那会让点击到上屏之间
  *   凭空多出一拍延迟，而且要用计时器持状态；这里零计时器、零 effect，状态只有「第几块幕布」。
  * ★ 首次挂载不铺幕布：打开应用不该先看见一块布再看见界面。
+ * ★ 工作台显式传 persistent 时保留场景节点，隐藏的聊天不丢草稿；quiet 由功能入口传送
+ *   使用，切页时不另铺第二块幕布，默认调用保持原来的同步切页语义。
  * ★ 减少动态效果：渲染期问一次 `prefersReducedMotion()`（与 `LandingBrand` 同一取法），命中就**根本不渲染**
  *   幕布节点——不靠 CSS 兜底。CSS 那边另有一条保险（幕布默认态就是裁到零高），两层互不依赖。
  * ★ 幕布 `aria-hidden` ＋ `pointer-events: none`（CSS），不进辅助技术、不挡点击；动画播完自行卸载，
@@ -23,12 +25,18 @@ import { prefersReducedMotion } from '../app/demo/useDemoPlayer';
 export function SceneTransition({
   scene,
   full = false,
+  persistent = false,
+  quiet = false,
   children,
 }: {
   /** 场景标识：变化即视为一次转场（同值重渲染不转场） */
   scene: string;
   /** 根层转场：幕布改为 `position: fixed` 盖整个视口（默认只盖舞台自身） */
   full?: boolean;
+  /** Keep the hidden workspace chat mounted so travel does not lose its draft or question. */
+  persistent?: boolean;
+  /** Functional portal navigation supplies its own cover and reveal. */
+  quiet?: boolean;
   children: ReactNode;
 }) {
   /** 渲染期只问一次：命中「减少动态效果」的用户整个会话都不该看见幕布 */
@@ -39,15 +47,15 @@ export function SceneTransition({
   const [prevScene, setPrevScene] = useState(scene);
   if (prevScene !== scene) {
     setPrevScene(scene);
-    setWipe(wipe + 1);
+    setWipe(quiet ? 0 : wipe + 1);
   }
 
   return (
     <div className={full ? 'sb-scene-stage is-full' : 'sb-scene-stage'}>
-      <div key={scene} className="sb-scene" data-scene={scene}>
+      <div key={persistent ? 'workspace' : scene} className="sb-scene" data-scene={scene}>
         {children}
       </div>
-      {wipe > 0 && !reduce && (
+      {wipe > 0 && !reduce && !quiet && (
         <div
           key={wipe}
           className={full ? 'sb-scene-wipe is-full' : 'sb-scene-wipe'}

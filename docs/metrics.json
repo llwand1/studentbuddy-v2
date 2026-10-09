@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T06:46:41.900Z",
+  "generatedAt": "2026-10-09T12:11:41.992Z",
   "code": {
     "rows": [
       {
@@ -18,17 +18,17 @@
       },
       {
         "pkg": "web",
-        "srcFiles": 359,
-        "testFiles": 151,
-        "srcLines": 42445,
-        "testLines": 19326
+        "srcFiles": 363,
+        "testFiles": 152,
+        "srcLines": 42572,
+        "testLines": 19379
       }
     ],
-    "srcFiles": 715,
-    "testFiles": 395,
-    "srcLines": 92813,
-    "testLines": 62466,
-    "tsxTestFiles": 73
+    "srcFiles": 719,
+    "testFiles": 396,
+    "srcLines": 92940,
+    "testLines": 62519,
+    "tsxTestFiles": 74
   },
   "routes": {
     "total": 188,
@@ -80,25 +80,25 @@
     ]
   },
   "docs": {
-    "specs": 56,
-    "all": 74,
+    "specs": 57,
+    "all": 75,
     "probes": 15
   },
   "repo": {
-    "head": "f4c612d",
+    "head": "c56c15c",
     "headDate": "2026-10-09",
-    "commitsLast14d": 285,
-    "branch": "feat/campfire-entrance174",
-    "dirtyFiles": 4
+    "commitsLast14d": 284,
+    "branch": "feat/study-portals175",
+    "dirtyFiles": 28
   },
   "tests": {
     "available": true,
     "ranNow": false,
     "wallSec": 0,
     "staleDays": 0,
-    "files": 395,
-    "cases": 4518,
-    "passed": 4516,
+    "files": 396,
+    "cases": 4521,
+    "passed": 4519,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -109,14 +109,14 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "395",
-      "measured": "395",
+      "claimed": "396",
+      "measured": "396",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4518",
-      "measured": "4518",
+      "claimed": "4521",
+      "measured": "4521",
       "ok": true
     },
     {
@@ -145,20 +145,20 @@
     },
     {
       "label": "badge 版本",
-      "claimed": "0.2.174",
-      "measured": "0.2.174",
+      "claimed": "0.2.175",
+      "measured": "0.2.175",
       "ok": true
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.174",
-      "measured": "v0.2.174",
+      "claimed": "v0.2.175",
+      "measured": "v0.2.175",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "395 文件 / 4518 例",
-      "measured": "395 文件 / 4518 例",
+      "claimed": "396 文件 / 4521 例",
+      "measured": "396 文件 / 4521 例",
       "ok": true
     }
   ],

@@ -32,6 +32,9 @@ export const RELEASE_SCOPE = {
 
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
+  { version: 'v0.2.175', date: '2026-10-09', headline: '营地学习入口：魔法图书馆与知识大陆传送',
+    items: ['魔法图书馆进入词条库，遗迹入口传送知识大陆，原创粗像素建筑贴合暗黑冒险风。', '柔和传送过渡；手机保留紧凑入口，返回仍保留草稿与当前题目。'],
+  },
   { version: 'v0.2.174', date: '2026-10-09', headline: '夜行营地入场：两侧可探索，首题凝成',
     items: ['两侧留白变成可点亮的暗塔营灯与遗迹，保持暗黑像素冒险风。', '现场新题以符文与卷轴入场，手机轻量呈现，可跳过动画直接作答。'],
   },

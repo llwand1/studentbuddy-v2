@@ -11,22 +11,19 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@sb/shared';
 import { AccountBox } from '../components/AccountBox';
 import { PixelSidebar } from '../components/PixelSidebar';
-import { SceneTransition } from '../components/SceneTransition';
 import { PlusIcon, ChevronDownIcon, ClockIcon } from '../components/icons';
 import { NAV, PK_HASH, type View } from './nav';
 import { LangToggle, useLandingLang } from './landing-lang';
 import { SHELL } from './shell-copy';
 import { api } from '../lib/api';
 import { SessionList } from './SessionList';
-import { ChatView } from '../features/chat/ChatView';
-import { TermIndexProvider } from '../features/chat/term-index';
 import { GlobalSearch } from '../features/search/GlobalSearch';
 import { useActiveSessions } from '../features/chat/useActiveSessions';
 import { Mascot } from '../features/chat/Mascot';
 import { BRAND_NAME } from '../lib/brand';
-import { SettingsView } from '../features/settings/SettingsView';
-import { TermsLibraryView } from '../features/terms/TermsLibraryView';
-import { ContinentPage } from '../features/continent/ContinentPage';
+import { StudyWorkspaceScenes } from './StudyWorkspaceScenes';
+import { StudyPortalTravel } from './StudyPortalTravel';
+import { useStudyPortal } from './useStudyPortal';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
 import { SourcePanel } from '../features/sources/SourcePanel';
 import { CoachDock } from '../features/coach/CoachDock';
@@ -68,17 +65,21 @@ export function App() {
   /** 词条库的搜索词（词条卡「打开词条库」入口带入；从导航点「词条」时清除） */
   const [termsKeyword, setTermsKeyword] = useState('');
 
-  /** 词条卡 → 词条库的跨页入口：按词条名直达（知识图只存引用快照那套已随功能下线，此入口由对话页词条卡使用） */
-  const openTerms = useCallback((keyword: string) => {
-    setTermsKeyword(keyword);
-    setView('terms');
-  }, []);
-
-  /** 跳页（侧栏导航与引路灯共用）：进词条页清空上次带来的搜索词，其余直切 */
-  const goView = useCallback((v: View) => {
+  /** Standard navigation interrupts pending portal travel; terms starts with a clean search. */
+  const applyView = useCallback((v: View) => {
     setView(v);
     if (v === 'terms') setTermsKeyword('');
   }, []);
+  const portal = useStudyPortal(applyView);
+  const goView = portal.navigate;
+  const cancelTravel = portal.cancel;
+
+  /** 词条卡 → 词条库的跨页入口：按词条名直达。 */
+  const openTerms = useCallback((keyword: string) => {
+    cancelTravel();
+    setTermsKeyword(keyword);
+    setView('terms');
+  }, [cancelTravel]);
 
   // 番茄钟（docs/POMODORO-SPEC.md）：起应用拉一次状态。开钟 / 统计都在督促小窗抽屉里，`sb:pomodoro-open` 由 CoachDock 自己接
   useEffect(() => {
@@ -106,10 +107,10 @@ export function App() {
 
   const newSession = useCallback(async () => {
     const s = await api.sessions.create();
-    setView('chat');
+    goView('chat');
     setCurrentId(s.id);
     await reloadSessions();
-  }, [reloadSessions]);
+  }, [reloadSessions, goView]);
 
   /**
    * 「向 AI 追问」（契约 `docs/KNOWLEDGE-FOLLOWUP-SPEC.md` §6）——**全仓唯一实现**：
@@ -119,9 +120,8 @@ export function App() {
    * （新会话得立刻出现在侧栏，否则用户会以为没建成）。
    *
    * ★ 必须声明在 `reloadSessions` **之后**（依赖它；`const` 不会提升）。
-   * ★ `fromSessionId` 省缺 ＝ **当前正看着的那条会话**（`currentId`）：`TermIndexProvider`
-   *   只在 `view === 'chat'` 时挂载，而那时 `currentId` 就是用户正看着的那条 ⇒ 没有"传空 id"
-   *   的窗口；兜底报错仍留着——将来若把 Provider 提到壳外，静默分叉到 `null` 会很难查。
+   * ★ `fromSessionId` 省缺 ＝ 保留的对话 `currentId`：词条索引与 ChatView 同时保留，
+   *   离开营地再回来仍指向同一会话；没有会话时如实报错，不能静默分叉到 `null`。
    * ★ **不吞错**：交给控件显示（"点了没反应"是这类跨页动作最糟的形态）。
    */
   const followUp = useCallback(
@@ -129,15 +129,15 @@ export function App() {
       const from = fromSessionId ?? currentId;
       if (!from) throw new Error('还没有打开任何对话，无法从这里追问');
       const r = await api.sessions.fork(from, term, question);
-      setView('chat');
+      goView('chat');
       setCurrentId(r.sessionId);
       await reloadSessions(); // 内部已 try/catch，不会 reject
     },
-    [currentId, reloadSessions],
+    [currentId, reloadSessions, goView],
   );
 
   const openSession = (id: string) => {
-    setView('chat');
+    goView('chat');
     setCurrentId(id);
   };
 
@@ -164,7 +164,7 @@ export function App() {
     <div className={`sb-shell${reading.focused ? ' is-reading-focus' : ''}`}>
       <PixelSidebar collapsed={reading.collapsed}>
         {/* 品牌 logo：吉祥物团子即入口（点击回对话主界面，对话不再占导航项） */}
-        <button className="sb-logo" title="studentbuddy" onClick={() => setView('chat')}>
+        <button className="sb-logo" title="studentbuddy" onClick={() => goView('chat')}>
           <Mascot />
           <span className="sb-logo-name">
             {BRAND_NAME}
@@ -185,6 +185,7 @@ export function App() {
               onClick={() => {
                 // PK 页不在本壳内：改 hash 让 main.tsx 换根渲染（返回时 PkApp 的「← 学习助手」把 hash 置回 #/）
                 if (key === 'pk') {
+                  cancelTravel();
                   window.location.hash = PK_HASH;
                   return;
                 }
@@ -250,47 +251,20 @@ export function App() {
             onView={goView}
             onNewSession={() => void newSession()}
             onFreshChat={() => {
-              setView('chat');
+              goView('chat');
               setCurrentId(null);
             }}
           />
           <CoachDock />
-          <HuntAlert active={view === 'chat'} roundTick={roundTick} onGoContinent={() => setView('continent')} />
+          <HuntAlert active={view === 'chat'} roundTick={roundTick} onGoContinent={() => goView('continent')} />
         </ReadingToolbar>
         <div className="sb-reading-content">
           <main className={guideMainClass(view)}>
-            {/* 四个视图之间的切换走像素幕布转场（components/SceneTransition）：内容同步换、幕布盖在上面掀开；
-                场景层不产生盒子，下面各页的 flex/height 口径与直接挂在 .sb-main 下时一字不差 */}
-            <SceneTransition scene={view}>
-              {view === 'chat' && (
-                /* 词条索引 Provider（契约 TERM-HIGHLIGHT-SPEC §5）：正文里的词条高亮与悬浮卡
-                   都从这里取索引。两个跨页动作也从这里注入——`openTerms`＝卡片「打开词条库」，
-                   `followUp`＝卡片「向 AI 追问」（契约 KNOWLEDGE-FOLLOWUP-SPEC §6）。
-                   挂在这里而不是 ChatView 内部，是为了让 ChatView 零 props 改动。 */
-                <TermIndexProvider onOpenTerms={openTerms} onFollowUp={followUp}>
-                  <ChatView
-                    sessionId={currentId}
-                    sessionTitle={sessions.find((s) => s.id === currentId)?.title}
-                    onNewSession={() => void newSession()}
-                    onRoundDone={() => {
-                      void reloadSessions();
-                      setRoundTick((n) => n + 1);
-                    }}
-                    onBusyChange={handleBusyChange}
-                  />
-                </TermIndexProvider>
-              )}
-              {/* key 变化时重挂：从词条卡带词进来要重新初始化搜索框 */}
-              {view === 'terms' && (
-                <TermsLibraryView
-                  key={termsKeyword}
-                  initialKeyword={termsKeyword}
-                  onGoContinent={() => setView('continent')}
-                />
-              )}
-              {view === 'continent' && <ContinentPage />}
-              {view === 'settings' && <SettingsView />}
-            </SceneTransition>
+            <StudyWorkspaceScenes view={view} currentId={currentId} sessions={sessions} termsKeyword={termsKeyword}
+              travelling={portal.travel?.destination ?? null} onEnter={portal.enter}
+              onNewSession={() => void newSession()} onRoundDone={() => { void reloadSessions(); setRoundTick(n => n + 1); }}
+              onBusyChange={handleBusyChange} onOpenTerms={openTerms} onFollowUp={followUp} onGoContinent={() => goView('continent')} />
+            <StudyPortalTravel travel={portal.travel} onFinish={portal.finish} />
           </main>
           <ReadingSplit />
           <PreviewPanel />

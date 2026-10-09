@@ -32,7 +32,7 @@ import { RefList } from '../quiz/RefList';
 
 import { Markdown } from './Markdown';
 import { Welcome } from './Welcome';
-import { CampfireWorld } from './CampfireWorld';
+import { CampfireWorld, type StudyPortalControls } from './CampfireWorld';
 import { Thinking } from './Thinking';
 import { ChatComposer } from './ChatComposer';
 import { PkInviteCard } from './PkInviteCard';
@@ -51,7 +51,9 @@ export function ChatView({
   onNewSession,
   onRoundDone,
   onBusyChange,
-}: {
+  onEnter,
+  travelling,
+}: StudyPortalControls & {
   sessionId: string | null;
   /** 当前会话标题：导出文件与文档首行用它（App 持有会话列表，这里只收结果） */
   sessionTitle?: string;
@@ -205,7 +207,7 @@ export function ChatView({
 
   return (
     <div className="chat-view">
-      {isEmpty && <CampfireWorld key={sessionId ?? 'campfire'} />}
+      {isEmpty && <CampfireWorld key={sessionId ?? 'campfire'} onEnter={onEnter} travelling={travelling} />}
       <ChatSpeakerDefs />
       {/* 会话铭牌条（与其它页面的页标题同一套：角标 + 压印标题 + 荆棘分隔）；空会话由欢迎页自带角标，不重复 */}
       {!isEmpty && (
@@ -216,7 +218,7 @@ export function ChatView({
         </header>
       )}
       <div className="chat-scroll" ref={scrollRef} onScroll={onScroll} role="log" aria-live="polite" aria-busy={busy}>
-        {isEmpty && <Welcome key={sessionId ?? 'campfire'} onPick={pick} blocked={blocked} onAsk={() => inputRef.current?.focus()} />}
+        {isEmpty && <Welcome key={sessionId ?? 'campfire'} onPick={pick} blocked={blocked} onAsk={() => inputRef.current?.focus()} onEnter={onEnter} travelling={travelling} />}
         {messages.map((m, i) => (
           <MessageRow
             key={`${sessionId}-${i}`}

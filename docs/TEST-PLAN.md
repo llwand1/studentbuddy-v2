@@ -1,3 +1,10 @@
+> 2026-10-09 营地功能入口：仅新增 3 个普通回归用例；无模型评测或线上 AI 调用。
+>
+> | 本批测试文件 | 用例 | 不变量 |
+> |---|---:|---|
+> | `src/app/useStudyPortal.test.tsx` | 2 | 闭幕后切页；连点合并、普通导航取消、减少动态效果与卸载清理 |
+> | `src/components/SceneTransition.test.tsx` | +1 | 隐藏聊天保留草稿，功能传送不叠加旧幕布 |
+
 > 2026-10-09 营地入场：仅新增 3 个本地回归用例；无模型评测或线上 AI 调用。
 >
 > | 本批测试文件 | 用例 | 不变量 |
@@ -242,7 +249,7 @@
 
 | 本批测试文件 | 用例 | 不变量 |
 |---|---:|---|
-| `src/components/SceneTransition.test.tsx` | 7 | ① 首次挂载**不铺幕布**（打开应用不该先看见一块布）；② `scene` 变化时内容**同一帧同步换掉**（旧场景已卸载、新场景已在屏上）且恰好一块幕布，幕布 `aria-hidden` ＋ 零可交互后代 ＋ 默认不 `is-full`；③ 同 scene 重渲染不铺布，`animationend` 后幕布自行卸载；④ 连续快速切换幕布**替换不叠加**（恒 ≤1 块）；⑤ `prefers-reduced-motion` 命中时内容照换、幕布节点**根本不渲染**；⑥ `full` 模式舞台与幕布都带 `is-full`（根层换根盖整个视口）；⑦ `BootScreen` 是 `role=status` 活动区、含品牌名与「正在进入营地」，团子与读取条对辅助技术隐藏、零可交互元素 |
+| `src/components/SceneTransition.test.tsx` | 8 | ① 首次挂载**不铺幕布**（打开应用不该先看见一块布）；② `scene` 变化时内容**同一帧同步换掉**（旧场景已卸载、新场景已在屏上）且恰好一块幕布，幕布 `aria-hidden` ＋ 零可交互后代 ＋ 默认不 `is-full`；③ 同 scene 重渲染不铺布，`animationend` 后幕布自行卸载；④ 连续快速切换幕布**替换不叠加**（恒 ≤1 块）；⑤ `prefers-reduced-motion` 命中时内容照换、幕布节点**根本不渲染**；⑥ `full` 模式舞台与幕布都带 `is-full`（根层换根盖整个视口）；⑦ `BootScreen` 是 `role=status` 活动区、含品牌名与「正在进入营地」，团子与读取条对辅助技术隐藏、零可交互元素 |
 
 > 2026-09-27 对话练习图文复盘：新增4文件25例，覆盖五类作答、情景首判、图文协议/取消/重试/归属/并发。与出题评测合流后基线由 metrics 实跑记录。
 
@@ -297,7 +304,7 @@
 | 本次测试文件 | 用例 | 不变量 |
 |---|---:|---|
 | `src/components/PixelSidebar.test.tsx` | 4 | 手机导航打开/关闭；Escape 与遮罩关闭后归还焦点；导航点击仍执行；账号与历史输入交互不误关 |
-| `src/features/chat/Welcome.test.tsx` | 8 | 现场新题完整返回才入场，换题撤旧、失败不回显；范围读取结束才召题，失败也继续；切范围与卸载取消，迟到结果隔离，初始范围慢加载不重复发起、读取失败也能召题；减少动态与直接提问 |
+| `src/features/chat/Welcome.test.tsx` | 8 | 现场新题完整返回才入场，换题撤旧、失败不回显；范围读取结束才召题，失败也继续；切范围与卸载取消，迟到结果隔离，初始范围慢加载不重复发起、读取失败也能召题；减少动态、直接提问与学习入口导航 |
 | `src/features/chat/useScrollAnchor.test.tsx` | 3 | 欢迎空态从顶部开始；首条消息贴底；阅读历史不强拉；返回空态复位；减少动态效果时即时跳转 |
 > ★ **2026-09-26 题库功能整族下线改动（Qoder-c6246356，issue #32，拟 v0.2.135）对本表的改动清单**：**删 8 条登记行 72 例**＝`quiz-weak.test.ts`（shared）13＋`routes/collect.test.ts` 8＋`learning/quiz-weak.test.ts` 24＋`learning/quiz-edit.test.ts` 3＋`routes/quiz-tenancy.test.ts` 3＋`features/quiz/collect-view.test.ts` 6＋`weak-report.test.ts` 11＋`bank-view.test.ts` 4；★ **三处就地改例数**＝`routes/scenario` 13→**11**、`features/quiz/scenario-view` 6→**4**、`features/quiz/mix-report` 20→**22**（＋2＝bank-view 里 `mixTipText` 两例**搬家**至此，函数还活着）；★ **§3 基线 204／2766 → 196／2692**（−8 文件／−74 例，三包分别实跑求和闭合）；★ **三个分节头一次补齐**（shared／server／web 的小计此前分别停在 281／18、1746／121、790／69＝各自时点快照，中间阶段未回写）；★ **散文降格若干处**：上面八个文件名在 §3 顶注、版本 K 版本行、薄弱点分析改动的增量行与 §7/§8 的沿革里以带 `src/` 的形状出现过 ⇒ 一律降格为不带 `src/` 前缀的短写法（闸门 #4 双向查，历史行不许留幽灵，也不许为此删字）；★ **§6 新挂 2 行**（情景题无删除通道＝本次代价；`mixTipText` 漏 `judge` 档＝搬家时现查到的既有缺口）；★ **验证面搬家**：出题工具与合流端到端不再读 `quiz_bank`（表留在库里等 DROP 另行处理），改读**响应题组的逐题 `source.kind`** 与**会话里的 `[QUIZ]` 登记行**，并各带一条「`quiz_bank` 零行」的回归锁；⚠️ **一处本表自身的漂移，登记不改**：§8 变更记录自 v0.2.127 起断了六次记录（v0.2.128~134 都没入账），本次仍按表头约定在 §8 补一行——★ 但**不回补**那六次的历史行（补＝替别人编账）。
 
@@ -441,7 +448,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，如实记录）**：本次在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（现基线：395 文件 / 4518 例，4516 passed + 2 skipped，2026-10-09 交互营地入场全量实跑）
+## 3. 用例清单（现基线：396 文件 / 4521 例，4519 passed + 2 skipped，2026-10-09 营地功能入口全量实跑）
 
 | 新增测试 | 用例 | 不变量 |
 |---|---:|---|

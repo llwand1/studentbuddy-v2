@@ -3,9 +3,10 @@ import { PixelScene } from './PixelScene';
 import { useExamScope } from '../exam/useExamScope';
 import { useCampfireOpener } from './useCampfireOpener';
 import { OpenerQuestion } from './OpenerQuestion';
+import { CampfireShortcuts, type StudyPortalControls } from './StudyPortalLink';
 import './campfire-opener.css';
 
-export function Welcome({ onPick, blocked = false, onAsk }: {
+export function Welcome({ onPick, blocked = false, onAsk, onEnter, travelling }: StudyPortalControls & {
   onPick: (text: string) => void;
   blocked?: boolean;
   onAsk?: () => void;
@@ -19,6 +20,7 @@ export function Welcome({ onPick, blocked = false, onAsk }: {
       <PixelScene />
       <p className="welcome-hi">先来一道，聊起来就容易了。</p>
       <p className="welcome-sub">{exam.on && exam.summary ? `在${exam.summary}范围内，先热个身。` : '从一个小问题，开启今天的冒险。'}</p>
+      <CampfireShortcuts onEnter={onEnter} travelling={travelling} />
       <div className="opener-stage">
         {opener.status === 'ready' && opener.value ? <OpenerQuestion key={opener.value.id} opener={opener.value} onPick={onPick} onNext={opener.retry} blocked={blocked} />
           : <div className={`opener-pending${opener.status === 'error' ? ' opener-failed' : ''}`} role="status" aria-live="polite">

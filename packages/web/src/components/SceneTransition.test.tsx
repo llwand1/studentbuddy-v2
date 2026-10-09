@@ -31,6 +31,18 @@ const theWipe = (root: HTMLElement): Element => {
 };
 
 describe('SceneTransition', () => {
+  it('persistent workspace preserves a hidden draft; portal changes never add a second curtain', () => {
+    const children = (hidden: boolean) => <><div hidden={hidden}><textarea defaultValue="保留这份草稿" /></div><p>词条目的地</p></>;
+    const view = render(<SceneTransition scene="chat" persistent>{children(false)}</SceneTransition>);
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement; input.value = '尚未发送';
+    view.rerender(<SceneTransition scene="terms" persistent quiet>{children(true)}</SceneTransition>);
+    expect(input.isConnected).toBe(true); expect(screen.queryByRole('textbox')).toBeNull();
+    expect(wipeOf(view.container)).toHaveLength(0);
+    view.rerender(<SceneTransition scene="terms" persistent>{children(true)}</SceneTransition>);
+    expect(wipeOf(view.container)).toHaveLength(0);
+    view.rerender(<SceneTransition scene="chat" persistent>{children(false)}</SceneTransition>);
+    expect(screen.getByRole('textbox')).toBe(input); expect(input.value).toBe('尚未发送');
+  });
   it('first mount renders the scene without a curtain (opening the app must not show a wipe)', () => {
     const { container } = render(
       <SceneTransition scene="chat">

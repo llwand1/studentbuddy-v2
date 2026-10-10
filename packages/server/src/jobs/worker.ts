@@ -7,7 +7,7 @@
  *     ⇒ 与改前的 `void promise` 行为逐字一致，既有测试不用因为"多了个队列"而改。
  * ★ 处理函数抛 `PermanentJobError` ⇒ 不再重试（例如没配模型）；抛别的 ⇒ 按退避重试。
  */
-import { claimJob, completeJob, enqueueJob, failJob, recoverStaleJobs, type EnqueueInput } from './queue.js';
+import { claimJob, completeJob, enqueueJob, failJob, jobTableReady, recoverStaleJobs, type EnqueueInput } from './queue.js';
 
 export class PermanentJobError extends Error {}
 
@@ -75,6 +75,14 @@ export async function drainJobs(max = 20): Promise<number> {
 
 export function startJobWorker(intervalMs = 5_000): void {
   if (running) return;
+  // 守卫（2026-10-10 真机事故的纵深防御层）：job 表缺失时**不再崩掉整个服务**——
+  // 打日志、不启动轮询；`dispatchJob` 见 `running === false` 自动走内联执行路径，
+  // 对话后抽词等后台任务退回「尽力而为」，但聊天/复习等主功能照常。
+  // （表的缺失由迁移 v58 自愈；本守卫挡的是「未来再漏一张表」的那一天。）
+  if (!jobTableReady()) {
+    console.warn('[jobs] job 表缺失，后台任务队列本次不启动（服务照常运行；迁移未补表时请升级到含 v58 的版本）');
+    return;
+  }
   running = true;
   const recovered = recoverStaleJobs();
   // eslint-disable-next-line no-console -- 进程启动日志

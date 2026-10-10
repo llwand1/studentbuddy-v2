@@ -19,6 +19,7 @@ import { Landing } from './app/Landing';
 import { LandingLangProvider } from './app/landing-lang';
 import { BootScreen } from './components/BootScreen';
 import { SceneTransition } from './components/SceneTransition';
+import { FloatApp } from './features/float/FloatApp';
 import { PkApp } from './features/pk/PkApp';
 import { api } from './lib/api';
 import { initReadingSize } from './lib/reading-prefs';
@@ -56,14 +57,28 @@ function isPkHash(): boolean {
   return h === '#/pk' || h.startsWith('#/pk/') || h.startsWith('#/pk?');
 }
 
+/**
+ * 桌面悬浮窗（契约 docs/DESKTOP-SPEC.md「桌面悬浮窗」）：`#/float` 由 WinForms 宿主的
+ * 第二个 WebView2 加载。★ 排在登录态查询**之前**渲染——它读的学习状态在本地形态免登录、
+ * 不必等 `/api/auth/me`（等的话小窗要先空一拍）。
+ */
+function isFloatHash(): boolean {
+  const h = window.location.hash;
+  return h === '#/float' || h.startsWith('#/float?');
+}
+
 function Root() {
   const [pk, setPk] = useState(() => isPkHash());
+  const [float, setFloat] = useState(() => isFloatHash());
   /** undefined = /api/auth/me 查询中；null = 未登录；非空 = 已登录 */
   const [user, setUser] = useState<AuthUser | null | undefined>(undefined);
   /** 部署形态（契约 AUTH-SPEC §2.9）：local 免登录直进应用壳，cloud 走落地页。缺省按线上口径兜底 */
   const [form, setForm] = useState<DeployForm>('cloud');
   useEffect(() => {
-    const on = () => setPk(isPkHash());
+    const on = () => {
+      setPk(isPkHash());
+      setFloat(isFloatHash());
+    };
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);
@@ -105,6 +120,8 @@ function Root() {
     const ret = sanitizeReturnTo(raw);
     if (ret && window.location.hash !== ret) window.location.hash = ret;
   }, [user]);
+  // 悬浮窗是独立小窗（不参与主壳/登录动线），且不依赖登录态：最先分流
+  if (float) return <FloatApp />;
   // 登录态查询中的空窗：不渲染落地页（避免「闪一下又进应用」），只放一块默认透明、400ms 后才现身的启动画面
   if (!pk && user === undefined) return <BootScreen />;
   /**

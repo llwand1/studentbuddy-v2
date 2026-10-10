@@ -3,7 +3,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { AUTH_COOKIE_NAME } from '@sb/shared';
+import { AUTH_COOKIE_NAME, validateQuestionSeedBatch, startPomodoro } from '@sb/shared';
 
 process.env.SB_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-opener-'));
 const llm = vi.hoisted(() => ({ ready: true, reply: [] as string[], calls: [] as string[], caps: [] as Array<number | undefined>, finishes: [] as string[], verdicts: [] as boolean[], checked: [] as string[], fail: '' }));
@@ -29,6 +29,8 @@ const { getDb, closeDb } = await import('../storage/db.js');
 const { createUser } = await import('../auth/users.js');
 const { createSession } = await import('../auth/session.js');
 const { saveExamMode, saveExamScope } = await import('../learning/exam-mode.js');
+const { importSeeds, listSeeds } = await import('../learning/question-seeds.js');
+const { savePomodoro } = await import('../storage/pomodoro.js');
 const request = (await import('supertest')).default;
 const origin = 'http://localhost:5173';
 const q = (question = '公平硬币下一次出现正面的概率是多少？') => JSON.stringify({ topic: '概率', question, options: ['25%', '50%', '75%'], answer: 1, explanation: '每一次抛掷独立，正面概率是 50%。' });
@@ -39,10 +41,32 @@ const post = (body: object = {}, cookie?: string) => {
 beforeEach(() => {
   llm.ready = true; llm.reply = []; llm.calls = []; llm.caps = []; llm.finishes = []; llm.verdicts = []; llm.checked = []; llm.fail = '';
   getDb().prepare("DELETE FROM app_settings WHERE key IN ('campfire_opener_seen', 'exam_mode', 'exam_sources')").run();
+  getDb().prepare("DELETE FROM app_settings WHERE key GLOB 'question_seed*' OR key='pomodoro'").run();
 });
 afterAll(closeDb);
 
 describe('篝火现场召题', () => {
+  const addSeed = (math = true) => {
+    const v = validateQuestionSeedBatch({ batchId: 'b', seeds: [{ externalId: 'seed', topic: math ? '一元一次方程' : '概率', domain: math ? 'math' : 'general', tags: math ? ['数学'] : ['概率'], objective: '理解与练习考点', facts: ['等可能结果的概率由结果数比例计算'], rubric: ['解释正确原因'], variations: ['更换情境与参数'], types: ['single'], validUntil: new Date(Date.now() + 86400000).toISOString(), ...(math ? { recipe: { kind: 'linear-equation', coefficients: [-2, 2], constants: [-1, 1], solutions: [-3, 3] } } : {}) }] });
+    if (!v.ok) throw new Error(v.error); importSeeds(v.value, null);
+  };
+  it('预产物参数现场生成两道不同新题，无模型请求也可交付且仍防重', async () => {
+    addSeed(); llm.ready = false;
+    const first = await post().expect(200), second = await post({ exclude: [first.body.question.question] }).expect(200);
+    expect(second.body.question.question).not.toBe(first.body.question.question);
+    expect(first.body.preparation.mode).toBe('compiled'); expect(llm.calls).toHaveLength(0); expect(llm.checked).toHaveLength(0);
+    expect(listSeeds(null)[0]!.used).toHaveLength(2);
+  });
+  it('一般蓝图仍现场创作并独立核对，成功后才记使用', async () => {
+    addSeed(false); llm.reply = [q()]; const r = await post().expect(200);
+    expect(r.body.preparation.mode).toBe('material'); expect(llm.calls[0]).toContain('等可能结果'); expect(llm.checked).toHaveLength(1);
+    expect(listSeeds(null)[0]!.uses).toBe(1);
+  });
+  it('专注方向不匹配预产物时退回原出题，不强行召数学题', async () => {
+    addSeed(); savePomodoro(startPomodoro({ subject: '英语' }, new Date()), null); llm.reply = [q()];
+    const r = await post().expect(200); expect(r.body.preparation).toBeUndefined(); expect(llm.calls).toHaveLength(1);
+    expect(listSeeds(null)[0]!.uses).toBe(0);
+  });
   it('审题发现多解后把具体错因回喂，只交付重新创作且独立核对通过的题', async () => {
     llm.reply = [q('哪个条件等价于线性无关？'), q('公平骰子出现偶数的概率是多少？')];
     llm.verdicts = [false, true];

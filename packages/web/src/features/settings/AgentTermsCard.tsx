@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { agentTermsInstructions, type AgentKeyView } from '@sb/shared';
+import { agentTermsInstructions, questionSeedsInstructions, type AgentKeyView } from '@sb/shared';
 import { agentKeysApi } from '../../lib/api-agent-terms';
 import './agent-terms.css';
 
@@ -7,6 +7,7 @@ export function AgentTermsCard({ flash }: { flash: (ok: boolean, text: string) =
   const [keys, setKeys] = useState<AgentKeyView[]>([]);
   const [name, setName] = useState('我的 coding agent');
   const [days, setDays] = useState(30);
+  const [questionSeeds, setQuestionSeeds] = useState(false);
   const [fresh, setFresh] = useState<{ id: string; value: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -24,10 +25,10 @@ export function AgentTermsCard({ flash }: { flash: (ok: boolean, text: string) =
   const create = async () => {
     setBusy(true); setError('');
     try {
-      const r = await agentKeysApi.create(name, days);
+      const r = await agentKeysApi.create(name, days, questionSeeds);
       setFresh({ id: r.key.id, value: r.token });
       setKeys((all) => [r.key, ...all]);
-      flash(true, '密钥已生成，可以交给外部 agent 存词');
+      flash(true, questionSeeds ? '密钥已生成，可存词并补给出题预产物' : '密钥已生成，可以交给外部 agent 存词');
     } catch (e) { setError(e instanceof Error ? e.message : '创建密钥失败'); }
     finally { setBusy(false); }
   };
@@ -42,7 +43,7 @@ export function AgentTermsCard({ flash }: { flash: (ok: boolean, text: string) =
     finally { setBusy(false); }
   };
   return <section className="settings-sec agent-terms-card" aria-label="外部 agent 存词">
-    <h3>外部 agent · 词条补给</h3>
+    <h3>外部 agent · 学习补给</h3>
     <p className="settings-hint">让 coding agent 用自己的搜索能力整理词条，批量送进你的词库。专用密钥允许读取词库和新增词条，重复词会跳过，保留原有释义与复习进度。</p>
     <div className="agent-terms-form">
       <label>密钥名称<input value={name} maxLength={40} onChange={e => setName(e.target.value)} disabled={busy} /></label>
@@ -51,6 +52,8 @@ export function AgentTermsCard({ flash }: { flash: (ok: boolean, text: string) =
       </select></label>
       <button className="settings-add" disabled={loading || busy || !name.trim()} onClick={() => void create()}>生成专用密钥</button>
     </div>
+    <label className="agent-seeds-permission"><input type="checkbox" checked={questionSeeds} disabled={busy} onChange={e => setQuestionSeeds(e.target.checked)} />同时授权出题预产物（考点、蓝图与参数配方）</label>
+    <p className="settings-hint">预产物让篝火与练习优先使用备好的出题依据；可验算的数学配方现场生成新题，其他蓝图由 AI 创作、核对。旧密钥仍仅可存词。</p>
     {fresh && <div className="agent-terms-issued">
       <p>完整密钥仅在这次生成后可复制，离开页面后不能再次读取。</p>
       <label>新密钥<input type="password" readOnly value={fresh.value} autoComplete="off" /></label>
@@ -58,6 +61,7 @@ export function AgentTermsCard({ flash }: { flash: (ok: boolean, text: string) =
     </div>}
     <div className="settings-actions">
       <button className="settings-add" onClick={() => void copy(instructions)}>复制 agent 使用说明</button>
+      <button className="settings-add" onClick={() => void copy(questionSeedsInstructions(window.location.origin))}>复制预产物说明</button>
       <a href="/api/open/v1/openapi.json" target="_blank" rel="noreferrer">接口规范</a>
     </div>
     <details className="agent-terms-help"><summary>如何交给 agent 使用</summary>
@@ -72,6 +76,7 @@ export function AgentTermsCard({ flash }: { flash: (ok: boolean, text: string) =
       return <li key={key.id}>
         <div><strong>{key.name}</strong><code>{key.prefix}…</code>
           <span>{key.revokedAt ? '已撤销' : key.expiresAt <= Date.now() ? '已过期' : `有效至 ${new Date(key.expiresAt).toLocaleDateString()}`}</span>
+          <span>{key.permissions?.includes('question-seeds:write') ? '词条＋出题预产物' : '仅词条'}</span>
           {key.lastUsedAt && <span>最近使用 {new Date(key.lastUsedAt).toLocaleString()}</span>}
         </div>
         <button className="settings-add" disabled={busy || inactive} onClick={() => void revoke(key)}>撤销</button>

@@ -1,4 +1,4 @@
-/** 专用凭证仅在开放词条路由校验，不能当登录会话。 */
+/** 专用凭证只在开放路由校验，新增预产物权限须显式授权。 */
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { AgentKeyView } from '@sb/shared';
 import { AGENT_KEY_MAX_DAYS } from '@sb/shared';
@@ -12,8 +12,12 @@ interface KeyRow {
   id: string; owner_id: string; name: string; prefix: string; created_at: number;
   expires_at: number; last_used_at: number | null; revoked_at: number | null;
 }
+export function agentPermissions(ownerId: string | null, id: string): string[] {
+  const row = getDb().prepare('SELECT value FROM app_settings WHERE owner_id=? AND key=?').get(ownerForWrite(ownerId), 'agent_key_permissions:' + id) as { value: string } | undefined;
+  return ['terms:read', 'terms:append', ...(row?.value === 'question-seeds' ? ['question-seeds:read', 'question-seeds:write'] : [])];
+}
 const view = (r: KeyRow): AgentKeyView => ({ id: r.id, name: r.name, prefix: r.prefix, createdAt: r.created_at,
-  expiresAt: r.expires_at, lastUsedAt: r.last_used_at, revokedAt: r.revoked_at });
+  expiresAt: r.expires_at, lastUsedAt: r.last_used_at, revokedAt: r.revoked_at, permissions: agentPermissions(r.owner_id || null, r.id) });
 export class AgentKeyError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
@@ -21,10 +25,11 @@ export function listAgentKeys(ownerId: string | null): AgentKeyView[] {
   return (getDb().prepare('SELECT * FROM agent_term_key WHERE owner_id = ? ORDER BY created_at DESC LIMIT 30').all(ownerForWrite(ownerId)) as KeyRow[]).map(view);
 }
 export function createAgentKey(ownerId: string | null, input: unknown, now = Date.now()): { key: AgentKeyView; token: string } {
-  const r = input as { name?: unknown; days?: unknown } | null;
+  const r = input as { name?: unknown; days?: unknown; questionSeeds?: unknown } | null;
   if (!r || typeof input !== 'object' || Array.isArray(input) || typeof r.name !== 'string' || !r.name.trim() || r.name.trim().length > 40) throw new AgentKeyError(400, '密钥名称需要 1–40 字。');
   const days = r.days === undefined ? 30 : r.days;
   if (typeof days !== 'number' || !Number.isInteger(days) || days < 1 || days > AGENT_KEY_MAX_DAYS) throw new AgentKeyError(400, '有效期需要 1–90 天。');
+  if (r.questionSeeds !== undefined && typeof r.questionSeeds !== 'boolean') throw new AgentKeyError(400, 'questionSeeds 必须为布尔值。');
   const owner = ownerForWrite(ownerId);
   const db = getDb();
   const n = (db.prepare('SELECT COUNT(*) n FROM agent_term_key WHERE owner_id = ? AND revoked_at IS NULL AND expires_at > ?').get(owner, now) as { n: number }).n;
@@ -32,8 +37,11 @@ export function createAgentKey(ownerId: string | null, input: unknown, now = Dat
   const token = 'sb_terms_' + randomBytes(32).toString('base64url');
   const row: KeyRow = { id: randomUUID(), owner_id: owner, name: r.name.trim(), prefix: token.slice(0, 17),
     created_at: now, expires_at: now + days * 86400000, last_used_at: null, revoked_at: null };
-  db.prepare('INSERT INTO agent_term_key (id,owner_id,name,token_hash,prefix,created_at,expires_at) VALUES (?,?,?,?,?,?,?)')
-    .run(row.id, owner, row.name, hashToken(token), row.prefix, now, row.expires_at);
+  db.transaction(() => {
+    db.prepare('INSERT INTO agent_term_key (id,owner_id,name,token_hash,prefix,created_at,expires_at) VALUES (?,?,?,?,?,?,?)')
+      .run(row.id, owner, row.name, hashToken(token), row.prefix, now, row.expires_at);
+    if (r.questionSeeds) db.prepare('INSERT INTO app_settings(owner_id,key,value) VALUES(?,?,?)').run(owner, 'agent_key_permissions:' + row.id, 'question-seeds');
+  })();
   return { key: view(row), token };
 }
 export function revokeAgentKey(ownerId: string | null, id: string): boolean {

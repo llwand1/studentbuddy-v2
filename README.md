@@ -1,7 +1,7 @@
 # StudentBuddy
 
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
-![version](https://img.shields.io/badge/version-0.2.180-orange)
+![version](https://img.shields.io/badge/version-0.2.181-orange)
 
 **在暗黑像素冒险里学习：对话中理解，题目里练习，把学过的知识留下来。**
 
@@ -108,6 +108,12 @@ StudentBuddy 把提问、查资料、做题和复习串在同一段学习过程�
 
 **外部资料也能带进来。** 用自己的长文档或图片提问，围绕材料练习；还可以让外部 coding agent 通过专用词条接口补充带来源的知识，再回到这里阅读和复习。
 
+## 外部 agent：词条与出题预产物
+
+在设置页创建专用密钥，coding agent 可以发挥自己的搜索能力补充词条；勾选出题预产物后，还能提前准备考点依据、误区、评分要点和变化蓝图。StudentBuddy 在篝火与练习中优先取用符合当前方向、范围和期限的预产物，每次现场生成新题。
+
+数学参数配方可直接生成并验算，减少召题等待；一般蓝图由 AI 现场创作、核对。指定实时搜索或真题时保留真实检索。设置页可复制 agent 使用说明，[接口契约](docs/QUESTION-SEEDS-SPEC.md)与[机器规范](https://11wand.com/api/open/v1/openapi.json)提供完整字段与示例。
+
 ## 开始体验
 
 - **在线使用**：[打开 StudentBuddy](https://11wand.com/)，首页可免注册体验。公用体验账号的内容共享，私人学习资料请放在自己的账号里。
@@ -118,13 +124,13 @@ StudentBuddy 把提问、查资料、做题和复习串在同一段学习过程�
 <summary>开发者信息</summary>
 
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![tests](https://img.shields.io/badge/tests-404%20files%20%2F%204576%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-188-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-273%20types-8a63f6)
+![tests](https://img.shields.io/badge/tests-408%20files%20%2F%204607%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-191-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-278%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-8-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
-当前测试基线 **404 文件 / 4576 例**。在线体验**已上线到 v0.2.180**。
+当前测试基线 **408 文件 / 4607 例**。在线体验**已上线到 v0.2.181**。
 
 代码结构、开发约定与复验方式见 [工程文档](docs/ENGINEERING.md)。
 

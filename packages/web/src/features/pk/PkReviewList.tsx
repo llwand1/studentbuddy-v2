@@ -7,6 +7,7 @@
  */
 import { JUDGE_USER_ID, isAiUserId, type PkQuestion } from '@sb/shared';
 import { optionLetter, reviewVerdict } from './pk-view';
+import { MathText } from '../chat/MathText';
 
 interface Props {
   questions: PkQuestion[];
@@ -35,7 +36,7 @@ export function PkReviewList({ questions, userId }: Props) {
               </span>
               <span className={v.ok ? 'sb-pk-verdict ok' : 'sb-pk-verdict'}>{v.text}</span>
             </div>
-            <p className="sb-pk-stem">{q.stem}</p>
+            <p className="sb-pk-stem"><MathText text={q.stem}/></p>
             {q.kind === 'scenario' ? (
               // §15.4：情景题回看＝评分点命中清单（没有选项与下标可标）
               <ul className="sb-pk-scenario-tasks">
@@ -62,7 +63,7 @@ export function PkReviewList({ questions, userId }: Props) {
                           : 'sb-pk-review-opt'
                     }
                   >
-                    {optionLetter(i)}. {opt}
+                    {optionLetter(i)}. <MathText text={opt}/>
                     {i === q.chosen && ' ← 已选'}
                   </div>
                 ))}

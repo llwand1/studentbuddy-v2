@@ -1,10 +1,12 @@
 /** 供 coding agent 获取的机器契约；只登记这个权限受限的接口。 */
 const response = { description: 'JSON 回执或明确错误' };
+import { seedPaths, seedSchemas } from './question-seeds-openapi.js';
 const operation = (summary: string) => ({ summary, security: [{ AgentKey: [] }], responses: { '200': response, '400': response, '401': response, '429': response } });
 export const agentTermsOpenApi = {
-  openapi: '3.0.3', info: { title: 'StudentBuddy 外部词条接口', version: '1.0.0', description: '专用密钥只能读取本人词库、追加新词。不会覆盖重复词，不访问聊天或设置。密钥在设置页生成。' },
+  openapi: '3.0.3', info: { title: 'StudentBuddy 外部学习补给接口', version: '1.1.0', description: '专用密钥读取本人词库、追加新词；显式勾选出题预产物后可读写考点蓝图与参数空间。旧密钥不扩权。不访问聊天或设置。密钥在设置页生成。' },
   servers: [{ url: '/api/open/v1' }],
   paths: {
+    ...seedPaths,
     '/context': { get: operation('当前应试范围与领域，先读此处再检索') },
     '/terms': { get: { ...operation('全部本人词条，包含当前应试范围外的词用于排重'), parameters: [
       { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 200, default: 100 } },
@@ -21,6 +23,7 @@ export const agentTermsOpenApi = {
     } },
   },
   components: { securitySchemes: { AgentKey: { type: 'http', scheme: 'bearer', bearerFormat: 'sb_terms_...' } }, schemas: {
+    ...seedSchemas,
     Term: { type: 'object', additionalProperties: false, required: ['term', 'definition'], properties: {
       term: { type: 'string', minLength: 1, maxLength: 100 }, definition: { type: 'string', minLength: 1, maxLength: 4000 },
       domain: { type: 'string', minLength: 1, maxLength: 30, default: 'general' }, importance: { type: 'number', minimum: 0, maximum: 1, default: 0.5 },

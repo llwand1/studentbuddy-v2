@@ -1,4 +1,6 @@
 .agent-terms-form { display: flex; flex-wrap: wrap; gap: var(--sb-sp-3); align-items: end; }
+.agent-terms-card .agent-seeds-permission { display: flex; align-items: center; gap: var(--sb-sp-2); margin-block: var(--sb-sp-3); }
+.agent-seeds-permission input { flex-shrink: 0; width: 20px; height: 20px; accent-color: var(--sb-primary); }
 .agent-terms-card label { display: grid; gap: var(--sb-sp-1); font-size: var(--sb-fs-sm); }
 .agent-terms-card input, .agent-terms-card select, .agent-terms-card textarea {
   min-width: 0; max-width: 100%; padding: var(--sb-sp-2); border: 1px solid var(--sb-line);

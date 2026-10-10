@@ -1,6 +1,6 @@
 {
   "name": "@sb/shared",
-  "version": "0.2.178",
+  "version": "0.2.181",
   "private": true,
   "type": "module",
   "exports": {

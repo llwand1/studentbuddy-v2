@@ -1,3 +1,4 @@
+import { MathText } from '../chat/MathText';
 /**
  * PkMatch — 对局进行中视图（契约 docs/PK-SPEC.md §1/§5/§9）。
  *
@@ -284,7 +285,7 @@ export function PkMatch({ state, userId, busy, onForfeit }: Props) {
                     <span className="sb-pk-stem">
                       {q.isRetry && <span className="sb-pk-retry-tag">补救</span>}
                       {q.kind === 'scenario' && <span className="sb-pk-retry-tag">情景</span>}
-                      {q.stem}
+                      <MathText text={q.stem}/>
                     </span>
                     <span className={so?.ok || (!so && q.chosen === q.answerRevealed) ? 'sb-pk-verdict ok' : 'sb-pk-verdict'}>
                       {verdict}

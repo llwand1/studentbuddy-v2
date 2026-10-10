@@ -45,23 +45,16 @@ import { buildQuizSearchBlock, mapQuizSources } from './quiz-search.js';
 import { groundQuiz } from './quiz-grounding.js';
 import { buildTierInstruction, fillTiers } from './quiz-tier.js';
 import { buildExamPromptBlock } from './exam-mode.js';
+import { selectSeed, preparation, seedBlock, markSeedUsed, type StoredSeed } from './question-seeds.js';
+import { compileSeed } from './question-seed-compile.js';
+import { SEED_TYPES } from '@sb/shared';
 
 // 配图三件的实现已搬到 quiz-image.ts（本文件行数红线所迫，见该文件头注）。
 // 这里原样转出，既有调用方 routes.ts / quiz.test.ts / quiz-image.test.ts 的 import 路径零改动。
 export { loadQuizImage, saveQuizImage, buildImageInstruction } from './quiz-image.js';
 
-/**
- * 出题协议。v1.1 的关键修正：**svg 进字段清单、进示例**（四个题对象一个给真图、三个给 ""）。
- * v1.0 的示例里没有 svg，配图说明追加在末尾——flash 级模型照示例办事，压不过去，
- * 结果就是「题干写根据图示…结构①，但一个图也不产」（实测 0/4，详见契约 §2.7）。
- * 2026-09-13 同法加 `refs`（来源标注，契约 QUIZ-SEARCH-SPEC §2.8）：字段进清单、进示例，
- * 否则弱模型同样不产出。refs 只填编号——**网址由 quiz-search.ts 按编号翻译**，模型写网址一律丢弃。
- * 导出只为给单测钉住「示例里必须带 svg」这一条——它不是风格问题，而是配图 0 产率的直接根因。
- */
-export const QUIZ_PROTOCOL = `你是一个出题引擎。根据给定材料出一组练习题，严格按以下 JSON 格式输出，输出外围包一对 [QUIZ]...[/QUIZ] 标记。
-每个题目对象的字段固定为：type、question、options（只有选择题才给）、answer、explanation、svg、refs，以及可选的 material。svg 是字符串，值为该题示意图的完整 SVG 源码；该题不需要示意图时给空字符串 ""，但不要省略这个字段。refs 是数组，填本题参考到的资料编号（只有下文给了「互联网参考资料」时才有编号可填），没参考就填 []。
-[QUIZ]{"title":"标题","questions":[{"type":"single","question":"单选题干","options":["A","B","C","D"],"answer":[0],"explanation":"解析","svg":"<svg viewBox='0 0 120 90'><rect x='25' y='15' width='60' height='60' fill='none' stroke='#555'/><text x='18' y='12'>A</text></svg>","refs":[1]},{"type":"multiple","question":"多选题干","options":["A","B","C"],"answer":[0,2],"explanation":"解析","svg":"","refs":[]},{"type":"judge","question":"判断题干（一个可判断真伪的陈述句）","options":["正确","错误"],"answer":[0],"explanation":"解析","svg":"","refs":[]},{"type":"fill","question":"填空题干，空位用____","answer":["答案1"],"explanation":"解析","svg":"","refs":[]},{"type":"essay","question":"解答题干","answer":"参考要点","solution":"完整解答","svg":"","refs":[]}]}[/QUIZ]
-规则：single 的 answer 是正确选项下标数组（一个元素）；multiple 可多元素；judge 的 options 恒为 ["正确","错误"] 两项、answer 是正确项下标数组（一个元素）；fill 的 answer 按空位顺序，每个空只写要填的那个词或短语本身（一般不超过 12 个字），不带标点、括号、单位符号或整句——学习者要逐字打进去；essay 不判分只给参考。题目必须源于给定材料，不得编造。**每道题必须自包含**：题干里不得出现「根据材料/阅读下文/如图/下表」这类指向外部内容的说法，除非被引用的文段或表格数据已**逐字**放进该题的 material 字段（纯文本；表格用换行分行、| 分列），或图已画进 svg；互联网参考资料里的原文可以搬进 material，但不许改写编造。没把握放进去，就换一道不依赖材料的题，宁可不出。题目类型与数量严格按下文「本次出题数量要求」执行。svg 怎么写照下文「配图要求」，但上面格式示例里那个方框只是演示字段怎么写——照抄进题目等于没配图。refs 只填编号数字，**绝不要填网址或标题**（网址由系统按编号补全，你写的网址一律作废）。除该 JSON 外不要输出任何其他文字。`;
+import { QUIZ_PROTOCOL } from './quiz-protocol.js';
+export { QUIZ_PROTOCOL } from './quiz-protocol.js';
 
 /**
  * 定位 svg 字段的整个值（含值内未转义的裸引号）——漏转义时值里会有 `"`，
@@ -302,12 +295,17 @@ export async function generateQuiz(
   ownerId?: string | null, // 归属（契约 TENANCY-SPEC §8.1.4）；尾参可选，见下
   verify = false, // 盲解验算（issue #71）：solver 角色对选择类题验答案，不一致丢题。默认 false＝历史调用点行为不变；PK 三味显式开
   searchTopic?: string, // REST 方向标签与用户实际检索主题分开，省略时仍用 topic
+  prepared: { seed?: StoredSeed | null; freshSearch?: boolean } = {},
 ): Promise<QuizPayload | null> {
   // ★ 出题是**本仓最贵的 LLM 调用之一**（还带联网检索），归属不能含糊。
   //   尾参放最后且可选：本函数的调用点有 6 处（chat 工具循环 / REST / PK 人出题 / PK AI 出题 /
   //   裁判类似题 / 单测），中间插参会把 `styleArg`、`online` 两个位置参数全部错位——
   //   那是最容易"改完能编译、语义全错"的一类改动。生产路径全部显式传值。
   const owner = ownerId ?? null; // 归一化一次：下面 4 处读设置/检索/路由全用它，避免各处 `?? null` 写法分叉
+  const wanted = mix ?? loadQuizMix(owner);
+  const seed = prepared.seed === undefined ? selectSeed(owner, searchTopic ?? topic, SEED_TYPES.filter(t => wanted[t] > 0), material, prepared.freshSearch) : prepared.seed;
+  const compiled = seed && compileSeed(owner, seed, wanted);
+  if (compiled && seed) { if (report) { report.on = loadQuizImage(owner); report.preparation = preparation(seed, 'compiled'); } return compiled; }
   const target = routeRole('quiz-generator', undefined, owner);
   if (!target || !target.model) {
     // 真因写进 report（契约 QUIZ-SEARCH-SPEC §2.5）：路由据此报「去设置页绑模型」而不是「可重试」
@@ -315,19 +313,18 @@ export async function generateQuiz(
     return null;
   }
   let acc = '';
-  const wanted = mix ?? loadQuizMix(owner);
   // 开关只读一次：提示词与解析硬门必须同源，否则会出现「叫模型画、画完又剥掉」的自相矛盾
   const imageOn = loadQuizImage(owner);
   if (report) report.on = imageOn;
   // 联网只由 online 决定；report 只是「要不要记录」的可选出参。★ 别再写成 `online && report`——
   // 那样 PK 这类不传 report 的入口会静默退化成不联网（2026-09-13 真机核查抓到的实际 bug）。
-  const searchReport = online ? emptyQuizSearchReport(true) : undefined;
+  const searchReport = online && !seed ? emptyQuizSearchReport(true) : undefined;
   if (report && searchReport) report.search = searchReport;
   // 检索先于出题（拿到资料才可能出时效题）；失败返回空段，下面的提示词与旧版逐字一致
   const found = searchReport
     ? await buildQuizSearchBlock(searchTopic ?? topic, material, searchReport, owner)
     : { block: '', refs: [] };
-  const refsBlock = found.block;
+  const refsBlock = found.block + seedBlock(seed);
   // 分级提示（契约 QUIZ-TIER-SPEC §2）：有联网参考 ⇒ 模拟题写法，没有 ⇒ 基础题写法（`quiz-tier.ts`）
   const prompt = `${QUIZ_PROTOCOL}\n${buildMixInstruction(wanted)}\n${buildExamPromptBlock(owner)}${buildTierInstruction(found.refs.length > 0)}\n${buildImageInstruction(imageOn)}\n${buildAnswerStyleBlock(styleArg ?? loadAnswerStyle(owner), 'quiz')}\n${buildLearnerQuizBlock(owner)}${buildDifficultyBlock(owner)}${refsBlock}${refsBlock ? '\n' : ''}\n材料：\n${material ? material.slice(0, MAX_DOC_CHARS) : `主题：${topic}`}`;
   const r = await aiText({
@@ -353,9 +350,10 @@ export async function generateQuiz(
   const mapped = groundQuiz(parsed ? fillTiers(mapQuizSources(parsed, found.refs)) : null, searchReport, searchTopic ?? topic, report);
   // 自包含闸门（契约 QUIZ-COMPLETE-SPEC §3）：引用了没给的材料/图/表的题——补全、搬原图、或剔除；全剔光＝null
   const gated = mapped ? await enforceSelfContained(mapped, { ownerId: owner, refsBlock, allowPhoto: imageOn && !verify, report: report && (report.completeness ??= emptyQuizCompletenessReport()) }) : null;
+  if (gated && seed) { markSeedUsed(owner, seed); if (report) report.preparation = preparation(seed, 'material'); }
   if (mapped && !gated && report) report.failure = 'incomplete';
   // 网络配图（quiz-photo.ts）：跟随「出题配图」开关；对战路径（verify=true）不配——对战界面不显示且最怕等
-  if (gated && imageOn && !verify) await attachQuizPhotos(gated, owner).catch(() => 0);
+  if (gated && imageOn && !verify && !seed) await attachQuizPhotos(gated, owner).catch(() => 0);
   // 对战界面与盲解验算只认 question：材料折进题干，题自己带着材料
   const out = gated && verify ? foldMaterial(gated) : gated;
   if (!out || !verify) return out;

@@ -16,7 +16,10 @@ export function buildChatStyleBlock(style: AnswerStyle, text = ''): string {
   const cardExample = calculation
     ? '> [!ROUTE] 求解路线\n> 先展开括号，再移项求解，最后代入原式核对。\n> 关键词：`分配律` · `等式性质`'
     : '> [!CORE] 惯性\n> 惯性是物体保持原有运动状态的性质。\n> 关键词：`运动状态` · `质量`';
-  return [buildAnswerStyleBlock(style), '【本轮学习回复】以下规则仅用于知识讲解；闲聊、操作回执和仅出题不用这个模板。', opening, depth,
+  const preference = calculation ? buildAnswerStyleBlock(style)
+    .replace(/结论先行[^。\n]*。/u, '求解路线先行，推导后交付结果与验算。')
+    .replace('只给结论和最关键的一条理由', '只给路线、关键变形与验算') : buildAnswerStyleBlock(style);
+  return [preference, '【本轮学习回复】以下规则仅用于知识讲解；闲聊、操作回执和仅出题不用这个模板。', opening, depth,
     style.tone === 'socratic'
       ? '引导式先提问，不用 CORE/ROUTE 卡提前给答案。'
       : `【学习卡片】知识讲解用引用卡开篇，本轮按以下示例格式书写，后面每行都以 > 开头，写核心判断/路线与关键词：\n${cardExample}\n\n需要时可用 > [!STEP] 1. 步骤名、> [!EXAMPLE] 例子、> [!PITFALL] 易错点、> [!CHECK] 结果与验算；正文仍每行加 >，卡片之间空一行，卡内空段用 >。只选择有用的卡片，其余用普通正文，别把六种都填满。图的 svg/mermaid 围栏独立放在相应卡片旁；不要把整篇包在代码围栏。简短档至多一张卡、两三句，用户要求纯文本时不用卡。`,

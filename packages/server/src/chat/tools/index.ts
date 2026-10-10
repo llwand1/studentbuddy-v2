@@ -13,6 +13,9 @@ import { CHOICE_TOOL, runChoiceTool } from '../choice-tool.js';
 import { registerTool } from './registry.js';
 import './web-search.js';
 import './fetch-page.js';
+// 研究式联网检索（WEB-RAG-SPEC，2026-10-10）：search_web 是快查（摘要直塞=L0 保底），
+// research_web 是深读（抓正文→实时切块 BM25→引用回灌；零命中降级回 L0 并如实标注）
+import './research-web.js';
 import './pick-sources.js';
 import './fetch-image.js';
 // 找图（2026-09-29）：Commons/Bing 候选 → 看图核验 → 本地缓存 + 署名（media/find-image.ts）

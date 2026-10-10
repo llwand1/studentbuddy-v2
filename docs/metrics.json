@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-10-09T16:49:17.829Z",
+  "generatedAt": "2026-10-10T01:54:57.639Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
-        "srcFiles": 61,
+        "srcFiles": 62,
         "testFiles": 46,
-        "srcLines": 10003,
+        "srcLines": 10051,
         "testLines": 5717
       },
       {
         "pkg": "server",
-        "srcFiles": 295,
-        "testFiles": 198,
-        "srcLines": 40365,
-        "testLines": 37423
+        "srcFiles": 299,
+        "testFiles": 201,
+        "srcLines": 40839,
+        "testLines": 37849
       },
       {
         "pkg": "web",
@@ -24,10 +24,10 @@
         "testLines": 19605
       }
     ],
-    "srcFiles": 728,
-    "testFiles": 399,
-    "srcLines": 93246,
-    "testLines": 62745,
+    "srcFiles": 733,
+    "testFiles": 402,
+    "srcLines": 93768,
+    "testLines": 63171,
     "tsxTestFiles": 77
   },
   "routes": {
@@ -80,43 +80,76 @@
     ]
   },
   "docs": {
-    "specs": 60,
-    "all": 78,
+    "specs": 61,
+    "all": 79,
     "probes": 15
   },
   "repo": {
-    "head": "fd6ec4e",
+    "head": "ec5017c",
     "headDate": "2026-10-10",
-    "commitsLast14d": 287,
-    "branch": "feat/drill-actions178",
-    "dirtyFiles": 26
+    "commitsLast14d": 291,
+    "branch": "feat/web-rag-ladder",
+    "dirtyFiles": 11
   },
   "tests": {
     "available": true,
-    "ranNow": false,
-    "wallSec": 0,
+    "ranNow": true,
+    "wallSec": 65.3,
     "staleDays": 0,
-    "files": 399,
-    "cases": 4532,
-    "passed": 4530,
+    "files": 402,
+    "cases": 4566,
+    "passed": 4564,
     "skipped": 2,
     "failed": 0,
     "success": true
   },
   "coverage": {
-    "available": false
+    "available": true,
+    "staleDays": 19,
+    "perPkg": {
+      "shared": {
+        "lines": 99.3,
+        "branches": 91.2,
+        "stmts": 99.3,
+        "funcs": 100
+      },
+      "server": {
+        "lines": 88.9,
+        "branches": 83,
+        "stmts": 88.9,
+        "funcs": 93.1
+      },
+      "web": {
+        "lines": 43.9,
+        "branches": 83.7,
+        "stmts": 43.9,
+        "funcs": 60.2
+      }
+    },
+    "allPackages": {
+      "lines": 67.7,
+      "branches": 83.8,
+      "stmts": 67.7,
+      "funcs": 78.7
+    },
+    "repoTotal": {
+      "lines": 53.9,
+      "branches": 83.4,
+      "stmts": 53.9,
+      "funcs": 76.7
+    }
   },
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "399",
-      "measured": "399",
+      "claimed": "402",
+      "measured": "402",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4532",
-      "measured": "4532",
+      "claimed": "4566",
+      "measured": "4566",
       "ok": true
     },
     {
@@ -157,8 +190,8 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "399 文件 / 4532 例",
-      "measured": "399 文件 / 4532 例",
+      "claimed": "402 文件 / 4566 例",
+      "measured": "402 文件 / 4566 例",
       "ok": true
     }
   ],

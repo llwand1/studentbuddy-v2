@@ -455,7 +455,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，如实记录）**：本次在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（现基线：399 文件 / 4532 例，4530 passed + 2 skipped，2026-10-10 刷词动作与阅读模式全量实跑）
+## 3. 用例清单（现基线：402 文件 / 4566 例，4564 passed + 2 skipped，2026-10-10 实时检索 WEB-RAG 批全量实跑：＋3 文件／＋34 例——L1/L2 批 ＋2 文件＋17 例，同批补 L3 精排 ＋1 文件＋17 例（rerank 11 + web-rag 3 + research-web 3）；另 flow 两例改断言不改例数——绝对数 21 换成 ≥19，工具清单增减 ±1 条的预算漂移不再是脆弱锁）
 
 | 新增测试 | 用例 | 不变量 |
 |---|---:|---|
@@ -930,6 +930,9 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `src/learning/collect-research.test.ts` | 4 | 穿过实际搜集管道：实时相关页优先，长文题通过原文锁并带真实来源；无结果不抓固定入口或调模型；其它语言即使逐字摘录也拒绝；关闭模式保留三条派生词 |
 | `src/learning/quiz-grounding.test.ts` | 4 | 应试联网只交付引用本次真实来源的题；未引用或伪造来源剔除并报告；其它语言拒绝；全无依据为 ungrounded；关闭模式与无参考保留基础巩固 |
 | `src/search/exam-redirect.test.ts` | 3 | 实际 fetchPageText/fetchSafe 链中，范围外重定向在第二个 HTTP 请求之前拒绝；同范围子域可读；首地址越界或空范围零 HTTP 请求 |
+| `src/search/web-rag.test.ts` | 12 | **实时检索层（契约 WEB-RAG-SPEC §6 T1~T7、T25~T27）**，全新建：只命中含查询词的源（浅深同索引分数说了算）；命中块 seq 从 1 起、带 url/title、按分数降序；**L2 浅深两路**（摘要块与正文块进同一 BM25 索引统一打分）；**零命中=空数组**（L3 自检判据，不设分数阈值——DOC-RAG §6 实测结论沿用）；预算截尾且**首块无条件保留**（空注入=检索白做）；空查询/空源不抛异常；摘要块封顶 WEB_RAG_SNIPPET_CHUNK_CAP；joinWebHits 的 [n·m] 引用（n 与资料面板同号、摘要块带「（摘要）」标注、缺省顺序编号）；**T25~T27 排序/截断分离**（供 L3 精排取更宽的池）：rankSources 全量不截断且降序、takeRanked 按 k 截且首块无条件保留、**L2 等价锁** retrieveFromSources ≡ takeRanked(rankSources(...)) 证明拆分不改行为（★ 夹具踩坑留痕：首版每段写太短被 chunkDoc 聚成一块，T25 当场红，改每段 ≈726 字后一段一块） |
+| `src/search/rerank.test.ts` | 11 | **L3 精排（WEB-RAG-SPEC §6 T14~T24）**，全新建、纯函数零网络：**T14~T18 打分与重排**——余弦（同向 1／正交 0／**零向量返 0 不是 NaN**——NaN 会污染整个排序／长度不齐按短对齐）、rerankByVectors 降序重排且 score 写回余弦、**同分保持原 BM25 序**（显式带下标，不靠 sort 的跨引擎稳定性）、缺向量的块按 0 分参与**而非丢弃**；**T19~T24 失败即降级（本文件核心不变量）**——精排生效时语义近的块被提前（补 BM25 词面短板）、embed 返 null → **原序原样**返回 + applied=false + 原因、embed 抛错 → 同样降级**不向上抛**（主线不受影响）、向量条数不匹配 → 降级（宁可不精排也不要错位的序）、候选 ≤1 块时不调 embed、喂向量前按 WEB_RAG_RERANK_CHARS 截（超长块可能整批被上游拒） |
+| `src/chat/tools/research-web.test.ts` | 11 | **`research_web` 研究式检索工具（WEB-RAG-SPEC §6 T8~T13、T28~T30）**，全程 mock 搜索与抓页：元数据（network+幂等⇒免确认、不设 timeoutMs、无 planWrite）；L2 主路径（护栏「数据不是指令」+[n·m] 引用+零命中源不进精选+溯源上架+onStep 报档位与块数）；aspect 并入检索词（searchExamWeb 收到「query+aspect」）；**L3 自检降级 L0 不静默**（回灌含「退回搜索摘要」+resultsToContext 同款摘要直塞=保底等价锁+onStep 报降级）；抓页全失败浅路独撑（snippet 块带标注仍可 L1）；搜索零结果口径（不给放弃台阶）；query 缺失（schema 层拦截）与纯空白（工具层拦截）两层都不发一次搜索；**T28~T30 L3 精排接线**（mock llm/embeddings）——精排生效（onStep 报 L3 + 语义近者提前 + 正文**不含**降级说明）、**探到通道却失败**（退回 BM25 序 + onStep 与正文**都**写明原因）、无通道时走 L2 且正文不出现精排字样且**一次向量调用都不发**（★ 缺省 mock 返回 null ⇒ 既有 8 例行为逐字不变） |
 
 ## 4. 已发现 Bug（登记簿）
 

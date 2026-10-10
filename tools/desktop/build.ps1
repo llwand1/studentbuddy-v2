@@ -50,8 +50,33 @@ Copy-Item -LiteralPath tools\desktop\README.txt -Destination $stage
 $sourceCommit = git rev-parse HEAD
 @{ version = $Version; sourceCommit = $sourceCommit; node = (node -p 'process.version'); architecture = 'windows-x64' } |
     ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $stage 'desktop-build.json')
+
+# WebView2 SDK：固定版本 + 固定 SHA-256，解压到 .runtime 后引用其程序集，随安装包分发，不做系统安装。
+$webView2Version = '1.0.4258.31'
+$webView2Sha256 = '56f7f4b8bf9aee4b8efefbbdd4f67d5f74ebd1b100ed0806da71bf76af481aa9'
+$webView2Dir = Join-Path $repoRoot ".runtime\webview2-sdk-$webView2Version"
+$webView2Lib = Join-Path $webView2Dir 'lib\net462'
+$webView2Core = Join-Path $webView2Lib 'Microsoft.Web.WebView2.Core.dll'
+$webView2WinForms = Join-Path $webView2Lib 'Microsoft.Web.WebView2.WinForms.dll'
+$webView2Native = Join-Path $webView2Dir 'runtimes\win-x64\native\WebView2Loader.dll'
+if (!(Test-Path -LiteralPath $webView2WinForms) -or !(Test-Path -LiteralPath $webView2Native)) {
+    New-Item -ItemType Directory -Force -Path $webView2Dir | Out-Null
+    $webView2Package = Join-Path $webView2Dir "microsoft.web.webview2.$webView2Version.nupkg"
+    if (!(Test-Path -LiteralPath $webView2Package)) {
+        Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/$webView2Version/microsoft.web.webview2.$webView2Version.nupkg" -OutFile $webView2Package
+    }
+    if ((FileHash $webView2Package) -ne $webView2Sha256) { throw 'WebView2 SDK SHA-256 mismatch.' }
+    $webView2Zip = Join-Path $webView2Dir 'sdk.zip'
+    Copy-Item -LiteralPath $webView2Package -Destination $webView2Zip -Force
+    Expand-Archive -LiteralPath $webView2Zip -DestinationPath $webView2Dir -Force
+    Remove-Item -LiteralPath $webView2Zip -Force
+}
+Copy-Item -LiteralPath $webView2Core -Destination $stage
+Copy-Item -LiteralPath $webView2WinForms -Destination $stage
+Copy-Item -LiteralPath $webView2Native -Destination $stage
+
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-& $compiler /nologo /target:winexe /optimize+ /codepage:65001 "/out:$stage\StudentBuddy.exe" tools\desktop\Launcher.cs
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ /codepage:65001 /r:"`"$webView2Core`"" /r:"`"$webView2WinForms`"" "/out:$stage\StudentBuddy.exe" tools\desktop\Launcher.cs
 if ($LASTEXITCODE -ne 0) { throw 'Launcher compilation failed.' }
 
 $innoDir = Join-Path $repoRoot '.runtime\inno-7.1.0'

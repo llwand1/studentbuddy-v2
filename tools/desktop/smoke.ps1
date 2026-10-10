@@ -5,9 +5,9 @@ if (!$Installer) { $Installer = Join-Path $repoRoot ".runtime\desktop-output\Stu
 $Installer = (Resolve-Path -LiteralPath $Installer).Path
 $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{F276CD79-EBEA-4705-9B31-20CA08B5F1EA}_is1'
 if (Test-Path -LiteralPath $uninstallKey) { throw 'A user installation exists; smoke test must use a fresh machine/user.' }
-$baseUrl = 'http://127.0.0.1:18794'
-try { Invoke-WebRequest "$baseUrl/api/health" -UseBasicParsing -TimeoutSec 1 | Out-Null; throw 'Desktop port is in use.' }
-catch [System.Net.WebException] { }
+$portFile = Join-Path $env:LOCALAPPDATA 'StudentBuddy\port'
+$baseUrl = ''
+if (Test-Path -LiteralPath $portFile) { throw 'A desktop instance appears to be running (port file exists).' }
 $testRoot = Join-Path $repoRoot ('.runtime\smoke-' + [guid]::NewGuid().ToString('N'))
 $installDir = Join-Path $testRoot 'Install with spaces'
 $dataDir = Join-Path $testRoot 'data'
@@ -32,9 +32,10 @@ function StartApp {
     for ($attempt = 0; $attempt -lt 60; $attempt++) {
         if ($process.HasExited) { throw "Launcher exited with $($process.ExitCode). Read desktop.log." }
         try {
-            $health = Invoke-RestMethod "$baseUrl/api/health" -TimeoutSec 1
+            $script:baseUrl = 'http://127.0.0.1:' + (Get-Content -LiteralPath $portFile -ErrorAction Stop).Trim()
+            $health = Invoke-RestMethod "$script:baseUrl/api/health" -TimeoutSec 1
             if ($health.ok) { return $process }
-        } catch [System.Net.WebException] { }
+        } catch { }
         Start-Sleep -Milliseconds 250
     }
     throw 'Desktop did not become healthy.'
@@ -64,11 +65,19 @@ try {
     StopApp
     Assert ($app.WaitForExit(10000)) 'Stopping releases the launcher and its server'
     $occupied = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 18794)
-    try {
-        $occupied.Start()
-        $conflict = Start-Process -FilePath $launcher -ArgumentList '--no-browser' -WindowStyle Hidden -Wait -PassThru
-        Assert ($conflict.ExitCode -ne 0 -and $occupied.Server.IsBound) 'Occupied port fails without replacing another service'
-    } finally { $occupied.Stop() }
+    $canOccupy = $true
+    try { $occupied.Start() } catch { $canOccupy = $false }
+    if ($canOccupy) {
+        try {
+            $fallback = StartApp
+            Assert ($baseUrl -ne 'http://127.0.0.1:18794') 'Preferred port occupied: launcher falls back to another loopback port'
+            Assert ($occupied.Server.IsBound) 'Fallback leaves the occupying service untouched'
+            StopApp
+            Assert ($fallback.WaitForExit(10000)) 'Fallback instance stops cleanly'
+        } finally { $occupied.Stop() }
+    } else {
+        Write-Host 'SKIP Preferred port 18794 cannot be bound in this environment (OS port exclusion, e.g. Hyper-V/WSL); conflict case not exercised.'
+    }
     $app = StartApp
     RunSetup # Update while the installed application is running.
     Assert ($app.WaitForExit(10000)) 'Upgrade stops the old launcher'

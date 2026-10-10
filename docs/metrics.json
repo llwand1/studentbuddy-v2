@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-10T01:54:57.639Z",
+  "generatedAt": "2026-10-10T02:47:36.345Z",
   "code": {
     "rows": [
       {
@@ -11,10 +11,10 @@
       },
       {
         "pkg": "server",
-        "srcFiles": 299,
-        "testFiles": 201,
-        "srcLines": 40839,
-        "testLines": 37849
+        "srcFiles": 300,
+        "testFiles": 202,
+        "srcLines": 40941,
+        "testLines": 37970
       },
       {
         "pkg": "web",
@@ -24,10 +24,10 @@
         "testLines": 19605
       }
     ],
-    "srcFiles": 733,
-    "testFiles": 402,
-    "srcLines": 93768,
-    "testLines": 63171,
+    "srcFiles": 734,
+    "testFiles": 403,
+    "srcLines": 93870,
+    "testLines": 63292,
     "tsxTestFiles": 77
   },
   "routes": {
@@ -47,8 +47,8 @@
     "total": 273
   },
   "migrations": {
-    "count": 57,
-    "max": 57,
+    "count": 58,
+    "max": 58,
     "gaps": 0
   },
   "deps": {
@@ -85,20 +85,20 @@
     "probes": 15
   },
   "repo": {
-    "head": "ec5017c",
+    "head": "daf3966",
     "headDate": "2026-10-10",
     "commitsLast14d": 291,
-    "branch": "feat/web-rag-ladder",
-    "dirtyFiles": 11
+    "branch": "fix/job-table-migration",
+    "dirtyFiles": 7
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 65.3,
+    "wallSec": 51.2,
     "staleDays": 0,
-    "files": 402,
-    "cases": 4566,
-    "passed": 4564,
+    "files": 403,
+    "cases": 4570,
+    "passed": 4568,
     "skipped": 2,
     "failed": 0,
     "success": true
@@ -143,14 +143,14 @@
     {
       "label": "badge 测试文件",
       "claimed": "402",
-      "measured": "402",
-      "ok": true
+      "measured": "403",
+      "ok": false
     },
     {
       "label": "badge 测试用例",
       "claimed": "4566",
-      "measured": "4566",
-      "ok": true
+      "measured": "4570",
+      "ok": false
     },
     {
       "label": "badge REST 路由",
@@ -191,8 +191,8 @@
     {
       "label": "正文基线句",
       "claimed": "402 文件 / 4566 例",
-      "measured": "402 文件 / 4566 例",
-      "ok": true
+      "measured": "403 文件 / 4570 例",
+      "ok": false
     }
   ],
   "landingDrift": [

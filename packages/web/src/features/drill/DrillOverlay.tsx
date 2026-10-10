@@ -14,6 +14,7 @@ import { DrillFx, type DrillFxState } from './DrillFx';
 import { DrillQuestion } from './DrillQuestion';
 import type { DrillEntry, DrillPhase, DrillResult, DrillStats } from './useDrillSession';
 import { useDragWindow, type WindowPos } from './useDragWindow';
+import { readNarrow } from '../../lib/use-narrow';
 import './drill.css';
 import './drill-fx.css';
 import './drill-action-fx.css';
@@ -73,6 +74,36 @@ export function DrillOverlay(p: DrillOverlayProps) {
     stage.current?.focus({ preventScroll: true });
     return () => {
       if (prev && prev.isConnected) prev.focus({ preventScroll: true });
+    };
+  }, []);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const revealInput = () => {
+      if (!readNarrow() || (viewport && viewport.scale !== 1)) return;
+      const field = document.activeElement;
+      const body = stage.current?.querySelector<HTMLElement>('.drill-body');
+      if (!(field instanceof HTMLElement) || !body?.contains(field) || !field.matches('input, textarea')) return;
+      // Scroll only the card area after keyboard resize; keep the window's controls fixed.
+      const typing = field.closest('.ti');
+      const target = typing?.querySelector('.ti-cell.cur') ?? typing ?? field;
+      const bounds = body.getBoundingClientRect(), focus = target.getBoundingClientRect();
+      if (focus.bottom > bounds.bottom) body.scrollTop += focus.bottom - bounds.bottom;
+      else if (focus.top < bounds.top) body.scrollTop -= bounds.top - focus.top;
+    };
+    let frame = 0;
+    const schedule = () => {
+      if (typeof requestAnimationFrame !== 'function') { revealInput(); return; }
+      cancelAnimationFrame(frame); frame = requestAnimationFrame(revealInput);
+    };
+    const el = stage.current;
+    viewport?.addEventListener('resize', schedule); viewport?.addEventListener('scroll', schedule);
+    window.addEventListener('resize', schedule);
+    el?.addEventListener('focusin', schedule); el?.addEventListener('input', schedule);
+    return () => {
+      viewport?.removeEventListener('resize', schedule); viewport?.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+      el?.removeEventListener('focusin', schedule); el?.removeEventListener('input', schedule);
+      if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame);
     };
   }, []);
   useDragWindow(stage, { handle: '.drill-head', initial: p.windowPos, onSettle: p.onWindowMoved });
@@ -157,6 +188,10 @@ export function DrillOverlay(p: DrillOverlayProps) {
         </p>
         <footer className="drill-foot">
           <span>{footHint(p.phase, p.card)}</span>
+          <span className="drill-mobile-stats">
+            连击 {p.stats.combo} · 答对 {p.stats.correct} · 斩 {p.stats.slain}
+            {p.stats.reviewed > 0 && ` · 打卡 ${p.stats.reviewed}`}
+          </span>
           <span>还有 {p.queueLeft} 张</span>
         </footer>
       </div>

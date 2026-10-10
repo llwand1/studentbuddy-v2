@@ -1,7 +1,7 @@
 # StudentBuddy
 
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
-![version](https://img.shields.io/badge/version-0.2.179-orange)
+![version](https://img.shields.io/badge/version-0.2.180-orange)
 
 **在暗黑像素冒险里学习：对话中理解，题目里练习，把学过的知识留下来。**
 
@@ -118,13 +118,13 @@ StudentBuddy 把提问、查资料、做题和复习串在同一段学习过程�
 <summary>开发者信息</summary>
 
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![tests](https://img.shields.io/badge/tests-404%20files%20%2F%204574%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-404%20files%20%2F%204576%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-188-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-273%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-8-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
-当前测试基线 **404 文件 / 4574 例**。在线体验**已上线到 v0.2.179**。
+当前测试基线 **404 文件 / 4576 例**。在线体验**已上线到 v0.2.180**。
 
 代码结构、开发约定与复验方式见 [工程文档](docs/ENGINEERING.md)。
 

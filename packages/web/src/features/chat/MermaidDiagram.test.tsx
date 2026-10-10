@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 import { MermaidDiagram } from './MermaidDiagram';
-import { renderDiagram, safeDiagramSource, uniqueDiagramIds } from '../../lib/diagram-render';
+import { normalizeDiagramSource, renderDiagram, safeDiagramSource, uniqueDiagramIds } from '../../lib/diagram-render';
 import { diagramSvg } from '../../lib/diagram-svg';
 import { prepareSvg } from '../../lib/svg-utils';
 
@@ -61,5 +61,7 @@ describe('自动布局图解', () => {
     expect(safe).toContain('font-size:18px');
     const duplicates = uniqueDiagramIds('<svg id="root"><path id="node"/><g id="node"/></svg>','copy');
     expect(duplicates).toContain('id="node-copy-1"');
+    expect(normalizeDiagramSource('flowchart TD\nA[原式 2(x-3)+4=10] --> B[验算]')).toBe('flowchart TD\nA["原式 2(x-3)+4=10"] --> B["验算"]');
+    expect(normalizeDiagramSource('flowchart TD\nA["已加引号"]')).toBe('flowchart TD\nA["已加引号"]');
   });
 });

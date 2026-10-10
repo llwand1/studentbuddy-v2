@@ -3,6 +3,14 @@ const cache = new Map<string, Promise<string>>();
 let sequence = 0;
 let runtime: Promise<typeof import('mermaid').default> | undefined;
 
+export function normalizeDiagramSource(source: string): string {
+  if (!/^\s*(?:flowchart|graph)\b/.test(source)) return source;
+  // Flowchart labels containing parentheses need quotes. Add syntax delimiters only;
+  // never rewrite label content, relationships, mathematical values or stored source.
+  return source.replace(/(^|[\s>;|])([A-Za-z_][\w-]*)\[([^\[\]\n"\\]+)\]/g,
+    (_, before: string, id: string, label: string) => `${before}${id}["${label}"]`);
+}
+
 export function uniqueDiagramIds(svg: string, suffix: string): string {
   const ids = [...svg.matchAll(/\bid="([^"]+)"/g)].map(match => match[1] ?? '');
   const occurrences = new Map<string, number>();
@@ -40,7 +48,7 @@ export function renderDiagram(source: string): Promise<string> {
     return mermaid;
   }).catch(error => { runtime = undefined; throw error; });
   const result = runtime.then(async mermaid => {
-    const { svg } = await mermaid.render(`sb-diagram-${++sequence}`, source);
+    const { svg } = await mermaid.render(`sb-diagram-${++sequence}`, normalizeDiagramSource(source));
     return diagramSvg(svg);
   });
   if (cache.size >= 16) cache.delete(cache.keys().next().value ?? '');

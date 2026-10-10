@@ -7,7 +7,7 @@ export function normalizeDiagramSource(source: string): string {
   if (!/^\s*(?:flowchart|graph)\b/.test(source)) return source;
   // Flowchart labels containing parentheses need quotes. Add syntax delimiters only;
   // never rewrite label content, relationships, mathematical values or stored source.
-  return source.replace(/(^|[\s>;|])([A-Za-z_][\w-]*)\[([^\[\]\n"\\]+)\]/g,
+  return source.replace(/(^|[\s>;|])([A-Za-z_][\w-]*)\[([^\]\n"\\[]+)\]/g,
     (_, before: string, id: string, label: string) => `${before}${id}["${label}"]`);
 }
 

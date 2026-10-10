@@ -11,6 +11,7 @@ export * from './quiz-tier.js';
 export * from './choice.js';
 export * from './answer-style.js';
 export * from './doc-rag.js';
+export * from './web-rag.js';
 export * from './api.js';
 export * from './domain.js';
 export * from './pk.js';

@@ -619,7 +619,10 @@ describe('文档模式注入（契约 5.0 §5.1-2/3）', () => {
     await handleMessage({ sessionId: sid, text: 'q' });
     const withDoc = historyCount();
 
-    expect(withoutDoc).toBe(21); // 20 条历史 + 本轮新问题全数保留
+    // 健全性前置：无资料段时历史基本全载（20 条 + 本轮问题）。不写死 21——工具下发清单
+    // 增减会挤占预算 ±1 条（2026-10-10 research_web 入列即挤出 1 条），绝对数是脆弱锁；
+    // 本例真正要锁的是下一行的相对差：资料段计入预算 ⇒ 历史显著变少。
+    expect(withoutDoc).toBeGreaterThanOrEqual(19);
     expect(withDoc).toBeLessThanOrEqual(withoutDoc - 3);
   });
 
@@ -795,7 +798,8 @@ describe('长期记忆注入（契约 MEMORY-SPEC §4.4/§5.3）', () => {
     await handleMessage({ sessionId: sid, text: 'q' });
     const withSummary = historyCount();
 
-    expect(withoutSummary).toBe(21); // 20 条历史 + 本轮提问全数保留
+    // 同上：不写死 21（工具清单增减会 ±1），核心是相对差——摘要计入预算 ⇒ 挤掉被载历史。
+    expect(withoutSummary).toBeGreaterThanOrEqual(19);
     expect(withSummary).toBeLessThanOrEqual(withoutSummary - 3);
   });
 

@@ -8,7 +8,7 @@
  * ★ ✕ / Esc 是**收起**不是作废（§2.1，2026-09-30）：这一局留在宿主里，输入框上方的小签能唤回；小签上的 ✕ 才结束。
  * ★ 纯展示：状态机在 `useDrillSession`，弹与收在 `useDrillTrigger`，两者由 `WaitDrill` 拼起来。
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { DrillCard } from '@sb/shared';
 import { DrillFx, type DrillFxState } from './DrillFx';
 import { DrillQuestion } from './DrillQuestion';
@@ -69,6 +69,11 @@ export function DrillOverlay(p: DrillOverlayProps) {
    *   小窗是非模态的：之后学习者点回聊天框打字，按键就归聊天框（`useDrillKeys` 只在焦点不在外部输入框时接键）。
    */
   const stage = useRef<HTMLDivElement>(null);
+  const learning = p.phase === 'learn';
+  useLayoutEffect(() => {
+    const body = stage.current?.querySelector<HTMLElement>('.drill-body');
+    if (body) body.scrollTop = 0;
+  }, [p.card?.termId, p.card?.kind, learning]);
   useEffect(() => {
     const prev = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     stage.current?.focus({ preventScroll: true });

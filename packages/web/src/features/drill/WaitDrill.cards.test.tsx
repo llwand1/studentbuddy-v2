@@ -78,7 +78,10 @@ describe('WaitDrill：卡怎么答', () => {
     expect(screen.getByText('错了')).toBeTruthy();
     expect(leftCount()).toBe(before + 1); // 错的隔几张再来
     expect(markMock).not.toHaveBeenCalled(); // 到期词条答错不打卡
+    const body = document.querySelector('.drill-body') as HTMLElement;
+    body.scrollTop = 250;
     pressKey('Enter');
+    expect(body.scrollTop).toBe(0); // 下一题从题干开始，不沿用上题解析滚动位置
     expect(prompt()).not.toBe(first);
     expect(screen.queryByText('错了')).toBeNull();
 

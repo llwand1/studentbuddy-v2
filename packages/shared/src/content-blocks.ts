@@ -287,6 +287,7 @@ export interface QuizImageReport {
    * 分开传只会让签名继续膨胀。
    */
   search?: QuizSearchReport;
+  preparation?: import('./question-seeds.js').QuestionPreparation;
   /**
    * 出题失败的**真因**（2026-09-13）：`'no-model'`＝出题角色没绑模型（怎么重试都没用，要去设置页）；
    * `'parse'`＝模型给了输出但解不出题组；`'ungrounded'`＝本次联网题全缺少有效引用。

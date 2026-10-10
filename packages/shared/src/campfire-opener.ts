@@ -11,6 +11,7 @@ export interface CampfireOpener {
   id: string;
   question: CampfireQuestion;
   scope: string;
+  preparation?: import('./question-seeds.js').QuestionPreparation;
 }
 
 export const OPENER_HISTORY_LIMIT = 8;

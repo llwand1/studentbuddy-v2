@@ -1,3 +1,5 @@
+> 2026-10-10 出题预产物：新增 31 个普通回归用例；不增加 AI 评测集。
+
 > 2026-10-10 刷词动作：新增 3 个普通回归用例，既有词卡与音效用例补断言；无新增 AI 评测。
 
 > 2026-10-10 魔法光影与首问衔接：仅新增 4 个普通回归用例，既有热身用例补充开会话时保留本次题目断言；没有新增模型评测或线上 AI 调用。
@@ -455,7 +457,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，如实记录）**：本次在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（现基线：404 文件 / 4576 例，4574 passed + 2 skipped，2026-10-10 手机刷词全量实跑）
+## 3. 用例清单（现基线：408 文件 / 4607 例，4605 passed + 2 skipped，2026-10-10 出题预产物全量实跑）
 
 | 新增测试 | 用例 | 不变量 |
 |---|---:|---|
@@ -1210,3 +1212,12 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | 2026-09-03 | v0.3.0 | 出题配比编辑态钳位改动：基线 163 → **175 例**（新 `shared/src/quiz-mix.test.ts` 12，shared 首次建测试章节）。规则从 `QuizMixCard` 组件内抽到 `shared/stepQuizMix`（§7「判定逻辑留在组件内就测不到」的又一次兑现）；修「配到 40 题保存后被服务端从后往前悄悄削掉」的闪变——前端编辑期即钳住，服务端 `normalizeQuizMix` 退为兜底；对话页「出题」补当前配比摘要（原本只有题库页有、点下去不知道会出什么）。测试写的过程中踩了 helper 部分覆盖的坑（`mix({single:10,multiple:10})` 实际是 22 题，默认档位没清零），已在用例内注释留痕 |
 | 2026-09-02 | v0.2.0 | 文档模式回写：基线 107 → **144 例**（新 `llm/anthropic.test.ts` 10／`learning/document.test.ts` 11／`routes/document.test.ts` 13，`flow.test.ts` 8→11）；该行改成已修并附**反向验证证据**（退回旧版 2 例红、失败文案逐字入表）；§6 清账：文档模式 P1 已清偿，新挂 `openai.ts` 出站体与 `DocModeControl` 交互两行；§7 新立「改适配器须先证实回归测试会红」约定 |
 | 2026-09-02 | v0.1.0 | 建立本表（测试登记载体补齐）：登记基线 14 文件/107 例逐文件不变量、`npx` 残 shim 与 stderr 退出码两处本机坑、技术栈对账（Playwright/promptfoo 仓库内 0 引用）、（anthropic 丢 system）与「LLM 适配器出站体零断言」缺口 |
+
+### 出题预产物普通回归（QUESTION-SEEDS-SPEC）
+
+| 测试文件 | 用例 | 不变量 |
+|---|---:|---|
+| `packages/shared/src/question-seeds.test.ts` | 6 | 字段、成品题拒绝、边界、期限、参数空间、私有凭证说明 |
+| `packages/server/src/routes/question-seeds.test.ts` | 8 | 真实 HTTP、权限、原子性、冲突/回放、过期、隔离/撤下、分页与共用限流 |
+| `packages/server/src/learning/question-seeds.test.ts` | 7 | 范围/主题/来源优先级、正负参数唯一解、不重复、整组认领与取消不消耗 |
+| `packages/server/src/learning/quiz-seeds.test.ts` | 5 | 无模型编译、蓝图生成、显式新搜索与真题配比、资料优先 |

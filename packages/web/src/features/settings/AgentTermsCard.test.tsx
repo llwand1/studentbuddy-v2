@@ -12,6 +12,17 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe('外部 agent 词条补给设置卡', () => {
+  it('出题预产物需要用户显式勾选，说明复制与凭证分开', async () => {
+    render(<AgentTermsCard flash={vi.fn()} />);
+    await waitFor(() => expect((screen.getByRole('button', { name: '生成专用密钥' }) as HTMLButtonElement).disabled).toBe(false));
+    const checkbox = screen.getByRole('checkbox', { name: /同时授权出题预产物/ }) as HTMLInputElement;
+    expect(checkbox.checked).toBe(false); fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole('button', { name: '生成专用密钥' }));
+    await screen.findByLabelText('新密钥'); expect(h.create).toHaveBeenCalledWith('我的 coding agent', 30, true);
+    fireEvent.click(screen.getByRole('button', { name: '复制预产物说明' }));
+    await waitFor(() => expect(h.copy).toHaveBeenCalled()); expect(h.copy.mock.calls[0]?.[0]).toContain('/question-seeds/import');
+    expect(h.copy.mock.calls[0]?.[0]).not.toContain('only-this-response');
+  });
   it('完成初始读取才可生成，明文只在本次 password 输入框，说明复制不包含密钥', async () => {
     let done: (r: { keys: [] }) => void = () => {};
     h.list.mockImplementation(() => new Promise(resolve => { done = resolve; }));

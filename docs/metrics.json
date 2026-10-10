@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-10T01:54:57.639Z",
+  "generatedAt": "2026-10-10T14:34:56.154Z",
   "code": {
     "rows": [
       {
@@ -13,21 +13,21 @@
         "pkg": "server",
         "srcFiles": 299,
         "testFiles": 201,
-        "srcLines": 40839,
+        "srcLines": 40842,
         "testLines": 37849
       },
       {
         "pkg": "web",
-        "srcFiles": 372,
-        "testFiles": 155,
-        "srcLines": 42878,
-        "testLines": 19605
+        "srcFiles": 374,
+        "testFiles": 156,
+        "srcLines": 43070,
+        "testLines": 19693
       }
     ],
-    "srcFiles": 733,
-    "testFiles": 402,
-    "srcLines": 93768,
-    "testLines": 63171,
+    "srcFiles": 735,
+    "testFiles": 403,
+    "srcLines": 93963,
+    "testLines": 63259,
     "tsxTestFiles": 77
   },
   "routes": {
@@ -85,27 +85,27 @@
     "probes": 15
   },
   "repo": {
-    "head": "ec5017c",
+    "head": "daf3966",
     "headDate": "2026-10-10",
     "commitsLast14d": 291,
-    "branch": "feat/web-rag-ladder",
-    "dirtyFiles": 11
+    "branch": "feat/desktop-floating",
+    "dirtyFiles": 17
   },
   "tests": {
     "available": true,
     "ranNow": true,
-    "wallSec": 65.3,
+    "wallSec": 68.1,
     "staleDays": 0,
-    "files": 402,
-    "cases": 4566,
-    "passed": 4564,
+    "files": 403,
+    "cases": 4571,
+    "passed": 4569,
     "skipped": 2,
     "failed": 0,
     "success": true
   },
   "coverage": {
     "available": true,
-    "staleDays": 19,
+    "staleDays": 20,
     "perPkg": {
       "shared": {
         "lines": 99.3,
@@ -142,14 +142,14 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "402",
-      "measured": "402",
+      "claimed": "403",
+      "measured": "403",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4566",
-      "measured": "4566",
+      "claimed": "4571",
+      "measured": "4571",
       "ok": true
     },
     {
@@ -190,8 +190,8 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "402 文件 / 4566 例",
-      "measured": "402 文件 / 4566 例",
+      "claimed": "403 文件 / 4571 例",
+      "measured": "403 文件 / 4571 例",
       "ok": true
     }
   ],

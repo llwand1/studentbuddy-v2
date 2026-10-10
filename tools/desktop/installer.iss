@@ -19,20 +19,21 @@ OutputBaseFilename=StudentBuddy-{#AppVersion}-windows-x64-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile={#SourceDirectory}\app.ico
 UninstallDisplayIcon={app}\StudentBuddy.exe
 CloseApplications=yes
 RestartApplications=no
 LicenseFile={#SourceDirectory}\LICENSE
 
 [Tasks]
-Name: desktopicon; Description: "Create a desktop shortcut"; Flags: unchecked
+Name: desktopicon; Description: "Create a desktop shortcut"
 
 [Files]
 Source: "{#SourceDirectory}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\StudentBuddy"; Filename: "{app}\StudentBuddy.exe"
-Name: "{autodesktop}\StudentBuddy"; Filename: "{app}\StudentBuddy.exe"; Tasks: desktopicon
+Name: "{group}\StudentBuddy"; Filename: "{app}\StudentBuddy.exe"; IconFilename: "{app}\app.ico"
+Name: "{autodesktop}\StudentBuddy"; Filename: "{app}\StudentBuddy.exe"; IconFilename: "{app}\app.ico"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\StudentBuddy.exe"; Description: "Launch StudentBuddy"; Flags: nowait postinstall skipifsilent

@@ -5,7 +5,8 @@
  * 引用编号错位、预算把首块也挤掉（= 整轮检索空注入）。
  */
 import { describe, it, expect } from 'vitest';
-import { retrieveFromSources, joinWebHits } from './web-rag.js';
+import { DOC_INJECT_BUDGET_CHARS, DOC_TOP_K } from '@sb/shared';
+import { retrieveFromSources, joinWebHits, rankSources, takeRanked } from './web-rag.js';
 import type { WebRagSource } from './web-rag.js';
 
 /** 长正文夹具：n 段，只有第 mark 段含 needle（段落间空行分隔，走 chunkDoc 的段落聚块）。 */
@@ -78,5 +79,38 @@ describe('joinWebHits — [n·m] 引用格式', () => {
   it('numbers 缺省时按 1 起顺序编号', () => {
     const hits = retrieveFromSources('间隔重复', [PAGE_A]);
     expect(joinWebHits(hits, [])).toContain('[1·');
+  });
+});
+
+describe('rankSources / takeRanked — L3 精排所需的「排序」与「截断」分离', () => {
+  /**
+   * 每段 ≈726 字（> 半块），段间空行分隔 ⇒ chunkDoc 聚块时**一段一块**，
+   * 40 段得 ~40 块 > DOC_TOP_K，才能观察「rankSources 不截断、takeRanked 才截断」。
+   * （段写太短会被聚成一块——第一版夹具就踩了这个，T25 当场红。）
+   */
+  const many: WebRagSource = {
+    url: 'https://m.example/m',
+    title: 'M',
+    text: Array.from({ length: 40 }, (_, i) => `第${i}段：` + '间隔重复相关。'.repeat(120)).join('\n\n'),
+    origin: 'page',
+  };
+
+  it('T25 rankSources 返回**全部**命中且按分数降序（不截断：精排要看更宽的池）', () => {
+    const all = rankSources('间隔重复', [many]);
+    expect(all.length).toBeGreaterThan(DOC_TOP_K);
+    for (let i = 1; i < all.length; i++) expect(all[i]?.score).toBeLessThanOrEqual(all[i - 1]?.score ?? 0);
+  });
+
+  it('T26 takeRanked 按 k 截断，且**首块无条件保留**（预算 1 字也至少回 1 块）', () => {
+    const all = rankSources('间隔重复', [many]);
+    expect(takeRanked(all, 3, 1_000_000)).toHaveLength(3);
+    expect(takeRanked(all, 99, 100_000)).toHaveLength(all.length);
+    expect(takeRanked(all, 99, 1)).toHaveLength(1);
+  });
+
+  it('T27 L2 等价锁：retrieveFromSources 恒等于 takeRanked(rankSources(...))（拆分不改行为）', () => {
+    const viaCombo = takeRanked(rankSources('间隔重复', [many]), DOC_TOP_K, DOC_INJECT_BUDGET_CHARS);
+    const viaOld = retrieveFromSources('间隔重复', [many]);
+    expect(viaOld.map((h) => h.text)).toEqual(viaCombo.map((h) => h.text));
   });
 });

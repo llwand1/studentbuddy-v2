@@ -60,34 +60,54 @@ function chunkSource(src: WebRagSource, chunkChars: number, overlap: number): Sc
 }
 
 /**
- * 实时检索：全部源的块进同一个 BM25 索引（浅深两路统一打分），按分数取 Top-K，
- * 受 k 与字数预算双截断（**首块无条件保留**，同 doc-retrieve 的 takeRanked 语义——
- * 否则一个长块就能把整轮检索挤成空注入）。
+ * 排序：全部源的块进**同一个** BM25 索引（浅深两路统一打分），按分数降序返回**全部**命中。
+ * **不做 k / 预算截断**——L3 精排要先看比最终注入更宽的一池（`WEB_RAG_RERANK_POOL`），
+ * 截断交给 `takeRanked`。不精排的 L2 路径由 `retrieveFromSources` 组合这两步。
  *
  * **字面零命中就是空数组，不设任何分数阈值**（DOC-RAG-SPEC §6 的实测结论原样沿用：
  * 绝对阈值在真命中与干扰项之间无分离带；零命中判据交给调用方做 L3 自检降级）。
- * 返回按分数降序；`seq` 从 1 起（对齐 [n·m] 引用的 m 位人读习惯）。
  */
-export function retrieveFromSources(query: string, sources: readonly WebRagSource[], opts: WebRagOpts = {}): WebRagHit[] {
+export function rankSources(query: string, sources: readonly WebRagSource[], opts: WebRagOpts = {}): WebRagHit[] {
   const q = query.trim();
   if (!q || sources.length === 0) return [];
   const blocks = sources.flatMap((s) => chunkSource(s, opts.chunkChars ?? DOC_CHUNK_CHARS, opts.overlap ?? DOC_CHUNK_OVERLAP));
   if (blocks.length === 0) return [];
-  // buildBm25Index 只读 DocChunk 的 seq/from/to/text 字段，ScoredBlock 结构子类型兼容。
   const ranked = scoreChunks(buildBm25Index(blocks), q);
-  const k = Math.max(1, Math.floor(opts.k ?? DOC_TOP_K));
-  const budget = Math.max(1, Math.floor(opts.budgetChars ?? DOC_INJECT_BUDGET_CHARS));
   const out: WebRagHit[] = [];
-  let used = 0;
   for (const r of ranked) {
-    if (out.length >= k) break;
     const b = blocks[r.i];
     if (!b) continue;
-    if (out.length > 0 && used + b.text.length > budget) break;
     out.push({ url: b.url, title: b.title, origin: b.origin, seq: b.seq, text: b.text, score: r.s });
-    used += b.text.length;
   }
   return out;
+}
+
+/**
+ * 取：按序截前 k 块，并受字数预算双重截断。
+ * ★ **首块无条件保留**（同 `doc-retrieve.ts` 的 takeRanked 语义）——否则一个长块就能把
+ *   整轮检索挤成空注入，那等于检索白做。
+ */
+export function takeRanked(
+  hits: readonly WebRagHit[],
+  k: number = DOC_TOP_K,
+  budgetChars: number = DOC_INJECT_BUDGET_CHARS,
+): WebRagHit[] {
+  const kk = Math.max(1, Math.floor(k));
+  const budget = Math.max(1, Math.floor(budgetChars));
+  const out: WebRagHit[] = [];
+  let used = 0;
+  for (const h of hits) {
+    if (out.length >= kk) break;
+    if (out.length > 0 && used + h.text.length > budget) break;
+    out.push(h);
+    used += h.text.length;
+  }
+  return out;
+}
+
+/** L2 组合：BM25 排序 + k/预算截断（= 不精排时的既有行为，逐字不变）。 */
+export function retrieveFromSources(query: string, sources: readonly WebRagSource[], opts: WebRagOpts = {}): WebRagHit[] {
+  return takeRanked(rankSources(query, sources, opts), opts.k ?? DOC_TOP_K, opts.budgetChars ?? DOC_INJECT_BUDGET_CHARS);
 }
 
 /** 命中块拼成给模型的正文：每块带 [n·m] 引用头（n=源编号由调用方传入，m=源内段号）。 */

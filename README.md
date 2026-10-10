@@ -110,13 +110,13 @@ StudentBuddy 把提问、查资料、做题和复习串在同一段学习过程�
 <summary>开发者信息</summary>
 
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![tests](https://img.shields.io/badge/tests-401%20files%20%2F%204549%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-402%20files%20%2F%204566%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-188-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-273%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
-当前测试基线 **401 文件 / 4549 例**。在线体验**已上线到 v0.2.178**。
+当前测试基线 **402 文件 / 4566 例**。在线体验**已上线到 v0.2.178**。
 
 代码结构、开发约定与复验方式见 [工程文档](docs/ENGINEERING.md)。
 

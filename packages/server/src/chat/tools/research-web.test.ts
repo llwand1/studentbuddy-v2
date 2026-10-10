@@ -29,6 +29,13 @@ vi.mock('../../search/index.js', () => ({
 const fetchPageText = vi.fn();
 vi.mock('../../search/page-text.js', () => ({ fetchPageText: (...a: unknown[]) => fetchPageText(...a) }));
 
+const resolveEmbedTarget = vi.fn();
+const embedTexts = vi.fn();
+vi.mock('../../llm/embeddings.js', () => ({
+  resolveEmbedTarget: (...a: unknown[]) => resolveEmbedTarget(...a),
+  embedTexts: (...a: unknown[]) => embedTexts(...a),
+}));
+
 const { runTool, toolMeta } = await import('./index.js');
 import type { ToolContext } from './registry.js';
 
@@ -50,6 +57,11 @@ function silentCtx() {
 beforeEach(() => {
   searchExamWeb.mockReset();
   fetchPageText.mockReset();
+  // 缺省无 embedding 通道 ⇒ 所有既有用例走 L2（= 上一批的行为逐字不变）
+  resolveEmbedTarget.mockReset();
+  resolveEmbedTarget.mockReturnValue(null);
+  embedTexts.mockReset();
+  embedTexts.mockResolvedValue(null);
 });
 
 describe('research_web — 元数据（§4.2）', () => {
@@ -81,7 +93,7 @@ describe('research_web — L1 主路径（抓正文 → 切块 BM25 → 引用�
     expect(r.content).toMatch(/\[\d+·\d+\] 来源：https:\/\/a\.example\/x/); // [n·m] 引用
     expect(r.content).not.toContain('https://b.example/y'); // B 页零命中 ⇒ 不进精选
     expect(found).toHaveBeenCalled(); // 溯源上架（面板与回灌同号）
-    expect(steps.some((s) => s.status === 'done' && s.detail?.includes('L1 正文检索'))).toBe(true);
+    expect(steps.some((s) => s.status === 'done' && s.detail?.includes('L2 BM25 序'))).toBe(true);
   });
 
   it('T10 aspect 并入检索词：抓页与打分都用「query+aspect」', async () => {
@@ -134,5 +146,54 @@ describe('research_web — L3 自检 → L0 降级（不静默）', () => {
     const r = await runTool('research_web', JSON.stringify({ query: '   ' }), ctx);
     expect(r.content).toContain('搜索词为空');
     expect(searchExamWeb).not.toHaveBeenCalled();
+  });
+});
+
+describe('research_web — L3 精排接线（WEB-RAG-SPEC §1 L3）', () => {
+  /** 两页都含查询词（都在 BM25 池里），但 A 词频高、B 词频低 ⇒ BM25 把 A 排前，便于观察精排改序。 */
+  function twoPages() {
+    okSearch([
+      { title: 'A 高词频页', url: 'https://a.example/', snippet: 's' },
+      { title: 'B 低词频页', url: 'https://b.example/', snippet: 's' },
+    ]);
+    fetchPageText.mockImplementation((url: string) =>
+      Promise.resolve(okPage(url.includes('a.example') ? '间隔重复'.repeat(12) : '间隔重复 以及相关的一段说明')),
+    );
+  }
+
+  it('T28 精排生效：onStep 报 L3、语义近的块被提前、正文**不含**降级说明', async () => {
+    twoPages();
+    resolveEmbedTarget.mockReturnValue({ apiKey: 'k', baseUrl: 'https://x', model: 'm', quota: { ownerId: null, platform: false } });
+    // 查询与 B 同向、与 A 正交 ⇒ B 应从 BM25 的次位提到首位
+    embedTexts.mockResolvedValue([[1, 0], [0, 1], [1, 0]]);
+    const { ctx, steps } = silentCtx();
+    const r = await runTool('research_web', JSON.stringify({ query: '间隔重复' }), ctx);
+
+    expect(steps.some((s) => s.status === 'done' && s.detail?.includes('L3 精排'))).toBe(true);
+    expect(r.content.indexOf('b.example')).toBeLessThan(r.content.indexOf('a.example'));
+    expect(r.content).not.toContain('本次精排未生效');
+  });
+
+  it('T29 探到通道但精排失败：退回 BM25 序 + onStep 与正文**都写明原因**（不静默）', async () => {
+    twoPages();
+    resolveEmbedTarget.mockReturnValue({ apiKey: 'k', baseUrl: 'https://x', model: 'm', quota: { ownerId: null, platform: false } });
+    embedTexts.mockResolvedValue(null); // 端点不可用/超时/形状不对，统一按降级
+    const { ctx, steps } = silentCtx();
+    const r = await runTool('research_web', JSON.stringify({ query: '间隔重复' }), ctx);
+
+    expect(steps.some((s) => s.status === 'done' && s.detail?.includes('精排未成'))).toBe(true);
+    expect(r.content).toContain('本次精排未生效');
+    expect(r.content.indexOf('a.example')).toBeLessThan(r.content.indexOf('b.example')); // 仍是 BM25 序
+  });
+
+  it('T30 无 embedding 通道：正常走 L2，正文**不出现**精排字样（常态不喧哗）', async () => {
+    twoPages();
+    const { ctx, steps } = silentCtx();
+    const r = await runTool('research_web', JSON.stringify({ query: '间隔重复' }), ctx);
+
+    expect(steps.some((s) => s.status === 'done' && s.detail?.includes('L2 BM25 序'))).toBe(true);
+    expect(r.content).not.toContain('精排');
+    expect(resolveEmbedTarget).toHaveBeenCalled();
+    expect(embedTexts).not.toHaveBeenCalled(); // 无目标 ⇒ 一次向量调用都不发
   });
 });

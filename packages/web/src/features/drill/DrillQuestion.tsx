@@ -10,6 +10,7 @@
  */
 import { DRILL_KIND_LABEL, type DrillCard } from '@sb/shared';
 import { TypingInput } from '../../components/TypingInput';
+import { MathText } from '../chat/MathText';
 import type { DrillEntry, DrillPhase, DrillResult } from './useDrillSession';
 
 interface Props {
@@ -61,7 +62,7 @@ export function DrillQuestion({ phase, card, entry, result, notice, keepState, d
           <span className="drill-chip">领域「{card.domain}」</span>
         </div>
         <h3 className="drill-term">{card.term}</h3>
-        <p className="drill-def">{card.definition}</p>
+        <p className="drill-def"><MathText text={card.definition}/></p>
         <p className={src?.source === 'fallback' ? 'drill-src fallback' : 'drill-src'}>
           {src?.fallbackReason ?? '跟着你正在聊的话题出的，先看一眼，下一屏就考它'}
         </p>
@@ -81,7 +82,7 @@ export function DrillQuestion({ phase, card, entry, result, notice, keepState, d
         {entry.origin === 'due' && <span className="drill-chip due">到期 · 答对即打卡</span>}
         {isNew && <span className="drill-chip new">新词</span>}
       </div>
-      <h3 className={card.kind === 'meaning' ? 'drill-term' : 'drill-prompt'}>{card.prompt}</h3>
+      <h3 className={card.kind === 'meaning' ? 'drill-term' : 'drill-prompt'}><MathText text={card.prompt}/></h3>
 
       {card.kind !== 'spell' ? (
         <div className="drill-opts">
@@ -94,7 +95,7 @@ export function DrillQuestion({ phase, card, entry, result, notice, keepState, d
               onClick={() => onAnswer(i)}
             >
               <kbd>{i + 1}</kbd>
-              <span>{o}</span>
+              <MathText text={o}/>
             </button>
           ))}
         </div>

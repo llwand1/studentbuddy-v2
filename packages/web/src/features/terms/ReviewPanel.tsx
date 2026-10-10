@@ -1,3 +1,4 @@
+import { MathText } from '../chat/MathText';
 /**
  * ReviewPanel — 词条复习面板（v23 艾宾浩斯遗忘曲线，契约 `docs/EBBINGHAUS-SPEC.md`）。
  *
@@ -240,7 +241,7 @@ export function ReviewPanel({ domain = 'all', onChanged }: { domain?: string; on
                       <span className="rv-days">{t.review.daysSince} 天没复习</span>
                     </div>
                     {revealed.includes(t.id) ? (
-                      <div className="rv-def">{t.definition}</div>
+                      <div className="rv-def"><MathText text={t.definition}/></div>
                     ) : (
                       <button className="rv-btn" onClick={() => toggle(t.id)}>
                         看释义

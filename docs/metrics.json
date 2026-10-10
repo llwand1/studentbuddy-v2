@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-10T01:54:57.639Z",
+  "generatedAt": "2026-10-10T03:55:46.485Z",
   "code": {
     "rows": [
       {
@@ -11,24 +11,24 @@
       },
       {
         "pkg": "server",
-        "srcFiles": 299,
+        "srcFiles": 300,
         "testFiles": 201,
-        "srcLines": 40839,
-        "testLines": 37849
+        "srcLines": 40856,
+        "testLines": 37851
       },
       {
         "pkg": "web",
-        "srcFiles": 372,
-        "testFiles": 155,
-        "srcLines": 42878,
-        "testLines": 19605
+        "srcFiles": 376,
+        "testFiles": 157,
+        "srcLines": 43125,
+        "testLines": 19724
       }
     ],
-    "srcFiles": 733,
-    "testFiles": 402,
-    "srcLines": 93768,
-    "testLines": 63171,
-    "tsxTestFiles": 77
+    "srcFiles": 738,
+    "testFiles": 404,
+    "srcLines": 94032,
+    "testLines": 63292,
+    "tsxTestFiles": 79
   },
   "routes": {
     "total": 188,
@@ -66,7 +66,7 @@
         "dev": 2
       },
       "web": {
-        "runtime": 3,
+        "runtime": 5,
         "dev": 4
       }
     },
@@ -74,82 +74,51 @@
       "better-sqlite3",
       "cors",
       "express",
+      "katex",
+      "mermaid",
       "pino",
       "react",
       "react-dom"
     ]
   },
   "docs": {
-    "specs": 61,
-    "all": 79,
+    "specs": 62,
+    "all": 80,
     "probes": 15
   },
   "repo": {
-    "head": "ec5017c",
+    "head": "daf3966",
     "headDate": "2026-10-10",
     "commitsLast14d": 291,
-    "branch": "feat/web-rag-ladder",
-    "dirtyFiles": 11
+    "branch": "feat/reading-math179",
+    "dirtyFiles": 54
   },
   "tests": {
     "available": true,
-    "ranNow": true,
-    "wallSec": 65.3,
+    "ranNow": false,
+    "wallSec": 0,
     "staleDays": 0,
-    "files": 402,
-    "cases": 4566,
-    "passed": 4564,
+    "files": 404,
+    "cases": 4574,
+    "passed": 4572,
     "skipped": 2,
     "failed": 0,
     "success": true
   },
   "coverage": {
-    "available": true,
-    "staleDays": 19,
-    "perPkg": {
-      "shared": {
-        "lines": 99.3,
-        "branches": 91.2,
-        "stmts": 99.3,
-        "funcs": 100
-      },
-      "server": {
-        "lines": 88.9,
-        "branches": 83,
-        "stmts": 88.9,
-        "funcs": 93.1
-      },
-      "web": {
-        "lines": 43.9,
-        "branches": 83.7,
-        "stmts": 43.9,
-        "funcs": 60.2
-      }
-    },
-    "allPackages": {
-      "lines": 67.7,
-      "branches": 83.8,
-      "stmts": 67.7,
-      "funcs": 78.7
-    },
-    "repoTotal": {
-      "lines": 53.9,
-      "branches": 83.4,
-      "stmts": 53.9,
-      "funcs": 76.7
-    }
+    "available": false
   },
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "402",
-      "measured": "402",
+      "claimed": "404",
+      "measured": "404",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4566",
-      "measured": "4566",
+      "claimed": "4574",
+      "measured": "4574",
       "ok": true
     },
     {
@@ -166,8 +135,8 @@
     },
     {
       "label": "badge 外部运行时依赖",
-      "claimed": "6",
-      "measured": "6",
+      "claimed": "8",
+      "measured": "8",
       "ok": true
     },
     {
@@ -178,20 +147,20 @@
     },
     {
       "label": "badge 版本",
-      "claimed": "0.2.178",
-      "measured": "0.2.178",
+      "claimed": "0.2.179",
+      "measured": "0.2.179",
       "ok": true
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.178",
-      "measured": "v0.2.178",
+      "claimed": "v0.2.179",
+      "measured": "v0.2.179",
       "ok": true
     },
     {
       "label": "正文基线句",
-      "claimed": "402 文件 / 4566 例",
-      "measured": "402 文件 / 4566 例",
+      "claimed": "404 文件 / 4574 例",
+      "measured": "404 文件 / 4574 例",
       "ok": true
     }
   ],

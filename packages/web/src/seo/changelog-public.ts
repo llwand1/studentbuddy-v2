@@ -32,6 +32,9 @@ export const RELEASE_SCOPE = {
 
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
+  { version: 'v0.2.179', date: '2026-10-10', headline: '参考答案式数学阅读与自动排版图解',
+    items: ['公式呈现分数与根号，逐行推导对齐等号；浅色纸面支持复制、放大和局部滚动。', '流程与思维图自动排版，保留源码、白底图面和外部资料阅读。'],
+  },
   { version: 'v0.2.178', date: '2026-10-10', headline: '刷词收录与斩词反馈、外部资源阅读模式',
     items: ['收录成功后书页归档，斩词单刃切开；保存等待与失败可重试，重复动作不重复记账。', 'README 展示资料阅读、选段学习与多平台外部资源入口。'],
   },

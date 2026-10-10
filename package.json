@@ -1,6 +1,6 @@
 {
   "name": "studentbuddy",
-  "version": "0.2.178",
+  "version": "0.2.179",
   "private": true,
   "description": "studentbuddy v2 - 本地优先的 AI 学习助手（学→练→析→忆→反馈闭环，学习版豆包）",
   "license": "MIT",
@@ -10,6 +10,7 @@
   "workspaces": [
     "packages/*"
   ],
+  "overrides": { "mermaid": { "katex": "0.19.0" } },
   "scripts": {
     "desktop:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/desktop/build.ps1",
     "desktop:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/desktop/smoke.ps1",

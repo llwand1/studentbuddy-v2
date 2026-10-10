@@ -1,4 +1,4 @@
-# UNTRUSTED-RENDER-SPEC — 模型产出渲染契约（前端零依赖的安全代价怎么付）
+# UNTRUSTED-RENDER-SPEC — 模型产出渲染契约（模型内容的渲染边界）
 
 > 版本：v1.0 | 状态：[已落地] | 日期：2026-09-30
 > 关联：`packages/web/src/lib/svg-sanitize.ts`（净化器）｜`svg-allowlist.ts`（白名单数据）｜`markdown-inline.ts`（链接 / 图片白名单）｜`docs/TEST-PLAN.md` §3（攻击语料 + 模糊测试登记）
@@ -7,7 +7,7 @@
 
 ## 0. 立场
 
-`@sb/web` 不引 Markdown / 图表 / 净化库是一个刻意选择（README「前端零依赖是选择，不是省事」）。
+正文采用本地 Markdown AST，公式与图解引入受限 KaTeX / Mermaid，具体约束见 [MATH-READING-SPEC.md](MATH-READING-SPEC.md)。
 这个选择的代价必须**明码标价**：自绘渲染器渲染的是**模型产出的不可信内容**，安全责任不能靠"我们剥了 script"
 这一句话背书。本契约把攻击面、防线与证明方式写死，任何改动渲染层的人先读这一页。
 
@@ -19,6 +19,8 @@
 
 | sink | 内容来源 | 落点 | 防线 |
 |---|---|---|---|
+| 公式 | 模型 TeX | 受限 KaTeX 生成 HTML/MathML | trust=false，拒绝外链/HTML，长度/展开/尺寸上限、每式独立宏；原始 HTML 不注入 |
+| Mermaid | 模型 DSL | 净化 SVG | 完整围栏后按需渲染，strict，禁配置/资源/点击，唯一 ID、陈旧结果隔离；共用 prepareSvg |
 | Markdown 正文 | 模型 token 流 | React 元素树（**不走 innerHTML**） | AST → React；唯一两个「属性直出」点：`<a href>`（`safeHref`）与 `<img src>`（`safeImgSrc`） |
 | ```svg 围栏 / 题图 / 图表 | 模型输出 → `fixSvg` 自愈 | `dangerouslySetInnerHTML`（`SvgPreviewCard` / `ChartCard` / `CoachCardViews`）+ blob: 独立文档（下载 / 新窗口） | **白名单净化器**（§2） |
 | ```html 围栏 | 模型输出 | `<iframe sandbox>` + `CSP: sandbox`，源为 `null` | 隔离而非净化（沙箱页不能调写接口：`originCheck` 不放行 `'null'`） |

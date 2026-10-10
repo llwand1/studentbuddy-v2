@@ -1,7 +1,7 @@
 /**
  * ReaderBlocks —— 把块模型渲染成 React 元素（契约 `docs/SOURCE-TRACE-SPEC.md` §14.1）。
  *
- * ★ **全程不用 `dangerouslySetInnerHTML`**。这是把阅读页搬进主文档的前提：
+ * ★ 第三方 HTML 不注入主文档；文本中的公式仅经受限 KaTeX 生成标记。
  *   第三方内容只以 `ReaderBlock` 上那几个受控字段的形态存在，标签名全由本文件写死，
  *   于是「清洗器漏了什么」不再等价于「主文档被注入什么」。服务端白名单清洗仍在，这是第二道。
  *
@@ -12,6 +12,7 @@
  *   那条路绕过了确认，等于留了个后门。
  */
 import type { ReaderBlock, ReaderInline } from '@sb/shared';
+import { MathText } from '../chat/MathText';
 
 function Spans({ spans, onFollow }: { spans: ReaderInline[]; onFollow: (href: string, label: string) => void }) {
   return (
@@ -20,14 +21,14 @@ function Spans({ spans, onFollow }: { spans: ReaderInline[]; onFollow: (href: st
         if (s.t === 'link') {
           return (
             <button key={i} type="button" className="rd-link" title={s.href} onClick={() => onFollow(s.href, s.v)}>
-              {s.v}
+              <MathText text={s.v}/>
             </button>
           );
         }
-        if (s.t === 'strong') return <strong key={i}>{s.v}</strong>;
-        if (s.t === 'em') return <em key={i}>{s.v}</em>;
+        if (s.t === 'strong') return <strong key={i}><MathText text={s.v}/></strong>;
+        if (s.t === 'em') return <em key={i}><MathText text={s.v}/></em>;
         if (s.t === 'code') return <code key={i}>{s.v}</code>;
-        return <span key={i}>{s.v}</span>;
+        return <span key={i}><MathText text={s.v}/></span>;
       })}
     </>
   );

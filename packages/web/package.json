@@ -1,6 +1,6 @@
 {
   "name": "@sb/web",
-  "version": "0.2.178",
+  "version": "0.2.179",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@sb/shared": "*",
+    "katex": "0.19.0",
+    "mermaid": "12.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

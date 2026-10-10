@@ -75,7 +75,7 @@
 |---|---|
 | `packages/shared/src/` | 契约与纯函数，前后端共用一份。约 50 个源文件，扁平结构 |
 | `packages/server/src/` | 全部业务域，按域分目录：`chat/`（对话编排与工具，最重的一块）· `learning/`（出题、词条、复习、文档检索）· `llm/`（供应商抽象与闸门）· `routes/`（HTTP 入口）· `storage/`（迁移与仓储）· `auth/` · `pk/` · `search/` · `growth/` · `events/` · `mail/` |
-| `packages/web/src/` | React 18 前端，**零第三方运行时依赖**。`features/`（按功能分目录）· `app/`（应用壳与一级视图）· `seo/`（静态页与词条页生成）· `lib/` · `components/` · `styles/` |
+| `packages/web/src/` | React 18 前端，公式使用 KaTeX、自动布局图解使用 Mermaid（按需加载）。`features/`（按功能分目录）· `app/`（应用壳与一级视图）· `seo/`（静态页与词条页生成）· `lib/` · `components/` · `styles/` |
 | `tools/` | `gates/` 门禁 · `e2e/` 全栈演示 · `probes/` 真机 CDP 探针 · `metrics.mjs` 量化产出 · `guard-audit.mjs` 守门自检 · `deploy.sh`、`docker/` 部署 |
 | `docs/` | 行为契约（`*SPEC*.md`）与工程文档 |
 

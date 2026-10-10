@@ -7,6 +7,7 @@
  * ★ 来源链接一律 `rel="noreferrer noopener"` + `target="_blank"`（与题卡来源标注 `quiz/QuizCard` 同口径）。
  */
 import type { PkJudgeAdvice } from '@sb/shared';
+import { Markdown } from '../chat/Markdown';
 
 interface Props {
   title: string;
@@ -26,15 +27,15 @@ export function PkJudgePanel({ title, advice, explanation, onClose }: Props) {
           收起
         </button>
       </div>
-      {explanation && <p className="sb-pk-stem">{explanation}</p>}
+      {explanation && <div className="sb-pk-stem"><Markdown text={explanation}/></div>}
       {advice && advice.advice.length > 0 && (
         <ul className="sb-pk-advice">
           {advice.advice.map((a, i) => (
-            <li key={i}>{a}</li>
+            <li key={i}><Markdown text={a}/></li>
           ))}
         </ul>
       )}
-      {advice?.knowledge && <p className="sb-pk-hint">{advice.knowledge}</p>}
+      {advice?.knowledge && <div className="sb-pk-hint"><Markdown text={advice.knowledge}/></div>}
       {advice && advice.refs.length > 0 && (
         <div className="sb-pk-refs">
           {advice.refs.map((r) => (

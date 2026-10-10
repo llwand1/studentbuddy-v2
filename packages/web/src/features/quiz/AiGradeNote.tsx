@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import type { GradeResult, QuizQuestion, QuizReviewItem } from '@sb/shared';
 import { stemOf } from '@sb/shared';
+import { Markdown } from '../chat/Markdown';
 import { aiOpsApi } from '../../lib/api-ai-ops';
 import { ApiError } from '../../lib/api-request';
 import { AnswerImpact } from '../feedback/AnswerImpact';
@@ -51,7 +52,7 @@ export function AiGradeNote({ q, result, topic }: { q: QuizQuestion; result: Qui
     <div className={`quiz-ai-grade answer-surface is-${grade.verdict}`} role="status">
       <AnswerImpact verdict={grade.verdict} audible />
       <strong>{VERDICT[grade.verdict]}（{Math.round(grade.score * 100)} 分）</strong>
-      <p>{grade.feedback}</p>
+      <Markdown text={grade.feedback}/>
       {grade.misconception && <p className="quiz-ai-mis"><b>可能的误区：</b>{grade.misconception}（已记入学习画像）</p>}
     </div>
   );

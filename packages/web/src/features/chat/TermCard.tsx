@@ -1,3 +1,4 @@
+import { MathText } from './MathText';
 /**
  * TermCard — 词条卡（契约 `docs/TERM-HIGHLIGHT-SPEC.md` §3 / §6）。
  *
@@ -159,7 +160,7 @@ export function TermCard({
         )}
       </div>
 
-      <div className="term-card-def">{item.definition}</div>
+      <div className="term-card-def"><MathText text={item.definition}/></div>
 
       {variant === 'full' && (
         <>

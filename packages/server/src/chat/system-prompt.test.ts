@@ -27,10 +27,10 @@ describe('SYSTEM_PROMPT 图解引导（```svg 围栏）', () => {
     expect(SYSTEM_PROMPT).toContain('如图');
   });
 
-  it('反向锁：提示词绝不含 mermaid——渲染器没有该通道（markdown.test.ts 把它锁成代码块）', () => {
-    // 若有人只改提示词不加渲染器，模型会输出 mermaid 源码文本给学生看。
-    // 真要支持 mermaid 是「渲染器 + 该锁 + markdown.test.ts L57」一并改的独立工程。
-    expect(SYSTEM_PROMPT).not.toContain('mermaid');
+  it('自动布局图解与手绘 SVG 分工明确，约束配置与外部资源', () => {
+    expect(SYSTEM_PROMPT).toContain('```mermaid');
+    expect(SYSTEM_PROMPT).toContain('不用配置指令、HTML、外链或点击');
+    expect(SYSTEM_PROMPT).toContain('几何、受力、电路等用 ```svg');
   });
 });
 
@@ -58,8 +58,10 @@ describe('普通对话学习结构', () => {
     for (const line of ['一句话给核心结论', '关键词：', '为什么这样做', '如何接下一步', '图配在对应解释旁']) expect(block).toContain(line);
     expect(block).toContain('计算题开篇先给求解路线，不先报最终数值');
     expect(block).toContain('把结果与代入验算放在一起');
-    expect(block).toContain('公式用直接可读符号或行内代码');
-    expect(block).toContain('用户明确要 LaTeX 源码时才用代码围栏');
+    expect(block).toContain('界面支持 KaTeX');
+    expect(block).toContain('相邻等价变形用一个 aligned 环境');
+    expect(block).toContain('结果与验算写在 CHECK 卡');
+    expect(block).toContain('用户明确要 LaTeX 源码时用普通代码围栏');
     const calculation = buildChatStyleBlock(DEFAULT_ANSWER_STYLE, '解方程 2(x-3)+4=14。');
     expect(calculation).toContain('开篇只给求解路线');
     expect(calculation).not.toContain('先用一句话给核心结论');

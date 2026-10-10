@@ -309,7 +309,7 @@
 
 | 本次测试文件 | 用例 | 不变量 |
 |---|---:|---|
-| `src/components/PixelSidebar.test.tsx` | 4 | 手机导航打开/关闭；Escape 与遮罩关闭后归还焦点；导航点击仍执行；账号与历史输入交互不误关 |
+| `src/components/PixelSidebar.test.tsx` | 9 | 手机导航打开/关闭；Escape 与遮罩关闭后归还焦点；导航点击仍执行；账号与历史输入交互不误关；可见视口高度与键盘平移底边分别跟踪，缩放和卸载清理 |
 | `src/features/chat/useCampfireHandoff.test.tsx` | 4 | 首问保留当前题并衔接流式回复、忙碌改变不延长退场；历史/后续不播放与切会话清理；失败取消与重试；减少动态效果中途清理及卸载 | [DONE] 4 passed（实测） |
 | `src/features/chat/Welcome.test.tsx` | 8 | 现场新题完整返回才入场，换题撤旧、失败不回显；范围读取结束才召题，失败也继续；切范围与卸载取消，迟到结果隔离，初始范围慢加载不重复发起、读取失败也能召题；减少动态、直接提问与学习入口导航 |
 | `src/features/chat/useScrollAnchor.test.tsx` | 3 | 欢迎空态从顶部开始；首条消息贴底；阅读历史不强拉；返回空态复位；减少动态效果时即时跳转 |
@@ -455,7 +455,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 - **★ PowerShell 中文编码坑（2026-09-04 实测）**：`curl.exe` 里内联中文 JSON、以及 `>` 重定向都会经 GBK 重编码，打本地接口时得到乱码或 `SyntaxError: Unexpected token`。绕法=写 node 脚本自己 `fetch`（本仓复验脚本全走这条），或落盘用 `Out-File -Encoding utf8` 再读。另：`[System.IO.File]::ReadAllLines` 一类 .NET API **不认 `cd`**，必须传绝对路径。
 - **退出挂住（沙箱实测，非功能缺陷，如实记录）**：本次在沙箱内直接 `node node_modules/vitest/vitest.mjs run` 调全量 **208 例全部通过**，但进程跑完不退出（挂住）；经 `npm` 脚本包裹的 `npm run test`（= `vitest run`）**正常 EXIT=0**。该挂住疑属沙箱直调 Node 路径的信号回收问题，与功能无关——**判定一律以汇总行 `Tests  N passed`（N=208）为准**，不以退出码/退出挂住判失败。本机（`llwan` 真实终端）按 §2 版本坑用**与装依赖一致的 Node 版本**（现役 Node 22）跑 `npm run test` 即可干净退出。
 
-## 3. 用例清单（现基线：404 文件 / 4574 例，4572 passed + 2 skipped，2026-10-10 数学阅读全量实跑）
+## 3. 用例清单（现基线：404 文件 / 4576 例，4574 passed + 2 skipped，2026-10-10 手机刷词全量实跑）
 
 | 新增测试 | 用例 | 不变量 |
 |---|---:|---|
@@ -843,7 +843,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `src/features/drill/WaitDrill.test.tsx` | 7 | **弹与回全链（issue #120，契约 §2/§3.3，桩三条接口，假定时器＋手动冲微任务）**：① ★ 2 秒才弹、第一张是到期词条、答对 ⇒ `mark('d1',true)` + 「怪消失了」+ 斩击特效、自动翻页；回复到了 ⇒ 横幅带倒计时、**答完这张自动切回**、普通词条不打卡；② 不答 8 秒也切、「现在回去」立刻切；③ 「继续刷」后横幅收起、答完也不切、8 秒也不切；④ 秒回不弹（连词库都不取）、Esc 关掉后本轮 30 秒内不再弹；⑤ 设置关掉自动弹 ⇒ 不弹，`requestDrillOpen` 仍能开练习局且不自动关；⑥ 焦点留在聊天输入框也能按数字作答（事件被 `preventDefault`）、打开时焦点进 `.drill-stage`、关掉还回输入框；⑦ 不在对话页不弹、音效钮切换写回本机偏好 |
 | `src/features/drill/WaitDrill.recall.test.tsx` | 3 | **收起 ≠ 结束，能唤回（契约 §2.1，2026-09-30）**：Esc 收起 ⇒ dock parked、唤回同一张卡 / 战绩在 / 词库不重取；自动切回也是收起、下一轮同一局 + 换会话只补新词；小签 ✕ 才结束再开新局；`DrillParkedPill` 渲染与两枚事件 |
 | `src/features/drill/WaitDrill.actions.test.tsx` | 3 | 收录请求与成功停留防重复/驳回，失败留卡重试、成功才归档；结束本局后迟到结果不跳新卡；斩只排除一次、不记正确或复习 | [DONE] 3 passed（实测） |
-| `src/features/drill/WaitDrill.cards.test.tsx` | 6 | **卡怎么答（issue #120，契约 §3/§5，与上一行共用 `WaitDrill.testkit.tsx`）**：① 键盘 1–4 作答，答错 ⇒ 选错红亮 / 正确绿亮 / 碎裂特效 / 「还有 N 张」+1（插回）/ 不打卡；Enter 下一张；Z 斩 ⇒ 斩击 + 本机记 id + 不打卡；② 答对特效按次轮换斩击→爆裂→星芒→电光→血墨，5 连击叠「COMBO ×5」（第 4 张拼写卡用斩跳过，斩不清连击）；③ 拼写卡回车提交、大小写空白归一；④ ★ AI 新词先学（「新词 · AI 现出」）再答，答完**不自动翻页**，Enter「收入词库」⇒ `keep(item)` + 通知；⑤ 没绑模型 ⇒ 「内置词池」+ 原因句，**答错也问要不要**，「不要」对词池条目不发请求；⑥ 候选「不要」⇒ `dismiss('c1')`；词库取不到 ⇒ 卡面 + 状态行如实报、弹窗仍在 |
+| `src/features/drill/WaitDrill.cards.test.tsx` | 7 | **卡怎么答（issue #120，契约 §3/§5，与上一行共用 `WaitDrill.testkit.tsx`）**：① 键盘 1–4 作答，答错 ⇒ 选错红亮 / 正确绿亮 / 碎裂特效 / 「还有 N 张」+1（插回）/ 不打卡；Enter 下一张；Z 斩 ⇒ 斩击 + 本机记 id + 不打卡；② 答对特效按次轮换斩击→爆裂→星芒→电光→血墨，5 连击叠「COMBO ×5」（第 4 张拼写卡用斩跳过，斩不清连击）；③ 拼写卡回车提交、大小写空白归一；④ ★ AI 新词先学（「新词 · AI 现出」）再答，答完**不自动翻页**，Enter「收入词库」⇒ `keep(item)` + 通知；⑤ 没绑模型 ⇒ 「内置词池」+ 原因句，**答错也问要不要**，「不要」对词池条目不发请求；⑥ 候选「不要」⇒ `dismiss('c1')`；词库取不到 ⇒ 卡面 + 状态行如实报、弹窗仍在；手机拼写不自动开键盘、点击后输入作答 |
 | `src/lib/image-intake.test.ts` | 11 | **贴图入队判定（2026-09-20 看图链路收口改动新建，纯函数零 DOM 零网络；与 `ChatComposer.tsx` 共用同一份判断标准）**：本文件把「用户选了一张图之后到底收不收」从组件里**抽成可测的纯函数**——它治的是同一类静默症状：上限拦不住时用户**点发送没反应**（express 413 在路由之前就把请求拒掉，前端一无所知）。① **三档判定**：`accept`（在限内且有名额）／`too-large`（单图字符数超 `MAX_IMAGE_DATAURL_CHARS`）／`full`（名额已满，`currentCount >= MAX_CHAT_IMAGES`）；★ **判定顺序是「先尺寸后名额」**——反过来的话一张超大图会被告知「已满」，用户去删图仍然传不上，**指错方向比不指更糟**；② **边界**：恰好等于上限 → `accept`（用 `>` 而不是 `>=`——差一个字符就拒会让「提示说约 3.8MB、实际 3.79MB 也被拒」）；上限 +1 → `too-large`；③ ★ **`remainingSlots` 把「在途」一并扣掉**（`currentCount + inflight`）——这是**同一 tick 连贴两次不会双双放行**的前提：读渲染快照的实现（本仓 v0.2.69 实测踩过，当时贴进去 6 张）在这里必红；④ 名额用完返回 **0 而不是负数**（调用方拿它当索引或循环上界时不炸）；⑤ ★ **拒因文案非静默**：`too-large` 与 `full` **两句话不同**且都非空——同一个上限的两种失败原因混成一句，用户就不知道该去删图还是该去压缩；`full` 文案带**真实张数**（由 `MAX_CHAT_IMAGES` 派生，不写死 4） | [DONE] 11 passed |
 | `src/features/chat/MermaidDiagram.test.tsx` | 4 | 完整块才布局、重复图缓存与独立 ID、配置及外部资源拒绝、陈旧异步结果隔离与失败重试、箭头/CSS 片段引用 | [DONE] |
 | `src/features/chat/MathText.test.tsx` | 2 | 题目选项内非交互数学排版，长推导与普通代码/价格保持原意 | [DONE] |

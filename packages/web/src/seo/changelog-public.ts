@@ -32,6 +32,9 @@ export const RELEASE_SCOPE = {
 
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
+  { version: 'v0.2.180', date: '2026-10-10', headline: '手机等待刷词紧凑布局与键盘适配',
+    items: ['手机刷词固定收起按钮与进度，长内容独立滚动，操作保留足够触摸面积。', '拼写点击后打开键盘，长单词换行，键盘缩小后当前输入仍可见。'],
+  },
   { version: 'v0.2.179', date: '2026-10-10', headline: '参考答案式数学阅读与自动排版图解',
     items: ['公式呈现分数与根号，逐行推导对齐等号；浅色纸面支持复制、放大和局部滚动。', '流程与思维图自动排版，保留源码、白底图面和外部资料阅读。'],
   },

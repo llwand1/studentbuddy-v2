@@ -10,6 +10,7 @@
  */
 import { DRILL_KIND_LABEL, type DrillCard } from '@sb/shared';
 import { TypingInput } from '../../components/TypingInput';
+import { useNarrow } from '../../lib/use-narrow';
 import { MathText } from '../chat/MathText';
 import type { DrillEntry, DrillPhase, DrillResult } from './useDrillSession';
 
@@ -40,7 +41,7 @@ function optionClass(i: number, card: DrillCard, result: DrillResult | null): st
 }
 
 export function DrillQuestion({ phase, card, entry, result, notice, keepState, draft, onDraft, onAnswer, onDontKnow, onNext, onLearned, onSlay, onKeep, onDismiss }: Props) {
-
+  const narrow = useNarrow();
   if (phase === 'loading') return <div className="drill-card drill-wait">正在翻词库…</div>;
   if (phase === 'empty' || !card || !entry) {
     return (
@@ -116,7 +117,7 @@ export function DrillQuestion({ phase, card, entry, result, notice, keepState, d
             }}
             disabled={phase !== 'question'}
             liveCheck
-            autoFocus={phase === 'question'}
+            autoFocus={phase === 'question' && !narrow}
             ariaLabel="拼写作答"
           />
           {phase === 'question' && (

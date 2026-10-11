@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity type="win32" name="StudentBuddy.Launcher" version="1.0.0.0" />
+
+  <!-- 以当前用户权限运行（安装器同为 lowest，不触发 UAC 与文件/注册表虚拟化） -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <!-- ★ 2026-10-10 高 DPI 修复：此前用 csc 默认清单（无任何 dpiAware），
+       进程是「DPI 不感知」的 ⇒ 在 200% 缩放的屏幕上 Windows 把整个窗口**位图拉伸 2 倍**，
+       窗口内所有文字与图形发虚（真机实测：2880×1800 物理屏 / 200% 缩放）。
+       声明 PerMonitorV2 后由应用自己按物理像素渲染 ⇒ 清晰。
+       supportedOS 段必须存在，PerMonitorV2 在 Win10 1809+ 才会被识别。 -->
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+    </windowsSettings>
+  </application>
+</assembly>

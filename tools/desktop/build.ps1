@@ -47,6 +47,11 @@ if (Test-Path -LiteralPath $nodeLicense) {
     Invoke-WebRequest "https://nodejs.org/dist/$nodeVersion/LICENSE" -OutFile (Join-Path $stage 'runtime\LICENSE')
 }
 Copy-Item -LiteralPath tools\desktop\README.txt -Destination $stage
+# 应用图标：每次构建由吉祥物点阵现生成（换装 / 改品牌色后图标自动跟上，不需要手改位图）
+node tools\desktop\make-icon.mjs
+if ($LASTEXITCODE -ne 0) { throw 'Icon generation failed.' }
+Copy-Item -LiteralPath tools\desktop\app.ico -Destination $stage
+Copy-Item -LiteralPath tools\desktop\mascot-region.txt -Destination $stage
 $sourceCommit = git rev-parse HEAD
 @{ version = $Version; sourceCommit = $sourceCommit; node = (node -p 'process.version'); architecture = 'windows-x64' } |
     ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $stage 'desktop-build.json')
@@ -75,8 +80,13 @@ Copy-Item -LiteralPath $webView2Core -Destination $stage
 Copy-Item -LiteralPath $webView2WinForms -Destination $stage
 Copy-Item -LiteralPath $webView2Native -Destination $stage
 
+# ★ /win32manifest 必须给：csc 默认清单**不含 dpiAware** ⇒ 进程 DPI 不感知 ⇒
+# 在 200% 缩放的屏幕上窗口被系统位图拉伸、文字发虚（2026-10-10 真机实测修复）。
+$launcherManifest = Join-Path $repoRoot 'tools\desktop\launcher.manifest'
+# ★ /win32icon 必须给：exe 自身带吉祥物图标，任务栏、快捷方式、卸载项才有品牌形象
+$appIcon = Join-Path $repoRoot 'tools\desktop\app.ico'
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-& $compiler /nologo /target:winexe /platform:x64 /optimize+ /codepage:65001 /r:"`"$webView2Core`"" /r:"`"$webView2WinForms`"" "/out:$stage\StudentBuddy.exe" tools\desktop\Launcher.cs
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ /codepage:65001 "/win32manifest:`"$launcherManifest`"" "/win32icon:`"$appIcon`"" /r:"`"$webView2Core`"" /r:"`"$webView2WinForms`"" "/out:$stage\StudentBuddy.exe" tools\desktop\Launcher.cs
 if ($LASTEXITCODE -ne 0) { throw 'Launcher compilation failed.' }
 
 $innoDir = Join-Path $repoRoot '.runtime\inno-7.1.0'

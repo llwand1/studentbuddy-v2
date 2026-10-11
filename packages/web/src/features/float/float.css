@@ -1,0 +1,96 @@
+/**
+ * 桌面悬浮球（`#/float`）样式 —— 由 tools/desktop/Launcher.cs 的无边框 WebView2 承载。
+ *
+ * ★ 全部选择器都收在 `.sb-ball` / `.sb-float-screen` 之下，**不碰 html/body 的常态规则**：
+ *   这份 CSS 随主包一起加载，任何全局规则都会污染主应用。唯一的例外是 `html[data-float]`
+ *   那三条 —— 它们是**按当前形态**开关的（球态要整页透明、展开态要整页不透明），
+ *   由 FloatApp 挂 `data-float` 属性驱动，离开页面即摘掉。
+ * ★ 几何是**跨语言契约**：吉祥物画在 96 逻辑 px 窗口里、整块 80px 居中（每格 5px、起点 8px）——
+ *   宿主 `ApplyBallRegion` 就是按这组数把球窗裁成吉祥物轮廓的（`BallCellLogical` / `BallOriginLogical`）。
+ *   改这里的尺寸必须同步改那边，否则轮廓与画面错位。
+ * ★ 球态**关掉跳动动画**（只留眨眼）：跳动会让吉祥物移出裁剪轮廓而被切掉。
+ */
+html[data-float='ball'],
+html[data-float='ball'] body,
+html[data-float='ball'] #root {
+  background: transparent;
+  overflow: hidden;
+}
+
+/* ===== 球态：只有吉祥物本体 ===== */
+.sb-ball {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+/* 覆盖 chat.css 的入场位移与下外边距（球要自己居中、不要额外占位） */
+.sb-ball .welcome-mascot {
+  margin: 0;
+  animation: none;
+}
+
+/* 80px = 16 格 × 5px，正好落在点阵的整数倍上（非整数倍会糊）；跳动关掉、眨眼保留 */
+.sb-ball .welcome-mascot svg {
+  width: 80px;
+  height: 80px;
+  animation: none;
+}
+
+/* ===== 展开态：手机小屏 = 薄条 + 现有 App ===== */
+.sb-float-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--sb-bg);
+}
+
+.sb-float-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sb-sp-2);
+  height: 26px;
+  padding: 0 var(--sb-sp-2);
+  background: var(--sb-surface);
+  border-bottom: 2px solid var(--sb-pixel-edge);
+  cursor: move;
+  user-select: none;
+}
+
+.sb-float-bar-name {
+  flex: 1;
+  font-family: var(--sb-font-display);
+  font-size: var(--sb-fs-xs);
+  letter-spacing: 0.08em;
+  color: var(--sb-ink-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sb-float-collapse {
+  width: 18px;
+  height: 18px;
+  line-height: 1;
+  font-size: var(--sb-fs-md);
+  color: var(--sb-ink-tertiary);
+}
+
+.sb-float-collapse:hover {
+  color: var(--sb-primary);
+}
+
+/* App 本体占满剩余空间（它自己按 700px 断点走移动端布局） */
+.sb-float-app {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}

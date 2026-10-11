@@ -36,6 +36,7 @@ internal static class Launcher
     private static ToolStripMenuItem UpdateItem;
     private static NotifyIcon UpdateTray;
     private static Dictionary<string, object> ReadyUpdate;
+    private static Dictionary<string, string> ReadyUpdateNetwork;
     private static bool UpdateChecking;
     private static DateTime NextUpdateCheck = DateTime.UtcNow.AddSeconds(15);
     /** 悬浮球（桌面版 0.2.0 起）：无边框置顶的吉祥物小窗，独立于主窗口的第二个 WebView2。--no-browser 时为 null。 */
@@ -76,6 +77,7 @@ internal static class Launcher
     [STAThread]
     private static int Main(string[] args)
     {
+        RestoreUpdateNetwork();
         // --no-browser 语义＝不打开窗口（自动化与冒烟使用），服务照常启动并驻留托盘。
         bool noWindow = Array.IndexOf(args, "--no-browser") >= 0;
         Quiet = noWindow;
@@ -250,6 +252,49 @@ internal static class Launcher
         return false;
     }
 
+    private static string UpdateVariable(ProcessStartInfo info, string name)
+    {
+        return info.EnvironmentVariables.ContainsKey(name) ? info.EnvironmentVariables[name] : null;
+    }
+
+    private static Dictionary<string, string> ConfigureUpdateNetwork(ProcessStartInfo info)
+    {
+        // Resolve PAC/system settings on the background checking thread. Explicit proxy settings win.
+        Dictionary<string, string> network = new Dictionary<string, string>();
+        if (String.IsNullOrEmpty(UpdateVariable(info, "HTTPS_PROXY")) && String.IsNullOrEmpty(UpdateVariable(info, "HTTP_PROXY")))
+        {
+            try
+            {
+                Uri feed = new Uri("https://github.com/llwand1/studentbuddy-v2/releases/download/desktop-stable/update.json");
+                Uri proxy = WebRequest.GetSystemWebProxy().GetProxy(feed);
+                if (proxy != null && proxy != feed && (proxy.Scheme == "http" || proxy.Scheme == "https"))
+                {
+                    network["HTTPS_PROXY"] = proxy.AbsoluteUri;
+                    network["SB_DESKTOP_UPDATE_SYSTEM_PROXY"] = "1";
+                }
+            }
+            catch (Exception) { Log("读取系统代理失败，更新将使用现有网络配置。"); }
+        }
+        string bypass = UpdateVariable(info, "NO_PROXY");
+        network["SB_DESKTOP_UPDATE_ORIGINAL_NO_PROXY"] = bypass == null ? "0" : "1" + bypass;
+        network["NO_PROXY"] = (String.IsNullOrEmpty(bypass) ? "" : bypass + ",") + "localhost,127.0.0.1,::1";
+        foreach (KeyValuePair<string, string> setting in network) info.EnvironmentVariables[setting.Key] = setting.Value;
+        return network;
+    }
+
+    private static void RestoreUpdateNetwork()
+    {
+        // Helper-only settings must not leak into the restarted application/server.
+        if (Environment.GetEnvironmentVariable("SB_DESKTOP_UPDATE_SYSTEM_PROXY") == "1")
+            Environment.SetEnvironmentVariable("HTTPS_PROXY", null);
+        string bypass = Environment.GetEnvironmentVariable("SB_DESKTOP_UPDATE_ORIGINAL_NO_PROXY");
+        if (bypass == "0") Environment.SetEnvironmentVariable("NO_PROXY", null);
+        else if (bypass != null && bypass.StartsWith("1", StringComparison.Ordinal))
+            Environment.SetEnvironmentVariable("NO_PROXY", bypass.Length == 1 ? null : bypass.Substring(1));
+        Environment.SetEnvironmentVariable("SB_DESKTOP_UPDATE_SYSTEM_PROXY", null);
+        Environment.SetEnvironmentVariable("SB_DESKTOP_UPDATE_ORIGINAL_NO_PROXY", null);
+    }
+
     /** 后台检测并下载签名通过的更新；用户选择重启时才停止当前学习会话。 */
     private static void CheckUpdate(bool manual)
     {
@@ -262,13 +307,15 @@ internal static class Launcher
         Task.Run(delegate
         {
             Dictionary<string, object> result;
+            Dictionary<string, string> network = null;
             try
             {
                 ProcessStartInfo info = new ProcessStartInfo(Path.Combine(root, "runtime", "node.exe"),
-                    "\"" + Path.Combine(root, "update-client.cjs") + "\" --prepare \"" + root + "\"");
+                    "--use-env-proxy \"" + Path.Combine(root, "update-client.cjs") + "\" --prepare \"" + root + "\"");
                 info.UseShellExecute = false; info.CreateNoWindow = true;
                 info.WorkingDirectory = root;
                 info.RedirectStandardOutput = true; info.RedirectStandardError = true;
+                network = ConfigureUpdateNetwork(info);
                 using (Process helper = Process.Start(info))
                 {
                     Task<string> output = helper.StandardOutput.ReadToEndAsync();
@@ -291,6 +338,7 @@ internal static class Launcher
                 {
                     bool notify = ReadyUpdate == null || Convert.ToString(ReadyUpdate["version"]) != Convert.ToString(result["version"]);
                     ReadyUpdate = result;
+                    ReadyUpdateNetwork = network;
                     UpdateItem.Text = "重启更新至 " + Convert.ToString(result["version"]);
                     if (notify) UpdateTray.ShowBalloonTip(10000, "StudentBuddy 更新已就绪", "新版已下载并通过校验。点击此通知或托盘菜单重启更新。", ToolTipIcon.Info);
                 }
@@ -311,9 +359,11 @@ internal static class Launcher
         try
         {
             ProcessStartInfo info = new ProcessStartInfo(Convert.ToString(ReadyUpdate["node"]),
-                "\"" + Convert.ToString(ReadyUpdate["script"]) + "\" --apply \"" + Convert.ToString(ReadyUpdate["jobPath"]) + "\" " + Process.GetCurrentProcess().Id.ToString());
+                "--use-env-proxy \"" + Convert.ToString(ReadyUpdate["script"]) + "\" --apply \"" + Convert.ToString(ReadyUpdate["jobPath"]) + "\" " + Process.GetCurrentProcess().Id.ToString());
             info.UseShellExecute = false; info.CreateNoWindow = true;
             info.WorkingDirectory = Path.GetDirectoryName(Convert.ToString(ReadyUpdate["jobPath"]));
+            if (ReadyUpdateNetwork != null)
+                foreach (KeyValuePair<string, string> setting in ReadyUpdateNetwork) info.EnvironmentVariables[setting.Key] = setting.Value;
             Process.Start(info);
             ExitApp();
         }

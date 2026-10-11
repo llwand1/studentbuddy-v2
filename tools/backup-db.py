@@ -30,9 +30,16 @@ def backup(base):
     with closing(sqlite3.connect('file:' + str(base / 'data/studentbuddy.db') + '?mode=ro', uri=True)) as source:
         with closing(sqlite3.connect(temporary)) as dest:
             source.backup(dest)
+            # Published snapshots are single files; WAL must not survive atomic replacement.
+            dest.execute('PRAGMA journal_mode = DELETE')
             if dest.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
                 raise RuntimeError('Database backup integrity check failed')
     os.chmod(temporary, 0o600)
+    if target.exists():
+        # Let SQLite retire old WAL under its own locking. A busy reader fails this run.
+        with closing(sqlite3.connect(target)) as previous:
+            previous.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+            previous.execute('PRAGMA journal_mode = DELETE')
     temporary.replace(target)
     snapshots = []
     for item in directory.glob('sb-????-??-??.db'):

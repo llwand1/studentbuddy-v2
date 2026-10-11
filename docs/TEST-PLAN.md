@@ -1247,4 +1247,4 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 |---|---:|---|
 | `src/storage/migrations-v59.test.ts`（server） | 7 | v57 缺表、v58 缺字段、两者同时缺失、结构等价、数据保留与幂等、旧事件表结构不变、修复失败整体回滚 |
 | `tools/selftest-deploy-retention.sh` | 4 场景 | 保留数量可配置、最新回滚点保留、无关数据不删除、远程脚本载荷不触发本地命令替换；CI 必跑 |
-| `tools/selftest-backup.py` | 3 | 快照可恢复与远程一致、凭据与代码包不入库、同步失败仍保留新快照并按七份滚动；CI 必跑 |
+| `tools/selftest-backup.py` | 4 | 快照可恢复与远程一致、凭据与代码包不入库、同步失败仍保留新快照并按七份滚动、旧 WAL 不得覆盖新快照；CI 必跑 |

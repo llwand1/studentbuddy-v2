@@ -42,6 +42,9 @@ internal static class Launcher
     /** 悬浮球（桌面版 0.2.0 起）：无边框置顶的吉祥物小窗，独立于主窗口的第二个 WebView2。--no-browser 时为 null。 */
     private static Form BallWindow;
     private static bool BallStarted;
+    private static DateTime NextFloatTick = DateTime.MinValue;
+    private static bool OpenStudyRequested;
+    private static Point? BallRestPoint;
     /** 球态与展开态的逻辑尺寸（按当前 DPI 换算后才是物理像素） */
     private const int BallLogical = 96;
     private const int ScreenLogicalW = 420;
@@ -121,6 +124,7 @@ internal static class Launcher
                     info.EnvironmentVariables["SB_HOST"] = "127.0.0.1";
                     info.EnvironmentVariables["SB_PORT"] = Port.ToString();
                     info.EnvironmentVariables["SB_REQUIRE_AUTH"] = "0";
+                    info.EnvironmentVariables["SB_DESKTOP"] = "1";
                     info.EnvironmentVariables["SB_WEB_DIST"] = Path.Combine(root, "web");
                     info.EnvironmentVariables.Remove("SB_TRUST_PROXY");
                     server = new Process();
@@ -151,6 +155,13 @@ internal static class Launcher
                         ToolStripMenuItem homeItem = new ToolStripMenuItem("悬浮球回到吉祥物");
                         homeItem.Click += delegate { ResetBall(); };
                         menu.Items.Add(homeItem);
+                        menu.Items.Add("定时出题与网页共读", null, delegate {
+                            if (BallWindow == null) return;
+                            if (!BallWindow.Visible) BallWindow.Show();
+                            WebView2 ballView = BallWebView();
+                            if (ballView != null && ballView.CoreWebView2 != null && !ballView.CoreWebView2.Source.Contains("#/float")) ResetBall();
+                            OpenStudyRequested = true;
+                        });
                         UpdateItem = new ToolStripMenuItem("检查更新");
                         UpdateItem.Click += delegate { if (ReadyUpdate != null) ApplyUpdate(); else CheckUpdate(true); };
                         menu.Items.Add(UpdateItem);
@@ -180,6 +191,15 @@ internal static class Launcher
                             }
                             else if (show.WaitOne(0)) ShowWindow();
                             if (!Quiet && !Exiting && !UpdateChecking && DateTime.UtcNow >= NextUpdateCheck) CheckUpdate(false);
+                            if (BallWindow != null && BallWindow.Visible && DateTime.UtcNow >= NextFloatTick)
+                            {
+                                NextFloatTick = DateTime.UtcNow.AddSeconds(2);
+                                WebView2 ballView = BallWebView();
+                                if (ballView != null && ballView.CoreWebView2 != null)
+                                {
+                                    ballView.CoreWebView2.PostWebMessageAsString(OpenStudyRequested ? "sb-float:open-settings" : "sb-float:tick");
+                                }
+                            }
                         };
                         timer.Start();
                         if (!noWindow)
@@ -414,6 +434,9 @@ internal static class Launcher
             try
             {
                 await view.EnsureCoreWebView2Async(await WebviewEnvironment());
+                view.CoreWebView2.WebMessageReceived += delegate(object s, CoreWebView2WebMessageReceivedEventArgs ev) {
+                    if (IsLocalMessage(ev.Source) && ev.TryGetWebMessageAsString() == "sb-desktop:extension") OpenExtensionFolder();
+                };
                 view.Source = new Uri(Url);
             }
             catch (Exception error)
@@ -492,7 +515,7 @@ internal static class Launcher
                 await view.EnsureCoreWebView2Async(await WebviewEnvironment());
                 view.CoreWebView2.WebMessageReceived += delegate(object s, CoreWebView2WebMessageReceivedEventArgs ev)
                 {
-                    HandleBallMessage(ev.TryGetWebMessageAsString());
+                    if (IsLocalMessage(ev.Source)) HandleBallMessage(ev.TryGetWebMessageAsString());
                 };
                 view.Source = new Uri(Url + "/#/float");
             }
@@ -629,6 +652,32 @@ internal static class Launcher
         {
             SetBallExpanded(false);
         }
+        else if (message == "sb-float:quiz") SetStudySize(380, 530);
+        else if (message == "sb-float:settings") { OpenStudyRequested = false; SetStudySize(420, 680); }
+        else if (message == "sb-desktop:extension") OpenExtensionFolder();
+    }
+
+    private static bool IsLocalMessage(string source)
+    {
+        Uri uri;
+        return Uri.TryCreate(source, UriKind.Absolute, out uri) && uri.Scheme == "http" && uri.Host == "127.0.0.1" && uri.Port == Port;
+    }
+
+    private static void OpenExtensionFolder()
+    {
+        string folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "browser-extension");
+        if (Directory.Exists(folder)) Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
+        else ShowError("未找到网页共读扩展，请更新完整安装包。");
+    }
+
+    private static void SetStudySize(int width, int height)
+    {
+        if (BallWindow == null) return;
+        if (BallWindow.ClientSize == BallSize()) BallRestPoint = BallWindow.Location;
+        float scale = SystemDpiScale();
+        BallWindow.Region = null;
+        SetBallBounds(new Size((int)Math.Round(width * scale), (int)Math.Round(height * scale)));
+        // Resizing the existing topmost window never calls Activate/Focus/BringToFront.
     }
 
     /**
@@ -638,6 +687,8 @@ internal static class Launcher
     private static void SetBallExpanded(bool expanded)
     {
         if (BallWindow == null) return;
+        if (expanded && BallWindow.ClientSize == BallSize()) BallRestPoint = BallWindow.Location;
+        if (!expanded && BallRestPoint.HasValue) { BallWindow.Location = BallRestPoint.Value; BallRestPoint = null; }
         float scale = SystemDpiScale();
         Size size = expanded
             ? new Size((int)Math.Round(ScreenLogicalW * scale), (int)Math.Round(ScreenLogicalH * scale))
@@ -717,6 +768,7 @@ internal static class Launcher
     private sealed class BallForm : Form
     {
         public Action Settled;
+        protected override bool ShowWithoutActivation { get { return true; } }
         protected override void WndProc(ref Message m)
         {
             base.WndProc(ref m);

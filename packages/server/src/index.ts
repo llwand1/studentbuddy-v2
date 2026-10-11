@@ -67,6 +67,8 @@ import { purgeExpiredCodes } from './auth/codes.js';
 import { CHAT_BODY_LIMIT } from '@sb/shared';
 import type { StatusResponse } from '@sb/shared';
 import { VERSION } from './version.js';
+import { desktopRouter, desktopBridgeRouter } from './routes/desktop.js';
+import { browserStore } from './desktop/browser-store.js';
 
 const PORT = Number(process.env.SB_PORT ?? 18791);
 /**
@@ -74,6 +76,7 @@ const PORT = Number(process.env.SB_PORT ?? 18791);
  *   容器内只监听回环、Caddy 连不上后端（本机开发无感，上线即挂）。
  */
 const HOST = process.env.SB_HOST ?? '127.0.0.1';
+if (process.env.SB_DESKTOP === '1') setInterval(() => browserStore.expirePages(), 5000).unref();
 
 const app = express();
 export { app };
@@ -94,6 +97,7 @@ if (TRUST_PROXY) {
 
 app.disable('x-powered-by');
 app.use(securityHeaders);
+app.use('/api/desktop/bridge', desktopBridgeRouter);
 app.use(
   cors({
     // 无 Origin（curl/同源）不设 CORS 头即可；跨源合法性由 originCheck 对写操作强制。
@@ -172,6 +176,7 @@ app.use('/api/auth', githubAuthRouter);
 // 诚实计数只读出口（GROWTH-SPEC §3）：公开、只读、自带 IP 限流
 app.use('/api/growth', growthRouter);
 app.use('/api/sessions', sessionsRouter);
+app.use('/api/desktop', desktopRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/chat', campfireOpenerRouter);
 app.use('/api/providers', providersRouter);

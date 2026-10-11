@@ -1,0 +1,6 @@
+body { width: 320px; margin: 0; padding: 20px; box-sizing: border-box; color: #e6e1d7; background: #171b24; font: 13px/1.7 system-ui, sans-serif; border: 2px solid #7a684b; }
+header { font-size: 20px; color: #f2d396; } header span { display: block; font-size: 12px; color: #a2b4ca; }
+p { margin: 12px 0; } label { display: block; margin: 10px 0; color: #d1bea0; }
+input { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 9px; background: #272c38; border: 1px solid #645b50; color: #eee7da; font: inherit; }
+button { width: 100%; margin: 5px 0; padding: 10px; border: 1px solid #716248; background: #2c303b; color: #e9d9b8; font: inherit; cursor: pointer; }
+button.primary { background: #d8bb85; color: #21252b; } button:disabled { opacity: .6; } #status { color: #b9d5b5; overflow-wrap: anywhere; } small { color: #a9acb9; font-size: 11px; }

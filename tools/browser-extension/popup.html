@@ -1,0 +1,8 @@
+<!doctype html><html lang="zh-CN"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>StudentBuddy 网页共读</title>
+<link rel="stylesheet" href="popup.css"><body><header>✦ StudentBuddy<span>网页共读 · 动态临时资料</span></header>
+<p>选中一页，和 AI 一起读。正文、当前视野与划选会同步到你的本机对话。</p>
+<label>本机地址<input id="endpoint" value="http://127.0.0.1:18794" spellcheck="false" autocomplete="off"></label>
+<label>配对码<input id="code" maxlength="10" placeholder="从悬浮球设置中获取" spellcheck="false" autocomplete="off"></label>
+<button id="pair">连接 StudentBuddy</button><button id="start" class="primary">✦ 共读当前页</button><button id="stop">停止并清除临时资料</button>
+<p id="status" role="status" aria-live="polite">正在读取连接状态…</p><small>只同步你主动选择的标签页；换站点后请重新选择。AI 回答会将检索到的相关段落发给你配置的模型。网页文字不会存入资料库。</small>
+<script src="popup.js"></script></body></html>

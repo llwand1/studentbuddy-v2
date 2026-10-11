@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "StudentBuddy 网页共读",
+  "version": "1.0.0",
+  "description": "将你明确选择的网页同步到本机 StudentBuddy 的动态临时资料索引。",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "和 StudentBuddy 共读当前网页", "default_popup": "popup.html" }
+}

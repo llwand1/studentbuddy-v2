@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'tools/desktop/**'
+      - 'tools/browser-extension/**'
       - '.github/workflows/windows-installer.yml'
   workflow_run:
     workflows: [CI]

@@ -98,6 +98,13 @@ try {
     Assert ($duplicate.ExitCode -eq 0 -and !$app.HasExited -and $servers.Count -eq 1) 'Repeated launch shares exactly one bundled server'
     StopApp
     Assert ($app.WaitForExit(10000)) 'Stopping releases the launcher and its server'
+    & "$installDir\runtime\node.exe" "$repoRoot\tools\desktop\migration-smoke.cjs" prepare "$dataDir\studentbuddy.db"
+    Assert ($LASTEXITCODE -eq 0) 'Isolated database reproduces the already-recorded v58 collision'
+    $app = StartApp
+    StopApp
+    Assert ($app.WaitForExit(10000)) 'Repaired legacy database starts and stops successfully'
+    & "$installDir\runtime\node.exe" "$repoRoot\tools\desktop\migration-smoke.cjs" verify "$dataDir\studentbuddy.db" $session.id
+    Assert ($LASTEXITCODE -eq 0) 'Installed v59 repairs both missing tables and GrillMe field without losing the session'
     $occupied = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 18794)
     $canOccupy = $true
     try { $occupied.Start() } catch { $canOccupy = $false }

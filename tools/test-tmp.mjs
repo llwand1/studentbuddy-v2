@@ -76,7 +76,10 @@ console.log('命令: ' + [child.cmd, ...child.args].join(' '));
 console.log('');
 
 // ── 跑 ───────────────────────────────────────────────────────────────────────
-const env = redirected ? { ...process.env, TEMP: runRoot, TMP: runRoot } : { ...process.env };
+const env = redirected ? {
+  ...process.env, TEMP: runRoot, TMP: runRoot,
+  ...(!useCustom ? { SB_DATA_DIR: path.join(runRoot, 'default-data') } : {}),
+} : { ...process.env };
 const t0 = Date.now();
 const proc = spawn(child.cmd, child.args, { stdio: 'inherit', env, cwd: ROOT });
 

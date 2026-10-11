@@ -32,6 +32,9 @@ export const RELEASE_SCOPE = {
 
 /** 新到旧排列；顺序由 `changelog.test.ts` 锁着（排反了一次，订阅端就整列错一位） */
 export const PUBLIC_RELEASES: readonly ReleaseNote[] = [
+  { version: 'v0.2.185', date: '2026-10-11', headline: '历史学习数据升级更稳',
+    items: ['从旧版本升级时自动补齐缺失结构，保留已有学习记录和配置。', '旧数据库也能正确使用 GrillMe 的开场与收尾路线，后台任务异常时服务继续可用。'],
+  },
   { version: 'v0.2.183', date: '2026-10-11', headline: 'GrillMe 按需追问与紧凑路线卡',
     items: ['GrillMe 默认按需追问，明确问题直接回答；也可切换每轮先问。', '收尾路线默认收起，点选后直接继续；学习范围与节奏可展开设置。', '像素路线卡提供跳过与自定义入口，手机单列阅读，刷新后仍可续接。'],
   },

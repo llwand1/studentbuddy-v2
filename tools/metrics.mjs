@@ -158,13 +158,13 @@ function testRun() {
   let wallSec = 0;
   if (argv.has('--tests')) {
     fs.mkdirSync(path.dirname(out), { recursive: true });
-    const cli = path.join(ROOT, 'node_modules', 'vitest', 'vitest.mjs');
+    const cli = path.join(ROOT, 'tools', 'test-tmp.mjs');
     const extra = argv.has('--coverage')
       ? ['--coverage', '--coverage.provider=v8', '--coverage.reporter=json-summary', '--coverage.reportDir=coverage']
       : [];
     const t0 = Date.now();
     try {
-      execFileSync(process.execPath, [cli, 'run', '--reporter=json', `--outputFile=${out}`, ...extra], {
+      execFileSync(process.execPath, [cli, '--reporter=json', `--outputFile=${out}`, ...extra], {
         cwd: ROOT,
         stdio: ['ignore', 'ignore', 'inherit'],
       });

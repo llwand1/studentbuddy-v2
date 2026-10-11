@@ -87,6 +87,21 @@ export function recoverStaleJobs(): number {
   return getDb().prepare(`UPDATE job SET status = 'queued', updated_at = datetime('now') WHERE status = 'running'`).run().changes;
 }
 
+/**
+ * `job` 表是否就绪（查 sqlite_master，一次索引查询，刻意**不缓存**）。
+ *
+ * 为什么需要它：2026-10-10 真机事故——迁移号 46 在两条线上各定义过一次（旧线建
+ * review_log+learning_event，主干建 llm_call+learning_event+job），被旧线先迁移过的库
+ * `schema_version` 记了 46 ⇒ 主干永远跳过 v46 ⇒ `job` 表缺失 ⇒ `startJobWorker`
+ * 里的 `recoverStaleJobs()` 抛 `no such table: job` ⇒ **整个服务起不来**。
+ * 修复两层：v58 幂等补表（治本）+ 本守卫（纵深防御：再有表被漏掉时，坏的是队列功能，
+ * 不是整个服务）。不缓存的理由：`startJobWorker` 一辈子只调一次，缓存只会在测试里
+ * 制造「DROP 后查不到、重建后查不回」的假状态。
+ */
+export function jobTableReady(): boolean {
+  return !!getDb().prepare(`SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'job'`).get();
+}
+
 /** 清理：完成超过 `days` 天的任务行（失败的留更久，便于排查） */
 export function pruneJobs(days = 7): number {
   return getDb()

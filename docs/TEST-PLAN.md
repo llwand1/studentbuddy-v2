@@ -1241,3 +1241,10 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `packages/server/src/routes/question-seeds.test.ts` | 8 | 真实 HTTP、权限、原子性、冲突/回放、过期、隔离/撤下、分页与共用限流 |
 | `packages/server/src/learning/question-seeds.test.ts` | 7 | 范围/主题/来源优先级、正负参数唯一解、不重复、整组认领与取消不消耗 |
 | `packages/server/src/learning/quiz-seeds.test.ts` | 5 | 无模型编译、蓝图生成、显式新搜索与真题配比、资料优先 |
+## 历史数据库修复与部署保留回归
+
+| 测试文件 | 用例 | 覆盖行为 |
+|---|---:|---|
+| `src/storage/migrations-v59.test.ts`（server） | 7 | v57 缺表、v58 缺字段、两者同时缺失、结构等价、数据保留与幂等、旧事件表结构不变、修复失败整体回滚 |
+| `tools/selftest-deploy-retention.sh` | 4 场景 | 保留数量可配置、最新回滚点保留、无关数据不删除、远程脚本载荷不触发本地命令替换；CI 必跑 |
+| `tools/selftest-backup.py` | 3 | 快照可恢复与远程一致、凭据与代码包不入库、同步失败仍保留新快照并按七份滚动；CI 必跑 |

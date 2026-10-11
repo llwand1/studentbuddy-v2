@@ -175,6 +175,16 @@ describe('执行器', () => {
     await vi.waitFor(() => expect(q.listJobs('u')[0]?.status).toBe('done'));
     expect(q.listJobs('u')[0]?.kind).toBe(POST_TURN_JOB);
   });
+
+  // 2026-10-10 真机事故的守卫锁：迁移号撞车让 job 表缺失时，startJobWorker 里
+  // recoverStaleJobs() 的 no such table 会把**整个服务**炸掉（桌面版实测崩在启动）。
+  // 守卫层保证：表缺失 ⇒ 不炸、不启动轮询（dispatchJob 自动退回内联路径），主功能照常。
+  it('★ 守卫：job 表缺失 ⇒ startJobWorker 不抛、不启动（修复前此处 no such table: job 直接冒泡）', () => {
+    getDb().exec('DROP TABLE job');
+    expect(q.jobTableReady()).toBe(false);
+    expect(() => w.startJobWorker(60_000)).not.toThrow();
+    expect(w.jobWorkerRunning()).toBe(false); // 未启动 ⇒ 后台任务退回内联执行（尽力而为）
+  });
 });
 
 describe('对话后抽词（chat.post_turn）', () => {

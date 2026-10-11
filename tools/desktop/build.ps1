@@ -47,6 +47,7 @@ if (Test-Path -LiteralPath $nodeLicense) {
     Invoke-WebRequest "https://nodejs.org/dist/$nodeVersion/LICENSE" -OutFile (Join-Path $stage 'runtime\LICENSE')
 }
 Copy-Item -LiteralPath tools\desktop\README.txt -Destination $stage
+Copy-Item -LiteralPath tools\browser-extension -Destination (Join-Path $stage 'browser-extension') -Recurse
 Copy-Item -LiteralPath tools\desktop\update-client.cjs,tools\desktop\update-core.cjs,tools\desktop\update-public-key.pem -Destination $stage
 # 应用图标：每次构建由吉祥物点阵现生成（换装 / 改品牌色后图标自动跟上，不需要手改位图）
 node tools\desktop\make-icon.mjs
@@ -100,7 +101,7 @@ if (!(Test-Path -LiteralPath $iscc)) {
     if ((FileHash $innoSetup) -ne '0362a383ed217d4c4239b5933866dd96d3eb2102737da92f80f6057a4b40df2f') {
         throw 'Inno Setup SHA-256 mismatch.'
     }
-    $install = Start-Process -FilePath $innoSetup -ArgumentList @('/PORTABLE=1', '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$innoDir`"") -WindowStyle Hidden -Wait -PassThru
+    $install = Start-Process -FilePath $innoSetup -ArgumentList @('/SP-', '/PORTABLE=1', '/CURRENTUSER', '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$innoDir`"") -WindowStyle Hidden -Wait -PassThru
     if ($install.ExitCode -ne 0) { throw 'Portable compiler extraction failed.' }
 }
 & $iscc "/DAppVersion=$Version" "/DSourceDirectory=$stage" "/DOutputDirectory=$OutputDir" tools\desktop\installer.iss

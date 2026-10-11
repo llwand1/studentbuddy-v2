@@ -66,3 +66,4 @@ export * from './exam-sources.js';
 export * from './agent-terms.js';
 export * from './reply-practice.js';
 export * from './question-seeds.js';
+export * from './desktop-study.js';

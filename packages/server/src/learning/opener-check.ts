@@ -4,11 +4,11 @@ import { aiJson } from '../ai/gateway.js';
 import { extractJsonObject } from './json-object.js';
 import { routeRole } from '../llm/router.js';
 
-export async function checkCampfireQuestion(ownerId: string | null, question: CampfireQuestion, signal: AbortSignal, remainingMs: number) {
+export async function checkCampfireQuestion(ownerId: string | null, question: CampfireQuestion, signal: AbortSignal, remainingMs: number, purpose: 'chat.opener.check' | 'desktop.study.check' = 'chat.opener.check') {
   const solver = routeRole('solver', undefined, ownerId);
   const target = solver?.model && solver.apiKey ? solver : routeRole('quiz-generator', undefined, ownerId);
   return aiJson({
-    purpose: 'chat.opener.check', ownerId, target, signal, repairs: 0, temperature: 0.1, streamMode: 'once',
+    purpose, ownerId, target, signal, repairs: 0, temperature: 0.1, streamMode: 'once',
     maxTokens: INTERACTIVE_AI_BUDGET.maxTokens, totalTimeoutMs: Math.max(1, remainingMs),
     timeoutMs: Math.max(1, remainingMs),
     messages: [

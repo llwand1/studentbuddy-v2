@@ -142,6 +142,7 @@ export interface BundleAllow {
 
 /** 逐处点名的豁免（每条都要在产物里真的出现，否则测试红） */
 export const BUNDLE_ALLOW: readonly BundleAllow[] = [
+  { needle: '["127.0.0.1","localhost","[::1]"]', why: '桌面功能仅在本机地址显示的主机名判定，未包含远程服务地址或凭据' },
   { needle: 'this.token=new n(h)', why: 'VS Code 共享内存取消 token 的对象构造' },
   { needle: 'messageToken=', why: 'VS Code JSONRPC 消息序号计数' },
   { needle: 'messageToken:', why: 'VS Code JSONRPC 部分消息的序号字段' },

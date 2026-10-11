@@ -1,3 +1,16 @@
+> 2026-10-11 桌面定时练习与网页共读：仅补充普通回归用例，不增加 AI 评测集。
+
+| 测试文件 | 回归范围 |
+|---|---|
+| `packages/shared/src/desktop-study.test.ts` | 默认关闭、间隔与范围边界 |
+| `packages/server/src/desktop/study-clock.test.ts` | 提前备题、到点投递、不堆题、延后、取消与失败退避 |
+| `packages/server/src/desktop/browser-store.test.ts` | 一次配对、用户/会话隔离、过期清理、乱序与跳转、预算 |
+| `packages/server/src/routes/desktop.test.ts` | 本机边界、Origin、作用域令牌、临时 RAG 接线、网页出题 |
+| `packages/web/src/features/desktop/browser-extract.test.ts` | 动态正文/选区/视野、输入与隐藏内容排除、长度限制 |
+| `packages/web/src/features/float/FloatQuiz.test.tsx` | 题卡独立作答、反馈、延后与失败保留 |
+| `packages/web/src/features/float/FloatApp.test.tsx` | Native 后台时钟完整投递与直接作答、App 不挂载 |
+| `packages/server/src/desktop/extension-background.test.ts` | 扩展消息来源、所选顶层标签页、跨文档隔离、停止采集 |
+
 > 2026-10-11 GrillMe 节奏与界面：新增 5 个普通回归用例（开场/收尾时机 2、参数边界 1、内联卡与回执拒绝 2）；既有刷新阶段、发送接线和迁移重放补断言；不增加 AI 评测集。
 >
 > 2026-10-10 出题预产物：新增 31 个普通回归用例；不增加 AI 评测集。

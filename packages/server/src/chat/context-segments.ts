@@ -33,6 +33,7 @@ import { buildDateBlock } from './date-context.js';
 import { SYSTEM_PROMPT } from './system-prompt.js';
 import { getRelevantTerms } from '../learning/terms.js';
 import { getSessionDoc, buildDocBlock } from '../learning/document.js';
+import { browserStore } from '../desktop/browser-store.js';
 import { loadAnswerStyle } from '../storage/answer-style.js';
 import type { HistoryMessage } from './persist.js';
 import type { ChatMessage } from '../llm/types.js';
@@ -143,6 +144,7 @@ export function collectContextSegments(inputs: ContextInputs): CollectedContext 
     { kind: 'summary', content: summaryBlock },
     { kind: 'terms', content: termBlock },
     { kind: 'doc', content: docBlock },
+    { kind: 'doc', content: browserStore.block(ownerId ?? null, sessionId, text) },
     // 表达偏好段：保留四维设置，并按 LEARNING-REPLY 追加本轮知识讲解结构。
     // 它**恒非空**（至少含 scope 那句），故无需条件判断——空内容段会在下面被统一剔除。
     // ★ `app_settings` 归主（v30）⇒ 必须带 `ownerId`——不带就会读到**别人的**口吻偏好。

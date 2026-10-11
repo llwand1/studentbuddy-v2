@@ -76,6 +76,7 @@ async function runClosing(sessionId: string, script: (req: ChatRequest) => Token
     model: 'm',
     apiKey: 'k',
     messages: [{ role: 'user', content: '讲讲二分查找' }, { role: 'assistant', content: '……' }],
+    answer: '闭区间最后一个候选也要检查；只剩一个元素时 left == right。',
     tools: toolDefinitions(),
     onStep: (tool, status, detail) => steps.push({ tool, status, detail }),
     ownerId: null,
@@ -115,21 +116,24 @@ describe('runGrillClosing（收尾提问）', () => {
     expect(seen[0]!.toolChoice).toEqual(GRILL_TOOL_CHOICE);
   });
 
-  it('收尾指令以 user 消息 push 到 messages 尾部（收尾那一轮的上下文）', async () => {
+  it('刚交付的正文位于收尾指令之前，原工具上下文不被修改', async () => {
     const messages = [{ role: 'user' as const, content: '讲讲二分查找' }];
-    const { adapter } = stubAdapter(() => askChoiceChunk(NEXT_STEP_ARGS));
+    const { adapter, seen } = stubAdapter(() => askChoiceChunk(NEXT_STEP_ARGS));
     await runGrillClosing({
       sessionId: 's-grill-msg',
       adapter,
       model: 'm',
       apiKey: 'k',
       messages,
+      answer: '本轮解释了单元素区间也要检查。',
       tools: toolDefinitions(),
       onStep: () => undefined,
       ownerId: null,
     });
-    expect(messages).toHaveLength(2);
-    expect(messages[1]).toEqual({ role: 'user', content: GRILL_POST });
+    expect(messages).toHaveLength(1);
+    expect(seen[0]!.messages.slice(-2)).toEqual([
+      { role: 'assistant', content: '本轮解释了单元素区间也要检查。' }, { role: 'user', content: GRILL_POST },
+    ]);
   });
 
   it('收到 tool_call → 落一张 post 卡，且**不挂起**（没人点选也已经返回）', async () => {

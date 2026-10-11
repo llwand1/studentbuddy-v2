@@ -23,16 +23,16 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-10-11 12:58:00（本机时区）｜ 基准 `af9a983` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-11 13:11:58（本机时区）｜ 基准 `f4729f5` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
 | shared | 64 | 10,141 | 47 | 5,751 | 57% |
-| server | 309 | 41,347 | 206 | 38,256 | 93% |
+| server | 309 | 41,350 | 206 | 38,260 | 93% |
 | web | 380 | 43,588 | 159 | 19,966 | 46% |
-| **合计** | **753** | **95,076** | **412** | **63,973** | **67%** |
+| **合计** | **753** | **95,079** | **412** | **63,977** | **67%** |
 
 ## 接口与契约
 
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 63 份 · md 共 81 份 · 真机探针 15 个
-- git：feat/grillme-rhythm @ `af9a983`（2026-10-11）· 近 14 天 298 commits · 工作区未提交 42 文件
+- git：feat/grillme-rhythm @ `f4729f5`（2026-10-11）· 近 14 天 299 commits · 工作区未提交 5 文件
 
 <!-- metrics:end -->
 

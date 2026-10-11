@@ -360,7 +360,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     // done 之后发帧照样送达；失败一律静默，不能让已上屏的回答变出错。
     if (shouldCloseGrill(opts, acc, pendingToolRound, rounds)) {
       await runGrillClosing({ sessionId, adapter: target.adapter, model: target.model, apiKey: target.apiKey,
-        baseUrl: target.baseUrl, messages, tools, signal: opts.signal, onStep, ownerId: opts.ownerId ?? null });
+        baseUrl: target.baseUrl, messages, answer: acc, tools, signal: opts.signal, onStep, ownerId: opts.ownerId ?? null });
     }
     return { ok: true, assistantMessageId: assistantId };
   } catch (err) {

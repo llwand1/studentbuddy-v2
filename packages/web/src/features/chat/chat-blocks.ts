@@ -20,7 +20,7 @@ export { takeTurnSources };
 /** 流内 quiz 卡片的消息挂载形状（live 与历史同构） */
 export interface QuizBlockView {
   blockId: string;
-  quiz: { title?: string; questions: import('@sb/shared').QuizQuestion[] };
+  quiz: import('@sb/shared').QuizPayload;
   quizId?: string;
 }
 
@@ -91,7 +91,7 @@ export function restoreQuizBlock(content: string): QuizBlockView | null {
   const body = content.match(/\[QUIZ\]([\s\S]*?)\[\/QUIZ\]/)?.[1];
   if (!body) return null;
   try {
-    const o = JSON.parse(body) as { title?: unknown; questions?: unknown; quizId?: unknown };
+    const o = JSON.parse(body) as { title?: unknown; questions?: unknown; quizId?: unknown; feedback?: unknown };
     if (!Array.isArray(o.questions) || o.questions.length === 0) return null;
     const quizId = typeof o.quizId === 'string' && o.quizId ? o.quizId : undefined;
     return {
@@ -99,12 +99,19 @@ export function restoreQuizBlock(content: string): QuizBlockView | null {
       quiz: {
         ...(typeof o.title === 'string' ? { title: o.title } : {}),
         questions: o.questions as QuizBlockView['quiz']['questions'],
+        ...(validQuizFeedback(o.feedback) ? { feedback: o.feedback } : {}),
       },
       ...(quizId ? { quizId } : {}),
     };
   } catch {
     return null;
   }
+}
+
+function validQuizFeedback(v: unknown): v is NonNullable<QuizBlockView['quiz']['feedback']> {
+  if (!v || typeof v !== 'object') return false;
+  const f = v as { comment?: unknown; adjustment?: unknown };
+  return typeof f.comment === 'string' && f.comment.length <= 600 && typeof f.adjustment === 'string' && f.adjustment.length <= 500;
 }
 
 /** blockId `scenario-<demoId>` → 视图；payload 形状不对 / demoId 抽不出 ⇒ null（不开坏卡） */

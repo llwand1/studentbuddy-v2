@@ -112,6 +112,12 @@ describe('restoreQuizBlock — 历史还原（2026-09-23「出题工具化」补
   it('前后有别的文字也能取出（登记行历史上就是「一句话 + [QUIZ]」的混排形状）', () => {
     expect(restoreQuizBlock(`前面的话\n${QUIZ_TEXT}\n后面的话`)?.quizId).toBe('q-77');
   });
+  it('评价与本题调整说明随历史还原，坏元数据丢弃不影响题卡', () => {
+    const feedback = { comment: '换个情境', adjustment: '保留考点，改用生活场景。' };
+    const raw = QUIZ_TEXT.replace('"quizId":"q-77"', `"quizId":"q-77","feedback":${JSON.stringify(feedback)}`);
+    expect(restoreQuizBlock(raw)?.quiz.feedback).toEqual(feedback);
+    expect(restoreQuizBlock(raw.replace(JSON.stringify(feedback), '{"comment":1}'))?.quiz.feedback).toBeUndefined();
+  });
 
   it('老行没有 quizId ⇒ 仍还原成卡，只是不记录（blockId 用 legacy 占位，不抛不吞）', () => {
     const legacy = QUIZ_TEXT.replace(/,"quizId":"q-77"/, '');

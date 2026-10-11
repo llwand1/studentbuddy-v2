@@ -4,17 +4,17 @@ import { SPRITE } from '../chat/Mascot';
 export const COMPANION_SIZE = 64;
 export const COMPANION_BODY = 32;
 export const HOST_SHAPE = 'sb-float:shape:';
-export type CompanionMood = 'idle' | 'focus' | 'preparing' | 'question' | 'reading' | 'retrieving' | 'selecting' | 'waiting' | 'offline' | 'celebrate' | 'encourage' | 'play';
+export type CompanionMood = 'idle' | 'focus' | 'preparing' | 'question' | 'reading' | 'retrieving' | 'selecting' | 'waiting' | 'offline' | 'retry' | 'celebrate' | 'encourage' | 'play';
 export const COMPANION_LABELS: Record<CompanionMood, string> = {
   idle: '陪你待着', focus: '守着下一次练习', preparing: '正在施法备题', question: '有一道小练习',
   reading: '正在陪你读网页', retrieving: '正在查找网页里的知识', selecting: '正在看你划选的段落',
-  waiting: '等你选择共读网页', offline: '连接暂时断开', celebrate: '答对啦，星星送给你',
+  waiting: '等你选择共读网页', offline: '连接暂时断开', retry: '这次备题没成功，稍后再试', celebrate: '答对啦，星星送给你',
   encourage: '再试一次，我陪着你', play: '星屑魔法！',
 };
 export function companionMood(study: DesktopStudyState | null, page: DesktopBrowserState | null, error = ''): CompanionMood {
   if (error) return 'offline';
   if (study?.awaiting) return 'question';
-  if (study?.error) return study.settings.scope === 'browser' && !page?.chars ? 'waiting' : 'offline';
+  if (study?.error) return study.settings.scope === 'browser' && !page?.chars ? 'waiting' : 'retry';
   if (study?.preparing) return 'preparing';
   if (page?.connected && page.chars > 0) {
     if (page.retrieving) return 'retrieving';
@@ -37,7 +37,7 @@ export function companionFrame(mood: CompanionMood, frame: number, animated = tr
   const wave = animated ? Math.sin(frame / (active ? 2.5 : 7)) : 0;
   const x = 16;
   const y = 16 + (animated ? Math.round(wave * (active || hovered ? 2 : 1)) : 0);
-  const count = active ? 18 : mood === 'idle' || mood === 'offline' || mood === 'waiting' ? 6 : 12;
+  const count = active ? 18 : ['idle', 'offline', 'waiting', 'retry'].includes(mood) ? 6 : 12;
   const particles: Particle[] = Array.from({ length: count }, (_, i) => {
     const phase = i * Math.PI * 2 / count + (animated ? frame * (active ? 0.13 : 0.035) : 0);
     const age = ((animated ? frame : 0) + i * 4) % 24 / 24;

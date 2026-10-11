@@ -14,6 +14,7 @@ it('reflects real preparation, scoped retrieval, selected text, lost pages and t
   expect(companionMood(study, { ...page, connected: false, chars: 0 })).toBe('waiting');
   expect(companionMood({ ...study, settings: { ...study.settings, scope: 'browser' } }, null)).toBe('waiting');
   expect(companionMood(study, page, '断线')).toBe('offline');
+  expect(companionMood({ ...study, error: 'AI 暂时未返回题目' }, page)).toBe('retry');
 });
 it('every moving pixel has a bounded integer native clip, with the smaller body and a limited particle budget', () => {
   expect(COMPANION_BODY).toBe(32); expect(COMPANION_SIZE).toBe(64);

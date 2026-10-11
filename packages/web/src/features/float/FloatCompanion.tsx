@@ -23,7 +23,7 @@ export function CompanionArt({ mood, hovered = false, gaze = 0, native = false }
   const shape = JSON.stringify(paint.clips);
   useEffect(() => { if (native) postToHost(HOST_SHAPE + shape); }, [native, shape]);
   const expression = mood === 'celebrate' || mood === 'play' || hovered ? 'bright'
-    : mood === 'preparing' || mood === 'waiting' || mood === 'offline' ? 'thinking' : 'calm';
+    : ['preparing', 'waiting', 'offline', 'retry'].includes(mood) ? 'thinking' : 'calm';
   return <svg className="sb-companion-art mascot-px" data-mood={mood} viewBox="0 0 64 64" shapeRendering="crispEdges" aria-hidden="true">
     <g className="sb-companion-particles">{paint.particles.map((p, i) => <g key={i} className={'sb-companion-' + p.tone}>
       {p.rects.map(([x, y, width, height], j) => <rect key={j} x={x} y={y} width={width} height={height} />)}

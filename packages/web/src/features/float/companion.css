@@ -18,6 +18,7 @@
 .sb-companion-art[data-mood='retrieving'] { --comp-body: #7badcf; --comp-light: #d3f7ff; --comp-shade: #4b739c; --comp-dust: #84d3ee; --comp-star: #e0feff; --comp-rune: #bca1f0; }
 .sb-companion-art:is([data-mood='celebrate'], [data-mood='play']) { --comp-body: #e694b1; --comp-light: #ffe0e8; --comp-shade: #a75b82; --comp-dust: #ffa2cc; --comp-star: #fff7a1; --comp-rune: #a8e9d8; }
 .sb-companion-art[data-mood='encourage'] { --comp-body: #97b79c; --comp-light: #dcf0d3; --comp-shade: #657c6c; --comp-dust: #d8d99a; --comp-star: #ffebc0; }
+.sb-companion-art[data-mood='retry'] { --comp-body: #c4a37b; --comp-light: #efdbc0; --comp-shade: #8e715d; --comp-dust: #d9bd91; --comp-star: #eed7b1; }
 .sb-companion-art:is([data-mood='waiting'], [data-mood='offline']) { --comp-body: #a5a4b5; --comp-light: #d7d9e5; --comp-shade: #6a677b; --comp-dust: #bcb0a9; --comp-star: #e1bfa6; --comp-rune: #aeabc7; }
 .sb-companion-art.mascot-px .px-base { fill: var(--comp-body); }
 .sb-companion-art.mascot-px .px-light { fill: var(--comp-light); }

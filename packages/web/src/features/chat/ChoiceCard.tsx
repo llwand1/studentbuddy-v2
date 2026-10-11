@@ -9,10 +9,11 @@
  *
  * 图标一律自绘 SVG line-icon：本仓约定不用 emoji、不引图标字体（`components/icons.tsx` 同规）。
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import './choice.css'; // 自包含样式：此前漏了这行 import，真机上整卡零样式裸奔成纯文字（2026-09-17 实证修复）
 import type { AskChoiceRecord } from '@sb/shared';
 import { CHOICE_CUSTOM_MAX } from '@sb/shared';
+import './grill-choice.css';
 
 export interface ChoiceReplyPayload {
   optionId?: string;
@@ -57,12 +58,17 @@ export function ChoiceCard({
   onDismiss,
 }: {
   request: AskChoiceRecord;
-  onReply: (requestId: string, reply: ChoiceReplyPayload) => void;
+  onReply: (requestId: string, reply: ChoiceReplyPayload) => void | Promise<unknown>;
   onDismiss: () => void;
 }) {
   const [customOpen, setCustomOpen] = useState(false);
   const [custom, setCustom] = useState('');
   const [busy, setBusy] = useState(false);
+  const [replyError, setReplyError] = useState('');
+  const post = request.grillPhase === 'post';
+  const grill = !!request.grillPhase;
+  const [expanded, setExpanded] = useState(!post);
+  const panelId = useId();
 
   const pending = request.status === 'pending';
   const cancelled = request.status === 'cancelled';
@@ -76,31 +82,39 @@ export function ChoiceCard({
     setCustomOpen(false);
     setCustom('');
     setBusy(false);
+    setReplyError('');
+    setExpanded(request.grillPhase !== 'post');
   }, [request.id]);
 
-  const reply = (r: ChoiceReplyPayload): void => {
+  const reply = async (r: ChoiceReplyPayload): Promise<void> => {
     // 乐观锁：服务端 409 是最终决定（并发双端点击的第二只手会被拒），这里只防手抖连点
     if (!pending || busy) return;
     setBusy(true);
-    onReply(request.id, r);
+    setReplyError('');
+    try { await onReply(request.id, r); }
+    catch (err) { setReplyError(err instanceof Error ? err.message : '提交失败，请重试'); }
+    finally { setBusy(false); }
   };
 
   return (
-    <div className={`choice-card${pending ? '' : ' settled'}${cancelled ? ' cancelled' : ''}`}>
+    <div className={`choice-card${grill ? ' grill-choice' : ''}${post ? ' grill-next' : ''}${pending ? '' : ' settled'}${cancelled ? ' cancelled' : ''}`} aria-busy={busy}>
       <div className="choice-head">
         <span className={`choice-ico${pending ? '' : cancelled ? ' bad' : ' ok'}`}>
           {pending ? ICON_BRANCH : cancelled ? ICON_STOP : ICON_CHECK}
         </span>
         <span className="choice-title">
-          {pending ? '等你选择' : cancelled ? '本次提问已作废' : '已回传 AI'}
+          {pending ? grill ? post ? '下一步，沿哪条路？' : '先选一条学习路线' : '等你选择' : cancelled ? '本次提问已作废' : post ? '已选择下一步' : '已回传 AI'}
         </span>
-        {pending && <span className="choice-state">等待选择</span>}
+        {pending && <span className="choice-state">{post ? '可选' : '等待选择'}</span>}
+        {post && pending && <button type="button" className="grill-next-toggle" aria-expanded={expanded} aria-controls={panelId}
+          onClick={() => setExpanded(!expanded)}>{expanded ? '收起' : `展开 ${request.options.length} 条路线`}</button>}
+        {grill && pending && (!post || expanded) && <button type="button" className="grill-skip" disabled={busy} onClick={onDismiss}>{post ? '暂不继续' : '跳过，直接讲'}</button>}
       </div>
 
-      <div className="choice-q">{request.question}</div>
+      {(!post || expanded || !pending) && <div className="choice-q">{request.question}</div>}
 
-      {pending ? (
-        <>
+      {pending ? expanded ? (
+        <div id={panelId} className="grill-choice-content">
           <div className="choice-opts">
             {request.options.map((o, i) => (
               <button
@@ -149,7 +163,7 @@ export function ChoiceCard({
                       value={custom}
                       maxLength={CHOICE_CUSTOM_MAX}
                       placeholder="写出你的口径，AI 会按它继续…"
-                      autoFocus
+                      autoFocus={!grill}
                       onChange={(e) => setCustom(e.target.value)}
                       onKeyDown={(e) => {
                         // 输入法组字期间的回车是「选词确认」不是「提交」（同 ChatComposer 的处置）
@@ -174,10 +188,11 @@ export function ChoiceCard({
 
           <div className="choice-foot">
             {ICON_INFO}
-            <span>不设超时，不选会一直等。要退出可点「停止生成」或关闭本会话——挂起的提问会一并作废，AI 不会空等。</span>
+            <span>{grill ? post ? '选一项直接继续，也可以在输入框写自己的问题。' : '只选本次路线；也可以跳过，让 AI 直接开始。'
+              : '不设超时，不选会一直等。要退出可点「停止生成」或关闭本会话——挂起的提问会一并作废，AI 不会空等。'}</span>
           </div>
-        </>
-      ) : (
+        </div>
+      ) : null : (
         <div className="choice-done-row">
           <span>
             {cancelled
@@ -189,6 +204,7 @@ export function ChoiceCard({
           </button>
         </div>
       )}
+      {replyError && <p className="grill-reply-error" role="alert">{replyError}</p>}
     </div>
   );
 }

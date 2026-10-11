@@ -48,3 +48,7 @@ jobs:
       #   ★ 必须排在上一步**之后**：本脚本要读 `test-results/metrics-vitest.json`（`--tests` 的产物），
       #     缺了它，依赖实测例数的那几条 claim 不入列，审计会把"产物没生成"误报成"守门消失"。
       - run: node tools/guard-audit.mjs
+      - name: Verify deployment backup retention
+        run: bash tools/selftest-deploy-retention.sh
+      - name: Verify database backup synchronization
+        run: python3 tools/selftest-backup.py

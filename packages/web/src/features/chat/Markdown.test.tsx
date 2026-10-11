@@ -20,14 +20,29 @@ describe('Markdown 组件渲染', () => {
   it('公式流式完成及历史显示可读符号，未知命令保留源码且模型 HTML 不变成元素', () => {
     const text = '由 $2 \\times x = 16$ 得到：\n\n$$\\boxed{x = 16 \\div 2 = 8}$$';
     const {container,rerender}=render(<Markdown text={text} streaming />);
-    expect(container.textContent).toContain('2 × x = 16');
-    expect(q(container,'.learning-formula')?.textContent).toContain('x = 16 ÷ 2 = 8');
-    expect(container.textContent).not.toContain('\\boxed');
+    expect(q(container,'.math-inline .katex-html')?.textContent?.replace(/\s/g,'')).toContain('2×x=16');
+    expect(q(container,'.math-paper .katex-html')?.textContent?.replace(/\s/g,'')).toContain('x=16÷2=8');
+    expect(q(container,'.math-paper math')).not.toBeNull();
     const shown=container.textContent;rerender(<Markdown text={text}/>);expect(container.textContent).toBe(shown);
     rerender(<Markdown text={'$$\\unknown{<img src=x onerror=x>}$$'}/>);
-    expect(q(container,'details summary')?.textContent).toContain('暂不支持');
+    expect(q(container,'details summary')?.textContent).toContain('保留原式');
     expect(container.textContent).toContain('\\unknown');expect(q(container,'img')).toBeNull();
     rerender(<Markdown text={'$$\\frac{x'} streaming/>);expect(container.textContent).toContain('正在书写公式');
+  });
+  it('答案纸支持对齐推导、原式复制和主动放大，卡片/表格/列表复用数学通道', async () => {
+    const formula = '\\begin{aligned}2x-2&=10\\\\2x&=12\\\\x&=6\\end{aligned}';
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const text = `> [!STEP] 逐步求解\n> $$${formula}$$\n\n- 用 $\\frac{1}{2}$ 检查。\n\n|量|值|\n|---|---|\n|根|\\(\\sqrt{2}\\)|`;
+    const { container } = render(<Markdown text={text} />);
+    expect(q(container,'.learning-reply-step .math-paper[aria-label="逐行推导"]')).not.toBeNull();
+    expect(qa(container, 'li .katex, td .katex')).toHaveLength(2);
+    const buttons = qa(container, '.math-paper button');
+    fireEvent.click(buttons[0]!);
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(formula));
+    fireEvent.click(buttons[1]!);
+    expect(q(container, '.math-paper-large')).not.toBeNull();
+    expect(buttons[1]?.getAttribute('aria-pressed')).toBe('true');
   });
   it('学习卡流式与历史呈现一致，支持安全的正文/链接且不把模型 HTML 变成元素', () => {
     const src = '> [!CORE] 牛顿第二定律\n> **合力**导致加速度。\n> 关键词：`合力` · `质量`\n\n> [!PITFALL] 看清条件\n> <img src=x onerror=alert(1)> [来源](javascript:evil())\n\n```svg\n<svg viewBox="0 0 680 480"><text fill="black">合力</text></svg>\n```';

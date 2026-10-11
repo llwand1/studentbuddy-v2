@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { ExamScopeReport, QuizBlendReport, QuizMix, QuizQuestion, QuizSearchReport, QuizSourceMix } from '@sb/shared';
-import { examNote, mixTipText, searchNote, refsList, scenarioMixNote, blendNote } from './mix-report';
+import { examNote, mixTipText, searchNote, refsList, scenarioMixNote, blendNote, preparationNote, imageNote } from './mix-report';
 
 /** 只写关心的字段，其余走零值 */
 const mk = (p: Partial<QuizSearchReport>): QuizSearchReport => ({
@@ -289,3 +289,12 @@ describe('examNote：应试范围账（EXAM-1004）', () => {
   });
 });
 
+
+describe('预产物来源说明', () => {
+  it('编译与模型蓝图区分，不冒充联网或把未调模型说成模型没配图', () => {
+    const preparation = { seedId: 's', topic: '数学', mode: 'compiled' as const, source: 'external-agent' as const, skipped: ['research'] };
+    const report = { on: true, delivered: 0, droppedSvg: 0, truncated: false, preparation };
+    expect(preparationNote(report)).toContain('未调用出题模型'); expect(imageNote(report)).toBeNull();
+    expect(preparationNote({ ...report, preparation: { ...preparation, mode: 'material' } })).toContain('由 AI 现场创作');
+  });
+});

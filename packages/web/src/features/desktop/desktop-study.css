@@ -1,0 +1,57 @@
+.desktop-float { color: #e8e3db; background: #14171f; border: 2px solid #665743; box-shadow: inset 0 0 0 2px #222838; }
+.desktop-settings-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px; }
+.desktop-timer-settings h2 { margin: 0 0 10px; color: #f5d896; font-size: 21px; }
+.desktop-timer-settings p, .desktop-browser-controls p { font-size: 13px; line-height: 1.7; color: #c2c2cc; }
+.desktop-timer-settings label, .desktop-browser-controls label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; font-size: 13px; }
+.desktop-timer-settings .desktop-toggle { justify-content: flex-start; color: #f5d896; }
+.desktop-toggle input { width: 18px; height: 18px; accent-color: #f5d896; }
+.desktop-float select, .desktop-browser-controls select { max-width: 240px; min-width: 0; padding: 7px; border: 1px solid #655b4d; background: #232632; color: #eee7da; font: inherit; }
+.desktop-float button, .desktop-browser-controls button { font: inherit; cursor: pointer; }
+.desktop-float button:disabled, .desktop-browser-controls button:disabled { opacity: .55; cursor: default; }
+.desktop-timer-status { padding: 10px; border-left: 2px solid #d4ac6c; background: #24252a; }
+.desktop-browser-controls { padding-top: 12px; border-top: 1px solid #5c5143; color: #e8e3db; }
+.desktop-browser-controls h3 { display: flex; justify-content: space-between; gap: 8px; margin: 4px 0 10px; font-size: 17px; color: #f5d896; }
+.desktop-browser-controls h3 span { font-size: 12px; color: #a1a3b3; }
+.desktop-browser-controls h3 .desktop-online { color: #a6dfb9; }
+.desktop-page-name { overflow-wrap: anywhere; }
+.desktop-page-name small { display: block; color: #a8b5c6; }
+.desktop-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.desktop-actions button, .desktop-stop { padding: 8px 10px; border: 1px solid #716246; background: #302c2a; color: #efddb7; }
+.desktop-pair { margin: 12px 0; padding: 12px; background: #212736; border: 1px solid #516e91; display: grid; gap: 8px; }
+.desktop-pair strong { letter-spacing: 3px; color: #f8dda8; font-size: 21px; }
+.desktop-pair code { overflow-wrap: anywhere; font-size: 12px; color: #b4d6e8; }
+.desktop-pair small, .desktop-browser-controls details { font-size: 12px; line-height: 1.6; color: #b9bac6; }
+.desktop-browser-controls details { margin: 12px 0; }
+.desktop-browser-controls summary { cursor: pointer; color: #d9c9aa; }
+.desktop-error { margin: 8px 12px; color: #f3b1a0 !important; font-size: 13px; }
+.desktop-stop { margin-top: 6px; color: #eab7a6; }
+.desktop-quiz { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; animation: desktop-quest-in .38s ease-out both; }
+.desktop-quiz::before { content: ''; position: absolute; top: 0; inset-inline: 0; height: 150px; background: radial-gradient(ellipse at 50% 0, #da9b4e35, transparent 70%); pointer-events: none; }
+.desktop-quiz-scroll { position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px; }
+.desktop-quiz header { display: grid; gap: 6px; }
+.desktop-quiz header span { color: #f5d896; font-size: 14px; letter-spacing: 2px; }
+.desktop-quiz header small { color: #aaaec1; font-size: 11px; line-height: 1.6; }
+.desktop-quiz h2 { font-size: 18px; line-height: 1.7; margin: 16px 0; overflow-wrap: anywhere; color: #f1eadd; }
+.desktop-quiz-options { display: grid; gap: 9px; }
+.desktop-quiz-options button { display: flex; align-items: flex-start; gap: 10px; text-align: left; padding: 11px; background: #232734; border: 2px solid #4d4e60; color: #e6e2de; font-size: 14px; line-height: 1.6; }
+.desktop-quiz-options button:not(:disabled):hover { border-color: #dcbd83; background: #302f36; }
+.desktop-quiz-options button:not(:disabled):active { transform: translateY(2px); }
+.desktop-quiz-options button:disabled { opacity: 1; }
+.desktop-quiz-options b { color: #d5bd89; min-width: 14px; }
+.desktop-quiz-options button.is-correct { border-color: #91d4a4; background: #253f35; }
+.desktop-quiz-options button.is-wrong { border-color: #d98f81; background: #45302f; }
+.desktop-quiz-options button span { min-width: 0; overflow-wrap: anywhere; }
+.desktop-quiz-explanation { padding: 13px; margin-top: 14px; background: #252b31; border-left: 3px solid #cfb880; font-size: 13px; line-height: 1.8; }
+.desktop-quiz-explanation strong { color: #c9e2b3; }
+.desktop-quiz footer { display: flex; gap: 8px; align-items: center; justify-content: flex-end; padding: 12px; border-top: 1px solid #554c41; background: #191d26; }
+.desktop-quiz footer button { padding: 7px 9px; color: #e6d8b7; background: #2b2e37; border: 1px solid #5e5747; font-size: 12px; }
+.desktop-quiz footer .desktop-primary { color: #172329; background: #d9c192; border-color: #f7d898; }
+.desktop-quiz .answer-impact { z-index: 3; }
+.desktop-reader-scroll { overflow-y: auto; flex: 1; min-height: 0; padding: 18px; }
+.desktop-reader-text { max-width: 760px; margin: auto; color: var(--ink, #e7e2da); font-size: 15px; line-height: 1.9; overflow-wrap: anywhere; }
+.desktop-reader-text h2 { font-size: 22px; line-height: 1.5; }
+.desktop-reader-text p { white-space: pre-wrap; }
+.desktop-reader-text blockquote { margin: 16px 0; padding: 10px 16px; border-left: 3px solid #c6a567; background: #caaf7d12; }
+.desktop-reader-meta { color: #a1a4af; font-size: 12px; }
+@keyframes desktop-quest-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .desktop-quiz { animation: none; } }

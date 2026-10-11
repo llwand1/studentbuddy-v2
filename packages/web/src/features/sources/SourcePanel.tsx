@@ -29,6 +29,8 @@ import { ReaderView } from './ReaderView';
 import { SaveAsDocButton } from './SaveAsDocButton';
 import { VideoRouteView } from './VideoRouteView';
 import { useSourceKeys } from './useSourceKeys';
+import { DesktopReaderPanel } from '../desktop/DesktopReader';
+import { useDesktopReader } from '../desktop/desktop-reader-store';
 import '../preview/panel.css';
 import './sources.css';
 
@@ -63,12 +65,14 @@ function SourceFrame({ sessionId, item }: { sessionId: string; item: SourceItem 
 export function SourcePanel() {
   const [expanded, setExpanded] = useState(false);
   const st = useSources();
+  const desktop = useDesktopReader();
   const vr = useVideoRoute();
   const preview = useSyncExternalStore(subscribePreview, getPreview, getPreview);
   const hasShelf = st.items.length > 0;
   const videoMode = vr.open;
   const visible = ((st.open && hasShelf) || videoMode) && !preview;
   useSourceKeys(visible && !videoMode);
+  if (desktop.open && !preview && !videoMode && !st.open) return <DesktopReaderPanel key={desktop.sessionId} sessionId={desktop.sessionId} />;
   if (!visible) return null;
 
   const ordered = orderSources(st.items);

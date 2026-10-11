@@ -56,6 +56,7 @@ function makeOldDb(dir: string): void {
   for (const stmt of v18.statements) db.exec(stmt);
   db.prepare(`INSERT INTO flow_def (id, name) VALUES ('fd-1', '老用户存的流')`).run();
   db.prepare(`INSERT INTO knowledge_node (id, kind) VALUES ('kn-1', 'term')`).run();
+  db.exec(`ALTER TABLE ask_choices DROP COLUMN grill_phase`);
   db.prepare(`DELETE FROM schema_version WHERE version > 43`).run();
   expect(tablesOf(db)).toContain('flow_def');
   db.close();

@@ -41,11 +41,13 @@ import { publishEvent } from '../events/bus.js';
 import { ownerIdOf } from '../auth/ownership.js';
 import { quizExplanationRouter } from './quiz-explanation.js';
 import { replyPracticeRouter } from './reply-practice.js';
+import { quizFeedbackRouter } from './quiz-feedback.js';
 import { isQuizIdLike, listQuizAttempts, parseQuizAttemptInput, recordQuizAttempt } from '../learning/quiz-attempts.js';
 
 export const quizRouter = Router();
 quizRouter.use(quizExplanationRouter);
 quizRouter.use(replyPracticeRouter);
+quizRouter.use(quizFeedbackRouter);
 
 /** 这组题的作答记录（只看自己的；没有 ⇒ 空 rows，不是 404——「没刷过」是正常态） */
 quizRouter.get('/:quizId/attempts', (req: Request, res: Response) => {
@@ -174,7 +176,7 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
       styleArg,
       search === true || (search === undefined && loadExamContext(ownerIdOf(req)).on),
       ownerIdOf(req),
-      { searchTopic: rawTopic && !isPlaceholderTopic(rawTopic) ? rawTopic.trim() : topic },
+      { searchTopic: rawTopic && !isPlaceholderTopic(rawTopic) ? rawTopic.trim() : topic, freshSearch: search === true },
     );
     // 502 按**真因**分开说：v1.0 把「模型不可用 / JSON 解不出 / 配比裁空」混成一句，照着重试永远调不对（契约 §2.4）
     if (!blended.quiz) {

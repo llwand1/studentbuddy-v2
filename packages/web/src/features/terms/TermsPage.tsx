@@ -1,3 +1,4 @@
+import { MathText } from '../chat/MathText';
 /**
  * TermsPage — 词条库（忆域 v2：AI 自动词条库）。
  * 取代旧「背背背」翻卡页：AI 在对话/搜索中自动把重要词条入库，
@@ -245,7 +246,7 @@ export function TermsPage({
                     )}
                     {t.usage_count > 0 && <span className="term-used">已在对话中使用 {t.usage_count} 次</span>}
                   </div>
-                  <div className="term-def">{t.definition}</div>
+                  <div className="term-def"><MathText text={t.definition}/></div>
                   {relOpen === t.id && <TermRelations termId={t.id} />}
                   <div className="term-meta">
                     {t.source_title && <span>来自：{t.source_title.slice(0, 16)}</span>}

@@ -33,12 +33,13 @@ export type Block =
   | { kind: 'para'; inline: Inline[] }
   | { kind: 'ul'; items: ListItem[] }
   | { kind: 'ol'; items: ListItem[]; start?: number }
-  | { kind: 'quote'; lines: Inline[][] }
-  | { kind: 'learning-card'; variant: LearningCardKind; title: Inline[]; lines: Inline[][] }
+  | { kind: 'quote'; lines: Inline[][]; body?: Block[] }
+  | { kind: 'learning-card'; variant: LearningCardKind; title: Inline[]; lines: Inline[][]; body?: Block[] }
   | { kind: 'math'; code: string; closed: boolean }
   | { kind: 'table'; head: Inline[][]; rows: Inline[][][] }
   | { kind: 'code'; lang: string; text: string; closed: boolean }
   | { kind: 'svg'; code: string; closed: boolean }
+  | { kind: 'mermaid'; code: string; closed: boolean }
   | { kind: 'chart'; code: string; closed: boolean }
   | { kind: 'html'; code: string; closed: boolean }
   | { kind: 'hr' };
@@ -75,7 +76,7 @@ const LIST_MARK = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
 const TASK_BOX = /^\[([ xX])\]\s+/;
 
 function isBlockStart(line: string): boolean {
-  return !!(FENCE.test(line) || HEADING.test(line) || QUOTE.test(line) || LIST_MARK.test(line) || HR.test(line) || line.trim().startsWith('$$'));
+  return !!(FENCE.test(line) || HEADING.test(line) || QUOTE.test(line) || LIST_MARK.test(line) || HR.test(line) || /^(\$\$|\\\[)/.test(line.trim()));
 }
 
 /** 段内逐行 → inline 序列（行间插 br，行内标记各自解析）。 */
@@ -175,11 +176,12 @@ export function parseBlocks(src: string): Block[] {
       continue;
     }
 
-    if (line.trim().startsWith('$$')) {
+    if (/^(\$\$|\\\[)/.test(line.trim())) {
+      const closing = line.trim().startsWith('$$') ? '$$' : '\\]';
       const parts = [line.trim().slice(2)];
       i++;
-      while (!parts.at(-1)?.includes('$$') && i < lines.length) parts.push(at(i++));
-      const joined = parts.join('\n'); const end = joined.indexOf('$$');
+      while (!parts.at(-1)?.includes(closing) && i < lines.length) parts.push(at(i++));
+      const joined = parts.join('\n'); const end = joined.indexOf(closing);
       blocks.push({ kind: 'math', code: end < 0 ? joined : joined.slice(0, end), closed: end >= 0 });
       if (end >= 0 && joined.slice(end + 2).trim()) blocks.push({ kind: 'para', inline: parseInline(joined.slice(end + 2).trim()) });
       continue;
@@ -199,9 +201,10 @@ export function parseBlocks(src: string): Block[] {
         body.push(at(j));
       }
       const text = body.join('\n');
-      // svg/chart 有内联渲染器，html 只有「新标签页打开」卡（本应用 DOM 内绝不渲染）；
-      // 其余语言（含 mermaid/echarts 等未实现通道）一律按代码块显示，绝不裸注入
+      // 专用通道各自校验后渲染；html 只在独立沙箱标签页打开。
       if (lang === 'svg') blocks.push({ kind: 'svg', code: text, closed });
+      else if (lang === 'mermaid') blocks.push({ kind: 'mermaid', code: text, closed });
+      else if (['math', 'latex', 'tex'].includes(lang)) blocks.push({ kind: 'math', code: text, closed });
       else if (lang === 'chart') blocks.push({ kind: 'chart', code: text, closed });
       else if (lang === 'html' || lang === 'htm') blocks.push({ kind: 'html', code: text, closed });
       else blocks.push({ kind: 'code', lang, text, closed });
@@ -236,9 +239,12 @@ export function parseBlocks(src: string): Block[] {
         i++;
       }
       const card = learningCardHeader(items[0] ?? '');
+      const content = card ? items.slice(1) : items;
+      const body = content.some(item => /^(\$\$|\\\[|```)/.test(item.trim()))
+        ? { body: parseBlocks(content.join('\n')) } : {};
       blocks.push(card
-        ? { kind: 'learning-card', variant: card.variant, title: parseInline(card.title), lines: items.slice(1).map(parseInline) }
-        : { kind: 'quote', lines: items.map(parseInline) });
+        ? { kind: 'learning-card', variant: card.variant, title: parseInline(card.title), lines: content.map(parseInline), ...body }
+        : { kind: 'quote', lines: items.map(parseInline), ...body });
       continue;
     }
 
@@ -274,7 +280,16 @@ export function parseBlocks(src: string): Block[] {
  * 调用约定不变：仅流式渲染时调用。落库、导出、复制一律用原文——补出来的尾巴进历史就是数据污染。
  */
 export function remedy(src: string): string {
-  return remend(src);
+  const fixed = remend(src);
+  let open: string | null = null;
+  for (const line of src.split('\n')) {
+    const fence = FENCE.exec(line);
+    if (fence) open = open === null ? g(fence, 1).toLowerCase() : null;
+  }
+  // A synthetic closing fence is useful for ordinary code, but cannot grant permission
+  // to typeset a half-written equation or lay out a graph that is still changing.
+  return open !== null && ['mermaid', 'math', 'latex', 'tex'].includes(open)
+    ? fixed.replace(/\n```\s*$/, '') : fixed;
 }
 
 /**
@@ -290,7 +305,8 @@ export function stableCut(src: string): number {
     const idx = src.lastIndexOf('\n\n', from - 1);
     if (idx <= 0) return 0;
     const prefix = src.slice(0, idx);
-    if (countOf(prefix, '```') % 2 === 0 && countOf(prefix, '$$') % 2 === 0) return idx + 2;
+    if (countOf(prefix, '```') % 2 === 0 && countOf(prefix, '$$') % 2 === 0
+      && countOf(prefix, '\\[') === countOf(prefix, '\\]')) return idx + 2;
     from = idx;
   }
 }

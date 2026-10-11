@@ -22,6 +22,7 @@ export function migrate(d: Database.Database): void {
     if (m.version <= current) continue;
     const apply = d.transaction(() => {
       for (const stmt of m.statements) d.exec(stmt);
+      m.after?.(d);
       d.prepare(`INSERT INTO schema_version (version) VALUES (?)`).run(m.version);
     });
     apply();

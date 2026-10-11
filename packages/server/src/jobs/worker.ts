@@ -78,9 +78,9 @@ export function startJobWorker(intervalMs = 5_000): void {
   // 守卫（2026-10-10 真机事故的纵深防御层）：job 表缺失时**不再崩掉整个服务**——
   // 打日志、不启动轮询；`dispatchJob` 见 `running === false` 自动走内联执行路径，
   // 对话后抽词等后台任务退回「尽力而为」，但聊天/复习等主功能照常。
-  // （表的缺失由迁移 v58 自愈；本守卫挡的是「未来再漏一张表」的那一天。）
+  // （历史缺表由迁移 v59 自愈；本守卫也保护后续意外缺表的启动。）
   if (!jobTableReady()) {
-    console.warn('[jobs] job 表缺失，后台任务队列本次不启动（服务照常运行；迁移未补表时请升级到含 v58 的版本）');
+    console.warn('[jobs] job 表缺失，后台任务队列本次不启动（服务照常运行；请升级到含 v59 的版本）');
     return;
   }
   running = true;

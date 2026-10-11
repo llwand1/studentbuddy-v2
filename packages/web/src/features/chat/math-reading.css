@@ -1,0 +1,33 @@
+/* The adventure frame surrounds a quiet answer sheet; math keeps its own legible fonts. */
+.math-inline { display: inline-block; max-width: 100%; overflow-x: auto; overflow-y: hidden; vertical-align: middle; padding: .15em .08em; line-height: 1.4; }
+.math-inline .katex { font-size: 1.08em; }
+.math-inline .katex-mathml, .math-text .katex-mathml { user-select: none; }
+.math-text { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.math-text-display { display: block; max-width: 100%; overflow-x: auto; padding: 12px 8px; margin: 8px 0; background: #fffefa; color: #202c3a; border-left: 2px solid var(--sb-gold-edge); }
+.math-text-display .katex-display { margin: 0; }
+.math-text-display .katex-display.fleqn > .katex { padding-left: 0; }
+.math-source { font-family: ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
+.math-paper { margin: var(--sb-sp-3) 0; min-width: 0; max-width: 100%; border: 1px solid var(--sb-gold-edge); border-left: 3px solid var(--sb-gold-edge); background: #fffefa; color: #202c3a; box-shadow: 3px 3px 0 var(--sb-pixel-shadow); }
+.math-paper-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #e2e5e9; background: #f5f4ed; }
+.math-paper-label { font-size: var(--sb-fs-xs); font-weight: 700; color: #526174; letter-spacing: .06em; }
+.math-paper-actions { display: flex; gap: 6px; }
+.math-paper-actions button { min-height: 30px; padding: 3px 9px; border: 1px solid #c9ced2; background: #fffefa; color: #35465b; font-size: var(--sb-fs-xs); cursor: pointer; }
+.math-paper-actions button:hover, .math-paper-actions button[aria-pressed="true"] { background: #e6edf6; border-color: #647c9c; }
+.math-paper-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; padding: 20px 18px; scrollbar-color: #8797ac #eff1f3; }
+.math-paper-scroll:focus-visible, .math-paper-actions button:focus-visible { outline: 2px solid #5a7aa3; outline-offset: -2px; }
+.math-paper-ink { width: max-content; min-width: 100%; font-size: 1.1rem; }
+.math-paper-ink .katex-display { margin: 0; }
+.math-paper-ink .katex-display.fleqn > .katex { padding-left: 0; }
+.math-paper-large .math-paper-ink { font-size: 1.5rem; }
+.math-paper .katex-mathml { user-select: none; }
+.math-pending { padding: 16px; margin: 12px 0; border-left: 3px solid var(--sb-gold-edge); color: var(--sb-ink-secondary); background: var(--sb-surface); }
+.math-fallback { min-width: 0; border: 1px solid var(--sb-line); padding: 10px; margin: 12px 0; }
+.math-fallback summary { font-size: var(--sb-fs-sm); color: var(--sb-ink-secondary); cursor: pointer; }
+.math-fallback pre { overflow-x: auto; max-width: 100%; padding: 8px 0; margin: 0; }
+@media (max-width: 600px) {
+  .math-paper-head { padding: 6px 8px; }
+  .math-paper-scroll { padding: 16px 10px; }
+  .math-paper-ink { font-size: 1rem; }
+  .math-paper-large .math-paper-ink { font-size: 1.3rem; }
+  .math-paper-actions button { min-height: 36px; }
+}

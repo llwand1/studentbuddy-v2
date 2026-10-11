@@ -112,6 +112,7 @@ export function quizToolSummary(
       '**不要把基础题说成真题**；学习者时间紧时建议他先做真题与模拟题。',
   ].join('\n');
   const notes: string[] = [];
+  if (images.preparation) notes.push(images.preparation.mode === 'compiled' ? '使用预产物参数现场生成并验算，未调用出题模型或实时联网，不是真题' : '使用提前整理的考点蓝图，由 AI 现场创作，本次未实时联网，不是真题');
   if (images.droppedSvg > 0) notes.push(`有 ${images.droppedSvg} 张图未通过校验被丢弃（题面保留）`);
   if (images.truncated) notes.push('模型输出撞到长度上限，尾部不完整题已丢弃 ⇒ 题数偏少是这么来的');
   if (opts.scenarioSkipped) notes.push(`设置里的「${MIX_KIND_LABELS.scenario}」档本次未出——那一档走独立引擎，聊天里暂不含`);

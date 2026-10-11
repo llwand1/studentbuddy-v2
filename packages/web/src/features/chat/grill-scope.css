@@ -1,26 +1,19 @@
 body .chat-grill-pill.grill-scope-pill {
-  display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
-  border: 2px solid var(--sb-gold-edge); border-radius: 2px;
-  background: var(--sb-surface); box-shadow: 3px 3px 0 var(--sb-gold-edge);
-  color: var(--sb-ink);
+  display: grid; gap: 0; padding: 0; border: 1px solid var(--sb-line);
+  border-left: 3px solid var(--sb-primary); border-radius: 2px;
+  background: var(--sb-surface); box-shadow: inset 0 0 20px var(--sb-primary-weak); color: var(--sb-ink);
 }
-.grill-scope-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.grill-scope-title { font-weight: 700; }
-.grill-scope-label { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: 12px; }
-.grill-scope-label select, .grill-scope-topic {
-  min-height: 34px; border: 2px solid var(--sb-gold-edge); border-radius: 2px;
-  padding: 4px 8px; background: var(--sb-surface); color: var(--sb-ink); font: inherit;
-}
+.grill-scope-row { display: flex; align-items: center; min-width: 0; gap: 4px; }
+.grill-settings-toggle { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; min-height: 40px; border: 0; padding: 6px 10px; background: transparent; color: inherit; font: inherit; font-size: 11px; cursor: pointer; text-align: left; }
+.grill-settings-toggle strong { font-size: 12px; }
+.grill-scope-rune { font-size: 20px; color: var(--sb-primary); text-shadow: 0 0 10px var(--sb-primary); }
+.grill-scope-summary { margin-left: auto; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--sb-ink-secondary); }
+.grill-scope-settings { display: grid; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--sb-line); animation: grill-unfold .18s ease-out; }
+.grill-scope-label { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.grill-scope-label select, .grill-scope-topic { min-height: 36px; min-width: 0; flex: 1; border: 1px solid var(--sb-line); border-radius: 2px; padding: 6px 8px; background: var(--sb-bg); color: var(--sb-ink); font: inherit; }
 .grill-scope-topic { width: 100%; box-sizing: border-box; }
-.grill-scope-hint { font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
-.grill-scope-pill :is(select, input):focus-visible { outline: 2px solid var(--sb-ink); outline-offset: 2px; }
+.grill-scope-hint { margin: 0; font-size: 12px; line-height: 1.6; color: var(--sb-ink-secondary); overflow-wrap: anywhere; }
+.grill-scope-pill :is(button, select, input):focus-visible { outline: 2px solid var(--sb-primary); outline-offset: 2px; }
 .grill-scope-pill :disabled { opacity: .6; cursor: wait; }
-@media (max-width: 480px) {
-  .grill-scope-title { width: 100%; }
-  .grill-scope-label { margin-left: 0; flex: 1; }
-  .grill-scope-label select { min-width: 0; flex: 1; }
-}
-@media (pointer: coarse) {
-  .grill-scope-label select, .grill-scope-topic { min-height: 44px; font-size: 16px; }
-  .grill-scope-pill .chat-grill-off { min-height: 44px; }
-}
+.grill-scope-pill .chat-grill-off { min-height: 40px; margin: 0 6px 0 0; }
+@media (max-width: 600px) { .grill-settings-toggle { gap: 6px; } .grill-settings-toggle, .grill-scope-pill .chat-grill-off { min-height: 44px; } .grill-scope-label select, .grill-scope-topic { min-height: 44px; font-size: 16px; } }

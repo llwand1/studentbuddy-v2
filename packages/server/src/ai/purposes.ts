@@ -25,9 +25,11 @@ export interface AiPurposeInfo {
 }
 
 export const AI_PURPOSES = {
-  'chat.turn': { label: '对话回答', role: 'explain', version: 7, upstream: 'main', timeoutMs: 180_000 },
-  'chat.opener': { label: '篝火开场题', role: 'quiz-generator', version: 2, upstream: 'main', timeoutMs: INTERACTIVE_AI_BUDGET.totalMs },
+  'chat.turn': { label: '对话回答', role: 'explain', version: 8, upstream: 'main', timeoutMs: 180_000 },
+  'chat.opener': { label: '篝火开场题', role: 'quiz-generator', version: 3, upstream: 'main', timeoutMs: INTERACTIVE_AI_BUDGET.totalMs },
   'chat.opener.check': { label: '开场题答案核对', role: 'solver', version: 1, upstream: 'main', timeoutMs: INTERACTIVE_AI_BUDGET.totalMs },
+  'desktop.study': { label: '桌面定时备题', role: 'quiz-generator', version: 1, upstream: 'background', timeoutMs: INTERACTIVE_AI_BUDGET.totalMs },
+  'desktop.study.check': { label: '桌面练习答案核对', role: 'solver', version: 1, upstream: 'background', timeoutMs: INTERACTIVE_AI_BUDGET.totalMs },
   'chat.compact': { label: '会话压缩与画像', role: 'summarizer', version: 1, upstream: 'background', timeoutMs: 120_000 },
   'chat.vision': { label: '看图', role: 'vision', version: 1, upstream: 'main', timeoutMs: 90_000 },
   'image.verify': { label: '配图核验', role: 'vision', version: 1, upstream: 'main', timeoutMs: 45_000 },
@@ -40,6 +42,8 @@ export const AI_PURPOSES = {
   'quiz.verify': { label: '盲解验题', role: 'solver', version: 1, upstream: 'main', timeoutMs: 60_000 },
   'quiz.grade': { label: '主观题评分', role: 'solver', version: 1, upstream: 'main', timeoutMs: 45_000 },
   'quiz.explain': { label: '作答讲解', role: 'solver', version: 1, upstream: 'main', timeoutMs: 120_000 },
+  'quiz.feedback': { label: '题目评价预判', role: 'quiz-generator', version: 2, upstream: 'main', timeoutMs: 30_000 },
+  'quiz.adapt': { label: '按评价再出题', role: 'quiz-generator', version: 2, upstream: 'main', timeoutMs: 120_000 },
   'scenario.generate': { label: '情景任务', role: 'quiz-generator', version: 1, upstream: 'main', timeoutMs: 180_000 },
   'collect.draft': { label: '现场搜集出题', role: 'quiz-generator', version: 2, upstream: 'main', timeoutMs: 180_000 },
   'coach.message': { label: '复习督促', role: 'coach', version: 1, upstream: 'background', timeoutMs: 60_000 },
@@ -49,7 +53,7 @@ export const AI_PURPOSES = {
   'continent.expand': { label: '大陆开拓出词', role: 'explain', version: 1, upstream: 'main', timeoutMs: 45_000 },
   'drill.newterms': { label: '等待时刷词出新词', role: 'explain', version: 2, upstream: 'main', timeoutMs: 30_000 },
   'coach.trend': { label: '复习趋势摘要', role: 'coach', version: 1, upstream: 'background', timeoutMs: 60_000 },
-  'chat.grill': { label: '收尾追问选项', role: 'explain', version: 1, upstream: 'main', timeoutMs: 60_000 },
+    'chat.grill': { label: '收尾追问选项', role: 'explain', version: 2, upstream: 'main', timeoutMs: 20_000 },
   'lookup.explain': { label: '划词速查讲解', role: 'explain', version: 1, upstream: 'main', timeoutMs: 60_000 },
   'lookup.quiz': { label: '划词速查出题', role: 'explain', version: 1, upstream: 'main', timeoutMs: 90_000 },
   'guide.next': { label: '下一步引导', role: 'explain', version: 3, upstream: 'main', timeoutMs: INTERACTIVE_AI_BUDGET.totalMs },

@@ -1,5 +1,8 @@
 /** GrillMe 的会话学习目标；来源白名单仍由服务端按账号读取。 */
 export type GrillScope = { kind: 'conversation' | 'exam' | 'custom'; topic?: string };
+export type GrillTiming = 'adaptive' | 'always';
+/** Continuation is one turn only: a selected next step already supplies its direction. */
+export interface GrillFlow { timing: GrillTiming; continue?: boolean }
 export const GRILL_TOPIC_MAX = 160;
 export function normalizeGrillScope(value: unknown): GrillScope | null {
   if (value === undefined) return { kind: 'conversation' };

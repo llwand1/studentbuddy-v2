@@ -24,6 +24,10 @@
  */
 import type { ChatMessage, ChatRequest } from '../llm/types.js';
 import { GRILL_PRE, GRILL_TOOL_CHOICE } from './grill.js';
+import type { GrillTiming } from '@sb/shared';
+import { GRILL_DIRECT, needsGrillOpening } from './grill-timing.js';
+import type { ChatOptions } from './options.js';
+import { cancelGrillOffers } from './choice.js';
 export { examScopeToolChoice } from './exam-scope-action.js';
 
 /**
@@ -45,6 +49,9 @@ export interface OpeningFlags {
   grill: boolean;
   /** 联网开关（UI「联网已开」pill，本文件） */
   online: boolean;
+  text?: string;
+  grillTiming?: GrillTiming;
+  grillContinue?: boolean;
 }
 
 export interface Opening {
@@ -64,14 +71,29 @@ export interface Opening {
  */
 export function buildOpening(flags: OpeningFlags): Opening {
   const parts: string[] = [];
-  if (flags.grill) parts.push(GRILL_PRE);
+  const askFirst = flags.grill && !flags.grillContinue &&
+    (flags.grillTiming !== 'adaptive' || needsGrillOpening(flags.text ?? ''));
+  if (flags.grill) parts.push(askFirst ? GRILL_PRE : GRILL_DIRECT);
   if (flags.online) parts.push(SEARCH_FORCE);
   return {
     msg: parts.length > 0 ? ({ role: 'user', content: parts.join('\n') } as ChatMessage) : null,
     // 强绑名额只有一个：grill 优先（理由见文件头）
-    toolChoice: flags.grill ? GRILL_TOOL_CHOICE : flags.online ? SEARCH_TOOL_CHOICE : undefined,
+    toolChoice: askFirst ? GRILL_TOOL_CHOICE : flags.online ? SEARCH_TOOL_CHOICE : undefined,
     grill: flags.grill,
   };
+}
+
+/** One-shot continuation consumes the old route nudge before installing this turn's instruction. */
+export function applyTurnOpening(opts: ChatOptions, text: string, messages: ChatMessage[], nudge: ChatMessage | null): Opening {
+  cancelGrillOffers(opts.sessionId);
+  if (opts.grillMe && opts.grillContinue && nudge) {
+    const index = messages.indexOf(nudge);
+    if (index >= 0) messages.splice(index, 1);
+  }
+  const opening = buildOpening({ grill: opts.grillMe === true, online: opts.online === true,
+    text, grillTiming: opts.grillTiming, grillContinue: opts.grillContinue });
+  if (opening.msg) messages.push(opening.msg);
+  return opening;
 }
 
 /**

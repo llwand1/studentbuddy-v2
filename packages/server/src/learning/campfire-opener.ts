@@ -1,6 +1,6 @@
-/** 现场召题；没有历史题读取、题目缓存或固定题降级。 */
+/** 现场召题；预产物仅提供蓝图/参数，永不回显上次成品题。 */
 import { randomUUID } from 'node:crypto';
-import { INTERACTIVE_AI_BUDGET, normalizeCampfireQuestion, type CampfireOpener, type CampfireQuestion } from '@sb/shared';
+import { INTERACTIVE_AI_BUDGET, normalizeCampfireQuestion, pomodoroFocus, type CampfireOpener, type CampfireQuestion, type QuizPayload } from '@sb/shared';
 import { aiJson, type AiJsonOptions } from '../ai/gateway.js';
 import { buildExamPromptBlock, loadExamContext } from './exam-mode.js';
 import { loadPomodoro } from '../storage/pomodoro.js';
@@ -8,21 +8,36 @@ import { buildFocusBlock } from '../chat/focus-context.js';
 import { extractJsonObject } from './json-object.js';
 import { claimOpener, openerAlreadySeen } from './opener-history.js';
 import { checkCampfireQuestion } from './opener-check.js';
+import { selectSeed, seedBlock, preparation, markSeedUsed } from './question-seeds.js';
+import { compileSeed } from './question-seed-compile.js';
 
 export type OpenerResult = { ok: true; value: CampfireOpener } | { ok: false; status: number; error: string };
 
-export async function generateCampfireOpener(ownerId: string | null, exclude: string[], signal: AbortSignal): Promise<OpenerResult> {
+export async function generateCampfireOpener(ownerId: string | null, exclude: string[], signal: AbortSignal, readingMaterial = '', purpose: 'chat.opener' | 'desktop.study' = 'chat.opener'): Promise<OpenerResult> {
   const deadline = Date.now() + INTERACTIVE_AI_BUDGET.totalMs;
   const id = randomUUID();
   const exam = loadExamContext(ownerId);
-  const scope = exam.on ? exam.summary : '';
+  const scope = readingMaterial ? '当前共读网页' : exam.on ? exam.summary : '';
+  if (signal.aborted) return { ok: false, status: 499, error: '召题已取消。' };
+  const focus = loadPomodoro(ownerId);
+  const seed = readingMaterial ? null : selectSeed(ownerId, pomodoroFocus(focus, new Date())?.subject ?? '', ['single']);
+  const toCampfire = (quiz: QuizPayload): CampfireQuestion | null => {
+    const q = quiz.questions[0];
+    return q ? normalizeCampfireQuestion({ topic: quiz.title, question: q.question, options: q.options, answer: Array.isArray(q.answer) ? q.answer[0] : null, explanation: q.explanation }, exclude) : null;
+  };
+  const compiled = seed && compileSeed(ownerId, seed, { single: 1, multiple: 0, judge: 0, fill: 0, essay: 0, scenario: 0 }, {
+    signal, accept: quiz => { const q = toCampfire(quiz); return !!q && !openerAlreadySeen(ownerId, q.question); },
+    commit: quiz => { const q = toCampfire(quiz); return !!q && claimOpener(ownerId, q.question); },
+  });
+  if (compiled && seed) return { ok: true, value: { id, question: toCampfire(compiled)!, scope, preparation: preparation(seed, 'compiled') } };
   const prompt = [
     '为刚进入篝火营地的学习者现场创作一道新的单选热身题，让人能从题目自然开始对话。',
     '只出一道，题干清晰、简短、自包含，2–4 个不同选项，只有一个正确答案；解析解释原因。所有字段使用纯文字，不要 Markdown 代码围栏、图表或外部材料；代码仅用短行内表达式，不把答案透露在题干里。',
     '优先遵守下面的当前学习方向和应试范围；未指定具体学科时，在允许范围内自行选择一个具体常见考点。不追问用户、不引用上一次题目、不冒充真题或联网搜到的题。',
-    buildExamPromptBlock(ownerId),
-    buildFocusBlock(loadPomodoro(ownerId)),
-    scope ? `当前应试范围：${scope}。选这个范围内适合热身的基础考点。` : '没有指定学科时，任选一个数学、英语、计算机或学习方法的基础考点。',
+    readingMaterial ? '本题仅围绕下面共读材料中的核心概念、当前划选或视野出题；题干必须带齐所需条件，脱离网页也能独立作答。不要转回其他学科或虚构材料事实。' : buildExamPromptBlock(ownerId),
+    readingMaterial || buildFocusBlock(focus),
+    seedBlock(seed),
+    readingMaterial ? '从当前共读网页提炼一道简短单选题。' : scope ? `当前应试范围：${scope}。选这个范围内适合热身的基础考点。` : '没有指定学科时，任选一个数学、英语、计算机或学习方法的基础考点。',
     '仅回 JSON：{"topic":"具体考点","question":"题干","options":["选项","选项","选项"],"answer":0,"explanation":"解析"}。answer 为正确选项的从 0 开始的整数下标。',
     'topic 最多 40 字，question 最多 400 字，每个选项最多 160 字，explanation 最多 600 字。',
     '这是短热身题：题干尽量在 80 字以内，解析 1–2 句。直接输出完整 JSON，不展开推导过程。',
@@ -32,7 +47,7 @@ export async function generateCampfireOpener(ownerId: string | null, exclude: st
     `本次独立创作种子：${id}。请换一个新的情境或考点，现场构思。`,
   ].filter(Boolean).join('\n');
   const options: AiJsonOptions<CampfireQuestion> = {
-    purpose: 'chat.opener', ownerId, signal, temperature: .85, streamMode: 'once',
+    purpose, ownerId, signal, temperature: .85, streamMode: 'once',
     maxTokens: INTERACTIVE_AI_BUDGET.maxTokens, repairMaxTokens: INTERACTIVE_AI_BUDGET.repairMaxTokens,
     totalTimeoutMs: Math.max(1, deadline - Date.now()),
     messages: [{ role: 'system', content: prompt }, { role: 'user', content: '请为这一次进入，现场出一道新的热身题。' }],
@@ -40,7 +55,7 @@ export async function generateCampfireOpener(ownerId: string | null, exclude: st
       const q = normalizeCampfireQuestion(extractJsonObject(text), exclude);
       if (!q || openerAlreadySeen(ownerId, q.question)) return null;
       if (signal.aborted || Date.now() >= deadline) return null;
-      const checked = await checkCampfireQuestion(ownerId, q, signal, deadline - Date.now());
+      const checked = await checkCampfireQuestion(ownerId, q, signal, deadline - Date.now(), purpose === 'desktop.study' ? 'desktop.study.check' : 'chat.opener.check');
       if (checked.ok && checked.value.valid) return q;
       const reason = checked.ok ? checked.value.reason : '核对没有完成，请重新创作最简单的基础定义题。';
       options.repairHint += ` 审题发现：${JSON.stringify(reason)}。必须修正这个问题，不能照抄原题或为它补条件。`;
@@ -52,7 +67,8 @@ export async function generateCampfireOpener(ownerId: string | null, exclude: st
   if (r.ok) {
     if (signal.aborted) return { ok: false, status: 499, error: '召题已取消。' };
     if (!claimOpener(ownerId, r.value.question)) return { ok: false, status: 502, error: '这道题刚刚已经出现过，请重新召题。' };
-    return { ok: true, value: { id, question: r.value, scope } };
+    if (seed) markSeedUsed(ownerId, seed);
+    return { ok: true, value: { id, question: r.value, scope, ...(seed ? { preparation: preparation(seed, 'material') } : {}) } };
   }
   const error = r.reason === 'no-model' ? '还没有可用的出题模型，请到设置里配置 AI。'
     : r.reason === 'timeout' ? '召题等得有点久，点一下重新试试。'

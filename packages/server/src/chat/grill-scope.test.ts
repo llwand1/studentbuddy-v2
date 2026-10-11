@@ -10,6 +10,11 @@ let dir: string;
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-grillscope-')); openIsolated(dir); });
 afterEach(() => { closeDb(); fs.rmSync(dir, { recursive: true, force: true }); });
 describe('GrillMe 服务端学习边界', () => {
+  it('非法触发节奏或续接值拒绝；关闭模式时忽略它们', () => {
+    expect(parseGrillRequest({ grillMe: true, grillTiming: 'all' }, null).ok).toBe(false);
+    expect(parseGrillRequest({ grillMe: true, grillContinue: 'true' }, null).ok).toBe(false);
+    expect(parseGrillRequest({ grillTiming: 'bad', grillContinue: 'true' }, null)).toEqual({ ok: true, grillMe: false });
+  });
   it('旧客户端默认当前对话；关闭 GrillMe 时不接受范围指令', () => {
     expect(parseGrillRequest({ grillMe: true }, 'a')).toEqual({ ok: true, grillMe: true, grillScope: { kind: 'conversation' } });
     expect(parseGrillRequest({ grillScope: { kind: 'bad' } }, 'a')).toEqual({ ok: true, grillMe: false });

@@ -23,7 +23,7 @@ export interface ChoiceQueue {
   /** 新一轮开始（清空队列，settled 的确认态一并退场） */
   reset: () => void;
   /** 答复 */
-  replyChoice: (requestId: string, reply: { optionId?: string; custom?: string }) => void;
+  replyChoice: (requestId: string, reply: { optionId?: string; custom?: string }) => Promise<boolean>;
   /** 收起队首（纯前端动作，不触碰后端状态） */
   dismissChoice: () => void;
   /**
@@ -104,12 +104,11 @@ export function useChoiceQueue(sessionId: string | null, onError: (msg: string) 
   );
 
   const replyChoice = useCallback(
-    (requestId: string, reply: { optionId?: string; custom?: string }) => {
+    async (requestId: string, reply: { optionId?: string; custom?: string }): Promise<boolean> => {
       // 不做乐观切态：工具与答复同进程、本机往返毫秒级，且卡片内部已有 busy 锁防连点；
       // 等服务端广播回来再切已选态，前端就不必维护第二份「我以为的状态」（409 才是最终决定）。
-      void api.choices
-        .reply(requestId, reply)
-        .catch((err: unknown) => onError(err instanceof Error ? err.message : String(err)));
+      try { await api.choices.reply(requestId, reply); return true; }
+      catch (err) { onError(err instanceof Error ? err.message : String(err)); return false; }
     },
     [onError],
   );

@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { AnswerStyle, QuizBlendReport, QuizImageReport, QuizPayload, QuizRef, ScenarioMixResult } from '@sb/shared';
 import { api } from '../../lib/api';
-import { blendNote, examNote, imageNote, refsList, searchNote, scenarioMixNote } from '../quiz/mix-report';
+import { blendNote, examNote, imageNote, preparationNote, refsList, searchNote, scenarioMixNote } from '../quiz/mix-report';
 import { setQuizWait } from '../drill/quiz-wait';
 
 interface Opts {
@@ -83,6 +83,7 @@ export function useQuizActions({ sessionId, input, online, getMaterial, clearInp
             [
               blendNote(r.blend, r.quiz?.questions),
               imageNote(r.images),
+              preparationNote(r.images),
               // 范围账与来源清单不重复：清单说「参考了哪几条」，这句说「这几条是怎么被范围筛出来的」
               examNote(r.images?.search?.scope ?? r.blend?.collect?.scope),
               found.length === 0 ? searchNote(r.images?.search) : null,

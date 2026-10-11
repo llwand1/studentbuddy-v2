@@ -1,3 +1,4 @@
+import { MATH_READING_PROMPT, DIAGRAM_READING_PROMPT } from './math-reading-prompt.js';
 /** 普通对话的表达约束紧随本轮偏好，避免被长工具说明及旧风格句淹没。 */
 import { buildAnswerStyleBlock, type AnswerStyle } from '@sb/shared';
 
@@ -15,12 +16,15 @@ export function buildChatStyleBlock(style: AnswerStyle, text = ''): string {
   const cardExample = calculation
     ? '> [!ROUTE] 求解路线\n> 先展开括号，再移项求解，最后代入原式核对。\n> 关键词：`分配律` · `等式性质`'
     : '> [!CORE] 惯性\n> 惯性是物体保持原有运动状态的性质。\n> 关键词：`运动状态` · `质量`';
-  return [buildAnswerStyleBlock(style), '【本轮学习回复】以下规则仅用于知识讲解；闲聊、操作回执和仅出题不用这个模板。', opening, depth,
+  const preference = calculation ? buildAnswerStyleBlock(style)
+    .replace(/结论先行[^。\n]*。/u, '求解路线先行，推导后交付结果与验算。')
+    .replace('只给结论和最关键的一条理由', '只给路线、关键变形与验算') : buildAnswerStyleBlock(style);
+  return [preference, '【本轮学习回复】以下规则仅用于知识讲解；闲聊、操作回执和仅出题不用这个模板。', opening, depth,
     style.tone === 'socratic'
       ? '引导式先提问，不用 CORE/ROUTE 卡提前给答案。'
-      : `【学习卡片】知识讲解用引用卡开篇，本轮按以下示例格式书写，后面每行都以 > 开头，写核心判断/路线与关键词：\n${cardExample}\n\n需要时可用 > [!STEP] 1. 步骤名、> [!EXAMPLE] 例子、> [!PITFALL] 易错点、> [!CHECK] 结果与验算；正文仍每行加 >，卡片之间空一行，卡内空段用 >。只选择有用的卡片，其余用普通正文，别把六种都填满。图的 svg 围栏独立放在相应卡片旁；不要把整篇包在代码围栏。简短档至多一张卡、两三句，用户要求纯文本时不用卡。`,
-    '普通讲解的公式用直接可读符号或行内代码（如 2 × (x − 3)、x = 16 ÷ 2），分数写 (分子)/(分母)，优先不输出 $ / $$ 公式分隔符或 LaTeX 命令；界面仅支持常见公式，不支持复杂 LaTeX。用户明确要 LaTeX 源码时才用代码围栏给源码，正式题卡的协议不改。',
-    '思维图、关系图、流程图或明确要求 SVG 时，直接编写 ```svg 围栏中的 <svg> 矢量代码，不用 generate_image 或搜索图片代替。使用白底、深色文字/连线、至少16px标签，优先纵向紧凑布局，每行标签不超过12字，留足节点间距；真实照片或插画才使用图片工具。图片工具失败时如实说明，绝不编造 /api/images/ 地址。',
+      : `【学习卡片】知识讲解用引用卡开篇，本轮按以下示例格式书写，后面每行都以 > 开头，写核心判断/路线与关键词：\n${cardExample}\n\n需要时可用 > [!STEP] 1. 步骤名、> [!EXAMPLE] 例子、> [!PITFALL] 易错点、> [!CHECK] 结果与验算；正文仍每行加 >，卡片之间空一行，卡内空段用 >。只选择有用的卡片，其余用普通正文，别把六种都填满。图的 svg/mermaid 围栏独立放在相应卡片旁；不要把整篇包在代码围栏。简短档至多一张卡、两三句，用户要求纯文本时不用卡。`,
+    MATH_READING_PROMPT,
+    DIAGRAM_READING_PROMPT,
     'GrillMe 按问答节奏先问关键问题，不抢先泄露练习答案。完整讲解后可以邀请用自己的话复述一个关键原因，或建议打开 GrillMe、选当前对话范围练一轮；只给一个自愿的下一步，不每轮邀请、不叠加对战邀约。普通讲解的收尾邀请直接写一句，不用 ask_choice 等待答复。正式出题仍用 generate_quiz，不推荐不存在的「深度理解模式」，不强制作答才能继续。',
     '【一次交付】本轮任何工具（包括保存词条、图片和对战邀请）都应先调用，调用前最多一句过程说明，不先写学习卡、公式或完整讲解。工具都返回后才交付完整回答一次。若此前已经输出完整讲解，它不是草稿；工具返回后仅给必要的简短操作确认，禁止重复全文或再开同样的结论卡。',
   ].join('\n');

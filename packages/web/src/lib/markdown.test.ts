@@ -1,16 +1,29 @@
 import { describe, it, expect } from 'vitest';
-import { readableMath } from './math-text';
+import { renderMath } from './math-render';
 
 describe('常见公式展示', () => {
-  it('转为可读符号并保持分数与上下标分组，未知或坏语法整式回退', () => {
-    expect(readableMath('\\boxed{x = 16 \\div 2}')).toBe('x = 16 ÷ 2');
-    expect(readableMath('\\Rightarrow x = \\frac{16}{2}')).toBe('⇒ x = (16)/(2)');
-    expect(readableMath('F_{\\text{合}} = m \\cdot a')).toBe('F_合 = m · a');
-    expect(readableMath('F_{\\text{合外}} = m \\cdot a')).toBe('F_(合外) = m · a');
-    expect(readableMath('\\frac{a+b}{\\sqrt{x^{2}}}')).toBe('(a+b)/(√(x^2))');
-    expect(readableMath('\\unknown{x}')).toBeNull();
-    expect(readableMath('\\frac{a}{b')).toBeNull();
-    expect(readableMath('x'.repeat(4001))).toBeNull();
+  it('完整公式呈现 MathML，未知/坏语法/外链回退，宏与展开预算互相隔离', () => {
+    for (const source of ['\\boxed{x=8}', '\\frac{a+b}{\\sqrt{x^2}}', 'F_{\\text{合外}}=ma', '\\begin{cases}x&x>0\\\\0&x\\le0\\end{cases}', '\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}']) {
+      expect(renderMath(source, true)).toContain('<math');
+    }
+    for (const source of ['\\unknown{x}', '\\frac{a}{b', '\\href{https://evil.example}{x}', '\\includegraphics{https://evil.example/x}', '\\htmlStyle{color:red}{x}', 'x'.repeat(12001), '\\def\\a{\\a}\\a']) expect(renderMath(source, true)).toBeNull();
+    expect(renderMath('\\gdef\\local{2}\\local', false)).toContain('<math');
+    expect(renderMath('\\local', false)).toBeNull();
+  });
+  it('标准分隔符与显式公式围栏保留多行，价格/引用/普通代码不误判', () => {
+    const source = '\\[\\begin{aligned}x&=1\\\\\n\ny&=2\\end{aligned}\\]\n\n说明';
+    for (let i = 1; i <= source.length; i++) {
+      const p = source.slice(0, i); const cut = stableCut(p);
+      expect([...parseBlocks(p.slice(0, cut)), ...parseBlocks(p.slice(cut))]).toEqual(parseBlocks(p));
+    }
+    expect(parseInline('式 \\(x^2\\) 据 [2]，价格 \\$5 / $10').map(n=>n.t)).toContain('math');
+    expect(parseInline('价格 \\$5 / $10').some(n=>n.t==='math')).toBe(false);
+    for (const lang of ['math','latex','tex']) expect(parseBlocks(`\`\`\`${lang}\nx=2\n\`\`\``)[0]).toEqual({kind:'math',code:'x=2',closed:true});
+    for (const lang of ['mermaid','math','latex','tex']) {
+      const pending = parseBlocks(remedy(`\`\`\`${lang}\nx=2`))[0];
+      expect(pending).toHaveProperty('closed',false);
+    }
+    expect(parseInline('`$x$` 与 `\\(x\\)`').filter(n=>n.t==='code')).toHaveLength(2);
   });
   it('公式空行不割裂增量块，代码围栏和不完整公式保持原文', () => {
     const text = '$$\nx = 16 \\div 2\n\n= 8\n$$\n\n结尾';
@@ -120,7 +133,8 @@ describe('markdown 块级切分', () => {
     expect(half[0]?.kind).toBe('chart');
     if (half[0]?.kind === 'chart') expect(half[0].closed).toBe(false);
 
-    expect(parseBlocks('```mermaid\nflow TD\na-->b\n```')[0]?.kind).toBe('code');
+    expect(parseBlocks('```mermaid\nflowchart TD\na-->b\n```')[0]).toEqual({kind:'mermaid',code:'flowchart TD\na-->b',closed:true});
+    expect(parseBlocks('```mermaid\nflowchart TD\na-->')[0]).toEqual({kind:'mermaid',code:'flowchart TD\na-->',closed:false});
   });
 });
 

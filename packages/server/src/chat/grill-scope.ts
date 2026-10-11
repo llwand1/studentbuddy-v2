@@ -1,8 +1,8 @@
-import { normalizeGrillScope, type GrillScope } from '@sb/shared';
+import { normalizeGrillScope, type GrillScope, type GrillTiming } from '@sb/shared';
 import { loadExamContext } from '../learning/exam-mode.js';
 
-export function parseGrillRequest(body: { grillMe?: unknown; grillScope?: unknown }, ownerId: string | null):
-  { ok: true; grillMe: boolean; grillScope?: GrillScope } | { ok: false; error: string } {
+export function parseGrillRequest(body: { grillMe?: unknown; grillScope?: unknown; grillTiming?: unknown; grillContinue?: unknown }, ownerId: string | null):
+  { ok: true; grillMe: boolean; grillScope?: GrillScope; grillTiming?: GrillTiming; grillContinue?: boolean } | { ok: false; error: string } {
   if (body.grillMe !== true) return { ok: true, grillMe: false };
   const scope = normalizeGrillScope(body.grillScope);
   if (!scope) return { ok: false, error: '学习范围不合法；自定义主题须填写 1–160 字。' };
@@ -10,7 +10,13 @@ export function parseGrillRequest(body: { grillMe?: unknown; grillScope?: unknow
     const exam = loadExamContext(ownerId);
     if (!exam.on || !exam.hosts.length) return { ok: false, error: '请先开启应试模式并选择范围，也可以在对话里让 AI 调整白名单。' };
   }
-  return { ok: true, grillMe: true, grillScope: scope };
+  if (body.grillTiming !== undefined && body.grillTiming !== 'adaptive' && body.grillTiming !== 'always') {
+    return { ok: false, error: '请选择按需追问或每轮先问。' };
+  }
+  if (body.grillContinue !== undefined && typeof body.grillContinue !== 'boolean') return { ok: false, error: '追问续接参数不合法。' };
+  return { ok: true, grillMe: true, grillScope: scope,
+    ...(body.grillTiming ? { grillTiming: body.grillTiming } : {}),
+    ...(body.grillContinue === true ? { grillContinue: true } : {}) };
 }
 
 /** 独立 system 段贯穿 pre、正文和 post，不能与首轮的强绑指令一起摘掉。 */

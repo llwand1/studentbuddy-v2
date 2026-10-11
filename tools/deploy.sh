@@ -31,6 +31,18 @@
 #   ⇒ 步骤 ①c 拿「已合并进当前历史的最高 tag」与表头逐字对账（tag ＝这一版真的上线过的唯一机械证据），
 #   不一致就停；确知要带着不一致上线才许 SKIP_PUBLIC_CHANGELOG_CHECK=1。判断标准细节见 tools/check-public-changelog.mjs。
 #
+# ★★ 2026-10-07 补闸（磁盘核算 ＋ 回滚点保留）
+#   本脚本原来**只造回滚点、从不删**，且造之前不看盘上还有多少地方。2026-10-07 实测：
+#   `app-old-*` 攒 8 份＝2.2GB、`backup/app-predeploy-*.tar.gz` 攒 37 份＝2.7GB、根分区 **87% 满、剩 2.5GB**，
+#   而 2026-09-29 已经手工清过一次（DEPLOY.md §11 记着「攒到 20 份 ≈ 4.3GB」）⇒ 清而不改码，八天就长回来。
+#   ★ 更要命的是**回滚点写进了 `$BASE/backup`，而那是一个 git 仓**：`/usr/local/bin/sb-backup` 每日
+#   `git add -A` 会把 100MB+ 的代码包吞进历史，而 GitHub 拒收 >100MB 的单文件 ⇒ 实测异地备份
+#   **从 2026-10-02 起连续 6 天推送失败**（本地 master 领先 origin/master 6 个提交），而脚本把失败原因
+#   `2>/dev/null` 吞掉了，日志里只剩一句误导性的 `src refspec main does not match any`。
+#   ⇒ 两条改动：① 代码包改落 `$ROLLBACK`（git 仓之外）＋给 backup/ 补 `*.tar.gz` 的 .gitignore；
+#      ② ②b 在动手前算一次空间（**半头发版比不发更糟**：⑦ 已 `mv` 走旧 app、新 app 却没空间解包＝线上没代码），
+#      ⑨ 在 ⑧ 验证通过之后按保留数清理（放在最后是因为：没验过的发版**一个回滚点都不许删**）。
+#
 # 用法：
 #   bash tools/deploy.sh                  # 正常发布（含预演）
 #   DRY_RUN=1 bash tools/deploy.sh        # 只做 体检+校验+构建+打包，不上传不切换（验闸用）
@@ -38,6 +50,8 @@
 #   ALLOW_DIRTY=1 bash tools/deploy.sh    # 明知工作树有 packages/** 改动仍发（危险）
 #   SKIP_PUBLIC_CHANGELOG_CHECK=1 bash tools/deploy.sh  # 明知对外更新表落后仍发（要写明为什么）
 #   SERVER=root@1.2.3.4 KEY=~/.ssh/k bash tools/deploy.sh
+#   KEEP_APP_OLD=2 KEEP_APP_TAR=2 KEEP_DB=7 bash tools/deploy.sh   # 保留数量（默认 2/2/7）
+#   MIN_FREE_KB=2097152 bash tools/deploy.sh                      # ②b 的空间下限（默认 2GB）
 set -euo pipefail
 
 cd "$(dirname "$0")/.."          # 一律在仓库根跑，路径都相对它
@@ -46,6 +60,13 @@ SERVER=${SERVER:?必须提供，如 root@203.0.113.10（真实地址不入仓，
 KEY=${KEY:-$HOME/.ssh/id_ed25519}
 BASE=${BASE:-/opt/studentbuddy}
 APP=$BASE/app
+# ★ 代码整目录包的家。**刻意不是 $BASE/backup** —— backup/ 是 sb-backup 每日 push 的 git 仓，
+#   100MB+ 的包进去就会让整条异地备份链被 GitHub 拒收（缘由见文件头 2026-10-07 那段）。
+ROLLBACK=${ROLLBACK:-$BASE/rollback}
+KEEP_APP_OLD=${KEEP_APP_OLD:-2}      # 留最近几份 app-old-*（⑦ 整目录轮换的产物）
+KEEP_APP_TAR=${KEEP_APP_TAR:-2}      # 留最近几份 rollback/app-predeploy-*.tar.gz
+KEEP_DB=${KEEP_DB:-7}                # 留最近几份 backup/db-predeploy-*.db（与 sb-backup 的 7 天窗口对齐）
+MIN_FREE_KB=${MIN_FREE_KB:-2097152}  # ②b 空间下限兜底（默认 2GB），实际要求取「算出来的峰值」与它的较大者
 SVC=${SVC:-studentbuddy}
 PORT=${PORT:-18791}
 PRETEST_PORT=${PRETEST_PORT:-18799}
@@ -113,14 +134,42 @@ if [ "${DRY_RUN:-0}" = "1" ]; then
   exit 0
 fi
 
+echo "=== ②b 磁盘核算（为什么要有这步：半头发版比不发更糟）==="
+# ⑦ 会把旧 app `mv` 走、⑤ 要把新 app 解包出来 —— 若中途 ENOSPC，线上就同时没有新旧代码，
+# 而唯一能退回的那份也在同一块满盘上。所以**动手前先算**，算不过就一行字节都不上传。
+TAR_KB=$(du -sk "$TAR" | cut -f1)
+AVAIL_KB=$(ssh_ "df --output=avail -k '$BASE' | tail -1 | tr -dc '0-9'")
+APP_KB=$(ssh_ "du -sk '$APP' 2>/dev/null | cut -f1 | head -1 || true"); APP_KB=${APP_KB:-0}
+if [ -z "$AVAIL_KB" ]; then
+  echo "✗ 取不到 $BASE 所在分区的可用空间 ⇒ 无法核算，拒绝发版（宁可停下来问，不要拿半截状态上线）"
+  exit 1
+fi
+# 峰值新增 ＝ ④ 上传的包 ＋ ⑤ 解出的 app-new ＋ ③ 那份整目录包（≈ 当前 app 体积）＋ 库快照/预演余量
+NEED_KB=$(( APP_KB * 2 + TAR_KB + 204800 ))
+if [ "$NEED_KB" -lt "$MIN_FREE_KB" ]; then NEED_KB=$MIN_FREE_KB; fi
+echo "  可用 ${AVAIL_KB} KB ｜ 峰值需要 ${NEED_KB} KB（app=${APP_KB}×2 ＋ 包=${TAR_KB} ＋ 余量 204800）"
+if [ "$AVAIL_KB" -lt "$NEED_KB" ]; then
+  echo
+  echo "✗ 空间不够 —— 这次**没碰服务器**（只跑了两次只读的 df/du）"
+  echo "  先手工清掉旧回滚点（与 ⑨ 同口径，只留最近 $KEEP_APP_OLD 份），再重跑本脚本："
+  echo "    ssh -i $KEY $SERVER 'cd $BASE && ls -1d app-old-* | sort -r | tail -n +$((KEEP_APP_OLD+1)) | xargs -r rm -rf && ls -1 $ROLLBACK/app-predeploy-*.tar.gz 2>/dev/null | sort -r | tail -n +$((KEEP_APP_TAR+1)) | xargs -r rm -f'"
+  exit 1
+fi
+echo "✓ 够发（富余 $(( AVAIL_KB - NEED_KB )) KB）"
+
 echo "=== ③ 建回滚点（库快照 + 旧代码整目录包）==="
 ssh_ "set -e
-  mkdir -p $BASE/backup
+  mkdir -p $BASE/backup $ROLLBACK
+  # ★ 给备份仓钉一条 .gitignore：sb-backup 是 \`git add -A\`，代码包一旦落进这个目录就会被
+  #   吞进历史并把 GitHub 的 100MB 单文件上限撞穿（⇒ 异地备份静默断供）。只管**新增**的包；
+  #   仓里已有的历史大文件要另做一次性收口（见 DEPLOY.md §11）。
+  touch $BASE/backup/.gitignore
+  grep -qxF '*.tar.gz' $BASE/backup/.gitignore || echo '*.tar.gz' >> $BASE/backup/.gitignore
   sqlite3 $BASE/data/studentbuddy.db \".backup $BASE/backup/db-predeploy-$TS.db\"
   echo \"库 integrity_check: \$(sqlite3 $BASE/backup/db-predeploy-$TS.db 'PRAGMA integrity_check;')\"
   echo \"库 schema_version:  \$(sqlite3 $BASE/backup/db-predeploy-$TS.db 'select max(version) from schema_version;')\"
-  tar czf $BASE/backup/app-predeploy-$TS.tar.gz -C $BASE app
-  ls -la $BASE/backup/db-predeploy-$TS.db $BASE/backup/app-predeploy-$TS.tar.gz"
+  tar czf $ROLLBACK/app-predeploy-$TS.tar.gz -C $BASE app
+  ls -la $BASE/backup/db-predeploy-$TS.db $ROLLBACK/app-predeploy-$TS.tar.gz"
 
 echo "=== ④ 上传 + 传输校验 ==="
 scp -q -i "$KEY" "$TAR" "$SERVER:/tmp/"
@@ -176,8 +225,27 @@ else
   echo "✗ sha256 不一致 —— 线上不是本地这份代码"; echo "本地:"; echo "$L"; echo "线上:"; echo "$R"; exit 1
 fi
 
+echo "=== ⑨ 保留清理（刻意排在 ⑧ 之后：这一版没被验证通过之前，一个回滚点都不许删）==="
+# 目录/文件名里的时间戳是 YYYYmmdd-HHMM 零填充 ⇒ `sort -r` 就是「新 → 旧」，`tail -n +N+1` 即「第 N 份之后」。
+# 只认本脚本自己造的三种名字（app-old-* / app-predeploy-* / db-predeploy-*）；手工留的 app-broken-* 一律不碰。
+ssh_ "set -e
+  cd $BASE
+  echo \"清理前: \$(ls -1d app-old-* 2>/dev/null | wc -l) 份整目录 ｜ \$(ls -1 $ROLLBACK/app-predeploy-*.tar.gz 2>/dev/null | wc -l) 份代码包 ｜ \$(ls -1 $BASE/backup/db-predeploy-*.db 2>/dev/null | wc -l) 份库快照\"
+  OLD=\$(ls -1d app-old-* 2>/dev/null | sort -r | tail -n +$((KEEP_APP_OLD+1)) || true)
+  if [ -n \"\$OLD\" ]; then echo '删掉的旧整目录:'; echo \"\$OLD\" | sed 's/^/    · /'; echo \"\$OLD\" | xargs -r rm -rf; fi
+  ls -1 $ROLLBACK/app-predeploy-*.tar.gz 2>/dev/null | sort -r | tail -n +$((KEEP_APP_TAR+1)) | xargs -r rm -f
+  # ★ 顺手清掉**历史上落在备份仓里**的那些包（③ 改落点之前造的 37 份 ≈2.7GB 就躺在这儿）。
+  #   它们是被 sb-backup 那句 git add -A 吞进 git 工作树的同一类产物 ⇒ 只删工作树文件，
+  #   git 历史里的 blob 还在（那要另做一次性收口，见 DEPLOY.md §11），但**盘上的地方立刻回来**。
+  OLD_TAR=\$(ls -1 $BASE/backup/app-predeploy-*.tar.gz 2>/dev/null | sort -r | tail -n +$((KEEP_APP_TAR+1)) || true)
+  if [ -n \"\$OLD_TAR\" ]; then echo '从备份仓里摘掉的旧代码包:'; echo \"\$OLD_TAR\" | sed 's/^/    · /'; echo \"\$OLD_TAR\" | xargs -r rm -f; fi
+  ls -1 $BASE/backup/db-predeploy-*.db 2>/dev/null | sort -r | tail -n +$((KEEP_DB+1)) | xargs -r rm -f
+  # ④ 传上来的包用完就该删。此前只删本机那份，远端 /tmp 的一直留着（2026-10-07 实测攒了 6 份 ≈ 380MB）。
+  rm -f /tmp/sb-app-*.tar.gz
+  echo \"清理后 df -h /: \$(df -h / | tail -1)\""
+
 rm -f "$TAR"
 echo
 echo "✓ deployed to $SERVER"
 echo "  回滚：ssh -i $KEY $SERVER 'mv $BASE/app $BASE/app-broken-$TS && mv $BASE/app-old-$TS $BASE/app && systemctl restart $SVC'"
-echo "  回滚点：$BASE/app-old-$TS ｜ backup/db-predeploy-$TS.db ｜ backup/app-predeploy-$TS.tar.gz"
+echo "  回滚点：$BASE/app-old-$TS ｜ backup/db-predeploy-$TS.db ｜ rollback/app-predeploy-$TS.tar.gz"

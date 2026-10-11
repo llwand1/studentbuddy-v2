@@ -26,6 +26,7 @@ import { StudyPortalTravel } from './StudyPortalTravel';
 import { useStudyPortal } from './useStudyPortal';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
 import { SourcePanel } from '../features/sources/SourcePanel';
+import { DesktopBrowserEntry } from '../features/desktop/DesktopReader';
 import { CoachDock } from '../features/coach/CoachDock';
 import { WaitDrill } from '../features/drill/WaitDrill';
 import { LookupPopup } from '../features/lookup/LookupPopup';
@@ -256,6 +257,7 @@ export function App() {
             }}
           />
           <CoachDock />
+          {view === 'chat' && <DesktopBrowserEntry sessionId={currentId} onOpenSession={id => { openSession(id); void reloadSessions(); }} />}
           <HuntAlert active={view === 'chat'} roundTick={roundTick} onGoContinent={() => goView('continent')} />
         </ReadingToolbar>
         <div className="sb-reading-content">

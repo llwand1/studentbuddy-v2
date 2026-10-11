@@ -47,12 +47,18 @@ export function shortfallText(report: QuizMixReport): string | null {
  * 同 shortfallText：判定全在服务端 report，本函数只负责说人话。
  */
 export function imageNote(report?: QuizImageReport | null): string | null {
+  if (report?.preparation?.mode === 'compiled' && report.delivered === 0) return null;
   if (!report || !report.on) return null;
   const parts: string[] = [];
   if (report.truncated) parts.push('模型输出没写完（多半是撞到长度上限），尾部不完整的题已丢弃，结果题数可能少于配比');
   if (report.droppedSvg > 0) parts.push(`${report.droppedSvg} 张图画得不完整或不合规，已只丢图保题`);
   if (report.delivered === 0 && parts.length === 0) parts.push('本次模型一题也没配图（它认为这些题不需要示意图，可重试或把题干写得更图形化）');
   return parts.length > 0 ? `配图：${parts.join('；')}。` : null;
+}
+
+export function preparationNote(report?: QuizImageReport | null): string | null {
+  const p = report?.preparation;
+  return !p ? null : p.mode === 'compiled' ? '出题预产物：本次参数现场生成并验算，未调用出题模型或实时联网。' : '出题预产物：使用提前整理的考点蓝图，由 AI 现场创作；本次未实时联网。';
 }
 
 /**

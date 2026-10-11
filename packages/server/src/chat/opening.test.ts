@@ -12,9 +12,18 @@ import { describe, expect, it } from 'vitest';
 import type { ChatMessage } from '../llm/types.js';
 import { GRILL_PRE, GRILL_TOOL_CHOICE } from './grill.js';
 import { SEARCH_FORCE, SEARCH_TOOL_CHOICE, buildOpening, dropOpening, finishToolRound } from './opening.js';
+import { shouldOfferGrillNext } from './grill-timing.js';
 
 /** 指令消息的文本（content 类型是 `string | ContentPart[]`，本层恒为纯文本） */
 const textOf = (msg: ChatMessage | null): string => String(msg?.content ?? '');
+
+it('下一步只接在完整讲解后，致谢、短回执与正在作答的题目不抢走阅读焦点', () => {
+  const answer = '二分查找每一步把候选范围缩小一半。'.repeat(8);
+  expect(shouldOfferGrillNext('讲解二分查找', answer)).toBe(true);
+  expect(shouldOfferGrillNext('谢谢！', answer)).toBe(false);
+  expect(shouldOfferGrillNext('继续', '好的。')).toBe(false);
+  expect(shouldOfferGrillNext('出一题', answer + '[QUIZ]')).toBe(false);
+});
 
 it('工具结果后偏好按引用移到末尾，多轮不重复，开场约束只摘一次', () => {
   const o = buildOpening({ grill: false, online: true });
@@ -45,6 +54,17 @@ it('工具结果后偏好按引用移到末尾，多轮不重复，开场约束�
 });
 
 describe('buildOpening（开关 → 指令 + 首轮强绑）', () => {
+  it('按需模式只在未定路线时先问，明确提问和已选下一步直接继续，联网仍会搜索', () => {
+    const base = { grill: true, online: false, grillTiming: 'adaptive' as const };
+    expect(buildOpening({ ...base, text: '讲解二分查找的边界' }).toolChoice).toBeUndefined();
+    expect(buildOpening({ ...base, text: '还是没懂，给一个负数例子' }).toolChoice).toBeUndefined();
+    expect(buildOpening({ ...base, text: '从哪开始复习线性代数' }).toolChoice).toEqual(GRILL_TOOL_CHOICE);
+    expect(buildOpening({ ...base, text: '考我' }).toolChoice).toEqual(GRILL_TOOL_CHOICE);
+    expect(buildOpening({ ...base, text: '怎么安排复习', grillContinue: true }).toolChoice).toBeUndefined();
+    expect(buildOpening({ ...base, text: '讲解二分查找', online: true }).toolChoice).toEqual(SEARCH_TOOL_CHOICE);
+    expect(buildOpening({ ...base, text: '继续', grillTiming: 'always' }).toolChoice).toEqual(GRILL_TOOL_CHOICE);
+    expect(buildOpening({ ...base, text: '继续', grillTiming: 'always', grillContinue: true }).toolChoice).toBeUndefined();
+  });
   it('两个开关都关 → 不注入消息、不干预模型（auto）', () => {
     const o = buildOpening({ grill: false, online: false });
     expect(o.msg).toBeNull();

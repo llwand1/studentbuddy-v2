@@ -14,14 +14,18 @@ export function useReadingLayout() {
     if (!viewport) return;
     const root = document.documentElement;
     const sync = () => {
-      if (!readNarrow() || viewport.scale !== 1) { root.style.removeProperty('--sb-visual-height'); return; }
+      if (!readNarrow() || viewport.scale !== 1) {
+        root.style.removeProperty('--sb-visual-height'); root.style.removeProperty('--sb-visual-viewport-height'); return;
+      }
       root.style.setProperty('--sb-visual-height', `${Math.round(Math.min(window.innerHeight, viewport.height + viewport.offsetTop))}px`);
+      root.style.setProperty('--sb-visual-viewport-height', `${Math.round(viewport.height)}px`);
     };
     sync();
     viewport.addEventListener('resize', sync); viewport.addEventListener('scroll', sync); window.addEventListener('resize', sync);
     return () => {
       viewport.removeEventListener('resize', sync); viewport.removeEventListener('scroll', sync); window.removeEventListener('resize', sync);
       root.style.removeProperty('--sb-visual-height');
+      root.style.removeProperty('--sb-visual-viewport-height');
     };
   }, []);
   const [preferredCollapsed, setPreferredCollapsed] = useState(loadCollapsed);

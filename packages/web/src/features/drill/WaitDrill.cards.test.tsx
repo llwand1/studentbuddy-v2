@@ -78,7 +78,10 @@ describe('WaitDrill：卡怎么答', () => {
     expect(screen.getByText('错了')).toBeTruthy();
     expect(leftCount()).toBe(before + 1); // 错的隔几张再来
     expect(markMock).not.toHaveBeenCalled(); // 到期词条答错不打卡
+    const body = document.querySelector('.drill-body') as HTMLElement;
+    body.scrollTop = 250;
     pressKey('Enter');
+    expect(body.scrollTop).toBe(0); // 下一题从题干开始，不沿用上题解析滚动位置
     expect(prompt()).not.toBe(first);
     expect(screen.queryByText('错了')).toBeNull();
 
@@ -140,6 +143,28 @@ describe('WaitDrill：卡怎么答', () => {
     fireEvent.change(input, { target: { value: ` ${term.toUpperCase()} ` } });
     fireEvent.submit(input.closest('form') as HTMLFormElement);
     expect(screen.getByText('对了')).toBeTruthy();
+  });
+
+  it('手机拼写不自动唤起键盘，点格子后可继续输入作答', async () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    try {
+      const view = await open();
+      act(() => window.dispatchEvent(new Event('sb:drill-open')));
+      await flush();
+      for (let i = 0; i < 3; i += 1) {
+        pressKey(String(correctIndex() + 1));
+        await act(async () => { vi.advanceTimersByTime(800); });
+      }
+      const input = screen.getByLabelText('拼写作答') as HTMLInputElement;
+      expect(document.activeElement).not.toBe(input);
+      fireEvent.click(view.container.querySelector('.ti-cells') as HTMLElement);
+      expect(document.activeElement).toBe(input);
+      const term = LIB.find(t => t.definition === prompt())?.term ?? '';
+      expect(term).not.toBe('');
+      fireEvent.change(input, { target: { value: term } });
+      fireEvent.submit(input.closest('form') as HTMLFormElement);
+      expect(screen.getByText('对了')).toBeTruthy();
+    } finally { cleanup(); vi.unstubAllGlobals(); }
   });
 
   it('★ AI 新词：先学（标「AI 现出」）再答；答完「收入词库」⇒ drillApi.keep 带候选 id', async () => {

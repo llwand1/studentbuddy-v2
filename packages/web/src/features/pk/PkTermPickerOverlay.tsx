@@ -1,3 +1,4 @@
+import { MathText } from '../chat/MathText';
 /**
  * PkTermPickerOverlay — 词条选择弹层（`PkTermPicker` 的弹层部分，拆文件保组件 ≤300 行）。
  *
@@ -60,7 +61,7 @@ export function PkTermPickerOverlay({ terms, selected, onToggle, onClose }: Prop
                   onClick={() => onToggle(t.id)}
                 >
                   <span className="sb-pk-term-name">{t.term}</span>
-                  <span className="sb-pk-term-def">{t.definition}</span>
+                  <span className="sb-pk-term-def"><MathText text={t.definition}/></span>
                 </button>
               </li>
             );

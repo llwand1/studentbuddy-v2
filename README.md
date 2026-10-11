@@ -1,13 +1,15 @@
 # StudentBuddy
 
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
-![version](https://img.shields.io/badge/version-0.2.178-orange)
+![version](https://img.shields.io/badge/version-0.2.185-orange)
 
 **在暗黑像素冒险里学习：对话中理解，题目里练习，把学过的知识留下来。**
 
-[立即体验](https://11wand.com/) · [等待时刷词](#等待时刷词把等回复的空档变成一次小复习) · [阅读模式](#阅读模式把外部资源变成学习材料) · [知识大陆](#词条卡牌与知识大陆)
+[立即体验](https://11wand.com/) · [Windows 本地版](https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-stable) · [等待时刷词](#等待时刷词把等回复的空档变成一次小复习) · [阅读模式](#阅读模式把外部资源变成学习材料) · [知识大陆](#词条卡牌与知识大陆)
 
 StudentBuddy 把提问、查资料、做题和复习串在同一段学习过程中。你可以从营地里的一道热身题开始，也可以带着自己的问题或资料直接进入。
+
+Windows 本地版把学习窗口和像素吉祥物带到桌面，学习数据留在自己的电脑上。新版会后台检查并准备更新，校验完成后提示重启；0.2.0 及更早版本需要先手动安装一次带更新器的新版。
 
 | 你想做什么 | StudentBuddy 如何接住 |
 |---|---|
@@ -16,7 +18,8 @@ StudentBuddy 把提问、查资料、做题和复习串在同一段学习过程�
 | 找更好的学习资料 | 搜索来源可追溯，文章、文档和视频都有入口；资料与回答对照阅读，也能跳到原平台继续看 |
 | 等 AI 回复 | 刷几张词卡，复习到期词条、认识话题里的新词；回复到了，再顺着回去阅读 |
 | 检查自己懂没懂 | 让 AI 出题、逐项作答、查看解析和图文复盘；回答还能提炼成可练习的题目 |
-| 练习表达与推理 | GrillMe 围绕当前对话、应试范围或自定义主题继续追问 |
+| 想让题目更合适 | 评价这道题，AI 预判可能的意见，也接受自己的话；下一题按评价调整，并说明改了什么 |
+| 练习表达与推理 | GrillMe 围绕当前对话、应试范围或自定义主题按需追问；明确的问题直接开始，收尾路线点选后继续 |
 | 把学过的记住 | 概念进入词库，变成卡牌和知识大陆上的地块，复习重新回到具体的知识 |
 | 和别人一起练 | 进入对战，用作答、连击和比分反馈推进同一组题目 |
 
@@ -41,6 +44,8 @@ StudentBuddy 把提问、查资料、做题和复习串在同一段学习过程�
 
 ### 等待时刷词：把等回复的空档变成一次小复习
 
+**离开小屏幕，也能练一题。** Windows 悬浮球可开启定时练习，默认每 3 分钟弹出独立小题卡；在卡片里直接作答、看解析和接收像素魔法反馈。做完或跳过后重新计时，可延后两分钟，不连续堆题；练习范围可选当前学习方向或正在共读的网页。右键吉祥物或托盘菜单即可设置。
+
 **问题已经发出，学习还可以继续。** 桌面开启自动刷词后，AI 回复等待超过 2 秒就出现词卡；很快完成的回复不会打断你。手机由你主动点开“刷词”，把屏幕留给正在阅读的回答。
 
 ![等待时刷词：发送问题、自动出卡、到期复习、新词收入与回复后回到阅读（实际前端，演示数据）](docs/images/ux178-wait-drill.gif)
@@ -58,7 +63,17 @@ StudentBuddy 把提问、查资料、做题和复习串在同一段学习过程�
 
 </details>
 
+### 像参考答案一样阅读数学
+
+分数有分数线，根号与上下标正常排版。计算讲解先给路线，再把推导一行行写清、对齐等号，最后代入验算；浅色答案纸嵌在像素冒险界面里，支持复制公式与放大。长公式在纸面内部滑动，手机阅读也不会把整页撑宽。
+
+![数学参考答案：逐行推导与代入验算](docs/images/ux179-math.png)
+
+流程、关系、时序与思维图自动布局，配在解释附近；图面保持白底，可查看原文、下载或放大。内容未写完时先留位置，遇到无法解析的式子和图解保留原文。
+
 ### 阅读模式：把外部资源变成学习材料
+
+**本地版可以跟着你的浏览器一起读。** 在 Chrome／Edge 共读扩展里主动选择当前网页，StudentBuddy 会随正文、划选和阅读视野更新临时资料；你在绑定的对话中提问时，AI 检索相关段落再回答。停止共读、关闭选中标签页或断连后清除文字，也可以把这页作为定时练习的范围。扩展随 Windows 安装包提供，首次按 [网页共读连接说明](tools/browser-extension/README.md) 加载并配对。
 
 **让正文拥有稳定的空间。** 搜索更新资料入口和引用，用户主动打开后才进入对照阅读。桌面左右、手机上下，可拖动分界线，也可展开资料单独阅读。导航、输入都能收起，草稿和题卡继续保留。
 
@@ -100,23 +115,29 @@ StudentBuddy 把提问、查资料、做题和复习串在同一段学习过程�
 
 **外部资料也能带进来。** 用自己的长文档或图片提问，围绕材料练习；还可以让外部 coding agent 通过专用词条接口补充带来源的知识，再回到这里阅读和复习。
 
+## 外部 agent：词条与出题预产物
+
+在设置页创建专用密钥，coding agent 可以发挥自己的搜索能力补充词条；勾选出题预产物后，还能提前准备考点依据、误区、评分要点和变化蓝图。StudentBuddy 在篝火与练习中优先取用符合当前方向、范围和期限的预产物，每次现场生成新题。
+
+数学参数配方可直接生成并验算，减少召题等待；一般蓝图由 AI 现场创作、核对。指定实时搜索或真题时保留真实检索。设置页可复制 agent 使用说明，[接口契约](docs/QUESTION-SEEDS-SPEC.md)与[机器规范](https://11wand.com/api/open/v1/openapi.json)提供完整字段与示例。
+
 ## 开始体验
 
 - **在线使用**：[打开 StudentBuddy](https://11wand.com/)，首页可免注册体验。公用体验账号的内容共享，私人学习资料请放在自己的账号里。
-- **本地使用**：[下载 Windows 安装包](https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-v0.1.0)，安装后在设置里配置自己的 AI 服务商。
+- **本地使用**：[下载 Windows 安装包](https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-v0.2.185)，安装后在设置里配置自己的 AI 服务商。
 - **继续了解**：[功能说明](docs/FEATURES.md) · [外部 agent 存词接口](docs/AGENT-TERMS-SPEC.md) · [更新记录](CHANGELOG.md)。
 
 <details>
 <summary>开发者信息</summary>
 
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![tests](https://img.shields.io/badge/tests-403%20files%20%2F%204570%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-188-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-273%20types-8a63f6)
-![deps](https://img.shields.io/badge/external%20runtime%20deps-6-blue)
+![tests](https://img.shields.io/badge/tests-421%20files%20%2F%204674%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-204-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-288%20types-8a63f6)
+![deps](https://img.shields.io/badge/external%20runtime%20deps-8-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
-当前测试基线 **403 文件 / 4570 例**。在线体验**已上线到 v0.2.178**。
+当前测试基线 **421 文件 / 4674 例**。Windows 安装包为 **v0.2.185**；在线体验**已上线到 v0.2.185**。
 
 代码结构、开发约定与复验方式见 [工程文档](docs/ENGINEERING.md)。
 

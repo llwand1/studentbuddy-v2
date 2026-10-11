@@ -176,6 +176,8 @@ function revertV40(db: ReturnType<typeof openIsolated>): void {
  */
 function revertV42(db: ReturnType<typeof openIsolated>): void {
   db.exec(`ALTER TABLE growth_action_day DROP COLUMN source`);
+  // All replay fixtures predate v58 as well; remove its added column before replay.
+  db.exec(`ALTER TABLE ask_choices DROP COLUMN grill_phase`);
 }
 
 describe('storage/db — 版本化迁移（逐语句，根除 v1 大模板 TS1434 坑）', () => {

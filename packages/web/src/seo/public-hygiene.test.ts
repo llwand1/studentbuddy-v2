@@ -157,6 +157,7 @@ describe('公开字节 · 构建产物（JS／CSS，issue #8）', () => {
     expect(bundleWordingHits('fetch("/api/tools/../../etc/shadow")').length, '豁免把整类放行了').toBeGreaterThan(0);
     // 反向：同一个字段名当值用是正常代码，不能被咬（咬了下一次就有人删豁免）
     expect(bundleWordingHits('a.type==="password"&&a.autoComplete==="new-password"')).toEqual([]);
+    expect(bundleWordingHits('const cfg={token:"live-abcdef1234"}')).toContain('token:');
   });
 
   it('★ 整体不适用的只有那两条，不许有人偷偷加第三条', () => {
@@ -168,8 +169,10 @@ describe('公开字节 · 构建产物（JS／CSS，issue #8）', () => {
     expect(SHIPPED.length, 'dist/assets 下没有 .js/.css').toBeGreaterThan(1);
     const bytes = SHIPPED.reduce((n, s) => n + s.text.length, 0);
     expect(bytes, '产物小得不像真 bundle').toBeGreaterThan(200_000);
+    // Lazy vendor chunks may contain no internal wording; the whole bundle still exercises
+    // the allowlist, and every chunk must independently pass the leak scan.
+    expect(internalWordingHits(SHIPPED.map(s=>s.text).join('\n')).length).toBeGreaterThan(0);
     for (const { name, text } of SHIPPED) {
-      expect(internalWordingHits(text).length, `${name} 一条都没命中，词表该重看`).toBeGreaterThan(0);
       expect(bundleWordingHits(text), `${name} 里有内部字样`).toEqual([]);
     }
   });

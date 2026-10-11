@@ -3,6 +3,7 @@
 > 版本：v0.1 | 状态：[未发版] | 更新：2026-10-02 | 分支：`feat/mobile-polish`
 
 > v0.2.173（2026-10-09）：阅读工作台接管工具栏与输入区，以下旧版胶囊预留底部、资料整屏和输入区高度描述是历史基线；现行规则见文末与 `READING-WORKSPACE-SPEC.md`。
+> v0.2.180（2026-10-10）：等待刷词采用紧凑头部与卡片，题目独立滚动，战绩脚注固定；按 VisualViewport 的实际高度与底边适配软键盘。手机拼写由用户点击后聚焦，见 `WAIT-DRILL-SPEC.md` §5.7。
 >
 > 代码：`packages/web/src/styles/mobile.css`（唯一的手机规则文件，main.tsx 最后引入）／`packages/web/src/lib/use-narrow.ts`（JS 侧唯一断点）／
 > `packages/web/src/features/chat/composer-placeholder.ts`／`packages/web/index.html`（`viewport-fit=cover`）。

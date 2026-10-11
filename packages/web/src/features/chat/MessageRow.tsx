@@ -63,6 +63,7 @@ export function MessageRow({
         sessionId={sessionId}
         title={m.quizBlock.quiz.title ?? '练习'}
         questions={m.quizBlock.quiz.questions}
+        feedback={m.quizBlock.quiz.feedback}
         {...(m.quizBlock.quizId ? { quizId: m.quizBlock.quizId } : {})}
       />
     );

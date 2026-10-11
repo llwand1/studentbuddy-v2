@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import type { QuizQuestion, QuizReviewItem } from '@sb/shared';
+import type { QuizFeedbackResult, QuizQuestion, QuizReviewItem } from '@sb/shared';
 import { QUIZ_ATTEMPT_MARK, QUIZ_TIER_HINTS, QUIZ_TIER_LABELS, tierOf, type QuizAttemptRow } from '@sb/shared';
 import { SvgPreviewCard } from '../chat/SvgPreviewCard';
 import { Markdown } from '../chat/Markdown';
+import { MathText } from '../chat/MathText';
 import { fillCount, optionsFor, reviewAttempt } from './quiz-attempt';
 import { aiOpsApi, answerQType } from '../../lib/api-ai-ops';
 import { AiGradeNote } from './AiGradeNote';
 import { FillBlank } from './FillBlank';
 import { AnswerImpact } from '../feedback/AnswerImpact';
+import { QuestionFeedback } from './QuestionFeedback';
 
 function QuizPhotoFigure({ photo }: { photo: NonNullable<QuizQuestion['photo']> }) {
   return (
@@ -20,10 +22,12 @@ function QuizPhotoFigure({ photo }: { photo: NonNullable<QuizQuestion['photo']> 
   );
 }
 
-export function QuizQuestionItem({ q, index, onComplete, topic, last }: {
+export function QuizQuestionItem({ q, index, onComplete, topic, last, sessionId, onAdapted }: {
   q: QuizQuestion; index: number; onComplete: (item: QuizReviewItem) => void; topic?: string;
   /** 这题上一次的作答记录（服务端读回；没刷过 / 老卡 ⇒ null）——只标一枚小标，不替用户作答 */
   last?: QuizAttemptRow['last'];
+  sessionId?: string | null;
+  onAdapted?: (result: QuizFeedbackResult) => void;
 }) {
   const [picked, setPicked] = useState<number[]>([]);
   const [fills, setFills] = useState(() => Array<string>(fillCount(q)).fill(''));
@@ -51,7 +55,7 @@ export function QuizQuestionItem({ q, index, onComplete, topic, last }: {
     <section className={`quiz-q answer-surface${result ? ` is-${result.verdict}` : ''}`} aria-label={`第 ${index + 1} 题`}>
       {result && <AnswerImpact verdict={result.verdict} audible />}
       {/* 自包含（QUIZ-COMPLETE-SPEC §6）：题干依赖的材料与原图排在题干**之前**，读法顺序＝先材料、再问题 */}
-      {q.material && <blockquote className="quiz-q-material" aria-label="材料">{q.material}</blockquote>}
+      {q.material && <blockquote className="quiz-q-material" aria-label="材料"><Markdown text={q.material}/></blockquote>}
       {q.photo?.essential && <QuizPhotoFigure photo={q.photo} />}
       <div className="quiz-q-title">
         <span className="quiz-q-type">{index + 1} · {label}</span>
@@ -59,7 +63,7 @@ export function QuizQuestionItem({ q, index, onComplete, topic, last }: {
         {last && !result && <span className={`quiz-q-last is-${last.verdict}`} title={last.answer ? `上次答：${last.answer}` : undefined}>
           上次 {QUIZ_ATTEMPT_MARK[last.verdict]}
         </span>}
-        {q.question}
+        <MathText text={q.question}/>
       </div>
       {q.svg && <div className="quiz-q-svg"><SvgPreviewCard code={q.svg} streaming={false} /></div>}
       {q.photo && !q.photo.essential && <QuizPhotoFigure photo={q.photo} />}
@@ -68,7 +72,7 @@ export function QuizQuestionItem({ q, index, onComplete, topic, last }: {
         return <button key={i} className={`quiz-opt${picked.includes(i) ? ' picked' : ''}${correct ? ' right' : ''}`}
           disabled={!!result} aria-pressed={picked.includes(i)} onClick={() => setPicked((p) =>
             q.type === 'multiple' ? p.includes(i) ? p.filter((n) => n !== i) : [...p, i] : [i])}>
-          <span className="quiz-opt-key">{String.fromCharCode(65 + i)}</span>{option}
+          <span className="quiz-opt-key">{String.fromCharCode(65 + i)}</span><MathText text={option}/>
           {correct && <span className="quiz-mark ok">✓</span>}
           {result?.verdict === 'wrong' && picked.includes(i) && !correct && <span className="quiz-mark bad">×</span>}
         </button>;
@@ -86,13 +90,15 @@ export function QuizQuestionItem({ q, index, onComplete, topic, last }: {
       {result && <div className={`quiz-explain quiz-feedback is-${result.verdict}`} role="status">
         <strong>{result.verdict === 'correct' ? '✓ 答案吻合' : result.verdict === 'wrong' ? '↗ 找到一个值得回看的知识点' : '◇ 已提交，结合参考继续核对'}</strong>
         <p><b>你的作答：</b>{result.answer}</p>
-        <p><b>参考答案：</b>{result.expected}</p>
+        <div><b>参考答案：</b><Markdown text={result.expected}/></div>
         {/* v47：前端判不了的（填空字面没对上、解答题）交给 AI 按要点评分，并诊断误区 */}
         {result.verdict === 'review' && <AiGradeNote q={q} result={result} {...(topic ? { topic } : {})} />}
         {(q.explanation || q.solution) && <Markdown text={q.explanation || q.solution || ''} />}
         {q.source && <div className="quiz-source">来源：{q.source.url
           ? <a href={q.source.url} target="_blank" rel="noreferrer noopener">{q.source.title}</a> : q.source.title}</div>}
       </div>}
+      <QuestionFeedback onAdapted={onAdapted} input={{ question: q, title: topic ?? '练习', ...(sessionId ? { sessionId } : {}),
+        ...(result ? { attempt: { answer: result.answer, verdict: result.verdict } } : {}) }} />
     </section>
   );
 }

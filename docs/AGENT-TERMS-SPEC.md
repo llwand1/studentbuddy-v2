@@ -5,7 +5,7 @@
 ## 授权
 
 - 设置页 `/api/settings/agent-keys` 提供 GET 列表、POST 创建（name 1–40 字、days 1–90，默认 30）、DELETE /:id 撤销。最多 5 个有效密钥；返回名称、掩码前缀、期限和最近使用时间，明文仅创建时返回一次，库内只存 SHA-256。
-- 密钥固定允许读取本人词库和新增词条，不能修改/删除已有词条、访问聊天或设置、创建新密钥。归属只取密钥记录，忽略 cookie；请求不接受 ownerId、owner_id、sourceSessionId 等归属字段。
+- 未显式授权的密钥仅允许读取本人词库和新增词条，不能修改/删除已有词条、访问聊天或设置、创建新密钥。创建时可选 `questionSeeds:true` 额外授权出题预产物，旧密钥不扩权，见 [QUESTION-SEEDS-SPEC](QUESTION-SEEDS-SPEC.md)。归属只取密钥记录，忽略 cookie；请求不接受 ownerId、owner_id、sourceSessionId 等归属字段。
 - `/api/open/v1` 独立鉴权，只接受 `Authorization: Bearer sb_terms_...`，不要求 CLI 提供 Origin。现有 cookie 接口的 Origin 与登录检查保持。云端密钥必须属于现存用户；本地无主密钥只在本地形态可用。每个 owner 每分钟最多 60 次受保护请求，所有密钥共用计数。
 
 ## 接口

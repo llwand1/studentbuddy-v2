@@ -27,7 +27,8 @@ import type { ChatMessage, ToolCall } from '../llm/types.js';
 import { contentToText } from '../llm/types.js';
 import { describeImages } from './vision.js';
 import { runGrillClosing } from './grill.js';
-import { buildOpening, dropOpening, examScopeToolChoice, finishToolRound } from './opening.js';
+import { shouldCloseGrill } from './grill-timing.js';
+import { applyTurnOpening, dropOpening, examScopeToolChoice, finishToolRound } from './opening.js';
 import type { ChatOptions, ChatResult } from './options.js';
 
 /**
@@ -130,8 +131,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   });
   const { messages, nudgeMsg, styleMsg } = assembleContextMessages(segments, truncated);
   // 开场硬指令（grill-me / 联网，装配见 chat/opening.ts）：只在内存 messages 里活，不落库——它是指令不是发言
-  const opening = buildOpening({ grill: opts.grillMe === true, online: opts.online === true });
-  if (opening.msg) messages.push(opening.msg);
+  const opening = applyTurnOpening(opts, userText, messages, nudgeMsg);
   // 工具循环预算：窗口 − 全部附加 system 段（`systemPromptTokens`，见 context-segments.ts）
   // − 已载历史 − 预留。每轮工具回灌后核对，接近上限提前收口——小上下文模型
   // 15 轮 × MAX_TOOL_RESULT_CHARS 会撑爆窗口（轮数上限由 8 提到 15 后，
@@ -358,9 +358,9 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     // 实测表现为「点了收尾卡模型不动」（2026-09-17）。
     // SSE 是会话级持久订阅（sse-client，与 POST /chat/send 分离，断线回放兜底），
     // done 之后发帧照样送达；失败一律静默，不能让已上屏的回答变出错。
-    if (opts.grillMe) {
+    if (shouldCloseGrill(opts, acc, pendingToolRound, rounds)) {
       await runGrillClosing({ sessionId, adapter: target.adapter, model: target.model, apiKey: target.apiKey,
-        baseUrl: target.baseUrl, messages, tools, signal: opts.signal, onStep, ownerId: opts.ownerId ?? null });
+        baseUrl: target.baseUrl, messages, answer: acc, tools, signal: opts.signal, onStep, ownerId: opts.ownerId ?? null });
     }
     return { ok: true, assistantMessageId: assistantId };
   } catch (err) {

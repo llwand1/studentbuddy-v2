@@ -9,6 +9,7 @@
 import type { PkQuestion } from '@sb/shared';
 import { optionLetter, remainingMs } from './pk-view';
 import { PkScenarioHost } from './PkScenarioHost';
+import { MathText } from '../chat/MathText';
 
 interface Props {
   question: PkQuestion;
@@ -37,7 +38,7 @@ export function PkAnswerBlock({ question, helpLeft, disabled, onAnswer, onHelp, 
         <PkScenarioHost roomId={question.roomId} question={question} />
       ) : (
         <>
-          <p className="sb-pk-stem">{question.stem}</p>
+          <p className="sb-pk-stem"><MathText text={question.stem}/></p>
           <div className="sb-pk-options">
             {question.options.map((opt, i) => (
               <button
@@ -48,7 +49,7 @@ export function PkAnswerBlock({ question, helpLeft, disabled, onAnswer, onHelp, 
                 onClick={() => onAnswer(i)}
               >
                 <span className="sb-pk-option-letter">{optionLetter(i)}</span>
-                <span className="sb-pk-option-text">{opt}</span>
+                <span className="sb-pk-option-text"><MathText text={opt}/></span>
               </button>
             ))}
           </div>

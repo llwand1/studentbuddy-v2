@@ -2,13 +2,14 @@
 import { Router, json } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { validateAgentTermBatch } from '@sb/shared';
-import { verifyAgentKey } from '../auth/agent-keys.js';
+import { verifyAgentKey, agentPermissions } from '../auth/agent-keys.js';
 import { ownerForWrite } from '../auth/ownership.js';
 import { getDb } from '../storage/db.js';
 import { loadExamContext } from '../learning/exam-mode.js';
 import { importAgentTerms, AgentImportConflict } from '../learning/agent-term-import.js';
 import { parseAliases } from '../learning/terms.js';
 import { agentTermsOpenApi } from './agent-terms-openapi.js';
+import { questionSeedsRouter } from './question-seeds.js';
 
 const calls = new Map<string, { until: number; n: number }>();
 export function resetAgentRateLimits(): void { calls.clear(); }
@@ -36,11 +37,11 @@ function identity(res: Response): { ownerId: string | null; id: string } {
   return res.locals.agentTerms as { ownerId: string | null; id: string };
 }
 agentTermsRouter.get('/context', (_req, res) => {
-  const { ownerId } = identity(res);
+  const { ownerId, id } = identity(res);
   const exam = loadExamContext(ownerId);
   const domains = getDb().prepare('SELECT name FROM term_domain WHERE owner_id = ? ORDER BY name').all(ownerForWrite(ownerId));
-  res.json({ exam: { on: exam.on, summary: exam.summary, allowedHosts: exam.hosts }, domains,
-    permissions: ['terms:read', 'terms:append'], maxBatchSize: 100, sourcePolicy: '来源由授权导入者提供，服务端不声称已联网核实。' });
+  res.json({ exam: { on: exam.on, summary: exam.summary, allowedHosts: exam.hosts, signature: exam.signature }, domains,
+    permissions: agentPermissions(ownerId, id), maxBatchSize: 100, maxSeedBatchSize: 50, sourcePolicy: '来源由授权导入者提供，服务端不声称已联网核实。' });
 });
 agentTermsRouter.get('/terms', (req, res) => {
   const limit = Number(req.query.limit ?? 100), offset = Number(req.query.offset ?? 0);
@@ -62,6 +63,7 @@ agentTermsRouter.post('/terms/import', (req, res) => {
     else res.status(500).json({ error: '词条导入未完成，请用相同 batchId 重试。' });
   }
 });
+agentTermsRouter.use('/question-seeds', questionSeedsRouter);
 agentTermsRouter.use((_req, res) => { res.status(404).json({ error: '开放接口不存在。' }); });
 agentTermsRouter.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   const status = (err as { status?: number } | null)?.status === 413 ? 413 : 400;

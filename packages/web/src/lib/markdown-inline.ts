@@ -68,6 +68,7 @@ function safeImgSrc(raw: string): string | null {
 // 现改为先匹配最外层定界符、内部递归 parseInline，嵌套标记天然正确。code 内容是唯一不递归的例外。
 const INLINE_RULES: Array<{ re: RegExp; make: (m: RegExpExecArray) => Inline }> = [
   { re: /^`([^`\n]+)`/, make: (m) => ({ t: 'code', v: g(m, 1) }) },
+  { re: /^\\\(([^\n]+?)\\\)/, make: (m) => ({ t: 'math', code: g(m, 1) }) },
   { re: /^\$\$([^$\n]+)\$\$|^\$([A-Za-z\\][^$\n]*|[-+]?\d[^$\n]*[=+\-×÷^_][^$\n]*|[-+]?\d+(?:\.\d+)?)\$/, make: (m) => ({ t: 'math', code: g(m, 1) || g(m, 2) }) },
   { re: /^\*\*(.+?)\*\*/, make: (m) => ({ t: 'strong', children: parseInline(g(m, 1)) }) },
   { re: /^\*(.+?)\*/, make: (m) => ({ t: 'em', children: parseInline(g(m, 1)) }) },
@@ -145,6 +146,7 @@ export function parseInline(text: string): Inline[] {
   };
   while (i < text.length) {
     const rest = text.slice(i);
+    if (rest.startsWith('\\$')) { buf += '$'; i += 2; continue; }
     let matched = false;
     for (const rule of INLINE_RULES) {
       const m = rule.re.exec(rest);

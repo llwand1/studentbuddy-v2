@@ -1,7 +1,7 @@
 /**
- * Markdown — 助手正文渲染（零依赖：块级切分在 lib/markdown.ts，SVG/图表走净化卡片）。
+ * Markdown — 助手正文渲染（块级切分在 lib/markdown.ts，SVG/图表走净化卡片）。
  * 只做「数据结构 → DOM」，文本节点一律作为 React children 渲染（自动转义），
- * 全篇注入点只有 SvgPreviewCard / ChartCard 里净化后的 SVG；```html 永不内联（HtmlCard 只给
+ * SVG/图解注入前净化，公式只注入受限 KaTeX 生成的标记；```html 永不内联（HtmlCard 只给
  * 「新标签页打开」，由服务端 CSP sandbox 隔离）。
  *
  * 流式性能：长回答若每帧全量重解析整篇 Markdown，总开销是 O(n²)——越流越卡。
@@ -18,6 +18,7 @@ import { ChartCard } from './ChartCard';
 import { HtmlCard } from './HtmlCard';
 import { LearningReplyCard } from './LearningReplyCard';
 import { MathFormula } from './MathFormula';
+import { MermaidDiagram } from './MermaidDiagram';
 import { TermText } from './TermText';
 import { CiteChip } from '../sources/cite';
 import './markdown.css';
@@ -183,7 +184,7 @@ const BlockNode = memo(function BlockNode({ block, streaming }: { block: Block; 
     case 'quote':
       return (
         <blockquote className="md-quote">
-          {block.lines.map((ln, i) => (
+          {block.body ? block.body.map((part, i) => <BlockNode key={i} block={part} streaming={streaming} />) : block.lines.map((ln, i) => (
             <span key={i} className="md-quote-line">
               <InlineNodes nodes={ln} />
             </span>
@@ -193,13 +194,15 @@ const BlockNode = memo(function BlockNode({ block, streaming }: { block: Block; 
     case 'learning-card':
       return (
         <LearningReplyCard variant={block.variant} title={<InlineNodes nodes={block.title} />}>
-          {block.lines.map((line, i) => (
+          {block.body ? block.body.map((part, i) => <BlockNode key={i} block={part} streaming={streaming} />) : block.lines.map((line, i) => (
             <span key={i} className="learning-reply-line"><InlineNodes nodes={line} /></span>
           ))}
         </LearningReplyCard>
       );
     case 'math':
       return <MathFormula code={block.code} closed={block.closed} />;
+    case 'mermaid':
+      return <MermaidDiagram code={block.code} closed={block.closed} />;
     case 'table':
       return (
         <div className="md-table-wrap">

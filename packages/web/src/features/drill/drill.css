@@ -361,6 +361,7 @@
   font-size: var(--sb-fs-xs);
   color: var(--sb-ink-tertiary);
 }
+.drill-mobile-stats { display: none; }
 
 /* 等待气泡里的入口（Thinking.tsx） */
 .chat-typing-drill {

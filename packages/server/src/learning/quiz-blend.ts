@@ -44,6 +44,8 @@ import { applyQuizMix, generateQuiz } from './quiz.js';
 import { collectQuiz } from './collect.js';
 import { loadQuizRealFirst, mergeRealFirst, realFirstQuota } from './quiz-tier.js';
 import { isPlaceholderTopic } from './quiz-search.js';
+import { selectSeed } from './question-seeds.js';
+import { SEED_TYPES } from '@sb/shared';
 
 // ★ `BlendMissing` / `QuizBlendReport` 类型定义在 `@sb/shared`（`quiz-source.ts`）——
 //   它们是**前后端契约**（服务端填、前端 `mix-report.ts` 念），放服务端会让前端只能自己抄一份。
@@ -128,11 +130,12 @@ export async function generateBlendedQuiz(
   styleArg: AnswerStyle | undefined,
   online: boolean,
   ownerId: string | null,
-  opts: { realFirst?: boolean; searchTopic?: string } = {},
+  opts: { realFirst?: boolean; searchTopic?: string; freshSearch?: boolean } = {},
 ): Promise<BlendResult> {
   // 真题优先（契约 QUIZ-TIER-SPEC §4）：用户没配真题 ⇒ 拿 AI 配比当搜集配额，摘到几道顶替几道；
   // 不加总题数、不加等待（与 AI 出题**并行**跑）。`realFirst` 省略时读用户设置（缺省开）。
-  const realFirst = realFirstApplies(realMix, aiMix, opts.realFirst ?? loadQuizRealFirst(ownerId), topic);
+  const seed = mixTotal(aiMix) > 0 ? selectSeed(ownerId, opts.searchTopic ?? topic, SEED_TYPES.filter(t => aiMix[t] > 0), material, opts.freshSearch) : null;
+  const realFirst = realFirstApplies(realMix, aiMix, opts.realFirst ?? (seed ? false : loadQuizRealFirst(ownerId)), topic);
   const realRequested = realFirst ? realFirstQuota(aiMix) : { ...realMix };
   const report: QuizBlendReport = {
     ai: emptyMixReport(aiMix),
@@ -142,7 +145,7 @@ export async function generateBlendedQuiz(
 
   // ── ① AI 侧（异步启动，与真题侧并行） ──
   const aiTask: Promise<QuizPayload | null> =
-    mixTotal(aiMix) > 0 ? generateQuiz(topic, material, aiMix, imageReport, styleArg, online, ownerId, false, opts.searchTopic) : Promise.resolve(null);
+    mixTotal(aiMix) > 0 ? generateQuiz(topic, material, aiMix, imageReport, styleArg, online, ownerId, false, opts.searchTopic, { seed, freshSearch: opts.freshSearch }) : Promise.resolve(null);
 
   // ── ② 真题侧 ──
   const realTask = (async (): Promise<QuizQuestion[]> => {

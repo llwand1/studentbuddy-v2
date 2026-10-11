@@ -139,6 +139,7 @@ registerTool('generate_quiz', {
       undefined, // 风格：不显式给 ⇒ 引擎自己读库内偏好（与 REST 入口同语义）
       args.search === true || (args.search === undefined && loadExamContext(owner).on),
       owner,
+      { freshSearch: args.search === true },
     );
     const quiz = blended.quiz;
     if (!quiz) {

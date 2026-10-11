@@ -2,6 +2,7 @@
 export interface AgentKeyView {
   id: string; name: string; prefix: string; createdAt: number; expiresAt: number;
   lastUsedAt: number | null; revokedAt: number | null;
+  permissions?: string[];
 }
 export interface AgentTermInput {
   term: string; definition: string; domain: string; importance: number; aliases: string[];

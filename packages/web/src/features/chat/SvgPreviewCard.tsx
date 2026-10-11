@@ -9,7 +9,9 @@ function fmtDim(n: number): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
-export function SvgPreviewCard({ code, streaming }: { code: string; streaming: boolean }) {
+export function SvgPreviewCard({ code, streaming, label = 'SVG', title = '矢量图片', sourceCode = code }: {
+  code: string; streaming: boolean; label?: string; title?: string; sourceCode?: string;
+}) {
   const [showSrc, setShowSrc] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -20,7 +22,7 @@ export function SvgPreviewCard({ code, streaming }: { code: string; streaming: b
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(code);
+      await navigator.clipboard.writeText(sourceCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -31,8 +33,8 @@ export function SvgPreviewCard({ code, streaming }: { code: string; streaming: b
   return (
     <div className="chat-svg-card">
       <div className="chat-svg-head">
-        <span className="chat-svg-badge">SVG</span>
-        <span className="chat-svg-title">矢量图片</span>
+        <span className="chat-svg-badge">{label}</span>
+        <span className="chat-svg-title">{title}</span>
         {w !== null && h !== null && (
           <span className="chat-svg-dim">
             {fmtDim(w)} × {fmtDim(h)}
@@ -42,10 +44,10 @@ export function SvgPreviewCard({ code, streaming }: { code: string; streaming: b
           <button className="chat-svg-btn" onClick={() => openSvgDocument(safe, 'download')} title="下载为 .svg 文件">
             下载
           </button>
-          <button className="chat-svg-btn" onClick={() => void copy()} title="复制 SVG 源码">
+          <button className="chat-svg-btn" onClick={() => void copy()} title={`复制${label}源码`}>
             {copied ? '已复制' : '复制'}
           </button>
-          <button className="chat-svg-btn" onClick={() => setShowSrc((o) => !o)} title="查看/隐藏 SVG 源码">
+          <button className="chat-svg-btn" onClick={() => setShowSrc((o) => !o)} title={`查看/隐藏${label}源码`}>
             {showSrc ? '隐藏源码' : '源码'}
           </button>
           <button className="chat-svg-btn" onClick={() => openSvgDocument(safe, 'open')} title="新窗口放大查看">
@@ -72,7 +74,7 @@ export function SvgPreviewCard({ code, streaming }: { code: string; streaming: b
           {/* 唯一注入点：内容已过 sanitizeSvg */}
           <div
             className={wide ? 'chat-svg-canvas chat-svg-canvas-wide' : 'chat-svg-canvas'}
-            role="region" aria-label="SVG 图面" tabIndex={0}
+            role="region" aria-label={`${label}图面`} tabIndex={0}
             dangerouslySetInnerHTML={{ __html: safe }}
           />
           {wide && <p className="chat-svg-hint">横向滑动查看全图 · 点「放大」查看细节</p>}
@@ -81,7 +83,7 @@ export function SvgPreviewCard({ code, streaming }: { code: string; streaming: b
 
       {showSrc && (
         <pre className="chat-svg-src">
-          <code>{code}</code>
+          <code>{sourceCode}</code>
         </pre>
       )}
     </div>

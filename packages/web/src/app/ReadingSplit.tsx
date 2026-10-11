@@ -3,6 +3,7 @@ import { useNarrow } from '../lib/use-narrow';
 import { getPreview, subscribePreview } from '../lib/preview-store';
 import { useSources } from '../lib/sources-store';
 import { useVideoRoute } from '../lib/video-route-store';
+import { useDesktopReader } from '../features/desktop/desktop-reader-store';
 
 const key = (narrow: boolean) => `sb:reading:share:${narrow ? 'mobile' : 'desktop'}`;
 const clamp = (value: number) => Math.max(20, Math.min(80, value));
@@ -18,9 +19,10 @@ function saved(narrow: boolean): number {
 export function ReadingSplit() {
   const narrow = useNarrow();
   const sources = useSources();
+  const desktop = useDesktopReader();
   const video = useVideoRoute();
   const preview = useSyncExternalStore(subscribePreview, getPreview, getPreview);
-  const visible = Boolean(preview || video.open || (sources.open && sources.items.length));
+  const visible = Boolean(preview || video.open || desktop.open || (sources.open && sources.items.length));
   const ref = useRef<HTMLDivElement>(null);
   const dragging = useRef<number | null>(null);
   const valueRef = useRef(saved(narrow));

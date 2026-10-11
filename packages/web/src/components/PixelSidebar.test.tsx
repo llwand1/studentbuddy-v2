@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, act } from '@testing-library/react';
 import { PixelSidebar } from './PixelSidebar';
 import { useReadingLayout } from '../app/useReadingLayout';
 import { ReadingToolbar } from '../app/ReadingToolbar';
@@ -17,6 +17,30 @@ function ReadingProbe({ sessionId = 's1' }: { sessionId?: string }) {
   </div>;
 }
 describe('responsive pixel navigation', () => {
+  it('tracks visible keyboard height separately from its panned bottom edge and clears both on exit', () => {
+    const viewport = Object.assign(new EventTarget(), { height: 300, offsetTop: 70, scale: 1 });
+    vi.stubGlobal('visualViewport', viewport);
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    try {
+      const view = render(<ReadingProbe />);
+      const style = document.documentElement.style;
+      expect(style.getPropertyValue('--sb-visual-height')).toBe('370px');
+      expect(style.getPropertyValue('--sb-visual-viewport-height')).toBe('300px');
+      viewport.height = 240; viewport.offsetTop = 120;
+      act(() => viewport.dispatchEvent(new Event('resize')));
+      expect(style.getPropertyValue('--sb-visual-height')).toBe('360px');
+      expect(style.getPropertyValue('--sb-visual-viewport-height')).toBe('240px');
+      viewport.scale = 2;
+      act(() => viewport.dispatchEvent(new Event('scroll')));
+      expect(style.getPropertyValue('--sb-visual-height')).toBe('');
+      expect(style.getPropertyValue('--sb-visual-viewport-height')).toBe('');
+      viewport.scale = 1;
+      act(() => viewport.dispatchEvent(new Event('resize')));
+      view.unmount();
+      expect(style.getPropertyValue('--sb-visual-height')).toBe('');
+      expect(style.getPropertyValue('--sb-visual-viewport-height')).toBe('');
+    } finally { cleanup(); vi.unstubAllGlobals(); }
+  });
   it('declares the drawer relationship and toggles it without losing children', () => {
     render(<PixelSidebar><input aria-label="搜索历史" /></PixelSidebar>);
     const toggle = screen.getByRole('button', { name: '探索菜单' });

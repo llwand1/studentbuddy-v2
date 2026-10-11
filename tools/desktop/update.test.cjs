@@ -5,7 +5,7 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { generateKeyPairSync, sign, createHash } = require('node:crypto');
-const { compare, validateEnvelope, download, verifyFile, inside, dataDir } = require('./update-core.cjs');
+const { compare, validateEnvelope, download, verifyFile, inside, dataDir, pruneCache } = require('./update-core.cjs');
 const { snapshotDatabase, restoreDatabase } = require('./update-client.cjs');
 const keys = generateKeyPairSync('ed25519');
 function fixture(extra = {}) {
@@ -60,4 +60,19 @@ test('backup and cache stay in their intended directories; data resolution finds
   assert.throws(()=>inside('/safe/cache','/safe/cache/../../other')); assert.throws(()=>inside('/safe/cache','/safe/cache'));
   assert.equal(dataDir({APPDATA:'/roaming',LOCALAPPDATA:'/local'},'/home',p=>p===path.join('/local','studentbuddy-v2','studentbuddy.db')),path.join('/local','studentbuddy-v2'));
   assert.equal(dataDir({SB_DATA_DIR:'/custom'},'/home'),path.resolve('/custom'));
+});
+test('cache pruning keeps current and recent recovery folders without deleting unrelated content', async () => {
+  const cache=await fs.mkdtemp(path.join(os.tmpdir(),'sb-prune-'));
+  try {
+    const root=path.join(cache,'installed-app'), current=path.join(cache,'0.2.9-aaaaaaaaaaaa');
+    for(let n=1;n<=4;n++) {
+      const dir=path.join(cache,`0.2.${n}-aaaaaaaaaaaa`);await fs.mkdir(dir);
+      await fs.writeFile(path.join(dir,'job.json'),JSON.stringify({root}));await fs.utimes(dir,n,n);
+    }
+    await fs.mkdir(current);const foreign=path.join(cache,'0.2.0-bbbbbbbbbbbb');await fs.mkdir(foreign);
+    await fs.writeFile(path.join(foreign,'job.json'),JSON.stringify({root:'/another-app'}));
+    await pruneCache(cache,current,root);
+    await fs.stat(current);await fs.stat(foreign);await fs.stat(path.join(cache,'0.2.4-aaaaaaaaaaaa'));await fs.stat(path.join(cache,'0.2.3-aaaaaaaaaaaa'));
+    await assert.rejects(fs.stat(path.join(cache,'0.2.1-aaaaaaaaaaaa')),{code:'ENOENT'});
+  } finally { inside(os.tmpdir(),cache);await fs.rm(cache,{recursive:true,force:true}); }
 });

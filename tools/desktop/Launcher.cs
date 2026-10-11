@@ -166,6 +166,7 @@ internal static class Launcher
                         tray.Visible = true;
                         UpdateTray = tray;
                         tray.BalloonTipClicked += delegate { if (ReadyUpdate != null) ApplyUpdate(); };
+                        if (!Quiet) ShowUpdateResult();
                         timer.Interval = 500;
                         timer.Tick += delegate
                         {
@@ -213,6 +214,23 @@ internal static class Launcher
                 }
             }
         }
+    }
+
+    private static void ShowUpdateResult()
+    {
+        string resultPath = Path.Combine(Path.GetDirectoryName(LogPath), "updates", "last-result.json");
+        try
+        {
+            if (!File.Exists(resultPath)) return;
+            var result = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(File.ReadAllText(resultPath));
+            if (result.ContainsKey("ok") && !Convert.ToBoolean(result["ok"]))
+            {
+                Log("更新未完成：" + Convert.ToString(result["error"]));
+                UpdateTray.ShowBalloonTip(10000, "StudentBuddy 更新未完成", "已保留原版本和学习数据，请稍后重试。", ToolTipIcon.Warning);
+            }
+            File.Delete(resultPath);
+        }
+        catch (Exception error) { Log("读取更新结果：" + error.Message); }
     }
 
     private static bool UpdateInProgress()

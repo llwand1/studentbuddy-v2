@@ -86,4 +86,25 @@ function dataDir(env = process.env, home = os.homedir(), exists = require('node:
     path.join(home,'AppData','Roaming','studentbuddy-v2'), path.join(home,'studentbuddy-v2')].filter(Boolean);
   return candidates.find(dir => exists(path.join(dir,'studentbuddy.db'))) || candidates[0];
 }
-module.exports = { FEED, VERSION, compare, inside, validateEnvelope, readJson, hashFile, verifyFile, fetchEnvelope, download, dataDir };
+async function pruneCache(cache, current, root) {
+  const candidates=[];
+  for (const entry of await fs.readdir(cache,{withFileTypes:true})) {
+    if (!entry.isDirectory() || !/^\d+\.\d+\.\d+-[a-f0-9]{12}$/.test(entry.name)) continue;
+    const dir=inside(cache,path.join(cache,entry.name));
+    if (path.resolve(dir)===path.resolve(current)) continue;
+    try {
+      const job=await readJson(path.join(dir,'job.json'));
+      if (path.resolve(job.root)!==path.resolve(root)) continue;
+      const real=await fs.realpath(dir);
+      inside(await fs.realpath(cache),real);
+      if (real.toLowerCase()!==dir.toLowerCase()) continue;
+      candidates.push({dir,updated:(await fs.stat(dir)).mtimeMs});
+    } catch { /* Unknown or incomplete folders are never recursively removed. */ }
+  }
+  candidates.sort((a,b)=>b.updated-a.updated);
+  for (const entry of candidates.slice(2)) {
+    inside(cache,entry.dir);
+    await fs.rm(entry.dir,{recursive:true,force:true});
+  }
+}
+module.exports = { FEED, VERSION, compare, inside, validateEnvelope, readJson, hashFile, verifyFile, fetchEnvelope, download, dataDir, pruneCache };

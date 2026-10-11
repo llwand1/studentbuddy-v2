@@ -4,7 +4,7 @@ const path = require('node:path');
 const { spawn, execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { setTimeout: pause } = require('node:timers/promises');
-const { FEED, compare, inside, validateEnvelope, readJson, verifyFile, fetchEnvelope, download, dataDir } = require('./update-core.cjs');
+const { FEED, compare, inside, validateEnvelope, readJson, verifyFile, fetchEnvelope, download, dataDir, pruneCache } = require('./update-core.cjs');
 const run = promisify(execFile);
 
 function testOrigin(root) {
@@ -36,6 +36,7 @@ async function prepare(root) {
   const job = { root, envelope, oldVersion:build.version, installer, dataDir:dataDir(), testOrigin:origin || null };
   const jobPath = path.join(jobDir,'job.json');
   await fs.writeFile(jobPath,JSON.stringify(job));
+  if (!require('node:fs').existsSync(path.join(process.env.LOCALAPPDATA,'StudentBuddy','update-in-progress'))) await pruneCache(cache,jobDir,root);
   return { state:'ready',version:manifest.version,jobPath,node:path.join(jobDir,'node.exe'),script:path.join(jobDir,'update-client.cjs') };
 }
 async function waitExit(pid, timeout = 30000) {
@@ -126,7 +127,7 @@ async function installAndVerify(jobDir,job,manifest,installer,parentPid,quiet) {
     await healthy(root,child,manifest.appVersion);
     if (!quiet) { await stopApp(root,child); child = startApp(root,false); }
     child.unref();
-    await fs.writeFile(path.join(jobDir,'result.json'),JSON.stringify({ok:true,version:manifest.version,backup}));
+    await saveResult(jobDir,{ok:true,version:manifest.version,backup});
     return {ok:true,version:manifest.version};
   } catch (error) {
     if (child && child.exitCode===null) await stopApp(root,child);
@@ -137,9 +138,13 @@ async function installAndVerify(jobDir,job,manifest,installer,parentPid,quiet) {
       await run('reg.exe',['import',path.join(backup,'uninstall.reg')],{windowsHide:true,timeout:15000});
     }
     const old = startApp(root,quiet); old.unref();
-    await fs.writeFile(path.join(jobDir,'result.json'),JSON.stringify({ok:false,rolledBack:installationStarted,error:error.message,backup}));
+    await saveResult(jobDir,{ok:false,rolledBack:installationStarted,error:error.message,backup});
     throw error;
   }
+}
+async function saveResult(jobDir,result) {
+  await fs.writeFile(path.join(jobDir,'result.json'),JSON.stringify(result));
+  await fs.writeFile(inside(path.dirname(jobDir),path.join(path.dirname(jobDir),'last-result.json')),JSON.stringify(result));
 }
 if (require.main===module) {
   const [command,arg,pid,quiet,...extra] = process.argv.slice(2);

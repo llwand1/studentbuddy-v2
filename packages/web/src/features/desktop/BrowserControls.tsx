@@ -35,7 +35,7 @@ export function BrowserControls({ sessionId, onBound }: { sessionId?: string | n
     {page?.connected && <p className="desktop-page-name" title={page.url}>{page.title || page.url}<small>{page.chars.toLocaleString()} 字 · 快照 {page.revision}</small></p>}
     <label>共读对话<select value={target} disabled={!!sessionId || busy} onChange={e => { setTarget(e.target.value); setPair(null); }}>
       <option value="">新建共读对话</option>{sessions.map(s => <option key={s.id} value={s.id}>{s.title || '未命名对话'}</option>)}
-      {!!sessionId && !sessions.some(s => s.id === sessionId) && <option value={sessionId}>当前对话</option>}
+      {!!target && !sessions.some(s => s.id === target) && <option value={target}>{sessionId ? '当前对话' : '共读对话'}</option>}
     </select></label>
     <div className="desktop-actions"><button type="button" disabled={busy} onClick={() => void generate()}>{busy ? '准备中…' : '生成配对码'}</button>
       {hasHost() && <button type="button" onClick={() => postToHost('sb-desktop:extension')}>打开扩展文件夹</button>}</div>

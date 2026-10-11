@@ -48,7 +48,8 @@ export function parseFeedbackOptions(raw: string): QuizFeedbackOption[] | null {
     if (!object(v) || !Array.isArray(v.options) || v.options.length < 2 || v.options.length > 4) return null;
     const out: QuizFeedbackOption[] = [];
     for (const o of v.options) {
-      if (!object(o) || !text(o.label, 32) || !text(o.description, 100)) return null;
+      // 提示要求短文案；允许少量超长而仍有界，不能把可读选项误报成整轮失败。
+      if (!object(o) || !text(o.label, 60) || !text(o.description, 180)) return null;
       out.push({ id: `feedback-${out.length + 1}`, label: o.label.trim(), description: o.description.trim() });
     }
     return new Set(out.map(o => o.label)).size === out.length ? out : null;

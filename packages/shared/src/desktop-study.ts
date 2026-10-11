@@ -35,6 +35,8 @@ export interface DesktopBrowserState {
   updatedAt: number;
   selection: string;
   text?: string;
+  /** True briefly after this page supplied retrieved material to a question or answer. */
+  retrieving?: boolean;
 }
 export interface DesktopStudyState {
   settings: DesktopStudySettings;

@@ -73,3 +73,18 @@ it('rejects oversized, executable and malformed snapshots', () => {
   for (const input of [{ ...page, url: 'javascript:alert(1)' }, { ...page, url: 'https://user:secret@site.org/' },
     { ...page, text: 'x'.repeat(120001) }, { ...page, seq: -1 }, { ...page, epoch: '<script>' }]) expect(parsePage(input)).toBeNull();
 });
+it('reports retrieval only after scoped material was used, expires it and clears it on navigation', () => {
+  const token = pair('alice'); store.update(token, page);
+  expect(store.state('alice')?.retrieving).toBe(false);
+  expect(store.block('alice', 'other-session', '光反应')).toBe('');
+  expect(store.state('alice')?.retrieving).toBe(false);
+  store.block('alice', 'session-1', '光反应');
+  expect(store.state('alice')?.retrieving).toBe(true);
+  expect(store.state('bob')).toBeNull();
+  now += 5001; expect(store.state('alice')?.retrieving).toBe(false);
+  store.block('alice', 'session-1', '光反应');
+  store.update(token, { ...page, url: 'https://example.org/next', epoch: 'document-222' });
+  expect(store.state('alice')?.retrieving).toBe(false);
+  store.block('alice', 'session-1', '光反应'); store.dropPage(token);
+  expect(store.state('alice')?.retrieving).toBe(false);
+});

@@ -18,6 +18,7 @@ import { listPendingChoices } from './choice.js';
 import { snapshot } from './sse-bus.js';
 import { toolDefinitions } from './tools/index.js';
 import { GRILL_POST, GRILL_PRE, GRILL_TOOL_CHOICE, grillInstruction, runGrillClosing } from './grill.js';
+import { cancelGrillOffers } from './choice.js';
 
 let tmpDir = '';
 
@@ -146,8 +147,11 @@ describe('runGrillClosing（收尾提问）', () => {
     // 它决定「点选后是续本轮还是开新一轮」。这条断言就是该决定的数据来源。
     const asked = snapshot(sessionId).find((e) => e.type === 'choice-asked');
     expect(asked && asked.type === 'choice-asked' ? asked.request.grillPhase : null).toBe('post');
-    // 反过来把代价钉死：库内读回**没有** phase（刷新后捞回的卡降级为普通卡，设计上接受）
-    expect(list[0]!.grillPhase).toBeUndefined();
+    // 刷新捞回的记录保留 post 语义，点选仍会开启下一轮。
+    expect(list[0]!.grillPhase).toBe('post');
+    cancelGrillOffers(sessionId);
+    expect(listPendingChoices(sessionId)).toHaveLength(0);
+    expect(snapshot(sessionId).some(e => e.type === 'choice-cancelled' && e.requestId === list[0]!.id)).toBe(true);
   });
 
   it('模型只回正文、没有 tool_call → 静默返回，不落卡', async () => {

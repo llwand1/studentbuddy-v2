@@ -67,10 +67,9 @@ export function buildComposerMenuItems(d: ComposerMenuDeps): ComposerMenuItem[] 
     {
       kind: 'toggle',
       key: 'grill',
-      label: 'grill-me 追问',
+      label: 'GrillMe 追问',
       title:
-        '每轮都先让 AI 抛 2~4 个方向让你选，讲完再问下一步（工程强绑，不靠它自觉）；' +
-        '不点选项或点「跳过」即跳过。仅当前会话有效，切会话重置',
+        '围绕学习范围按需选路线，回答后预判具体的下一步；可切换每轮先问。仅当前会话有效，切会话重置',
       on: d.grillMe,
       onChange: d.setGrillMe,
     },

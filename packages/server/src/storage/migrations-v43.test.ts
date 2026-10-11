@@ -108,6 +108,7 @@ describe('storage/db — v43 对战邀请表（pk_invites）', () => {
     old.exec(`DROP INDEX IF EXISTS idx_pk_invites_session`);
     old.exec(`DROP INDEX IF EXISTS idx_pk_invites_owner`);
     old.exec(`DROP TABLE IF EXISTS pk_invites`);
+    old.exec(`ALTER TABLE ask_choices DROP COLUMN grill_phase`);
     old.prepare(`DELETE FROM schema_version WHERE version > 42`).run();
     expect(tablesOf(old)).not.toContain('pk_invites'); // 退干净了，下面的「建回」才不是空话
     old.close();

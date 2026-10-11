@@ -23,37 +23,37 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-10-10 11:55:47（本机时区）｜ 基准 `daf3966` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-11 12:58:00（本机时区）｜ 基准 `af9a983` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
-| shared | 62 | 10,051 | 46 | 5,717 | 57% |
-| server | 300 | 40,856 | 201 | 37,851 | 93% |
-| web | 376 | 43,125 | 157 | 19,724 | 46% |
-| **合计** | **738** | **94,032** | **404** | **63,292** | **67%** |
+| shared | 64 | 10,141 | 47 | 5,751 | 57% |
+| server | 309 | 41,347 | 206 | 38,256 | 93% |
+| web | 380 | 43,588 | 159 | 19,966 | 46% |
+| **合计** | **753** | **95,076** | **412** | **63,973** | **67%** |
 
 ## 接口与契约
 
-- REST 路由注册：**188**（get 83 / post 73 / delete 13 / put 18 / patch 1）· 另 /api 挂载点 42 个
-- shared 契约类型：**273**（export interface 184 + export type 89）
+- REST 路由注册：**193**（get 84 / post 76 / delete 14 / put 18 / patch 1）· 另 /api 挂载点 42 个
+- shared 契约类型：**284**（export interface 193 + export type 91）
 - 外部运行时依赖：**8** 个 —— better-sqlite3, cors, express, katex, mermaid, pino, react, react-dom
-- 迁移水位：代码侧 **v57**（57 个 version 条目，非连续号 0 处）
+- 迁移水位：代码侧 **v58**（58 个 version 条目，非连续号 0 处）
 
 ## 测试基线（vitest 实跑）
 
-- **404 文件 / 4574 例**（4572 passed + 2 skipped + 0 failed）⇒ 全绿
+- **412 文件 / 4633 例**（4631 passed + 2 skipped + 0 failed）⇒ 全绿
 - ⚠️ 本次未重跑 vitest，读的是 今日的 test-results 产物——要新鲜数字加 `--tests`
-- jsdom 交互测试文件（`.test.tsx`）79 个
+- jsdom 交互测试文件（`.test.tsx`）80 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
 
 - ⬜ 无覆盖率产物（跑 `node tools/metrics.mjs --tests --coverage` 生成，**不编数**）
 
 ## 文档与仓库
-- docs/：SPEC 契约 62 份 · md 共 80 份 · 真机探针 15 个
-- git：feat/reading-math179 @ `daf3966`（2026-10-10）· 近 14 天 291 commits · 工作区未提交 54 文件
+- docs/：SPEC 契约 63 份 · md 共 81 份 · 真机探针 15 个
+- git：feat/grillme-rhythm @ `af9a983`（2026-10-11）· 近 14 天 298 commits · 工作区未提交 42 文件
 
 <!-- metrics:end -->
 

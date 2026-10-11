@@ -1,3 +1,5 @@
+> 2026-10-11 GrillMe 节奏与界面：新增 5 个普通回归用例（开场/收尾时机 2、参数边界 1、内联卡与回执拒绝 2）；既有刷新阶段、发送接线和迁移重放补断言；不增加 AI 评测集。
+>
 > 2026-10-10 出题预产物：新增 31 个普通回归用例；不增加 AI 评测集。
 
 > 2026-10-10 刷词动作：新增 3 个普通回归用例，既有词卡与音效用例补断言；无新增 AI 评测。
@@ -49,9 +51,9 @@
 > |---|---:|---|
 > | `packages/shared/src/grill-scope.test.ts` | 10 | 默认范围、主题规范化、非法输入拒绝、客户端伪造域名不透传 |
 > | `packages/server/src/chat/tools/exam-scope.test.ts` | 13 | 两工具下发；批准前零写入；实际增删保留其它项；账号隔离；拒绝、取消、配置竞争均不覆盖；非法整批拒绝；等价冗余归一；总量限制与空改动 |
-> | `packages/server/src/chat/grill-scope.test.ts` | 4 | 当前账号应试开关/空范围闸门；自定义目标作为数据；真实上下文装配与首轮后保留 |
+> | `packages/server/src/chat/grill-scope.test.ts` | 5 | 当前账号应试开关/空范围闸门；自定义目标作为数据；真实上下文装配与首轮后保留 |
 > | `packages/server/src/chat/exam-scope-action.test.ts` | 4 | 明确修改读后提交计划；grill/联网开场优先；只读、咨询、拒绝不重复强绑；参数纠正最多一次 |
-> | `packages/web/src/features/chat/useGrillChoice.test.tsx` | 5 | 发送/重跑/编辑/收尾携带范围；空主题零副作用；会话切换与首次建会话；三项选择和忙碌禁用 |
+> | `packages/web/src/features/chat/useGrillChoice.test.tsx` | 7 | 发送/重跑/编辑/收尾携带范围；空主题零副作用；会话切换与首次建会话；三项选择和忙碌禁用 |
 > | `packages/web/src/features/chat/useChatStream.activity.test.tsx` | 6 | 真实流 hook：done 后收尾步骤不重启 busy；下一轮及停止边界；正文排空不丢字；发送/重跑/编辑的迟到回执不覆盖完成态；历史与会话匹配后才确认空态或允许发送 |
 > | `packages/web/src/features/chat/tool-step.test.ts` | 2 | 白名单工具完成强制刷新共享范围；挂起和其它工具不刷新；原过程卡正常折叠 |
 > | `packages/web/src/features/exam/exam-refresh.test.ts` | 1 | 旧读取在途时工具触发的强刷不能被吞；重复通知合并，最终缓存为新配置 |

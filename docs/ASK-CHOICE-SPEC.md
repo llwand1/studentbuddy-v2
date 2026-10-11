@@ -207,6 +207,16 @@ wc -l packages/server/src/chat/*.ts packages/web/src/features/chat/*.tsx
 - 当前对话围绕本会话与本次提问；应试范围只从当前账号读取，未开启或未选范围明确报错；自定义主题作为学习目标素材，不当作系统指令，不改变来源白名单。范围提示是贯穿本轮开场、正文和收尾的上下文，不在首问之后移除。
 - 范围选择与输入沿用像素边框与主题 token，生成中不可调整，窄屏正常换行。非法范围在写消息或删除重跑产物之前拒绝。
 
+### 9.8 按需节奏与路线卡（2026-10-11；覆盖 §9 原有「每轮必问」默认值）
+
+- 新版开启后默认 `grillTiming: 'adaptive'`：明确知识提问、解释请求和已选下一步直接开始；高置信路线/规划请求、未给目标的短学习邀请才首轮强绑 `ask_choice`。可切换 `'always'` 每轮先问；未传节奏的旧客户端保持旧行为。需要先问时仍只有 turn 0 强绑，后续工具轮放开。
+- 收尾点选携带仅本轮有效的 `grillContinue: true`，保留学习范围和节奏，先确认回执成功才发新一轮；直接按已选路线展开，不重复问方向。重新生成与编辑重发保留节奏，不能继承一次性续接标记。
+- 开场卡默认展开，提供自定义与真正作废等待的「跳过，直接讲」；收尾卡默认收起、明确「可选」，可以展开路线或自行输入，不显示阻塞等待文案。卡片沿用像素边框、符文微光、点击位移；手机单列、至少 44px 操作入口，减少动态偏好下关闭动画。
+- 模式状态条默认一行，按需展开学习范围与触发节奏；自定义空主题直接展开。忙碌时仍可查看设置，不能修改目标。切会话重置节奏，空页建会话保留。
+- 完整讲解后才提供具体疑问、误区或小练习路线；致谢、少于 80 字的回执和题目协议内容不追加。收尾只允许一组 `ask_choice`，只下发该工具、2048 输出预算、20 秒超时，不执行其它工具；失败不把已完成正文变成错误。
+- 数据迁移 v58 为 `ask_choices` 添加可空 `grill_phase`；旧记录仍为普通选择，新记录刷新后保持 pre/post 行为，回执留痕与 SSE 同源。启动时仍清理无法恢复的挂起记录。
+- 参考 [mattpocock/skills 的 GrillMe](https://github.com/mattpocock/skills/blob/main/docs/productivity/grill-me.md) 的未定决策与显式入口、[assistant-ui Thread](https://github.com/assistant-ui/assistant-ui/blob/main/apps/docs/content/docs/primitives/thread.mdx) 的消息流建议入口，以及 [Chainlit AskAction](https://docs.chainlit.io/api-reference/ask/ask-for-action) 的等待/行动语义。借鉴交互原则，沿用现有选择工具与像素 UI。
+
 ## 10. 多轮决策 + ABCD 选项形态（v1.2，2026-09-17）
 
 > 溯源（2026-09-17）：选择题要有多个轮次；加一个自定义选项——ABC 由 AI 给，D 让用户用输入框自定义。

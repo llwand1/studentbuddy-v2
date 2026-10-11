@@ -51,7 +51,7 @@ export const AI_PURPOSES = {
   'continent.expand': { label: '大陆开拓出词', role: 'explain', version: 1, upstream: 'main', timeoutMs: 45_000 },
   'drill.newterms': { label: '等待时刷词出新词', role: 'explain', version: 2, upstream: 'main', timeoutMs: 30_000 },
   'coach.trend': { label: '复习趋势摘要', role: 'coach', version: 1, upstream: 'background', timeoutMs: 60_000 },
-  'chat.grill': { label: '收尾追问选项', role: 'explain', version: 1, upstream: 'main', timeoutMs: 60_000 },
+    'chat.grill': { label: '收尾追问选项', role: 'explain', version: 2, upstream: 'main', timeoutMs: 20_000 },
   'lookup.explain': { label: '划词速查讲解', role: 'explain', version: 1, upstream: 'main', timeoutMs: 60_000 },
   'lookup.quiz': { label: '划词速查出题', role: 'explain', version: 1, upstream: 'main', timeoutMs: 90_000 },
   'guide.next': { label: '下一步引导', role: 'explain', version: 3, upstream: 'main', timeoutMs: INTERACTIVE_AI_BUDGET.totalMs },

@@ -31,6 +31,7 @@ interface AskRow {
   options_json: string;
   allow_custom: number;
   multi: number;
+  grill_phase: GrillPhase | null;
   status: string;
   reply_option_id: string | null;
   reply_custom: string | null;
@@ -60,6 +61,7 @@ function toRecord(r: AskRow): AskChoiceRecord {
     options: JSON.parse(r.options_json) as ChoiceOption[],
     allowCustom: r.allow_custom === 1,
     multi: r.multi === 1,
+    ...(r.grill_phase ? { grillPhase: r.grill_phase } : {}),
     ts: utcMs(r.created_at),
     status: r.status as ChoiceStatus,
     reply,
@@ -71,10 +73,10 @@ function toRecord(r: AskRow): AskChoiceRecord {
 function insertAsk(rec: AskChoiceRecord): void {
   getDb()
     .prepare(
-      `INSERT INTO ask_choices (id, session_id, question, options_json, allow_custom, multi, status)
-       VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
+      `INSERT INTO ask_choices (id, session_id, question, options_json, allow_custom, multi, grill_phase, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
     )
-    .run(rec.id, rec.sessionId, rec.question, JSON.stringify(rec.options), rec.allowCustom ? 1 : 0, rec.multi ? 1 : 0);
+    .run(rec.id, rec.sessionId, rec.question, JSON.stringify(rec.options), rec.allowCustom ? 1 : 0, rec.multi ? 1 : 0, rec.grillPhase ?? null);
 }
 
 const selectRow = (id: string): AskRow | undefined =>
@@ -146,10 +148,7 @@ export interface AskChoiceInput {
   allowCustom?: unknown;
   multi?: unknown;
   /**
-   * grill-me 阶段（v18）。**刻意不落库**（`ask_choices` 表无此列）：
-   * 它只在内存与 SSE 下发里活——前端靠它决定「选完是续本轮还是开新一轮」。
-   * 代价：刷新后由 `listPendingChoices` 捞回的卡降级为普通卡（点选不自动发下一轮），
-   * 这个降级可接受——刷新页面时那张卡本身也已不在原语境里。
+   * GrillMe 阶段随记录落库，刷新后仍能区分「续本轮」与「开启下一轮」。
    */
   grillPhase?: GrillPhase;
 }
@@ -309,6 +308,15 @@ export function sweepStaleChoices(): number {
     waiters.delete(rec.id);
   }
   return rows.length;
+}
+
+/** A new learning turn replaces optional next-step offers; blocking opening choices are untouched. */
+export function cancelGrillOffers(sessionId: string): void {
+  const rows = getDb().prepare(`SELECT * FROM ask_choices WHERE session_id = ? AND status = 'pending' AND grill_phase = 'post'`)
+    .all(sessionId) as AskRow[];
+  for (const row of rows) if (markCancelled(row.id, '已开始新一轮')) {
+    publish(sessionId, { type: 'choice-cancelled', sessionId, requestId: row.id, reason: '已开始新一轮' });
+  }
 }
 
 /** 工具回灌文本（与 describeChoiceReply 同源，两处措辞不各写一份） */

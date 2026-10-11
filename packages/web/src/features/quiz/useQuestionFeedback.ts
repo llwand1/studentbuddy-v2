@@ -18,7 +18,7 @@ export function useQuestionFeedback(input: QuizFeedbackRequest, onAdapted?: (res
 
   const cancel = () => { controller.current?.abort(); controller.current = null; setBusy(null); };
   const predict = async () => {
-    if (controller.current) return;
+    if (controller.current || !input.attempt) return;
     const ctrl = new AbortController(); controller.current = ctrl;
     setBusy('choices'); setError('');
     try {
@@ -34,8 +34,12 @@ export function useQuestionFeedback(input: QuizFeedbackRequest, onAdapted?: (res
   };
   const toggle = () => {
     if (open) { cancel(); setOpen(false); }
-    else { setOpen(true); if (!options.length && !result) void predict(); }
+    else { setOpen(true); if (input.attempt && !options.length && !result) void predict(); }
   };
+  useEffect(() => {
+    if (open && input.attempt && !options.length && !result && !controller.current) void predict();
+    // 作答到来时补齐已展开的预判；失败后只由用户重试，不能因 busy/error 变化无限调用。
+  }, [input.attempt?.answer, input.attempt?.verdict]);
   const submit = async (feedback: string) => {
     if (!feedback.trim() || controller.current) return;
     const ctrl = new AbortController(); controller.current = ctrl;

@@ -31,7 +31,8 @@ export function QuizCard({ title, questions, sessionId, quizId, feedback, onAdap
   const lastAt = attempts.summary.lastAt ? formatMsgTime(attempts.summary.lastAt) : '';
   return <><div className="quiz-card quiz-adventure">
     <div className="quiz-head"><AnswerSoundToggle /><span className="quiz-eyebrow">知识试炼</span>{title}</div>
-    {feedback && <div className="quiz-adaptation"><p><b>你的评价：</b>{feedback.comment}</p><p><b>本题调整：</b>{feedback.adjustment}</p></div>}
+    {feedback && <div className="quiz-adaptation"><p><b>你的评价：</b>{feedback.comment}</p>
+      {Object.keys(answers).length ? <p><b>本题调整：</b>{feedback.adjustment}</p> : <p>已按评价重创作；作答后查看本题调整说明。</p>}</div>}
     {chain > 1 && <p key={chain} className="quiz-momentum" role="status">连续命中 {chain} 题</p>}
     <p className="quiz-muted">先作答，再看懂。完成本组后可生成专属图文讲解。{tiers ? ` 本组：${tiers}。` : ''}</p>
     {line && <p className="quiz-attempt-line" role="status">

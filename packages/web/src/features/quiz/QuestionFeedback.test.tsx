@@ -5,7 +5,7 @@ import { QuestionFeedback } from './QuestionFeedback';
 const api = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock('../../lib/api-request', () => ({ request: api.request }));
 vi.mock('./QuizCard', () => ({ QuizCard: ({ title }: { title: string }) => <div>{title}</div> }));
-const input = { title: '加法', sessionId: 's', question: { type: 'single' as const, question: '2+3？', options: ['4', '5'], answer: [1] } };
+const input = { title: '加法', sessionId: 's', question: { type: 'single' as const, question: '2+3？', options: ['4', '5'], answer: [1] }, attempt: { answer: '5', verdict: 'correct' as const } };
 const choices = { options: [{ id: 'a', label: '先练一步', description: '减少运算步骤' }, { id: 'b', label: '换个情境', description: '保留加法考点' }] };
 beforeEach(() => { api.request.mockReset(); });
 afterEach(cleanup);
@@ -43,9 +43,11 @@ describe('内联题目评价', () => {
   });
   it('无会话热身在原题下面展示适应新题，无模态遮罩', async () => {
     const receive = vi.fn();
-    api.request.mockResolvedValueOnce(choices).mockResolvedValueOnce({ announced: false, quizId: 'new', quiz: { title: '新的基础题', questions: [] } });
-    render(<QuestionFeedback input={{ ...input, sessionId: undefined }} onAdapted={receive} />); open(); await screen.findByText('先练一步');
-    fireEvent.click(screen.getByRole('button', { name: /先练一步/ })); await screen.findByText('已按评价生成新题，见下方题卡。');
+    api.request.mockResolvedValueOnce({ announced: false, quizId: 'new', quiz: { title: '新的基础题', questions: [] } });
+    render(<QuestionFeedback input={{ ...input, sessionId: undefined, attempt: undefined }} onAdapted={receive} />); open();
+    expect(api.request).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByRole('textbox', { name: '我的题目评价' }), { target: { value: '先练一步' } });
+    fireEvent.click(screen.getByRole('button', { name: '按评价再来一题' })); await screen.findByText('已按评价生成新题，见下方题卡。');
     expect(receive).toHaveBeenCalledWith(expect.objectContaining({ quizId: 'new', announced: false }));
     expect(screen.queryByRole('dialog')).toBeNull();
   });

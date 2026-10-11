@@ -16,7 +16,7 @@ export function QuestionFeedback({ input, disabled = false, onAdapted }: {
     </button>
     {f.open && <div className="choice-card qf-card">
       <div className="choice-head"><span className="qf-rune" aria-hidden="true">◇</span><strong>这道题，你想怎么调整？</strong><span className="qf-tag">GrillMe</span></div>
-      <p className="qf-note">AI 预判几个可能的评价。选一个，或写下自己的意见，下一题会据此改变。</p>
+      <p className="qf-note">{input.attempt ? 'AI 预判几个可能的评价。选一个，或写下自己的意见，下一题会据此改变。' : '现在可以直接写评价；作答后 AI 会预判几个选项，帮你调整下一题。'}</p>
       {f.busy && <div className="qf-progress" role="status"><span className="qf-spark" aria-hidden="true" />
         {f.busy === 'choices' ? '正在读这道题，预判可能的评价…' : '正在按你的评价重塑下一题…'}
         <button type="button" onClick={f.cancel}>取消</button>
@@ -33,7 +33,7 @@ export function QuestionFeedback({ input, disabled = false, onAdapted }: {
             disabled={f.busy === 'adapt'} placeholder="例如：我卡在列方程，先让我练这个步骤。" onChange={e => f.setCustom(e.target.value)} /></label>
           <div className="qf-actions"><span>原题保留，下一题重新创作</span><button className="quiz-submit" type="submit" disabled={!!f.busy || disabled || !f.custom.trim()}>按评价再来一题</button></div>
         </form>
-        {!f.busy && !f.options.length && <button type="button" className="qf-retry" onClick={() => { void f.predict(); }}>重新预判评价</button>}
+        {input.attempt && !f.busy && !f.options.length && <button type="button" className="qf-retry" onClick={() => { void f.predict(); }}>重新预判评价</button>}
       </>}
       {f.error && <p className="qf-error" role="alert">{f.error}</p>}
       {f.result && (f.result.announced || onAdapted) && <p className="qf-success" role="status">已按评价生成新题，见下方题卡。</p>}

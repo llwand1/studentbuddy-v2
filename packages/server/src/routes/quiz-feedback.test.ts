@@ -15,7 +15,7 @@ const user = await createUser('feedback-test@example.com', 'good-password-1', un
 const cookie = `${AUTH_COOKIE_NAME}=${createSession(user.id).token}`;
 getDb().prepare('INSERT INTO sessions (id, title, user_id) VALUES (?, ?, ?)').run('owned', 'test', user.id);
 getDb().prepare('INSERT INTO sessions (id, title) VALUES (?, ?)').run('other', 'test');
-const body = { title: '加法', sessionId: 'owned', question: { type: 'single', question: '2+3？', options: ['4', '5'], answer: [1] }, feedback: '简单一点' };
+const body = { title: '加法', sessionId: 'owned', question: { type: 'single', question: '2+3？', options: ['4', '5'], answer: [1] }, feedback: '简单一点', attempt: { answer: '4', verdict: 'wrong' } };
 const quiz = { title: '基础加法', questions: [{ ...body.question, question: '1+1？', options: ['2', '3'], answer: [0] }], feedback: { comment: body.feedback, adjustment: '改为一步小数值运算' } };
 const post = (kind: string, data: object = body) => request(app).post(`/api/quiz/feedback/${kind}`).set('Origin', 'http://localhost:5173').set('Cookie', cookie).send(data);
 beforeEach(() => { stub.predict.mockReset().mockResolvedValue([]); stub.adapt.mockReset().mockResolvedValue(quiz); });
@@ -25,6 +25,7 @@ describe('题目评价路由', () => {
     await post('choices', { ...body, sessionId: 'other' }).expect(404);
     await post('adapt', { ...body, sessionId: 'missing' }).expect(404);
     await post('adapt', { ...body, feedback: '' }).expect(400);
+    await post('choices', { ...body, attempt: undefined }).expect(400);
     await request(app).post('/api/quiz/feedback/adapt').set('Origin', 'https://evil.example').set('Cookie', cookie).send(body).expect(403);
     expect(stub.adapt).not.toHaveBeenCalled(); expect(stub.predict).not.toHaveBeenCalled();
   });

@@ -10,6 +10,7 @@ function feedbackRoute(kind: 'choices' | 'adapt'): RequestHandler {
   return async (req, res) => {
     const input = parseFeedbackRequest(req.body, kind === 'adapt');
     if (!input) { res.status(400).json({ error: '题目或评价不完整、过长，请检查后重试。' }); return; }
+    if (kind === 'choices' && !input.attempt) { res.status(400).json({ error: '先作答再预判评价；也可以直接写自己的评价。' }); return; }
     const ownerId = ownerIdOf(req);
     if (input.sessionId && (!sessionExists(input.sessionId) || !canAccessSession(input.sessionId, ownerId))) {
       res.status(404).json({ error: '会话不存在。' }); return;

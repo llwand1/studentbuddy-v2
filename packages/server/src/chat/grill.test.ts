@@ -18,6 +18,7 @@ import { listPendingChoices } from './choice.js';
 import { snapshot } from './sse-bus.js';
 import { toolDefinitions } from './tools/index.js';
 import { GRILL_POST, GRILL_PRE, GRILL_TOOL_CHOICE, grillInstruction, runGrillClosing } from './grill.js';
+import { cancelGrillOffers } from './choice.js';
 
 let tmpDir = '';
 
@@ -75,6 +76,7 @@ async function runClosing(sessionId: string, script: (req: ChatRequest) => Token
     model: 'm',
     apiKey: 'k',
     messages: [{ role: 'user', content: '讲讲二分查找' }, { role: 'assistant', content: '……' }],
+    answer: '闭区间最后一个候选也要检查；只剩一个元素时 left == right。',
     tools: toolDefinitions(),
     onStep: (tool, status, detail) => steps.push({ tool, status, detail }),
     ownerId: null,
@@ -114,21 +116,24 @@ describe('runGrillClosing（收尾提问）', () => {
     expect(seen[0]!.toolChoice).toEqual(GRILL_TOOL_CHOICE);
   });
 
-  it('收尾指令以 user 消息 push 到 messages 尾部（收尾那一轮的上下文）', async () => {
+  it('刚交付的正文位于收尾指令之前，原工具上下文不被修改', async () => {
     const messages = [{ role: 'user' as const, content: '讲讲二分查找' }];
-    const { adapter } = stubAdapter(() => askChoiceChunk(NEXT_STEP_ARGS));
+    const { adapter, seen } = stubAdapter(() => askChoiceChunk(NEXT_STEP_ARGS));
     await runGrillClosing({
       sessionId: 's-grill-msg',
       adapter,
       model: 'm',
       apiKey: 'k',
       messages,
+      answer: '本轮解释了单元素区间也要检查。',
       tools: toolDefinitions(),
       onStep: () => undefined,
       ownerId: null,
     });
-    expect(messages).toHaveLength(2);
-    expect(messages[1]).toEqual({ role: 'user', content: GRILL_POST });
+    expect(messages).toHaveLength(1);
+    expect(seen[0]!.messages.slice(-2)).toEqual([
+      { role: 'assistant', content: '本轮解释了单元素区间也要检查。' }, { role: 'user', content: GRILL_POST },
+    ]);
   });
 
   it('收到 tool_call → 落一张 post 卡，且**不挂起**（没人点选也已经返回）', async () => {
@@ -146,8 +151,11 @@ describe('runGrillClosing（收尾提问）', () => {
     // 它决定「点选后是续本轮还是开新一轮」。这条断言就是该决定的数据来源。
     const asked = snapshot(sessionId).find((e) => e.type === 'choice-asked');
     expect(asked && asked.type === 'choice-asked' ? asked.request.grillPhase : null).toBe('post');
-    // 反过来把代价钉死：库内读回**没有** phase（刷新后捞回的卡降级为普通卡，设计上接受）
-    expect(list[0]!.grillPhase).toBeUndefined();
+    // 刷新捞回的记录保留 post 语义，点选仍会开启下一轮。
+    expect(list[0]!.grillPhase).toBe('post');
+    cancelGrillOffers(sessionId);
+    expect(listPendingChoices(sessionId)).toHaveLength(0);
+    expect(snapshot(sessionId).some(e => e.type === 'choice-cancelled' && e.requestId === list[0]!.id)).toBe(true);
   });
 
   it('模型只回正文、没有 tool_call → 静默返回，不落卡', async () => {

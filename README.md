@@ -1,7 +1,7 @@
 # StudentBuddy
 
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
-![version](https://img.shields.io/badge/version-0.2.182-orange)
+![version](https://img.shields.io/badge/version-0.2.183-orange)
 
 **在暗黑像素冒险里学习：对话中理解，题目里练习，把学过的知识留下来。**
 
@@ -19,7 +19,7 @@ Windows 本地版把学习窗口和像素吉祥物带到桌面，学习数据留
 | 等 AI 回复 | 刷几张词卡，复习到期词条、认识话题里的新词；回复到了，再顺着回去阅读 |
 | 检查自己懂没懂 | 让 AI 出题、逐项作答、查看解析和图文复盘；回答还能提炼成可练习的题目 |
 | 想让题目更合适 | 评价这道题，AI 预判可能的意见，也接受自己的话；下一题按评价调整，并说明改了什么 |
-| 练习表达与推理 | GrillMe 围绕当前对话、应试范围或自定义主题继续追问 |
+| 练习表达与推理 | GrillMe 围绕当前对话、应试范围或自定义主题按需追问；明确的问题直接开始，收尾路线点选后继续 |
 | 把学过的记住 | 概念进入词库，变成卡牌和知识大陆上的地块，复习重新回到具体的知识 |
 | 和别人一起练 | 进入对战，用作答、连击和比分反馈推进同一组题目 |
 
@@ -127,13 +127,13 @@ Windows 本地版把学习窗口和像素吉祥物带到桌面，学习数据留
 <summary>开发者信息</summary>
 
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![tests](https://img.shields.io/badge/tests-412%20files%20%2F%204628%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-412%20files%20%2F%204633%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-193-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-282%20types-8a63f6)
+![contracts](https://img.shields.io/badge/shared%20contracts-284%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-8-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
-当前测试基线 **412 文件 / 4628 例**。在线体验**已上线到 v0.2.182**。
+当前测试基线 **412 文件 / 4633 例**。在线体验**已上线到 v0.2.183**。
 
 代码结构、开发约定与复验方式见 [工程文档](docs/ENGINEERING.md)。
 

@@ -9,8 +9,8 @@
  * 恰好覆盖了学习场景 90% 的真实提问。
  *
  * 结论：**「要不要问」不该是模型的概率判断，该是用户的显式开关。**
- * grill-me 就是这个开关——打开后，每一轮必定出现选择框（开场问方向 + 收尾问下一步），
- * 靠 `tool_choice` 强绑 `ask_choice` 由工程保证，不依赖模型自觉。
+ * grill-me 就是这个开关——新版默认明确提问直接答，未定学习路线才先问方向；
+ * 用户仍可选择每轮先问。需要开场时由 `tool_choice` 强绑 `ask_choice` 保证。
  *
  * 【两段提问的语义是相反的，别搞混】
  * - `pre`（开场）：答复**要回灌**给模型——模型据此决定这一轮讲什么。=> 必须挂起等待。
@@ -22,11 +22,10 @@
  * 且指令是会随实测反复调的**提示词**，与调度逻辑分开改更稳（先例 `choice-nudge.ts`）。
  */
 import type { ChatMessage, LLMAdapter, ToolCall, ToolDefinition } from '../llm/types.js';
-import { getMaxOutputTokens } from '../llm/model-limits.js';
 import { runToolCalls } from './tool-exec.js';
 import { runChoiceTool } from './choice-tool.js';
-import { runTool, type ToolContext, type ToolResult } from './tools/index.js';
-import { startLlmMeter } from '../ai/gateway.js';
+import { type ToolContext, type ToolResult } from './tools/index.js';
+import { aiText } from '../ai/gateway.js';
 
 /**
  * 开场硬指令（pre）：强制模型第一个动作就是 ask_choice。
@@ -35,17 +34,22 @@ import { startLlmMeter } from '../ai/gateway.js';
  * 且配套 `tool_choice` 强绑，模型没有不调的自由度。
  */
 export const GRILL_PRE =
-  '（本会话已开启 grill-me 模式：每一轮都先让学习者选择，再动笔。）' +
-  '你的**第一个动作必须是调用 ask_choice**，就这一轮往哪走给出 2~4 个方向让他选。' +
-  '拿到他的选择后再展开正文——先写正文再问，他会以为已经讲完了，选择框就没人点了。';
+  '（GrillMe 本轮需要先确定学习路线。）' +
+  '你的**第一个动作必须是调用 ask_choice**，一次只问一个尚未解决的问题，给出 2~4 个具体方向让他选。' +
+  '先利用对话和范围中已有的信息，不重复询问已经选择的方向；选项写清会学什么，说明简短，不用泛泛的深入/举例。' +
+  '拿到他的选择后再展开正文；除非缺少影响正确回答的必要条件，不再接连询问深度和形式。';
 
 /**
  * 收尾硬指令（post）：回答给完之后，问「下一步」。
  * 刻意强调「不要再重复刚讲过的内容」——否则模型收尾时容易把正文摘要一遍再问。
  */
 export const GRILL_POST =
-  '（grill-me 收尾）本轮回答已完成。现在调用 ask_choice 抛出 2~4 个**下一步**选项' +
-  '（继续深入 / 换个角度 / 出两道题测他 / 给个例子 之类），让他决定往哪走。' +
+  '（grill-me 收尾）本轮回答已完成。现在调用 ask_choice 抛出 2~4 个**下一步**选项，优先 2~3 个，有充分依据才给第 4 个。' +
+  '根据本次回答预判具体的疑问、容易误解之处、适合的小练习；一次只聚焦一个知识缺口。' +
+  '只根据紧前的本轮正文找依据，不凭空补知识。label 是可直接发给 AI 的完整、具体问题（40 字以内）；description 最多一句说明学习收获。' +
+  '涉及公式、变量或代码时保留准确符号，不为缩短标签改成含混口语；不以未经验证或错误的事实为前提，疑似误解用待核对的问法。' +
+  '卡片按纯文本显示：数学用 Unicode 符号，代码保留原样，不使用 Markdown、LaTeX 标记或代码围栏。' +
+  '不得使用泛泛的「继续深入」「举个例子」代替具体主题，不提供刚讲过的重复路线，不提前泄露练习答案。' +
   '不要总结刚讲过的内容，只给选项。';
 
 /** 两段指令的纯函数出口：便于单测与日后按模型能力分档下发 */
@@ -62,8 +66,10 @@ export interface GrillClosingDeps {
   model: string;
   apiKey: string;
   baseUrl?: string;
-  /** 本轮已有 messages（会被 push 一条 GRILL_POST；调用点位于落库之后，不污染历史） */
+  /** 本轮已有工具循环上下文；收尾构造独立消息列表，不修改或落库这条指令。 */
   messages: ChatMessage[];
+  /** Just-delivered body is not yet appended to the tool loop messages when it breaks. */
+  answer: string;
   tools: ToolDefinition[];
   signal?: AbortSignal;
   onStep: (tool: string, status: 'running' | 'done' | 'error', detail?: string) => void;
@@ -82,41 +88,21 @@ export interface GrillClosingDeps {
  * 失败一律静默：收尾问不出来不该让整轮回答失败（`ok:false` 会把已上屏的回答标成出错）。
  */
 export async function runGrillClosing(deps: GrillClosingDeps): Promise<void> {
-  const { sessionId, adapter, model, apiKey, baseUrl, messages, tools, signal, onStep, ownerId } = deps;
+  const { sessionId, adapter, model, apiKey, baseUrl, messages, answer, tools, signal, onStep, ownerId } = deps;
 
-  // 只问下一步，不需要会话历史之外的东西；push 到 messages 尾部即「最后一轮」
-  messages.push({ role: 'user', content: GRILL_POST });
+  // 工具循环在正文完成后直接 break；收尾必须补入刚交付的正文，才能据此生成路线。
+  const closingMessages: ChatMessage[] = [...messages, { role: 'assistant', content: answer }, { role: 'user', content: GRILL_POST }];
 
-  let calls: ToolCall[] | undefined;
-  const meter = startLlmMeter('chat.grill', ownerId, { model, quota: { platform: false } });
-  try {
-    for await (const chunk of adapter.chat({
-      model,
-      apiKey,
-      baseUrl,
-      messages,
-      // 强绑：这一轮模型只能调 ask_choice，杜绝它自由发挥再讲一段
-      toolChoice: GRILL_TOOL_CHOICE,
-      tools,
-      maxTokens: getMaxOutputTokens(model),
-      // 池中 AI 一次性回答（与正文同口径）；原生思考链不在这里开——收尾不需要推理过程
-      streamMode: 'once',
-      signal,
-    })) {
-      meter.see(chunk);
-      if (chunk.toolCalls && chunk.toolCalls.length > 0) calls = chunk.toolCalls;
-      if (chunk.done) break;
-    }
-    meter.ok();
-  } catch (err) {
-    meter.fail(err, signal?.aborted === true);
-    return; // 收尾失败＝这一轮没有「下一步」卡片，不影响已给出的回答
-  }
+  const choiceTools = tools.filter(t => t.function.name === 'ask_choice');
+  const result = await aiText({ purpose: 'chat.grill', ownerId,
+    target: { adapter, type: adapter.type, streamMode: 'once', model, apiKey, baseUrl: baseUrl ?? '', quota: { platform: false, ownerId } }, messages: closingMessages,
+    toolChoice: GRILL_TOOL_CHOICE, tools: choiceTools, maxTokens: 2048, streamMode: 'once', signal });
+  const calls: ToolCall[] | undefined = result.ok ? result.toolCalls?.filter(c => c.name === 'ask_choice').slice(0, 1) : undefined;
   if (!calls || calls.length === 0) return;
 
   // offerOnly：落库 + 广播后立即返回，本函数不挂起（见文件头 post 段说明）
   const exec = (name: string, argsJson: string, ctx: ToolContext): Promise<ToolResult> => {
-    if (name !== 'ask_choice') return runTool(name, argsJson, ctx);
+    if (name !== 'ask_choice') return Promise.resolve({ content: '收尾仅提供学习路线。' });
     let parsed: Record<string, unknown> = {};
     try {
       parsed = JSON.parse(argsJson) as Record<string, unknown>;

@@ -4,6 +4,7 @@ import { act, renderHook, render, fireEvent, screen, cleanup } from '@testing-li
 import type { AskChoiceRecord } from '@sb/shared';
 import { useGrillChoice } from './useGrillChoice';
 import { GrillPill } from './GrillPill';
+import { ChoiceCard } from './ChoiceCard';
 vi.mock('../exam/useExamScope', () => ({ useExamScope: () => ({ on: true, hosts: 3, loaded: true, summary: '考研' }) }));
 afterEach(cleanup);
 function deps(sessionId: string | null = 'a') {
@@ -11,14 +12,30 @@ function deps(sessionId: string | null = 'a') {
     send: vi.fn(async () => ({ ok: true })), regenerate: vi.fn(async () => ({ ok: true })), resend: vi.fn(async () => ({ ok: true })) };
 }
 describe('GrillMe 范围选择与每轮接线', () => {
+  it('开场直接显示路线并真跳过；收尾折叠且不宣称正在阻塞', () => {
+    const request: AskChoiceRecord = { id: 'ui', sessionId: 'a', question: '先从哪学？', options: [{ id: 'o1', label: '用数组追踪左右边界' }], allowCustom: true, multi: false, grillPhase: 'pre', ts: 1, status: 'pending', reply: null, answeredAt: null };
+    const dismiss = vi.fn(); const r = render(<ChoiceCard request={request} onReply={vi.fn()} onDismiss={dismiss} />);
+    expect(screen.getByText('用数组追踪左右边界')).toBeTruthy();
+    fireEvent.click(screen.getByText('跳过，直接讲')); expect(dismiss).toHaveBeenCalledOnce();
+    r.rerender(<ChoiceCard request={{ ...request, id: 'next', grillPhase: 'post' }} onReply={vi.fn()} onDismiss={dismiss} />);
+    expect(screen.queryByText('用数组追踪左右边界')).toBeNull(); expect(screen.queryByText('等待选择')).toBeNull();
+    fireEvent.click(screen.getByText('展开 1 条路线')); expect(screen.getByText('用数组追踪左右边界')).toBeTruthy();
+  });
+  it('答复确认失败不发下一轮，避免点一次发两条或绕过服务端拒绝', async () => {
+    const d = deps(); d.replyChoice = vi.fn(async () => false);
+    d.pendingChoice = { id: 'ack', sessionId: 'a', question: '下一步？', options: [{ id: 'o1', label: '验证二分的终止条件' }], allowCustom: false, multi: false, grillPhase: 'post', ts: 1, status: 'pending', reply: null, answeredAt: null };
+    const h = renderHook(() => useGrillChoice(d)); render(h.result.current.grillNode);
+    fireEvent.click(screen.getByText('展开 1 条路线')); fireEvent.click(screen.getByText('验证二分的终止条件'));
+    await act(async () => {}); expect(d.send).not.toHaveBeenCalled();
+  });
   it('普通对话不附带学习范围，打开后发送/重新生成/编辑重发均携带当前选择', async () => {
     const d = deps(), h = renderHook(() => useGrillChoice(d));
     await h.result.current.sendWithGrill('普通'); expect(d.send).toHaveBeenLastCalledWith('普通', undefined, false);
     act(() => { h.result.current.composerProps.setGrillMe(true); h.result.current.composerProps.setGrillScope({ kind: 'custom', topic: '  概率论 ' }); });
     await h.result.current.sendWithGrill('讲讲'); await h.result.current.regenerate(); await h.result.current.resend('再讲讲');
     const scope = { kind: 'custom', topic: '概率论' };
-    expect(d.send).toHaveBeenLastCalledWith('讲讲', undefined, true, scope);
-    expect(d.regenerate).toHaveBeenCalledWith(true, scope); expect(d.resend).toHaveBeenCalledWith('再讲讲', true, scope);
+    expect(d.send).toHaveBeenLastCalledWith('讲讲', undefined, true, scope, { timing: 'adaptive' });
+    expect(d.regenerate).toHaveBeenCalledWith(true, scope, { timing: 'adaptive' }); expect(d.resend).toHaveBeenCalledWith('再讲讲', true, scope, { timing: 'adaptive' });
   });
   it('自定义主题为空，在任何发送或重跑副作用前给出错误', async () => {
     const d = deps(), h = renderHook(() => useGrillChoice(d));
@@ -37,13 +54,16 @@ describe('GrillMe 范围选择与每轮接线', () => {
     const d = deps(); d.pendingChoice = { id: 'c', sessionId: 'a', question: '继续？', options: [{ id: 'o1', label: '做两题' }], allowCustom: false, multi: false, grillPhase: 'post', ts: Date.now(), status: 'pending', reply: null, answeredAt: null };
     const h = renderHook(() => useGrillChoice(d));
     act(() => { h.result.current.composerProps.setGrillMe(true); h.result.current.composerProps.setGrillScope({ kind: 'exam' }); });
-    render(h.result.current.grillNode); fireEvent.click(screen.getByText('做两题'));
+    render(h.result.current.grillNode); fireEvent.click(screen.getByText('展开 1 条路线')); fireEvent.click(screen.getByText('做两题'));
     await act(async () => {});
-    expect(d.replyChoice).toHaveBeenCalledWith('c', { optionId: 'o1' }); expect(d.send).toHaveBeenCalledWith('做两题', undefined, true, { kind: 'exam' });
+    expect(d.replyChoice).toHaveBeenCalledWith('c', { optionId: 'o1' }); expect(d.send).toHaveBeenCalledWith('做两题', undefined, true, { kind: 'exam' }, { timing: 'adaptive', continue: true });
   });
   it('像素提示条提供三项选择与主题输入；忙碌时无法切换', () => {
     const change = vi.fn(), close = vi.fn(), r = render(<GrillPill scope={{ kind: 'exam' }} onScopeChange={change} onClose={close} />);
-    expect(screen.getAllByRole('option')).toHaveLength(3); expect(screen.getByText('考研')).toBeTruthy();
+    expect(screen.queryByRole('combobox')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /GrillMe/ }));
+    expect(screen.getByLabelText('GrillMe 学习范围').querySelectorAll('option')).toHaveLength(3);
+    expect(screen.getByText('考研')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('GrillMe 学习范围'), { target: { value: 'custom' } }); expect(change).toHaveBeenCalledWith({ kind: 'custom', topic: '' });
     r.rerender(<GrillPill scope={{ kind: 'custom', topic: '线代' }} onScopeChange={change} disabled onClose={close} />);
     expect((screen.getByLabelText('自定义学习主题') as HTMLInputElement).maxLength).toBe(160);

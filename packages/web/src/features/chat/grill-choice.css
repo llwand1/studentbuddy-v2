@@ -1,0 +1,25 @@
+.grill-choice { position: relative; min-width: 0; border: 1px solid var(--sb-line); border-left: 3px solid var(--sb-primary); border-radius: 2px; background: var(--sb-surface); box-shadow: inset 0 0 28px var(--sb-primary-weak); animation: grill-unfold .22s ease-out; }
+.grill-choice .choice-head { flex-wrap: wrap; gap: 8px; }
+.grill-choice .choice-title { font-size: 13px; }
+.grill-choice .choice-ico, .grill-choice .choice-mk { border-radius: 1px; }
+.grill-choice .choice-state { font-size: 11px; }
+.grill-choice-content { min-width: 0; }
+.grill-choice .choice-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grill-choice .choice-opt { min-width: 0; min-height: 52px; border-radius: 2px; transition: background .15s, border-color .15s, box-shadow .15s, transform .1s; }
+.grill-choice .choice-opt:hover:not(:disabled) { box-shadow: inset 0 0 16px var(--sb-primary-weak), 2px 2px 0 var(--sb-line); }
+.grill-choice .choice-opt:active:not(:disabled) { transform: translateY(2px); }
+.grill-choice .choice-opt.custom { grid-column: 1 / -1; min-height: 40px; }
+.grill-choice .choice-body { min-width: 0; }
+.grill-choice :is(.choice-label, .choice-desc, .choice-q) { overflow-wrap: anywhere; }
+.grill-choice .choice-desc { font-size: 11px; line-height: 1.55; }
+.grill-choice .choice-custom-head { min-height: 44px; align-items: center; }
+.grill-choice .choice-send { min-height: 44px; }
+.grill-choice .choice-foot { margin-top: 10px; }
+.grill-next-toggle, .grill-skip { min-height: 34px; padding: 5px 9px; border: 1px solid var(--sb-line); border-radius: 2px; background: var(--sb-bg); color: var(--sb-ink-secondary); cursor: pointer; font: inherit; font-size: 11px; }
+.grill-next-toggle { color: var(--sb-primary); }
+.grill-next-toggle:hover, .grill-skip:hover { border-color: var(--sb-primary); color: var(--sb-primary); }
+.grill-next-toggle:focus-visible, .grill-skip:focus-visible { outline: 2px solid var(--sb-primary); outline-offset: 2px; }
+.grill-reply-error { color: var(--sb-danger); font-size: 12px; margin: 0; }
+@keyframes grill-unfold { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 600px) { .grill-choice { padding: 12px; } .grill-choice .choice-opts { grid-template-columns: minmax(0, 1fr); } .grill-next-toggle, .grill-skip, .grill-choice .choice-opt.custom { min-height: 44px; } .grill-choice .choice-input { min-width: 0; font-size: 16px; } }
+@media (prefers-reduced-motion: reduce) { .grill-choice, .grill-scope-settings { animation: none; } .grill-choice .choice-opt { transition: none; } }

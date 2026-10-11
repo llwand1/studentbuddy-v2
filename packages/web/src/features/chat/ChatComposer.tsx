@@ -33,7 +33,7 @@ import type { ConfirmItem } from './useConfirmQueue';
 import { DocModeControl } from './DocModeControl';
 import { menuStatus } from './composer-status';
 import { GrillPill } from './GrillPill';
-import type { GrillScope } from '@sb/shared';
+import type { GrillScope, GrillTiming } from '@sb/shared';
 import { DrillParkedPill } from '../drill/DrillParkedPill';
 import { AttachmentTray } from './AttachmentTray';
 import type { DocMode } from './useDocMode';
@@ -57,6 +57,8 @@ export function ChatComposer({
   setGrillMe,
   grillScope,
   setGrillScope,
+  grillTiming,
+  setGrillTiming,
   onSubmit,
   onStop,
   quizzing,
@@ -102,6 +104,8 @@ export function ChatComposer({
   setGrillMe: (v: boolean) => void;
   grillScope?: GrillScope;
   setGrillScope?: (scope: GrillScope) => void;
+  grillTiming?: GrillTiming;
+  setGrillTiming?: (timing: GrillTiming) => void;
   onSubmit: () => void;
   onStop: () => void;
   quizzing: boolean;
@@ -230,7 +234,7 @@ export function ChatComposer({
         choice={choiceCard && !choiceCard.grillPhase ? { request: choiceCard, onReply: onChoiceReply, onDismiss: onDismissChoice } : null} />
       <ComposerDock busy={busy} draft={!!input.trim() || attachments.length > 0} onStop={onStop}>
       {askHint && <div className="ask-style-hint">{askHint}</div>}
-      {grillMe && <GrillPill scope={grillScope} onScopeChange={setGrillScope} disabled={busy || blocked} onClose={() => setGrillMe(false)} />}
+      {grillMe && <GrillPill scope={grillScope} onScopeChange={setGrillScope} timing={grillTiming} onTimingChange={setGrillTiming} disabled={busy || blocked} onClose={() => setGrillMe(false)} />}
       <DrillParkedPill />
       <DocModeControl doc={doc} open={docOpen} onClose={() => setDocOpen(false)} />
       <AttachmentTray images={attachments} onRemove={(i) => setAttachments(attachments.filter((_, j) => j !== i))} />

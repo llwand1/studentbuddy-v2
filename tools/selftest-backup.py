@@ -2,6 +2,7 @@ import importlib.util
 import pathlib
 import sqlite3
 import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import closing
@@ -61,6 +62,22 @@ class BackupTests(unittest.TestCase):
             module.backup(self.base)
         self.assertEqual(len(list(self.backup.glob('sb-*.db'))), 7)
         self.assertEqual(manual.read_bytes(), b'unchanged recovery marker')
+
+    def test_old_snapshot_wal_cannot_override_new_live_snapshot(self):
+        snapshot = module.backup(self.base)
+        script = ('import sqlite3,os,sys; d=sqlite3.connect(sys.argv[1]); '
+                  "d.execute('PRAGMA journal_mode=WAL'); d.execute('PRAGMA wal_autocheckpoint=0'); "
+                  "d.execute('INSERT INTO retained VALUES(99)'); d.commit(); os._exit(0)")
+        subprocess.run([sys.executable, '-c', script, str(snapshot)], check=True)
+        self.assertTrue(pathlib.Path(str(snapshot) + '-wal').exists())
+        with closing(sqlite3.connect(self.base / 'data/studentbuddy.db')) as live:
+            live.execute('INSERT INTO retained VALUES (43)')
+            live.commit()
+        module.backup(self.base)
+        with closing(sqlite3.connect(snapshot)) as restored:
+            self.assertEqual(restored.execute('SELECT id FROM retained ORDER BY id').fetchall(), [(42,), (43,)])
+            self.assertEqual(restored.execute('PRAGMA journal_mode').fetchone()[0], 'delete')
+        self.assertFalse(pathlib.Path(str(snapshot) + '-wal').exists())
 
 
 if __name__ == '__main__':

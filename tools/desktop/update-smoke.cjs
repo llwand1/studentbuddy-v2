@@ -63,6 +63,8 @@ async function executeUpdate(ready,parent) {
   const failed=await executeUpdate(ready,app.pid);assert.notEqual(failed.code,0);
   const rollback=JSON.parse(await fs.readFile(path.join(path.dirname(ready.jobPath),'result.json'),'utf8'));
   assert(rollback.rolledBack); assert.equal(JSON.parse((await fs.readFile(path.join(install,'desktop-build.json'),'utf8')).replace(/^\uFEFF/,'')).version,version);
+  const registration=await run('reg.exe',['query','HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{F276CD79-EBEA-4705-9B31-20CA08B5F1EA}_is1','/v','DisplayVersion'],{windowsHide:true});
+  assert(registration.stdout.trim().endsWith(version),'Rollback restores the installed version in Windows Settings');
   base=await health();assert((await request(base,'/api/sessions')).some(s=>s.id===session.id));
   await stop();
   app=spawn(path.join(install,'StudentBuddy.exe'),['--no-browser'],{env,windowsHide:true,stdio:'ignore'});await health();
@@ -72,7 +74,7 @@ async function executeUpdate(ready,parent) {
   base=await health();assert((await request(base,'/api/sessions')).some(s=>s.id===session.id));
   const terms=await request(base,'/api/terms');
   assert(JSON.stringify(terms).includes('升级保留验证'));
-  const report={signedUpdateApplied:true,from:version,to:next,wrongBuildRolledBack:true,sessionPreserved:true,termPreserved:true,isolated:true};
+  const report={signedUpdateApplied:true,from:version,to:next,wrongBuildRolledBack:true,registrationRestored:true,sessionPreserved:true,termPreserved:true,isolated:true};
   await fs.writeFile(path.join(root,'report.json'),JSON.stringify(report,null,2)); console.log(JSON.stringify(report));
 })().catch(e=>{console.error(e.message);process.exitCode=1;}).finally(async()=>{
   if(server)server.close();

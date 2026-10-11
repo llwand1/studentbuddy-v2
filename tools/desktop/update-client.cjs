@@ -63,7 +63,7 @@ async function restoreDatabase(dir, backup, files) {
   for (const name of files) await fs.copyFile(path.join(backup,name),path.join(dir,name));
 }
 function startApp(root, quiet) {
-  const p = spawn(path.join(root,'StudentBuddy.exe'),quiet ? ['--no-browser'] : [],{cwd:root,detached:true,stdio:'ignore',windowsHide:true});
+  const p = spawn(path.join(root,'StudentBuddy.exe'),quiet ? ['--no-browser'] : [],{cwd:root,detached:true,stdio:'ignore',windowsHide:true,env:{...process.env,SB_DESKTOP_UPDATE_APPLY:'1'}});
   p.on('error',error=>{p.startError=error;});
   // Keep a handle during health verification; successful processes are detached afterwards.
   return p;
@@ -100,6 +100,13 @@ async function apply(jobPath, parentPid, quiet = false) {
   if (build.version !== job.oldVersion || compare(manifest.version,build.version)<=0) throw new Error('Installed version changed; check for updates again');
   const installer = inside(jobDir,job.installer);
   await verifyFile(installer,manifest);
+  const lock=path.join(process.env.LOCALAPPDATA,'StudentBuddy','update-in-progress');
+  await fs.writeFile(lock,String(process.pid),{flag:'wx'});
+  try { return await installAndVerify(jobDir,job,manifest,installer,parentPid,quiet); }
+  finally { await fs.unlink(lock); }
+}
+async function installAndVerify(jobDir,job,manifest,installer,parentPid,quiet) {
+  const root=path.resolve(job.root), build=await readJson(path.join(root,'desktop-build.json'));
   await waitExit(parentPid);
   const backup = inside(jobDir,path.join(jobDir,'backup-' + Date.now()));
   // A previous attempt's backup is never silently overwritten.
@@ -107,6 +114,7 @@ async function apply(jobPath, parentPid, quiet = false) {
   let dbFiles = [];
   try {
     await fs.mkdir(backup);
+    await run('reg.exe',['export','HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{F276CD79-EBEA-4705-9B31-20CA08B5F1EA}_is1',path.join(backup,'uninstall.reg'),'/y'],{windowsHide:true,timeout:15000});
     await fs.cp(root,path.join(backup,'app'),{recursive:true,errorOnExist:true,force:false});
     dbFiles = await snapshotDatabase(job.dataDir,path.join(backup,'data'));
     await fs.writeFile(path.join(backup,'recovery.json'),JSON.stringify({root,dataDir:job.dataDir,dbFiles,oldVersion:build.version}));
@@ -126,6 +134,7 @@ async function apply(jobPath, parentPid, quiet = false) {
       // Keep extra files for manual recovery; restore known old files without deleting arbitrary directories.
       await fs.cp(path.join(backup,'app'),root,{recursive:true,force:true});
       await restoreDatabase(job.dataDir,path.join(backup,'data'),dbFiles);
+      await run('reg.exe',['import',path.join(backup,'uninstall.reg')],{windowsHide:true,timeout:15000});
     }
     const old = startApp(root,quiet); old.unref();
     await fs.writeFile(path.join(jobDir,'result.json'),JSON.stringify({ok:false,rolledBack:installationStarted,error:error.message,backup}));

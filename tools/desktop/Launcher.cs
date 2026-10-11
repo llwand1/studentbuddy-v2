@@ -26,6 +26,8 @@ internal static class Launcher
     private static readonly string LogPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StudentBuddy", "desktop.log");
     private static readonly object LogLock = new object();
+    private static readonly string UpdateLockPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StudentBuddy", "update-in-progress");
     private static bool Quiet;
     private static bool Exiting;
     private static Form Window;
@@ -78,6 +80,11 @@ internal static class Launcher
         bool noWindow = Array.IndexOf(args, "--no-browser") >= 0;
         Quiet = noWindow;
         if (Array.IndexOf(args, "--stop") >= 0) return Stop();
+        if (Environment.GetEnvironmentVariable("SB_DESKTOP_UPDATE_APPLY") != "1" && UpdateInProgress())
+        {
+            if (!Quiet) MessageBox.Show("正在完成更新，请稍候再打开 StudentBuddy。", "StudentBuddy 更新", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return 0;
+        }
         bool created;
         using (Mutex instance = new Mutex(true, Identity, out created))
         {
@@ -206,6 +213,23 @@ internal static class Launcher
                 }
             }
         }
+    }
+
+    private static bool UpdateInProgress()
+    {
+        if (!File.Exists(UpdateLockPath)) return false;
+        try
+        {
+            int pid;
+            if (Int32.TryParse(File.ReadAllText(UpdateLockPath).Trim(), out pid))
+                using (Process updater = Process.GetProcessById(pid))
+                    if (!updater.HasExited && updater.StartTime.ToUniversalTime() <= File.GetLastWriteTimeUtc(UpdateLockPath)) return true;
+        }
+        catch (ArgumentException) { }
+        catch (IOException) { return true; }
+        catch (System.ComponentModel.Win32Exception) { return true; }
+        try { File.Delete(UpdateLockPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        return false;
     }
 
     /** 后台检测并下载签名通过的更新；用户选择重启时才停止当前学习会话。 */

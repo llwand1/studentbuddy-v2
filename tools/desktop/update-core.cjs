@@ -88,6 +88,7 @@ function dataDir(env = process.env, home = os.homedir(), exists = require('node:
 }
 async function pruneCache(cache, current, root) {
   const candidates=[];
+  const realCache=await fs.realpath(cache);
   for (const entry of await fs.readdir(cache,{withFileTypes:true})) {
     if (!entry.isDirectory() || !/^\d+\.\d+\.\d+-[a-f0-9]{12}$/.test(entry.name)) continue;
     const dir=inside(cache,path.join(cache,entry.name));
@@ -96,8 +97,10 @@ async function pruneCache(cache, current, root) {
       const job=await readJson(path.join(dir,'job.json'));
       if (path.resolve(job.root)!==path.resolve(root)) continue;
       const real=await fs.realpath(dir);
-      inside(await fs.realpath(cache),real);
-      if (real.toLowerCase()!==dir.toLowerCase()) continue;
+      inside(realCache,real);
+      // TEMP may contain Windows 8.3 aliases; compare against the canonical parent,
+      // while still rejecting a cache entry redirected by a junction/symlink.
+      if (real.toLowerCase()!==path.join(realCache,entry.name).toLowerCase()) continue;
       candidates.push({dir,updated:(await fs.stat(dir)).mtimeMs});
     } catch { /* Unknown or incomplete folders are never recursively removed. */ }
   }

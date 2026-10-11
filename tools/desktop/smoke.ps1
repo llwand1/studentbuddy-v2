@@ -1,4 +1,4 @@
-param([string]$Installer = '', [string]$Version = '0.1.0')
+param([string]$Installer = '', [string]$Version = '0.1.0', [string]$PreviousInstaller = '')
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 if (!$Installer) { $Installer = Join-Path $repoRoot ".runtime\desktop-output\StudentBuddy-$Version-windows-x64-setup.exe" }
@@ -23,8 +23,8 @@ function Assert([bool]$Condition, [string]$Message) {
     $script:assertions++
     Write-Host "PASS $Message"
 }
-function RunSetup {
-    $process = Start-Process -FilePath $Installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOICONS', '/TASKS=', "/DIR=`"$installDir`"", "/LOG=`"$testRoot\install.log`"") -WindowStyle Hidden -Wait -PassThru
+function RunSetup([string]$SetupFile = $Installer) {
+    $process = Start-Process -FilePath $SetupFile -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOICONS', '/TASKS=', "/DIR=`"$installDir`"", "/LOG=`"$testRoot\install.log`"") -WindowStyle Hidden -Wait -PassThru
     Assert ($process.ExitCode -eq 0) 'Installer exits successfully'
 }
 function StartApp {
@@ -32,7 +32,8 @@ function StartApp {
     for ($attempt = 0; $attempt -lt 60; $attempt++) {
         if ($process.HasExited) { throw "Launcher exited with $($process.ExitCode). Read desktop.log." }
         try {
-            $script:baseUrl = 'http://127.0.0.1:' + (Get-Content -LiteralPath $portFile -ErrorAction Stop).Trim()
+            $actualPort = if (Test-Path -LiteralPath $portFile) { (Get-Content -LiteralPath $portFile -ErrorAction Stop).Trim() } else { '18794' }
+            $script:baseUrl = 'http://127.0.0.1:' + $actualPort
             $health = Invoke-RestMethod "$script:baseUrl/api/health" -TimeoutSec 1
             if ($health.ok) { return $process }
         } catch { }
@@ -46,10 +47,22 @@ function StopApp {
 }
 try {
     New-Item -ItemType Directory -Force -Path $testRoot | Out-Null
+    if ($PreviousInstaller) {
+        $PreviousInstaller = (Resolve-Path -LiteralPath $PreviousInstaller).Path
+        RunSetup $PreviousInstaller
+        $previousApp = StartApp
+        $previousSession = Invoke-RestMethod "$baseUrl/api/sessions" -Method Post -Headers @{Origin=$baseUrl} -ContentType 'application/json' -Body '{}'
+        StopApp
+        Assert ($previousApp.WaitForExit(10000)) 'Previous public version stops cleanly'
+    }
     RunSetup
     $unrelatedNode = Start-Process -FilePath (Get-Command node.exe).Source -ArgumentList @('-e', '"setInterval(()=>{},1000)"') -WindowStyle Hidden -PassThru
     Assert ((Test-Path -LiteralPath $launcher) -and (Test-Path -LiteralPath "$installDir\runtime\node.exe")) 'Launcher and bundled runtime are installed'
     $app = StartApp
+    if ($PreviousInstaller) {
+        $upgradedSessions = @(Invoke-RestMethod "$baseUrl/api/sessions")
+        Assert (@($upgradedSessions | Where-Object { $_.id -eq $previousSession.id }).Count -eq 1) 'Real previous-version session survives cross-version upgrade'
+    }
     $page = Invoke-WebRequest $baseUrl -UseBasicParsing
     Assert ($page.Content -match '<div id="root">') 'Installed application serves the web shell'
     $assetMatch = [regex]::Match($page.Content, 'src="(/assets/[^" ]+\.js)"')

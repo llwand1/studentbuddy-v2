@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-11T05:11:58.045Z",
+  "generatedAt": "2026-10-11T05:18:12.430Z",
   "code": {
     "rows": [
       {
@@ -13,7 +13,7 @@
         "pkg": "server",
         "srcFiles": 309,
         "testFiles": 206,
-        "srcLines": 41350,
+        "srcLines": 41351,
         "testLines": 38260
       },
       {
@@ -26,7 +26,7 @@
     ],
     "srcFiles": 753,
     "testFiles": 412,
-    "srcLines": 95079,
+    "srcLines": 95080,
     "testLines": 63977,
     "tsxTestFiles": 80
   },
@@ -87,11 +87,11 @@
     "probes": 15
   },
   "repo": {
-    "head": "f4729f5",
+    "head": "ec3e692",
     "headDate": "2026-10-11",
-    "commitsLast14d": 299,
+    "commitsLast14d": 300,
     "branch": "feat/grillme-rhythm",
-    "dirtyFiles": 5
+    "dirtyFiles": 3
   },
   "tests": {
     "available": true,

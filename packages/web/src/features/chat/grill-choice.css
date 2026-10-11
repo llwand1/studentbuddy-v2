@@ -12,12 +12,13 @@
 .grill-choice .choice-body { min-width: 0; }
 .grill-choice :is(.choice-label, .choice-desc, .choice-q) { overflow-wrap: anywhere; }
 .grill-choice .choice-desc { font-size: 11px; line-height: 1.55; }
+.grill-choice .choice-custom-head { min-height: 44px; align-items: center; }
+.grill-choice .choice-send { min-height: 44px; }
 .grill-choice .choice-foot { margin-top: 10px; }
 .grill-next-toggle, .grill-skip { min-height: 34px; padding: 5px 9px; border: 1px solid var(--sb-line); border-radius: 2px; background: var(--sb-bg); color: var(--sb-ink-secondary); cursor: pointer; font: inherit; font-size: 11px; }
 .grill-next-toggle { color: var(--sb-primary); }
 .grill-next-toggle:hover, .grill-skip:hover { border-color: var(--sb-primary); color: var(--sb-primary); }
 .grill-next-toggle:focus-visible, .grill-skip:focus-visible { outline: 2px solid var(--sb-primary); outline-offset: 2px; }
-.grill-next-preview { margin: 0; font-size: 12px; line-height: 1.6; color: var(--sb-ink-secondary); overflow-wrap: anywhere; }
 .grill-reply-error { color: var(--sb-danger); font-size: 12px; margin: 0; }
 @keyframes grill-unfold { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 600px) { .grill-choice { padding: 12px; } .grill-choice .choice-opts { grid-template-columns: minmax(0, 1fr); } .grill-next-toggle, .grill-skip, .grill-choice .choice-opt.custom { min-height: 44px; } .grill-choice .choice-input { min-width: 0; font-size: 16px; } }

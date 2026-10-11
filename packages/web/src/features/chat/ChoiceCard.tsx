@@ -108,7 +108,7 @@ export function ChoiceCard({
         {pending && <span className="choice-state">{post ? '可选' : '等待选择'}</span>}
         {post && pending && <button type="button" className="grill-next-toggle" aria-expanded={expanded} aria-controls={panelId}
           onClick={() => setExpanded(!expanded)}>{expanded ? '收起' : `展开 ${request.options.length} 条路线`}</button>}
-        {grill && pending && <button type="button" className="grill-skip" disabled={busy} onClick={onDismiss}>{post ? '暂不继续' : '跳过，直接讲'}</button>}
+        {grill && pending && (!post || expanded) && <button type="button" className="grill-skip" disabled={busy} onClick={onDismiss}>{post ? '暂不继续' : '跳过，直接讲'}</button>}
       </div>
 
       {(!post || expanded || !pending) && <div className="choice-q">{request.question}</div>}
@@ -192,7 +192,7 @@ export function ChoiceCard({
               : '不设超时，不选会一直等。要退出可点「停止生成」或关闭本会话——挂起的提问会一并作废，AI 不会空等。'}</span>
           </div>
         </div>
-      ) : <p className="grill-next-preview">{request.question}</p> : (
+      ) : null : (
         <div className="choice-done-row">
           <span>
             {cancelled

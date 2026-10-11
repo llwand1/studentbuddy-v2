@@ -137,7 +137,7 @@ Windows 本地版把学习窗口和像素吉祥物带到桌面，学习数据留
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-8-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
-当前测试基线 **423 文件 / 4680 例**。Windows 安装包为 **v0.2.186**；在线体验**已上线到 v0.2.185**。
+当前测试基线 **423 文件 / 4680 例**。Windows 安装包见[桌面更新通道](https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-channel)；在线体验**已上线到 v0.2.185**。
 
 代码结构、开发约定与复验方式见 [工程文档](docs/ENGINEERING.md)。
 

@@ -22,8 +22,8 @@ if (existing && !existing.isDraft) {
 } else {
   execFileSync(process.execPath,['tools/desktop/make-update-manifest.mjs',version,assets,commit],{stdio:'inherit'});
   if (existing) {
-    const publishedCommit=gh('api',`repos/${repo}/commits/${tag}`,'--jq','.sha');
-    if (publishedCommit!==commit) throw new Error('Draft desktop tag belongs to different source');
+    // GitHub creates the tag only when publishing a new draft; retries must use its recorded target.
+    if (existing.targetCommitish!==commit) throw new Error('Draft desktop release belongs to different source');
     gh('release','upload',tag,...[filename,'SHA256SUMS.txt','update.json'].map(f=>path.join(assets,f)),'--repo',repo,'--clobber');
   } else gh('release','create',tag,...[filename,'SHA256SUMS.txt','update.json'].map(f=>path.join(assets,f)),'--repo',repo,'--draft','--latest=false','--target',commit,'--title',`StudentBuddy Windows ${version}`,'--notes-file','tools/desktop/release-notes.md');
 }

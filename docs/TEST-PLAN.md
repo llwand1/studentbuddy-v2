@@ -265,6 +265,9 @@
 |---|---:|---|
 | `src/learning/quiz-explanation.test.ts` | 11 | 输入有界、逐题覆盖、必有图文、安全格式、模型角色/归属/重试/取消 |
 | `src/routes/quiz-explanation.test.ts` | 5 | 会话存在与归属、Origin、异常释放、同用户并发闸 |
+| `src/learning/quiz-feedback.test.ts` | 6 | 评价预判不泄露答案、反馈输入边界、新题完整性/重复/来源、实质调整上下文和取消 |
+| `src/routes/quiz-feedback.test.ts` | 5 | 会话归属/Origin、并发释放、篝火独立回卡、评价随题持久化、删除会话阻断迟到发布 |
+| `src/features/quiz/QuestionFeedback.test.tsx` | 4 | 按需预判与缓存、点选再出题、自定义与失败重试、取消/切题隔离、内联无弹窗 |
 | `src/features/quiz/FillBlank.test.tsx` | 3 | 对话出题的一个填空（2026-09-30）：参考答案短 ⇒ 打字格子 +「自由输入」切回并清空；整句 / 满符号 / 无参考 ⇒ 普通框；两种框回车都提交 |
 | `src/features/quiz/QuizCard.test.tsx` | 8 | 五类题闭环、真实错答、重复点击、失败重试、取消与迟到结果、无图拒绝；★ 2026-09-29 **+1** 分级徽标（QUIZ-TIER-SPEC §1）——每题按来源标「真题·必刷／模拟题·建议做／基础题·可选做」、历史题无 tier 键按 `source.kind` 兜底、卡头汇总三档数、徽标 `title` 带「为什么这么标」 |
 | `src/features/quiz/QuizCard.attempts.test.tsx` | 3 | ★ 2026-09-30 作答记录：读回 ⇒ 汇总行 + 每题「上次」小标；答一题记一笔、乐观更新、本轮答过小标收起；读不到 / 记不上各一行说明且不回滚；老卡零请求、完成提示按有无 quizId 改口 |

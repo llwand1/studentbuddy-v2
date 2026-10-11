@@ -99,6 +99,8 @@ export interface QuizPhoto {
 export interface QuizPayload {
   title?: string;
   questions: QuizQuestion[];
+  /** 基于用户评价生成的新题；随题卡保存，刷新仍可对照这次调整。 */
+  feedback?: { comment: string; adjustment: string };
 }
 
 export interface GenericPayload {

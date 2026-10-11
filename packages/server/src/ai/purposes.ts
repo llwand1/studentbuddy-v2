@@ -41,7 +41,7 @@ export const AI_PURPOSES = {
   'quiz.grade': { label: '主观题评分', role: 'solver', version: 1, upstream: 'main', timeoutMs: 45_000 },
   'quiz.explain': { label: '作答讲解', role: 'solver', version: 1, upstream: 'main', timeoutMs: 120_000 },
   'quiz.feedback': { label: '题目评价预判', role: 'quiz-generator', version: 2, upstream: 'main', timeoutMs: 30_000 },
-  'quiz.adapt': { label: '按评价再出题', role: 'quiz-generator', version: 1, upstream: 'main', timeoutMs: 120_000 },
+  'quiz.adapt': { label: '按评价再出题', role: 'quiz-generator', version: 2, upstream: 'main', timeoutMs: 120_000 },
   'scenario.generate': { label: '情景任务', role: 'quiz-generator', version: 1, upstream: 'main', timeoutMs: 180_000 },
   'collect.draft': { label: '现场搜集出题', role: 'quiz-generator', version: 2, upstream: 'main', timeoutMs: 180_000 },
   'coach.message': { label: '复习督促', role: 'coach', version: 1, upstream: 'background', timeoutMs: 60_000 },

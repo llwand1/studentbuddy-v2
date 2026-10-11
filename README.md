@@ -124,7 +124,7 @@ Windows 本地版把学习窗口和像素吉祥物带到桌面，学习数据留
 ## 开始体验
 
 - **在线使用**：[打开 StudentBuddy](https://11wand.com/)，首页可免注册体验。公用体验账号的内容共享，私人学习资料请放在自己的账号里。
-- **本地使用**：[下载 Windows 安装包](https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-v0.2.185)，安装后在设置里配置自己的 AI 服务商。
+- **本地使用**：[下载 Windows 安装包](https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-channel)，安装后在设置里配置自己的 AI 服务商。
 - **继续了解**：[功能说明](docs/FEATURES.md) · [外部 agent 存词接口](docs/AGENT-TERMS-SPEC.md) · [更新记录](CHANGELOG.md)。
 
 <details>

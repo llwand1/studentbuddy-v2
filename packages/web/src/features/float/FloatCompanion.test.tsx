@@ -20,6 +20,12 @@ it('pet gestures cast particles without dragging or opening; native taps and key
   render(<FloatCompanion mood="reading" onOpen={open} onSettings={settings} />);
   const ball = screen.getByRole('button');
   expect(sent.some(m => m.startsWith(HOST_SHAPE))).toBe(true);
+  fireEvent.pointerOver(ball); fireEvent.pointerMove(ball, { clientX: -10 });
+  const eyeRects = () => Array.from(ball.querySelectorAll('g[transform] rect.px-ink')).slice(-4);
+  expect(eyeRects().every(r => r.getAttribute('height') === '0.5')).toBe(true);
+  const left = eyeRects().map(r => r.getAttribute('x'));
+  fireEvent.pointerMove(ball, { clientX: 10 });
+  expect(eyeRects().map(r => r.getAttribute('x'))).not.toEqual(left);
   fireEvent.pointerDown(ball, { button: 0, shiftKey: true });
   fireEvent.click(ball, { shiftKey: true, detail: 1 });
   expect(ball.dataset.mood).toBe('play');

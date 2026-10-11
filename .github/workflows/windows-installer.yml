@@ -1,0 +1,130 @@
+name: Windows installer
+
+on:
+  pull_request:
+    paths:
+      - 'tools/desktop/**'
+      - '.github/workflows/windows-installer.yml'
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: desktop-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'stable' }}
+  cancel-in-progress: false
+
+jobs:
+  installer:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: powershell
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      commit: ${{ steps.version.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - name: Select exact source version
+        id: version
+        run: |
+          $selection = node tools/desktop/select-version.mjs | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not select monotonic desktop version' }
+          $version = $selection.version
+          if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') { throw 'Invalid version' }
+          $commit = git rev-parse HEAD
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "commit=$commit" >> $env:GITHUB_OUTPUT
+          "DESKTOP_VERSION=$version" >> $env:GITHUB_ENV
+      - name: Require main CI for manual publication
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ($env:GITHUB_REF -ne 'refs/heads/main') { throw 'Manual publication requires main' }
+          $runs = gh api "repos/$env:GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=${{ steps.version.outputs.commit }}&per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or !@($runs.workflow_runs | Where-Object { $_.head_sha -eq '${{ steps.version.outputs.commit }}' -and $_.event -eq 'push' -and $_.conclusion -eq 'success' }).Count) { throw 'Main CI has not passed for this exact commit' }
+      - run: node --test tools/desktop/npm-package.test.mjs tools/desktop/make-icon.test.mjs tools/desktop/update.test.cjs
+      - run: npm ci
+      - run: npm run build
+      - name: Build production installer
+        run: npm run desktop:build -- -Version $env:DESKTOP_VERSION -SkipBuild
+      - name: Verify installation and upgrade from public 0.1.0
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force .runtime/previous-desktop | Out-Null
+          gh release download desktop-v0.1.0 --repo $env:GITHUB_REPOSITORY --pattern 'StudentBuddy-0.1.0-windows-x64-setup.exe' --pattern SHA256SUMS.txt --dir .runtime/previous-desktop
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download previous public installer' }
+          node tools/desktop/prepare-package.mjs 0.1.0 .runtime/previous-desktop .runtime/previous-verified
+          if ($LASTEXITCODE -ne 0) { throw 'Previous installer checksum failed' }
+          npm run desktop:smoke -- -Version $env:DESKTOP_VERSION -PreviousInstaller .runtime/previous-desktop/StudentBuddy-0.1.0-windows-x64-setup.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Cross-version installation smoke failed' }
+      - name: Build isolated automatic-update target
+        run: |
+          $parts = $env:DESKTOP_VERSION.Split('.')
+          $next = "$($parts[0]).$($parts[1]).$([int]$parts[2] + 1)"
+          "SMOKE_NEXT_VERSION=$next" >> $env:GITHUB_ENV
+          npm run desktop:build -- -Version $next -SkipBuild -OutputDir .runtime/update-smoke-target
+          if ($LASTEXITCODE -ne 0) { throw 'Update fixture build failed' }
+      - name: Verify signed automatic update and learning data
+        run: node tools/desktop/update-smoke.cjs $env:DESKTOP_VERSION $env:SMOKE_NEXT_VERSION
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StudentBuddy-windows-x64
+          path: |
+            .runtime/desktop-output/*.exe
+            .runtime/desktop-output/SHA256SUMS.txt
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Windows-upgrade-evidence
+          path: |
+            .runtime/update-smoke-*/report.json
+            .runtime/update-smoke-*/updates/**/result.json
+            .runtime/update-smoke-*/updates/**/install.log
+          if-no-files-found: ignore
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: installer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    env:
+      DESKTOP_VERSION: ${{ needs.installer.outputs.version }}
+      SOURCE_COMMIT: ${{ needs.installer.outputs.commit }}
+      GH_TOKEN: ${{ github.token }}
+      NODE_AUTH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.installer.outputs.commit }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: https://npm.pkg.github.com
+          scope: '@llwand1'
+      - uses: actions/download-artifact@v4
+        with:
+          name: StudentBuddy-windows-x64
+          path: .runtime/release-assets
+      - name: Sign, publish immutable release/package and advance desktop channel
+        env:
+          DESKTOP_UPDATE_SIGNING_KEY: ${{ secrets.DESKTOP_UPDATE_SIGNING_KEY }}
+        run: node tools/desktop/publish-release.mjs

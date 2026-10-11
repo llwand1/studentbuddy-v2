@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
@@ -10,6 +11,7 @@ using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Web.Script.Serialization;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
@@ -29,6 +31,11 @@ internal static class Launcher
     private static Form Window;
     private static bool WebviewStarted;
     private static bool WebviewFailed;
+    private static ToolStripMenuItem UpdateItem;
+    private static NotifyIcon UpdateTray;
+    private static Dictionary<string, object> ReadyUpdate;
+    private static bool UpdateChecking;
+    private static DateTime NextUpdateCheck = DateTime.UtcNow.AddSeconds(15);
     /** 悬浮球（桌面版 0.2.0 起）：无边框置顶的吉祥物小窗，独立于主窗口的第二个 WebView2。--no-browser 时为 null。 */
     private static Form BallWindow;
     private static bool BallStarted;
@@ -135,6 +142,9 @@ internal static class Launcher
                         ToolStripMenuItem homeItem = new ToolStripMenuItem("悬浮球回到吉祥物");
                         homeItem.Click += delegate { ResetBall(); };
                         menu.Items.Add(homeItem);
+                        UpdateItem = new ToolStripMenuItem("检查更新");
+                        UpdateItem.Click += delegate { if (ReadyUpdate != null) ApplyUpdate(); else CheckUpdate(true); };
+                        menu.Items.Add(UpdateItem);
                         menu.Items.Add("退出 StudentBuddy", null, delegate { ExitApp(); });
                         // 文本随球窗可见性变（一个开关项，不在菜单里放两个互斥项）
                         menu.Opening += delegate
@@ -147,6 +157,8 @@ internal static class Launcher
                         tray.ContextMenuStrip = menu;
                         tray.DoubleClick += delegate { ShowWindow(); };
                         tray.Visible = true;
+                        UpdateTray = tray;
+                        tray.BalloonTipClicked += delegate { if (ReadyUpdate != null) ApplyUpdate(); };
                         timer.Interval = 500;
                         timer.Tick += delegate
                         {
@@ -157,6 +169,7 @@ internal static class Launcher
                                 ExitApp();
                             }
                             else if (show.WaitOne(0)) ShowWindow();
+                            if (!Quiet && !Exiting && !UpdateChecking && DateTime.UtcNow >= NextUpdateCheck) CheckUpdate(false);
                         };
                         timer.Start();
                         if (!noWindow)
@@ -165,6 +178,7 @@ internal static class Launcher
                             if (BallWindow != null) BallWindow.Show();
                         }
                         Application.Run();
+                        UpdateTray = null;
                         tray.Visible = false;
                     }
                     if (BallWindow != null) { BallWindow.Dispose(); BallWindow = null; }
@@ -192,6 +206,76 @@ internal static class Launcher
                 }
             }
         }
+    }
+
+    /** 后台检测并下载签名通过的更新；用户选择重启时才停止当前学习会话。 */
+    private static void CheckUpdate(bool manual)
+    {
+        if (UpdateChecking || Exiting) return;
+        UpdateChecking = true;
+        NextUpdateCheck = DateTime.UtcNow.AddHours(6);
+        UpdateItem.Enabled = false;
+        UpdateItem.Text = "正在检查并准备更新…";
+        string root = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
+        Task.Run(delegate
+        {
+            Dictionary<string, object> result;
+            try
+            {
+                ProcessStartInfo info = new ProcessStartInfo(Path.Combine(root, "runtime", "node.exe"),
+                    "\"" + Path.Combine(root, "update-client.cjs") + "\" --prepare \"" + root + "\"");
+                info.UseShellExecute = false; info.CreateNoWindow = true;
+                info.WorkingDirectory = root;
+                info.RedirectStandardOutput = true; info.RedirectStandardError = true;
+                using (Process helper = Process.Start(info))
+                {
+                    Task<string> output = helper.StandardOutput.ReadToEndAsync();
+                    Task<string> errors = helper.StandardError.ReadToEndAsync();
+                    if (!helper.WaitForExit(420000)) { helper.Kill(); throw new Exception("Update preparation timed out"); }
+                    result = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(output.Result);
+                    if (helper.ExitCode != 0 || Convert.ToString(result["state"]) == "error") throw new Exception("Update preparation failed: " + output.Result);
+                }
+            }
+            catch (Exception error)
+            {
+                Log("更新检查：" + error.Message);
+                result = null;
+            }
+            if (Exiting || Window == null || Window.IsDisposed) return;
+            Window.BeginInvoke((Action)delegate
+            {
+                UpdateChecking = false; UpdateItem.Enabled = true;
+                if (result != null && Convert.ToString(result["state"]) == "ready")
+                {
+                    bool notify = ReadyUpdate == null || Convert.ToString(ReadyUpdate["version"]) != Convert.ToString(result["version"]);
+                    ReadyUpdate = result;
+                    UpdateItem.Text = "重启更新至 " + Convert.ToString(result["version"]);
+                    if (notify) UpdateTray.ShowBalloonTip(10000, "StudentBuddy 更新已就绪", "新版已下载并通过校验。点击此通知或托盘菜单重启更新。", ToolTipIcon.Info);
+                }
+                else
+                {
+                    UpdateItem.Text = ReadyUpdate == null ? "检查更新" : "重启更新至 " + Convert.ToString(ReadyUpdate["version"]);
+                    if (manual) MessageBox.Show(result == null ? "更新检查未完成，稍后会自动重试。" : "当前已是最新桌面版本。", "StudentBuddy 更新", MessageBoxButtons.OK, result == null ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+                    if (result == null) NextUpdateCheck = DateTime.UtcNow.AddMinutes(30);
+                }
+            });
+        });
+    }
+
+    private static void ApplyUpdate()
+    {
+        if (ReadyUpdate == null || Exiting) return;
+        if (MessageBox.Show("新版已准备好。现在重启更新？当前应用会退出，学习数据会保留。", "StudentBuddy 更新", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        try
+        {
+            ProcessStartInfo info = new ProcessStartInfo(Convert.ToString(ReadyUpdate["node"]),
+                "\"" + Convert.ToString(ReadyUpdate["script"]) + "\" --apply \"" + Convert.ToString(ReadyUpdate["jobPath"]) + "\" " + Process.GetCurrentProcess().Id.ToString());
+            info.UseShellExecute = false; info.CreateNoWindow = true;
+            info.WorkingDirectory = Path.GetDirectoryName(Convert.ToString(ReadyUpdate["jobPath"]));
+            Process.Start(info);
+            ExitApp();
+        }
+        catch (Exception error) { Log("启动更新失败：" + error.Message); ShowError("暂时无法启动更新，请稍后重试。"); }
     }
 
     /** 主显示器 DPI 缩放比（96 DPI = 1.0）。

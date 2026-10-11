@@ -8,6 +8,8 @@ StudentBuddy Windows 本地版
 
 支持 Windows 10/11 x64，无需另装 Node 或 npm。应用窗口依赖系统自带的 WebView2 运行时（Windows 11、以及装过 Edge 的 Windows 10 自带）；若运行时缺失，会改用默认浏览器打开并在日志说明原因。
 学习数据使用既有 studentbuddy-v2 数据目录，升级和卸载不会删除学习数据。
+应用启动后会后台检查桌面更新并下载新版，校验完成后提示重启。也可在托盘菜单选择「检查更新」或「重启更新」。安装前备份程序和学习数据库；新版本未能正常启动时恢复旧版。
+0.2.0 及更早版本需要先手动安装一次带更新器的版本，之后即可使用自动更新。
 启动日志：%LOCALAPPDATA%\StudentBuddy\desktop.log
 
 项目与源码：https://github.com/llwand1/studentbuddy-v2

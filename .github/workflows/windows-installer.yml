@@ -94,6 +94,7 @@ jobs:
         if: always()
         with:
           name: Windows-upgrade-evidence
+          include-hidden-files: true
           path: |
             .runtime/update-smoke-*/report.json
             .runtime/update-smoke-*/updates/**/result.json

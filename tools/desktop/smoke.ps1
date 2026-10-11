@@ -58,6 +58,8 @@ try {
     RunSetup
     $unrelatedNode = Start-Process -FilePath (Get-Command node.exe).Source -ArgumentList @('-e', '"setInterval(()=>{},1000)"') -WindowStyle Hidden -PassThru
     Assert ((Test-Path -LiteralPath $launcher) -and (Test-Path -LiteralPath "$installDir\runtime\node.exe")) 'Launcher and bundled runtime are installed'
+    & powershell -NoProfile -File (Join-Path $repoRoot 'tools\desktop\companion-smoke.ps1') -Launcher $launcher
+    Assert ($LASTEXITCODE -eq 0) 'Packaged native companion geometry and malformed-shape checks pass'
     $app = StartApp
     if ($PreviousInstaller) {
         $upgradedSessions = @(Invoke-RestMethod "$baseUrl/api/sessions")

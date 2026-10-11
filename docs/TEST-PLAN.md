@@ -1,3 +1,10 @@
+> 2026-10-11 小型互动吉祥物：补充真实状态优先级、粒子与原生裁剪几何、减少动态效果、互动手势及临时 RAG 活动回归，不增加 AI 评测集。
+
+| 测试文件 | 回归范围 |
+|---|---|
+| `packages/web/src/features/float/companion-view.test.ts` | 真实学习状态、32px 本体、粒子覆盖与边界、减少动态效果 |
+| `packages/web/src/features/float/FloatCompanion.test.tsx` | Native 点拖与互动分离、键盘打开、滚轮施法、减少动态效果 |
+
 > 2026-10-11 桌面定时练习与网页共读：仅补充普通回归用例，不增加 AI 评测集。
 
 | 测试文件 | 回归范围 |

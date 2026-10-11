@@ -7,6 +7,7 @@ const host = vi.hoisted(() => ({ handlers: [] as Array<(event: { data: string })
 const server = vi.hoisted(() => ({ clock: null as StudyClock | null }));
 vi.mock('../../app/App', () => ({ App: () => <div>APP_MUST_NOT_OPEN</div> }));
 vi.mock('../desktop/desktop-api', () => ({ desktopApi: {
+  browser: async () => ({ page: null }),
   tick: async (eligible: boolean) => server.clock!.tick(eligible),
   dismiss: async (action: 'done' | 'skip' | 'snooze') => { server.clock!.dismiss(action); return server.clock!.state(); },
   settings: async (settings: DesktopStudyState['settings']) => { server.clock!.configure(settings); return server.clock!.state(); },
@@ -32,6 +33,7 @@ it('native background ticks deliver a timed question without mounting App, then 
   fireEvent.click(screen.getByRole('button', { name: /B\s*5/ }));
   expect(screen.getByText('答对了 · 火花点亮！')).toBeTruthy();
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: /完成/ })); });
-  expect(document.documentElement.dataset.float).toBe('ball'); expect(host.sent.at(-1)).toBe('sb-float:collapse');
+  expect(document.documentElement.dataset.float).toBe('ball'); expect(host.sent).toContain('sb-float:collapse');
+  expect(screen.getByRole('button', { name: /打开 StudentBuddy/ }).dataset.mood).toBe('celebrate');
   expect(server.clock.state().nextAt).toBe(Date.now() + 180000);
 });

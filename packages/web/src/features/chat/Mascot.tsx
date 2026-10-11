@@ -101,14 +101,24 @@ function Pixels({ runs }: { runs: Pixel[] }) {
   );
 }
 
+export function MascotArt({ expression = 'calm', gaze = 0 }: { expression?: 'calm' | 'bright' | 'thinking'; gaze?: number }) {
+  return <>
+    <Pixels runs={BODY} />
+    {expression === 'calm' && gaze === 0 ? <g className="mascot-px-lid"><Pixels runs={LID_RUNS} /></g> : <>
+      {[4, 10].map(x => <g key={x}>
+        <rect x={x} y={7} width={2} height={2} className="px-base" />
+        <rect x={x + (expression === 'calm' ? gaze : 0)} y={expression === 'calm' ? 7.5 : 8} width={2} height={expression === 'calm' ? 1 : 0.5} className="px-ink" />
+        {expression === 'bright' && <rect x={x + 0.5} y={7.5} width={1} height={0.5} className="px-ink" />}
+      </g>)}
+    </>}
+  </>;
+}
+
 export function Mascot() {
   return (
     <span className="welcome-mascot" aria-hidden="true">
       <svg className="mascot-px" viewBox="0 0 16 16" shapeRendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
-        <Pixels runs={BODY} />
-        <g className="mascot-px-lid">
-          <Pixels runs={LID_RUNS} />
-        </g>
+        <MascotArt />
       </svg>
     </span>
   );

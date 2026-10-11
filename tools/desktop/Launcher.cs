@@ -46,7 +46,7 @@ internal static class Launcher
     private static bool OpenStudyRequested;
     private static Point? BallRestPoint;
     /** 球态与展开态的逻辑尺寸（按当前 DPI 换算后才是物理像素） */
-    private const int BallLogical = 96;
+    private const int BallLogical = 64;
     private const int ScreenLogicalW = 420;
     private const int ScreenLogicalH = 760;
     /**
@@ -56,8 +56,9 @@ internal static class Launcher
      *   而分层窗口的子窗口收不到鼠标消息 —— 实测「点了没反应」，日志里一条消息都没有。
      *   Region 是硬边、不影响子窗口输入，而且像素风的边缘本来就该是硬的。
      */
-    private const int BallCellLogical = 5;
-    private const int BallOriginLogical = 8;
+    private const int BallCellLogical = 2;
+    private const int BallOriginLogical = 16;
+    private static DateTime LastBallShape = DateTime.MinValue;
     /** 球窗底色：取吉祥物轮廓的墨色，万一裁剪边缘有 1px 缝隙也看不出来 */
     private static readonly Color BallSeamColor = Color.FromArgb(60, 28, 43);
     /** 品牌图标：构建期由吉祥物点阵生成（tools/desktop/make-icon.mjs），随安装包分发；读不到退回系统默认 */
@@ -513,6 +514,7 @@ internal static class Launcher
             try
             {
                 await view.EnsureCoreWebView2Async(await WebviewEnvironment());
+                view.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
                 view.CoreWebView2.WebMessageReceived += delegate(object s, CoreWebView2WebMessageReceivedEventArgs ev)
                 {
                     if (IsLocalMessage(ev.Source)) HandleBallMessage(ev.TryGetWebMessageAsString());
@@ -539,8 +541,8 @@ internal static class Launcher
 
     /**
      * 按吉祥物外形把球窗裁出来（网格单位矩形来自 `mascot-region.txt`，由 make-icon.mjs 从点阵生成）。
-     * 坐标系与网页对齐：吉祥物是最外圈 16 格、每格 5 逻辑 px、整块居中于 96 逻辑 px 的窗口
-     * （见 float.css 的 `.sb-ball .welcome-mascot svg { width: 80px }`）。
+     * 初始轮廓与网页对齐：16 格、每格 2 逻辑 px、本体居中于 64 逻辑 px 的窗口。
+     * 页面就绪后由 companion-view 每帧矩形同步星屑与角色位移。
      * ★ 读不到外形文件时退回**椭圆**兜底 —— 至少不是一个方块，且球仍然可点、可拖。
      */
     private static void ApplyBallRegion(Form form)
@@ -548,8 +550,6 @@ internal static class Launcher
         try
         {
             float scale = SystemDpiScale();
-            int cell = (int)Math.Round(BallCellLogical * scale);
-            int origin = (int)Math.Round(BallOriginLogical * scale);
             string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "mascot-region.txt");
             Region region = new Region();
             region.MakeEmpty();
@@ -565,7 +565,8 @@ internal static class Launcher
                         && int.TryParse(parts[1], out y)
                         && int.TryParse(parts[2], out w))
                     {
-                        region.Union(new Rectangle(origin + x * cell, origin + y * cell, w * cell, cell));
+                        region.Union(ScaleBallRect(BallOriginLogical + x * BallCellLogical,
+                            BallOriginLogical + y * BallCellLogical, w * BallCellLogical, BallCellLogical, scale));
                         any = true;
                     }
                 }
@@ -579,9 +580,56 @@ internal static class Launcher
                     region = new Region(path2);
                 }
             }
-            form.Region = region;
+            ReplaceBallRegion(form, region);
         }
         catch (Exception error) { Log("悬浮球外形裁剪失败：" + error.ToString()); }
+    }
+
+    private static Rectangle ScaleBallRect(int x, int y, int width, int height, float scale)
+    {
+        int left = (int)Math.Round(x * scale), top = (int)Math.Round(y * scale);
+        return new Rectangle(left, top, (int)Math.Round((x + width) * scale) - left,
+            (int)Math.Round((y + height) * scale) - top);
+    }
+
+    private static void ReplaceBallRegion(Form form, Region region)
+    {
+        Region previous = form.Region;
+        form.Region = region;
+        if (previous != null) previous.Dispose();
+    }
+
+    /** The SVG sends bounded integer rectangles, including moving star pixels.
+     * Region preserves input and click-through holes without a layered WebView window. */
+    private static void ApplyBallShape(string payload)
+    {
+        if (BallWindow == null || !BallWindow.Visible || BallWindow.ClientSize != BallSize() ||
+            payload.Length > 5000 || DateTime.UtcNow - LastBallShape < TimeSpan.FromMilliseconds(80)) return;
+        int[][] rects = ParseBallShape(payload);
+        if (rects == null) return;
+        Region region = new Region(); region.MakeEmpty();
+        float scale = SystemDpiScale();
+        foreach (int[] r in rects) region.Union(ScaleBallRect(r[0], r[1], r[2], r[3], scale));
+        ReplaceBallRegion(BallWindow, region);
+        LastBallShape = DateTime.UtcNow;
+    }
+
+    private static int[][] ParseBallShape(string payload)
+    {
+        if (payload == null || payload.Length > 5000) return null;
+        // Never accept a command, floating-point geometry or coordinates outside the companion.
+        if (!System.Text.RegularExpressions.Regex.IsMatch(payload, @"^[\[\],0-9]+$")) return null;
+        try
+        {
+            int[][] rects = new JavaScriptSerializer().Deserialize<int[][]>(payload);
+            if (rects == null || rects.Length < 1 || rects.Length > 96) return null;
+            foreach (int[] r in rects)
+                if (r == null || r.Length != 4 || r[0] < 0 || r[1] < 0 || r[2] < 1 || r[3] < 1 ||
+                    r[0] > BallLogical || r[1] > BallLogical || r[2] > BallLogical || r[3] > BallLogical ||
+                    r[0] + r[2] > BallLogical || r[1] + r[3] > BallLogical) return null;
+            return rects;
+        }
+        catch (Exception) { return null; }
     }
 
     /** 球窗里那个 WebView2（窗体唯一的子控件） */
@@ -628,6 +676,10 @@ internal static class Launcher
      */
     private static void HandleBallMessage(string message)
     {
+        if (message != null && message.StartsWith("sb-float:shape:", StringComparison.Ordinal))
+        {
+            ApplyBallShape(message.Substring("sb-float:shape:".Length)); return;
+        }
         Log("球窗收到消息：" + message);
         if (message == "sb-float:drag")
         {

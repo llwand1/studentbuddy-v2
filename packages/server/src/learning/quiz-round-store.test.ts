@@ -25,6 +25,10 @@ it('opens one stable draft per quiz and owner, saves optional thinking and rejec
   expect(() => saveQuizDraft(a.id, 'a', { ...update, thought: '迟到的旧输入' })).toThrow(RoundConflict);
   expect(loadQuizRound(a.id, 'a')!.responses[0]!.thought).toBe('不确定这一步');
   expect(listQuizRoundHistory('b').items.map(r => r.id)).toEqual([b.id]);
+  const legacy = { ...input, quizId: undefined };
+  const fallbackA = openQuizRound(legacy, 'a'), fallbackB = openQuizRound(legacy, 'b');
+  expect(fallbackA.quizId).not.toBe(fallbackB.quizId);
+  expect(openQuizRound(legacy, 'a').quizId).toBe(fallbackA.quizId);
 });
 it('submits atomically, checks answers independently from thinking and starts a blank separate round', () => {
   const first = openQuizRound(input, null);

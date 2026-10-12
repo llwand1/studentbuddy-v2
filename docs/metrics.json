@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-12T06:19:49.226Z",
+  "generatedAt": "2026-10-12T06:32:41.462Z",
   "code": {
     "rows": [
       {
@@ -14,7 +14,7 @@
         "srcFiles": 319,
         "testFiles": 215,
         "srcLines": 42131,
-        "testLines": 38886
+        "testLines": 38890
       },
       {
         "pkg": "web",
@@ -27,7 +27,7 @@
     "srcFiles": 780,
     "testFiles": 427,
     "srcLines": 96680,
-    "testLines": 64764,
+    "testLines": 64768,
     "tsxTestFiles": 83
   },
   "routes": {
@@ -87,11 +87,11 @@
     "probes": 15
   },
   "repo": {
-    "head": "dc7df7c",
+    "head": "d0faf5f",
     "headDate": "2026-10-12",
     "commitsLast14d": 245,
     "branch": "feat/question-reasoning-rounds-1012",
-    "dirtyFiles": 56
+    "dirtyFiles": 2
   },
   "tests": {
     "available": true,

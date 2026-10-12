@@ -45,7 +45,7 @@ function insertRound(input: OpenQuizRound, owner: string | null, key: string, nu
   return loadQuizRound(id, owner)!;
 }
 export function openQuizRound(input: OpenQuizRound, owner: string | null): QuizRound {
-  const key = createHash('sha256').update(JSON.stringify([input.sessionId ?? '', input.quizId ?? '', input.origin, input.title, input.questions])).digest('hex');
+  const key = createHash('sha256').update(JSON.stringify([ownerForWrite(owner), input.sessionId ?? '', input.quizId ?? '', input.origin, input.title, input.questions])).digest('hex');
   return getDb().transaction(() => {
     const latest = getDb().prepare('SELECT id FROM quiz_round WHERE owner_id = ? AND quiz_key = ? ORDER BY round_number DESC LIMIT 1').get(ownerForWrite(owner), key) as { id: string } | undefined;
     return latest ? loadQuizRound(latest.id, owner)! : insertRound(input, owner, key, 1);

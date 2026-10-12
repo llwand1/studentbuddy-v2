@@ -2,6 +2,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { CampfireOpener } from '@sb/shared';
+import { resetRoundMocks } from '../quiz/quiz-round.testkit';
+vi.mock('../../lib/api-quiz-rounds', async () => ({ quizRoundsApi: (await import('../quiz/quiz-round.testkit')).roundMocks }));
+vi.mock('../../lib/api-quiz-attempts', async () => ({ quizAttemptsApi: (await import('../quiz/quiz-round.testkit')).attemptMocks }));
 
 const h = vi.hoisted(() => ({ request: vi.fn(), scope: { on: false, summary: '', loaded: true, loading: false } }));
 vi.mock('../../lib/api', () => ({ api: { request: h.request } }));
@@ -16,7 +19,7 @@ function pending() {
   return { promise, resolve, reject };
 }
 const advance = async (ms = 100) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
-beforeEach(() => { vi.useFakeTimers(); h.request.mockReset(); h.scope = { on: false, summary: '', loaded: true, loading: false }; });
+beforeEach(() => { vi.useFakeTimers(); resetRoundMocks(); localStorage.clear(); h.request.mockReset(); h.scope = { on: false, summary: '', loaded: true, loading: false }; });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('像素营地现场开场题', () => {
@@ -75,6 +78,9 @@ describe('像素营地现场开场题', () => {
     expect(container.querySelector('.opener-explanation')).toBeNull();
     await advance(2900);
     fireEvent.click(screen.getByRole('button', { name: /B.*50%/ }));
+    expect(screen.queryByText('每次抛掷独立。')).toBeNull();
+    expect((screen.getByRole('button', {name: /A.*25%/}) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: /提交整组答案/ })); await advance(1);
     expect(screen.getByText('每次抛掷独立。')).toBeTruthy();
     expect(container.querySelector('.answer-impact.is-correct')).toBeTruthy();
     expect((screen.getByRole('button', {name: /A.*25%/}) as HTMLButtonElement).disabled).toBe(true);

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { closeDb, getDb, openIsolated } from './db.js';
 import { migrate } from './migrations.js';
+import { MIGRATIONS } from './migrations-list.js';
 
 let dir: string;
 beforeEach(() => {
@@ -26,12 +27,12 @@ function assertUsable(): void {
   getDb().prepare("INSERT INTO job (id, kind, payload) VALUES ('restored', 'test', '{}')").run();
   getDb().prepare("UPDATE ask_choices SET grill_phase = 'post' WHERE id = 'absent'").run();
   expect(getDb().prepare('SELECT COUNT(*) AS count FROM job').get()).toEqual({ count: 1 });
-  expect(getDb().prepare('SELECT MAX(version) AS version FROM schema_version').get()).toEqual({ version: 59 });
+  expect(getDb().prepare('SELECT MAX(version) AS version FROM schema_version').get()).toEqual({ version: MIGRATIONS.at(-1)!.version });
 }
 
 describe('v59 repairs historical migration collisions', () => {
   it('preserves the older learning_event layout without applying incompatible indexes', () => {
-    getDb().prepare('DELETE FROM schema_version WHERE version = 59').run();
+    getDb().prepare('DELETE FROM schema_version WHERE version >= 59').run();
     getDb().exec('DROP TABLE learning_event; CREATE TABLE learning_event (id INTEGER PRIMARY KEY); INSERT INTO learning_event VALUES (1)');
     migrate(getDb());
     expect(columns('learning_event')).toEqual(['id']);
@@ -60,7 +61,7 @@ describe('v59 repairs historical migration collisions', () => {
   });
   it('recreates exactly the existing job/call columns and indexes', () => {
     const expected = { job: columns('job'), call: columns('llm_call') };
-    getDb().prepare('DELETE FROM schema_version WHERE version = 59').run();
+    getDb().prepare('DELETE FROM schema_version WHERE version >= 59').run();
     getDb().exec('DROP TABLE job; DROP TABLE llm_call');
     migrate(getDb());
     expect(columns('job')).toEqual(expected.job);
@@ -72,14 +73,14 @@ describe('v59 repairs historical migration collisions', () => {
   });
   it('does not duplicate an existing field or lose data when replaying the new migration', () => {
     getDb().prepare("INSERT INTO job (id, kind) VALUES ('keep', 'test')").run();
-    getDb().prepare('DELETE FROM schema_version WHERE version = 59').run();
+    getDb().prepare('DELETE FROM schema_version WHERE version >= 59').run();
     migrate(getDb());
     migrate(getDb());
     expect(getDb().prepare('SELECT id FROM job').all()).toEqual([{ id: 'keep' }]);
     expect(getDb().prepare('SELECT COUNT(*) AS count FROM schema_version WHERE version = 59').get()).toEqual({ count: 1 });
   });
   it('rolls back table repair and version bookkeeping together if field repair fails', () => {
-    getDb().prepare('DELETE FROM schema_version WHERE version = 59').run();
+    getDb().prepare('DELETE FROM schema_version WHERE version >= 59').run();
     getDb().exec('DROP TABLE job; DROP TABLE ask_choices');
     expect(() => migrate(getDb())).toThrow('no such table: ask_choices');
     expect(columns('job')).toEqual([]);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { QuizFeedbackResult, QuizQuestion, QuizReviewItem } from '@sb/shared';
+import type { QuizFeedbackResult, QuizQuestion, QuizReviewItem, QuizRoundResponse, QuizDraftAnswer } from '@sb/shared';
 import { QUIZ_ATTEMPT_MARK, QUIZ_TIER_HINTS, QUIZ_TIER_LABELS, tierOf, type QuizAttemptRow } from '@sb/shared';
 import { SvgPreviewCard } from '../chat/SvgPreviewCard';
 import { Markdown } from '../chat/Markdown';
@@ -10,6 +10,8 @@ import { AiGradeNote } from './AiGradeNote';
 import { FillBlank } from './FillBlank';
 import { AnswerImpact } from '../feedback/AnswerImpact';
 import { QuestionFeedback } from './QuestionFeedback';
+import { QuestionThinking } from './QuestionThinking';
+import { QuestionAnalysis } from './QuestionAnalysis';
 
 function QuizPhotoFigure({ photo }: { photo: NonNullable<QuizQuestion['photo']> }) {
   return (
@@ -22,17 +24,24 @@ function QuizPhotoFigure({ photo }: { photo: NonNullable<QuizQuestion['photo']> 
   );
 }
 
-export function QuizQuestionItem({ q, index, onComplete, topic, last, sessionId, onAdapted }: {
+export function QuizQuestionItem({ q, index, onComplete, topic, last, sessionId, onAdapted, roundResponse, onDraftChange, onRetryAnalysis, disabled = false }: {
   q: QuizQuestion; index: number; onComplete: (item: QuizReviewItem) => void; topic?: string;
   /** 这题上一次的作答记录（服务端读回；没刷过 / 老卡 ⇒ null）——只标一枚小标，不替用户作答 */
   last?: QuizAttemptRow['last'];
   sessionId?: string | null;
   onAdapted?: (result: QuizFeedbackResult) => void;
+  roundResponse?: QuizRoundResponse;
+  onDraftChange?: (draft: QuizDraftAnswer, thought: string) => void;
+  onRetryAnalysis?: () => void;
+  disabled?: boolean;
 }) {
-  const [picked, setPicked] = useState<number[]>([]);
-  const [fills, setFills] = useState(() => Array<string>(fillCount(q)).fill(''));
-  const [essay, setEssay] = useState('');
-  const [result, setResult] = useState<QuizReviewItem | null>(null);
+  const [localPicked, setPicked] = useState<number[]>([]);
+  const [localFills, setFills] = useState(() => Array<string>(fillCount(q)).fill(''));
+  const [localEssay, setEssay] = useState('');
+  const [localResult, setResult] = useState<QuizReviewItem | null>(null);
+  const picked = roundResponse?.draft.picked ?? localPicked, fills = roundResponse?.draft.fills ?? localFills, essay = roundResponse?.draft.essay ?? localEssay;
+  const result = roundResponse ? roundResponse.result : localResult;
+  const change = (draft: QuizDraftAnswer) => onDraftChange?.(draft, roundResponse?.thought ?? '');
   const [shownAt] = useState(() => Date.now());
   const choice = ['single', 'multiple', 'judge'].includes(q.type);
   const options = optionsFor(q);
@@ -70,8 +79,10 @@ export function QuizQuestionItem({ q, index, onComplete, topic, last, sessionId,
       {choice && options.map((option, i) => {
         const correct = !!result && Array.isArray(q.answer) && q.answer.map(Number).includes(i);
         return <button key={i} className={`quiz-opt${picked.includes(i) ? ' picked' : ''}${correct ? ' right' : ''}`}
-          disabled={!!result} aria-pressed={picked.includes(i)} onClick={() => setPicked((p) =>
-            q.type === 'multiple' ? p.includes(i) ? p.filter((n) => n !== i) : [...p, i] : [i])}>
+          disabled={!!result || disabled} aria-pressed={picked.includes(i)} onClick={() => {
+            const next = q.type === 'multiple' ? picked.includes(i) ? picked.filter(n => n !== i) : [...picked, i] : [i];
+            if (roundResponse) change({ picked: next, fills, essay }); else setPicked(next);
+          }}>
           <span className="quiz-opt-key">{String.fromCharCode(65 + i)}</span><MathText text={option}/>
           {correct && <span className="quiz-mark ok">✓</span>}
           {result?.verdict === 'wrong' && picked.includes(i) && !correct && <span className="quiz-mark bad">×</span>}
@@ -79,12 +90,13 @@ export function QuizQuestionItem({ q, index, onComplete, topic, last, sessionId,
       })}
       {/* 填空（2026-09-30）：参考答案短就逐格打（打字练习式，符号格替你填好、可分段提示），长句退普通框——见 FillBlank */}
       {q.type === 'fill' && fills.map((value, i) => <FillBlank key={i} label={`第 ${i + 1} 空`} placeholder="输入这一空的答案"
-        expected={Array.isArray(q.answer) ? q.answer[i] === undefined ? undefined : String(q.answer[i]) : i === 0 && q.answer ? String(q.answer) : undefined}
-        value={value} disabled={!!result} onEnter={submit}
-        onChange={(v) => setFills((prev) => prev.map((s, n) => n === i ? v : s))} />)}
+        expected={roundResponse && !result ? undefined : Array.isArray(q.answer) ? q.answer[i] === undefined ? undefined : String(q.answer[i]) : i === 0 && q.answer ? String(q.answer) : undefined}
+        value={value} disabled={!!result || disabled} onEnter={roundResponse ? undefined : submit}
+        onChange={v => { const next = fills.map((s, n) => n === i ? v : s); if (roundResponse) change({ picked, fills: next, essay }); else setFills(next); }} />)}
       {q.type === 'essay' && <textarea className="quiz-essay" aria-label="你的解答" placeholder="写下思路，提交后对照参考要点"
-        rows={4} value={essay} maxLength={4000} disabled={!!result} onChange={(e) => setEssay(e.target.value)} />}
-      {!result && <button className="quiz-submit" disabled={!ready} onClick={submit}>
+        rows={4} value={essay} maxLength={4000} disabled={!!result || disabled} onChange={e => { if (roundResponse) change({ picked, fills, essay: e.target.value }); else setEssay(e.target.value); }} />}
+      {roundResponse && <QuestionThinking value={roundResponse.thought} disabled={!!result || disabled} onChange={thought => onDraftChange?.({ picked, fills, essay }, thought)} />}
+      {!result && !roundResponse && <button className="quiz-submit" disabled={!ready} onClick={submit}>
         {q.type === 'essay' ? '提交并对照参考' : '确认作答'}
       </button>}
       {result && <div className={`quiz-explain quiz-feedback is-${result.verdict}`} role="status">
@@ -92,13 +104,15 @@ export function QuizQuestionItem({ q, index, onComplete, topic, last, sessionId,
         <p><b>你的作答：</b>{result.answer}</p>
         <div><b>参考答案：</b><Markdown text={result.expected}/></div>
         {/* v47：前端判不了的（填空字面没对上、解答题）交给 AI 按要点评分，并诊断误区 */}
-        {result.verdict === 'review' && <AiGradeNote q={q} result={result} {...(topic ? { topic } : {})} />}
+        {result.verdict === 'review' && !roundResponse && <AiGradeNote q={q} result={result} {...(topic ? { topic } : {})} />}
+        {roundResponse?.grade && <p><b>{roundResponse.grade.verdict === 'correct' ? '✓ 按标准答对' : roundResponse.grade.verdict === 'partial' ? '◐ 部分正确' : '↗ 需要回看'}</b> · {Math.round(roundResponse.grade.score * 100)} 分<br />{roundResponse.grade.feedback}</p>}
         {(q.explanation || q.solution) && <Markdown text={q.explanation || q.solution || ''} />}
         {q.source && <div className="quiz-source">来源：{q.source.url
           ? <a href={q.source.url} target="_blank" rel="noreferrer noopener">{q.source.title}</a> : q.source.title}</div>}
       </div>}
-      <QuestionFeedback onAdapted={onAdapted} input={{ question: q, title: topic ?? '练习', ...(sessionId ? { sessionId } : {}),
-        ...(result ? { attempt: { answer: result.answer, verdict: result.verdict } } : {}) }} />
+      {(!roundResponse || result) && <QuestionFeedback onAdapted={onAdapted} input={{ question: q, title: topic ?? '练习', ...(sessionId ? { sessionId } : {}),
+        ...(result ? { attempt: { answer: result.answer, verdict: result.verdict } } : {}) }} />}
+      {roundResponse && <QuestionAnalysis response={roundResponse} disabled={disabled} onRetry={() => onRetryAnalysis?.()} />}
     </section>
   );
 }

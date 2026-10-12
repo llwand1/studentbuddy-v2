@@ -25,7 +25,8 @@ export function useCampfireOpener(scopeKey: string, enabled: boolean, frozen = f
         if (!question || typeof value.id !== 'string' || !value.id) throw new Error('这次没能召出合格的新题，请重试。');
         recent.current.push(question.question);
         recent.current.splice(0, Math.max(0, recent.current.length - OPENER_HISTORY_LIMIT));
-        setResult({ key, status: 'ready', value: { id: value.id, question, scope: typeof value.scope === 'string' ? value.scope : '' } });
+        setResult({ key, status: 'ready', value: { id: value.id, question, scope: typeof value.scope === 'string' ? value.scope : '',
+          ...(typeof value.material === 'string' ? { material: value.material.slice(0, 4000) } : {}) } });
       }).catch(error => {
         if (!alive || controller.signal.aborted) return;
         setResult({ key, status: 'error', error: error instanceof Error ? error.message : '召题暂时失败，请重试。' });

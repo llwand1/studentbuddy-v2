@@ -23,29 +23,29 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-10-11 20:52:23（本机时区）｜ 基准 `ab22a95` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-12 14:19:49（本机时区）｜ 基准 `dc7df7c` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
 | 包 | 源码文件 | 源码行 | 测试文件 | 测试行 | 测试/源码 |
 |---|---|---|---|---|---|
-| shared | 65 | 10,189 | 48 | 5,763 | 57% |
-| server | 314 | 41,710 | 211 | 38,629 | 93% |
-| web | 387 | 43,847 | 162 | 20,052 | 46% |
-| **合计** | **766** | **95,746** | **421** | **64,444** | **67%** |
+| shared | 66 | 10,284 | 48 | 5,763 | 56% |
+| server | 319 | 42,131 | 215 | 38,886 | 92% |
+| web | 395 | 44,265 | 164 | 20,115 | 45% |
+| **合计** | **780** | **96,680** | **427** | **64,764** | **67%** |
 
 ## 接口与契约
 
-- REST 路由注册：**204**（get 86 / post 82 / delete 17 / put 18 / patch 1）· 另 /api 挂载点 44 个
-- shared 契约类型：**288**（export interface 197 + export type 91）
+- REST 路由注册：**213**（get 89 / post 87 / delete 17 / put 18 / patch 2）· 另 /api 挂载点 44 个
+- shared 契约类型：**296**（export interface 203 + export type 93）
 - 外部运行时依赖：**8** 个 —— better-sqlite3, cors, express, katex, mermaid, pino, react, react-dom
-- 迁移水位：代码侧 **v59**（59 个 version 条目，非连续号 0 处）
+- 迁移水位：代码侧 **v60**（60 个 version 条目，非连续号 0 处）
 
 ## 测试基线（vitest 实跑）
 
-- **421 文件 / 4674 例**（4672 passed + 2 skipped + 0 failed）⇒ 全绿
-- 本次本机实跑（Node v22.23.2）全量耗时 68.5s
-- jsdom 交互测试文件（`.test.tsx`）82 个
+- **427 文件 / 4695 例**（4693 passed + 2 skipped + 0 failed）⇒ 全绿
+- ⚠️ 本次未重跑 vitest，读的是 今日的 test-results 产物——要新鲜数字加 `--tests`
+- jsdom 交互测试文件（`.test.tsx`）83 个
 
 ## 覆盖率（v8，按包加权 covered/total，非百分比平均）
 
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 63 份 · md 共 81 份 · 真机探针 15 个
-- git：fix/job-table-migration @ `ab22a95`（2026-10-10）· 近 14 天 289 commits · 工作区未提交 217 文件
+- git：feat/question-reasoning-rounds-1012 @ `dc7df7c`（2026-10-12）· 近 14 天 245 commits · 工作区未提交 56 文件
 
 <!-- metrics:end -->
 

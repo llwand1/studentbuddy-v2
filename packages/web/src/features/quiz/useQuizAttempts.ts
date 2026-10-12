@@ -18,7 +18,7 @@ function merge(rows: QuizAttemptRow[], row: QuizAttemptRow): QuizAttemptRow[] {
   return [...rows.filter((r) => r.index !== row.index), row].sort((a, b) => a.index - b.index);
 }
 
-export function useQuizAttempts(quizId: string | undefined, questions: readonly QuizQuestion[]) {
+export function useQuizAttempts(quizId: string | undefined, questions: readonly QuizQuestion[], refresh: string | number = 0) {
   const [rows, setRows] = useState<QuizAttemptRow[]>([]);
   const [error, setError] = useState('');
 
@@ -36,7 +36,7 @@ export function useQuizAttempts(quizId: string | undefined, questions: readonly 
     return () => {
       alive = false;
     };
-  }, [quizId]);
+  }, [quizId, refresh]);
 
   /** 题卡判完一题就调它；老卡（无 quizId）是空操作 */
   const record = useCallback(

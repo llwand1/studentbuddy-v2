@@ -13,6 +13,7 @@
  *   没有列表、没有分析、不读题目内容，quizId 仍是出题时那个临时 id（它现在多了一个用处：当记录的键）。
  */
 import { randomUUID } from 'node:crypto';
+import { quizRoundsRouter } from './quiz-rounds.js';
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { loadQuizMix } from '../learning/quiz.js';
@@ -45,6 +46,7 @@ import { quizFeedbackRouter } from './quiz-feedback.js';
 import { isQuizIdLike, listQuizAttempts, parseQuizAttemptInput, recordQuizAttempt } from '../learning/quiz-attempts.js';
 
 export const quizRouter = Router();
+quizRouter.use(quizRoundsRouter);
 quizRouter.use(quizExplanationRouter);
 quizRouter.use(replyPracticeRouter);
 quizRouter.use(quizFeedbackRouter);

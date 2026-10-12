@@ -1,0 +1,60 @@
+import { afterAll, beforeEach, expect, it, vi } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { AUTH_COOKIE_NAME } from '@sb/shared';
+const agents = vi.hoisted(() => ({ start: vi.fn(), cancel: vi.fn() }));
+vi.mock('../learning/quiz-question-agent.js', async () => {
+  const { loadQuizRound } = await import('../learning/quiz-round-store.js');
+  return { startQuizRoundAnalysis: agents.start, cancelQuizRoundAnalysis: agents.cancel, recoverInterruptedRound: loadQuizRound, subscribeQuizRound: () => () => {} };
+});
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-round-http-')); process.env.SB_DATA_DIR = dir;
+const { app } = await import('../index.js');
+const { closeDb, getDb } = await import('../storage/db.js');
+const { createUser } = await import('../auth/users.js');
+const { createSession } = await import('../auth/session.js');
+const request = (await import('supertest')).default;
+const user = await createUser('round-owner@example.com', 'good-password-1', undefined);
+const other = await createUser('round-other@example.com', 'good-password-2', undefined);
+const cookie = `${AUTH_COOKIE_NAME}=${createSession(user.id).token}`, otherCookie = `${AUTH_COOKIE_NAME}=${createSession(other.id).token}`;
+getDb().prepare('INSERT INTO sessions(id,title,user_id) VALUES(?,?,?)').run('owned-round-session', '复盘', user.id);
+const input = { title: '复盘', origin: 'chat', sessionId: 'owned-round-session', questions: [{ type: 'single', question: '选一个', options: ['甲', '乙'], answer: [1] }] };
+const post = (url: string, data: object = {}) => request(app).post(`/api/quiz${url}`).set('Origin', 'http://localhost:5173').set('Cookie', cookie).send(data);
+beforeEach(() => { agents.start.mockClear(); agents.cancel.mockClear(); });
+afterAll(() => { closeDb(); fs.rmSync(dir, { recursive: true, force: true }); });
+it('enforces owner/session access and never reveals another owner’s round or history', async () => {
+  const opened = await post('/rounds/open', input).expect(200), id = opened.body.id as string;
+  await request(app).get(`/api/quiz/rounds/${id}`).set('Cookie', otherCookie).expect(404);
+  await request(app).get(`/api/quiz/rounds/${id}/events`).set('Cookie', otherCookie).expect(404);
+  const history = await request(app).get('/api/quiz/round-history').set('Cookie', otherCookie).expect(200); expect(history.body.items).toEqual([]);
+  await request(app).post('/api/quiz/rounds/open').set('Cookie', otherCookie).set('Origin', 'http://localhost:5173').send(input).expect(404);
+  await post('/rounds/open', { ...input, sessionId: 'missing' }).expect(404);
+  await request(app).post('/api/quiz/rounds/open').set('Cookie', cookie).send(input).expect(403);
+});
+it('autosaves notes, rejects outdated writes, locks the submitted snapshot and starts independent analysis once', async () => {
+  const opened = await post('/rounds/open', { ...input, title: '保存测试' }).expect(200), id = opened.body.id as string;
+  const change = { index: 0, revision: 0, thought: '我认为乙更符合条件', draft: { picked: [0], fills: [''], essay: '' } };
+  await request(app).patch(`/api/quiz/rounds/${id}/answer`).set('Origin', 'http://localhost:5173').set('Cookie', cookie).send(change).expect(200);
+  await request(app).patch(`/api/quiz/rounds/${id}/answer`).set('Origin', 'http://localhost:5173').set('Cookie', cookie).send(change).expect(409);
+  const submitted = await post(`/rounds/${id}/submit`, { changes: [{ ...change, revision: 1 }] }).expect(200);
+  expect(submitted.body.responses[0].result.verdict).toBe('wrong');
+  expect(agents.start).toHaveBeenCalledWith(id, user.id);
+  await request(app).patch(`/api/quiz/rounds/${id}/answer`).set('Origin', 'http://localhost:5173').set('Cookie', cookie).send({ ...change, revision: 2 }).expect(409);
+  const next = await post(`/rounds/${id}/new`).expect(200); expect(next.body.responses[0].thought).toBe(''); expect(next.body.previousId).toBe(id);
+  const previous = await request(app).get(`/api/quiz/rounds/${id}`).set('Cookie', cookie).expect(200); expect(previous.body.responses[0].thought).toBe(change.thought);
+});
+it('rejects malformed questions and unsafe persisted source/photo URLs', async () => {
+  await post('/rounds/open', { ...input, questions: [{ ...input.questions[0], photo: { src: {}, alt: '图', credit: '来源' } }] }).expect(400);
+  await post('/rounds/open', { ...input, questions: [{ ...input.questions[0], options: [{}] }] }).expect(400);
+  const safe = await post('/rounds/open', { ...input, title: '安全来源', questions: [{ ...input.questions[0], source: { title: '来源', url: 'javascript:alert(1)' } }] }).expect(200);
+  expect(safe.body.questions[0].source.url).toBeUndefined();
+});
+it('loads scenario criteria from the owned source and judges observed facts separately from thinking', async () => {
+  const { saveScenario } = await import('../learning/scenario.js');
+  const saved = saveScenario({ title: '操作规则', tasks: [{ id: 'state', prompt: '变亮', criteria: { kind: 'state', value: 'bright' } }] }, '<button>操作</button>', user.id)!;
+  await request(app).post('/api/quiz/rounds/open').set('Cookie', otherCookie).set('Origin', 'http://localhost:5173').send({ title: '伪造', origin: 'scenario', quizId: saved.quizId }).expect(400);
+  const opened = await post('/rounds/open', { title: '伪造', origin: 'scenario', quizId: saved.quizId, questions: [{ scenarioTask: { criteria: { kind: 'state', value: 'dark' } } }] }).expect(200);
+  expect(opened.body.title).toBe('操作规则');
+  const result = await post(`/rounds/${opened.body.id}/submit`, { changes: [{ index: 0, revision: 0, draft: { picked: [], fills: [''], essay: '"dark"' }, thought: '其实我认为应该变亮' }] }).expect(200);
+  expect(result.body.responses[0].result).toMatchObject({ verdict: 'wrong', answer: '"dark"', expected: '{"kind":"state","value":"bright"}' });
+});

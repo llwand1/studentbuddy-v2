@@ -291,9 +291,9 @@
 | `src/routes/quiz-feedback.test.ts` | 5 | 会话归属/Origin、并发释放、篝火独立回卡、评价随题持久化、删除会话阻断迟到发布 |
 | `src/features/quiz/QuestionFeedback.test.tsx` | 4 | 按需预判与缓存、点选再出题、自定义与失败重试、取消/切题隔离、内联无弹窗 |
 | `src/features/quiz/FillBlank.test.tsx` | 3 | 对话出题的一个填空（2026-09-30）：参考答案短 ⇒ 打字格子 +「自由输入」切回并清空；整句 / 满符号 / 无参考 ⇒ 普通框；两种框回车都提交 |
-| `src/features/quiz/QuizCard.test.tsx` | 8 | 五类题闭环、真实错答、重复点击、失败重试、取消与迟到结果、无图拒绝；★ 2026-09-29 **+1** 分级徽标（QUIZ-TIER-SPEC §1）——每题按来源标「真题·必刷／模拟题·建议做／基础题·可选做」、历史题无 tier 键按 `source.kind` 兜底、卡头汇总三档数、徽标 `title` 带「为什么这么标」 |
-| `src/features/quiz/QuizCard.attempts.test.tsx` | 3 | ★ 2026-09-30 作答记录：读回 ⇒ 汇总行 + 每题「上次」小标；答一题记一笔、乐观更新、本轮答过小标收起；读不到 / 记不上各一行说明且不回滚；老卡零请求、完成提示按有无 quizId 改口 |
-| `src/features/quiz/ScenarioPanel.test.tsx` | 3 | iframe来源、首判、真实操作、失败重试、空任务不解锁 |
+| `src/features/quiz/QuizCard.test.tsx` | 5 | 选填思考、交卷前不揭晓、五题型、独立流式/乱序/过期事件、空白重练与历史、分级及材料 |
+| `src/features/quiz/QuizCard.attempts.test.tsx` | 4 | 旧统计只读、不重复写；本机未同步草稿恢复；迟到保存不覆盖新输入；保存失败保留思考 |
+| `src/features/quiz/ScenarioPanel.test.tsx` | 3 | iframe来源、交卷前修改操作及选填思考、交卷后独立分析、重练历史、保存失败恢复、非法操作和空任务 |
 
 > 2026-09-27 出题功能评测批次 A：功能级评测的**评分口径**落进 `packages/server/src/learning/quiz-eval-metrics.ts`（纯函数、不发请求不读库），运行侧在 `tools/eval/`（录制代理＋离线重算，运行产物 gitignore）。首轮 108 题读数与五条缺陷见 `docs/eval/quiz.md`。只登记口径单测——`tools/` 不在 vitest include 也不在 tsconfig 覆盖内。
 >
@@ -1255,3 +1255,12 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `src/storage/migrations-v59.test.ts`（server） | 7 | v57 缺表、v58 缺字段、两者同时缺失、结构等价、数据保留与幂等、旧事件表结构不变、修复失败整体回滚 |
 | `tools/selftest-deploy-retention.sh` | 4 场景 | 保留数量可配置、最新回滚点保留、无关数据不删除、远程脚本载荷不触发本地命令替换；CI 必跑 |
 | `tools/selftest-backup.py` | 4 | 快照可恢复与远程一致、凭据与代码包不入库、同步失败仍保留新快照并按七份滚动、旧 WAL 不得覆盖新快照；CI 必跑 |
+
+## 逐题思考、分析与作答轮次回归
+
+| 测试文件 | 用例 | 不变量 |
+|---|---:|---|
+| `src/learning/quiz-round-store.test.ts`（server） | 5 | 归属、草稿版本、整组原子提交、思考不能替代作答、独立轮次、记录幂等与级联清理 |
+| `src/learning/quiz-question-agent.test.ts`（server） | 5 | 逐题内容隔离、标准阅卷不含思考、跨组并发上限与快题先完成、图示单独重试、取消保留正文、重启恢复 |
+| `src/routes/quiz-rounds.test.ts`（server） | 4 | 真实 HTTP 归属/会话/CSRF、提交锁、迟到输入拒绝、历史、非法素材和服务端情景规则 |
+| `src/storage/migrations-v60.test.ts`（server） | 1 | v59 升级保留旧内容、重复迁移保留轮次、删除会话清理轮次 |

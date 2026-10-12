@@ -23,7 +23,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 <!-- metrics:begin —— 以下由 tools/metrics.mjs --write-docs 回填，勿手改 -->
 
-> 采集：2026-10-12 14:32:41（本机时区）｜ 基准 `d0faf5f` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
+> 采集：2026-10-12 14:49:02（本机时区）｜ 基准 `7db973b` ｜ 复现：`node tools/metrics.mjs --tests --coverage`
 
 ## 工程规模（源码 / 测试行数，按包）
 
@@ -31,8 +31,8 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 |---|---|---|---|---|---|
 | shared | 66 | 10,284 | 48 | 5,763 | 56% |
 | server | 319 | 42,131 | 215 | 38,890 | 92% |
-| web | 395 | 44,265 | 164 | 20,115 | 45% |
-| **合计** | **780** | **96,680** | **427** | **64,768** | **67%** |
+| web | 395 | 44,268 | 164 | 20,115 | 45% |
+| **合计** | **780** | **96,683** | **427** | **64,768** | **67%** |
 
 ## 接口与契约
 
@@ -53,7 +53,7 @@ node tools/metrics.mjs --check            # README/首屏手抄数字与实测�
 
 ## 文档与仓库
 - docs/：SPEC 契约 63 份 · md 共 81 份 · 真机探针 15 个
-- git：feat/question-reasoning-rounds-1012 @ `d0faf5f`（2026-10-12）· 近 14 天 245 commits · 工作区未提交 2 文件
+- git：docs/question-review-release-notes-1012 @ `7db973b`（2026-10-12）· 近 14 天 243 commits · 工作区未提交 2 文件
 
 <!-- metrics:end -->
 

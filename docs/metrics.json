@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-12T06:32:41.462Z",
+  "generatedAt": "2026-10-12T06:49:02.405Z",
   "code": {
     "rows": [
       {
@@ -20,13 +20,13 @@
         "pkg": "web",
         "srcFiles": 395,
         "testFiles": 164,
-        "srcLines": 44265,
+        "srcLines": 44268,
         "testLines": 20115
       }
     ],
     "srcFiles": 780,
     "testFiles": 427,
-    "srcLines": 96680,
+    "srcLines": 96683,
     "testLines": 64768,
     "tsxTestFiles": 83
   },
@@ -87,10 +87,10 @@
     "probes": 15
   },
   "repo": {
-    "head": "d0faf5f",
+    "head": "7db973b",
     "headDate": "2026-10-12",
-    "commitsLast14d": 245,
-    "branch": "feat/question-reasoning-rounds-1012",
+    "commitsLast14d": 243,
+    "branch": "docs/question-review-release-notes-1012",
     "dirtyFiles": 2
   },
   "tests": {
@@ -153,8 +153,8 @@
     },
     {
       "label": "线上现况版本",
-      "claimed": "v0.2.185",
-      "measured": "v0.2.185",
+      "claimed": "v0.2.186",
+      "measured": "v0.2.186",
       "ok": true
     },
     {

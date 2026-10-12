@@ -1,35 +1,37 @@
-/* A 32px familiar in a 64px transparent native window; the SVG frame supplies its clip. */
+/* The familiar stays red; only its bloodfire and runes react to its state. */
 .sb-companion-art {
   display: block;
   width: 64px;
   height: 64px;
   overflow: hidden;
-  --comp-body: #bd87d4;
-  --comp-light: #eed5ff;
-  --comp-shade: #79558e;
-  --comp-dust: #d8b48a;
-  --comp-star: #fff0b5;
-  --comp-rune: #a8a4ec;
+  --comp-body: #d9434f;
+  --comp-light: #e98f99;
+  --comp-shade: #9f3847;
+  --comp-dust: #e5434d;
+  --comp-star: #ffb9a0;
+  --comp-rune: #b9263b;
+  --comp-shadow: #591722;
 }
-.sb-companion-art[data-mood='focus'] { --comp-body: #dba668; --comp-light: #ffe1a5; --comp-shade: #966143; --comp-dust: #efc779; }
-.sb-companion-art[data-mood='preparing'] { --comp-body: #ac88ee; --comp-light: #dfd1ff; --comp-shade: #69508f; --comp-rune: #bbbcff; --comp-star: #f2d8ff; }
-.sb-companion-art[data-mood='question'] { --comp-body: #e3b15e; --comp-light: #fff0b1; --comp-shade: #a16a39; --comp-star: #fff4c9; --comp-rune: #ffc967; }
-.sb-companion-art:is([data-mood='reading'], [data-mood='selecting']) { --comp-body: #70b8aa; --comp-light: #c3ede0; --comp-shade: #447c76; --comp-dust: #93ccba; --comp-star: #e9ffcf; --comp-rune: #8bddcf; }
-.sb-companion-art[data-mood='retrieving'] { --comp-body: #7badcf; --comp-light: #d3f7ff; --comp-shade: #4b739c; --comp-dust: #84d3ee; --comp-star: #e0feff; --comp-rune: #bca1f0; }
-.sb-companion-art:is([data-mood='celebrate'], [data-mood='play']) { --comp-body: #e694b1; --comp-light: #ffe0e8; --comp-shade: #a75b82; --comp-dust: #ffa2cc; --comp-star: #fff7a1; --comp-rune: #a8e9d8; }
-.sb-companion-art[data-mood='encourage'] { --comp-body: #97b79c; --comp-light: #dcf0d3; --comp-shade: #657c6c; --comp-dust: #d8d99a; --comp-star: #ffebc0; }
-.sb-companion-art[data-mood='retry'] { --comp-body: #c4a37b; --comp-light: #efdbc0; --comp-shade: #8e715d; --comp-dust: #d9bd91; --comp-star: #eed7b1; }
-.sb-companion-art:is([data-mood='waiting'], [data-mood='offline']) { --comp-body: #a5a4b5; --comp-light: #d7d9e5; --comp-shade: #6a677b; --comp-dust: #bcb0a9; --comp-star: #e1bfa6; --comp-rune: #aeabc7; }
+.sb-companion-art[data-school='hex'] { --comp-dust: #a88bc8; --comp-star: #e5ffcf; --comp-rune: #c492ef; --comp-shadow: #392345; --comp-secondary: #77d49f; }
+.sb-companion-art[data-school='soul'] { --comp-dust: #56c7ac; --comp-star: #dcfff0; --comp-rune: #85bdf7; --comp-shadow: #1a393e; --comp-secondary: #ab8ddd; }
+.sb-companion-art[data-school='rift'] { --comp-dust: #966bda; --comp-star: #f1ddff; --comp-rune: #76deef; --comp-shadow: #32204b; --comp-secondary: #d887c8; }
+.sb-companion-art[data-school='ember'] { --comp-dust: #ed7950; --comp-star: #ffe0a3; --comp-rune: #e84855; --comp-shadow: #54242d; --comp-secondary: #ffad52; }
+.sb-companion-art:is([data-school='omen'], [data-school='nova']) { --comp-dust: #c69658; --comp-star: #fff2cb; --comp-rune: #f3d297; --comp-shadow: #41323a; --comp-secondary: #85d5d1; }
+.sb-companion-art:is([data-mood='waiting'], [data-mood='offline'], [data-mood='retry']) { --comp-dust: #8e5960; --comp-star: #c99391; --comp-rune: #84424b; --comp-secondary: #aa8c9e; }
 .sb-companion-art.mascot-px .px-base { fill: var(--comp-body); }
 .sb-companion-art.mascot-px .px-light { fill: var(--comp-light); }
 .sb-companion-art.mascot-px .px-shade { fill: var(--comp-shade); }
-.sb-companion-art.mascot-px .px-glint { fill: #fff7df; }
+.sb-companion-art.mascot-px .px-glint { fill: #fff1df; }
+.sb-companion-shadow { fill: var(--comp-shadow); }
+.sb-companion-sigil { fill: var(--comp-rune); animation: sb-companion-pulse 900ms steps(3) infinite; }
 .sb-companion-dust { fill: var(--comp-dust); }
 .sb-companion-star, .sb-companion-book { fill: var(--comp-star); }
 .sb-companion-rune { fill: var(--comp-rune); }
-.sb-companion-star { animation: sb-companion-twinkle 1.4s steps(3) infinite; }
-.sb-companion-star:nth-child(odd) { animation-delay: -700ms; }
-@keyframes sb-companion-twinkle { 50% { opacity: .7; } }
+.sb-companion-secondary { fill: var(--comp-secondary); }
+.sb-companion-star { animation: sb-companion-twinkle 700ms steps(3) infinite; }
+.sb-companion-star:nth-child(odd) { animation-delay: -350ms; }
+@keyframes sb-companion-twinkle { 50% { opacity: .65; } }
+@keyframes sb-companion-pulse { 50% { opacity: .75; } }
 .sb-ball:focus-visible { outline: none; }
 .sb-ball:focus-visible .px-ink { fill: #f4dda2; }
 .sb-companion-portrait { display: block; width: 48px; height: 48px; flex: none; }

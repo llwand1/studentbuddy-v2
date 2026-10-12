@@ -59,6 +59,8 @@ internal static class Launcher
     private const int BallCellLogical = 2;
     private const int BallOriginLogical = 16;
     private static DateTime LastBallShape = DateTime.MinValue;
+    private static CompanionTrail BallTrail;
+    private static bool BallEffectsEnabled;
     /** 球窗底色：取吉祥物轮廓的墨色，万一裁剪边缘有 1px 缝隙也看不出来 */
     private static readonly Color BallSeamColor = Color.FromArgb(60, 28, 43);
     /** 品牌图标：构建期由吉祥物点阵生成（tools/desktop/make-icon.mjs），随安装包分发；读不到退回系统默认 */
@@ -72,6 +74,7 @@ internal static class Launcher
     private const int WM_NCLBUTTONDOWN = 0x00A1;
     private const int HTCAPTION = 0x0002;
     private const int WM_EXITSIZEMOVE = 0x0232;
+    private const int WM_ENTERSIZEMOVE = 0x0231;
 
     [DllImport("user32.dll")]
     private static extern bool ReleaseCapture();
@@ -224,6 +227,7 @@ internal static class Launcher
                 }
                 finally
                 {
+                    CloseBallEffects();
                     if (server != null)
                     {
                         try { if (!server.HasExited) { server.Kill(); server.WaitForExit(10000); } }
@@ -501,6 +505,22 @@ internal static class Launcher
         form.MaximumSize = new Size(0, 0);
         form.Location = ReadBallPos(ball);
         form.Settled = delegate { SaveBallPos(form); };
+        form.Moved = delegate {
+            if (!BallEffectsEnabled || form.ClientSize != BallSize()) return;
+            try
+            {
+                if (BallTrail == null) BallTrail = new CompanionTrail(SystemDpiScale());
+                BallTrail.Follow(new Point(form.Left + form.Width / 2, form.Top + form.Height / 2));
+            }
+            catch (Exception error) { CloseBallEffects(); Log("拖尾绘制失败：" + error.Message); }
+        };
+        form.Motion = delegate(bool moving) {
+            WebView2 ballView = BallWebView();
+            if (ballView != null && ballView.CoreWebView2 != null)
+                ballView.CoreWebView2.PostWebMessageAsString(moving ? "sb-float:motion:start" : "sb-float:motion:end");
+        };
+        form.VisibleChanged += delegate { if (!form.Visible && BallTrail != null) BallTrail.ClearTrail(); };
+        form.SizeChanged += delegate { if (form.ClientSize != BallSize() && BallTrail != null) BallTrail.ClearTrail(); };
         WebView2 view = new WebView2();
         view.Dock = DockStyle.Fill;
         // 透明底：裁剪区里若有网页没画到的像素，露出来的是窗体底色（墨色），不是白块
@@ -622,7 +642,7 @@ internal static class Launcher
         try
         {
             int[][] rects = new JavaScriptSerializer().Deserialize<int[][]>(payload);
-            if (rects == null || rects.Length < 1 || rects.Length > 96) return null;
+            if (rects == null || rects.Length < 1 || rects.Length > 256) return null;
             foreach (int[] r in rects)
                 if (r == null || r.Length != 4 || r[0] < 0 || r[1] < 0 || r[2] < 1 || r[3] < 1 ||
                     r[0] > BallLogical || r[1] > BallLogical || r[2] > BallLogical || r[3] > BallLogical ||
@@ -681,16 +701,24 @@ internal static class Launcher
             ApplyBallShape(message.Substring("sb-float:shape:".Length)); return;
         }
         Log("球窗收到消息：" + message);
-        if (message == "sb-float:drag")
+        if (message == "sb-float:effects:on") BallEffectsEnabled = true;
+        else if (message == "sb-float:effects:off")
+        {
+            BallEffectsEnabled = false;
+            if (BallTrail != null) BallTrail.ClearTrail();
+        }
+        else if (message == "sb-float:drag")
         {
             // 进入系统原生窗口移动循环：网页改不了 OS 窗口位置，这是无边框 WebView2 窗唯一可靠的做法
             if (BallWindow == null) return;
             Point before = BallWindow.Location;
+            BallForm ballForm = BallWindow as BallForm;
+            if (ballForm != null) ballForm.PrepareMove();
             ReleaseCapture();
             SendMessage(BallWindow.Handle, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
             // ★ 移动循环是**同步**返回的（松开鼠标才回来）：位置没变 ⇒ 这是一次「点一下」而不是拖动。
             //   网页侧看不到位移（WebView2 按住不放时不派发 pointermove），所以这个判断只能在这儿做。
-            if (BallWindow.Location == before)
+            if (ShouldOpenBallAfterMove(before, BallWindow.Location, ballForm != null && ballForm.MovedInLoop))
             {
                 WebView2 view = BallWebView();
                 if (view != null && view.CoreWebView2 != null) view.CoreWebView2.PostWebMessageAsString("sb-float:tap");
@@ -820,12 +848,42 @@ internal static class Launcher
     private sealed class BallForm : Form
     {
         public Action Settled;
+        public Action Moved;
+        public Action<bool> Motion;
+        private bool moving;
+        private Point lastLocation;
+        internal bool MovedInLoop { get; private set; }
+        internal void PrepareMove() { MovedInLoop = false; lastLocation = Location; }
         protected override bool ShowWithoutActivation { get { return true; } }
+        protected override void OnLocationChanged(EventArgs e)
+        {
+            base.OnLocationChanged(e);
+            if (!moving || Location == lastLocation) return;
+            lastLocation = Location;
+            if (!MovedInLoop) { MovedInLoop = true; if (Motion != null) Motion(true); }
+            if (Moved != null) Moved();
+        }
         protected override void WndProc(ref Message m)
         {
+            if (m.Msg == WM_ENTERSIZEMOVE) { moving = true; PrepareMove(); }
             base.WndProc(ref m);
-            if (m.Msg == WM_EXITSIZEMOVE && Settled != null) Settled();
+            if (m.Msg == WM_EXITSIZEMOVE)
+            {
+                moving = false;
+                if (MovedInLoop && Motion != null) Motion(false);
+                if (Settled != null) Settled();
+            }
         }
+    }
+
+    private static bool ShouldOpenBallAfterMove(Point before, Point after, bool moved)
+    {
+        return before == after && !moved;
+    }
+
+    private static void CloseBallEffects()
+    {
+        if (BallTrail != null) { BallTrail.Dispose(); BallTrail = null; }
     }
 
     /** 显示并激活主窗口；窗口初始化失败时降级为浏览器打开。 */

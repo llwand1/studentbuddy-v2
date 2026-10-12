@@ -18,6 +18,10 @@ export const HOST_COLLAPSE = 'sb-float:collapse';
  *   网页侧没有「位移」可看；而宿主跑完系统移动循环后能直接比对窗口位置 —— 那个信号是可靠的。
  */
 export const HOST_TAP = 'sb-float:tap';
+export const HOST_MOTION_START = 'sb-float:motion:start';
+export const HOST_MOTION_END = 'sb-float:motion:end';
+export const HOST_EFFECTS_ON = 'sb-float:effects:on';
+export const HOST_EFFECTS_OFF = 'sb-float:effects:off';
 
 interface HostBridge {
   postMessage: (message: string) => void;

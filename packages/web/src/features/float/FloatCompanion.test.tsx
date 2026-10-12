@@ -54,16 +54,17 @@ it('wheel interaction is temporary and never opens App; reduced motion supplies 
   expect(open).not.toHaveBeenCalled();
   await act(async () => { vi.advanceTimersByTime(2201); }); expect(screen.getByRole('button').dataset.mood).toBe('focus');
 });
-it('native movement drives the dark sigil and drop burst without opening App', async () => {
+it('native movement stays with fire through the drag and drop burst without opening App', async () => {
   vi.useFakeTimers(); nativeHost();
   const open = vi.fn(); render(<FloatCompanion mood="reading" onOpen={open} onSettings={() => {}} />);
   act(() => inbox?.({ data: HOST_MOTION_START }));
   expect(screen.getByRole('button').dataset.mood).toBe('dragging');
-  expect(screen.getByRole('button').querySelector('svg')?.dataset.school).toBe('soul');
+  expect(screen.getByRole('button').querySelector('svg')?.dataset.school).toBe('ember');
   await act(async () => { vi.advanceTimersByTime(5000); });
   expect(screen.getByRole('button').dataset.mood).toBe('dragging');
   act(() => inbox?.({ data: HOST_MOTION_END }));
   expect(screen.getByRole('button').dataset.mood).toBe('play');
+  expect(screen.getByRole('button').querySelector('svg')?.dataset.school).toBe('ember');
   await act(async () => { vi.advanceTimersByTime(2201); });
   expect(screen.getByRole('button').dataset.mood).toBe('reading');
   expect(open).not.toHaveBeenCalled();

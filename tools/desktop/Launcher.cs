@@ -624,7 +624,7 @@ internal static class Launcher
     private static void ApplyBallShape(string payload)
     {
         if (BallWindow == null || !BallWindow.Visible || BallWindow.ClientSize != BallSize() ||
-            payload.Length > 5000 || DateTime.UtcNow - LastBallShape < TimeSpan.FromMilliseconds(80)) return;
+            payload.Length > 12000 || DateTime.UtcNow - LastBallShape < TimeSpan.FromMilliseconds(80)) return;
         int[][] rects = ParseBallShape(payload);
         if (rects == null) return;
         Region region = new Region(); region.MakeEmpty();
@@ -636,13 +636,13 @@ internal static class Launcher
 
     private static int[][] ParseBallShape(string payload)
     {
-        if (payload == null || payload.Length > 5000) return null;
+        if (payload == null || payload.Length > 12000) return null;
         // Never accept a command, floating-point geometry or coordinates outside the companion.
         if (!System.Text.RegularExpressions.Regex.IsMatch(payload, @"^[\[\],0-9]+$")) return null;
         try
         {
             int[][] rects = new JavaScriptSerializer().Deserialize<int[][]>(payload);
-            if (rects == null || rects.Length < 1 || rects.Length > 256) return null;
+            if (rects == null || rects.Length < 1 || rects.Length > 512) return null;
             foreach (int[] r in rects)
                 if (r == null || r.Length != 4 || r[0] < 0 || r[1] < 0 || r[2] < 1 || r[3] < 1 ||
                     r[0] > BallLogical || r[1] > BallLogical || r[2] > BallLogical || r[3] > BallLogical ||

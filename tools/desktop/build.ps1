@@ -88,7 +88,7 @@ $launcherManifest = Join-Path $repoRoot 'tools\desktop\launcher.manifest'
 # ★ /win32icon 必须给：exe 自身带吉祥物图标，任务栏、快捷方式、卸载项才有品牌形象
 $appIcon = Join-Path $repoRoot 'tools\desktop\app.ico'
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-& $compiler /nologo /target:winexe /platform:x64 /optimize+ /codepage:65001 "/win32manifest:`"$launcherManifest`"" "/win32icon:`"$appIcon`"" /r:System.Web.Extensions.dll /r:"`"$webView2Core`"" /r:"`"$webView2WinForms`"" "/out:$stage\StudentBuddy.exe" tools\desktop\Launcher.cs
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ /codepage:65001 "/win32manifest:`"$launcherManifest`"" "/win32icon:`"$appIcon`"" /r:System.Web.Extensions.dll /r:"`"$webView2Core`"" /r:"`"$webView2WinForms`"" "/out:$stage\StudentBuddy.exe" tools\desktop\Launcher.cs tools\desktop\CompanionTrail.cs
 if ($LASTEXITCODE -ne 0) { throw 'Launcher compilation failed.' }
 
 $innoDir = Join-Path $repoRoot '.runtime\inno-7.1.0'

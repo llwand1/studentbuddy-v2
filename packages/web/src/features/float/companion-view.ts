@@ -4,12 +4,12 @@ import { SPRITE } from '../chat/Mascot';
 export const COMPANION_SIZE = 64;
 export const COMPANION_BODY = 32;
 export const HOST_SHAPE = 'sb-float:shape:';
-export type CompanionMood = 'idle' | 'focus' | 'preparing' | 'question' | 'reading' | 'retrieving' | 'selecting' | 'waiting' | 'offline' | 'retry' | 'celebrate' | 'encourage' | 'play';
+export type CompanionMood = 'idle' | 'focus' | 'preparing' | 'question' | 'reading' | 'retrieving' | 'selecting' | 'waiting' | 'offline' | 'retry' | 'celebrate' | 'encourage' | 'play' | 'dragging';
 export const COMPANION_LABELS: Record<CompanionMood, string> = {
   idle: '陪你待着', focus: '守着下一次练习', preparing: '正在施法备题', question: '有一道小练习',
   reading: '正在陪你读网页', retrieving: '正在查找网页里的知识', selecting: '正在看你划选的段落',
   waiting: '等你选择共读网页', offline: '连接暂时断开', retry: '这次备题没成功，稍后再试', celebrate: '答对啦，星星送给你',
-  encourage: '再试一次，我陪着你', play: '星屑魔法！',
+  encourage: '再试一次，我陪着你', play: '暗黑魔法！', dragging: '灵魂拖行',
 };
 export function companionMood(study: DesktopStudyState | null, page: DesktopBrowserState | null, error = ''): CompanionMood {
   if (error) return 'offline';
@@ -25,32 +25,65 @@ export function companionMood(study: DesktopStudyState | null, page: DesktopBrow
 }
 
 export type ClipRect = [x: number, y: number, width: number, height: number];
-type Particle = { rects: ClipRect[]; tone: 'dust' | 'star' | 'rune' };
+export type SpellSchool = 'hex' | 'soul' | 'rift' | 'ember' | 'omen' | 'nova';
+type Particle = { rects: ClipRect[]; tone: 'dust' | 'star' | 'rune' | 'secondary' };
 const silhouette = SPRITE.flatMap((row, y) => {
   const runs: ClipRect[] = [];
   for (const match of row.matchAll(/[^.]+/g)) runs.push([match.index * 2, y * 2, match[0].length * 2, 2]);
   return runs;
 });
 /** One integer-pixel frame supplies both SVG paint and the native hit/clip region. */
-export function companionFrame(mood: CompanionMood, frame: number, animated = true, hovered = false) {
-  const active = ['preparing', 'retrieving', 'celebrate', 'play', 'question'].includes(mood);
+export function companionFrame(mood: CompanionMood, frame: number, animated = true, hovered = false, cast?: SpellSchool) {
+  const school: SpellSchool = mood === 'play' ? cast ?? 'hex' : mood === 'preparing' ? 'hex'
+    : mood === 'retrieving' ? 'rift' : mood === 'question' ? 'omen' : mood === 'celebrate' ? 'nova'
+    : ['reading', 'selecting', 'encourage', 'dragging'].includes(mood) ? 'soul' : 'ember';
+  const tick = animated ? frame : 0;
+  const active = ['preparing', 'retrieving', 'celebrate', 'play', 'question', 'dragging'].includes(mood);
   const wave = animated ? Math.sin(frame / (active ? 2.5 : 7)) : 0;
   const x = 16;
   const y = 16 + (animated ? Math.round(wave * (active || hovered ? 2 : 1)) : 0);
-  const count = active ? 18 : ['idle', 'offline', 'waiting', 'retry'].includes(mood) ? 6 : 12;
+  const count = active ? 24 : ['idle', 'offline', 'waiting', 'retry'].includes(mood) && !hovered ? 10 : 16;
+  const rect = (rx: number, ry: number, w = 2, h = 2): ClipRect => [
+    Math.max(1, Math.min(63 - w, Math.round(rx))), Math.max(1, Math.min(63 - h, Math.round(ry))), w, h];
   const particles: Particle[] = Array.from({ length: count }, (_, i) => {
-    const phase = i * Math.PI * 2 / count + (animated ? frame * (active ? 0.13 : 0.035) : 0);
-    const age = ((animated ? frame : 0) + i * 4) % 24 / 24;
-    const radius = mood === 'celebrate' || mood === 'play' ? 16 + age * 11
-      : mood === 'retrieving' ? 27 - age * 10 : 20 + i % 3 * 3;
-    const px = Math.round(32 + Math.cos(phase) * radius);
-    const py = mood === 'focus' ? Math.round(54 - age * 41)
-      : Math.round(31 + Math.sin(phase) * radius * (mood === 'reading' || mood === 'selecting' ? 0.72 : 1));
-    const star = i % 4 === 0;
-    const rects: ClipRect[] = star ? [[px, py - 2, 1, 5], [px - 2, py, 5, 1]] : [[px, py, i % 3 === 0 ? 2 : 1, i % 3 === 0 ? 2 : 1]];
-    return { rects, tone: star ? 'star' : i % 3 === 0 ? 'rune' : 'dust' };
+    const phase = i * Math.PI * 2 / count + tick * (active ? 0.13 : 0.035);
+    const age = (tick + i * 5) % 24 / 24;
+    const radius = school === 'nova' ? 15 + age * 13 : school === 'rift' ? 28 - age * 14 : 21 + i % 3 * 3;
+    const px = school === 'ember' ? 12 + i % 3 * 18 + Math.sin(phase) * 5 : 32 + Math.cos(phase) * radius;
+    const py = school === 'ember' ? 59 - age * 46 : 31 + Math.sin(phase) * radius * (school === 'soul' ? .65 : 1);
+    let rects: ClipRect[];
+    if (school === 'ember') rects = [rect(px, py, 3, 4), rect(px + 1, py - 3, 1, 3)];
+    else if (school === 'soul') rects = [rect(px, py, 3, 2), rect(px - Math.cos(phase) * 4, py - Math.sin(phase) * 3, 2, 1)];
+    else if (school === 'rift') rects = [rect(px, py, 3, 2), rect(px + 2, py - 2, 1, 3)];
+    else if (school === 'hex') rects = [rect(px, py - 2, 1, 5), rect(px, py + 2, 4, 1)];
+    else rects = [rect(px, py - 2, 1, 5), rect(px - 2, py, 5, 1)];
+    return { rects, tone: i % 5 === 0 ? 'star' : i % 3 === 0 ? 'secondary' : i % 2 === 0 ? 'rune' : 'dust' };
   });
+  const sigil: ClipRect[] = [];
+  const line = (ax: number, ay: number, bx: number, by: number, steps = 8) => {
+    for (let n = 0; n <= steps; n++) sigil.push(rect(ax + (bx - ax) * n / steps, ay + (by - ay) * n / steps));
+  };
+  if (active) {
+    const rotation = tick * .035;
+    if (school === 'hex') {
+      const point = (i: number): [number, number] => {
+        const angle = rotation - Math.PI / 2 + i * Math.PI * 2 / 5;
+        return [32 + Math.cos(angle) * 25, 31 + Math.sin(angle) * 25];
+      };
+      for (let i = 0; i < 5; i++) { const a = point(i); const b = point((i + 2) % 5); line(a[0], a[1], b[0], b[1]); }
+      for (let i = 0; i < 20; i++) { const a = rotation + i * Math.PI / 10; sigil.push(rect(32 + Math.cos(a) * 28, 31 + Math.sin(a) * 28)); }
+    } else if (school === 'rift') {
+      for (let i = 0; i < 28; i++) { const a = -rotation + i * Math.PI / 14; sigil.push(rect(32 + Math.cos(a) * (19 + i % 2 * 5), 31 + Math.sin(a) * 27)); }
+    } else if (school === 'soul') {
+      for (let i = 0; i < 16; i++) { const px = 5 + i * 3.3; sigil.push(rect(px, 42 + Math.sin(i / 3 + rotation) * 7, 3, 1), rect(px, 20 - Math.sin(i / 3 + rotation) * 7, 2, 1)); }
+    } else if (school === 'omen') {
+      for (const side of [-1, 1]) for (let i = 0; i < 4; i++) line(32 + side * (19 + i % 2 * 6), 9 + i * 11, 32 + side * (19 + (i + 1) % 2 * 6), 20 + i * 11, 4);
+    } else if (school === 'nova') {
+      for (let i = 0; i < 20; i++) { const a = i * Math.PI / 10; const radius = 10 + (tick % 20) * .9; sigil.push(rect(32 + Math.cos(a) * radius, 31 + Math.sin(a) * radius), rect(32 + Math.cos(a) * 28, 31 + Math.sin(a) * 28, 1, 3)); }
+    }
+  }
+  const halo = [...sigil, ...particles.flatMap(p => p.rects)].map(([rx, ry, w, h]): ClipRect => [rx - 1, ry - 1, w + 2, h + 2]);
   const body = silhouette.map(([rx, ry, w, h]): ClipRect => [x + rx, y + ry, w, h]);
-  return { x, y, particles, clips: [...body, ...particles.flatMap(p => p.rects)] };
+  return { x, y, school, particles, sigil, halo, clips: [...body, ...halo, ...sigil, ...particles.flatMap(p => p.rects)] };
 }
 

@@ -71,6 +71,8 @@ export interface QuizQuestion {
    * 可选字段：历史题无此键 → 不渲染。判分不读它，但**盲解验算、AI 阅卷、对战出题**都要用 `stemOf(q)` 取全文。
    */
   material?: string;
+  /** Owned scenario task snapshot, attached by the round endpoint rather than model output. */
+  scenarioTask?: { id: string; demoId: string; criteria: import('./scenario.js').ScenarioCriteria };
 }
 
 /** material 字段上限（字符）：一篇阅读理解约 1500–2500 字，留足余量又防把整页倒进来 */

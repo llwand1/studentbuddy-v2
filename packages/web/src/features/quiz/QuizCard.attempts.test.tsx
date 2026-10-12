@@ -1,92 +1,46 @@
 // @vitest-environment jsdom
-/**
- * QuizCard.attempts.test — 题卡的作答记录（QUIZ-REVIEW-SPEC「作答记录」节）：
- * 带 quizId 的卡读回记录 ⇒ 顶部汇总行 + 每题「上次」小标；答一题就记一笔并乐观更新；
- * 老卡（无 quizId）零请求、提示照旧；读不到 / 记不上只多一行字，答题不受影响。
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import type { QuizAttemptRow } from '@sb/shared';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QuizCard } from './QuizCard';
-
-const apiMock = vi.hoisted(() => ({ list: vi.fn(), record: vi.fn() }));
-vi.mock('../../lib/api-quiz-attempts', () => ({ quizAttemptsApi: apiMock }));
-vi.mock('../../lib/api', () => ({ api: { request: vi.fn() } }));
-vi.mock('../../lib/api-ai-ops', async (orig) => {
-  const real = await orig<typeof import('../../lib/api-ai-ops')>();
-  return { ...real, aiOpsApi: { ...real.aiOpsApi, reportAnswer: vi.fn(), grade: () => new Promise(() => undefined) } };
+import { attemptMocks, makeRound, resetRoundMocks, roundMocks } from './quiz-round.testkit';
+vi.mock('../../lib/api-quiz-rounds', async () => ({ quizRoundsApi: (await import('./quiz-round.testkit')).roundMocks }));
+vi.mock('../../lib/api-quiz-attempts', async () => ({ quizAttemptsApi: (await import('./quiz-round.testkit')).attemptMocks }));
+const q = { type: 'single' as const, question: '需要光？', options: ['需要', '不需要'], answer: [0] };
+beforeEach(() => { resetRoundMocks(); localStorage.clear(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it('retains cumulative objective records without writing another frontend attempt on group submission', async () => {
+  attemptMocks.list.mockResolvedValue({ rows: [{ index: 0, attempts: 2, correct: 1, streak: 0, bestStreak: 1, last: { verdict: 'wrong', answer: 'B', at: '2026-10-12' } }] });
+  render(<QuizCard title="光" questions={[q]} quizId="q-old" />); await screen.findByText(/刷过 2 遍.*50%/);
+  fireEvent.click(await screen.findByRole('button', { name: /A.*需要/ }));
+  fireEvent.click(screen.getByRole('button', { name: /提交整组答案/ })); await screen.findByText('第 1 轮 · 已交卷');
+  expect(attemptMocks.record).not.toHaveBeenCalled();
 });
-
-const questions = [
-  { type: 'single' as const, question: '叶绿体的作用？', options: ['光合作用', '吸收矿物质'], answer: [0] },
-  { type: 'essay' as const, question: '解释过程', answer: '能量转化' },
-];
-const rows: QuizAttemptRow[] = [
-  { index: 0, attempts: 2, correct: 1, streak: 0, bestStreak: 1, last: { verdict: 'wrong', answer: 'B. 吸收矿物质', at: '2026-09-30T06:00:00.000Z' } },
-  { index: 1, attempts: 1, correct: 0, streak: 0, bestStreak: 0, last: { verdict: 'review', answer: '略', at: '2026-09-30T06:01:00.000Z' } },
-];
-beforeEach(() => {
-  apiMock.list.mockReset();
-  apiMock.record.mockReset();
-  apiMock.list.mockResolvedValue({ quizId: 'q-1', rows });
-  apiMock.record.mockImplementation(async (_id: string, input: { questionIndex: number }) => ({
-    quizId: 'q-1',
-    row: { index: input.questionIndex, attempts: 3, correct: 2, streak: 1, bestStreak: 1, last: { verdict: 'correct', answer: 'A. 光合作用', at: '2026-09-30T07:00:00.000Z' } },
-  }));
+it('recovers an unsynced local draft on refresh without requiring optional thinking', async () => {
+  const r = makeRound({ title: '光', origin: 'chat', questions: [q] });
+  roundMocks.open.mockResolvedValue(r);
+  localStorage.setItem(`sb-quiz-round:${r.id}`, JSON.stringify([{ ...r.responses[0], draft: { picked: [0], fills: [''], essay: '' }, thought: '这一句还没有同步' }]));
+  render(<QuizCard title="光" questions={[q]} />);
+  expect(await screen.findByRole('textbox', { name: '我的思考 / 评价' })).toHaveProperty('value', '这一句还没有同步');
+  expect(screen.getByRole('button', { name: /A.*需要/ }).getAttribute('aria-pressed')).toBe('true');
 });
-afterEach(cleanup);
-
-const q1 = () => screen.getByRole('region', { name: '第 1 题' });
-
-describe('带 quizId 的题卡', () => {
-  it('读回记录 ⇒ 汇总行（解答题不进正确率）+ 每题「上次」小标带上次作答；答一题记一笔、汇总乐观更新、小标随本轮作答收起', async () => {
-    render(<QuizCard title="光合作用" sessionId="s" quizId="q-1" questions={questions} />);
-    expect(apiMock.list).toHaveBeenCalledWith('q-1');
-    await waitFor(() => expect(screen.getByText(/刷过 2 遍/).textContent).toContain('刷过 2 遍 · 客观题正确率 50%（1/2）'));
-    const chip = within(q1()).getByText(/上次 ↗/);
-    expect(chip.getAttribute('title')).toBe('上次答：B. 吸收矿物质');
-    expect(within(screen.getByRole('region', { name: '第 2 题' })).getByText(/上次 ◇/)).toBeTruthy();
-
-    fireEvent.click(within(q1()).getByRole('button', { name: /光合作用/ }));
-    fireEvent.click(within(q1()).getByText('确认作答'));
-    expect(apiMock.record).toHaveBeenCalledWith('q-1', { questionIndex: 0, verdict: 'correct', answer: 'A. 光合作用' });
-    // 乐观更新：服务端还没回，汇总已经按同一口径变了
-    expect(screen.getByText(/刷过 3 遍/).textContent).toContain('客观题正确率 67%（2/3）');
-    // 本轮答过的题不再显「上次」（当前反馈行就在下面，两个符号叠着会打架）
-    expect(within(q1()).queryByText(/上次/)).toBeNull();
-    await waitFor(() => expect(apiMock.record).toHaveResolved());
-  });
-
-  it('读不到 ⇒ 一行说明，题照答；记不上 ⇒ 点名第几题没记上，判分反馈仍在', async () => {
-    apiMock.list.mockRejectedValue(new Error('服务端 500'));
-    apiMock.record.mockRejectedValue(new Error('断网了'));
-    render(<QuizCard title="光合作用" sessionId="s" quizId="q-1" questions={questions} />);
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('以前的作答记录没读到：服务端 500'));
-    fireEvent.click(within(q1()).getByRole('button', { name: /光合作用/ }));
-    fireEvent.click(within(q1()).getByText('确认作答'));
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('第 1 题的作答没记上（页面上的判分不受影响）：断网了'));
-    expect(within(q1()).getByText(/答案吻合/)).toBeTruthy();
-    // 记不上不回滚：这题确实答了
-    expect(screen.getByText(/刷过 1 遍/)).toBeTruthy();
-  });
+it('does not let a delayed autosave overwrite edits made while that save is in flight', async () => {
+  const r = makeRound({ title: '光', origin: 'chat', questions: [q] }); roundMocks.open.mockResolvedValue(r);
+  let finish!: (v: typeof r.responses[0]) => void;
+  roundMocks.save.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })).mockResolvedValueOnce({ ...r.responses[0], revision: 2 });
+  render(<QuizCard title="光" questions={[q]} />); await screen.findByRole('button', { name: /A.*需要/ });
+  fireEvent.click(screen.getByRole('button', { name: /我的思考/ })); const input = screen.getByRole('textbox', { name: '我的思考 / 评价' });
+  fireEvent.change(input, { target: { value: '第一版' } }); await waitFor(() => expect(roundMocks.save).toHaveBeenCalledTimes(1));
+  fireEvent.change(input, { target: { value: '第二版，最新思考' } });
+  await act(async () => finish({ ...r.responses[0]!, thought: '第一版', revision: 1 }));
+  await waitFor(() => expect(roundMocks.save).toHaveBeenCalledTimes(2));
+  expect(roundMocks.save.mock.calls[1]![1].thought).toBe('第二版，最新思考');
+  expect(input).toHaveProperty('value', '第二版，最新思考');
 });
-
-describe('老卡（无 quizId）', () => {
-  it('零请求、没有汇总行；完成后的提示仍是「刷新后需重新作答」；带 quizId 的完成提示改口', async () => {
-    const { unmount } = render(<QuizCard title="光合作用" sessionId="s" questions={[questions[0] as (typeof questions)[0]]} />);
-    expect(apiMock.list).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: /光合作用/ }));
-    fireEvent.click(screen.getByText('确认作答'));
-    expect(apiMock.record).not.toHaveBeenCalled();
-    expect(screen.getByText(/刷新后需重新作答/)).toBeTruthy();
-    expect(screen.queryByText(/刷过/)).toBeNull();
-    unmount();
-
-    apiMock.list.mockResolvedValue({ quizId: 'q-2', rows: [] });
-    render(<QuizCard title="光合作用" sessionId="s" quizId="q-2" questions={[questions[0] as (typeof questions)[0]]} />);
-    fireEvent.click(screen.getByRole('button', { name: /光合作用/ }));
-    fireEvent.click(screen.getByText('确认作答'));
-    expect(screen.getByText(/对错已记在这组题上/)).toBeTruthy();
-    await waitFor(() => expect(apiMock.record).toHaveBeenCalledTimes(1));
-  });
+it('keeps unsaved text visible when persistence fails and offers a retry', async () => {
+  roundMocks.save.mockRejectedValue(new Error('连接中断，暂未同步'));
+  render(<QuizCard title="光" questions={[q]} />); await screen.findByRole('button', { name: /A.*需要/ });
+  fireEvent.click(screen.getByRole('button', { name: /我的思考/ })); const input = screen.getByRole('textbox', { name: '我的思考 / 评价' });
+  fireEvent.change(input, { target: { value: '不能丢失的思考' } });
+  await screen.findByText(/连接中断，暂未同步/); expect(input).toHaveProperty('value', '不能丢失的思考');
+  expect(screen.getByRole('button', { name: '重试保存 / 读取' })).toBeTruthy();
 });

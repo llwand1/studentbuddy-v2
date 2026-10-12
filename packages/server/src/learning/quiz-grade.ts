@@ -39,7 +39,7 @@ export function buildGradeMessages(req: GradeRequest) {
 
 export type GradeOutcome = { ok: true; result: GradeResult } | { ok: false; reason: string; error: string };
 
-export async function gradeAnswer(req: GradeRequest, ownerId: string | null, signal?: AbortSignal): Promise<GradeOutcome> {
+export async function gradeAnswer(req: GradeRequest, ownerId: string | null, signal?: AbortSignal, effects = true): Promise<GradeOutcome> {
   const r = await aiJson({
     purpose: 'quiz.grade',
     ownerId,
@@ -50,6 +50,12 @@ export async function gradeAnswer(req: GradeRequest, ownerId: string | null, sig
   });
   if (!r.ok) return { ok: false, reason: r.reason, error: r.error };
   const result = r.value;
+  if (effects) applyGradeEffects(req, result, ownerId);
+  return { ok: true, result };
+}
+
+/** Round workers persist the grade and apply these effects once, inside their recording transaction. */
+export function applyGradeEffects(req: GradeRequest, result: GradeResult, ownerId: string | null): void {
   const topic = (req.topic ?? '').slice(0, 80);
   if (result.misconception) {
     recordMisconception(ownerId, { termId: req.termId ?? null, topic, note: result.misconception });
@@ -65,5 +71,4 @@ export async function gradeAnswer(req: GradeRequest, ownerId: string | null, sig
     ...(req.termId ? { termId: req.termId } : {}),
     source: 'chat-quiz',
   });
-  return { ok: true, result };
 }

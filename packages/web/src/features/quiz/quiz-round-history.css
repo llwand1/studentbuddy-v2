@@ -1,0 +1,9 @@
+.quiz-history-backdrop { position: fixed; inset: 0; z-index: 100; background: #09070aee; display: grid; place-items: center; }
+.quiz-history-panel { box-sizing: border-box; width: min(760px, 100%); max-height: 100%; overflow-y: auto; background: #161116; border: 1px solid #775243; padding: 16px; color: #ebd9c4; }
+.quiz-history-panel > header { position: sticky; top: -16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: #161116; border-bottom: 1px solid #61433c; padding: 8px 0; z-index: 1; }
+.quiz-history-panel h3 { margin: 0; }
+.quiz-history-panel button { color: inherit; background: #261923; border: 1px solid #6d4841; padding: 6px 10px; cursor: pointer; font: inherit; }
+.quiz-history-panel > p { font-size: 12px; line-height: 1.6; }
+.quiz-history-entry { display: grid; text-align: left; width: 100%; gap: 5px; margin: 8px 0; }
+.quiz-history-entry span, .quiz-history-entry small { font-size: 11px; color: #ba9f91; }
+@media (max-width: 440px) { .quiz-history-panel { padding: 10px; } .quiz-history-panel > header { top: -10px; } .quiz-history-panel > header > div { display: flex; flex-direction: column; gap: 4px; } }

@@ -59,9 +59,12 @@ describe('复盘协议与生成', () => {
     expect(model.chat).toHaveBeenCalledTimes(2);
   });
   it('第一次失败、第二次有效时保留完整图文', async () => {
-    model.chat.mockImplementationOnce(async function* () { yield { content: '{}', done: true }; });
+    const invalid = JSON.stringify({ ...output, sections: [{ ...output.sections[0], svg: svg.replace("width='180'", "marker-end='url(#arrow)' width='180'") }] });
+    model.chat.mockImplementationOnce(async function* () { yield { content: invalid, done: true }; });
     expect(await generateExplanation(input, null, new AbortController().signal)).toEqual(output);
     expect(model.chat).toHaveBeenCalledTimes(2);
+    expect(model.chat.mock.calls[1]?.[0].messages[2].content).toBe(invalid);
+    expect(model.chat.mock.calls[1]?.[0].messages[3].content).toContain('url(#arrow)');
   });
   it('无模型与已取消都不启动生成', async () => {
     model.route.mockReturnValueOnce(null);

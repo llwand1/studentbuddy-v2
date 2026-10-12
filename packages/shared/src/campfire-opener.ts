@@ -11,6 +11,7 @@ export interface CampfireOpener {
   id: string;
   question: CampfireQuestion;
   scope: string;
+  material?: string;
   preparation?: import('./question-seeds.js').QuestionPreparation;
 }
 

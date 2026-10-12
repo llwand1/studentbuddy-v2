@@ -68,7 +68,7 @@ export async function generateCampfireOpener(ownerId: string | null, exclude: st
     if (signal.aborted) return { ok: false, status: 499, error: '召题已取消。' };
     if (!claimOpener(ownerId, r.value.question)) return { ok: false, status: 502, error: '这道题刚刚已经出现过，请重新召题。' };
     if (seed) markSeedUsed(ownerId, seed);
-    return { ok: true, value: { id, question: r.value, scope, ...(seed ? { preparation: preparation(seed, 'material') } : {}) } };
+    return { ok: true, value: { id, question: r.value, scope, ...(readingMaterial ? { material: readingMaterial.slice(0, 4000) } : {}), ...(seed ? { preparation: preparation(seed, 'material') } : {}) } };
   }
   const error = r.reason === 'no-model' ? '还没有可用的出题模型，请到设置里配置 AI。'
     : r.reason === 'timeout' ? '召题等得有点久，点一下重新试试。'

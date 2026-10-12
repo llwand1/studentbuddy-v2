@@ -1,7 +1,7 @@
 # StudentBuddy
 
 ![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
-![version](https://img.shields.io/badge/version-0.2.185-orange)
+![version](https://img.shields.io/badge/version-0.2.186-orange)
 
 **在暗黑像素冒险里学习：对话中理解，题目里练习，把学过的知识留下来。**
 
@@ -131,13 +131,13 @@ Windows 本地版把学习窗口和像素吉祥物带到桌面，学习数据留
 <summary>开发者信息</summary>
 
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![tests](https://img.shields.io/badge/tests-423%20files%20%2F%204682%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-204-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-288%20types-8a63f6)
+![tests](https://img.shields.io/badge/tests-427%20files%20%2F%204695%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-213-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-296%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-8-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
-当前测试基线 **423 文件 / 4682 例**。Windows 安装包见[桌面更新通道](https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-stable)；在线体验**已上线到 v0.2.185**。
+当前测试基线 **427 文件 / 4695 例**。Windows 安装包见[桌面更新通道](https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-stable)；在线体验**已上线到 v0.2.185**。
 
 代码结构、开发约定与复验方式见 [工程文档](docs/ENGINEERING.md)。
 

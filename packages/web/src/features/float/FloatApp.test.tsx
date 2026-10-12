@@ -3,6 +3,9 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { DesktopStudyState } from '@sb/shared';
 import { StudyClock } from '../../../../server/src/desktop/study-clock';
+import { resetRoundMocks } from '../quiz/quiz-round.testkit';
+vi.mock('../../lib/api-quiz-rounds', async () => ({ quizRoundsApi: (await import('../quiz/quiz-round.testkit')).roundMocks }));
+vi.mock('../../lib/api-quiz-attempts', async () => ({ quizAttemptsApi: (await import('../quiz/quiz-round.testkit')).attemptMocks }));
 const host = vi.hoisted(() => ({ handlers: [] as Array<(event: { data: string }) => void>, sent: [] as string[] }));
 const server = vi.hoisted(() => ({ clock: null as StudyClock | null }));
 vi.mock('../../app/App', () => ({ App: () => <div>APP_MUST_NOT_OPEN</div> }));
@@ -15,6 +18,7 @@ vi.mock('../desktop/desktop-api', () => ({ desktopApi: {
 const { FloatApp } = await import('./FloatApp');
 afterEach(() => { cleanup(); vi.useRealTimers(); delete (window as unknown as { chrome?: unknown }).chrome; host.handlers = []; host.sent = []; });
 it('native background ticks deliver a timed question without mounting App, then return to the mascot after answering', async () => {
+  resetRoundMocks(); localStorage.clear();
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-11T05:00:00Z'));
   (window as unknown as { chrome: unknown }).chrome = { webview: {
     postMessage: (value: string) => host.sent.push(value),
@@ -31,7 +35,8 @@ it('native background ticks deliver a timed question without mounting App, then 
   expect(screen.queryByText('APP_MUST_NOT_OPEN')).toBeNull(); expect(screen.getByText('2 加 3 是多少？')).toBeTruthy();
   expect(host.sent).toContain('sb-float:quiz');
   fireEvent.click(screen.getByRole('button', { name: /B\s*5/ }));
-  expect(screen.getByText('答对了 · 火花点亮！')).toBeTruthy();
+  await act(async () => { fireEvent.click(screen.getByText('提交整组答案 · 逐题分析')); });
+  expect(screen.getByText('✓ 答案吻合')).toBeTruthy();
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: /完成/ })); });
   expect(document.documentElement.dataset.float).toBe('ball'); expect(host.sent).toContain('sb-float:collapse');
   expect(screen.getByRole('button', { name: /打开 StudentBuddy/ }).dataset.mood).toBe('celebrate');

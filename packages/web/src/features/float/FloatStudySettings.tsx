@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import type { DesktopStudySettings, DesktopStudyState } from '@sb/shared';
 import { BrowserControls } from '../desktop/BrowserControls';
+import { QuizRoundHistoryPanel } from '../quiz/QuizRoundHistory';
+import { QuizCard } from '../quiz/QuizCard';
 export function FloatStudySettings({ state, onSave }: { state: DesktopStudyState | null; onSave: (s: DesktopStudySettings) => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [history, setHistory] = useState(false);
   const save = (settings: DesktopStudySettings) => {
     setBusy(true); setError('');
     void onSave(settings).catch(e => setError(e instanceof Error ? e.message : '保存失败，请重试')).finally(() => setBusy(false));
@@ -19,5 +22,6 @@ export function FloatStudySettings({ state, onSave }: { state: DesktopStudyState
         <option value="learning">当前学习方向／应试范围</option><option value="browser">正在共读的网页</option></select></label>
       <p className="desktop-timer-status" aria-live="polite">{state.awaiting ? '还有一道待做题，返回后可继续' : !state.settings.enabled ? '自动出题已关闭' : state.error || (state.nextAt ? `下次约 ${new Date(state.nextAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '正在备题')}{state.preparing ? ' · 正在提前备题' : ''}</p></> : <p>正在连接本机服务…</p>}
     {error && <p role="alert" className="desktop-error">{error}</p>}
-  </section><BrowserControls /></div>;
+    <button type="button" className="quiz-gen-btn" onClick={() => setHistory(true)}>最近作答记录</button>
+  </section><BrowserControls />{history && <QuizRoundHistoryPanel onClose={() => setHistory(false)} renderRound={id => <QuizCard key={id} recordId={id} title="历史作答" questions={[]} compact />} />}</div>;
 }

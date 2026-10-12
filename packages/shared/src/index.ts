@@ -67,3 +67,4 @@ export * from './agent-terms.js';
 export * from './reply-practice.js';
 export * from './question-seeds.js';
 export * from './desktop-study.js';
+export * from './quiz-rounds.js';

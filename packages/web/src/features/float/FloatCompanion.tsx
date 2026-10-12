@@ -30,15 +30,15 @@ export function CompanionArt({ mood, hovered = false, gaze = 0, native = false, 
     : ['preparing', 'waiting', 'offline', 'retry'].includes(mood) ? 'thinking' : 'calm';
   return <svg className="sb-companion-art mascot-px" data-mood={mood} data-school={paint.school} viewBox="0 0 64 64" shapeRendering="crispEdges" aria-hidden="true">
     <g className="sb-companion-shadow">{paint.halo.map(([x, y, width, height], i) => <rect key={i} x={x} y={y} width={width} height={height} />)}</g>
+    <g className="sb-companion-circle">{paint.circle.map(([x, y, width, height], i) => <rect key={i} x={x} y={y} width={width} height={height} />)}</g>
     <g className="sb-companion-sigil">{paint.sigil.map(([x, y, width, height], i) => <rect key={i} x={x} y={y} width={width} height={height} />)}</g>
     <g className="sb-companion-particles">{paint.particles.map((p, i) => <g key={i} className={'sb-companion-' + p.tone}>
       {p.rects.map(([x, y, width, height], j) => <rect key={j} x={x} y={y} width={width} height={height} />)}
     </g>)}</g>
     <g transform={'translate(' + paint.x + ' ' + paint.y + ') scale(2)'}><MascotArt expression={expression} gaze={gaze} /></g>
-    {(mood === 'reading' || mood === 'selecting' || mood === 'retrieving') && <g className="sb-companion-book">
-      <rect x={27} y={41 + paint.y - 16} width={4} height={1} /><rect x={33} y={41 + paint.y - 16} width={4} height={1} />
-      <rect x={31} y={42 + paint.y - 16} width={2} height={1} />
-    </g>}
+    <g className="sb-companion-book" data-open={paint.bookOpen}>{paint.book.map((p, i) => <g key={i} className={'sb-companion-book-' + p.tone}>
+      {p.rects.map(([x, y, width, height], j) => <rect key={j} x={x} y={y} width={width} height={height} />)}
+    </g>)}</g>
   </svg>;
 }
 
@@ -58,7 +58,7 @@ export function FloatCompanion({ mood, onOpen, onSettings }: { mood: CompanionMo
   useEffect(() => onHostMessage(message => {
     if (message === HOST_TAP) onOpen();
     else if (message === HOST_MOTION_START) setDragging(true);
-    else if (message === HOST_MOTION_END) { setDragging(false); setSpell('soul'); setPlayUntil(Date.now() + 2200); }
+    else if (message === HOST_MOTION_END) { setDragging(false); setSpell('ember'); setPlayUntil(Date.now() + 2200); }
   }), [onOpen]);
   const play = () => { setSpell((['hex', 'rift', 'ember', 'soul'] as const)[castCounter.current++ % 4] ?? 'hex'); setPlayUntil(Date.now() + 2200); };
   const visibleMood = dragging ? 'dragging' : playing ? 'play' : mood;

@@ -48,18 +48,18 @@ internal sealed class CompanionTrailState
         {
             double age = Math.Max(0, Math.Min(1, (now - stamp.Time) / LifeMs));
             int drift = (int)Math.Round(age * 18 * scale);
-            int x = stamp.Center.X, y = stamp.Center.Y - drift;
-            int size = Math.Max(1, (int)Math.Round((5 - age * 3) * scale));
-            AddPixel(frame, x - size, y - size / 2, size * 2, size, Fade(42, 28, 59, age));
-            AddPixel(frame, x - size / 2, y, size, Math.Max(1, size / 2), Fade(62, 223, 190, age));
-            int spark = Math.Max(1, (int)Math.Round(2 * scale));
-            int side = (int)Math.Round(Math.Sin(stamp.Seed * 2.3) * (8 + age * 9) * scale);
-            AddPixel(frame, x + side, y - size * 2, spark, spark, Fade(255, 203, 137, age));
-            if (stamp.Seed % 4 == 0)
+            int flicker = (int)Math.Round(Math.Sin(now / 65 + stamp.Seed * 1.9) * 2 * scale);
+            int x = stamp.Center.X + flicker, y = stamp.Center.Y - drift;
+            int width = Math.Max(1, (int)Math.Round((3 - age * 1.5) * scale));
+            int height = Math.Max(2, (int)Math.Round((5 - age * 2) * scale));
+            int unit = Math.Max(1, (int)Math.Round(scale));
+            AddPixel(frame, x - unit, y - unit, width + 2 * unit, height + 2 * unit, Fade(84, 36, 45, age));
+            AddPixel(frame, x, y, width, height, Fade(237, 121, 80, age));
+            AddPixel(frame, x + width / 2, y - height / 2, unit, height, Fade(255, 173, 82, age));
+            if (stamp.Seed % 3 == 0)
             {
-                int arm = Math.Max(2, (int)Math.Round((4 - age * 2) * scale));
-                AddPixel(frame, x - side, y + size, spark, arm * 2, Fade(178, 135, 244, age));
-                AddPixel(frame, x - side - arm, y + size + arm, arm * 2 + spark, spark, Fade(178, 135, 244, age));
+                int side = (int)Math.Round(Math.Sin(stamp.Seed * 2.3) * (5 + age * 6) * scale);
+                AddPixel(frame, x + side, y - height * 2, unit, unit, Fade(255, 224, 163, age));
             }
         }
         if (stamps.Count > 0)

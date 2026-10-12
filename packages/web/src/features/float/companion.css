@@ -25,7 +25,13 @@
 .sb-companion-shadow { fill: var(--comp-shadow); }
 .sb-companion-sigil { fill: var(--comp-rune); animation: sb-companion-pulse 900ms steps(3) infinite; }
 .sb-companion-dust { fill: var(--comp-dust); }
-.sb-companion-star, .sb-companion-book { fill: var(--comp-star); }
+.sb-companion-star { fill: var(--comp-star); }
+.sb-companion-circle { fill: var(--comp-star); }
+.sb-companion-book-cover { fill: #3b1728; }
+.sb-companion-book-page { fill: #f4dfb7; }
+.sb-companion-book-spine { fill: #a67a48; }
+.sb-companion-book-ink { fill: #9f3847; }
+.sb-companion-book-clasp { fill: #e6b868; }
 .sb-companion-rune { fill: var(--comp-rune); }
 .sb-companion-secondary { fill: var(--comp-secondary); }
 .sb-companion-star { animation: sb-companion-twinkle 700ms steps(3) infinite; }

@@ -51,6 +51,24 @@ JavaScript 闭包入门示例：提交答案与思考后，查看分析并评价
 
 资料与回答对照阅读，划选不理解的段落继续追问，再围绕当前材料出题或收入词条。[功能说明](docs/FEATURES.md) · [演示来源记录](docs/images/learning-feedback-evidence.json)
 
+### 学习偏好如何生效
+
+StudentBuddy 更新的是你的学习状态，不是训练或改写模型本身。已有跨会话画像、明确回答风格、常学领域、未解决误区、难度调节、FSRS 复习与题目评价链路；这些记录会进入后续讲解、练习或复习安排。难度估计至少需要 8 条有效作答，FSRS 个人缩放拟合至少需要 30 条有效复习样本，之后每新增 20 条再拟合。
+
+短对话不一定马上沉淀长期画像；累计兴趣不等于近期兴趣。当前尚无完整的冲突记忆修订、学习计划自动改写或在线效果对照。[个性化现况与视频学习契约](docs/BILIBILI-COMPANION-SPEC.md)。
+
+### 桌面学习来信与视频练习
+
+新版定时出题先由吉祥物在旁边发出邀请：「某考点的小题出好了，快来挑战一下吧！」点击「挑战一下」才展开题卡；也可延后两分钟。中文逐字显现、像素字符符文和表情随备题、待挑战、答对或答错变化；减少动态效果时保持完整静态文案。自动出题仍默认关闭，不抢焦点、不堆题。
+
+![实际 React 吉祥物与 Windows 原生邀请：隔离组件动画演示](docs/images/desktop-companion-invite.gif)
+
+上图与下图来自实际组件，视频候选、材料和模型输出使用隔离预置数据；不包含个人学习内容。[演示来源记录](docs/images/bilibili-companion-evidence.json)。
+
+B站学习插件在设置中显式启用，点击即可在指定浏览器打开 B站，无需 Token。AI 可按你的学习方向推荐真实视频与资料，选择视频后从实际简介、同视频共读划选或你提交的字幕/笔记出题，并推荐其他相关视频。没有讲解文字时会要求补充材料，不把标题当成“已经看完视频”；此版不是账号授权，也不读取观看历史或自动转录整段音视频。桌面出题范围可选「B站学习视频」。
+
+![B站学习插件：学习方向、实际材料和相关资源入口；隔离演示数据](docs/images/bilibili-learning.png)
+
 Windows 本地版把学习窗口和像素吉祥物带到桌面，学习数据留在自己的电脑上。新版会后台检查并准备更新，校验完成后提示重启；0.2.0 及更早版本需要先手动安装一次带更新器的新版。
 
 本地桌面构建新增引路灯旁的「☷ 任务中心」：独立查看任务、一级子 Agent、逐题分析和后台队列。电脑文件按需只读，工作区可读写文本，敏感文件逐次许可；任务和工作区设置保存在本机。机制与访问范围见 [桌面 Agent 与工作区说明](docs/DESKTOP-AGENT-WORKSPACE-SPEC.md)。
@@ -185,13 +203,13 @@ Windows 本地版把学习窗口和像素吉祥物带到桌面，学习数据留
 <summary>开发者信息</summary>
 
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![tests](https://img.shields.io/badge/tests-460%20files%20%2F%204873%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-240-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-310%20types-8a63f6)
+![tests](https://img.shields.io/badge/tests-463%20files%20%2F%204894%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-244-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-314%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-8-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
-当前测试基线 **460 文件 / 4873 例**。Windows 安装包见[桌面更新通道](https://github.com/llwand1/xuelian-agent/releases/tag/desktop-stable)；在线体验**已上线到 v0.2.186**。
+当前测试基线 **463 文件 / 4894 例**。Windows 安装包见[桌面更新通道](https://github.com/llwand1/xuelian-agent/releases/tag/desktop-stable)；在线体验**已上线到 v0.2.186**。
 
 代码结构、开发约定与复验方式见 [工程文档](docs/ENGINEERING.md)。
 

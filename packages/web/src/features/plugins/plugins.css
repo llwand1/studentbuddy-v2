@@ -24,3 +24,17 @@
 .plugin-repo-picker { max-height: 220px; overflow-y: auto; display: grid; gap: 8px; margin-block: 12px; }
 .plugin-repo-picker label { display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
 .plugin-repo-picker input { width: auto; }
+.bilibili-learning label { display: grid; gap: 6px; margin: 12px 0; }
+.bilibili-learning input, .bilibili-learning textarea { box-sizing: border-box; width: 100%; background: var(--sb-surface); color: var(--sb-text); border: 1px solid var(--sb-border); padding: 8px; }
+.bilibili-learning ul { padding-left: 20px; }
+.bilibili-learning li { margin: 10px 0; overflow-wrap: anywhere; }
+.bilibili-description { max-height: 140px; overflow: auto; white-space: pre-wrap; }
+.bilibili-learning { padding: 18px; border-radius: 10px; }
+.bilibili-learning header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.bilibili-learning header span { color: var(--sb-gold); font-size: var(--sb-fs-sm); }
+.bilibili-learning button { display: inline-block; border: 1px solid var(--sb-gold-edge); border-radius: 6px; background: var(--sb-surface); color: var(--sb-text); padding: 7px 12px; margin: 4px 4px 4px 0; font: inherit; font-size: var(--sb-fs-sm); cursor: pointer; }
+.bilibili-learning button:hover:not(:disabled) { background: var(--sb-pixel-gold); border-color: var(--sb-gold); }
+.bilibili-learning button:disabled { opacity: .5; cursor: not-allowed; }
+.bilibili-learning section { border-top: 1px solid var(--sb-border); padding-top: 12px; margin-top: 14px; }
+.bilibili-learning small { display: block; color: var(--sb-text-secondary); margin: 8px 0; }
+.bilibili-learning a { color: var(--sb-gold); }

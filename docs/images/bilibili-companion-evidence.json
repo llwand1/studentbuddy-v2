@@ -1,0 +1,27 @@
+{
+  "kind": "actual-component-preview",
+  "data": "isolated predefined video and model fixtures; no personal data",
+  "native": "Windows Form DrawToBitmap at an offscreen non-activating location; real invitation class and buttons",
+  "web": "actual React companion and BilibiliLearningCard",
+  "frames": 44,
+  "durationMsPerFrame": 125,
+  "sourceNormalization": "UTF-8 with LF newlines",
+  "sourcesSha256": {
+    "packages/web/src/features/float/FloatCompanion.tsx": "8861932dd466ea6c84975e3a3ec21b1442483f6ec4639cc77eebf3da102891db",
+    "packages/web/src/features/float/companion-view.ts": "48a111523af63debd5716f8e207abe33975cc4851397ad9d7f997c5913def4d8",
+    "packages/web/src/features/float/companion-glyphs.ts": "ddbecd6c032b3fb8b46671081d123c49b259c9c44da46a0af837059e28f8ca68",
+    "packages/web/src/features/float/companion.css": "2b7e32c2fdb0fe34e473be1ad87ba7ac434e8439848c932aedf38ff32372c99c",
+    "packages/web/src/features/plugins/BilibiliLearningCard.tsx": "35e74e08bd3eaee660ae84ca6a557f804316e607f2577ce57660418dd3e4866d",
+    "packages/web/src/features/plugins/plugins.css": "a9e6b013c1b52d138ca209f4cc890fdc36c2ef38471a52efb0797d68a9ee0be5",
+    "packages/web/src/features/desktop/BrowserPicker.tsx": "e0f132ea746aaa0366d2925beb855c24e2f89f68cae59c90d4f056c8739191e9",
+    "tools/desktop/DesktopStudyInvite.cs": "e686821970ec44a6ca8df1e388bd401e5af4236177d47bbd56604f9b170ba64b",
+    "tools/desktop/StudyInviteSmoke.cs": "1639119e114956b4a49af0af0209daf86f65d19b7de5c4e27077232007986b4e",
+    "tools/probes/bilibili-companion-demo.tsx": "d1a08a209673a9c316245af60d58d6dc31f050bc4cd146bc5340f6dc1cd896df",
+    "tools/probes/bilibili-companion-demo.mjs": "371a5d06b03653f67b55d67f6027602de1a61f29586a9a3d5eac8baffc01ebbc"
+  },
+  "assetsSha256": {
+    "docs/images/desktop-companion-invite.png": "1e133ee16419872dd9ffff2614b298093e39041ab32ed083a434d55f7c66c396",
+    "docs/images/desktop-companion-invite.gif": "5e61ce8e17768eb7a971b8b2d5c1b873f0e8e539f83c9743a8852a6370edb08f",
+    "docs/images/bilibili-learning.png": "5d6ebe569a1f7a683046e82354f54b3cfc11386665d16487ef045101ea4024e0"
+  }
+}

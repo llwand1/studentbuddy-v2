@@ -32,7 +32,7 @@ export function GithubQuickConnect({plugin, onChange}: {plugin:PluginView; onCha
     <header className="plugin-head"><h4>GitHub <span className="settings-tag">内置 · 只读工具</span></h4>
       <span className="settings-state">{state.status==='connected'?`${state.login} · ${plugin.enabled?'已启用':'请选择仓库'}`:state.status==='authorizing'?'等待浏览器授权':plugin.authMode==='token'&&plugin.enabled?'Token 已启用':'未连接'}</span></header>
     <p className="settings-hint">点击连接 → 在浏览器授权 → 勾选仓库即可开始。无需复制 Token、服务地址或 JSON。</p>
-    {native && <BrowserPicker />}
+    {native && <BrowserPicker readerSetupHint={false} />}
     <p className="settings-hint">StudentBuddy 只提供读取工具，并限定勾选仓库。GitHub 授权页面的 repo 权限可能包含写权限，但这些写工具不会开放给 AI。浏览器登录仅存内存，退出应用后需重新连接。</p>
     {native ? <div className="plugin-actions">
       {state.status!=='connected'&&state.status!=='authorizing'&&<button className="settings-add" disabled={busy} onClick={()=>void run(async()=>{setChoices([]);setState(await pluginApi.githubConnect());})}>连接 GitHub（打开浏览器）</button>}

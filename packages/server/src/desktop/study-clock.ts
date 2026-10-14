@@ -25,8 +25,9 @@ export class StudyClock {
       const changed = this.source !== '';
       this.cancel(); this.question = null; this.retryAt = changed ? this.now() + 15_000 : 0; this.source = source;
     }
-    if (this.settings.scope === 'browser' && !source && !this.awaiting) {
-      this.cancel(); this.question = null; this.error = '等待你在浏览器选择一个共读网页'; return this.state();
+    if (this.settings.scope !== 'learning' && !source && !this.awaiting) {
+      this.cancel(); this.question = null; this.error = this.settings.scope === 'bilibili'
+        ? '等待你启用 B站学习并选择有字幕 / 笔记的学习视频' : '等待你在浏览器选择一个共读网页'; return this.state();
     }
     if (!this.awaiting && !this.question && !this.controller && this.now() >= this.retryAt) this.prepare();
     if (this.question && !this.awaiting && this.now() >= (this.nextAt ?? Infinity)) {

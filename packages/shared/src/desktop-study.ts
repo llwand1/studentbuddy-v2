@@ -4,7 +4,7 @@ import type { CampfireOpener } from './campfire-opener.js';
 export interface DesktopStudySettings {
   enabled: boolean;
   intervalMinutes: number;
-  scope: 'learning' | 'browser';
+  scope: 'learning' | 'browser' | 'bilibili';
 }
 export const DEFAULT_DESKTOP_STUDY: DesktopStudySettings = { enabled: false, intervalMinutes: 3, scope: 'learning' };
 export function parseDesktopStudySettings(value: unknown): DesktopStudySettings | null {
@@ -12,7 +12,7 @@ export function parseDesktopStudySettings(value: unknown): DesktopStudySettings 
   const v = value as Record<string, unknown>;
   if (typeof v.enabled !== 'boolean' || !Number.isInteger(v.intervalMinutes) ||
       (v.intervalMinutes as number) < 1 || (v.intervalMinutes as number) > 60 ||
-      (v.scope !== 'learning' && v.scope !== 'browser')) return null;
+      (v.scope !== 'learning' && v.scope !== 'browser' && v.scope !== 'bilibili')) return null;
   return { enabled: v.enabled, intervalMinutes: v.intervalMinutes as number, scope: v.scope };
 }
 export interface BrowserPageSnapshot {

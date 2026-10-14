@@ -1,0 +1,11 @@
+.sb-companion-invitation { position: fixed; z-index: 5; top: calc(50% + 38px); left: max(8px, calc(50% - 146px)); width: min(292px, calc(100vw - 16px)); box-sizing: border-box; border: 2px solid var(--sb-gold, #d5b276); border-radius: 14px; background: var(--sb-surface, #201623); color: var(--sb-text, #f1e5c8); padding: 16px; box-shadow: 0 5px 24px #160a2070; }
+.sb-companion-invitation small { color: var(--sb-gold, #d5b276); }
+.sb-companion-invitation p { line-height: 1.75; min-height: 3.5em; margin: 10px 0; }
+.sb-companion-invitation button { background: var(--sb-surface-2, #362432); color: var(--sb-text, #f1e5c8); border: 1px solid var(--sb-gold, #d5b276); border-radius: 6px; padding: 8px 12px; cursor: pointer; margin-right: 8px; }
+.sb-invite-runes { float: right; color: var(--sb-gold, #d5b276); animation: sb-invite-rune 1.8s steps(4) infinite; }
+.sb-invite-char { animation: sb-invite-letter .65s both; }
+.sb-invite-phase-1 { animation-delay: .04s; }.sb-invite-phase-2 { animation-delay: .08s; }.sb-invite-phase-3 { animation-delay: .12s; }.sb-invite-phase-4 { animation-delay: .16s; }.sb-invite-phase-5 { animation-delay: .2s; }.sb-invite-phase-6 { animation-delay: .24s; }.sb-invite-phase-7 { animation-delay: .28s; }.sb-invite-phase-8 { animation-delay: .32s; }.sb-invite-phase-9 { animation-delay: .36s; }.sb-invite-phase-10 { animation-delay: .4s; }.sb-invite-phase-11 { animation-delay: .44s; }.sb-invite-phase-12 { animation-delay: .48s; }.sb-invite-phase-13 { animation-delay: .52s; }.sb-invite-phase-14 { animation-delay: .56s; }.sb-invite-phase-15 { animation-delay: .6s; }
+.sb-invite-readable { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+@keyframes sb-invite-letter { from { opacity: 0; text-shadow: 0 0 10px #e8c0ff; } to { opacity: 1; text-shadow: none; } }
+@keyframes sb-invite-rune { 50% { opacity: .55; text-shadow: 0 0 5px #d5b276; } }
+@media (prefers-reduced-motion: reduce) { .sb-companion-invitation * { animation: none; } }

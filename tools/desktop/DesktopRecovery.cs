@@ -216,6 +216,7 @@ internal static partial class Launcher
     }
     private static void ScheduleViewRecovery(Form form, bool ball)
     {
+        if (ball) CloseStudyInvite();
         if (Exiting || form.IsDisposed || PendingViews.ContainsKey(form)) return;
         int failures; ViewFailures.TryGetValue(form, out failures);
         ViewFailures[form] = ++failures;

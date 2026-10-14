@@ -2,8 +2,10 @@ import { Router, type Request, type Response, type RequestHandler } from 'expres
 import { asyncHandler } from '../http/async-handler.js';
 import { objectValue } from '@sb/shared';
 import { ownerIdOf } from '../auth/ownership.js';
-import { deletePlugin, disconnectPlugin, importPlugin, listPlugins, pluginCalls, updatePlugin } from '../plugins/store.js';
-import { testPlugin } from '../plugins/runtime.js';
+import { connection, deletePlugin, disconnectPlugin, importPlugin, listPlugins, pluginCalls, updatePlugin } from '../plugins/store.js';
+import { invokePlugin, testPlugin } from '../plugins/runtime.js';
+import { loadBilibiliVideo, parseVideoNotes, saveBilibiliVideo, videoAddress } from '../plugins/bilibili-material.js';
+import { openBilibiliBrowser } from '../desktop/browser-launch.js';
 import { desktopGuard } from './desktop.js';
 import { githubLoginState, startGithubLogin, stopGithubLogin, githubRepositoryChoices, selectGithubRepositories } from '../plugins/github-login.js';
 export const pluginsRouter = Router();
@@ -33,6 +35,25 @@ pluginsRouter.post('/github/repositories', desktopGuard, handle(async(req,res)=>
 pluginsRouter.post('/github/select', desktopGuard, handle((req,res)=>{
   const args=objectValue(req.body as unknown); if (typeof args.id !== 'string') throw new Error('登录标识不正确');
   res.json(selectGithubRepositories(ownerIdOf(req),args.id,args.repositories));
+}));
+pluginsRouter.get('/bilibili/learning',handle((req,res)=>res.json({video:loadBilibiliVideo(ownerIdOf(req))})));
+pluginsRouter.post('/bilibili/notes',handle((req,res)=>{
+  const owner=ownerIdOf(req), input=objectValue(req.body as unknown), video=loadBilibiliVideo(owner);
+  if(typeof input.notes!=='string')throw new Error('请提交字幕 / 笔记文本，清空时显式提交空字符串');
+  if (!connection(owner,'bilibili').enabled || !video || videoAddress(input.url,owner).bvid!==video.bvid) throw new Error('视频未启用或已切换，请重新选择');
+  const updated={...video,notes:parseVideoNotes(input.notes),selectedAt:Date.now()};
+  saveBilibiliVideo(owner,updated);res.json(updated);
+}));
+pluginsRouter.post('/bilibili/open',desktopGuard,handle(async(req,res)=>{await openBilibiliBrowser(ownerIdOf(req));res.json({ok:true});}));
+pluginsRouter.post('/bilibili/use',handle(async(req,res)=>{
+  const input=objectValue(req.body as unknown);
+  if (typeof input.tool !== 'string') throw new Error('请指定 B站学习工具');
+  const controller=new AbortController(), cancel=()=>{if(!res.writableEnded)controller.abort();};
+  res.on('close',cancel);
+  try {
+    const result=await invokePlugin('bilibili',input.tool,input.arguments,{ownerId:ownerIdOf(req),signal:controller.signal,onStep:()=>{}});
+    res.json(JSON.parse(result.content.slice(result.content.indexOf('\n')+1)) as unknown);
+  } finally {res.off('close',cancel);}
 }));
 pluginsRouter.put('/:id',handle((req,res)=>res.json(updatePlugin(ownerIdOf(req),req.params.id!,objectValue(req.body as unknown)))));
 pluginsRouter.post('/:id/test',handle(async(req,res)=>{

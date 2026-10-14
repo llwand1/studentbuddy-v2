@@ -55,3 +55,11 @@ it('waits for fifteen seconds of stable page content instead of repeatedly calli
   now = 28999; clock.tick(true); expect(generate).toHaveBeenCalledTimes(1);
   now = 29000; clock.tick(true); expect(generate).toHaveBeenCalledTimes(2);
 });
+it('waits for an eligible selected video and invalidates a prepared question when its notes change',async()=>{
+  let now=0,source='';const generate=vi.fn(async()=>question);
+  const clock=new StudyClock({...settings,scope:'bilibili'},generate,()=>source,()=>now);
+  expect(clock.tick(true).error).toContain('B站');expect(generate).not.toHaveBeenCalled();
+  source='video-1:notes-1';clock.tick(true);await settle();source='video-1:notes-2';now=180000;
+  expect(clock.tick(true).awaiting).toBe(false);now+=15000;clock.tick(true);await settle();
+  expect(generate).toHaveBeenCalledTimes(2);expect(clock.tick(true).awaiting).toBe(true);
+});

@@ -70,3 +70,4 @@ export * from './question-seeds.js';
 export * from './desktop-study.js';
 export * from './quiz-rounds.js';
 export * from './plugin-ecosystem.js';
+export * from './bilibili-study.js';

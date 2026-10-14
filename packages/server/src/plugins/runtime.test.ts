@@ -99,7 +99,7 @@ it('imports extensibly without code changes, denies overwrite and enforces one-c
     if(frame?.type==='tool-confirm-request') requestId=frame.requestId;
   });
   resolveConfirmation(requestId,'allow_once');await allowed;expect(stub.calls).toHaveLength(1);
-  deletePlugin('alice','custom-reader');expect(listPlugins('alice')).toHaveLength(1);
+  deletePlugin('alice','custom-reader');expect(listPlugins('alice').map(p=>p.manifest.id)).toEqual(['github','bilibili']);
 });
 it('advertises only owner-enabled capabilities and returns one bounded schema on demand',async()=>{
   expect(pluginChatDefinitions('alice')).toEqual([]);await configured();

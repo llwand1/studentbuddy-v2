@@ -10,6 +10,8 @@ import { claimOpener, openerAlreadySeen } from './opener-history.js';
 import { checkCampfireQuestion } from './opener-check.js';
 import { selectSeed, seedBlock, preparation, markSeedUsed } from './question-seeds.js';
 import { compileSeed } from './question-seed-compile.js';
+import { buildLearnerQuizBlock } from './learner-model.js';
+import { buildDifficultyBlock } from './adaptive-quiz.js';
 
 export type OpenerResult = { ok: true; value: CampfireOpener } | { ok: false; status: number; error: string };
 
@@ -36,6 +38,7 @@ export async function generateCampfireOpener(ownerId: string | null, exclude: st
     '优先遵守下面的当前学习方向和应试范围；未指定具体学科时，在允许范围内自行选择一个具体常见考点。不追问用户、不引用上一次题目、不冒充真题或联网搜到的题。',
     readingMaterial ? '本题仅围绕下面共读材料中的核心概念、当前划选或视野出题；题干必须带齐所需条件，脱离网页也能独立作答。不要转回其他学科或虚构材料事实。' : buildExamPromptBlock(ownerId),
     readingMaterial || buildFocusBlock(focus),
+    buildLearnerQuizBlock(ownerId), buildDifficultyBlock(ownerId),
     seedBlock(seed),
     readingMaterial ? '从当前共读网页提炼一道简短单选题。' : scope ? `当前应试范围：${scope}。选这个范围内适合热身的基础考点。` : '没有指定学科时，任选一个数学、英语、计算机或学习方法的基础考点。',
     '仅回 JSON：{"topic":"具体考点","question":"题干","options":["选项","选项","选项"],"answer":0,"explanation":"解析"}。answer 为正确选项的从 0 开始的整数下标。',

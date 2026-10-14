@@ -4,6 +4,9 @@ import { ownerForWrite } from '../auth/ownership.js';
 import { generateCampfireOpener } from '../learning/campfire-opener.js';
 import { browserStore } from './browser-store.js';
 import { StudyClock } from './study-clock.js';
+import { createHash } from 'node:crypto';
+import { connection } from '../plugins/store.js';
+import { bilibiliMaterial, loadBilibiliVideo } from '../plugins/bilibili-material.js';
 const KEY = 'desktop.study';
 const clocks = new Map<string, StudyClock>();
 function load(owner: string | null): DesktopStudySettings {
@@ -16,14 +19,22 @@ export function studyClock(owner: string | null): StudyClock {
   if (clock) return clock;
   const settings = load(owner);
   clock = new StudyClock(settings, async (exclude, signal) => {
-    const browser = studyClock(owner).state().settings.scope === 'browser';
-    const material = browser ? browserStore.block(owner, null, '围绕当前阅读考查一个核心概念') : '';
+    const scope = studyClock(owner).state().settings.scope, browser = scope === 'browser';
+    const video = scope === 'bilibili' && connection(owner,'bilibili').enabled ? loadBilibiliVideo(owner) : null;
+    const material = video ? bilibiliMaterial(owner,video).text : browser ? browserStore.block(owner, null, '围绕当前阅读考查一个核心概念') : '';
     if (browser && !material) throw new Error('网页共读已断开，等待重新同步');
+    if (scope === 'bilibili' && !video) throw new Error('请先启用 B站学习并选择视频');
     const result = await generateCampfireOpener(owner, exclude, signal, material, 'desktop.study');
     if (!result.ok) throw new Error(result.error);
-    return result.value;
+    return video ? {...result.value,scope:video.title+' · 视频学习材料'} : result.value;
   }, () => {
-    if (studyClock(owner).state().settings.scope !== 'browser') return 'learning';
+    const scope=studyClock(owner).state().settings.scope;
+    if (scope==='bilibili') {
+      const video=connection(owner,'bilibili').enabled?loadBilibiliVideo(owner):null;
+      if (!video) return '';
+      try {return video.bvid+':'+video.selectedAt+':'+createHash('sha256').update(bilibiliMaterial(owner,video).text).digest('hex');} catch {return '';}
+    }
+    if (scope !== 'browser') return 'learning';
     const page = browserStore.state(owner);
     return page?.connected && page.chars > 0 ? `${page.sessionId}:${page.url}:${page.contentRevision}` : '';
   });

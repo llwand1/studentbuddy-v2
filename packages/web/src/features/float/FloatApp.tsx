@@ -14,6 +14,7 @@ import { companionMood, type CompanionMood } from './companion-view';
 import '../desktop/desktop-study.css';
 import { watchDesktopInput } from '../desktop/desktop-input';
 import { RESTORE_LATEST } from '../chat/useScrollAnchor';
+import { CompanionInvitation, HOST_CHALLENGE, HOST_SNOOZE, HOST_INVITE } from './CompanionInvitation';
 
 export function FloatApp() {
   const [mode, setMode] = useState<'ball' | 'screen' | 'quiz' | 'settings'>(() => {
@@ -39,16 +40,23 @@ export function FloatApp() {
   const settings = useCallback(() => { postToHost('sb-float:settings'); setMode('settings'); }, []);
   useEffect(() => watchDesktopInput(value => { if (value.focus || value.capture || value.error) expand(); }), [expand]);
   useEffect(() => onHostMessage(message => { if (message === 'sb-float:open-settings') settings(); }), [settings]);
-  useEffect(() => {
-    if (mode === 'ball' && study.state?.awaiting && study.state.question) {
-      postToHost('sb-float:quiz'); setMode('quiz');
-    }
-  }, [mode, study.state]);
+  const challenge = useCallback(() => {
+    if (mode !== 'ball' || !study.state?.awaiting || !study.state.question) return;
+    postToHost('sb-float:quiz'); setMode('quiz');
+  }, [mode,study.state?.awaiting,study.state?.question]);
   const finish = async (action: 'done' | 'skip' | 'snooze') => {
     setActionError(''); await study.dismiss(action);
     if (action === 'done' && verdict.current !== null) setReaction(verdict.current ? 'celebrate' : 'encourage');
     verdict.current = null; collapse();
   };
+  const snooze = () => {void finish('snooze').catch(e=>{
+    setActionError(e instanceof Error?e.message:'延后失败，请重试');postToHost(HOST_INVITE+'reset');
+  });};
+  useEffect(()=>onHostMessage(message=>{
+    if (mode !== 'ball' || !study.state?.awaiting || !study.state.question) return;
+    if (message===HOST_CHALLENGE+study.state.question.id) challenge();
+    else if (message===HOST_SNOOZE+study.state.question.id) snooze();
+  }));
   return <>
     {screenOpened && <FloatScreen hidden={mode !== 'screen'} onCollapse={collapse} />}
     {(mode === 'settings' || mode === 'quiz') && <div className="sb-float-screen desktop-float">
@@ -62,7 +70,8 @@ export function FloatApp() {
     {mode === 'settings' ? <FloatStudySettings state={study.state} onSave={study.configure} />
       : study.state?.question && <FloatQuiz key={study.state.question.id} opener={study.state.question} onFinish={finish} onVerdict={correct => { verdict.current = correct; }} />}
     </div>}
-    {mode === 'ball' && <FloatCompanion mood={reaction ?? companionMood(study.state, study.browser, study.error)} onOpen={expand} onSettings={settings} />}
+    {mode === 'ball' && <><FloatCompanion mood={reaction ?? companionMood(study.state, study.browser, study.error)} onOpen={study.state?.awaiting?challenge:expand} onSettings={settings} />
+      {study.state?.awaiting&&study.state.question&&<CompanionInvitation opener={study.state.question} onChallenge={challenge} onSnooze={snooze}/>}</>}
   </>;
 }
 

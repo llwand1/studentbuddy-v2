@@ -33,6 +33,7 @@
 .sb-companion-book-ink { fill: #9f3847; }
 .sb-companion-book-clasp { fill: #e6b868; }
 .sb-companion-rune { fill: var(--comp-rune); }
+.sb-companion-glyphs { fill: var(--comp-star); animation: sb-companion-twinkle 950ms steps(3) infinite; }
 .sb-companion-secondary { fill: var(--comp-secondary); }
 .sb-companion-star { animation: sb-companion-twinkle 700ms steps(3) infinite; }
 .sb-companion-star:nth-child(odd) { animation-delay: -350ms; }

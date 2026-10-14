@@ -9,3 +9,7 @@ it('rejects incomplete or unknown scope settings rather than silently enabling q
   for (const value of [null, {}, { enabled: 'true', intervalMinutes: 3, scope: 'learning' }, { enabled: true, intervalMinutes: 3, scope: 'all-tabs' }])
     expect(parseDesktopStudySettings(value)).toBeNull();
 });
+it('accepts the explicit B站 video learning scope without changing the opt-in default',()=>{
+  expect(parseDesktopStudySettings({enabled:true,intervalMinutes:3,scope:'bilibili'})?.scope).toBe('bilibili');
+  expect(DEFAULT_DESKTOP_STUDY.enabled).toBe(false);
+});

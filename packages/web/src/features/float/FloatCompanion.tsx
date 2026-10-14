@@ -26,12 +26,13 @@ export function CompanionArt({ mood, hovered = false, gaze = 0, native = false, 
     if (native) postToHost(animated ? HOST_EFFECTS_ON : HOST_EFFECTS_OFF);
     return () => { if (native) postToHost(HOST_EFFECTS_OFF); };
   }, [native, animated]);
-  const expression = mood === 'celebrate' || mood === 'play' || hovered ? 'bright'
+  const expression = mood === 'question' || mood === 'celebrate' ? 'excited' : mood === 'encourage' ? 'gentle' : mood === 'play' || hovered ? 'bright'
     : ['preparing', 'waiting', 'offline', 'retry'].includes(mood) ? 'thinking' : 'calm';
   return <svg className="sb-companion-art mascot-px" data-mood={mood} data-school={paint.school} viewBox="0 0 64 64" shapeRendering="crispEdges" aria-hidden="true">
     <g className="sb-companion-shadow">{paint.halo.map(([x, y, width, height], i) => <rect key={i} x={x} y={y} width={width} height={height} />)}</g>
     <g className="sb-companion-circle">{paint.circle.map(([x, y, width, height], i) => <rect key={i} x={x} y={y} width={width} height={height} />)}</g>
     <g className="sb-companion-sigil">{paint.sigil.map(([x, y, width, height], i) => <rect key={i} x={x} y={y} width={width} height={height} />)}</g>
+    <g className="sb-companion-glyphs">{paint.glyphs.map((glyph,i)=><g key={i} data-glyph={glyph.char}>{glyph.rects.map(([x,y,width,height],j)=><rect key={j} x={x} y={y} width={width} height={height}/>)}</g>)}</g>
     <g className="sb-companion-particles">{paint.particles.map((p, i) => <g key={i} className={'sb-companion-' + p.tone}>
       {p.rects.map(([x, y, width, height], j) => <rect key={j} x={x} y={y} width={width} height={height} />)}
     </g>)}</g>

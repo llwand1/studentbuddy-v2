@@ -1,40 +1,40 @@
 {
-  "generatedAt": "2026-10-14T12:33:53.949Z",
+  "generatedAt": "2026-10-14T14:46:50.249Z",
   "code": {
     "rows": [
       {
         "pkg": "shared",
-        "srcFiles": 77,
+        "srcFiles": 78,
         "testFiles": 49,
-        "srcLines": 10532,
-        "testLines": 5781
+        "srcLines": 10566,
+        "testLines": 5785
       },
       {
         "pkg": "server",
-        "srcFiles": 356,
-        "testFiles": 237,
-        "srcLines": 44014,
-        "testLines": 40136
+        "srcFiles": 358,
+        "testFiles": 238,
+        "srcLines": 44240,
+        "testLines": 40271
       },
       {
         "pkg": "web",
-        "srcFiles": 410,
-        "testFiles": 174,
-        "srcLines": 44869,
-        "testLines": 20562
+        "srcFiles": 413,
+        "testFiles": 176,
+        "srcLines": 45000,
+        "testLines": 20642
       }
     ],
-    "srcFiles": 843,
-    "testFiles": 460,
-    "srcLines": 99415,
-    "testLines": 66479,
-    "tsxTestFiles": 90
+    "srcFiles": 849,
+    "testFiles": 463,
+    "srcLines": 99806,
+    "testLines": 66698,
+    "tsxTestFiles": 92
   },
   "routes": {
-    "total": 240,
+    "total": 244,
     "byMethod": {
-      "get": 97,
-      "post": 103,
+      "get": 98,
+      "post": 106,
       "delete": 18,
       "put": 20,
       "patch": 2
@@ -42,9 +42,9 @@
     "apiMounts": 47
   },
   "contracts": {
-    "iface": 215,
+    "iface": 219,
     "type": 95,
-    "total": 310
+    "total": 314
   },
   "migrations": {
     "count": 63,
@@ -82,25 +82,25 @@
     ]
   },
   "docs": {
-    "specs": 69,
-    "all": 87,
-    "probes": 16
+    "specs": 70,
+    "all": 88,
+    "probes": 17
   },
   "repo": {
-    "head": "b3b05b2",
+    "head": "bc15e45",
     "headDate": "2026-10-14",
-    "commitsLast14d": 131,
-    "branch": "feat/http-reliability-product-docs",
-    "dirtyFiles": 56
+    "commitsLast14d": 132,
+    "branch": "feat/bilibili-study-companion-invites",
+    "dirtyFiles": 62
   },
   "tests": {
     "available": true,
     "ranNow": false,
     "wallSec": 0,
     "staleDays": 0,
-    "files": 460,
-    "cases": 4873,
-    "passed": 4870,
+    "files": 463,
+    "cases": 4894,
+    "passed": 4891,
     "skipped": 3,
     "failed": 0,
     "success": true
@@ -111,26 +111,26 @@
   "readmeDrift": [
     {
       "label": "badge 测试文件",
-      "claimed": "460",
-      "measured": "460",
+      "claimed": "463",
+      "measured": "463",
       "ok": true
     },
     {
       "label": "badge 测试用例",
-      "claimed": "4873",
-      "measured": "4873",
+      "claimed": "4894",
+      "measured": "4894",
       "ok": true
     },
     {
       "label": "badge REST 路由",
-      "claimed": "240",
-      "measured": "240",
+      "claimed": "244",
+      "measured": "244",
       "ok": true
     },
     {
       "label": "badge 契约类型",
-      "claimed": "310",
-      "measured": "310",
+      "claimed": "314",
+      "measured": "314",
       "ok": true
     },
     {
@@ -159,8 +159,8 @@
     },
     {
       "label": "正文基线句",
-      "claimed": "460 文件 / 4873 例",
-      "measured": "460 文件 / 4873 例",
+      "claimed": "463 文件 / 4894 例",
+      "measured": "463 文件 / 4894 例",
       "ok": true
     }
   ],

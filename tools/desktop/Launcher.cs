@@ -195,10 +195,12 @@ internal static partial class Launcher
                             server.Tick();
                             if (server.Ready && server.Generation != serverGeneration)
                             {
+                                CloseStudyInvite();
                                 serverGeneration = server.Generation;
                                 NotifyServiceRestored(Window); NotifyServiceRestored(BallWindow);
                             }
                             if (server.Ready) RecoverViewsTick();
+                            RefreshStudyInvite();
                             if (show.WaitOne(0)) ShowWindow();
                             if (!Quiet && !Exiting && !UpdateChecking && DateTime.UtcNow >= NextUpdateCheck) CheckUpdate(false);
                             if (BallWindow != null && BallWindow.Visible && DateTime.UtcNow >= NextFloatTick)
@@ -701,6 +703,7 @@ internal static partial class Launcher
      */
     private static void HandleBallMessage(string message)
     {
+        if (message != null && message.StartsWith("sb-float:invite:", StringComparison.Ordinal)) { HandleStudyInvite(message.Substring("sb-float:invite:".Length)); return; }
         if (message != null && message.StartsWith("sb-desktop:reader:", StringComparison.Ordinal)) { OpenNativeReader(message); return; }
         if (message != null && message.StartsWith("sb-float:shape:", StringComparison.Ordinal))
         {
@@ -721,7 +724,7 @@ internal static partial class Launcher
             BallForm ballForm = BallWindow as BallForm;
             if (ballForm != null) ballForm.PrepareMove();
             ReleaseCapture();
-            BallMoving = true; if (QuickMenu != null) QuickMenu.Hide();
+            BallMoving = true; if (QuickMenu != null) QuickMenu.Hide(); RefreshStudyInvite();
             try { SendMessage(BallWindow.Handle, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero); }
             finally { BallMoving = false; }
             // ★ 移动循环是**同步**返回的（松开鼠标才回来）：位置没变 ⇒ 这是一次「点一下」而不是拖动。

@@ -1,6 +1,6 @@
 /**
  * 工程红线门禁：行数 / 内联样式 / any / 测试登记 —— eslint 与 tsc 之外的机器检查。
- * 规则：server 单文件 ≤400 行；web 组件(.tsx) ≤320 行；web 源码禁 style={{；
+ * 规则：shared/server/web .ts 单文件 ≤400 行；web 组件(.tsx) ≤320 行；web 源码禁 style={{；
  *       全部源码禁 `: any` / `as any`（ts 层面 tsc+eslint 已拦，此处兜底扫描）；
  *       每个 *.test.ts(x) 都必须在 docs/TEST-PLAN.md §3 用例清单中成行。
  * 退出码非 0 = 门禁红（CI 拒绝合并）。
@@ -33,7 +33,7 @@ function win(p) {
 }
 
 // 1) 行数红线
-for (const pkg of ['packages/server/src', 'packages/web/src']) {
+for (const pkg of ['packages/shared/src', 'packages/server/src', 'packages/web/src']) {
   const limit = pkg.includes('web') ? null : 400;
   for (const file of walk(join(ROOT, pkg))) {
     const ext = extname(file);

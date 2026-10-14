@@ -66,8 +66,9 @@ node tools\desktop\make-icon.mjs
 if ($LASTEXITCODE -ne 0) { throw 'Icon generation failed.' }
 Copy-Item -LiteralPath tools\desktop\app.ico -Destination $stage
 Copy-Item -LiteralPath tools\desktop\mascot-region.txt -Destination $stage
-$sourceCommit = git rev-parse HEAD
-@{ version = $Version; sourceCommit = $sourceCommit; sourceDirty = [bool](git status --porcelain); node = (node -p 'process.version'); architecture = 'windows-x64' } |
+$sourceState = node tools\desktop\source-state.cjs | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) { throw 'Source content verification failed.' }
+@{ version = $Version; sourceCommit = $sourceState.sourceCommit; sourceDirty = $sourceState.sourceDirty; node = (node -p 'process.version'); architecture = 'windows-x64' } |
     ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $stage 'desktop-build.json')
 
 # WebView2 SDK：固定版本 + 固定 SHA-256，解压到 .runtime 后引用其程序集，随安装包分发，不做系统安装。

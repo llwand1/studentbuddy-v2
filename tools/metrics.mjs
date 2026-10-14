@@ -14,6 +14,7 @@
  *   node tools/metrics.mjs --check        对账 README/首屏手抄数字；有漂移则退出码 1（供 CI/门禁调用）
  *                                         ★ **只读**：不写 docs/metrics.json（要刷快照请不带标志跑一次）
  */
+import { countContractDeclarations } from './metrics-contracts.mjs';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -98,8 +99,8 @@ function restRoutes() {
 function contracts() {
   const files = walk(path.join(ROOT, 'packages', 'shared', 'src')).filter((f) => CODE_EXT.has(path.extname(f)) && !TEST_RE.test(f));
   return {
-    iface: grepCount(files, /^export interface /),
-    type: grepCount(files, /^export type /),
+    iface: files.reduce((sum, file) => sum + countContractDeclarations(fs.readFileSync(file, 'utf8')).iface, 0),
+    type: files.reduce((sum, file) => sum + countContractDeclarations(fs.readFileSync(file, 'utf8')).type, 0),
     get total() {
       return this.iface + this.type;
     },

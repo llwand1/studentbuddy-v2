@@ -1,3 +1,4 @@
+import { asyncHandler } from '../http/async-handler.js';
 /**
  * routes/document — 文档模式薄路由（契约 5.0 §5.1-5）。
  * GET    /api/doc?sessionId=          → { doc: DocMeta | null }（只回元信息，永不回原文）
@@ -71,7 +72,7 @@ documentRouter.post('/', (req: Request, res: Response) => {
  *   本身就不该发生：它白送一次出站能力与放大面。故按 `sessionExists` 注释里那条
  *   「写端点要在归属断言之外再补一道存在性断言」的既有规矩办，闸门排在 `fetchDocFromUrl` 之前。
  */
-documentRouter.post('/url', async (req: Request, res: Response) => {
+documentRouter.post('/url', asyncHandler(async (req: Request, res: Response) => {
   const { url } = req.body as { url?: string };
   const sessionId = sessionIdOf(req);
   if (!sessionId) {
@@ -98,7 +99,7 @@ documentRouter.post('/url', async (req: Request, res: Response) => {
     doc: docMeta(doc),
     source: { url: draft.url, title: draft.title, site: draft.site, sourceChars: draft.sourceChars, clipped: draft.clipped },
   });
-});
+}));
 
 documentRouter.delete('/', (req: Request, res: Response) => {
   const sessionId = sessionIdOf(req);

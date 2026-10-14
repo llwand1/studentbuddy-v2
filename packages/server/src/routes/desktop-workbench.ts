@@ -1,4 +1,5 @@
-import { Router, type Request, type Response, type NextFunction } from 'express';
+import { Router, type Request, type Response } from 'express';
+import { asyncHandler } from '../http/async-handler.js';
 import { ownerIdOf } from '../auth/ownership.js';
 import { workspaceInfo, chooseWorkspace, protectPath } from '../desktop/file-policy.js';
 import { listDesktopRuns, getDesktopRun, desktopRunEvents } from '../desktop/task-store.js';
@@ -10,9 +11,8 @@ import { jobCounts, listJobs } from '../jobs/queue.js';
 import { jobLabel } from '../jobs/worker.js';
 export const desktopWorkbenchRouter = Router();
 type Handler = (req: Request, res: Response) => Promise<unknown> | unknown;
-const wrap = (fn: Handler) => (req: Request, res: Response, _next: NextFunction) => {
-  Promise.resolve().then(() => fn(req, res)).catch(error => { if (!res.headersSent) res.status(400).json({ error: error instanceof Error ? error.message : '操作失败' }); });
-};
+const wrap = (fn: Handler) => asyncHandler((req, res) => Promise.resolve().then(() => fn(req, res))
+  .catch(error => { if (!res.headersSent && !res.destroyed) res.status(400).json({ error: error instanceof Error ? error.message : '操作失败' }); }));
 desktopWorkbenchRouter.get('/state', wrap((req, res) => {
   const owner = ownerIdOf(req);
   res.json({ workspace: workspaceInfo(owner), runs: listDesktopRuns(owner), approvals: listFileApprovals(owner),

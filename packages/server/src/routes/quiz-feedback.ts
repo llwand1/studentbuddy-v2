@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { asyncHandler } from '../http/async-handler.js';
 import { Router, type RequestHandler } from 'express';
 import { canAccessSession, ownerIdOf, sessionExists } from '../auth/ownership.js';
 import { adaptQuestion, parseFeedbackRequest, predictFeedback } from '../learning/quiz-feedback.js';
@@ -7,7 +8,7 @@ import { announceQuizToSession } from '../learning/quiz-announce.js';
 export const quizFeedbackRouter = Router();
 const active = new Set<string>();
 function feedbackRoute(kind: 'choices' | 'adapt'): RequestHandler {
-  return async (req, res) => {
+  return asyncHandler(async (req, res) => {
     const input = parseFeedbackRequest(req.body, kind === 'adapt');
     if (!input) { res.status(400).json({ error: '题目或评价不完整、过长，请检查后重试。' }); return; }
     if (kind === 'choices' && !input.attempt) { res.status(400).json({ error: '先作答再预判评价；也可以直接写自己的评价。' }); return; }
@@ -44,7 +45,7 @@ function feedbackRoute(kind: 'choices' | 'adapt'): RequestHandler {
     } finally {
       clearTimeout(timer); res.off('close', disconnect); active.delete(key);
     }
-  };
+  });
 }
 quizFeedbackRouter.post('/feedback/choices', feedbackRoute('choices'));
 quizFeedbackRouter.post('/feedback/adapt', feedbackRoute('adapt'));

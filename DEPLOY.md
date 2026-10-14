@@ -346,3 +346,16 @@ git checkout main             # 发完切回来
 每日数据库备份与部署快照分开管理。自动备份必须先产生完整可恢复快照，再提交和同步；同步失败应记录真实错误且返回失败，不能吞掉推送错误。数据库保留窗口独立于同步是否成功，旧代码压缩包禁止进入备份 Git 历史。发布快照采用单文件 DELETE 日志模式，替换前通过 SQLite 锁清退旧快照的 WAL，避免旧页覆盖新数据库。
 
 复验保留策略：`bash tools/selftest-deploy-retention.sh`。一旦备份仓已混入大型代码包，先保全近期数据库、密钥与已成功同步的历史，再清理未同步历史中的代码包，避免重写已发布备份历史。
+
+## API 可靠性与隔离恢复
+
+云端通用 API 预算为每 IP 每分钟 600 次，高成本入口再按登录账号（未登录按 IP）共享每分钟 60 次。429 提供 Retry-After，health/status/OPTIONS 不占预算；本地模式不启用此云端预算。代理来源由现有 SB_TRUST_PROXY 配置决定，不直接相信转发头。此预算仅单进程，不能替代跨实例限流或模型并发闸门。
+
+既有在线 SQLite 备份与七日保留仍由 tools/backup-db.py 执行。恢复可先创建独立目录，然后运行：
+
+```bash
+python3 tools/restore-db.py /path/to/snapshot.db /path/to/recovery/studentbuddy.db
+python3 tools/selftest-restore.py
+```
+
+目标必须不存在；工具拒绝覆盖或符号链接，读取源库已提交 WAL 数据，完成完整性校验后发布一个 DELETE journal 新库。不直接改动运行目录、启动服务或上传数据。核对恢复内容后再停服务执行受控替换，保留原库与 WAL/SHM 作为回退材料。数据库恢复不等于恢复 AI 服务商密钥；单独妥善保留本机密钥文件，或重新配置服务商。行为见 docs/HTTP-RELIABILITY-SPEC.md。

@@ -1,3 +1,4 @@
+import { asyncHandler } from '../http/async-handler.js';
 /**
  * routes/terms — 词条库薄路由（忆域 v2：AI 自动词条库）。
  * 词条：列表 / 手动存 / 按文本抽取 / 编辑 / 删除。
@@ -130,7 +131,7 @@ termsRouter.post('/', (req: Request, res: Response) => {
 });
 
 /** 按文本抽取并入库（对话「存入记忆」按钮 / 文档模式抽词条 / 调试用）。 */
-termsRouter.post('/extract', async (req: Request, res: Response) => {
+termsRouter.post('/extract', asyncHandler(async (req: Request, res: Response) => {
   const { text, sourceSessionId } = req.body as { text?: string; sourceSessionId?: string };
   // 文档模式回退（契约 5.0 §5.1-5 + DOC-RAG-SPEC §3.4）：未给文本时用该会话载入的资料抽词条。
   // 传空查询 ⇒ 走**均匀覆盖全文**而不是检索：抽词条没有查询，要的是覆盖面不是相关度，
@@ -153,7 +154,7 @@ termsRouter.post('/extract', async (req: Request, res: Response) => {
   }
   const added = saveTerms(items, sourceSessionId ?? null, ownerId);
   res.json({ added, items });
-});
+}));
 
 /**
  * 复习打卡（v23 艾宾浩斯）：`remembered: true` 推进一个节点，`false` 归零重来。

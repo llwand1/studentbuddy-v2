@@ -1,10 +1,11 @@
+import { asyncHandler } from '../http/async-handler.js';
 import { Router } from 'express';
 import { parseOpenerRequest } from '@sb/shared';
 import { ownerIdOf } from '../auth/ownership.js';
 import { generateCampfireOpener } from '../learning/campfire-opener.js';
 
 export const campfireOpenerRouter = Router();
-campfireOpenerRouter.post('/opener', async (req, res) => {
+campfireOpenerRouter.post('/opener', asyncHandler(async (req, res) => {
   const parsed = parseOpenerRequest(req.body);
   if (!parsed) { res.status(400).json({ error: '召题请求不合法' }); return; }
   res.setHeader('Cache-Control', 'no-store');
@@ -20,4 +21,4 @@ campfireOpenerRouter.post('/opener', async (req, res) => {
   } catch {
     if (!res.destroyed) res.status(500).json({ error: '召题暂时失败，点一下重新试试。' });
   } finally { res.off('close', disconnect); }
-});
+}));

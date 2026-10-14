@@ -1,3 +1,4 @@
+import { asyncHandler } from '../http/async-handler.js';
 /**
  * routes/lookup —— 划词速查小窗的后端（契约 `docs/LOOKUP-SPEC.md` §4）。
  *
@@ -97,7 +98,7 @@ async function answer(req: Request, res: Response, sys: string, purpose: 'lookup
   res.json({ ok: true, text: r.text });
 }
 
-lookupRouter.get('/wiki', async (req: Request, res: Response) => {
+lookupRouter.get('/wiki', asyncHandler(async (req: Request, res: Response) => {
   const q = String(req.query.q ?? '').trim().slice(0, LOOKUP_TERM_MAX);
   if (!q) {
     res.status(400).json({ ok: false, reason: '缺查询词' });
@@ -108,7 +109,7 @@ lookupRouter.get('/wiki', async (req: Request, res: Response) => {
   req.on('close', () => ac.abort());
   res.setHeader('Cache-Control', 'private, max-age=3600');
   res.json(await wikiLookup(q, lang, ac.signal));
-});
+}));
 
-lookupRouter.post('/explain', (req: Request, res: Response) => void answer(req, res, EXPLAIN_SYS, 'lookup.explain'));
-lookupRouter.post('/quiz', (req: Request, res: Response) => void answer(req, res, QUIZ_SYS, 'lookup.quiz'));
+lookupRouter.post('/explain', asyncHandler((req: Request, res: Response) => answer(req, res, EXPLAIN_SYS, 'lookup.explain')));
+lookupRouter.post('/quiz', asyncHandler((req: Request, res: Response) => answer(req, res, QUIZ_SYS, 'lookup.quiz')));

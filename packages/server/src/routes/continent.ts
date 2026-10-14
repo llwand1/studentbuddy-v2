@@ -1,3 +1,4 @@
+import { asyncHandler } from '../http/async-handler.js';
 /**
  * routes/continent — 知识大陆**开拓地块**的 HTTP 出口（契约 `docs/KNOWLEDGE-CONTINENT-SPEC.md` §「开拓」）。
  *
@@ -18,7 +19,7 @@ export const continentRouter = Router();
  * 领一块待开拓地：body `{ row, col }` = 玩家点的那枚「+」。
  * 回 `ContinentExpandOffer`（新词条 + 两道题 + nonce）；`source:'fallback'` 时 UI 必须如实说这条来自内置词池。
  */
-continentRouter.post('/expand/offer', async (req: Request, res: Response) => {
+continentRouter.post('/expand/offer', asyncHandler(async (req: Request, res: Response) => {
   const { row, col } = req.body as { row?: unknown; col?: unknown };
   if (!Number.isInteger(row) || !Number.isInteger(col)) {
     res.status(400).json({ error: 'row / col 必须是整数格坐标' });
@@ -30,7 +31,7 @@ continentRouter.post('/expand/offer', async (req: Request, res: Response) => {
     return;
   }
   res.json(r);
-});
+}));
 
 /** 落地：body `{ nonce, answers }`；服务端重判，全对才落库 + 钉住（`ContinentExpandResult`） */
 continentRouter.post('/expand/claim', (req: Request, res: Response) => {

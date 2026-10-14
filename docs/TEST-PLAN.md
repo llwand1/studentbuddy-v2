@@ -1,3 +1,17 @@
+工具指标验证：`node --test tools/metrics-contracts.test.mjs` 排除兼容转导出造成的类型虚增；桌面 Node 测试同时核对真实源码差异、未忽略新文件与 LF/CRLF 状态噪声。
+
+> 2026-10-14 HTTP 可靠性与模块门禁：严格未处理拒绝模式的真实进程、生产判分路由故障注入、统一错误边界、云端请求预算与路由类型审计；不增加模型评测或读取个人数据库。
+
+| 测试文件 | 回归范围 |
+|---|---|
+| `packages/server/src/http/error-boundary.test.ts` | 安全 400/413/500、请求标识、非 Error 拒绝、关闭/流式响应 |
+| `packages/server/src/http/process-survival.test.ts` | 严格拒绝模式、真实失败请求、断流后相同进程存活 |
+| `packages/server/src/http/api-rate-limit.test.ts` | 键隔离、窗口恢复、容量、代理、重试头和本地模式 |
+| `packages/server/src/http/route-contract.test.ts` | 全部 Promise HTTP 回调，命名、类型隐藏、工厂与改坏验证 |
+| `packages/server/src/http/app-failure.test.ts` | 实际 learner 路由意外拒绝进入最终边界且健康请求继续服务 |
+
+Python 工具回归：`python tools/selftest-restore.py` 验证新目标、WAL、坏源、覆盖竞争与链接拒绝；已有 `python tools/selftest-backup.py` 继续验证快照与同步。shared 401 行改坏样例由 `node tools/guard-audit.mjs --gates` 验证。
+
 > 2026-10-11 小型互动吉祥物：补充真实状态优先级、粒子与原生裁剪几何、减少动态效果、互动手势及临时 RAG 活动回归，不增加 AI 评测集。
 
 | 测试文件 | 回归范围 |

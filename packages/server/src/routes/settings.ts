@@ -1,3 +1,4 @@
+import { asyncHandler } from '../http/async-handler.js';
 /**
  * routes/settings — 设置域的 HTTP 端点：搜索 key / 出题配比 / 配图开关 / 回答方式 / 词条朗读。
  *
@@ -162,7 +163,7 @@ settingsRouter.delete('/speech', (req, res) => {
 });
 
 /** 搜索连通性自检：真发一次（国产网络可用性必须实测，不接受纸面判断；绕缓存才叫自检）。 */
-settingsRouter.post('/search/test', async (req: Request, res: Response) => {
+settingsRouter.post('/search/test', asyncHandler(async (req: Request, res: Response) => {
   const query = String((req.body as { query?: unknown }).query ?? '学习 方法').slice(0, 80);
   // 自检也要照应试范围：开着模式却自检出范围外的站，用户读到的就是「白名单没生效」的直接证据
   const exam = loadExamContext(ownerIdOf(req));
@@ -181,7 +182,7 @@ settingsRouter.post('/search/test', async (req: Request, res: Response) => {
   } catch (err) {
     res.json({ ok: false, count: 0, providers: [], failed: [err instanceof Error ? err.message : String(err)] });
   }
-});
+}));
 
 // ── settings：应试模式与范围（契约 docs/EXAM-MODE-SPEC.md；老板 2026-10-04 EXAM-1004）──
 

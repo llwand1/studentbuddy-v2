@@ -1,3 +1,4 @@
+import { asyncHandler } from '../http/async-handler.js';
 import { Router } from 'express';
 import { canAccessSession, ownerIdOf, sessionExists } from '../auth/ownership.js';
 import { generateExplanation, parseReviewRequest } from '../learning/quiz-explanation.js';
@@ -5,7 +6,7 @@ import { generateExplanation, parseReviewRequest } from '../learning/quiz-explan
 export const quizExplanationRouter = Router();
 const active = new Set<string>();
 
-quizExplanationRouter.post('/explain', async (req, res) => {
+quizExplanationRouter.post('/explain', asyncHandler(async (req, res) => {
   const input = parseReviewRequest(req.body);
   if (!input) { res.status(400).json({ error: '题目与作答资料缺失或过长，请完成练习后再试。' }); return; }
   const ownerId = ownerIdOf(req);
@@ -32,4 +33,4 @@ quizExplanationRouter.post('/explain', async (req, res) => {
     res.off('close', disconnect);
     active.delete(key);
   }
-});
+}));

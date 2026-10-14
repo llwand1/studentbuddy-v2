@@ -1,3 +1,4 @@
+import { asyncHandler } from '../http/async-handler.js';
 import { Router, json, type Request, type Response, type NextFunction } from 'express';
 import { parseDesktopStudySettings } from '@sb/shared';
 import { canAccessSession, sessionExists, ownerIdOf } from '../auth/ownership.js';
@@ -70,7 +71,7 @@ desktopRouter.post('/browser/preference', (req, res) => {
   try { savePreferredBrowser(ownerIdOf(req), req.body?.browser); res.json(browserPreference(ownerIdOf(req))); }
   catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : '浏览器选择失败' }); }
 });
-desktopRouter.post('/browser/open', async (req, res) => {
+desktopRouter.post('/browser/open', asyncHandler(async (req, res) => {
   const id: unknown = req.body?.sessionId, owner = ownerIdOf(req);
   if (typeof id !== 'string' || !sessionExists(id) || !canAccessSession(id, owner)) { res.status(404).json({error:'请先选择一个本机对话'}); return; }
   try {
@@ -79,7 +80,7 @@ desktopRouter.post('/browser/open', async (req, res) => {
     await openReaderBrowser(owner, `http://127.0.0.1:${port}/desktop-reader-connect.html#${code}`);
     res.json({ok:true});
   } catch (e) { res.status(400).json({error:e instanceof Error ? e.message : '浏览器打开失败'}); }
-});
+}));
 desktopRouter.get('/workspace', (req, res) => res.json(loadWorkspace(ownerIdOf(req))));
 desktopRouter.post('/workspace', (req, res) => {
   const id: unknown = req.body?.sessionId;

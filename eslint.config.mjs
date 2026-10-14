@@ -27,4 +27,17 @@ export default tseslint.config(
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
+  {
+    files: ['packages/server/src/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', {
+        selector: 'CallExpression[callee.type="MemberExpression"][callee.property.name=/^(get|post|put|patch|delete|all|use)$/] > ArrowFunctionExpression[async=true]',
+        message: 'Express 4 async HTTP callbacks must use asyncHandler.',
+      }, {
+        selector: 'CallExpression[callee.type="MemberExpression"][callee.property.name=/^(get|post|put|patch|delete|all|use)$/] > FunctionExpression[async=true]',
+        message: 'Express 4 async HTTP callbacks must use asyncHandler.',
+      }],
+    },
+  },
 );

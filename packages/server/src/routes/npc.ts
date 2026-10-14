@@ -1,3 +1,4 @@
+import { asyncHandler } from '../http/async-handler.js';
 /**
  * routes/npc — 学习伙伴（NPC）的 HTTP 出口（契约 `docs/NPC-PARTNER-SPEC.md` §7.1）。
  *
@@ -31,7 +32,7 @@ npcRouter.get('/', (req: Request, res: Response) => {
  * body `{ row, col }` = 玩家在地图上点的那一格；名字与人设由服务端现生成（AI 优先，失败回退本地）。
  * ★ 返回 `source`：`'fallback'` 时 UI 必须如实说一句"名字是本地起的"（降级可以，假装没降级不行）。
  */
-npcRouter.post('/', async (req: Request, res: Response) => {
+npcRouter.post('/', asyncHandler(async (req: Request, res: Response) => {
   const { row, col } = req.body as { row?: unknown; col?: unknown };
   if (!Number.isInteger(row) || !Number.isInteger(col)) {
     res.status(400).json({ error: 'row / col 必须是整数格坐标' });
@@ -44,7 +45,7 @@ npcRouter.post('/', async (req: Request, res: Response) => {
     return;
   }
   res.json({ state: npcList(ownerId), memberId: r.member.id, source: r.source });
-});
+}));
 
 /**
  * 轮询口：**地图页可见时**每 20 秒来一次（`NPC_POLL_MS`）。
@@ -57,11 +58,11 @@ npcRouter.post('/', async (req: Request, res: Response) => {
  *   ★ 最硬的一道闸在前端：页面不可见就**停止轮询**（没人在看时的"主动"只是烧钱）。
  * ★ 没冒泡时回 `{ bubble: null }` 而不是 404："这一轮没人想说话"是正常状态，不是错误。
  */
-npcRouter.get('/ping', async (req: Request, res: Response) => {
+npcRouter.get('/ping', asyncHandler(async (req: Request, res: Response) => {
   const ownerId = ownerIdOf(req);
   const r = await npcPing(ownerId);
   res.json({ bubble: r.bubble, npcs: npcList(ownerId).npcs.map((n) => ({ id: n.id, row: n.row, col: n.col })) });
-});
+}));
 
 /** 领走气泡（用户点了它 ⇒ 开面板）。★ 幂等：重复调只是再清一次 */
 npcRouter.post('/bubble/dismiss', (req: Request, res: Response) => {
@@ -96,7 +97,7 @@ npcRouter.delete('/:id', (req: Request, res: Response) => {
  * 跟一位伙伴说句话。★ 无 key 时 **200 + `source:'fallback'`**，不 5xx、不空串（§4.2）——
  * 换言之：这条端点**没有失败态**（除了入参错与伙伴不存在），这本身就是契约要的行为。
  */
-npcRouter.post('/:id/talk', async (req: Request, res: Response) => {
+npcRouter.post('/:id/talk', asyncHandler(async (req: Request, res: Response) => {
   const ownerId = ownerIdOf(req);
   const { text } = req.body as { text?: unknown };
   if (typeof text !== 'string' || !text.trim()) {
@@ -115,7 +116,7 @@ npcRouter.post('/:id/talk', async (req: Request, res: Response) => {
   const here = state.cells.find((c) => c.row === npc.row && c.col === npc.col) ?? null;
   // 降级台词的轮换种子 = 本轮输入长度（降级路径没有历史可依）
   res.json(await npcTalk({ ownerId, npc, text: asked, here, seed: asked.length }));
-});
+}));
 
 /**
  * 这位伙伴的对话史（面板打开时回显）。

@@ -34,7 +34,7 @@ export function QuizCard({ title, questions, sessionId, quizId, feedback, onAdap
   const answered = r?.questions.filter((q, i) => quizAnswerReady(q, r.responses[i]!.draft)).length ?? 0;
   const submitted = r?.state === 'submitted';
   const submit = async () => { const next = await rounds.submit(); if (next) onSubmitted?.(next); };
-  useGuideCap('quiz.explain', r && !submitted && answered === r.questions.length && !rounds.acting ? () => {
+  useGuideCap('quiz.explain', r && !submitted && !rounds.acting ? () => {
     sectionRef.current?.scrollIntoView?.({ block: 'center' }); void submit();
   } : null);
   useGuideCap('quiz.retry', submitted && !rounds.busy && !rounds.acting ? () => void rounds.next() : null);
@@ -58,13 +58,13 @@ export function QuizCard({ title, questions, sessionId, quizId, feedback, onAdap
         onAdapted={append} onComplete={() => {}} last={attempts.lastOf(i)} roundResponse={r.responses[i]!} disabled={rounds.acting || disabled}
         onDraftChange={(draft, thought) => rounds.change(i, draft, thought)} onRetryAnalysis={() => void rounds.retry(i)} />)}
       <div className="quiz-round-actions">
-        {!submitted && <button type="button" className="quiz-submit" disabled={disabled || answered !== r.questions.length || rounds.acting || rounds.saving}
+        {!submitted && <button type="button" className="quiz-submit" disabled={disabled || rounds.acting || rounds.saving}
           onClick={() => void submit()}>{rounds.acting ? '正在交卷…' : '提交整组答案 · 逐题分析'}</button>}
         {submitted && r.latestId === r.id && !rounds.busy && <button type="button" className="quiz-gen-btn" disabled={rounds.acting || disabled} onClick={() => void rounds.next()}>再练一遍</button>}
         {rounds.busy && <button type="button" className="quiz-gen-btn" disabled={rounds.acting} onClick={() => void rounds.cancel()}>停止未完成的生成</button>}
         {r.previousId && <button type="button" className="quiz-gen-btn" disabled={rounds.acting || rounds.saving} onClick={() => void rounds.previous()}>查看上一轮</button>}
         {r.latestId !== r.id && <button type="button" className="quiz-gen-btn" disabled={rounds.acting} onClick={() => void rounds.latest()}>返回当前轮</button>}
-        <span className="quiz-round-save" role="status">{submitted ? '答案、思考和已有分析已保存' : rounds.saving ? '正在保存…' : '输入自动保存 · 思考选填'}</span>
+        <span className="quiz-round-save" role="status">{submitted ? '答案、思考和已有分析已保存' : rounds.saving ? '正在保存…' : '输入自动保存 · 思考选填 · 未答题也可交卷（按未答计分）'}</span>
       </div>
       {submitted && <AnswerImpact verdict="complete" />}
       {rounds.streamError && <p className="quiz-muted" role="status">{rounds.streamError}</p>}

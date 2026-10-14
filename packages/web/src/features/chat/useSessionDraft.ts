@@ -11,9 +11,9 @@
  *   （不存到 null 名下、也不被新会话的空草稿冲掉）。改版前靠它承接建议卡「先填字再开会话」；
  *   空会话直接开聊（CHAT-UX §2.9）之后，它承接的是「打了半句还没发、先点了一张建议卡」——
  *   卡的提示语作为第一问发出，半句话跟进新会话的输入框，不丢。
- * · 只存内存（ref 里的 Map）：刷新页面不保留——草稿是「这一坐」的上下文，不做持久化。
+ * · 主窗口只存内存；桌面悬浮窗额外存本机 WebView 存储，渲染进程恢复后仍能接着输入。
  *
- * StrictMode 双跑安全：首跑 prev 为 undefined 只登记不动作，二跑 prev===sessionId 直接返回。
+ * StrictMode 双跑安全：恢复值落进输入框之前不回写旧空串，普通重复运行只保存当前草稿。
  */
 import { useEffect, useRef } from 'react';
 
@@ -22,18 +22,41 @@ export function useSessionDraft(sessionId: string | null, input: string, setInpu
   const inputRef = useRef(input);
   inputRef.current = input;
   const prevRef = useRef<string | null | undefined>(undefined);
+  const restoring = useRef<string | null>(null);
+  const persistent = useRef(typeof document !== 'undefined' && !!document.documentElement.dataset.float).current;
+  const key = (id: string | null) => `sb:float:draft:${id ?? 'new'}`;
+  const read = (id: string | null): string => {
+    if (drafts.current.has(id)) return drafts.current.get(id)!;
+    try { return persistent ? localStorage.getItem(key(id)) ?? '' : ''; } catch { return ''; }
+  };
+  const write = (id: string | null, value: string) => {
+    drafts.current.set(id, value);
+    if (!persistent) return;
+    try { if (value) localStorage.setItem(key(id), value); else localStorage.removeItem(key(id)); } catch { /* Memory drafts remain available. */ }
+  };
 
   useEffect(() => {
     const prev = prevRef.current;
     prevRef.current = sessionId;
-    if (prev === undefined || prev === sessionId) return;
     const current = inputRef.current;
+    if (restoring.current !== null) {
+      if (prev === sessionId && current !== restoring.current) return;
+      restoring.current = null;
+    }
+    if (prev === undefined) {
+      const saved = read(sessionId);
+      if (persistent && !current && saved) { restoring.current = saved; setInput(saved); return; }
+    }
+    if (prev === undefined || prev === sessionId) { write(sessionId, current); return; }
     const carryOver = prev === null && sessionId !== null && current.trim() !== '';
     if (carryOver) {
-      drafts.current.set(null, '');
+      write(null, ''); write(sessionId, current);
       return;
     }
-    drafts.current.set(prev, current);
-    setInput(drafts.current.get(sessionId) ?? '');
-  }, [sessionId, setInput]);
+    write(prev, current);
+    const saved = read(sessionId);
+    restoring.current = persistent ? saved : null;
+    setInput(saved);
+  // The helpers deliberately close over refs; only input/session changes should save a draft.
+  }, [sessionId, input, setInput]);
 }

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, act } from '@testing-library/react';
-import { PixelSidebar } from './PixelSidebar';
+import { PixelSidebar, SidebarMenuButton } from './PixelSidebar';
+import { useRef, useState } from 'react';
 import { useReadingLayout } from '../app/useReadingLayout';
 import { ReadingToolbar } from '../app/ReadingToolbar';
 import { applyLiveSources, closeSources, getSources, resetSourcesStore } from '../lib/sources-store';
@@ -17,6 +18,24 @@ function ReadingProbe({ sessionId = 's1' }: { sessionId?: string }) {
   </div>;
 }
 describe('responsive pixel navigation', () => {
+  it('the companion puts an icon-only menu beside the lantern, without a brand bar', () => {
+    function CompactProbe() {
+      const [open, onChange] = useState(false);
+      const toggle = useRef<HTMLButtonElement>(null);
+      const drawer = { open, onChange, toggle };
+      const layout = useReadingLayout();
+      return <><PixelSidebar drawer={drawer}><button className="sb-nav-item">词条</button></PixelSidebar>
+        <ReadingToolbar layout={layout} sessionId={null}><SidebarMenuButton drawer={drawer} /><span>引路灯</span></ReadingToolbar></>;
+    }
+    const { container } = render(<CompactProbe />);
+    expect(container.querySelector('.sb-mobile-bar')).toBeNull();
+    const toggle = screen.getByRole('button', { name: '探索菜单' });
+    expect(toggle.closest('.reading-toolbar-start')).toBeTruthy();
+    expect(toggle.textContent).toBe('');
+    fireEvent.click(toggle); expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.keyDown(screen.getByText('词条'), { key: 'Escape' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false'); expect(document.activeElement).toBe(toggle);
+  });
   it('tracks visible keyboard height separately from its panned bottom edge and clears both on exit', () => {
     const viewport = Object.assign(new EventTarget(), { height: 300, offsetTop: 70, scale: 1 });
     vi.stubGlobal('visualViewport', viewport);

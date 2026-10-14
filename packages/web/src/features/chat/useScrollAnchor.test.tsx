@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { useScrollAnchor } from './useScrollAnchor';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { RESTORE_LATEST, useScrollAnchor } from './useScrollAnchor';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
-function Harness({ count = 0 }: { count?: number }) {
-  const anchor = useScrollAnchor([count], count > 0);
+function Harness({ count = 0, session = null }: { count?: number; session?: string | null }) {
+  const anchor = useScrollAnchor([count], count > 0, session);
   return <>
     <div data-testid="scroll" ref={(el) => {
       if (el) { Object.defineProperty(el, 'scrollHeight', { configurable: true, value: 1000 });
@@ -16,6 +16,19 @@ function Harness({ count = 0 }: { count?: number }) {
   </>;
 }
 describe('welcome and conversation scrolling', () => {
+  it('restores newly hydrated history, switches sessions and reopens the float at the newest turn', () => {
+    const view = render(<Harness />);
+    view.rerender(<Harness count={40} session="one" />);
+    const scroll = screen.getByTestId('scroll');
+    expect(scroll.scrollTop).toBe(1000);
+    fireEvent.scroll(scroll, { target: { scrollTop: 100 } });
+    view.rerender(<Harness count={40} session="two" />);
+    expect(scroll.scrollTop).toBe(1000);
+    fireEvent.scroll(scroll, { target: { scrollTop: 100 } });
+    act(() => window.dispatchEvent(new Event(RESTORE_LATEST)));
+    expect(scroll.scrollTop).toBe(1000);
+    expect(screen.queryByRole('button')).toBeNull();
+  });
   it('starts a tall welcome at the top and anchors the first real message at the bottom', () => {
     const view = render(<Harness />);
     const scroll = screen.getByTestId('scroll');

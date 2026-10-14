@@ -1,15 +1,61 @@
-# StudentBuddy
+# 学练agent-应试学习,学习ai,题库搜索,练习反馈
 
-![release](https://img.shields.io/github/v/release/llwand1/studentbuddy-v2)
+![release](https://img.shields.io/github/v/release/llwand1/xuelian-agent)
 ![version](https://img.shields.io/badge/version-0.2.186-orange)
 
-**在暗黑像素冒险里学习：对话中理解，题目里练习，把学过的知识留下来。**
+**StudentBuddy：开源 AI 学习 Agent，把资料、练习、思考、反馈和复习接在一起。**
 
-[立即体验](https://11wand.com/) · [Windows 本地版](https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-stable) · [等待时刷词](#等待时刷词把等回复的空档变成一次小复习) · [阅读模式](#阅读模式把外部资源变成学习材料) · [知识大陆](#词条卡牌与知识大陆)
+产品本体仍叫 **StudentBuddy**，仓库名为 **xuelian-agent**。面向中文自学者、编程入门学习者与应试练习：可以用 AI 学习，也可以用它学习 AI、Agent、JavaScript 等知识。从具体问题和来源开始，而不是只收藏一份学习路线。
+
+- **应试学习与题库搜索**：圈定考试范围与资源站，检索真题/题库来源，区分真实来源与 AI 生成练习；AI 可发现新资源站，经你确认后补入范围。
+- **编程与 AI 入门**：对照教程或 GitHub 仓库提问，围绕刚学的概念出题，把「会看代码」进一步检查成「能解释与作答」。
+- **练习反馈**：按题保存答案与思考，逐题解析；评价难度、步骤或歧义，再生成针对性练习。未答完也能交卷，未答题如实记录。
+- **知识复习**：概念沉淀为词条，连接词卡、复习计划与知识大陆；Windows 悬浮窗口可共读网页、截图提问和定时练习。
+
+[立即体验](https://11wand.com/) · [Windows 本地版](https://github.com/llwand1/xuelian-agent/releases/tag/desktop-stable) · [等待时刷词](#等待时刷词把等回复的空档变成一次小复习) · [阅读模式](#阅读模式把外部资源变成学习材料) · [知识大陆](#词条卡牌与知识大陆)
 
 StudentBuddy 把提问、查资料、做题和复习串在同一段学习过程中。你可以从营地里的一道热身题开始，也可以带着自己的问题或资料直接进入。
 
+## 创新在哪里：先看能验证的体验
+
+**客观判断：目前能成立的是产品流程与交互组合的差异，不是新模型、新算法，也没有证据证明行业首创或学习效果领先。** AI 对话、资料问答、出题、词卡和 MCP 都已有成熟先例；例如 Google 的学习工具已支持[从资料生成词卡、测验与解释](https://support.google.com/gemininotebook/answer/16958963?hl=en)。不能把这些单项本身当成创新。
+
+| 值得展示的设计 | 可以亲自核对什么 | 不能由此推断什么 |
+|---|---|---|
+| 答案之外保留「我的思考」，逐题独立分析，再按评价调整下一题 | 原题、错误答案、思考、反馈和新题保留在同一学习过程 | AI 诊断一定准确、适应算法是原创 |
+| 回复等待时刷词，回复完成后回到原对话 | 不离开当前学习话题；词卡进度与原对话衔接 | 填满等待时间必然提高学习效率 |
+| 学过的词条连接复习队列与知识大陆 | 地块/怪物对应自己的词条和复习，不是独立装饰小游戏 | 游戏化或间隔复习由本项目发明 |
+| 桌面共读、截图、练习与可查看任务衔接 | 本机材料如何进入当前会话，任务/权限/失败状态是否可见 | 可以任意操作电脑、插件能力没有边界 |
+
+### 1. 从错误思路到下一题：不是只显示一个红叉
+
+这组截图通过实际题目组件点击「评价这道题」和「先练环境创建」得到。示例是 JavaScript 闭包入门：学习者把创建环境与调用函数混淆，下一题减少推理步骤，只辨认创建环境的那一行。**题目、评价选项和模型回复为隔离预置数据，截图证明界面与交互，不是模型正确率或学习效果评测。**
+
+<details><summary>查看评价之前：原答案、解题思考与评价选项</summary>
+
+![实际题目组件：错误答案、独立思考与可选评价；隔离演示数据](docs/images/learning-feedback-before.png)
+
+</details>
+
+![评价之后：原题与思考保留，调整理由和下一题追加；隔离演示数据](docs/images/learning-feedback-after.png)
+
+### 2. 等待回复时练词，回复到了再接回阅读
+
+![实际前端动图：发送问题、等待时刷词、保存词条、回到回复；隔离演示数据](docs/images/ux178-wait-drill.gif)
+
+这里展示的是等待与复习的衔接，而不是「聊天软件加了一个词卡按钮」。词卡进度、回复完成提示和回到原对话都可观察。
+
+### 3. 阅读材料与练习保持同一个上下文
+
+![实际前端：资料和回答对照阅读；隔离演示数据](docs/images/ux177-reading.png)
+
+对照阅读、划选追问、来源跳转本身不是首创；项目的取舍是让这些材料继续服务于练习和词条积累，而不是止于总结。[功能与复验说明](docs/FEATURES.md) · [新增截图的来源记录](docs/images/learning-feedback-evidence.json)
+
 Windows 本地版把学习窗口和像素吉祥物带到桌面，学习数据留在自己的电脑上。新版会后台检查并准备更新，校验完成后提示重启；0.2.0 及更早版本需要先手动安装一次带更新器的新版。
+
+本地桌面构建新增引路灯旁的「☷ 任务中心」：独立查看任务、一级子 Agent、逐题分析和后台队列。电脑文件按需只读，工作区可读写文本，敏感文件逐次许可；任务和工作区设置保存在本机。机制与访问范围见 [桌面 Agent 与工作区说明](docs/DESKTOP-AGENT-WORKSPACE-SPEC.md)。
+
+悬停吉祥物可选择输入提问或截图提问。截图先框选和本机预览，再放入当前输入框；点击发送才交给配置的视觉模型，不自动上传或持续采屏。详见 [本机截图与快问](docs/DESKTOP-CAPTURE-SPEC.md)。
 
 | 你想做什么 | StudentBuddy 如何接住 |
 |---|---|
@@ -73,7 +119,7 @@ Windows 本地版把学习窗口和像素吉祥物带到桌面，学习数据留
 
 ### 阅读模式：把外部资源变成学习材料
 
-**本地版可以跟着你的浏览器一起读。** 在 Chrome／Edge 共读扩展里主动选择当前网页，StudentBuddy 会随正文、划选和阅读视野更新临时资料；你在绑定的对话中提问时，AI 检索相关段落再回答。停止共读、关闭选中标签页或断连后清除文字，也可以把这页作为定时练习的范围。扩展随 Windows 安装包提供，首次按 [网页共读连接说明](tools/browser-extension/README.md) 加载并配对。
+**本地版可以就在你选定的 Chrome / Edge 里共读。** 从更多功能「网页共读」跳转浏览器，连接当前对话，再从扩展点击「共读当前页」。首次直接在共读页面下载扩展 ZIP，解压并在浏览器加载一次，不必查找安装目录；页面按下载、解压、加载、刷新逐步说明，未检测到扩展时不会假装已经连上。之后不用填写地址和配对码；内置窗口作为备用保留。正文、划选和阅读视野随阅读更新为临时资料，AI 在绑定对话检索相关段落再回答；停止共读或断连后清除。详见 [连接说明](tools/browser-extension/README.md)。
 
 **让正文拥有稳定的空间。** 搜索更新资料入口和引用，用户主动打开后才进入对照阅读。桌面左右、手机上下，可拖动分界线，也可展开资料单独阅读。导航、输入都能收起，草稿和题卡继续保留。
 
@@ -81,7 +127,7 @@ Windows 本地版把学习窗口和像素吉祥物带到桌面，学习数据留
 
 **沿着资料继续探索。** 阅读器保留网页正文、章节、图片和出处。正文中的链接可确认后在阅读器内翻页，读完返回上一页；也能点“原网页”或“新标签页”去原平台。划选一段可进入速查，讲解、出题或提炼词条；“存为资料”把选中的来源绑定为当前会话材料，之后继续围绕它提问。
 
-**多平台资源有各自的入口。** 从回答脚注或资料头部点“找视频”，按知识点搜索并切换线路；资料并不局限于本站生成的内容。
+**多平台资源有各自的入口。** 从回答脚注或资料头部点“找视频”，按知识点搜索并切换线路；AI 也能调用视频工具换搜索词、追加检索、筛选和重新排序，结果会实时更新。只能保留实际检索到的视频，不编造链接，不自动播放。[浏览器与视频工具边界](docs/DESKTOP-BROWSER-VIDEO-SPEC.md)。
 
 | 学习资源 | 如何使用 |
 |---|---|
@@ -124,21 +170,28 @@ Windows 本地版把学习窗口和像素吉祥物带到桌面，学习数据留
 ## 开始体验
 
 - **在线使用**：[打开 StudentBuddy](https://11wand.com/)，首页可免注册体验。公用体验账号的内容共享，私人学习资料请放在自己的账号里。
-- **本地使用**：[下载 Windows 安装包](https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-stable)，安装后在设置里配置自己的 AI 服务商。
+- **本地使用**：[下载 Windows 安装包](https://github.com/llwand1/xuelian-agent/releases/tag/desktop-stable)，安装后在设置里配置自己的 AI 服务商。
 - **继续了解**：[功能说明](docs/FEATURES.md) · [外部 agent 存词接口](docs/AGENT-TERMS-SPEC.md) · [更新记录](CHANGELOG.md)。
 
 <details>
 <summary>开发者信息</summary>
 
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![tests](https://img.shields.io/badge/tests-427%20files%20%2F%204695%20cases-brightgreen)
-![api](https://img.shields.io/badge/REST%20routes-213-0ea5e9)
-![contracts](https://img.shields.io/badge/shared%20contracts-296%20types-8a63f6)
+![tests](https://img.shields.io/badge/tests-455%20files%20%2F%204860%20cases-brightgreen)
+![api](https://img.shields.io/badge/REST%20routes-240-0ea5e9)
+![contracts](https://img.shields.io/badge/shared%20contracts-310%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-8-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
-当前测试基线 **427 文件 / 4695 例**。Windows 安装包见[桌面更新通道](https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-stable)；在线体验**已上线到 v0.2.186**。
+当前测试基线 **455 文件 / 4860 例**。Windows 安装包见[桌面更新通道](https://github.com/llwand1/xuelian-agent/releases/tag/desktop-stable)；在线体验**已上线到 v0.2.186**。
 
 代码结构、开发约定与复验方式见 [工程文档](docs/ENGINEERING.md)。
 
 </details>
+### 桌面插件与正式更新通道
+
+设置 → 插件 → GitHub：选择 Chrome / Edge，点击连接，在该浏览器授权，再勾选仓库。接入固定校验的 GitHub 官方 MCP 组件，主对话可读取选中仓库的文件、Issue、PR 与 Actions；高级 Token 连接保留。浏览器令牌仅在内存，退出应用需重新连接。
+
+可导入声明式 JSON 接入其他公网 HTTPS Streamable HTTP MCP 服务，不运行第三方脚本；第三方工具逐次确认。配置、工具清单和调用记录可见。未开放子 Agent 插件权限、GitHub 写操作或插件商店。[插件契约与格式](docs/PLUGIN-ECOSYSTEM-SPEC.md)。
+
+桌面构建通过测试、隔离升级验证和签名后进入 [desktop-stable 更新通道](https://github.com/llwand1/xuelian-agent/releases/tag/desktop-stable)，以发行页显示版本为准。扩展 ZIP 也随正式桌面 Release 单独提供。仓库改名不改变 StudentBuddy 的程序名、旧数据目录和更新签名。

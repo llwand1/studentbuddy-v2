@@ -14,6 +14,12 @@ import type { ChatMessage, ToolCall } from '../llm/types.js';
 import type { TaskItem } from './task-list.js';
 import type { SourceItem } from '@sb/shared';
 import { insertMessageSources } from '../sources/store.js';
+export function touchSessionTitle(sessionId: string, text: string): void {
+  const db = getDb();
+  const title = (db.prepare('SELECT title FROM sessions WHERE id=?').get(sessionId) as { title: string } | undefined)?.title;
+  if (title === '新对话') db.prepare('UPDATE sessions SET title=? WHERE id=?').run(text.slice(0, 30) || '新对话', sessionId);
+  db.prepare(`UPDATE sessions SET updated_at=datetime('now') WHERE id=?`).run(sessionId);
+}
 
 /**
  * 工具轮 + 最终回答原子落库（v1 语义）：中途失败/中止时整体不落，历史里不会

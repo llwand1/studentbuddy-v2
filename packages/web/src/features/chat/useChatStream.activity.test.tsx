@@ -44,6 +44,24 @@ async function mount() {
 }
 
 describe('对话真实 hook 的轮完成边界', () => {
+  it('native service recovery clears stuck generation and waits for persisted history before resuming', async () => {
+    const handlers = new Set<(event: { data: string }) => void>();
+    vi.stubGlobal('chrome', { webview: {
+      postMessage: vi.fn(),
+      addEventListener: (_type: string, fn: (event: { data: string }) => void) => handlers.add(fn),
+      removeEventListener: (_type: string, fn: (event: { data: string }) => void) => handlers.delete(fn),
+    } });
+    const h = await mount();
+    act(() => network.emit(start())); expect(h.result.current.busy).toBe(true);
+    let restore = () => {};
+    network.messages.mockImplementationOnce(() => new Promise<[]>(resolve => { restore = () => resolve([]); }));
+    act(() => handlers.forEach(fn => fn({ data: 'sb-desktop:service-restored' })));
+    expect(h.result.current.busy).toBe(false); expect(h.result.current.historyReady).toBe(false);
+    await act(async () => restore());
+    expect(h.result.current.historyReady).toBe(true);
+    await act(async () => { expect((await h.result.current.send('接着学习')).ok).toBe(true); });
+    h.unmount(); expect(handlers.size).toBe(0);
+  });
   it('SSE 先连接时仍等待历史，切会话与迟到历史不冒充已确认的空态', async () => {
     let first = () => {}, second = () => {};
     network.messages.mockImplementationOnce(() => new Promise<[]>(resolve => { first = () => resolve([]); }));

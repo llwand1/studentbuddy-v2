@@ -19,13 +19,16 @@
  * ★ 但输入框与发送键在无会话时**不禁**（CHAT-UX §2.9 空会话直接开聊）：发送即开新对话，`blocked`
  *   由 ChatView 按「开会话中」给；占位文案把这条路写出来，而不是让人去找「新建对话」。
  */
-import { useRef, useState, type ComponentProps, type Dispatch, type RefObject, type SetStateAction } from 'react';
+import { type ComponentProps, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import { ComposerMenu } from '../../components/ComposerMenu';
 import { SendIcon, StopIcon } from '../../components/icons';
 import { buildComposerMenuItems } from './chat-menu';
-import { MAX_CHAT_IMAGES } from '@sb/shared';
+import { hasHost } from '../float/float-view';
+import { requestDesktopCapture } from '../desktop/desktop-input';
+import { requestDesktopReader } from '../desktop/desktop-reader-store';
 import type { AskChoiceRecord, ToolConfirmDecision } from '@sb/shared';
-import { judgeLoadedImage, intakeRejectHint, remainingSlots } from '../../lib/image-intake';
+import { useComposerImages } from './useComposerImages';
+import { DesktopComposerBridge } from '../desktop/DesktopComposerBridge';
 import { AskStyleCard } from './AskStyleCard';
 import { ComposerRequests } from './ComposerRequests';
 import { ComposerDock } from './ComposerDock';
@@ -64,13 +67,8 @@ export function ChatComposer({
   quizzing,
   onQuiz,
   scenarioing,
-  onScenario,
   online,
   setOnline,
-  remembering,
-  onRemember,
-  onExport,
-  canExport,
   doc,
   docOpen,
   setDocOpen,
@@ -140,79 +138,17 @@ export function ChatComposer({
   onConfirmReply: (requestId: string, decision: ToolConfirmDecision) => void;
   onDismissConfirm: () => void;
 }) {
-  const fileRef = useRef<HTMLInputElement>(null);
-  /**
-   * 已发起读取、还没落进 attachments 的张数。★ 上限必须把它算进来：`attachments` 是**本次渲染的
-   * 快照**，连续两次粘贴/选图在同一 tick 内都读到旧值，只按它算余量的话张数上限会被突破
-   * （服务端 `chat/vision.ts` 与 body 限额是同一套账，越线的症状是「点发送没反应」）。
-   */
-  const inflight = useRef(0);
-  /** 被拒图片的说明（过大/张数满）。**不静默丢弃**——用户以为选上了却不见图，比明确报错更糟 */
-  const [intakeHint, setIntakeHint] = useState('');
+  const { fileRef, intakeHint, addImages } = useComposerImages(attachments, setAttachments);
 
-  /** 把选中的/粘贴的图片文件转 base64 dataURL 追加进附件（限额与判定见 lib/image-intake） */
-  const addImages = (files: File[]) => {
-    const room = remainingSlots(attachments.length, inflight.current);
-    if (room <= 0) {
-      setIntakeHint(intakeRejectHint('full', files.length));
-      return;
-    }
-    let skipped = 0; // 本次操作内被拒的张数（同一 addImages 内的多个 reader 共享，收成一句提示）
-    for (const file of files.filter((f) => f.type.startsWith('image/')).slice(0, room)) {
-      inflight.current += 1;
-      const reader = new FileReader();
-      const release = () => {
-        inflight.current -= 1;
-      };
-      reader.onload = () => {
-        release();
-        const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-        if (!dataUrl) return;
-        // 过大/已满 → 不收，并如实说明原因（这是本次新增的即时反馈：此前单张超限要等到
-        // 发送时撞 413 才知道，而 413 发生在路由之前，症状是「点发送没反应」）
-        const verdict = judgeLoadedImage(dataUrl, attachments.length);
-        if (verdict !== 'accept') {
-          skipped += 1;
-          setIntakeHint(intakeRejectHint(verdict, skipped));
-          return;
-        }
-        setIntakeHint('');
-        // 函数式更新里再兜一次硬上限：名额计数若与真实状态对不上，宁可丢弃也不越线。
-        // 这一层是同一 tick 连粘的竞态兜底，刻意静默——竞态不是用户操作错，报出来只会让人莫名。
-        setAttachments((a) => (a.length >= MAX_CHAT_IMAGES ? a : [...a, { dataUrl, name: file.name }]));
-      };
-      reader.onerror = release; // 读失败也要还名额，否则余量永久缩水
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const items = buildComposerMenuItems({
-    sessionId,
-    blocked,
-    quizzing,
-    onQuiz,
-    scenarioing,
-    onScenario,
-    online,
-    setOnline,
-    mixTip,
-    grillMe,
-    setGrillMe,
-    doc,
-    docOpen,
-    setDocOpen,
-    remembering,
-    onRemember,
-    onExport,
-    canExport,
-    onPickImages: () => fileRef.current?.click(),
-  });
+  const items = buildComposerMenuItems({ sessionId, blocked, quizzing, onQuiz, online, setOnline, mixTip,
+    grillMe, setGrillMe, desktop: hasHost(), onReader: requestDesktopReader, onCapture: requestDesktopCapture });
 
   // 手机宽度下占位文案换短句（docs/MOBILE-SPEC.md §3.1）；布局差异仍在 CSS，这里只管字
   const narrow = useNarrow();
 
   return (
     <div className="chat-composer-wrap">
+      <DesktopComposerBridge input={input} setInput={setInput} inputRef={inputRef} attachments={attachments} setAttachments={setAttachments} />
       {/* 生成中离底：按钮点亮成「新内容」——提示底下还在长，而不只是「你滚上来了」 */}
       {showJump && (
         <button type="button" className={busy ? 'chat-jump live' : 'chat-jump'} onClick={onJump}>
@@ -244,7 +180,7 @@ export function ChatComposer({
           items={items}
           status={menuStatus({ online, docBase: doc.meta?.name })}
           title="更多功能"
-          disabled={!sessionId}
+          disabled={!sessionId && !hasHost()}
         />
         <textarea
           ref={inputRef}

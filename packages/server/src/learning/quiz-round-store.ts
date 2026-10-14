@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { OpenQuizRound, QuizRound, QuizRoundResponse, QuizQuestion, QuestionReviewStatus, GradeResult, QuizExplanation, QuizReviewItem, QuizRoundHistory } from '@sb/shared';
-import { blankQuizAnswer, checkQuizAnswer, quizAnswerReady } from '@sb/shared';
+import { blankQuizAnswer, checkQuizAnswer } from '@sb/shared';
 import { getDb } from '../storage/db.js';
 import { ownerForWrite } from '../auth/ownership.js';
 import type { DraftChange } from './quiz-round-input.js';
@@ -79,8 +79,8 @@ export function submitQuizRound(id: string, owner: string | null, changes: Draft
     if (changes.length !== round.questions.length || new Set(changes.map(c => c.index)).size !== changes.length) throw new RoundInputError('请提交本组所有题目的作答。');
     for (const change of changes) {
       const q = round.questions[change.index];
-      if (!q || !quizAnswerReady(q, change.draft)) throw new RoundInputError('还有题目未作答，思考不是必填项。');
-      if (q.scenarioTask) { try { JSON.parse(change.draft.essay); } catch { throw new RoundInputError('情景操作记录格式不正确，请重新操作。'); } }
+      if (!q) throw new RoundInputError('题目索引不正确。');
+      if (q.scenarioTask && change.draft.essay.trim()) { try { JSON.parse(change.draft.essay); } catch { throw new RoundInputError('情景操作记录格式不正确，请重新操作。'); } }
       saveQuizDraft(id, owner, change);
       const result = checkQuizAnswer(q, change.draft);
       getDb().prepare("UPDATE quiz_response SET result_json = ?, review_status = 'queued' WHERE round_id = ? AND question_index = ?").run(JSON.stringify(result), id, change.index);

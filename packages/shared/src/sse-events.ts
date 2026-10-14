@@ -183,6 +183,7 @@ export type SseEvent =
   //   request/resolved 按 requestId 配对；resolved 未到前确认卡不许自行动作（防双击竞态）。
   | {
       type: 'tool-confirm-request';
+      onceOnly?: boolean;
       seq: number;
       sessionId: string;
       requestId: string;

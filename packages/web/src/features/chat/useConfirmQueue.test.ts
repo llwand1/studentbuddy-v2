@@ -44,6 +44,11 @@ afterEach(() => {
 });
 
 describe('useConfirmQueue', () => {
+  it('preserves once-only MCP permission through the SSE queue to the confirmation card', () => {
+    const { result } = renderHook(() => useConfirmQueue('s1', vi.fn()));
+    act(() => result.current.applyEvent(reqFrame({ onceOnly: true, source: 'mcp', server: 'custom' })));
+    expect(result.current.pendingConfirm?.onceOnly).toBe(true);
+  });
   it('非确认帧一律放行（返回 false 交回 useChatStream 分发）', () => {
     const { result } = renderHook(() => useConfirmQueue('s1', vi.fn()));
     expect(result.current.applyEvent({ type: 'ping' })).toBe(false);

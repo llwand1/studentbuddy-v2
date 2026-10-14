@@ -60,6 +60,14 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   const run = async () => {
     const config = await state();
     if (sender.tab) {
+      if (message.type === 'handoff') {
+        const url = new URL(sender.url);
+        if (sender.frameId !== 0 || url.pathname !== '/desktop-reader-connect.html' || url.search || !/^[A-F0-9]{10}$/.test(message.code) || url.hash !== '#' + message.code) throw new Error('只允许本机共读连接页配对');
+        const next = { endpoint: endpoint(url.origin) };
+        const result = await bridge(next, '/pair', 'POST', { code: message.code });
+        await stopCapture(config); await save({ ...next, token: result.token, tabId: null });
+        await chrome.action.setBadgeText({ text: '' }); return { ok: true };
+      }
       if (message.type === 'resume' && sender.tab.id === config.tabId && sender.frameId === 0 && config.token &&
           new URL(sender.url).origin === new URL(config.url).origin) {
         const next = { ...config, epoch: crypto.randomUUID(), error: '' };

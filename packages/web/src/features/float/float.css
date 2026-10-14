@@ -36,6 +36,7 @@ html[data-float='ball'] #root {
   overflow: hidden;
   background: var(--sb-bg);
 }
+.sb-float-screen[hidden] { display: none; }
 
 .sb-float-bar {
   flex: none;
@@ -79,3 +80,41 @@ html[data-float='ball'] #root {
   min-height: 0;
   overflow: hidden;
 }
+
+/* Native chrome is outside the app's flex budget. Never size this nested shell to 100dvh. */
+body .sb-float-app .sb-shell { height: 100%; min-height: 0; position: relative; overflow: hidden; }
+body .sb-float-app .sb-shell :is(.sb-workspace, .sb-reading-content, .sb-main, .sb-chat-persist, .chat-view, .chat-scroll) { min-height: 0; }
+body .sb-float-app .sb-shell .chat-view { padding-bottom: 0; overflow: hidden; }
+.sb-float-screen:has(.sb-float-app) > .sb-float-bar { height: 18px; gap: 4px; padding: 0 4px; border-bottom-width: 1px; }
+.sb-float-drag-grip { flex: 1; height: 3px; background: linear-gradient(90deg, transparent 45%, var(--sb-line) 45% 55%, transparent 55%); }
+.sb-float-screen:has(.sb-float-app) .sb-float-collapse { height: 16px; width: 20px; font-size: 13px; }
+.sb-workspace-restoring { padding: 12px; color: var(--sb-ink-secondary); font-size: 12px; }
+
+/* One compact control row: the menu lives beside the lantern, not in a second brand bar. */
+body .sb-float-app .sb-shell .reading-toolbar { min-height: 34px; padding: 2px 6px; gap: 4px; }
+body .sb-float-app .sb-shell :is(.reading-toolbar-start, .reading-toolbar-actions) { gap: 4px; }
+body .sb-float-app .sb-shell .reading-tool { min-height: 28px; padding: 3px 5px; font-size: 11px; gap: 3px; }
+body .sb-float-app .sb-shell .reading-tool svg { width: 15px; height: 15px; }
+body .sb-float-app .sb-shell :is(.reading-nav-toggle, .reading-focus span) { display: none; }
+body .sb-float-app .sb-shell :is(.sb-toolbar-menu, .reading-focus, .guide-lantern) { width: 28px; height: 28px; min-width: 28px; min-height: 28px; padding: 0; justify-content: center; box-shadow: none; }
+body .sb-float-app .sb-shell .coach-cap { min-height: 28px; padding: 3px 5px; font-size: 11px; gap: 3px; }
+body .sb-float-app .sb-shell .coach-cap-icon { display: none; }
+body .sb-float-app .sb-shell .hunt-alert.is-compact .hunt-alert-go { min-height: 28px; padding: 3px; font-size: 11px; }
+body .sb-float-app .sb-shell .chat-head { min-height: 26px; padding: 3px 8px 4px; gap: 6px; }
+body .sb-float-app .sb-shell .chat-head-eyebrow { display: none; }
+body .sb-float-app .sb-shell .chat-head-title { font-size: 12px; }
+body .sb-float-app .sb-shell .chat-head-rounds { padding: 0 4px; font-size: 10px; }
+body .sb-float-app .sb-shell .chat-head::after { left: 8px; right: 8px; height: 1px; }
+body .sb-float-app .sb-shell .chat-scroll { padding: 10px 8px; }
+body .sb-float-app .sb-shell .chat-composer-wrap { padding: 0 6px 4px; }
+body .sb-float-app .sb-shell .composer-dock-handle { min-height: 22px; }
+body .sb-float-app .sb-shell :is(.composer-fold, .composer-fold-stop) { min-height: 22px; padding: 2px 6px; font-size: 11px; }
+body .sb-float-app .sb-shell .chat-composer { padding: 4px 6px; }
+body .sb-float-app .sb-shell .chat-composer textarea { min-height: 32px; height: var(--ta-h, 32px); max-height: min(96px, 20dvh); font-size: 14px; }
+body .sb-float-app .sb-shell :is(.chat-send, .chat-stop) { width: 32px; height: 32px; }
+
+body .sb-float-app .sb-shell .sb-sidebar.is-toolbar-drawer { position: absolute; top: 34px; left: 0; z-index: 45; width: 0; height: calc(100% - 34px); padding: 0; border: 0; overflow: visible; }
+body .sb-float-app .sb-shell .sb-sidebar.is-toolbar-drawer .sb-sidebar-content { display: none; }
+body .sb-float-app .sb-shell .sb-sidebar.is-toolbar-drawer.is-open .sb-sidebar-content { display: flex; position: absolute; top: 0; left: 0; width: min(300px, calc(100vw - 24px)); height: 100%; min-width: 0; padding: 12px; overflow-y: auto; background: var(--sb-sidebar); border-right: 2px solid var(--sb-pixel-edge); opacity: 1; visibility: visible; pointer-events: auto; }
+body .sb-float-app .sb-shell .sb-sidebar.is-toolbar-drawer .sb-mobile-backdrop { display: block; position: absolute; inset: 0 auto 0 0; width: 100vw; }
+body .sb-float-app .sb-shell .guide-pop { max-height: calc(100dvh - 64px); }

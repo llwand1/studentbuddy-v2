@@ -55,3 +55,6 @@
 .desktop-reader-meta { color: #a1a4af; font-size: 12px; }
 @keyframes desktop-quest-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .desktop-quiz { animation: none; } }
+.desktop-extension-install { padding: 12px; margin: 12px 0; border: 1px solid var(--sb-line); background: var(--sb-surface); }
+.desktop-extension-install p { font-size: 13px; margin: 8px 0; }
+.desktop-extension-install a { display: inline-block; margin-right: 8px; padding: 8px; }

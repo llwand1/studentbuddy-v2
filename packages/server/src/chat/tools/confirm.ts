@@ -26,6 +26,7 @@ import { publish } from '../sse-bus.js';
 const SETTLED_STUB_TTL_MS = 5 * 60_000;
 
 interface PendingConfirm {
+  onceOnly?: boolean;
   sessionId: string;
   resolve: (d: ToolConfirmDecision) => void;
   timer: ReturnType<typeof setTimeout>;
@@ -80,12 +81,13 @@ function settle(requestId: string, decision: ToolConfirmDecision): void {
  * 本函数不再校验载荷形状——那是契约的字段，编译期已钉（`ConfirmRequestInput`）。
  */
 export function requestConfirmation(input: ConfirmRequestInput, signal?: AbortSignal): Promise<ToolConfirmDecision> {
+  if (signal?.aborted) return Promise.resolve('deny'); // Never emit an already-resolved request after its resolved frame.
   const requestId = randomUUID();
   const expiresAt = Date.now() + CONFIRM_TIMEOUT_MS;
   return new Promise<ToolConfirmDecision>((resolve) => {
     const timer = setTimeout(() => settle(requestId, 'timeout'), CONFIRM_TIMEOUT_MS);
     timer.unref?.(); // 挂起的确认不该钉住进程退出（测试与优雅停机场景）
-    waiters.set(requestId, { sessionId: input.sessionId, resolve, timer });
+    waiters.set(requestId, { sessionId: input.sessionId, resolve, timer, onceOnly: input.onceOnly });
     if (signal) {
       const onAbort = (): void => settle(requestId, 'deny');
       if (signal.aborted) onAbort();
@@ -97,6 +99,7 @@ export function requestConfirmation(input: ConfirmRequestInput, signal?: AbortSi
       requestId,
       tool: input.tool,
       source: input.source,
+      ...(input.onceOnly ? { onceOnly: true } : {}),
       ...(input.server ? { server: input.server } : {}),
       actionSummary: input.actionSummary,
       affected: input.affected,
@@ -110,6 +113,9 @@ export type ConfirmAnswerResult = { ok: true } | { ok: false; status: number; er
 
 /** 用户回执入口（POST /api/chat/tool-confirm）。404＝不存在/已过期清理，409＝已有决定 */
 export function resolveConfirmation(requestId: string, rawDecision: unknown): ConfirmAnswerResult {
+  if (rawDecision === 'allow_session' && waiters.get(requestId)?.onceOnly) {
+    return { ok: false, status: 400, error: '本次插件请求只接受一次许可' };
+  }
   if (typeof rawDecision !== 'string' || !CLIENT_DECISIONS.includes(rawDecision)) {
     return { ok: false, status: 400, error: 'decision 只能是 allow_once / allow_session / deny' };
   }

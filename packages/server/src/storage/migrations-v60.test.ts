@@ -4,13 +4,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { closeDb, getDb, openIsolated } from './db.js';
 import { migrate } from './migrations.js';
+import { MIGRATIONS } from './migrations-list.js';
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-migration60-'));
 afterEach(() => { closeDb(); fs.rmSync(dir, { recursive: true, force: true }); });
 it('upgrades a v59 database without changing existing content and preserves rounds on repeated migration', () => {
   openIsolated(dir); const db = getDb();
-  db.exec("DROP TABLE quiz_response; DROP TABLE quiz_round; DELETE FROM schema_version WHERE version = 60; INSERT INTO sessions(id,title) VALUES('kept','旧会话'); INSERT INTO messages(session_id,role,content) VALUES('kept','user','旧消息')");
+  db.exec("DROP TABLE quiz_response; DROP TABLE quiz_round; DELETE FROM schema_version WHERE version >= 60; INSERT INTO sessions(id,title) VALUES('kept','旧会话'); INSERT INTO messages(session_id,role,content) VALUES('kept','user','旧消息')");
   const existing = db.prepare('SELECT * FROM messages').all(); migrate(db);
-  expect(db.prepare('SELECT MAX(version) AS v FROM schema_version').get()).toEqual({ v: 60 });
+  expect(db.prepare('SELECT MAX(version) AS v FROM schema_version').get()).toEqual({ v: Math.max(...MIGRATIONS.map(m => m.version)) });
   expect(db.prepare('SELECT * FROM messages').all()).toEqual(existing);
   db.exec("INSERT INTO quiz_round(id,quiz_key,quiz_id,title,origin,round_number,questions_json,created_at,session_id) VALUES('round','key','quiz','试炼','chat',1,'[]','2026-10-12','kept'); INSERT INTO quiz_response(round_id,question_index,draft_json,thought) VALUES('round',0,'{}','保留思考')");
   migrate(db); expect(db.prepare('SELECT thought FROM quiz_response').get()).toEqual({ thought: '保留思考' });

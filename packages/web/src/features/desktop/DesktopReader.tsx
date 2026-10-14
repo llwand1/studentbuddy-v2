@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import type { DesktopBrowserState } from '@sb/shared';
 import { BrowserControls } from './BrowserControls';
 import { desktopApi, isLocalDesktopAddress } from './desktop-api';
-import { closeDesktopReader, openDesktopReader, useDesktopReader } from './desktop-reader-store';
+import { closeDesktopReader, openDesktopReader, useDesktopReader, OPEN_DESKTOP_READER } from './desktop-reader-store';
 import { api } from '../../lib/api';
 
-export function DesktopBrowserEntry({ sessionId, onOpenSession }: { sessionId: string | null; onOpenSession: (id: string) => void }) {
+export function DesktopBrowserEntry({ sessionId, onOpenSession, hidden = false }: { sessionId: string | null; onOpenSession: (id: string) => void; hidden?: boolean }) {
   const [available, setAvailable] = useState(false);
   const [error, setError] = useState('');
   const reader = useDesktopReader();
@@ -20,13 +20,22 @@ export function DesktopBrowserEntry({ sessionId, onOpenSession }: { sessionId: s
     if (previousSession.current !== sessionId && reader.open && reader.sessionId !== sessionId) closeDesktopReader();
     previousSession.current = sessionId;
   }, [sessionId, reader.open, reader.sessionId]);
+  useEffect(() => {
+    const open = () => {
+      setError('');
+      void (async () => {
+        const id = sessionId || (await api.sessions.create()).id;
+        if (!sessionId) onOpenSession(id);
+        openDesktopReader(id);
+        await desktopApi.openReader(id);
+      })().catch(e => setError(e instanceof Error ? e.message : '打开共读失败'));
+    };
+    window.addEventListener(OPEN_DESKTOP_READER, open);
+    return () => window.removeEventListener(OPEN_DESKTOP_READER, open);
+  }, [sessionId, onOpenSession]);
   if (!available) return null;
-  return <><button type="button" className="reading-tool" aria-expanded={reader.open} title={error || '和 AI 一起读本地浏览器的网页'} onClick={() => {
-    if (reader.open) { closeDesktopReader(); return; }
-    setError('');
-    if (sessionId) openDesktopReader(sessionId);
-    else void api.sessions.create().then(s => { onOpenSession(s.id); openDesktopReader(s.id); }).catch(e => setError(e instanceof Error ? e.message : '创建共读对话失败'));
-  }}>网页共读</button>{error && <span role="alert">{error}</span>}</>;
+  return <>{!hidden && <button type="button" className="reading-tool" aria-expanded={reader.open} onClick={() => window.dispatchEvent(new Event(OPEN_DESKTOP_READER))}>网页共读</button>}{error && <span role="alert">{error}</span>}</>;
+
 }
 export function DesktopReaderPanel({ sessionId }: { sessionId: string }) {
   const [page, setPage] = useState<DesktopBrowserState | null>(null);

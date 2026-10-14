@@ -11,7 +11,7 @@
  *  - 打开时若给了种子词而当前词为空 ⇒ 用种子词并**立即搜一次**（学习者点「找视频」就该看到结果，不该再点一次）。
  */
 import { useSyncExternalStore } from 'react';
-import { cleanVideoQuery, type VideoHit, type VideoRoute, type VideoRouteResult } from '@sb/shared';
+import { cleanVideoQuery, type LearningVideosBlockPayload, type VideoHit, type VideoRoute, type VideoRouteResult } from '@sb/shared';
 import { searchVideos } from './api-sources';
 
 export type VideoPhase = 'idle' | 'loading' | 'done' | 'error';
@@ -35,6 +35,8 @@ let state: VideoRouteState = EMPTY;
 const perRoute = new Map<VideoRoute, VideoRouteResult>();
 let ac: AbortController | null = null;
 let seq = 0;
+let activeSession: string | null | undefined;
+const revisions = new Map<string, number>();
 const listeners = new Set<() => void>();
 
 const emit = (): void => {
@@ -45,6 +47,16 @@ export const subscribeVideoRoute = (fn: () => void): (() => void) => {
   return () => listeners.delete(fn);
 };
 export const getVideoRoute = (): VideoRouteState => state;
+export function setVideoSession(session: string | null): void {
+  activeSession = session;
+  if (state.sessionId && state.sessionId !== session) { ++seq; ac?.abort(); perRoute.clear(); state = EMPTY; emit(); }
+}
+export function applyLiveVideos(payload: LearningVideosBlockPayload): void {
+  if (activeSession !== undefined && payload.sessionId !== activeSession || payload.revision <= (revisions.get(payload.sessionId) ?? 0)) return;
+  revisions.set(payload.sessionId,payload.revision);
+  ++seq; ac?.abort(); ac = null; perRoute.clear(); perRoute.set(payload.result.route,payload.result);
+  set({open:true,sessionId:payload.sessionId,route:payload.result.route,query:payload.result.query,phase:'done',result:payload.result,playing:null,error:''});
+}
 export function useVideoRoute(): VideoRouteState {
   return useSyncExternalStore(subscribeVideoRoute, getVideoRoute, getVideoRoute);
 }
@@ -102,7 +114,7 @@ export async function runVideoSearch(): Promise<void> {
   const route = state.route;
   set({ query, phase: 'loading', error: '', playing: null });
   try {
-    const result = await searchVideos(route, query, mine.signal);
+    const result = await searchVideos(route, query, mine.signal, state.sessionId);
     if (my !== seq) return; // 迟到的旧结果：丢
     perRoute.set(route, result);
     set({ phase: 'done', result, error: '' });
@@ -124,6 +136,7 @@ export function resetVideoRouteStore(): void {
   ac?.abort();
   ac = null;
   seq = 0;
+  activeSession = undefined; revisions.clear();
   perRoute.clear();
   state = EMPTY;
   emit();

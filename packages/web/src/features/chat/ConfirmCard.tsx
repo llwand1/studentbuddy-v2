@@ -123,9 +123,9 @@ export function ConfirmCard({
             <button type="button" className="confirm-btn ok" disabled={busy} onClick={() => reply('allow_once')}>
               允许这一次
             </button>
-            <button type="button" className="confirm-btn ghost" disabled={busy} onClick={() => reply('allow_session')}>
+            {!request.onceOnly && <button type="button" className="confirm-btn ghost" disabled={busy} onClick={() => reply('allow_session')}>
               本会话内允许
-            </button>
+            </button>}
             <button type="button" className="confirm-btn bad" disabled={busy} onClick={() => reply('deny')}>
               拒绝
             </button>

@@ -2,11 +2,13 @@
 /**
  * useSessionDraft：草稿按会话隔离——切走存、切回取、「无会话 → 新会话」带字过去。
  */
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { renderHook, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { renderHook, cleanup, act } from '@testing-library/react';
+import { createElement, StrictMode, useState } from 'react';
 import { useSessionDraft } from './useSessionDraft';
 
-afterEach(cleanup);
+beforeEach(() => { localStorage.clear(); delete document.documentElement.dataset.float; });
+afterEach(() => { cleanup(); delete document.documentElement.dataset.float; vi.restoreAllMocks(); });
 
 function mount(sessionId: string | null, input: string) {
   const setInput = vi.fn();
@@ -15,6 +17,33 @@ function mount(sessionId: string | null, input: string) {
 }
 
 describe('useSessionDraft', () => {
+  it('the companion restores drafts after remount, isolates sessions and removes sent drafts in StrictMode', () => {
+    document.documentElement.dataset.float = 'screen';
+    const mountPersistent = (sid: string) => renderHook(({ id }) => {
+      const [input, setInput] = useState('');
+      useSessionDraft(id, input, setInput);
+      return { input, setInput };
+    }, { initialProps: { id: sid }, wrapper: ({ children }) => createElement(StrictMode, null, children) });
+    const first = mountPersistent('a');
+    act(() => first.result.current.setInput('上一题还没问完'));
+    first.rerender({ id: 'b' }); expect(first.result.current.input).toBe('');
+    act(() => first.result.current.setInput('B 的草稿'));
+    first.rerender({ id: 'a' }); expect(first.result.current.input).toBe('上一题还没问完');
+    first.unmount();
+    const reopened = mountPersistent('a'); expect(reopened.result.current.input).toBe('上一题还没问完');
+    act(() => reopened.result.current.setInput(''));
+    reopened.unmount();
+    expect(mountPersistent('a').result.current.input).toBe('');
+  });
+  it('blocked WebView storage still leaves in-memory drafts usable', () => {
+    document.documentElement.dataset.float = 'screen';
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('full'); });
+    const { result, rerender } = renderHook(({ id }) => {
+      const [input, setInput] = useState(''); useSessionDraft(id, input, setInput); return { input, setInput };
+    }, { initialProps: { id: 'a' } });
+    act(() => result.current.setInput('半句话'));
+    rerender({ id: 'b' }); rerender({ id: 'a' }); expect(result.current.input).toBe('半句话');
+  });
   it('首次挂载与同会话重渲染都不动输入框', () => {
     const { rerender, setInput } = mount('a', '半句话');
     rerender({ sid: 'a', inp: '半句话继续打' });

@@ -29,10 +29,27 @@ async function pair() {
 it('hosted deployments and DNS-rebound hostnames cannot enable the local bridge', async () => {
   delete process.env.SB_DESKTOP;
   await request(app).get('/api/desktop/study').expect(404);
+  await request(app).get('/api/desktop/workspace').expect(404);
   await request(app).post('/api/desktop/bridge/pair').send({ code: '1234567890' }).expect(404);
   process.env.SB_DESKTOP = '1';
   await request(app).get('/api/desktop/browser').set('Host', 'attacker.example:18794').expect(404);
   process.env.SB_HOST = '0.0.0.0'; await request(app).get('/api/desktop/study').expect(404);
+});
+it('remembers the companion conversation across a database reopen and clears deleted selections', async () => {
+  await request(app).post('/api/desktop/workspace').set('Origin', origin).send({ sessionId: sid }).expect(200);
+  closeDb();
+  expect((await request(app).get('/api/desktop/workspace').expect(200)).body).toEqual({ sessionId: sid });
+  getDb().prepare('UPDATE sessions SET deleted_at = ? WHERE id = ?').run(Date.now(), sid);
+  expect((await request(app).get('/api/desktop/workspace').expect(200)).body).toEqual({ sessionId: null });
+  await request(app).post('/api/desktop/workspace').set('Origin', origin).send({ sessionId: null }).expect(200);
+});
+it('workspace writes validate their parent session and keep the normal CSRF boundary', async () => {
+  await request(app).post('/api/desktop/workspace').send({ sessionId: sid }).expect(403);
+  await request(app).post('/api/desktop/workspace').set('Origin', extension).send({ sessionId: sid }).expect(403);
+  for (const value of [123, {}, undefined, 'x'.repeat(129)]) {
+    await request(app).post('/api/desktop/workspace').set('Origin', origin).send({ sessionId: value }).expect(400);
+  }
+  await request(app).post('/api/desktop/workspace').set('Origin', origin).send({ sessionId: 'missing' }).expect(404);
 });
 it('management keeps normal CSRF checks; extension capabilities cannot call settings', async () => {
   await request(app).post('/api/desktop/study').send({ enabled: true, intervalMinutes: 3, scope: 'learning' }).expect(403);

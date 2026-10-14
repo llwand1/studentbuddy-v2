@@ -17,8 +17,8 @@ export function ChapterFinale({ onCta }: { onCta: () => void }) {
       <ul className="wz-facts">
         {F.facts.map((x) => <li key={x.en}>{x[lang]}</li>)}
       </ul>
-      <a className="wz-src" href="https://github.com/llwand1/studentbuddy-v2" target="_blank" rel="noreferrer noopener">
-        {F.source[lang]} · github.com/llwand1/studentbuddy-v2
+      <a className="wz-src" href="https://github.com/llwand1/xuelian-agent" target="_blank" rel="noreferrer noopener">
+        {F.source[lang]} · github.com/llwand1/xuelian-agent
       </a>
     </Chapter>
   );

@@ -1,9 +1,18 @@
 import { it, expect } from 'vitest';
-import { wantsExamScopeChange, examScopeToolChoice } from './exam-scope-action.js';
+import { wantsExamScopeChange, examScopeToolChoice, wantsExamDiscovery } from './exam-scope-action.js';
 import { buildOpening } from './opening.js';
 const text = '请添加一个自填域名并移除旧域名，保留其它白名单';
 const opening = buildOpening({ grill: false, online: false });
 const read = [{ calls: [{ id: 'r', name: 'read_exam_scope', arguments: '{}' }], results: [{ role: 'tool' as const, toolCallId: 'r', content: '{"on":false,"scope":{"packs":[],"custom":[]}}' }] }];
+it('resource additions force discovery before writing, and zero verified candidates cannot force a write', () => {
+  const intent='帮我补充应试模式的资源站';
+  expect(wantsExamScopeChange(intent)).toBe(true);
+  expect(examScopeToolChoice(intent,1,opening,read)).toEqual({type:'function',name:'discover_exam_resources'});
+  const discovery={calls:[{id:'d',name:'discover_exam_resources',arguments:'{}'}],results:[{role:'tool' as const,toolCallId:'d',content:'{"candidates":[]}'}]};
+  expect(examScopeToolChoice(intent,2,opening,[...read,discovery])).toBeUndefined();
+  discovery.results[0]!.content='{"candidates":[{"host":"example.com","verified":true}]}';
+  expect(examScopeToolChoice(intent,2,opening,[...read,discovery])).toEqual({type:'function',name:'update_exam_scope'});
+});
 it('明确修改意图先读、下一轮强绑提交计划，不能只说稍后会改', () => {
   expect(examScopeToolChoice(text, 0, opening, [])).toEqual({ type: 'function', name: 'read_exam_scope' });
   expect(examScopeToolChoice(text, 1, opening, read)).toEqual({ type: 'function', name: 'update_exam_scope' });
@@ -18,6 +27,10 @@ it('只查看、步骤咨询、明确不改不强绑写；失败读取和已尝�
   expect(examScopeToolChoice('查看白名单', 1, opening, read)).toBeUndefined();
   expect(examScopeToolChoice(text, 1, opening, [{ ...read[0]!, results: [] }])).toBeUndefined();
   expect(examScopeToolChoice(text, 2, opening, [...read, { calls: [{ id: 'w', name: 'update_exam_scope', arguments: '{}' }], results: [] }])).toBeUndefined();
+});
+it('negated resource additions and setup questions cannot authorize discovery; adding unnamed resource sites can',()=>{
+  for(const text of ['不要补充应试资源站','别新增应试资源网站','如何补充应试模式的资源站','不用搜集应试题源']) expect(wantsExamDiscovery(text)).toBe(false);
+  expect(wantsExamDiscovery('请添加一些应试资源网站')).toBe(true);
 });
 it('参数错误最多纠正一次；用户拒绝不能触发重试', () => {
   const bad = { calls: [{ id: 'w', name: 'update_exam_scope', arguments: '{}' }], results: [{ role: 'tool' as const, toolCallId: 'w', content: '白名单未修改：参数冲突' }] };

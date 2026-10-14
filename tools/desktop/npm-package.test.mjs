@@ -22,7 +22,7 @@ test('package includes verified installer and links to the repository', async ()
   const options = await fixture();
   const manifest = await preparePackage(options);
   assert.equal(manifest.name, '@llwand1/studentbuddy-windows');
-  assert.equal(manifest.repository.url, 'https://github.com/llwand1/studentbuddy-v2.git');
+  assert.equal(manifest.repository.url, 'https://github.com/llwand1/xuelian-agent.git');
   assert.equal(manifest.studentbuddy.sha256, options.sha256);
   assert.equal(manifest.scripts, undefined);
   const require = createRequire(import.meta.url);

@@ -2,7 +2,7 @@
  * video-route —— 资料溯源的「视频线路」契约（docs/SOURCE-TRACE-SPEC.md §12）。
  *
  * 为什么是一条**单独的线路**而不是塞进 `search_web`：AI 联网搜到的是网页；学习者常常更想要一段十来分钟的
- * 讲解视频，而通用搜索引擎对 B站 / 抖音的收录都很差（抖音几乎不收）。所以这条线路**不经过 AI**：
+ * 讲解视频，而通用搜索引擎对 B站 / 抖音的收录有限。线路既能由用户打开，也能由主 Agent 检索/筛选：
  * 学习者在资料架上点一下，服务端直接去 B站站内搜（有公开的站内搜索接口，官方播放器可嵌 ⇒ 就地播）；
  * 抖音没有公开接口、也不许嵌播 ⇒ 只能给「站内搜索跳转卡」+ 联网 `site:douyin.com` 命中的跳转卡。
  * 两家的差别（站内播 / 只能跳转）**如实**写在契约与卡面上，不假装一样。
@@ -41,6 +41,8 @@ export interface VideoHit {
 }
 
 export interface VideoRouteResult {
+  /** Session-bound temporary candidate revision; absent on legacy unbound searches. */
+  revision?: number;
   route: VideoRoute;
   query: string;
   hits: VideoHit[];
@@ -50,6 +52,13 @@ export interface VideoRouteResult {
   via: 'api' | 'web' | 'none';
   /** 如实的说明（接口没应答改走联网、抖音只能跳转、零命中的原因……） */
   note?: string;
+}
+
+export interface LearningVideosBlockPayload {
+  kind: 'learning-videos';
+  sessionId: string;
+  revision: number;
+  result: VideoRouteResult;
 }
 
 /** 站内搜索页：B站全站搜；抖音的搜索页带 `type=video` 直接落到视频页签 */

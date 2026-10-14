@@ -14,21 +14,48 @@ import { publish } from './sse-bus.js';
 import { runTool } from './tools/index.js';
 import type { ToolContext, ToolResult } from './tools/index.js';
 import { parseTaskArgs, applyTaskPatch, formatTaskList, type TaskItem } from './task-list.js';
+import { DESKTOP_FILE_TOOL_NAMES, executeDesktopChatTool } from '../desktop/chat-integration.js';
+import { patchDesktopRun } from '../desktop/task-store.js';
+import { executePluginChatTool, PLUGIN_TOOL_NAMES } from '../plugins/chat.js';
+import { recordRunEvent } from '../desktop/task-store.js';
+import { discoverExamResources } from './exam-resource-discovery.js';
+import { executeLearningVideoTool } from './learning-video-tools.js';
 
 export function createExecTool(deps: {
   sessionId: string;
+  desktopTaskId?: string;
+  examDiscoveryAllowed?: boolean;
   /** grill-me 开场：给强绑产生的 ask_choice 打 pre 标记，前端据此把它沉进消息流（普通触发不带） */
   grill: boolean;
   getTasks: () => TaskItem[];
   setTasks: (items: TaskItem[]) => void;
 }): (name: string, argsJson: string, ctx: ToolContext) => Promise<ToolResult> {
   const { sessionId, grill, getTasks, setTasks } = deps;
+  const discovered = new Set<string>();
   /**
    * 任务清单工具执行器：两种模式（全量 tasks / 增量 updates）→ 合并当前清单 →
    * 发 tasks 事件（**恒为完整清单**，前端整表替换）→ 回灌带序号的清单确认。
    * 回灌必须带序号：patch 模式靠 index 定位，模型看不到序号下一次就会错位。
    */
-  return (name, argsJson, ctx) => {
+  return async (name, argsJson, ctx) => {
+    if (name === 'search_learning_videos' || name === 'curate_learning_videos') return executeLearningVideoTool(name,argsJson,ctx);
+    if (name === 'discover_exam_resources') {
+      if (!deps.examDiscoveryAllowed) return {content:'本轮没有补充应试资源的明确请求，请使用受原范围限制的普通检索。'};
+      const result = await discoverExamResources(argsJson, ctx);
+      const found = JSON.parse(result.content) as {candidates:Array<{host:string;verified:boolean}>};
+      for (const c of found.candidates) if (c.verified) discovered.add(c.host);
+      return result;
+    }
+    if (name === 'update_exam_scope' && deps.examDiscoveryAllowed) {
+      const args = JSON.parse(argsJson) as {addHosts?:unknown;setHosts?:unknown};
+      const hosts = [args.addHosts,args.setHosts].flatMap(v => Array.isArray(v) ? v : []);
+      if (hosts.some(h => typeof h !== 'string' || !discovered.has(h.toLowerCase()))) return {content:'白名单未修改：新增资源站必须先由 discover_exam_resources 验证；未搜到则如实说明，不编造域名。'};
+    }
+    if (PLUGIN_TOOL_NAMES.includes(name)) {
+      if (deps.desktopTaskId) recordRunEvent(deps.desktopTaskId, ctx.ownerId, '调用插件：' + name);
+      return executePluginChatTool(name, argsJson, ctx);
+    }
+    if (DESKTOP_FILE_TOOL_NAMES.includes(name)) return executeDesktopChatTool(name, argsJson, ctx, deps.desktopTaskId).catch(error => ({ content: `操作未完成：${error instanceof Error ? error.message : String(error)}` }));
     if (name !== 'update_tasks') {
       return runTool(name, argsJson, name === 'ask_choice' && grill ? { ...ctx, grillPhase: 'pre' } : ctx);
     }
@@ -43,6 +70,7 @@ export function createExecTool(deps: {
       setTasks(applied.items);
     }
     publish(sessionId, { type: 'tasks', sessionId, items: getTasks() });
+    if (deps.desktopTaskId) patchDesktopRun(deps.desktopTaskId, ctx.ownerId, { tasks: getTasks() });
     return Promise.resolve({ content: formatTaskList(getTasks()) });
   };
 }

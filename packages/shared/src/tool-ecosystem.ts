@@ -62,6 +62,8 @@ export type ToolConfirmDecision = 'allow_once' | 'allow_session' | 'deny' | 'tim
 
 /** 确认请求的线上形状（帧字段逐条对齐契约 §6.4；items ≤8 行×≤40 字由 server 出 PendingWrite 时裁好） */
 export interface ToolConfirmRequest {
+  /** Third-party plugins require one exact call approval, never a session grant. */
+  onceOnly?: boolean;
   requestId: string;
   tool: string;
   source: 'builtin' | 'mcp';

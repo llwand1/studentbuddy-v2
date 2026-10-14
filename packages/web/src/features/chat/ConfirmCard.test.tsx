@@ -8,7 +8,7 @@
  * **倒计时归零不许本地代答**（决定权在服务端定时器，卡片只改文案不改可点性）。
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, fireEvent, cleanup } from '@testing-library/react';
+import { render, fireEvent, cleanup, screen } from '@testing-library/react';
 import { ConfirmCard, confirmResultText } from './ConfirmCard';
 import type { ConfirmItem } from './useConfirmQueue';
 
@@ -36,6 +36,12 @@ function setup(
 }
 
 const text = () => document.body.textContent ?? '';
+
+it('third-party once-only approvals never present a session-wide authorization button', () => {
+  setup({ onceOnly: true, source: 'mcp', server: 'custom-plugin' });
+  expect(screen.queryByRole('button', { name: '本会话内允许' })).toBeNull();
+  expect(screen.getByRole('button', { name: '允许这一次' })).toBeTruthy();
+});
 
 afterEach(() => {
   cleanup();

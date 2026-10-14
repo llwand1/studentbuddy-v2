@@ -13,7 +13,7 @@ import { useLandingLang } from '../app/landing-lang';
 import { SHELL } from '../app/shell-copy';
 import './trial-notice.css';
 
-const LOCAL_BUILD_URL = 'https://github.com/llwand1/studentbuddy-v2#快速开始';
+const LOCAL_BUILD_URL = 'https://github.com/llwand1/xuelian-agent#快速开始';
 
 export function TrialNotice() {
   /** 提醒文案跟着全局语言走（词表见 app/shell-copy.ts）。

@@ -14,6 +14,15 @@ beforeEach(() => { resetRoundMocks(); localStorage.clear(); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const open = async (qs = questions) => { render(<QuizCard title="植物" questions={qs} quizId="q1" sessionId="s1" />); return screen.findAllByRole('region', { name: /^第 \d 题$/ }); };
 const select = (row: HTMLElement, text: string) => fireEvent.click(within(row).getByRole('button', { name: new RegExp(text) }));
+it('submit is available with partial or zero answers and includes every blank snapshot', async () => {
+  const rows = await open(); select(rows[0]!, '光合作用');
+  const button = screen.getByRole('button', { name: /提交整组答案/ });
+  await waitFor(() => expect(button).toHaveProperty('disabled', false));
+  fireEvent.click(button); await screen.findByText('第 1 轮 · 已交卷');
+  const snapshots=roundMocks.submit.mock.calls[0]![1];expect(snapshots).toHaveLength(2);expect(snapshots[1]!.draft.picked).toEqual([]);
+  cleanup();resetRoundMocks();await open();
+  expect(screen.getByRole('button',{name:/提交整组答案/})).toHaveProperty('disabled',false);
+});
 it('keeps thinking optional and collapsed, preserves edits and hides all verdicts until group submission', async () => {
   const rows = await open();
   expect(screen.queryByRole('textbox', { name: '我的思考 / 评价' })).toBeNull();

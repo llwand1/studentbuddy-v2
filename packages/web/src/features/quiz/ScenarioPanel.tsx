@@ -71,13 +71,13 @@ export function ScenarioPanel({ quizId, payload, demoId, sessionId, recordId }: 
       </section>;
     })}
     <div className="quiz-round-actions">
-      {r && !submitted && <button className="quiz-submit" disabled={answered !== r.questions.length || !answered || rounds.acting || rounds.saving}
+      {r && !submitted && <button className="quiz-submit" disabled={rounds.acting || rounds.saving}
         onClick={() => void rounds.submit()}>提交整组操作 · 逐项分析</button>}
       {submitted && r.latestId === r.id && !rounds.busy && <button className="quiz-gen-btn" disabled={rounds.acting} onClick={() => void rounds.next()}>再练一遍</button>}
       {rounds.busy && <button className="quiz-gen-btn" onClick={() => void rounds.cancel()}>停止未完成的生成</button>}
       {r?.previousId && <button className="quiz-gen-btn" disabled={rounds.acting} onClick={() => void rounds.previous()}>查看上一轮</button>}
       {r && r.latestId !== r.id && <button className="quiz-gen-btn" onClick={() => void rounds.latest()}>返回当前轮</button>}
-      <span role="status">{submitted ? '操作、思考和已有分析已保存' : rounds.saving ? '正在保存…' : '输入自动保存 · 思考选填'}</span>
+      <span role="status">{submitted ? '操作、思考和已有分析已保存' : rounds.saving ? '正在保存…' : '输入自动保存 · 思考选填 · 未答题也可交卷（按未答计分）'}</span>
     </div>
     {rounds.streamError && <p role="status">{rounds.streamError}</p>}
     {!recordId && <button className="quiz-gen-btn" onClick={() => void rounds.flush().then(() => setHistory(true)).catch(() => undefined)}>作答历史</button>}

@@ -3,6 +3,9 @@ import { parseDesktopStudySettings } from '@sb/shared';
 import { canAccessSession, sessionExists, ownerIdOf } from '../auth/ownership.js';
 import { browserStore } from '../desktop/browser-store.js';
 import { saveStudySettings, studyClock } from '../desktop/study.js';
+import { loadWorkspace, saveWorkspace } from '../desktop/workspace.js';
+import { desktopWorkbenchRouter } from './desktop-workbench.js';
+import { browserPreference, openReaderBrowser, savePreferredBrowser } from '../desktop/browser-launch.js';
 
 /** Never exposed by the hosted website; verify the actual socket, host and launch marker. */
 export function desktopGuard(req: Request, res: Response, next: NextFunction): void {
@@ -61,6 +64,30 @@ desktopBridgeRouter.delete('/connection', (_req, res) => {
 
 export const desktopRouter = Router();
 desktopRouter.use(desktopGuard);
+desktopRouter.use('/workbench', desktopWorkbenchRouter);
+desktopRouter.get('/browser/preference', (req, res) => res.json(browserPreference(ownerIdOf(req))));
+desktopRouter.post('/browser/preference', (req, res) => {
+  try { savePreferredBrowser(ownerIdOf(req), req.body?.browser); res.json(browserPreference(ownerIdOf(req))); }
+  catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : '浏览器选择失败' }); }
+});
+desktopRouter.post('/browser/open', async (req, res) => {
+  const id: unknown = req.body?.sessionId, owner = ownerIdOf(req);
+  if (typeof id !== 'string' || !sessionExists(id) || !canAccessSession(id, owner)) { res.status(404).json({error:'请先选择一个本机对话'}); return; }
+  try {
+    const code = browserStore.pairCode(owner, id);
+    const port = req.socket.localPort;
+    await openReaderBrowser(owner, `http://127.0.0.1:${port}/desktop-reader-connect.html#${code}`);
+    res.json({ok:true});
+  } catch (e) { res.status(400).json({error:e instanceof Error ? e.message : '浏览器打开失败'}); }
+});
+desktopRouter.get('/workspace', (req, res) => res.json(loadWorkspace(ownerIdOf(req))));
+desktopRouter.post('/workspace', (req, res) => {
+  const id: unknown = req.body?.sessionId;
+  if (id !== null && (typeof id !== 'string' || id.length > 128)) { res.status(400).json({ error: '对话标识无效' }); return; }
+  const owner = ownerIdOf(req);
+  if (id !== null && (!sessionExists(id) || !canAccessSession(id, owner))) { res.status(404).json({ error: '对话不存在' }); return; }
+  saveWorkspace(owner, id); res.json(loadWorkspace(owner));
+});
 desktopRouter.get('/study', (req, res) => res.json(studyClock(ownerIdOf(req)).state()));
 desktopRouter.post('/study', (req, res) => {
   const settings = parseDesktopStudySettings(req.body);

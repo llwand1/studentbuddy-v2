@@ -29,6 +29,14 @@ function submitted(count = 2, essay = false) {
   return submitQuizRound(r.id, null, r.responses.map(a => ({ index: a.index, revision: 0, draft: { ...a.draft, picked: essay ? [] : [0], essay: essay ? '正式作答' : '' }, thought: `这题 ${a.index} 的思考` })))!;
 }
 const finished = (id: string) => vi.waitFor(() => expect(loadQuizRound(id, null)!.responses.every(r => ['complete', 'error', 'cancelled'].includes(r.status))).toBe(true));
+it('unanswered essay is recorded as wrong once, never sent for subjective grading or awarded a score from thinking',async()=>{
+  const r=openQuizRound({title:'空白复盘',origin:'chat',questions:[{type:'essay',question:'解释过程',answer:'标准'}]},null);ids.push(r.id);
+  submitQuizRound(r.id,null,r.responses.map(a=>({index:a.index,revision:a.revision,draft:a.draft,thought:'思考中有参考答案，但正式作答留空'})));
+  startQuizRoundAnalysis(r.id,null);await finished(r.id);
+  expect(mocks.grade).not.toHaveBeenCalled();expect(mocks.effects).not.toHaveBeenCalled();
+  const saved=loadQuizRound(r.id,null)!.responses[0]!;expect(saved.result).toMatchObject({verdict:'wrong',answer:'未作答'});expect(saved.recorded).toBe(true);
+  expect(JSON.parse(mocks.text.mock.calls[0]![0].messages[1].content).item.answer).toBe('未作答');
+});
 it('streams each question separately, passes only its thinking and keeps checking separate from notes', async () => {
   const r = submitted(2, true), events: QuizRoundEvent[] = [];
   const off = subscribeQuizRound(r.id, e => events.push(e)); startQuizRoundAnalysis(r.id, null); await finished(r.id); off();

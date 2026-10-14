@@ -26,7 +26,7 @@
 | 产品名 | `studentbuddy`（应用内与侧栏 logo 用这个）／`StudentBuddy`（对外首字母大写的写法） | `packages/web/src/lib/brand.ts`（`BRAND_NAME`）；`packages/web/index.html` 的 `og:title` | 高 |
 | 官方站点 | <https://11wand.com> | `GET /api/health` 返 `{"ok":true}`（09-24 现读） | 高 |
 | 免注册体验 | 首页 hero 的「免注册，直接体验」按钮（服务端开关，现为开） | `GET /api/auth/providers` → `{"providers":{"github":true,"demo":true},"form":"cloud"}`（09-24 现读） | 高 |
-| 源码仓库 | <https://github.com/llwand1/studentbuddy-v2>（**PUBLIC**） | `gh repo view --json visibility` 实测 `PUBLIC` | 高 |
+| 源码仓库 | <https://github.com/llwand1/xuelian-agent>（**PUBLIC**） | `gh repo view --json visibility` 实测 `PUBLIC` | 高 |
 | 许可证 | **MIT** | 仓根 `LICENSE`；`gh repo view --json licenseInfo` → `mit` | 高 |
 | 形态 | ①自托管服务端（Docker／裸机）②本地单机（`npm run dev`）③官方托管实例（就是 11wand.com） | README §部署形态 | 高 |
 | 技术栈 | TypeScript · React 18 · Express · SQLite（better-sqlite3）· Vite 5 | README §架构；`package.json` | 高 |

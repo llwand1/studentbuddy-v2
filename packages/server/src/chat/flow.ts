@@ -14,8 +14,10 @@ import { estimateTokens, truncateHistoryToBudget, getContextLimit } from './cont
 import { toolDefinitions, toolDefinitionTokens } from './tools/index.js';
 import { runToolCalls, type StepPayload } from './tool-exec.js';
 import { createExecTool } from './tool-dispatch.js';
+import { withDesktopChatRun } from '../desktop/chat-integration.js';
+import { patchDesktopRun } from '../desktop/task-store.js';
 import { createSourceShelf } from '../sources/shelf.js';
-import { persistRounds, loadHistory, insertUserMessage, insertAssistantMessage } from './persist.js';
+import { persistRounds, loadHistory, insertUserMessage, insertAssistantMessage, touchSessionTitle } from './persist.js';
 import { cancelChoicesBySession } from './choice.js';
 import { assembleContextMessages, collectContextSegments } from './context-segments.js';
 import { TASKS_TOOL, type TaskItem } from './task-list.js';
@@ -30,6 +32,7 @@ import { runGrillClosing } from './grill.js';
 import { shouldCloseGrill } from './grill-timing.js';
 import { applyTurnOpening, dropOpening, examScopeToolChoice, finishToolRound } from './opening.js';
 import type { ChatOptions, ChatResult } from './options.js';
+import { runtimeDefinitions, runtimeBoundaryTokens, applyRuntimeBoundary, RUNTIME_NO_TIMEOUT, wantsExamDiscovery } from './runtime-capabilities.js';
 
 /**
  * 工具循环上限（v1 语义：模型连续发起工具调用时的轮次天花板，防死循环）。
@@ -51,7 +54,7 @@ export type { ChatOptions, ChatResult } from './options.js';
 
 export function handleMessage(opts: ChatOptions): Promise<ChatResult> {
   const prev = locks.get(opts.sessionId) ?? Promise.resolve();
-  const next = prev.then(() => runTurn(opts), () => runTurn(opts));
+  const next = prev.then(() => withDesktopChatRun(opts, runTurn), () => withDesktopChatRun(opts, runTurn));
   locks.set(opts.sessionId, next);
   const cleanup = () => {
     if (locks.get(opts.sessionId) === next) locks.delete(opts.sessionId);
@@ -86,13 +89,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   if (!opts.skipUserPersist) {
     insertUserMessage(sessionId, userText, opts.images ?? []);
   }
-  const sessionTitle = (
-    db.prepare('SELECT title FROM sessions WHERE id = ?').get(sessionId) as { title: string } | undefined
-  )?.title;
-  if (sessionTitle === '新对话') {
-    db.prepare('UPDATE sessions SET title = ? WHERE id = ?').run(opts.text.slice(0, 30) || '新对话', sessionId);
-  }
-  db.prepare(`UPDATE sessions SET updated_at = datetime('now') WHERE id = ?`).run(sessionId);
+  touchSessionTitle(sessionId, opts.text);
   // ★ 主链路的模型选择必须带归属——不带就是「用户 A 配的 key 被 B 的对话烧掉」
   const target = routeRole(opts.role ?? 'explain', undefined, opts.ownerId);
   if (!target || !target.model) {
@@ -102,6 +99,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
     publish(sessionId, { type: 'chat-error', sessionId, message: msg });
     return { ok: false, error: msg };
   }
+  if (opts.desktopTaskId) patchDesktopRun(opts.desktopTaskId, opts.ownerId ?? null, { model: target.model });
 
   startNewRound(sessionId);
   // 轮起点帧：缓冲第一帧，切会话/重连回放时前端据此恢复计时基准（契约 SSE-CONTRACT §2）
@@ -109,7 +107,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
 
   // 单轨工具循环（见 chat/tools/）：update_tasks 不进注册表（有状态工具，理由见 task-list.ts 头注），
   // definition 拼进列表、执行走 exec 注入。★ 必须在预算前声明：tools JSON 现计入 systemPromptTokens（契约 §4.4 第 1 条）。
-  const tools = [...toolDefinitions(), TASKS_TOOL.definition];
+  const tools = [...toolDefinitions(), TASKS_TOOL.definition, ...runtimeDefinitions(opts.ownerId ?? null, opts.text)];
 
   // 组装上下文。附加 system 段（摘要/词条/资料/偏好/画像/触发增强）的**构造、落位与预算核算**
   // 全在 chat/context-segments.ts —— 此前这三件事在本文件里各写一遍（同一份清单写两遍），
@@ -127,9 +125,10 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   const truncated = truncateHistoryToBudget(liveHistory, {
     limit: getContextLimit(target.model),
     // §4.4 第 1 条：工具定义逐轮全量下发，与 system 段同口径进预算（此前不进任何账 ⇒ 截断恒少算）
-    systemPromptTokens: systemPromptTokens + toolDefinitionTokens(tools),
+    systemPromptTokens: systemPromptTokens + toolDefinitionTokens(tools) + runtimeBoundaryTokens(tools),
   });
   const { messages, nudgeMsg, styleMsg } = assembleContextMessages(segments, truncated);
+  applyRuntimeBoundary(messages, tools);
   // 开场硬指令（grill-me / 联网，装配见 chat/opening.ts）：只在内存 messages 里活，不落库——它是指令不是发言
   const opening = applyTurnOpening(opts, userText, messages, nudgeMsg);
   // 工具循环预算：窗口 − 全部附加 system 段（`systemPromptTokens`，见 context-segments.ts）
@@ -139,7 +138,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   const toolBudget = Math.max(
     0,
     getContextLimit(target.model) -
-      (systemPromptTokens + toolDefinitionTokens(tools)) -
+      (systemPromptTokens + toolDefinitionTokens(tools) + runtimeBoundaryTokens(tools)) -
       truncated.reduce((s, m) => s + estimateTokens((m.content || '') + (m.toolCalls ? JSON.stringify(m.toolCalls) : '')), 0) -
       20_000,
   );
@@ -187,6 +186,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
   // update_tasks 的清单合并与非清单工具转发在 chat/tool-dispatch.ts（拆文件：本文件加计时线后破线）
   const execTool = createExecTool({
     sessionId,
+    desktopTaskId: opts.desktopTaskId, examDiscoveryAllowed: wantsExamDiscovery(opts.text),
     grill: opening.grill,
     getTasks: () => latestTasks,
     setTasks: (items) => {
@@ -270,7 +270,7 @@ async function runTurn(opts: ChatOptions): Promise<ChatResult> {
         // 会话 id 透传：ask_choice 据此把提问绑到当前会话（方案选择框）
         sessionId,
         // ask_choice 要等学习者点选、契约不设超时——不豁免就会被 30s 默认超时掐断（见 tool-exec.ts）
-        noTimeout: ['ask_choice'],
+        noTimeout: RUNTIME_NO_TIMEOUT,
         // ★ v31 补传：此前这里没有 ownerId ⇒ `manage_terms`（已退役，现词条族在 term-ops.ts）的词条增删改查全落**无主行**
         //   （主人自己登录后看不到），而**全程不报错**。必填化就是为了逼出这类静默错误。
         ownerId: opts.ownerId ?? null,

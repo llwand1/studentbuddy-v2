@@ -6,9 +6,13 @@ import { preparePackage } from './prepare-package.mjs';
 const { validateEnvelope, verifyFile, compare } = createRequire(import.meta.url)('./update-core.cjs');
 const version = process.env.DESKTOP_VERSION, commit = process.env.SOURCE_COMMIT;
 const repo = process.env.GITHUB_REPOSITORY;
-if (repo !== 'llwand1/studentbuddy-v2' || !/^[a-f0-9]{40}$/.test(commit || '')) throw new Error('Unexpected release repository/source');
+if (repo !== 'llwand1/xuelian-agent' || !/^[a-f0-9]{40}$/.test(commit || '')) throw new Error('Unexpected release repository/source');
 const gh = (...args) => execFileSync('gh',args,{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();
 const assets = '.runtime/release-assets', filename=`StudentBuddy-${version}-windows-x64-setup.exe`, tag=`desktop-v${version}`;
+const readerVersion=JSON.parse(fs.readFileSync('tools/browser-extension/manifest.json','utf8')).version;
+if(!/^\d+\.\d+\.\d+$/.test(readerVersion))throw new Error('Invalid reader extension version');
+const readerZip=`StudentBuddy-reader-extension-${readerVersion}.zip`, readerSum='reader-extension-SHA256SUMS.txt';
+const releaseFiles=[filename,'SHA256SUMS.txt','update.json',readerZip,readerSum];
 const publicKey=fs.readFileSync(new URL('./update-public-key.pem',import.meta.url),'utf8');
 let existing;
 try { existing=JSON.parse(gh('release','view',tag,'--repo',repo,'--json','isDraft,targetCommitish')); }
@@ -17,20 +21,23 @@ if (existing && !existing.isDraft) {
   const publishedCommit = gh('api',`repos/${repo}/commits/${tag}`,'--jq','.sha');
   if (publishedCommit !== commit) throw new Error('Desktop version already belongs to different source');
   const released='.runtime/published-assets'; fs.mkdirSync(released,{recursive:true});
-  gh('release','download',tag,'--repo',repo,'--pattern',filename,'--pattern','SHA256SUMS.txt','--pattern','update.json','--dir',released);
-  for (const file of [filename,'SHA256SUMS.txt','update.json']) fs.copyFileSync(path.join(released,file),path.join(assets,file));
+  gh('release','download',tag,'--repo',repo,...releaseFiles.flatMap(file=>['--pattern',file]),'--dir',released);
+  for (const file of releaseFiles) fs.copyFileSync(path.join(released,file),path.join(assets,file));
 } else {
   execFileSync(process.execPath,['tools/desktop/make-update-manifest.mjs',version,assets,commit],{stdio:'inherit'});
   if (existing) {
     // GitHub creates the tag only when publishing a new draft; retries must use its recorded target.
     if (existing.targetCommitish!==commit) throw new Error('Draft desktop release belongs to different source');
-    gh('release','upload',tag,...[filename,'SHA256SUMS.txt','update.json'].map(f=>path.join(assets,f)),'--repo',repo,'--clobber');
-  } else gh('release','create',tag,...[filename,'SHA256SUMS.txt','update.json'].map(f=>path.join(assets,f)),'--repo',repo,'--draft','--latest=false','--target',commit,'--title',`StudentBuddy Windows ${version}`,'--notes-file','tools/desktop/release-notes.md');
+    gh('release','upload',tag,...releaseFiles.map(f=>path.join(assets,f)),'--repo',repo,'--clobber');
+  } else gh('release','create',tag,...releaseFiles.map(f=>path.join(assets,f)),'--repo',repo,'--draft','--latest=false','--target',commit,'--title',`StudentBuddy Windows ${version}`,'--notes-file','tools/desktop/release-notes.md');
 }
 const envelope=JSON.parse(fs.readFileSync(path.join(assets,'update.json'),'utf8'));
 const manifest=validateEnvelope(envelope,publicKey);
 if (manifest.version!==version || manifest.sourceCommit!==commit) throw new Error('Published manifest source mismatch');
 await verifyFile(path.join(assets,filename),manifest);
+const {createHash}=await import('node:crypto');
+const readerHash=createHash('sha256').update(fs.readFileSync(path.join(assets,readerZip))).digest('hex');
+if(fs.readFileSync(path.join(assets,readerSum),'utf8').trim()!==`${readerHash}  ${readerZip}`)throw new Error('Reader archive checksum mismatch');
 await preparePackage({version,assets,output:'.runtime/npm-package'});
 const expected=JSON.parse(execFileSync('npm',['pack','--json'],{cwd:'.runtime/npm-package',encoding:'utf8'}))[0].integrity;
 const view=spawnSync('npm',['view',`@llwand1/studentbuddy-windows@${version}`,'dist.integrity','--registry=https://npm.pkg.github.com'],{encoding:'utf8'});

@@ -1,0 +1,26 @@
+.plugins-section { min-width: 0; }
+.plugin-card { border: 1px solid var(--sb-line); border-radius: var(--sb-radius-sm); padding: var(--sb-sp-3); margin-block: var(--sb-sp-3); min-width: 0; }
+.plugin-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--sb-sp-2); }
+.plugin-head h4 { margin: 0; font-size: var(--sb-fs-base); }
+.plugin-endpoint { color: var(--sb-ink-tertiary); font-size: var(--sb-fs-xs); overflow-wrap: anywhere; }
+.plugin-label { display: flex; flex-direction: column; gap: var(--sb-sp-1); margin-block: var(--sb-sp-2); font-size: var(--sb-fs-sm); }
+.plugin-label input, .plugin-label textarea { width: 100%; box-sizing: border-box; min-width: 0; border: 1px solid var(--sb-line); border-radius: var(--sb-radius-sm); padding: var(--sb-sp-2); background: var(--sb-bg); color: var(--sb-ink); font: inherit; }
+.plugin-label textarea { resize: vertical; }
+.plugin-label input:focus, .plugin-label textarea:focus { outline: 2px solid var(--sb-primary); outline-offset: 1px; }
+.plugin-actions { display: flex; flex-wrap: wrap; gap: var(--sb-sp-2); }
+.plugin-tools, .plugin-import, .plugin-history { margin-top: var(--sb-sp-3); font-size: var(--sb-fs-sm); }
+.plugins-section summary { cursor: pointer; padding-block: var(--sb-sp-1); overflow-wrap: anywhere; }
+.plugins-section pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; padding: var(--sb-sp-2); background: var(--sb-bg); color: var(--sb-ink-secondary); font-size: var(--sb-fs-xs); }
+.plugin-error { color: var(--sb-danger, #b42318); overflow-wrap: anywhere; font-size: var(--sb-fs-sm); }
+.plugin-ack { display: flex; align-items: start; gap: var(--sb-sp-2); margin-block: var(--sb-sp-2); font-size: var(--sb-fs-sm); }
+.plugin-ack input { flex: none; }
+.plugin-confirm { margin-block: var(--sb-sp-2); padding: var(--sb-sp-2); border: 1px solid var(--sb-line); font-size: var(--sb-fs-sm); }
+.plugin-confirm button { margin-right: var(--sb-sp-2); }
+.plugin-history ol { padding-left: var(--sb-sp-4); }
+.plugin-history li { margin-block: var(--sb-sp-2); overflow-wrap: anywhere; }
+.plugin-history li span { display: block; color: var(--sb-ink-tertiary); font-size: var(--sb-fs-xs); }
+.confirm-items li { overflow-wrap: anywhere; white-space: pre-wrap; }
+
+.plugin-repo-picker { max-height: 220px; overflow-y: auto; display: grid; gap: 8px; margin-block: 12px; }
+.plugin-repo-picker label { display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
+.plugin-repo-picker input { width: auto; }

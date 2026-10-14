@@ -148,7 +148,7 @@ describe('storage/db — 迁移清单形状', () => {
     expect(MIGRATIONS.some((m) => m.version === 43)).toBe(true);
   });
 
-  it('每条迁移的语句数组非空（空数组会白占一个版本锚点，回放测试据此判"已应用"却什么都没建）', () => {
-    for (const m of MIGRATIONS) expect(m.statements.length).toBeGreaterThan(0);
+  it('每条迁移必须有 SQL 或条件修复钩子，不能白占版本锚点', () => {
+    for (const m of MIGRATIONS) expect(m.statements.length > 0 || typeof m.after === 'function').toBe(true);
   });
 });

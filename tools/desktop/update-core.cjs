@@ -5,8 +5,8 @@ const os = require('node:os');
 const { createHash, verify } = require('node:crypto');
 const { setTimeout: pause } = require('node:timers/promises');
 
-const FEED = 'https://github.com/llwand1/studentbuddy-v2/releases/download/desktop-stable/update.json';
-const RELEASES = 'https://github.com/llwand1/studentbuddy-v2/releases/download/';
+const FEED = 'https://github.com/llwand1/xuelian-agent/releases/download/desktop-stable/update.json';
+const RELEASES = ['xuelian-agent', 'studentbuddy-v2'].map(repo => `https://github.com/llwand1/${repo}/releases/download/`);
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 function compare(a, b) {
   if (!VERSION.test(a) || !VERSION.test(b)) throw new Error('Invalid desktop version');
@@ -27,8 +27,8 @@ function validateEnvelope(envelope, publicKey, testOrigin) {
   if (m.schema !== 1 || !VERSION.test(m.version) || !VERSION.test(m.appVersion) || m.architecture !== 'windows-x64'
       || !/^[a-f0-9]{40}$/.test(m.sourceCommit) || !Number.isFinite(Date.parse(m.publishedAt))
       || !/^[a-f0-9]{64}$/.test(m.sha256) || !Number.isSafeInteger(m.size) || m.size < 1 || m.size > 512 * 1024 * 1024) throw new Error('Unsupported update manifest');
-  const expected = `${RELEASES}desktop-v${m.version}/StudentBuddy-${m.version}-windows-x64-setup.exe`;
-  if (m.url !== expected && !(testOrigin && m.url === `${testOrigin}/StudentBuddy-${m.version}-windows-x64-setup.exe`)) throw new Error('Untrusted installer URL');
+  const expected = RELEASES.map(prefix => `${prefix}desktop-v${m.version}/StudentBuddy-${m.version}-windows-x64-setup.exe`);
+  if (!expected.includes(m.url) && !(testOrigin && m.url === `${testOrigin}/StudentBuddy-${m.version}-windows-x64-setup.exe`)) throw new Error('Untrusted installer URL');
   if (typeof envelope.signature !== 'string' || !/^[A-Za-z0-9+/]{86}==$/.test(envelope.signature)
       || !verify(null, Buffer.from(JSON.stringify(m)), publicKey, Buffer.from(envelope.signature, 'base64'))) throw new Error('Update signature verification failed');
   return m;

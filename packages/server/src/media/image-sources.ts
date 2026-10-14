@@ -29,7 +29,7 @@ export interface ImageCandidate {
 
 const COMMONS_API = 'https://commons.wikimedia.org/w/api.php';
 /** Wikimedia API 规范要求带可识别的 UA（带联系方式），否则可能被限流 */
-const COMMONS_UA = 'StudentBuddy/2.0 (https://github.com/llwand1/studentbuddy-v2) image-search';
+const COMMONS_UA = 'StudentBuddy/2.0 (https://github.com/llwand1/xuelian-agent) image-search';
 const SEARCH_TIMEOUT_MS = 10_000;
 const THUMB_WIDTH = 800;
 

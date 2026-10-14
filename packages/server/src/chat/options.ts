@@ -10,6 +10,8 @@ import type { GrillScope, GrillTiming, ModelRole } from '@sb/shared';
 import type { UploadedImage } from '../llm/types.js';
 
 export interface ChatOptions {
+  /** Server-generated local task id; never accepted from the HTTP body. */
+  desktopTaskId?: string;
   sessionId: string;
   text: string;
   role?: ModelRole;

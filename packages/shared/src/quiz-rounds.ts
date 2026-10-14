@@ -68,8 +68,8 @@ export function parseQuizDraft(v: unknown, q: QuizQuestion): QuizDraftAnswer | n
 const normal = (s: string) => s.normalize('NFKC').trim().replace(/\s+/g, ' ');
 /** Answer checking uses the submitted answer only; optional thinking cannot replace it. */
 export function checkQuizAnswer(q: QuizQuestion, a: QuizDraftAnswer): QuizReviewItem {
-  if (q.scenarioTask) return { question: q.question, answer: a.essay, expected: JSON.stringify(q.scenarioTask.criteria),
-    verdict: judgeTask(q.scenarioTask.criteria, JSON.parse(a.essay)) ? 'correct' : 'wrong', context: q.explanation ?? '' };
+  if (q.scenarioTask) return { question: q.question, answer: a.essay.trim() ? a.essay : '未作答', expected: JSON.stringify(q.scenarioTask.criteria),
+    verdict: a.essay.trim() && judgeTask(q.scenarioTask.criteria, JSON.parse(a.essay)) ? 'correct' : 'wrong', context: q.explanation ?? '' };
   const options = quizOptions(q);
   const choice = ['single', 'multiple', 'judge'].includes(q.type);
   const expected = Array.isArray(q.answer) ? q.answer : q.answer ? [q.answer] : [];
@@ -81,7 +81,8 @@ export function checkQuizAnswer(q: QuizQuestion, a: QuizDraftAnswer): QuizReview
   } else if (q.type === 'fill' && expected.length) {
     verdict = expected.length === a.fills.length && expected.every((v, i) => normal(String(v)) === normal(a.fills[i] ?? '')) ? 'correct' : 'review';
   }
-  return { question: q.question, answer: choice ? describe(a.picked) : q.type === 'fill' ? a.fills.join('；') : a.essay,
+  if (!quizAnswerReady(q, a)) verdict = 'wrong';
+  return { question: q.question, answer: choice ? describe(a.picked) || '未作答' : q.type === 'fill' ? a.fills.map(v => v.trim() ? v : '未填写').join('；') : a.essay.trim() ? a.essay : '未作答',
     expected: choice ? describe(expected.map(Number)) || '未提供参考答案' : expected.join('；') || q.solution || '未提供参考答案', verdict,
     context: [q.material, options.length ? `选项：${describe(options.map((_, i) => i))}` : '', q.explanation, q.solution,
       q.type === 'fill' ? '填空文字不匹配待复核，不等同于语义错误。' : ''].filter(Boolean).join('\n') };

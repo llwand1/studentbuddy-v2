@@ -15,7 +15,7 @@ using System.Web.Script.Serialization;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
-internal static class Launcher
+internal static partial class Launcher
 {
     private const int PreferredPort = 18794;
     private static int Port = PreferredPort;
@@ -29,7 +29,7 @@ internal static class Launcher
     private static readonly string UpdateLockPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StudentBuddy", "update-in-progress");
     private static bool Quiet;
-    private static bool Exiting;
+    private static volatile bool Exiting;
     private static Form Window;
     private static bool WebviewStarted;
     private static bool WebviewFailed;
@@ -84,6 +84,8 @@ internal static class Launcher
     [STAThread]
     private static int Main(string[] args)
     {
+        int watchdogIndex = Array.IndexOf(args, "--watchdog");
+        if (watchdogIndex >= 0) return RunWatchdog(args, watchdogIndex);
         RestoreUpdateNetwork();
         // --no-browser 语义＝不打开窗口（自动化与冒烟使用），服务照常启动并驻留托盘。
         bool noWindow = Array.IndexOf(args, "--no-browser") >= 0;
@@ -108,7 +110,7 @@ internal static class Launcher
             using (EventWaitHandle stop = new EventWaitHandle(false, EventResetMode.ManualReset, Identity + ".Stop"))
             using (EventWaitHandle show = new EventWaitHandle(false, EventResetMode.AutoReset, Identity + ".Show"))
             {
-                Process server = null;
+                DesktopServerSupervisor server = null;
                 try
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(LogPath));
@@ -129,23 +131,23 @@ internal static class Launcher
                     info.EnvironmentVariables["SB_PORT"] = Port.ToString();
                     info.EnvironmentVariables["SB_REQUIRE_AUTH"] = "0";
                     info.EnvironmentVariables["SB_DESKTOP"] = "1";
+                    info.EnvironmentVariables["SB_DESKTOP_USER_DESKTOP"] = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                    info.EnvironmentVariables["SB_DESKTOP_USER_DOCUMENTS"] = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                     info.EnvironmentVariables["SB_WEB_DIST"] = Path.Combine(root, "web");
                     info.EnvironmentVariables.Remove("SB_TRUST_PROXY");
-                    server = new Process();
-                    server.StartInfo = info;
-                    server.OutputDataReceived += delegate(object sender, DataReceivedEventArgs e) { Log(e.Data); };
-                    server.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs e) { Log(e.Data); };
-                    server.Start();
-                    server.BeginOutputReadLine();
-                    server.BeginErrorReadLine();
-                    if (!WaitForServer(server)) throw new Exception("本地服务未能启动，详见日志。");
+                    server = new DesktopServerSupervisor(info, WaitForServer, Log);
+                    if (!server.Start()) throw new Exception("本地服务未能启动，详见日志。");
+                    StartWatchdog(args);
+                    Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
                     AppIcon = LoadIcon(0);
                     TrayIcon = LoadIcon(SystemInformation.SmallIconSize.Width);
                     Window = CreateWindow();
+                    if (Array.IndexOf(args, "--start-minimized") >= 0) Window.WindowState = FormWindowState.Minimized;
                     // --no-browser（自动化/冒烟）：不建球窗，省一个 WebView2 进程
                     if (!noWindow) BallWindow = CreateBallWindow();
+                    if (!noWindow) StartQuickMenu();
                     using (NotifyIcon tray = new NotifyIcon())
                     using (ContextMenuStrip menu = new ContextMenuStrip())
                     using (System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer())
@@ -185,21 +187,25 @@ internal static class Launcher
                         tray.BalloonTipClicked += delegate { if (ReadyUpdate != null) ApplyUpdate(); };
                         if (!Quiet) ShowUpdateResult();
                         timer.Interval = 500;
+                        int serverGeneration = server.Generation;
                         timer.Tick += delegate
                         {
                             if (stop.WaitOne(0)) ExitApp();
-                            else if (server.HasExited)
+                            if (Exiting) return;
+                            server.Tick();
+                            if (server.Ready && server.Generation != serverGeneration)
                             {
-                                ShowError("本地服务已停止，请重新启动 StudentBuddy。");
-                                ExitApp();
+                                serverGeneration = server.Generation;
+                                NotifyServiceRestored(Window); NotifyServiceRestored(BallWindow);
                             }
-                            else if (show.WaitOne(0)) ShowWindow();
+                            if (server.Ready) RecoverViewsTick();
+                            if (show.WaitOne(0)) ShowWindow();
                             if (!Quiet && !Exiting && !UpdateChecking && DateTime.UtcNow >= NextUpdateCheck) CheckUpdate(false);
                             if (BallWindow != null && BallWindow.Visible && DateTime.UtcNow >= NextFloatTick)
                             {
                                 NextFloatTick = DateTime.UtcNow.AddSeconds(2);
                                 WebView2 ballView = BallWebView();
-                                if (ballView != null && ballView.CoreWebView2 != null)
+                                if (ballView != null && ballView.CoreWebView2 != null && !PendingViews.ContainsKey(BallWindow))
                                 {
                                     ballView.CoreWebView2.PostWebMessageAsString(OpenStudyRequested ? "sb-float:open-settings" : "sb-float:tick");
                                 }
@@ -222,18 +228,14 @@ internal static class Launcher
                 catch (Exception error)
                 {
                     Log(error.ToString());
-                    ShowError(error.Message);
+                    if (!WatchdogStarted && Array.IndexOf(args, "--watched") < 0) ShowError(error.Message);
                     return 1;
                 }
                 finally
                 {
+                    CloseDesktopHelpers();
                     CloseBallEffects();
-                    if (server != null)
-                    {
-                        try { if (!server.HasExited) { server.Kill(); server.WaitForExit(10000); } }
-                        catch (InvalidOperationException) { }
-                        server.Dispose();
-                    }
+                    if (server != null) server.Dispose();
                     try { if (File.Exists(PortFile)) File.Delete(PortFile); }
                     catch (IOException) { }
                     catch (UnauthorizedAccessException) { }
@@ -290,7 +292,7 @@ internal static class Launcher
         {
             try
             {
-                Uri feed = new Uri("https://github.com/llwand1/studentbuddy-v2/releases/download/desktop-stable/update.json");
+                Uri feed = new Uri("https://github.com/llwand1/xuelian-agent/releases/download/desktop-stable/update.json");
                 Uri proxy = WebRequest.GetSystemWebProxy().GetProxy(feed);
                 if (proxy != null && proxy != feed && (proxy.Scheme == "http" || proxy.Scheme == "https"))
                 {
@@ -439,8 +441,9 @@ internal static class Launcher
             try
             {
                 await view.EnsureCoreWebView2Async(await WebviewEnvironment());
+                AttachViewRecovery(form, view, false);
                 view.CoreWebView2.WebMessageReceived += delegate(object s, CoreWebView2WebMessageReceivedEventArgs ev) {
-                    if (IsLocalMessage(ev.Source) && ev.TryGetWebMessageAsString() == "sb-desktop:extension") OpenExtensionFolder();
+                    if (IsLocalMessage(ev.Source)) HandleDesktopMessage(view, ev.TryGetWebMessageAsString());
                 };
                 view.Source = new Uri(Url);
             }
@@ -534,6 +537,7 @@ internal static class Launcher
             try
             {
                 await view.EnsureCoreWebView2Async(await WebviewEnvironment());
+                AttachViewRecovery(form, view, true);
                 view.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
                 view.CoreWebView2.WebMessageReceived += delegate(object s, CoreWebView2WebMessageReceivedEventArgs ev)
                 {
@@ -679,6 +683,7 @@ internal static class Launcher
     private static void ResetBall()
     {
         if (BallWindow == null) return;
+        BallDisplayMode = "ball";
         SetBallExpanded(false);
         try
         {
@@ -696,6 +701,7 @@ internal static class Launcher
      */
     private static void HandleBallMessage(string message)
     {
+        if (message != null && message.StartsWith("sb-desktop:reader:", StringComparison.Ordinal)) { OpenNativeReader(message); return; }
         if (message != null && message.StartsWith("sb-float:shape:", StringComparison.Ordinal))
         {
             ApplyBallShape(message.Substring("sb-float:shape:".Length)); return;
@@ -715,7 +721,9 @@ internal static class Launcher
             BallForm ballForm = BallWindow as BallForm;
             if (ballForm != null) ballForm.PrepareMove();
             ReleaseCapture();
-            SendMessage(BallWindow.Handle, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
+            BallMoving = true; if (QuickMenu != null) QuickMenu.Hide();
+            try { SendMessage(BallWindow.Handle, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero); }
+            finally { BallMoving = false; }
             // ★ 移动循环是**同步**返回的（松开鼠标才回来）：位置没变 ⇒ 这是一次「点一下」而不是拖动。
             //   网页侧看不到位移（WebView2 按住不放时不派发 pointermove），所以这个判断只能在这儿做。
             if (ShouldOpenBallAfterMove(before, BallWindow.Location, ballForm != null && ballForm.MovedInLoop))
@@ -726,15 +734,19 @@ internal static class Launcher
         }
         else if (message == "sb-float:expand")
         {
+            BallDisplayMode = "screen";
             SetBallExpanded(true);
         }
         else if (message == "sb-float:collapse")
         {
+            BallDisplayMode = "ball";
             SetBallExpanded(false);
         }
-        else if (message == "sb-float:quiz") SetStudySize(380, 530);
-        else if (message == "sb-float:settings") { OpenStudyRequested = false; SetStudySize(420, 680); }
+        else if (message == "sb-float:quiz") { BallDisplayMode = "ball"; SetStudySize(380, 530); }
+        else if (message == "sb-float:settings") { BallDisplayMode = "settings"; OpenStudyRequested = false; SetStudySize(420, 680); }
         else if (message == "sb-desktop:extension") OpenExtensionFolder();
+        else if (message == "sb-desktop:choose-workspace") ChooseDesktopWorkspace(BallWebView());
+        else if (message == "sb-desktop:capture") CaptureDesktop(BallWebView());
     }
 
     private static bool IsLocalMessage(string source)
@@ -975,6 +987,7 @@ internal static class Launcher
     {
         for (int attempt = 0; attempt < 60; attempt++)
         {
+            if (Exiting) return false;
             if (server != null && server.HasExited) return false;
             try
             {

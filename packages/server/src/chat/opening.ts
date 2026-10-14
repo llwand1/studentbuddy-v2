@@ -28,6 +28,9 @@ import type { GrillTiming } from '@sb/shared';
 import { GRILL_DIRECT, needsGrillOpening } from './grill-timing.js';
 import type { ChatOptions } from './options.js';
 import { cancelGrillOffers } from './choice.js';
+import { desktopOpeningMode } from '../desktop/runtime-context.js';
+import { isPluginRequest, pluginChatDefinitions } from '../plugins/chat.js';
+import { learningVideoOpening } from './learning-video-tools.js';
 export { examScopeToolChoice } from './exam-scope-action.js';
 
 /**
@@ -90,8 +93,14 @@ export function applyTurnOpening(opts: ChatOptions, text: string, messages: Chat
     const index = messages.indexOf(nudge);
     if (index >= 0) messages.splice(index, 1);
   }
-  const opening = buildOpening({ grill: opts.grillMe === true, online: opts.online === true,
+  const desktopMode = desktopOpeningMode(opts, text);
+  const pluginMode = !opts.grillMe && isPluginRequest(text) && pluginChatDefinitions(opts.ownerId ?? null).length > 0;
+  const videoMode = !opts.grillMe && !desktopMode && !pluginMode ? learningVideoOpening(text) : null;
+  const opening = buildOpening({ grill: opts.grillMe === true, online: opts.online === true && !desktopMode && !pluginMode && !videoMode,
     text, grillTiming: opts.grillTiming, grillContinue: opts.grillContinue });
+  if (desktopMode === 'files') opening.toolChoice = { type: 'function', name: 'desktop_workspace' };
+  else if (pluginMode) opening.toolChoice = { type: 'function', name: 'plugin_tools' };
+  else if (videoMode) opening.toolChoice = { type: 'function', name: videoMode === 'search' ? 'search_learning_videos' : 'curate_learning_videos' };
   if (opening.msg) messages.push(opening.msg);
   return opening;
 }

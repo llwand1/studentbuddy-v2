@@ -75,7 +75,7 @@ export function Landing({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
         <div className="landing-top-right">
           <LangToggle />
           <LandingPv />
-          <a className="landing-ghost landing-gh" href="https://github.com/llwand1/studentbuddy-v2" target="_blank" rel="noreferrer noopener">
+          <a className="landing-ghost landing-gh" href="https://github.com/llwand1/xuelian-agent" target="_blank" rel="noreferrer noopener">
             GitHub
           </a>
           {githubEnabled && <GithubLoginButton className="landing-ghost" label={TOP.ghLogin[lang]} />}

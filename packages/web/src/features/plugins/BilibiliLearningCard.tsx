@@ -35,7 +35,7 @@ export function BilibiliLearningCard({ plugin, onChange }: { plugin: PluginView;
     <div className="plugin-actions">{!plugin.enabled?<button disabled={busy} onClick={()=>void enable()}>启用并打开 B站</button>:<>
       <button disabled={busy} onClick={()=>void run(async()=>{if(isLocalDesktopAddress())await pluginApi.bilibiliOpen();else window.open('https://www.bilibili.com/','_blank','noopener,noreferrer');})}>在浏览器打开 B站</button>
       <button disabled={busy} onClick={()=>void run(async()=>{await pluginApi.update('bilibili',{enabled:false});await onChange();})}>停用 B站学习</button>
-      <button disabled={busy} onClick={()=>void run(async()=>{await pluginApi.disconnect('bilibili');setVideo(null);setNotes('');setUrl('');setQuiz(null);setRecommendation(null);await onChange();})}>清除视频学习记录</button>
+      <button disabled={busy} onClick={()=>void run(async()=>{await pluginApi.disconnect('bilibili');setVideo(null);setNotes('');setUrl('');setQuiz(null);setRecommendation(null);await onChange();})}>停用并清除当前素材</button>
     </>}</div>
     {plugin.enabled&&<>
       <label>学习方向（可留空，使用当前专注 / 应试 / 常学领域）<input aria-label="B站学习方向" value={query} maxLength={100} onChange={e=>setQuery(e.target.value)}/></label>

@@ -54,7 +54,9 @@ it('prioritizes explicit direction, active focus, exam and behavior evidence wit
   const now=new Date();savePomodoro({subject:'JavaScript',workMin:25,breakMin:5,round:1,phase:'work',phaseStartedAt:now.toISOString(),phaseEndsAt:new Date(now.getTime()+600000).toISOString(),startedAt:now.toISOString(),completed:0},'alice');
   expect(learningDirection('alice','高等数学').source).toBe('explicit');expect(learningDirection('alice').source).toBe('focus');
   expect(()=>learningDirection('bob')).toThrow();clearPomodoro('alice');saveExamMode(true,'alice');saveExamScope({packs:['gaokao'],extraHosts:['bilibili.com']},'alice');
-  expect(learningDirection('alice').source).toBe('exam');saveExamMode(false,'alice');
+  expect(learningDirection('alice').source).toBe('exam');
+  expect(()=>bilibiliMaterial('alice',{bvid:'BV1xx411c7mD',url:address,title:'隔离视频',description:notes,notes,author:'演示',selectedAt:1})).toThrow('应试范围');
+  saveExamMode(false,'alice');
   getDb().prepare('INSERT INTO term_library(owner_id,id,term,definition,domain,usage_count) VALUES(?,?,?,?,?,?)').run('alice','t1','闭包','词法环境','编程',10);
   expect(learningDirection('alice')).toMatchObject({source:'practice',query:'编程'});
 });

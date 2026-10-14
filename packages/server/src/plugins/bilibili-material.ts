@@ -79,6 +79,7 @@ export async function readBilibiliVideo(raw: unknown, owner: string | null, sign
   }
 }
 export function bilibiliMaterial(owner: string | null, video: BilibiliLearningVideo, sessionId?: string) {
+  videoAddress(video.url,owner);
   const page = browserStore.state(owner);
   const selection = page?.connected && (!sessionId || page.sessionId === sessionId) && bvidFromUrl(page.url) === video.bvid ? page.selection.trim() : '';
   const [text, basis, basisLabel] = video.notes ? [video.notes, 'notes' as const, '你提交的字幕 / 学习笔记']

@@ -12,6 +12,7 @@ import { getDb } from '../storage/db.js';
 import { savePomodoro, clearPomodoro } from '../storage/pomodoro.js';
 import { saveExamMode, saveExamScope } from '../learning/exam-mode.js';
 import { browserStore } from '../desktop/browser-store.js';
+import { insertSession } from '../auth/ownership.js';
 import { connection, deletePlugin, disconnectPlugin, importPlugin, listPlugins, pluginCalls, updatePlugin } from './store.js';
 import { testPlugin, invokePlugin } from './runtime.js';
 import { bilibiliMaterial, learningDirection, loadBilibiliVideo, parseVideoNotes, readBilibiliVideo, saveBilibiliVideo, videoAddress } from './bilibili-material.js';
@@ -94,6 +95,14 @@ it('refuses title-only quizzes and grounds a real quiz in saved user notes with 
   saveBilibiliVideo('alice',{...first,notes});const result=await use('quiz_from_video');
   expect(result.content).toContain('你提交的字幕');expect(mock.generate.mock.calls[0]?.[3]).toContain(notes);
   expect(bilibiliMaterial('alice',loadBilibiliVideo('alice')!).basis).toBe('notes');
+  await testPlugin(null,'bilibili');updatePlugin(null,'bilibili',{enabled:true});insertSession('bili-long-notes',null);
+  const longNotes=(notes+'\n').repeat(50);saveBilibiliVideo(null,{...first,description:'简介'.repeat(5000),notes:longNotes});
+  const shortSelection=await invokePlugin('bilibili','select_video',{url:address},{...ctx,ownerId:null,sessionId:'bili-long-notes'});
+  expect(shortSelection.content.length).toBeLessThan(8000);expect(shortSelection.content).toContain('savedNotesChars');
+  const delivered=await invokePlugin('bilibili','quiz_from_video',{},{...ctx,ownerId:null,sessionId:'bili-long-notes'});
+  expect(delivered.content.length).toBeLessThan(8000);expect(delivered.content).toContain('"delivered":true');expect(delivered.content).toContain(opener.question.question);
+  const saved=getDb().prepare("SELECT content FROM messages WHERE session_id='bili-long-notes' AND role='assistant'").get() as {content:string};
+  expect(saved.content).toContain('[QUIZ]');expect(saved.content).toContain('bilibili-test-video-q');expect(saved.content).toContain('闭包使函数');
 });
 it('cancels work when disabled and does not commit metadata after cancellation',async()=>{
   await enable();mock.fetch.mockImplementation((_url: string,init:RequestInit)=>new Promise<Response>((_,reject)=>init.signal!.addEventListener('abort',()=>reject(new Error('aborted')),{once:true})));

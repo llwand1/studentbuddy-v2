@@ -47,7 +47,10 @@ export async function invokeBilibili(tool: string, raw: unknown, ctx: ToolContex
     const video = old?.bvid === bvid ? { ...old } : await readBilibiliVideo(args.url, owner, ctx.signal);
     check();
     if (JSON.stringify(loadBilibiliVideo(owner)) !== JSON.stringify(old)) throw new Error('视频选择已更新，旧请求未覆盖');
-    saveBilibiliVideo(owner, video); return video;
+    saveBilibiliVideo(owner, video);
+    return ctx.sessionId ? {url:video.url,bvid:video.bvid,title:video.title,author:video.author,informationSource:video.informationSource,
+      descriptionExcerpt:video.description.slice(0,3500),savedNotesChars:video.notes.length,
+      notice:'这里只返回简介片段和材料状态；字幕/笔记由出题工具读取，不代表看完整段视频'} : video;
   }
   if (tool !== 'quiz_from_video') throw new Error('未知 B站学习工具');
   const video = loadBilibiliVideo(owner);
@@ -60,9 +63,12 @@ export async function invokeBilibili(tool: string, raw: unknown, ctx: ToolContex
   if (current?.bvid !== video.bvid || current.selectedAt !== video.selectedAt || current.notes !== video.notes) throw new Error('视频或笔记已变化，旧题未交付');
   if (!result.ok) throw new Error(result.error);
   const opener = { ...result.value, scope: `${video.title} · ${material.basisLabel}` };
-  if (ctx.sessionId) announceQuizToSession(ctx.sessionId, { title: opener.question.topic, questions: [{
+  if (ctx.sessionId) {
+    announceQuizToSession(ctx.sessionId, { title: opener.question.topic, questions: [{
     type: 'single', question: opener.question.question, options: opener.question.options, answer: [opener.question.answer],
     explanation: opener.question.explanation, material: material.text,
-  }] }, 'bilibili-' + opener.id);
+    }] }, 'bilibili-' + opener.id);
+    return {delivered:true,quizId:'bilibili-'+opener.id,source:{url:video.url,title:video.title},basis:material.basis,basisLabel:material.basisLabel,question:opener.question};
+  }
   return { video, basis: material.basis, basisLabel: material.basisLabel, opener } satisfies BilibiliVideoQuiz;
 }

@@ -1,3 +1,4 @@
+import { asyncHandler } from '../http/async-handler.js';
 /**
  * routes/learner — 评分量规与学习者模型（挂在 `/api/learning` 下，与 `ai-ops.ts` 的 learningRouter 并列）。
  *
@@ -38,7 +39,7 @@ export function parseGradeRequest(body: unknown): GradeRequest | null {
 
 const STATUS: Record<string, number> = { 'no-model': 503, timeout: 504, aborted: 499 };
 
-learnerRouter.post('/grade', async (req, res) => {
+learnerRouter.post('/grade', asyncHandler(async (req, res) => {
   const input = parseGradeRequest(req.body);
   if (!input) {
     res.status(400).json({ error: '需要题目、参考答案与作答（均非空且不超长），题型为 fill 或 essay' });
@@ -56,7 +57,7 @@ learnerRouter.post('/grade', async (req, res) => {
     return;
   }
   res.json(r.result);
-});
+}));
 
 learnerRouter.get('/model', (req, res) => {
   res.json(learnerModel(ownerIdOf(req)));

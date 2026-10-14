@@ -1,3 +1,4 @@
+import { asyncHandler } from '../http/async-handler.js';
 /**
  * routes/guide — 「下一步引导」的 HTTP 出口（契约 `docs/GUIDE-SPEC.md` §6），前缀 `/api/guide`。
  *
@@ -14,7 +15,7 @@ import { guideNext } from '../learning/guide.js';
 
 export const guideRouter = Router();
 
-guideRouter.post('/next', async (req: Request, res: Response) => {
+guideRouter.post('/next', asyncHandler(async (req: Request, res: Response) => {
   const parsed = parseGuideRequest(req.body);
   if (!parsed) {
     res.status(400).json({ error: '请求形状不对：lang / view 要合法，can 只能是已登记的动作种类。' });
@@ -31,4 +32,4 @@ guideRouter.post('/next', async (req: Request, res: Response) => {
   } finally {
     res.off('close', disconnect);
   }
-});
+}));

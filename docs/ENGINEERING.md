@@ -11,7 +11,7 @@
 这些约定由 CI 强制，不是口号。
 
 **代码规模**
-- `packages/server/src` 单文件 ≤400 行；`packages/web/src` 的 `.tsx` ≤300 行，超过就拆文件——`chat/flow.ts` 贴线开新文件是常态。
+- `packages/shared/src` 与 `packages/server/src` 非测试源文件 ≤400 行；web `.ts` ≤400、`.tsx` ≤320 行，超过就按领域责任拆分。shared 不再豁免。
 - 理由很实际：一个文件里同时放着协议解析、编排与错误上报时，改动的影响面用眼睛估不出来。
 
 **类型与样式**
@@ -75,7 +75,7 @@
 
 | 路径 | 是什么 |
 |---|---|
-| `packages/shared/src/` | 契约与纯函数，前后端共用一份。约 50 个源文件，扁平结构 |
+| `packages/shared/src/` | 契约与纯函数，前后端共用一份，按领域责任拆分并保留兼容入口 |
 | `packages/server/src/` | 全部业务域，按域分目录：`chat/`（对话编排与工具，最重的一块）· `learning/`（出题、词条、复习、文档检索）· `llm/`（供应商抽象与闸门）· `routes/`（HTTP 入口）· `storage/`（迁移与仓储）· `auth/` · `pk/` · `search/` · `growth/` · `events/` · `mail/` |
 | `packages/web/src/` | React 18 前端，公式使用 KaTeX、自动布局图解使用 Mermaid（按需加载）。`features/`（按功能分目录）· `app/`（应用壳与一级视图）· `seo/`（静态页与词条页生成）· `lib/` · `components/` · `styles/` |
 | `tools/` | `gates/` 门禁 · `e2e/` 全栈演示 · `probes/` 真机 CDP 探针 · `metrics.mjs` 量化产出 · `guard-audit.mjs` 守门自检 · `deploy.sh`、`docker/` 部署 |
@@ -99,10 +99,14 @@
 
 `npm run check` ＝ `lint`（tsc×3 ＋ eslint）＋ `test`（vitest）＋ `gates`。四项门禁：
 
-1. 行数红线（server ≤400 / web `.tsx` ≤300）
+1. 行数红线（shared/server/web `.ts` ≤400 / web `.tsx` ≤320）
 2. 禁 `any`
 3. web 禁内联 `style={{`
 4. 每个测试文件必须在 [`TEST-PLAN.md`](TEST-PLAN.md) §3 成行
+
+**HTTP 可靠性**：Express 4 的 Promise 回调使用 `http/async-handler.ts`，最终错误边界位于 `http/error-boundary.ts`。云端通用 API 和高成本请求预算与既有身份/并发闸门叠加；严格拒绝模式的真实进程测试验证请求失败后仍能服务。行为与取舍见 [HTTP 可靠性契约](HTTP-RELIABILITY-SPEC.md)。
+
+**数据恢复**：已有 `tools/backup-db.py` 在线备份与七日保留，`tools/restore-db.py` 仅向新目标恢复，不覆盖运行库；`tools/selftest-backup.py`、`tools/selftest-restore.py` 在隔离目录验证同步、WAL 和恢复。见 [部署与恢复](../DEPLOY.md)。
 
 **加一项新功能时的扩展顺序**（哪一步漏了，后面都会返工）：
 

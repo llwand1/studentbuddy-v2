@@ -72,6 +72,8 @@ import { desktopRouter, desktopBridgeRouter, desktopGuard } from './routes/deskt
 import { browserStore } from './desktop/browser-store.js';
 import { desktopExtensionRouter } from './routes/desktop-extension.js';
 import { recoverDesktopRuns } from './desktop/task-store.js';
+import { createErrorBoundary } from './http/error-boundary.js';
+import { apiIpBudget, apiCostlyBudget } from './http/api-rate-limit.js';
 
 const PORT = Number(process.env.SB_PORT ?? 18791);
 /**
@@ -120,6 +122,7 @@ app.use(
 //   （2026-09-20 收敛）：此前三处各写一遍、靠注释互指，实测已经不平——单张 700 万字符 × 4 张
 //   ≈ 28MB > 24mb body ⇒ 4 张各自合法的图一起发会撞 413。改限额去 chat-limits.ts，
 //   改完跑 `chat-limits.test.ts` 的「满额请求必须装得进 body」那条，它会告诉你账平不平。
+app.use('/api', apiIpBudget);
 app.use('/api/open/v1', agentTermsRouter);
 const jsonSmall = express.json({ limit: '2mb' });
 const jsonForImages = express.json({ limit: CHAT_BODY_LIMIT });
@@ -137,6 +140,7 @@ app.use('/api', originCheck);
  *   归属过滤被整体跳过 ⇒ **隔离形同虚设**。强制登录只是部署形态的选择，不影响「我是谁」的解析。
  */
 app.use('/api', attachUser);
+app.use('/api', apiCostlyBudget);
 
 /**
  * 按日活跃心跳（契约 docs/RETENTION-SPEC.md §2）：登录用户当天第一次打到 `/api/*` 记一行 `user_activity_day`。
@@ -258,6 +262,7 @@ mountStaticWeb(app);
 app.use((_req, res) => {
   res.status(404).json({ error: 'not found' });
 });
+app.use(createErrorBoundary());
 
 export function startServer(port = PORT) {
   return app.listen(port, HOST);

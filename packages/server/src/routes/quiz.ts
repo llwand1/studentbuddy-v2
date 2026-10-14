@@ -1,3 +1,4 @@
+import { asyncHandler } from '../http/async-handler.js';
 /**
  * routes/quiz — 出题薄路由（`/generate` + 题卡作答记录一对读写）。
  *
@@ -88,7 +89,7 @@ quizRouter.post('/:quizId/attempts', (req: Request, res: Response) => {
  * 出不够不静默补题、图没出也不静默：响应带 mix / images 两份报告，UI 如实告知（ADR-5）。
  * ★ `save` 参数随题库下线一并摘除——它曾是「这次要不要写进题库」的开关，现在没有人能翻题库。
  */
-quizRouter.post('/generate', async (req: Request, res: Response) => {
+quizRouter.post('/generate', asyncHandler(async (req: Request, res: Response) => {
   const { topic: rawTopic, material, sessionId, mix, style, search, sourceMix } = req.body as {
     topic?: string;
     material?: string;
@@ -227,4 +228,4 @@ quizRouter.post('/generate', async (req: Request, res: Response) => {
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
-});
+}));

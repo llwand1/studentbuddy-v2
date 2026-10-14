@@ -5,7 +5,7 @@
 
 **StudentBuddy：开源 AI 学习 Agent，把资料、练习、思考、反馈和复习接在一起。**
 
-产品本体仍叫 **StudentBuddy**，仓库名为 **xuelian-agent**。面向中文自学者、编程入门学习者与应试练习：可以用 AI 学习，也可以用它学习 AI、Agent、JavaScript 等知识。从具体问题和来源开始，而不是只收藏一份学习路线。
+产品本体仍叫 **StudentBuddy**，仓库名为 **xuelian-agent**。面向中文自学者、编程入门学习者与应试练习，支持 AI、Agent、JavaScript 等知识学习。从具体问题与可追溯资料开始，逐步进入练习、反馈和复习。
 
 - **应试学习与题库搜索**：圈定考试范围与资源站，检索真题/题库来源，区分真实来源与 AI 生成练习；AI 可发现新资源站，经你确认后补入范围。
 - **编程与 AI 入门**：对照教程或 GitHub 仓库提问，围绕刚学的概念出题，把「会看代码」进一步检查成「能解释与作答」。
@@ -16,20 +16,20 @@
 
 StudentBuddy 把提问、查资料、做题和复习串在同一段学习过程中。你可以从营地里的一道热身题开始，也可以带着自己的问题或资料直接进入。
 
-## 创新在哪里：先看能验证的体验
+## 学习工作台：从资料到练习反馈
 
-**客观判断：目前能成立的是产品流程与交互组合的差异，不是新模型、新算法，也没有证据证明行业首创或学习效果领先。** AI 对话、资料问答、出题、词卡和 MCP 都已有成熟先例；例如 Google 的学习工具已支持[从资料生成词卡、测验与解释](https://support.google.com/gemininotebook/answer/16958963?hl=en)。不能把这些单项本身当成创新。
+围绕一份资料或一个具体问题，完成「阅读 → 作答 → 分析 → 调整练习 → 复习」。资料、答案与解题思考保留在同一学习过程中，方便回看与继续学习。
 
-| 值得展示的设计 | 可以亲自核对什么 | 不能由此推断什么 |
+| 使用场景 | 操作方式 | 学习记录 |
 |---|---|---|
-| 答案之外保留「我的思考」，逐题独立分析，再按评价调整下一题 | 原题、错误答案、思考、反馈和新题保留在同一学习过程 | AI 诊断一定准确、适应算法是原创 |
-| 回复等待时刷词，回复完成后回到原对话 | 不离开当前学习话题；词卡进度与原对话衔接 | 填满等待时间必然提高学习效率 |
-| 学过的词条连接复习队列与知识大陆 | 地块/怪物对应自己的词条和复习，不是独立装饰小游戏 | 游戏化或间隔复习由本项目发明 |
-| 桌面共读、截图、练习与可查看任务衔接 | 本机材料如何进入当前会话，任务/权限/失败状态是否可见 | 可以任意操作电脑、插件能力没有边界 |
+| 检查概念理解 | 提交答案与「我的思考」，查看逐题分析，评价难度或歧义 | 原题、思考、反馈与后续练习连续保留 |
+| 等待回答时复习 | 在当前窗口练词，收到回复提示后回到原对话 | 词卡进度与对话分别保留 |
+| 安排后续复习 | 将概念收入词库，通过复习队列与知识大陆继续练习 | 词条、复习阶段与作答记录相互关联 |
+| 使用桌面材料学习 | 共读网页、框选截图或读取本机文本，并在任务中心查看执行状态 | 当前材料、任务结果和权限请求可查看 |
 
-### 1. 从错误思路到下一题：不是只显示一个红叉
+### 练习反馈：保留解题思考，调整后续练习
 
-这组截图通过实际题目组件点击「评价这道题」和「先练环境创建」得到。示例是 JavaScript 闭包入门：学习者把创建环境与调用函数混淆，下一题减少推理步骤，只辨认创建环境的那一行。**题目、评价选项和模型回复为隔离预置数据，截图证明界面与交互，不是模型正确率或学习效果评测。**
+JavaScript 闭包入门示例：提交答案与思考后，查看分析并评价这道题；选择「先练环境创建」，后续题目聚焦创建环境的语句。**以下演示来自实际组件，题目与模型回复使用隔离预置数据。**
 
 <details><summary>查看评价之前：原答案、解题思考与评价选项</summary>
 
@@ -39,17 +39,17 @@ StudentBuddy 把提问、查资料、做题和复习串在同一段学习过程�
 
 ![评价之后：原题与思考保留，调整理由和下一题追加；隔离演示数据](docs/images/learning-feedback-after.png)
 
-### 2. 等待回复时练词，回复到了再接回阅读
+### 等待复习：回答与词卡保持连续
 
 ![实际前端动图：发送问题、等待时刷词、保存词条、回到回复；隔离演示数据](docs/images/ux178-wait-drill.gif)
 
-这里展示的是等待与复习的衔接，而不是「聊天软件加了一个词卡按钮」。词卡进度、回复完成提示和回到原对话都可观察。
+等待期间可继续练词，回复完成后收到提示，回到原对话接着阅读；词卡进度与对话内容不会因切换丢失。
 
-### 3. 阅读材料与练习保持同一个上下文
+### 资料共读：对照阅读，继续追问与练习
 
 ![实际前端：资料和回答对照阅读；隔离演示数据](docs/images/ux177-reading.png)
 
-对照阅读、划选追问、来源跳转本身不是首创；项目的取舍是让这些材料继续服务于练习和词条积累，而不是止于总结。[功能与复验说明](docs/FEATURES.md) · [新增截图的来源记录](docs/images/learning-feedback-evidence.json)
+资料与回答对照阅读，划选不理解的段落继续追问，再围绕当前材料出题或收入词条。[功能说明](docs/FEATURES.md) · [演示来源记录](docs/images/learning-feedback-evidence.json)
 
 Windows 本地版把学习窗口和像素吉祥物带到桌面，学习数据留在自己的电脑上。新版会后台检查并准备更新，校验完成后提示重启；0.2.0 及更早版本需要先手动安装一次带更新器的新版。
 
@@ -167,6 +167,14 @@ Windows 本地版把学习窗口和像素吉祥物带到桌面，学习数据留
 
 数学参数配方可直接生成并验算，减少召题等待；一般蓝图由 AI 现场创作、核对。指定实时搜索或真题时保留真实检索。设置页可复制 agent 使用说明，[接口契约](docs/QUESTION-SEEDS-SPEC.md)与[机器规范](https://11wand.com/api/open/v1/openapi.json)提供完整字段与示例。
 
+## 桌面插件与更新
+
+设置 → 插件 → GitHub：选择 Chrome / Edge，点击连接，在该浏览器授权，再勾选仓库。接入固定校验的 GitHub 官方 MCP 组件，主对话可读取选中仓库的文件、Issue、PR 与 Actions；高级 Token 连接保留。浏览器令牌仅在内存，退出应用需重新连接。
+
+可导入声明式 JSON 接入其他公网 HTTPS Streamable HTTP MCP 服务，不运行第三方脚本；第三方工具逐次确认。配置、工具清单和调用记录可见。未开放子 Agent 插件权限、GitHub 写操作或插件商店。[插件契约与格式](docs/PLUGIN-ECOSYSTEM-SPEC.md)。
+
+桌面构建通过测试、隔离升级验证和签名后进入 [desktop-stable 更新通道](https://github.com/llwand1/xuelian-agent/releases/tag/desktop-stable)，以发行页显示版本为准。扩展 ZIP 也随正式桌面 Release 单独提供。仓库改名不改变 StudentBuddy 的程序名、旧数据目录和更新签名。
+
 ## 开始体验
 
 - **在线使用**：[打开 StudentBuddy](https://11wand.com/)，首页可免注册体验。公用体验账号的内容共享，私人学习资料请放在自己的账号里。
@@ -177,21 +185,14 @@ Windows 本地版把学习窗口和像素吉祥物带到桌面，学习数据留
 <summary>开发者信息</summary>
 
 ![node](https://img.shields.io/badge/node-%E2%89%A522.11-blue)
-![tests](https://img.shields.io/badge/tests-455%20files%20%2F%204860%20cases-brightgreen)
+![tests](https://img.shields.io/badge/tests-460%20files%20%2F%204873%20cases-brightgreen)
 ![api](https://img.shields.io/badge/REST%20routes-240-0ea5e9)
 ![contracts](https://img.shields.io/badge/shared%20contracts-310%20types-8a63f6)
 ![deps](https://img.shields.io/badge/external%20runtime%20deps-8-blue)
 ![stack](https://img.shields.io/badge/stack-React%2018%20%C2%B7%20Express%20%C2%B7%20SQLite-8a63f6)
 
-当前测试基线 **455 文件 / 4860 例**。Windows 安装包见[桌面更新通道](https://github.com/llwand1/xuelian-agent/releases/tag/desktop-stable)；在线体验**已上线到 v0.2.186**。
+当前测试基线 **460 文件 / 4873 例**。Windows 安装包见[桌面更新通道](https://github.com/llwand1/xuelian-agent/releases/tag/desktop-stable)；在线体验**已上线到 v0.2.186**。
 
 代码结构、开发约定与复验方式见 [工程文档](docs/ENGINEERING.md)。
 
 </details>
-### 桌面插件与正式更新通道
-
-设置 → 插件 → GitHub：选择 Chrome / Edge，点击连接，在该浏览器授权，再勾选仓库。接入固定校验的 GitHub 官方 MCP 组件，主对话可读取选中仓库的文件、Issue、PR 与 Actions；高级 Token 连接保留。浏览器令牌仅在内存，退出应用需重新连接。
-
-可导入声明式 JSON 接入其他公网 HTTPS Streamable HTTP MCP 服务，不运行第三方脚本；第三方工具逐次确认。配置、工具清单和调用记录可见。未开放子 Agent 插件权限、GitHub 写操作或插件商店。[插件契约与格式](docs/PLUGIN-ECOSYSTEM-SPEC.md)。
-
-桌面构建通过测试、隔离升级验证和签名后进入 [desktop-stable 更新通道](https://github.com/llwand1/xuelian-agent/releases/tag/desktop-stable)，以发行页显示版本为准。扩展 ZIP 也随正式桌面 Release 单独提供。仓库改名不改变 StudentBuddy 的程序名、旧数据目录和更新签名。

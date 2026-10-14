@@ -1,3 +1,4 @@
+import { asyncHandler } from '../http/async-handler.js';
 /**
  * routes/drill — 「等待时刷词」的 HTTP 出口（契约 `docs/WAIT-DRILL-SPEC.md` §4），前缀 `/api/drill`。
  *
@@ -14,14 +15,14 @@ import { dismissDrillTerm, drillNewTerms, keepDrillTerm } from '../learning/dril
 export const drillRouter = Router();
 
 /** 出新词：body `{ sessionId? }`（带上正在等的那轮对话，新词跟着话题走）。永不 5xx：模型失手退词池。 */
-drillRouter.post('/new-terms', async (req: Request, res: Response) => {
+drillRouter.post('/new-terms', asyncHandler(async (req: Request, res: Response) => {
   const { sessionId, want } = req.body as { sessionId?: unknown; want?: unknown };
   const r = await drillNewTerms(ownerIdOf(req), {
     sessionId: typeof sessionId === 'string' ? sessionId : null,
     want: typeof want === 'number' ? want : undefined,
   });
   res.json(r);
-});
+}));
 
 /** 收入词库：body `{ candidateId? , term?, definition?, domain? }`（候选按表里那行为准） */
 drillRouter.post('/keep', (req: Request, res: Response) => {

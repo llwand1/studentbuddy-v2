@@ -1,3 +1,4 @@
+import { asyncHandler } from '../http/async-handler.js';
 /**
  * routes/scenario — 情景题薄路由（契约 docs/SCENARIO-SPEC.md §4，2026-09-17 新建）。
  * 域逻辑在 learning/scenario.ts，本文件只做 HTTP 映射：入参缺项 400、demo/task 不存在 404，
@@ -42,7 +43,7 @@ scenarioRouter.post('/seed', (req: Request, res: Response) => {
  * 历史文本 = [SCENARIO]{payload 顶层 + quizId/demoId 两个登记键}[/SCENARIO]——登记键只进聊天消息
  * content（还原卡片要用），不进 quiz_bank data（那边保持纯契约形状）。
  */
-scenarioRouter.post('/generate', async (req: Request, res: Response) => {
+scenarioRouter.post('/generate', asyncHandler(async (req: Request, res: Response) => {
   const { topic, material, sessionId } = req.body as { topic?: string; material?: string; sessionId?: string };
   if (!topic?.trim() && !material?.trim()) {
     res.status(400).json({ error: 'topic 或 material 必填' });
@@ -67,7 +68,7 @@ scenarioRouter.post('/generate', async (req: Request, res: Response) => {
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
-});
+}));
 
 /** 出 demo 页（宿主面板 iframe 与浏览器直开共用）：404 用 HTML 提示，保持 type 一致。别人的 demo → 404。 */
 scenarioRouter.get('/demo/:id', (req: Request, res: Response) => {

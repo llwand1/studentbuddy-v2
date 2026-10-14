@@ -1,4 +1,5 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type Request, type Response, type RequestHandler } from 'express';
+import { asyncHandler } from '../http/async-handler.js';
 import { objectValue } from '@sb/shared';
 import { ownerIdOf } from '../auth/ownership.js';
 import { deletePlugin, disconnectPlugin, importPlugin, listPlugins, pluginCalls, updatePlugin } from '../plugins/store.js';
@@ -9,11 +10,11 @@ export const pluginsRouter = Router();
 pluginsRouter.get('/',(req,res)=>res.json({plugins:listPlugins(ownerIdOf(req))}));
 pluginsRouter.get('/calls',(req,res)=>res.json({calls:pluginCalls(ownerIdOf(req))}));
 type Handler = (req: Request, res: Response) => unknown;
-function handle(fn: Handler): Handler {
-  return (req,res) => Promise.resolve().then(()=>fn(req,res)).catch((e: unknown)=>{
+function handle(fn: Handler): RequestHandler {
+  return asyncHandler((req,res) => Promise.resolve().then(()=>fn(req,res)).catch((e: unknown)=>{
     if (!res.headersSent && !res.destroyed) res.status(e instanceof Error && e.message === '插件不存在' ? 404 : 400)
       .json({error:e instanceof Error ? e.message : '插件操作失败'});
-  });
+  }));
 }
 pluginsRouter.post('/import',handle((req,res)=>{
   const value = objectValue(req.body as unknown);

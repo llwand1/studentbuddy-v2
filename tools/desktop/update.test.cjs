@@ -8,6 +8,24 @@ const { generateKeyPairSync, sign, createHash } = require('node:crypto');
 const { compare, validateEnvelope, download, verifyFile, inside, dataDir, pruneCache } = require('./update-core.cjs');
 const { snapshotDatabase, restoreDatabase } = require('./update-client.cjs');
 const keys = generateKeyPairSync('ed25519');
+test('source metadata compares canonical content, ignores CRLF status noise, and retains real dirty/untracked detection',async()=>{
+  const {execFileSync}=require('node:child_process'), {sourceState}=require('./source-state.cjs');
+  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'sb-source-state-'));
+  const git=(...args)=>execFileSync('git',args,{cwd:directory,encoding:'utf8',stdio:'pipe'});
+  git('init');git('config','user.name','fixture');git('config','user.email','fixture@example.invalid');git('config','core.autocrlf','true');
+  await fs.writeFile(path.join(directory,'fact.txt'),'same content\n');await fs.writeFile(path.join(directory,'.gitignore'),'*.tmp\n');
+  git('add','.');git('commit','-m','fixture');
+  await fs.writeFile(path.join(directory,'fact.txt'),'same content\r\n');
+  assert.equal(sourceState(directory).sourceDirty,false);assert.match(sourceState(directory).sourceCommit,/^[a-f0-9]{40}$/);
+  await fs.writeFile(path.join(directory,'ignored.tmp'),'temporary');assert.equal(sourceState(directory).sourceDirty,false);
+  await fs.writeFile(path.join(directory,'fact.txt'),'changed\n');assert.equal(sourceState(directory).sourceDirty,true);
+  await fs.writeFile(path.join(directory,'fact.txt'),'same content\n');await fs.writeFile(path.join(directory,'untracked.txt'),'new code');
+  assert.equal(sourceState(directory).sourceDirty,true);
+});
+test('source metadata refuses an unverified source directory',async()=>{
+  const {sourceState}=require('./source-state.cjs');const directory=await fs.mkdtemp(path.join(os.tmpdir(),'sb-no-source-'));
+  assert.throws(()=>sourceState(directory));
+});
 test('release floor avoids shipping below locally tested versions while preserving monotonic updates and exact-source reruns',()=>{
   const {selectDesktopVersion}=require('./version-policy.cjs');
   assert.equal(selectDesktopVersion('0.2.186','0.2.199',{version:'0.2.192',sourceCommit:'old'},'new'),'0.2.199');

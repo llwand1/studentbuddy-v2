@@ -246,6 +246,12 @@ const METRICS_CASES = [
 
 const GATES_CASES = [
   {
+    name: 'shared 行数红线（401 行，上限 400）',
+    expect: '[行数]',
+    probe: 'packages/shared/src/__guard_audit_long.ts',
+    content: () => ['export const SHARED_AUDIT = 1;', ...Array.from({ length: 400 }, () => '// pad')].join('\n'),
+  },
+  {
     name: `① 行数红线（web .tsx ${WEB_TSX_LIMIT + 6} 行，上限 ${WEB_TSX_LIMIT}）`,
     expect: '[行数]',
     probe: 'packages/web/src/__guard_audit_long.tsx',

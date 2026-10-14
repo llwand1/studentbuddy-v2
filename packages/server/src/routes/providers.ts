@@ -1,3 +1,4 @@
+import { asyncHandler } from '../http/async-handler.js';
 /**
  * routes/providers — 服务商 CRUD / 角色模型绑定 / 模型列表 / 平台免费额度。
  *
@@ -310,7 +311,7 @@ providersRouter.get('/quota', (req: Request, res: Response) => {
  *   用户看到的是"没拉到模型列表（检查 baseUrl/key）"——一句指向错误方向的提示。
  *   ★ 这条不泄露 key：返回值只有模型名，key 在服务端就用掉了。
  */
-providersRouter.get('/:id/models', async (req: Request, res: Response) => {
+providersRouter.get('/:id/models', asyncHandler(async (req: Request, res: Response) => {
   const row = getDb()
     .prepare('SELECT type, base_url, api_key, owner_id FROM providers WHERE id = ? AND (owner_id IS NULL OR owner_id IS ?)')
     .get((req.params.id ?? ''), ownerIdOf(req)) as
@@ -323,7 +324,7 @@ providersRouter.get('/:id/models', async (req: Request, res: Response) => {
   const adapter = row.type === 'anthropic' ? new AnthropicAdapter() : new OpenAICompatibleAdapter();
   const models = await adapter.listModels(resolveProviderCredentials(row));
   res.json({ models });
-});
+}));
 
 /** 开发辅助：验证密钥加解密往返（密文状态自查，不回显明文）。 */
 providersRouter.get('/:id/key-status', (req: Request, res: Response) => {

@@ -1,3 +1,4 @@
+import { asyncHandler } from '../http/async-handler.js';
 /**
  * routes/sources —— 资料溯源的只读端点（契约 docs/SOURCE-TRACE-SPEC.md §6）。
  *
@@ -81,7 +82,7 @@ function failDoc(reason: string, url: string, canShot: boolean): string {
   );
 }
 
-sourcesRouter.get('/view', async (req: Request, res: Response) => {
+sourcesRouter.get('/view', asyncHandler(async (req: Request, res: Response) => {
   const auth = authorize(req);
   if (!auth.ok) {
     res.status(auth.status).json({ error: auth.error });
@@ -103,14 +104,14 @@ sourcesRouter.get('/view', async (req: Request, res: Response) => {
     return;
   }
   res.send(loaded.html);
-});
+}));
 
 /**
  * 阅读页的块模型（§14.1）。与 `/view` 的区别只在**出口形态**：那边是沙箱 iframe 里的 HTML 文档，
  * 这边是 JSON 结构，交给前端用 React 渲染进主文档 —— 于是选区可读（划线功能的前提）。
  * 取页、清洗、缓存三件事两条路完全共用，不会出现「iframe 看到的和划线取到的不是同一份」。
  */
-sourcesRouter.get('/read', async (req: Request, res: Response) => {
+sourcesRouter.get('/read', asyncHandler(async (req: Request, res: Response) => {
   const auth = authorize(req);
   if (!auth.ok) {
     res.status(auth.status).json({ error: auth.error });
@@ -123,7 +124,7 @@ sourcesRouter.get('/read', async (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'private, max-age=600');
   // 失败也回 200 + ok:false：面板要把原因显示在阅读区里，而不是吞成一个网络错误（ADR-5）
   res.json(page);
-});
+}));
 
 /**
  * 页内跳转许可（§14.2）。**只有用户在确认条上点过「在侧栏打开」才会走到这里**，
@@ -157,7 +158,7 @@ sourcesRouter.post('/follow', (req: Request, res: Response) => {
   res.json({ ok: true, url, site: siteOf(url) });
 });
 
-sourcesRouter.get('/pdf', async (req: Request, res: Response) => {
+sourcesRouter.get('/pdf', asyncHandler(async (req: Request, res: Response) => {
   const auth = authorize(req);
   if (!auth.ok) {
     res.status(auth.status).json({ error: auth.error });
@@ -214,13 +215,13 @@ sourcesRouter.get('/pdf', async (req: Request, res: Response) => {
     const msg = err instanceof Error ? err.message : String(err);
     res.status(502).json({ error: /abort/i.test(msg) ? '读取超时' : '取不到这个 PDF' });
   }
-});
+}));
 
 /**
  * 阅读页探测：面板在挂 iframe 的同时问一句「这页会不会打不开 / 是不是太薄 / 能不能截图」，据此决定要不要换成截图视图。
  * 图片类资料永远 ok（阅读页只是套壳显示原图）。与 `/view` 合流同一次取页（reader 的 inflight），不多拉上游。
  */
-sourcesRouter.get('/probe', async (req: Request, res: Response) => {
+sourcesRouter.get('/probe', asyncHandler(async (req: Request, res: Response) => {
   const auth = authorize(req);
   if (!auth.ok) {
     res.status(auth.status).json({ error: auth.error });
@@ -237,12 +238,12 @@ sourcesRouter.get('/probe', async (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'private, max-age=600');
   if (loaded.ok) res.json({ ok: true, thin: loaded.thin, shot });
   else res.json({ ok: false, status: loaded.status, reason: loaded.reason, thin: false, shot });
-});
+}));
 
 const SHOT_STATUS: Record<ShotError['kind'], number> = { no_browser: 404, blocked: 400, timeout: 504, busy: 503, failed: 502 };
 
 /** 截图保底：许可模型与 `/view` 完全相同（只服务架上的网址）；PNG 直出，错误一律 JSON 且状态码按失败种类 */
-sourcesRouter.get('/shot', async (req: Request, res: Response) => {
+sourcesRouter.get('/shot', asyncHandler(async (req: Request, res: Response) => {
   const auth = authorize(req);
   if (!auth.ok) {
     res.status(auth.status).json({ error: auth.error });
@@ -262,10 +263,10 @@ sourcesRouter.get('/shot', async (req: Request, res: Response) => {
     }
     res.status(502).json({ error: '浏览器没截成这一页', kind: 'failed' });
   }
-});
+}));
 
 /** 视频线路：`route` 只认两家，`q` 清洗后非空且 ≤80；失败形态都在结果体里（`via:'none'` + `note`），这里只挡坏参数 */
-sourcesRouter.get('/videos', async (req: Request, res: Response) => {
+sourcesRouter.get('/videos', asyncHandler(async (req: Request, res: Response) => {
   const session = typeof req.query.session === 'string' ? req.query.session : null, owner = ownerIdOf(req);
   if (session && !canAccessSession(session,owner)) { res.status(404).json({error:'会话不存在'}); return; }
   const route = String(req.query.route ?? '') as VideoRoute;
@@ -288,7 +289,7 @@ sourcesRouter.get('/videos', async (req: Request, res: Response) => {
   const updated = finishVideoSearch(owner,session,ticket,result);
   if (!updated) { res.status(409).json({error:'有更新的视频请求，请使用最新结果'}); return; }
   res.json(updated.result);
-});
+}));
 
 sourcesRouter.get('/session/:id', (req: Request, res: Response) => {
   const id = req.params.id ?? '';

@@ -20,7 +20,7 @@ import { fetchSafe } from '../search/ssrf-guard.js';
 import { combineSignals } from '../search/combine.js';
 
 const TIMEOUT_MS = 8_000;
-const UA = 'studentbuddy/0.2 (learning app; contact via github.com/llwand1/studentbuddy-v2)';
+const UA = 'studentbuddy/0.2 (learning app; contact via github.com/llwand1/xuelian-agent)';
 
 /** 缓存：同一个词在一次学习里会被反复划到（上限 200 条、TTL 1 天） */
 const cache = new Map<string, { at: number; val: WikiLookup }>();

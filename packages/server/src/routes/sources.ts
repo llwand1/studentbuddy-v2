@@ -32,6 +32,7 @@ import { loadReaderPage } from '../sources/reader-page.js';
 import { approveFollow, isFollowApproved, FOLLOW_MAX_PER_SESSION } from '../sources/follow.js';
 import { ShotError, shotAvailable, takeScreenshot } from '../sources/shot.js';
 import { searchVideoRoute } from '../sources/video-route.js';
+import { beginVideoSearch, finishVideoSearch } from '../sources/learning-videos.js';
 import { examAllowed, loadExamContext } from '../learning/exam-mode.js';
 import { VIDEO_ROUTES, cleanVideoQuery, detectSourceKind, siteOf, type VideoRoute } from '@sb/shared';
 import { fetchSafe } from '../search/ssrf-guard.js';
@@ -265,6 +266,8 @@ sourcesRouter.get('/shot', async (req: Request, res: Response) => {
 
 /** 视频线路：`route` 只认两家，`q` 清洗后非空且 ≤80；失败形态都在结果体里（`via:'none'` + `note`），这里只挡坏参数 */
 sourcesRouter.get('/videos', async (req: Request, res: Response) => {
+  const session = typeof req.query.session === 'string' ? req.query.session : null, owner = ownerIdOf(req);
+  if (session && !canAccessSession(session,owner)) { res.status(404).json({error:'会话不存在'}); return; }
   const route = String(req.query.route ?? '') as VideoRoute;
   const q = cleanVideoQuery(String(req.query.q ?? ''));
   if (!VIDEO_ROUTES.includes(route)) {
@@ -276,8 +279,15 @@ sourcesRouter.get('/videos', async (req: Request, res: Response) => {
     return;
   }
   const ac = new AbortController();
-  req.on('close', () => ac.abort());
-  res.json(await searchVideoRoute(route, q, ownerIdOf(req), ac.signal));
+  res.on('close', () => { if (!res.writableEnded) ac.abort(); });
+  const ticket = session ? beginVideoSearch(owner,session) : 0;
+  const result = await searchVideoRoute(route, q, owner, ac.signal);
+  if (ac.signal.aborted) return;
+  if (!session) { res.json(result); return; }
+  if (!canAccessSession(session,owner)) { res.status(404).json({error:'会话不存在'}); return; }
+  const updated = finishVideoSearch(owner,session,ticket,result);
+  if (!updated) { res.status(409).json({error:'有更新的视频请求，请使用最新结果'}); return; }
+  res.json(updated.result);
 });
 
 sourcesRouter.get('/session/:id', (req: Request, res: Response) => {

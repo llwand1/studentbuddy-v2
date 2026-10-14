@@ -12,10 +12,17 @@
 | `packages/shared/src/desktop-study.test.ts` | 默认关闭、间隔与范围边界 |
 | `packages/server/src/desktop/study-clock.test.ts` | 提前备题、到点投递、不堆题、延后、取消与失败退避 |
 | `packages/server/src/desktop/browser-store.test.ts` | 一次配对、用户/会话隔离、过期清理、乱序与跳转、预算 |
-| `packages/server/src/routes/desktop.test.ts` | 本机边界、Origin、作用域令牌、临时 RAG 接线、网页出题 |
+| `packages/server/src/routes/desktop.test.ts` | 本机边界、Origin、作用域令牌、临时 RAG 接线、网页出题；悬浮会话落库/重开数据库恢复/删除清除/引用校验 |
 | `packages/web/src/features/desktop/browser-extract.test.ts` | 动态正文/选区/视野、输入与隐藏内容排除、长度限制 |
 | `packages/web/src/features/float/FloatQuiz.test.tsx` | 题卡独立作答、反馈、延后与失败保留 |
-| `packages/web/src/features/float/FloatApp.test.tsx` | Native 后台时钟完整投递与直接作答、App 不挂载 |
+| `packages/web/src/features/float/FloatApp.test.tsx` | Native 后台时钟完整投递与直接作答、App 不挂载；首次展开后收起不卸载、草稿与会话状态保留 |
+| `packages/web/src/app/useWorkspaceSession.test.ts` | 悬浮窗会话恢复、主窗隔离、迟到恢复不覆盖导航、写入串行、失败仍可操作 |
+| `packages/server/src/desktop/files.test.ts` | 区外只读/区内写、备份、敏感路径与正文单次许可、归属/拒绝/超时/取消、手动保护、联接逃逸/设备路径、截断/二进制与云端关闭 |
+| `packages/server/src/desktop/agent-runner.test.ts` | 独立上下文与真文件产物、权限继承/禁止再派生、并发三任务/排队/父子取消、许可前不提交内容、重启不重放 |
+| `packages/server/src/routes/desktop-workbench.test.ts` | 安装标记与本机/Origin边界、真实文件 API 与区外禁写、独立任务与持久详情 |
+| `packages/web/src/features/desktop/DesktopWorkbench.test.tsx` | 独立任务面板、父子 Agent 与进度清单、单次授权/取消、创建任务/文件权限/机制页、非桌面隐藏 |
+| `packages/server/src/desktop/runtime-context.test.ts` | 本机能力问题先查真实工作区而非联网搜索、截图不强制搜索、网站与 Grill 行为保留、Windows 桌面重定向路径 |
+| `packages/web/src/features/desktop/DesktopComposerBridge.test.tsx` | 截图本地预览且不自动上传、草稿保留、取消/无效输入/附件上限、快速输入展开、首次挂载收信 |
 | `packages/server/src/desktop/extension-background.test.ts` | 扩展消息来源、所选顶层标签页、跨文档隔离、停止采集 |
 
 > 2026-10-11 GrillMe 节奏与界面：新增 5 个普通回归用例（开场/收尾时机 2、参数边界 1、内联卡与回执拒绝 2）；既有刷新阶段、发送接线和迁移重放补断言；不增加 AI 评测集。
@@ -890,7 +897,7 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `src/features/chat/TermText.test.tsx` | 18 | **正文词条高亮与词条卡（TERM-HIGHLIGHT-SPEC §9，2026-09-19 新建，jsdom 按文件 pragma）**：钉「屏幕上的东西真的出来了」这一层（匹配规则本身在 `shared/term-highlight.test.ts`，不重复）。① 命中（含别名）切成 `.term-hl`，且**文本内容一字不差**；② **无命中的片段原样渲染、不产生额外节点**（用另一段的命中证明索引已就绪——否则「未就绪」与「无命中」在断言上分不开）；③ **同片段内首现 `first`、复现 `again`**（别名算同一词条的复现）；④ `data-term` 是**主词条名**（别名也归属主词条）；⑤ **索引拉取失败时不高亮、不报错**（ADR-4 降级）；⑥ 悬停 → 速览卡 `mini`（词名/领域/释义/已用次数），点击 → 完整卡（别名 + 复习状态 + 动作）；⑦ **未纳入复习范围时不显示复习天数、主按钮是「纳入复习」**；⑧ 点「移出复习」**真的打到 `scopeTerm(id, false)`** 并回显结果；⑨ 点「打开词条库」把主词条名交回上层；⑩ **未注入 `openTerms` 时该按钮不出现**（不做假按钮）；⑪ `×` 关闭卡片；⑫ **无 Provider 时原样渲染、不高亮、不报错**（★ 原本举的例子是「笔记页等复用 `Markdown` 的调用点」，那页已于 2026-09-25 随刷题笔记下线；这条锁的是「不注入 Provider 也不崩」这件事本身，与举例无关，原句留着）；⑬ **英文发音**（v1.1 追加 5 例，契约 §3.1：中文词条无喇叭／★ **别名命中读 `closure` 而非主词条名「闭包」**（`data-say` 与 `data-term` 不可合并）／mini 卡也有喇叭／朗读失败提示在 mini 卡也可见（提示行已移出 `full` 分支）／**环境不支持语音则不渲染喇叭**——不做假按钮） | [DONE] 18 passed |
 | `src/lib/speech.test.ts` | 23 | **词条英文发音的判定规则与朗读路径（TERM-HIGHLIGHT-SPEC §3.1/§9，2026-09-20 v1.1 新建，jsdom 按文件 pragma；★ 同时 v0.2.83 语音设置改动 14→23，+9）**：① **判定规则**（7 例，纯函数零 DOM）——英文术语为真；`.NET`/`3D` 这类点号·数字开头为真；**中文词条为假**（不发音）；**符号型为假**（`C++`/`C#`/`std::vector`——读出来是噪音，给了按钮反而误导）；纯数字·空值·只有标点为假；首尾空白 trim；**长度上限 64**（拦「整句英文被当词条朗读」，是防御性上限不是功能阈值）。② **能力探测**（2 例）——打桩后为真；**jsdom 默认无语音 API 时为假**（调用方据此不渲染按钮）。③ **朗读路径与三态**（5 例）——文本与 `en-US` 交给朗读器并读完 resolve；**每次朗读前先 `cancel()`**（不 cancel 会叠音，连点两次就是两句一起读）；★ **`canceled`/`interrupted` 不算失败**（那正是自己 `cancel()` 的产物，含快速切词的自我打断——当失败处理会让 UI 闪一条假报错，并把真失败淹没）；**真错误 reject 且带用户可读文案**（系统没装英文语音时 `speak()` 会静默无声，不提示等于用户以为功能坏了）；环境不支持时直接 reject（第二道防线）。④ ★ **v0.2.83 语音设置改动 +9（14→23）——「设置真的落到发声元件上」与「拿不到设置也要能读」**：音色与语速**真的注入 `SpeechSynthesisUtterance`**（`u.rate` 等于保存的语速、`u.voice` 就是选中的那个音色对象——**只把值存进库不算完成**，注入这一步才是功能本体）；★ **本机没有该音色时回落系统默认而不是失败**（`pickVoice(name)` 返回 null 时**不挂 `u.voice`**、朗读照常 resolve——用户换机器/换浏览器是常态，报错等于把一个合理降级说成故障）；缓存为空且设置接口失败时回落 `DEFAULT_SPEECH_SETTINGS`（**设置拉不到不该让喇叭哑掉**——与「降级不冒充 AI 分析」同源：可用性优先，但要能解释）；`englishVoices()`／`pickVoice()` 的候选过滤（**非英文音色不进候选**，列一堆中文音色给「英语发音」是坏体验）。★ 同时 `speakEnglish` 由同步改**异步**（要 `await resolveSpeechSettings()`）——这正是 `TermText.test.tsx` 那条「朗读失败时给提示」从绿变红的原因，已用 `await waitFor(() => expect(spoken).not.toBeNull())` 修好（**该文件例数不变 18**） | [DONE] 23 passed |
 | `src/components/GithubLoginButton.test.tsx` | 2 | **GitHub 登录入口（AUTH-SPEC §2.8，2026-09-20 新建，jsdom 按文件 pragma）**：核心一条是 **href 必须是 `/api/auth/github` 的整页链接**——OAuth 重定向流必须浏览器导航，若哪天被改成 fetch/onClick 跳转（常见手滑）浏览器永远到不了 GitHub 授权页；label 与 className 透传（顶栏 ghost 与登录卡整宽两种外观共用一个组件） | [DONE] 2 passed |
-| `src/components/TrialNotice.test.tsx` | 1 | **侧栏底部线上版定位提醒（线上＝演示试用、不建议长期使用、长期用建议本地安装包版，jsdom 按文件 pragma）**：口径两半都在（「功能演示与试用」＋「长期使用建议装」）；★ **链接必须与落地页 GitHub 横幅同目标**（`github.com/llwand1/studentbuddy-v2#快速开始`）——下载引导只许一个口径，两处各指一个地址迟早漂开；`target=_blank` + `rel` 含 `noopener`（外链新标签页的固定成对写法）。提醒本体挂在应用壳侧栏（登录后才存在），会「长期使用线上」的人都在应用里，故文案写错/链接写错只有这条锁拦得住 | [DONE] 1 passed |
+| `src/components/TrialNotice.test.tsx` | 1 | **侧栏底部线上版定位提醒（线上＝演示试用、不建议长期使用、长期用建议本地安装包版，jsdom 按文件 pragma）**：口径两半都在（「功能演示与试用」＋「长期使用建议装」）；★ **链接必须与落地页 GitHub 横幅同目标**（`github.com/llwand1/xuelian-agent#快速开始`）——下载引导只许一个口径，两处各指一个地址迟早漂开；`target=_blank` + `rel` 含 `noopener`（外链新标签页的固定成对写法）。提醒本体挂在应用壳侧栏（登录后才存在），会「长期使用线上」的人都在应用里，故文案写错/链接写错只有这条锁拦得住 | [DONE] 1 passed |
 | `src/app/entry.test.ts` | 3 | **启动渲染分支锁（AUTH-SPEC §2.9，2026-09-20 形态分叉新增，纯函数零依赖）**：`entryFor(user, form)` 的三组合四断言——已登录 → 应用壳（**两种形态一致**：本地也允许登录，只是不强制）；未登录 + `local` → **免登录直进应用壳**（本地单人形态的核心承诺，写反了就是本地又被落地页拦住）；未登录 + `cloud` → 落地页。这四条写错**不会有任何运行时错误**、只是把错误的页面怼给用户，故必须成行登记 | [DONE] 3 passed |
 | `src/features/search/global-search.test.ts` | 10 | **全站搜索前端纯函数层（契约 `docs/FTS-SPEC.md` §3.4，2026-09-20 FTS 新增）**——只测两件「写错不报错」的事；渲染层（`GlobalSearch.tsx`）由后续 jsdom 补位（与本仓 `.tsx` 测试的推进节奏一致，同 §6 既有缺口）。① `groupHits` 按 kind 分区：**两类**各归各位（★ 2026-09-25 原第三类 `note` 随刷题笔记下线，`SearchGroups` 从三键收成两键；例数不变 10，改的是断言口径）；★ **空输入也返回两个固定键**（不是 `{}`）——渲染层少判一次 `undefined` 的代价是**整块结果不渲染**；保持服务端给的顺序（bm25 升序＝越相关越前），**前端不重排**。② `splitByQuery` 命中切分（高亮的**唯一依据**，React 据此渲染 `<mark>` 而不用 `innerHTML`）：命中处单独切出且两侧原文一字不差；★ **大小写不敏感匹配但保留原文大小写显示**（不把 `Closure` 显示成 `closure`）；同段多次命中都标出；命中在结尾不产生空尾巴片段；无命中／空查询／纯空白查询一律**原样一段**（搜索框刚清空时不该把整条染成高亮）；查询两侧空白 trim 后再匹配 | [DONE] 10 passed |
 | `src/features/coach/coach-cards.test.ts` | 20 | **督促小窗的纯函数层（COACH-SPEC §4，2026-09-18 新建，v0.2.48 复习督促小窗改动；零依赖零 IO）**：★ **`mergeCards` 按 id 收敛是本文件的核心**——同一张卡会从「乐观插入（点发送即上屏）／落库后回读／断线重连重放」**三个来源各到一次**，只靠追加必然出现三张一样的卡；按 id 覆盖（而非追加）是唯一能同时覆盖这三条路径的写法，四种（插入/更新/无 id/空列表）逐一钉死。`sortCards` 稳定序（同刻卡片不因排序抖动跳位）；`withStreaming`/`dropStreaming` 流式占位卡（`STREAMING_CARD_ID` 只有一个，**多轮并发不得顶出两个占位**）进出幂等；`formatCardTime` 卡面时间文案（刚刚/N 分钟/N 小时/日期四档）；`retentionLevel`（保持率 → 档位）与 `reviewCardResult`（打卡结果 → 卡面文案）派生——**它们是「队列卡翻转后显示什么」的唯一来源**。**`.tsx` 渲染层无自动化测**（本仓无 jsdom，同 §6 既有缺口；★ **v0.2.55 起该层由真机探针补位**：`tools/probes/coach-trend-cdp.mjs` 33 条 + `coach-cdp.mjs` 38 条）。★ **v0.2.55 记忆联动 P5 改动 +4**（`trendBubble` —— 趋势卡气泡的**准入条件**）：**只有趋势卡、且抽屉关着时**才冒泡，两条各挡住一个具体的错——① 非趋势卡（尤其提醒卡）的红点语义已经在胶囊上，叠加第二次提醒会让用户分不清"欠账"和"有消息"哪个更急；② 抽屉开着时卡片会自己出现在他眼前，再弹一个只是**重复告知**。★ 并锁住一条容易被"优化"掉的：**`summarySource === 'fallback'` 照样冒泡**——与那句摘要由谁写无关，气泡宣告的是"图出来了"，不是"模型说话了"；按摘要来源决定弹不弹，等于把功能重新绑死在可选依赖上（`MEMORY-TREND-SPEC` §4.3） | [DONE] 20 passed |
@@ -1264,3 +1271,35 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `src/learning/quiz-question-agent.test.ts`（server） | 5 | 逐题内容隔离、标准阅卷不含思考、跨组并发上限与快题先完成、图示单独重试、取消保留正文、重启恢复 |
 | `src/routes/quiz-rounds.test.ts`（server） | 4 | 真实 HTTP 归属/会话/CSRF、提交锁、迟到输入拒绝、历史、非法素材和服务端情景规则 |
 | `src/storage/migrations-v60.test.ts`（server） | 1 | v59 升级保留旧内容、重复迁移保留轮次、删除会话清理轮次 |
+> 2026-10-14 插件生态首版：声明式远程 MCP 底座、GitHub 只读、主对话真实执行与插件管理。
+
+| 测试文件 | 回归范围 |
+|---|---|
+| `packages/shared/src/plugin-ecosystem.test.ts` | manifest 版本/字段/工具边界、禁止脚本/密钥/危险端点、仓库声明 |
+| `packages/server/src/plugins/github-policy.test.ts` | 仓库精确范围、只读工具/method 双闸、分页校验 |
+| `packages/server/src/plugins/runtime.test.ts` | Token 密文/归属/重启、连接不调用工具、确认前零外呼、逐次许可、停用中止、审计与按需 schema |
+| `packages/server/src/plugins/mcp-http.test.ts` | JSON/SSE/session/协议/分页/白名单、非文本忽略、脱敏、报文上限、HTTP错误/取消/DNS固定/禁止重定向 |
+| `packages/server/src/routes/plugins.test.ts` | Origin、防裸调用接口、用户/未登录隔离、测试/启用/断开/删除、导入配置 |
+| `packages/server/src/chat/plugin-flow.test.ts` | 原生 AI 工具循环、真实适配器调用、绕过强制网页搜索、SSE/工具回灌/答案落库 |
+| `packages/web/src/features/plugins/PluginsCard.test.tsx` | 配置/测试/启用、Token不回显、导入确认、断开确认、独立审计与错误可见 |
+
+## 桌面快捷连接与学习体验回归（2026-10-14）
+
+| 测试文件 | 回归范围 |
+|---|---|
+| `packages/server/src/plugins/github-login.test.ts` | OAuth 内存会话/归属、辅助工具不下发 AI、勾选才启用、旧登录作废、断开和错误脱敏 |
+| `packages/server/src/plugins/github-stdio.test.ts` | 环境秘密清除、JSON-RPC 分片/匹配、拒绝服务端请求、取消/报文限制/停用 |
+| `packages/server/src/chat/exam-resource-discovery.test.ts` | 不受旧范围限制的发现、抓取验证、出处、失败/空结果与取消、不自动写入 |
+| `packages/web/src/features/chat/chat-menu.test.tsx` | 精简菜单、网页共读/截图原生入口、阻塞与普通浏览器降级 |
+| `packages/web/src/features/desktop/native-reader.test.ts` | 自动绑定当前会话、只发送一次性码、固定端点/无原生桥不配对 |
+| `packages/web/src/features/plugins/GithubQuickConnect.test.tsx` | 点击跳转、等待授权、仓库勾选、Token 配置折叠 |
+| `packages/web/src/lib/diagram-render.real.test.ts` | 非 mock Mermaid 实际解析、近期 style/classDef/中文/换行回归与 CSS/HTML 外链拒绝 |
+| `packages/server/src/plugins/mcp-content.test.ts` | GitHub 内嵌 README 正文兼容、链接/图片/二进制不读取 |
+| `packages/server/src/chat/learning-video-tools.test.ts` | 真实搜索接缝、临时候选与 SSE、归属、原子筛选/排序/追加、版本冲突/取消、应试范围变更 |
+| `packages/server/src/desktop/browser-launch.test.ts` | 固定浏览器路径、归属设置、无 shell 本机连接页、OAuth 子进程专用适配器 |
+| `packages/server/src/desktop/browser-extension.test.ts` | 跳转页配对、配对前零读取、activeTab 开始、网站/iframe/替换片段拒绝 |
+| `packages/web/src/features/desktop/BrowserPicker.test.tsx` | 指定共读/授权浏览器、选择保存、失败可见、非桌面不显示 |
+| `packages/server/src/desktop/extension-download.test.ts` | 固定文件 ZIP/CRC/根 manifest、缺文件/清单/大小/链接拒绝、桌面专用下载端点 |
+| `packages/web/src/features/desktop/BrowserControls.test.tsx` | 首层直接下载扩展、无原生桥可用、原生文件夹入口不藏高级设置 |
+
+既有 quiz-round-store/QuizCard 覆盖部分和空白交卷、完整快照、空情景记录及乐观锁；exam-scope-action 覆盖发现先于写入及零候选不强制写。`tools/desktop/reader-smoke.ps1` 用合成 URL 验证原生只读窗口导航边界，不读用户网页。

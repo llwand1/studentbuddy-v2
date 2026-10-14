@@ -23,7 +23,7 @@ export async function preparePackage({ version, assets, output }) {
   const template = path.join(toolDir, 'npm-package');
   const manifest = JSON.parse(await readFile(path.join(template, 'package.json'), 'utf8'));
   manifest.version = version;
-  manifest.homepage = `https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-v${version}`;
+  manifest.homepage = `https://github.com/llwand1/xuelian-agent/releases/tag/desktop-v${version}`;
   manifest.studentbuddy = { installer: filename, sha256 };
   await copyFile(source, path.join(output, filename));
   await copyFile(path.resolve(toolDir, '../../LICENSE'), path.join(output, 'LICENSE'));

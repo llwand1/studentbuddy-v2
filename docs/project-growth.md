@@ -24,10 +24,10 @@
 外加仓库页面可见计数（stars / issues / releases）。复核命令：
 
 ```bash
-gh api repos/llwand1/studentbuddy-v2/traffic/clones --jq '{count,uniques}'
-gh api repos/llwand1/studentbuddy-v2/traffic/views  --jq '{count,uniques}'
-gh api repos/llwand1/studentbuddy-v2 --jq '{stars:.stargazers_count,open_issues:.open_issues_count}'
-gh api repos/llwand1/studentbuddy-v2/releases --jq 'length'
+gh api repos/llwand1/xuelian-agent/traffic/clones --jq '{count,uniques}'
+gh api repos/llwand1/xuelian-agent/traffic/views  --jq '{count,uniques}'
+gh api repos/llwand1/xuelian-agent --jq '{stars:.stargazers_count,open_issues:.open_issues_count}'
+gh api repos/llwand1/xuelian-agent/releases --jq 'length'
 ```
 
 | 指标 | 值（14 天窗口） | 口径警示 |

@@ -55,6 +55,23 @@ it('rolls back the entire submission if one draft has a conflicting revision', (
   expect(loadQuizRound(r.id, null)!.responses[0]!.revision).toBe(0);
   expect(loadQuizRound(r.id, null)!.state).toBe('draft');
 });
+it('permits partial and all-blank snapshots; thinking never substitutes an unanswered essay', () => {
+  const round = openQuizRound(input, 'partial');
+  const all = changes(round.id, 'partial');
+  all[1]!.draft.essay = ''; all[1]!.thought = '检索促进记忆（这只是思考）';
+  const submitted = submitQuizRound(round.id, 'partial', all)!;
+  expect(submitted.state).toBe('submitted');
+  expect(submitted.responses[1]!.result).toMatchObject({ answer:'未作答',verdict:'wrong' });
+  const blank = openQuizRound(input, 'blank');
+  const none = blank.responses.map(a => ({index:a.index,revision:a.revision,draft:a.draft,thought:''}));
+  expect(submitQuizRound(blank.id, 'blank', none)!.responses.every(a => a.result?.verdict === 'wrong')).toBe(true);
+});
+it('allows blank scenario operation without parsing empty JSON, still rejects malformed non-empty operations', () => {
+  const q = { type:'essay' as const, question:'点击', scenarioTask:{id:'t',demoId:'d',criteria:{kind:'state' as const,value:1}} };
+  // Criteria details are covered in scenario tests; blank means wrong before judging.
+  const r = openQuizRound({title:'情景',origin:'scenario',questions:[q]},null);
+  expect(submitQuizRound(r.id,null,r.responses.map(a=>({index:a.index,revision:a.revision,draft:a.draft,thought:''})))!.responses[0]!.result!.verdict).toBe('wrong');
+});
 it('records each question once across retries and cascades records when its owning session is deleted', () => {
   getDb().prepare("INSERT INTO sessions(id,title) VALUES('s','测试')").run();
   const r = openQuizRound({ ...input, sessionId: 's' }, null);

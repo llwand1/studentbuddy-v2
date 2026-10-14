@@ -90,6 +90,8 @@ jobs:
           path: |
             .runtime/desktop-output/*.exe
             .runtime/desktop-output/SHA256SUMS.txt
+            .runtime/desktop-output/StudentBuddy-reader-extension-*.zip
+            .runtime/desktop-output/reader-extension-SHA256SUMS.txt
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()

@@ -5,10 +5,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/llwand1/studentbuddy-v2.git",
+    "url": "https://github.com/llwand1/xuelian-agent.git",
     "directory": "tools/desktop/npm-package"
   },
-  "homepage": "https://github.com/llwand1/studentbuddy-v2/releases/tag/desktop-v0.1.0",
+  "homepage": "https://github.com/llwand1/xuelian-agent/releases/tag/desktop-v0.1.0",
   "publishConfig": { "registry": "https://npm.pkg.github.com" },
   "bin": { "studentbuddy-install": "install.cjs" },
   "files": ["install.cjs", "*.exe", "SHA256SUMS.txt", "README.md", "LICENSE"],

@@ -1,0 +1,17 @@
+import { build } from 'esbuild';
+import { createRequire } from 'node:module';
+import { mkdirSync, mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
+import { resolve, join } from 'node:path';
+import { createHash } from 'node:crypto';
+const output=resolve(process.argv[2]??'.runtime/desktop-output'), source=resolve(process.argv[3]??'tools/browser-extension');
+const manifest=JSON.parse(readFileSync(join(source,'manifest.json'),'utf8'));
+if(!/^\d+\.\d+\.\d+$/.test(manifest.version))throw new Error('Invalid extension version');
+mkdirSync('.runtime',{recursive:true});const temporary=mkdtempSync(resolve('.runtime/reader-archive-'));
+const bundle=await build({entryPoints:['packages/server/src/desktop/extension-download.ts'],bundle:true,platform:'node',format:'cjs',write:false});
+const modulePath=join(temporary,'archive.cjs');writeFileSync(modulePath,bundle.outputFiles[0].contents);
+const {readerExtensionArchive}=createRequire(import.meta.url)(modulePath);
+const zip=readerExtensionArchive(source), filename=`StudentBuddy-reader-extension-${manifest.version}.zip`;
+mkdirSync(output,{recursive:true});writeFileSync(join(output,filename),zip);
+const sha256=createHash('sha256').update(zip).digest('hex');
+writeFileSync(join(output,'reader-extension-SHA256SUMS.txt'),`${sha256}  ${filename}\n`);
+console.log(JSON.stringify({filename,sha256,size:zip.length}));

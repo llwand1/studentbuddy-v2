@@ -125,7 +125,7 @@ export function ChatView({
     tasks.length,
     streamingText,
     quiz.quizRefs.length,
-  ], !isEmpty && !handoff.waiting);
+  ], historyReady && !isEmpty && !handoff.waiting, historyReady ? sessionId : null);
   /** 输入框随内容自增高：高度写进 CSS 变量 --ta-h（chat.css），上限 200px 后内滚 */
   useAutoResize(inputRef, input);
 

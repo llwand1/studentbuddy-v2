@@ -13,3 +13,6 @@ export function closeDesktopReader(): void { state = { ...state, open: false }; 
 export function useDesktopReader() {
   return useSyncExternalStore(fn => { listeners.add(fn); return () => { listeners.delete(fn); }; }, () => state, () => state);
 }
+
+export const OPEN_DESKTOP_READER = "sb-desktop:open-reader";
+export function requestDesktopReader(): void { window.dispatchEvent(new Event(OPEN_DESKTOP_READER)); }

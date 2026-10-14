@@ -4,6 +4,7 @@ let sequence = 0;
 let runtime: Promise<typeof import('mermaid').default> | undefined;
 
 export function normalizeDiagramSource(source: string): string {
+  source = source.replace(/"([^"\n]*)"/g, (_, label: string) => `"${label.replace(/\\n/g, '<br/>')}"`);
   if (!/^\s*(?:flowchart|graph)\b/.test(source)) return source;
   // Flowchart labels containing parentheses need quotes. Add syntax delimiters only;
   // never rewrite label content, relationships, mathematical values or stored source.
@@ -28,12 +29,23 @@ export function uniqueDiagramIds(svg: string, suffix: string): string {
 
 // Reject resources/config before Mermaid creates its temporary DOM, not just after rendering.
 export function safeDiagramSource(source: string): boolean {
-  return source.length <= 16000 && !/^\s*---/.test(source)
-    && !/%%\s*\{|\b(?:https?:|data:|javascript:|file:)|url\s*\(|<|\b(?:click|href|img|image|icon|classDef|style)\b/i.test(source);
+  if (source.length > 16000 || /^\s*---/.test(source)) return false;
+  // Mermaid's color declarations are not scripts. Validate each property rather
+  // than rejecting every AI diagram with a harmless `style A fill:#...` line.
+  const lines = source.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^\s*(?:style|classDef)\b/.test(lines[i]!)) continue;
+    const match = /^\s*(?:style|classDef)\s+[\w-]+(?:,[\w-]+)*\s+([^;]+);?\s*$/.exec(lines[i]!);
+    if (!match || !match[1]!.split(',').every(property =>
+      /^\s*(?:(?:fill|stroke|color):\s*(?:#[\da-f]{3,8}|[a-z]{1,20})|stroke-width:\s*\d{1,2}(?:\.\d)?px|stroke-dasharray:\s*\d{1,2}(?:\s+\d{1,2})*)\s*$/i.test(property))) return false;
+    lines[i] = '';
+  }
+  const body = lines.join('\n').replace(/<br\s*\/?>/gi, '').replace(/<<?[-=]+/g, '');
+  return !/%%\s*\{|\b(?:https?:|data:|javascript:|file:)|url\s*\(|<|\b(?:click|href|img|image|icon|classDef|style)\b/i.test(body);
 }
 
 export function renderDiagram(source: string): Promise<string> {
-  if (!safeDiagramSource(source)) return Promise.reject(new Error('diagram source rejected'));
+  if (!safeDiagramSource(source)) return Promise.reject(new Error('图解包含不支持的配置、资源或样式'));
   const existing = cache.get(source);
   if (existing) return existing;
   runtime ??= import('mermaid').then(({ default: mermaid }) => {

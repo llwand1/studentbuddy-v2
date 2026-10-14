@@ -1,6 +1,6 @@
 # StudentBuddy for Windows
 
-Windows 10/11 x64 installer, with bundled Node runtime. The installer is identical to the corresponding [desktop Release](https://github.com/llwand1/studentbuddy-v2/releases).
+Windows 10/11 x64 installer, with bundled Node runtime. The installer is identical to the corresponding [desktop Release](https://github.com/llwand1/xuelian-agent/releases).
 
 For the simplest installation, download the `.exe` from the desktop Release and double-click it. No Node or npm is required.
 

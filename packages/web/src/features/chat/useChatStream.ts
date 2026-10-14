@@ -6,6 +6,7 @@
  * 2026-09-14：方案选择框（契约 docs/ASK-CHOICE-SPEC.md）的挂起队列抽到 `useChoiceQueue`，本文件只在事件入口做一次转发（本文件贴着行数红线，装不下那 90 行）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { onHostMessage } from '../float/float-view';
 import { rememberSessionSources, setSourceSession } from '../../lib/sources-store';
 import type { SseEvent, TaskItem, TokenUsage } from '@sb/shared';
 import { connectSse, type SseReadyState } from '../../lib/sse-client';
@@ -42,6 +43,10 @@ export function useChatStream(
   /** v18.4 联网开关（ChatView 持有）：透传给 send / rerun，随本轮出站（服务端 chat/opening.ts） */
   online?: boolean,
 ) {
+  const [recoveryTick, setRecoveryTick] = useState(0);
+  useEffect(() => onHostMessage(message => {
+    if (message === 'sb-desktop:service-restored') setRecoveryTick(n => n + 1);
+  }), []);
   const [messages, setMessages] = useState<StreamMessage[]>([]);
   const [streamingText, setStreamingText] = useState('');
   /**
@@ -230,7 +235,7 @@ export function useChatStream(
     return () => {
       alive = false;
     };
-  }, [sessionId]);
+  }, [sessionId, recoveryTick]);
 
   // SSE 订阅（会话切换即重建）
   useEffect(() => {
@@ -312,6 +317,7 @@ export function useChatStream(
     };
   }, [
     sessionId,
+    recoveryTick,
     flushTokens,
     pushTokens,
     commitSteps,

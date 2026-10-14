@@ -8,6 +8,14 @@ const { generateKeyPairSync, sign, createHash } = require('node:crypto');
 const { compare, validateEnvelope, download, verifyFile, inside, dataDir, pruneCache } = require('./update-core.cjs');
 const { snapshotDatabase, restoreDatabase } = require('./update-client.cjs');
 const keys = generateKeyPairSync('ed25519');
+test('release floor avoids shipping below locally tested versions while preserving monotonic updates and exact-source reruns',()=>{
+  const {selectDesktopVersion}=require('./version-policy.cjs');
+  assert.equal(selectDesktopVersion('0.2.186','0.2.199',{version:'0.2.192',sourceCommit:'old'},'new'),'0.2.199');
+  assert.equal(selectDesktopVersion('0.2.186','0.2.199',{version:'0.2.199',sourceCommit:'old'},'new'),'0.2.200');
+  assert.equal(selectDesktopVersion('0.2.186','0.2.199',{version:'0.2.199',sourceCommit:'same'},'same'),'0.2.199');
+  assert.equal(selectDesktopVersion('0.3.0','0.2.199',null,'new'),'0.3.0');
+  assert.throws(()=>selectDesktopVersion('0.2.186','../../command',null,'new'));
+});
 function fixture(extra = {}) {
   const bytes = Buffer.from('verified installer fixture');
   const manifest = { schema:1,version:'0.2.182',appVersion:'0.2.182',architecture:'windows-x64',sourceCommit:'a'.repeat(40),publishedAt:'2026-10-11T00:00:00Z',
@@ -23,6 +31,16 @@ test('signed desktop updates reject tampering, wrong keys, website versions and 
     assert.throws(()=>validateEnvelope(fixture(extra).envelope,keys.publicKey));
   }
   assert.throws(()=>validateEnvelope({...envelope,command:'execute'},keys.publicKey));
+});
+test('repository rename accepts only signed installers from the exact new or legacy release paths', () => {
+  for (const repo of ['xuelian-agent','studentbuddy-v2']) {
+    const url=`https://github.com/llwand1/${repo}/releases/download/desktop-v0.2.182/StudentBuddy-0.2.182-windows-x64-setup.exe`;
+    assert.equal(validateEnvelope(fixture({url}).envelope,keys.publicKey).url,url);
+  }
+  for (const repo of ['xuelian-agent-fake','another-repo','studentbuddy-v2/../xuelian-agent']) {
+    const url=`https://github.com/llwand1/${repo}/releases/download/desktop-v0.2.182/StudentBuddy-0.2.182-windows-x64-setup.exe`;
+    assert.throws(()=>validateEnvelope(fixture({url}).envelope,keys.publicKey),/URL/);
+  }
 });
 test('numeric version comparison never upgrades to an older or equal desktop version', () => {
   assert.equal(compare('0.2.182','0.2.9'),1); assert.equal(compare('0.2.182','0.2.182'),0);

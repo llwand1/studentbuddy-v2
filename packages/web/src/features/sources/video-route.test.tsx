@@ -62,7 +62,7 @@ describe('① 入口', () => {
     fireEvent.click(foot.getByText('找视频'));
     expect(getVideoRoute().query).toBe('光合作用');
     await flush();
-    expect(api.searchVideos).toHaveBeenLastCalledWith('bilibili', '光合作用', expect.anything());
+    expect(api.searchVideos).toHaveBeenLastCalledWith('bilibili', '光合作用', expect.anything(), 's1');
 
     applyLiveSources({ kind: 'sources', sessionId: 's1', items: [item(1), item(2)] });
     const { container } = render(<SourcePanel />);

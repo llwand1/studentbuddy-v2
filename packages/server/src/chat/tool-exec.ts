@@ -231,7 +231,7 @@ function publishToolStat(o: ToolOutcome, opts: ToolExecOptions): void {
     sessionId: opts.sessionId ?? null,
     ownerId: opts.ownerId,
     tool: o.name,
-    source: meta?.kind === 'external' ? 'mcp' : 'builtin',
+    source: meta?.kind === 'external' || o.name === 'plugin_call' ? 'mcp' : 'builtin',
     ok: o.ok,
     ms: o.durationMs ?? 0,
     affected: o.meta?.affected ?? null,

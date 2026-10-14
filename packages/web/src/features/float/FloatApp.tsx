@@ -12,9 +12,15 @@ import { FloatStudySettings } from './FloatStudySettings';
 import { FloatCompanion } from './FloatCompanion';
 import { companionMood, type CompanionMood } from './companion-view';
 import '../desktop/desktop-study.css';
+import { watchDesktopInput } from '../desktop/desktop-input';
+import { RESTORE_LATEST } from '../chat/useScrollAnchor';
 
 export function FloatApp() {
-  const [mode, setMode] = useState<'ball' | 'screen' | 'quiz' | 'settings'>('ball');
+  const [mode, setMode] = useState<'ball' | 'screen' | 'quiz' | 'settings'>(() => {
+    const saved = new URLSearchParams(location.hash.split('?')[1]).get('mode');
+    return saved === 'screen' || saved === 'settings' ? saved : 'ball';
+  });
+  const [screenOpened, setScreenOpened] = useState(mode === 'screen');
   const [actionError, setActionError] = useState('');
   const [reaction, setReaction] = useState<CompanionMood | null>(null);
   const verdict = useRef<boolean | null>(null);
@@ -28,9 +34,10 @@ export function FloatApp() {
     const timer = window.setTimeout(() => setReaction(null), 4000);
     return () => window.clearTimeout(timer);
   }, [reaction]);
-  const expand = useCallback(() => { postToHost(HOST_EXPAND); setMode('screen'); }, []);
+  const expand = useCallback(() => { postToHost(HOST_EXPAND); setScreenOpened(true); setMode('screen'); }, []);
   const collapse = useCallback(() => { postToHost(HOST_COLLAPSE); setMode('ball'); }, []);
   const settings = useCallback(() => { postToHost('sb-float:settings'); setMode('settings'); }, []);
+  useEffect(() => watchDesktopInput(value => { if (value.focus || value.capture || value.error) expand(); }), [expand]);
   useEffect(() => onHostMessage(message => { if (message === 'sb-float:open-settings') settings(); }), [settings]);
   useEffect(() => {
     if (mode === 'ball' && study.state?.awaiting && study.state.question) {
@@ -42,8 +49,9 @@ export function FloatApp() {
     if (action === 'done' && verdict.current !== null) setReaction(verdict.current ? 'celebrate' : 'encourage');
     verdict.current = null; collapse();
   };
-  if (mode === 'screen') return <FloatScreen onCollapse={collapse} />;
-  if (mode === 'settings' || mode === 'quiz') return <div className="sb-float-screen desktop-float">
+  return <>
+    {screenOpened && <FloatScreen hidden={mode !== 'screen'} onCollapse={collapse} />}
+    {(mode === 'settings' || mode === 'quiz') && <div className="sb-float-screen desktop-float">
     <div className="sb-float-bar" onPointerDown={e => { if (e.button === 0 && !(e.target as HTMLElement).closest('button')) postToHost(HOST_DRAG); }}>
       <span className="sb-float-bar-name">{mode === 'quiz' ? 'StudentBuddy · 定时练习' : 'StudentBuddy · 桌面学习'}</span>
       <button type="button" className="sb-float-collapse" aria-label={mode === 'quiz' ? '两分钟后再练' : '收成吉祥物'} onClick={() => {
@@ -53,20 +61,22 @@ export function FloatApp() {
     {(study.error || actionError) && <p role="alert" className="desktop-error">{study.error || actionError}</p>}
     {mode === 'settings' ? <FloatStudySettings state={study.state} onSave={study.configure} />
       : study.state?.question && <FloatQuiz key={study.state.question.id} opener={study.state.question} onFinish={finish} onVerdict={correct => { verdict.current = correct; }} />}
-  </div>;
-  return <FloatCompanion mood={reaction ?? companionMood(study.state, study.browser, study.error)} onOpen={expand} onSettings={settings} />;
+    </div>}
+    {mode === 'ball' && <FloatCompanion mood={reaction ?? companionMood(study.state, study.browser, study.error)} onOpen={expand} onSettings={settings} />}
+  </>;
 }
 
 /** Expanded app uses the existing responsive interface and preserves native dragging. */
-function FloatScreen({ onCollapse }: { onCollapse: () => void }) {
+function FloatScreen({ hidden, onCollapse }: { hidden: boolean; onCollapse: () => void }) {
+  useEffect(() => { if (!hidden) window.dispatchEvent(new Event(RESTORE_LATEST)); }, [hidden]);
   const onDragDown = (e: ReactPointerEvent<HTMLDivElement>): void => {
     if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
     postToHost(HOST_DRAG);
   };
-  return <div className="sb-float-screen">
+  return <div className="sb-float-screen" hidden={hidden}>
     <div className="sb-float-bar" onPointerDown={onDragDown}>
-      <span className="sb-float-bar-name">StudentBuddy</span>
+      <span className="sb-float-drag-grip" aria-hidden="true" />
       <button type="button" className="sb-float-collapse" title="收成吉祥物" aria-label="收成吉祥物" onClick={onCollapse}>—</button>
-    </div><div className="sb-float-app"><App /></div>
+    </div><div className="sb-float-app"><App desktopFloat /></div>
   </div>;
 }

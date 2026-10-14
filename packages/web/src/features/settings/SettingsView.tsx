@@ -18,6 +18,7 @@ import { QuizImageCard } from './QuizImageCard';
 import { QuizRealFirstCard } from './QuizRealFirstCard';
 import { AnswerStyleCard } from './AnswerStyleCard';
 import { ToolsCard } from './ToolsCard';
+import { PluginsCard } from '../plugins/PluginsCard';
 import { SpeechCard } from './SpeechCard';
 import { AiHealthCard } from './AiHealthCard';
 import { PlatformChannelCard } from './PlatformChannelCard';
@@ -157,6 +158,7 @@ export function SettingsView() {
   return (
     <div className="settings-view">
       <h2>设置</h2>
+      <div className="settings-actions"><button className="settings-add" onClick={() => document.getElementById('plugins')?.scrollIntoView({ block: 'start' })}>管理插件</button><span className="settings-state">GitHub · 远程 MCP</span></div>
       {msg && <div className="settings-msg ok">{msg}</div>}
       {err && <div className="settings-msg err">{err}</div>}
 
@@ -270,6 +272,7 @@ export function SettingsView() {
       <WaitDrillCard />
       <ReadingSizeCard />
       <ToolsCard flash={flash} />
+      <PluginsCard />
       <AiHealthCard flash={flash} />
     </div>
   );

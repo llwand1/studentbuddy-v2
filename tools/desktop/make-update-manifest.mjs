@@ -8,6 +8,8 @@ const [version,assets,sourceCommit] = process.argv.slice(2);
 const filename=`StudentBuddy-${version}-windows-x64-setup.exe`;
 const bytes=fs.readFileSync(path.join(assets,filename));
 const manifest={schema:1,version,appVersion:JSON.parse(fs.readFileSync('package.json','utf8')).version,architecture:'windows-x64',sourceCommit,
+  // Older installed updaters pin this exact path. GitHub redirects it to the renamed
+  // repository; keep the signed URL compatible until those clients have upgraded.
   publishedAt:new Date().toISOString(),url:`https://github.com/llwand1/studentbuddy-v2/releases/download/desktop-v${version}/${filename}`,size:bytes.length,
   sha256:createHash('sha256').update(bytes).digest('hex')};
 const privateKey=process.env.DESKTOP_UPDATE_SIGNING_KEY;

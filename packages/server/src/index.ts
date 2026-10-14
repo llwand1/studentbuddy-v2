@@ -41,6 +41,7 @@ import { agentTermsRouter } from './routes/agent-terms.js';
 import { agentKeysRouter } from './routes/agent-keys.js';
 import { pomodoroRouter } from './routes/pomodoro.js';
 import { toolsRouter } from './routes/tools.js';
+import { pluginsRouter } from './routes/plugins.js';
 import { searchRouter } from './routes/search.js';
 import { ensureSearchIndex } from './search/fts-index.js';
 import { startTrendScheduler } from './learning/trend.js';
@@ -67,8 +68,10 @@ import { purgeExpiredCodes } from './auth/codes.js';
 import { CHAT_BODY_LIMIT } from '@sb/shared';
 import type { StatusResponse } from '@sb/shared';
 import { VERSION } from './version.js';
-import { desktopRouter, desktopBridgeRouter } from './routes/desktop.js';
+import { desktopRouter, desktopBridgeRouter, desktopGuard } from './routes/desktop.js';
 import { browserStore } from './desktop/browser-store.js';
+import { desktopExtensionRouter } from './routes/desktop-extension.js';
+import { recoverDesktopRuns } from './desktop/task-store.js';
 
 const PORT = Number(process.env.SB_PORT ?? 18791);
 /**
@@ -76,6 +79,7 @@ const PORT = Number(process.env.SB_PORT ?? 18791);
  *   容器内只监听回环、Caddy 连不上后端（本机开发无感，上线即挂）。
  */
 const HOST = process.env.SB_HOST ?? '127.0.0.1';
+if (process.env.SB_DESKTOP === '1') recoverDesktopRuns();
 if (process.env.SB_DESKTOP === '1') setInterval(() => browserStore.expirePages(), 5000).unref();
 
 const app = express();
@@ -97,6 +101,8 @@ if (TRUST_PROXY) {
 
 app.disable('x-powered-by');
 app.use(securityHeaders);
+app.get(['/desktop-reader-connect.html','/desktop-reader-connect.js'], desktopGuard);
+app.use(desktopExtensionRouter);
 app.use('/api/desktop/bridge', desktopBridgeRouter);
 app.use(
   cors({
@@ -176,6 +182,7 @@ app.use('/api/auth', githubAuthRouter);
 // 诚实计数只读出口（GROWTH-SPEC §3）：公开、只读、自带 IP 限流
 app.use('/api/growth', growthRouter);
 app.use('/api/sessions', sessionsRouter);
+app.use('/api/plugins', pluginsRouter);
 app.use('/api/desktop', desktopRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/chat', campfireOpenerRouter);

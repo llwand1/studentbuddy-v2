@@ -8,22 +8,30 @@
  * 贴底判定用 ref 而非 state：滚动事件极高频，state 每次都要重渲染，
  * 而跟随判断是同步读取的（滚动回调里立刻用），ref 才是正确载体。
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { shouldAutoScroll } from './chat-meta';
 
-export function useScrollAnchor(signal: readonly unknown[], hasConversation = true) {
+export const RESTORE_LATEST = 'sb-chat:restore-latest';
+export function useScrollAnchor(signal: readonly unknown[], hasConversation = true, restoreKey: string | null = null) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const stickRef = useRef(true);
   const [showJump, setShowJump] = useState(false);
+  const lastKey = useRef<string | null>(null);
+  const restore = useCallback(() => {
+    stickRef.current = true;
+    setShowJump(false);
+    const el = scrollRef.current;
+    if (el) el.scrollTop = hasConversation ? el.scrollHeight : 0;
+  }, [hasConversation]);
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
-    if (!el || !hasConversation) return;
+    if (!el || !hasConversation || el.clientHeight === 0) return;
     stickRef.current = shouldAutoScroll(el.scrollHeight - el.scrollTop - el.clientHeight);
     setShowJump(!stickRef.current);
   }, [hasConversation]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     // Empty welcome scenes start at the top even on short screens; reading them must not unpin a new chat.
@@ -33,10 +41,27 @@ export function useScrollAnchor(signal: readonly unknown[], hasConversation = tr
       setShowJump(false);
       return;
     }
+    if (restoreKey !== lastKey.current) { lastKey.current = restoreKey; stickRef.current = true; setShowJump(false); }
     if (!stickRef.current) return;
     // 贴底时用 scrollTop 直接赋值而不是 smooth：每帧一次 smooth 会互相打断，反而抖
     el.scrollTop = el.scrollHeight;
     // signal 是调用方给的变化信号（消息数/流式文本/步骤）
+  }, [...signal, hasConversation, restoreKey]);
+
+  useEffect(() => {
+    let frame = 0;
+    const opened = () => { restore(); frame = window.requestAnimationFrame(restore); };
+    window.addEventListener(RESTORE_LATEST, opened);
+    return () => { window.removeEventListener(RESTORE_LATEST, opened); window.cancelAnimationFrame(frame); };
+  }, [restore]);
+  // Images, diagrams and native window resizing settle after history hydration.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !hasConversation || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => { if (stickRef.current) el.scrollTop = el.scrollHeight; });
+    observer.observe(el);
+    for (const child of el.children) observer.observe(child);
+    return () => observer.disconnect();
   }, [...signal, hasConversation]);
 
   const jumpToBottom = useCallback(() => {

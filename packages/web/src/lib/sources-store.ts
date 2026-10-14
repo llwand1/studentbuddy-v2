@@ -16,6 +16,7 @@
  *    刷新页面后历史消息的架子会恢复原样——这是有意的最小做法：叉掉是"我现在不想看"，不是"删资料"。
  */
 import { useSyncExternalStore } from 'react';
+import { setVideoSession } from './video-route-store';
 import { orderSources, type SourceItem, type SourcesBlockPayload } from '@sb/shared';
 
 export interface SourcesState {
@@ -83,6 +84,7 @@ export function applyLiveSources(p: SourcesBlockPayload): void {
 
 /** Changing conversations clears the visible shelf; pending streaming attribution is kept separately. */
 export function setSourceSession(sessionId: string | null): void {
+  setVideoSession(sessionId);
   if (state.sessionId === (sessionId ?? '')) return;
   state = { ...EMPTY, sessionId: sessionId ?? '' };
   emit();

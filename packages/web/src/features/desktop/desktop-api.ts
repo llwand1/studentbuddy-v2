@@ -3,6 +3,11 @@ import { request } from '../../lib/api-request';
 const base = '/api/desktop';
 const post = <T,>(path: string, body: unknown) => request<T>(base + path, { method: 'POST', body: JSON.stringify(body), timeoutMs: 8000 });
 export const desktopApi = {
+  browserPreference: () => request<{selected:'chrome'|'edge';available:Array<'chrome'|'edge'>}>(base + '/browser/preference'),
+  chooseBrowser: (browser: 'chrome'|'edge') => post<{selected:'chrome'|'edge';available:Array<'chrome'|'edge'>}>('/browser/preference', {browser}),
+  openReader: (sessionId: string) => post<{ok:boolean}>('/browser/open', {sessionId}),
+  workspace: () => request<{ sessionId: string | null }>(base + '/workspace', { timeoutMs: 8000 }),
+  saveWorkspace: (sessionId: string | null) => post<{ sessionId: string | null }>('/workspace', { sessionId }),
   state: () => request<DesktopStudyState>(base + '/study'),
   settings: (settings: DesktopStudySettings) => post<DesktopStudyState>('/study', settings),
   tick: (eligible: boolean) => post<DesktopStudyState>('/study/tick', { eligible }),

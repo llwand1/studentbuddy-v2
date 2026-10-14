@@ -58,6 +58,7 @@ export function useConfirmQueue(sessionId: string | null, onError: (msg: string)
           tool: ev.tool,
           source: ev.source,
           server: ev.server,
+          onceOnly: ev.onceOnly,
           actionSummary: ev.actionSummary,
           affected: ev.affected,
           items: ev.items,

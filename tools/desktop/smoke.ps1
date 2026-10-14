@@ -60,6 +60,8 @@ try {
     Assert ((Test-Path -LiteralPath $launcher) -and (Test-Path -LiteralPath "$installDir\runtime\node.exe")) 'Launcher and bundled runtime are installed'
     & powershell -NoProfile -File (Join-Path $repoRoot 'tools\desktop\companion-smoke.ps1') -Launcher $launcher
     Assert ($LASTEXITCODE -eq 0) 'Packaged native companion geometry and malformed-shape checks pass'
+    & powershell -NoProfile -File (Join-Path $repoRoot 'tools\desktop\recovery-smoke.ps1') -Launcher $launcher -Node (Join-Path $installDir 'runtime\node.exe')
+    Assert ($LASTEXITCODE -eq 0) 'Packaged crash recovery, shutdown and owned-process cleanup pass'
     $app = StartApp
     if ($PreviousInstaller) {
         $upgradedSessions = @(Invoke-RestMethod "$baseUrl/api/sessions")

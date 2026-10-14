@@ -1,0 +1,23 @@
+{
+  "kind": "real-component-capture",
+  "data": "isolated deterministic fixture; model outputs predefined; not a learning-outcome benchmark",
+  "images": [
+    {
+      "filename": "learning-feedback-before.png",
+      "width": 800,
+      "height": 1721
+    },
+    {
+      "filename": "learning-feedback-after.png",
+      "width": 800,
+      "height": 2077
+    }
+  ],
+  "hashes": {
+    "tools/probes/learning-evidence.tsx": "fae70aa4490bdc984d6328e3eae4a6e59be295ac84601a4d1e9a2b9bacd09ffd",
+    "packages/web/src/features/quiz/QuizQuestionItem.tsx": "1e81ee886ea3489103155d724ffe2e93e35b159d13be7d49d1db317b679e472a",
+    "packages/web/src/features/quiz/QuestionThinking.tsx": "244530db108c5b43ff2f7f4b2ef74b82ffa7ba0f1a1b43e327e0c032ee373fa2",
+    "packages/web/src/features/quiz/QuestionFeedback.tsx": "6e1712f58f1ccd55d23564a5fba7811e03794e68f482877d2789d638a57d61e8",
+    "packages/web/src/features/quiz/useQuestionFeedback.ts": "c6bfa80bbb39800d26411c2bf9009545feafd0e7beb2f74a81db6a8c02ba1922"
+  }
+}

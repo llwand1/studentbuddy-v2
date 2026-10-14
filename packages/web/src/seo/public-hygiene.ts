@@ -142,6 +142,8 @@ export interface BundleAllow {
 
 /** 逐处点名的豁免（每条都要在产物里真的出现，否则测试红） */
 export const BUNDLE_ALLOW: readonly BundleAllow[] = [
+  { needle: '...n?{token:n}:{}', why: '插件保存接口将用户刚输入的 Token 作为运行时变量提交；不是内置密钥字面量' },
+  { needle: 'Bearer Token', why: '插件认证字段的公开标签，不含凭据或 Authorization 实际值' },
   { needle: '["127.0.0.1","localhost","[::1]"]', why: '桌面功能仅在本机地址显示的主机名判定，未包含远程服务地址或凭据' },
   { needle: 'this.token=new n(h)', why: 'VS Code 共享内存取消 token 的对象构造' },
   { needle: 'messageToken=', why: 'VS Code JSONRPC 消息序号计数' },
@@ -182,7 +184,7 @@ export const BUNDLE_ALLOW: readonly BundleAllow[] = [
   { needle: "edgeTextToken:", why: "Mermaid 语法符号表" },
   { needle: "CancellationToken=", why: "VS Code JSONRPC 的取消类型" },
   { needle: "token:`cherryPick ${", why: "Mermaid Git 图 cherryPick 语法错误" },
-  { needle: "size:ze(t[0],\"size\").value,token:s", why: "KaTeX 中缀分数解析 token" },
+  { needle: "size:Se(t[0],\"size\").value,token:s", why: "KaTeX 中缀分数解析 token（新增桌面输入入口后压缩别名改变，已核对仍为同一语法字段）" },
   { needle: "vite:preloadError", why: "Vite 动态加载失败事件，非工程文案" },
   { needle: "\"placeholder\"", why: "DOMPurify 的合法 HTML 属性名" },
   { needle: "Incomplete placeholder at end of macro body", why: "KaTeX 宏参数语法诊断" },

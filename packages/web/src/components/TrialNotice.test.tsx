@@ -15,7 +15,7 @@ describe('TrialNotice — 侧栏底部线上版定位提醒', () => {
     expect(container.textContent).toContain('长期使用建议装');
     const link = getByText('本地安装包版');
     expect(link.getAttribute('href')).toBe(
-      'https://github.com/llwand1/studentbuddy-v2#快速开始',
+      'https://github.com/llwand1/xuelian-agent#快速开始',
     );
     expect(link.getAttribute('target')).toBe('_blank');
     expect(link.getAttribute('rel')).toContain('noopener');

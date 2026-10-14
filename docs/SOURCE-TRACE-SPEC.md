@@ -456,3 +456,6 @@ closeVideoRoute()           // 关掉并清 playing；架子状态不动
   **测不了**，只能人眼验收。`reader-selection.test.ts` 只钉「没选中就不该亮」与浮条夹取的数学。
 - 失去 iframe 隔离的取舍见 §14.1，这是一次有意识的权衡，不是疏忽。
 - `/read` 没有做分页：超长页面一次性返回全部块。2MB 正文上限由 `READER_MAX_BYTES` 兜着。
+
+## 2026-10-14：视频线路接入主 Agent
+§12 的只由学习者点出、不经过 AI 的历史限制由 DESKTOP-BROWSER-VIDEO-SPEC.md 新契约替代。主 Agent 搜索/重搜/追加、只按真实候选 URL 筛选/排序，整表 SSE 展示；用户手动搜索绑定会话，结果临时不落库。

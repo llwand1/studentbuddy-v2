@@ -33,8 +33,8 @@ export function shotUrl(sessionId: string, url: string): string {
   return `/api/sources/shot?${qs(sessionId, url)}`;
 }
 
-export function searchVideos(route: VideoRoute, query: string, signal?: AbortSignal): Promise<VideoRouteResult> {
-  const q = new URLSearchParams({ route, q: query }).toString();
+export function searchVideos(route: VideoRoute, query: string, signal?: AbortSignal, sessionId?: string): Promise<VideoRouteResult> {
+  const q = new URLSearchParams({ route, q: query, ...(sessionId ? {session:sessionId} : {}) }).toString();
   return request<VideoRouteResult>(`/api/sources/videos?${q}`, { signal, timeoutMs: 25_000 });
 }
 

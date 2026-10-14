@@ -49,13 +49,25 @@ if (Test-Path -LiteralPath $nodeLicense) {
 Copy-Item -LiteralPath tools\desktop\README.txt -Destination $stage
 Copy-Item -LiteralPath tools\browser-extension -Destination (Join-Path $stage 'browser-extension') -Recurse
 Copy-Item -LiteralPath tools\desktop\update-client.cjs,tools\desktop\update-core.cjs,tools\desktop\update-public-key.pem -Destination $stage
+# Official GitHub OAuth stdio integration, immutable version + release digest.
+$githubDir = Join-Path $repoRoot '.runtime\github-mcp-2.0.2'
+New-Item -ItemType Directory -Force -Path $githubDir | Out-Null
+$githubZip = Join-Path $githubDir 'release.zip'
+if (!(Test-Path -LiteralPath $githubZip)) { Invoke-WebRequest 'https://github.com/github/github-mcp-server/releases/download/v2.0.2/github-mcp-server_Windows_x86_64.zip' -OutFile $githubZip }
+if ((FileHash $githubZip) -ne '4ae64087501650752f21c9d5af5378107a5116d94ee1cf37786b22b8c4bd99df') { throw 'GitHub official release SHA-256 mismatch.' }
+Expand-Archive -LiteralPath $githubZip -DestinationPath $githubDir -Force
+if ((FileHash (Join-Path $githubDir 'github-mcp-server.exe')) -ne '1bbf1cd5be216d5c622ccb0da4529d747c983fcf6bbf76f9c3e6c3b32877c1df') { throw 'GitHub binary SHA-256 mismatch.' }
+$githubTarget = Join-Path $stage 'integrations\github'
+New-Item -ItemType Directory -Force -Path $githubTarget | Out-Null
+Copy-Item -LiteralPath (Join-Path $githubDir 'github-mcp-server.exe'), (Join-Path $githubDir 'LICENSE') -Destination $githubTarget
+@{version='2.0.2';binarySha256='1bbf1cd5be216d5c622ccb0da4529d747c983fcf6bbf76f9c3e6c3b32877c1df';source='https://github.com/github/github-mcp-server/releases/tag/v2.0.2'} | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $githubTarget 'release.json')
 # 应用图标：每次构建由吉祥物点阵现生成（换装 / 改品牌色后图标自动跟上，不需要手改位图）
 node tools\desktop\make-icon.mjs
 if ($LASTEXITCODE -ne 0) { throw 'Icon generation failed.' }
 Copy-Item -LiteralPath tools\desktop\app.ico -Destination $stage
 Copy-Item -LiteralPath tools\desktop\mascot-region.txt -Destination $stage
 $sourceCommit = git rev-parse HEAD
-@{ version = $Version; sourceCommit = $sourceCommit; node = (node -p 'process.version'); architecture = 'windows-x64' } |
+@{ version = $Version; sourceCommit = $sourceCommit; sourceDirty = [bool](git status --porcelain); node = (node -p 'process.version'); architecture = 'windows-x64' } |
     ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $stage 'desktop-build.json')
 
 # WebView2 SDK：固定版本 + 固定 SHA-256，解压到 .runtime 后引用其程序集，随安装包分发，不做系统安装。
@@ -88,7 +100,10 @@ $launcherManifest = Join-Path $repoRoot 'tools\desktop\launcher.manifest'
 # ★ /win32icon 必须给：exe 自身带吉祥物图标，任务栏、快捷方式、卸载项才有品牌形象
 $appIcon = Join-Path $repoRoot 'tools\desktop\app.ico'
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-& $compiler /nologo /target:winexe /platform:x64 /optimize+ /codepage:65001 "/win32manifest:`"$launcherManifest`"" "/win32icon:`"$appIcon`"" /r:System.Web.Extensions.dll /r:"`"$webView2Core`"" /r:"`"$webView2WinForms`"" "/out:$stage\StudentBuddy.exe" tools\desktop\Launcher.cs tools\desktop\CompanionTrail.cs
+New-Item -ItemType Directory -Force -Path (Join-Path $githubTarget 'browser-launch') | Out-Null
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ /codepage:65001 /r:System.Web.dll "/out:$githubTarget\browser-launch\rundll32.exe" tools\desktop\GithubBrowserLauncher.cs
+if ($LASTEXITCODE -ne 0) { throw 'GitHub browser adapter compilation failed.' }
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ /codepage:65001 "/win32manifest:`"$launcherManifest`"" "/win32icon:`"$appIcon`"" /r:System.Web.Extensions.dll /r:"`"$webView2Core`"" /r:"`"$webView2WinForms`"" "/out:$stage\StudentBuddy.exe" tools\desktop\Launcher.cs tools\desktop\CompanionTrail.cs tools\desktop\DesktopRecovery.cs tools\desktop\DesktopFilesHost.cs tools\desktop\DesktopQuickMenu.cs tools\desktop\DesktopCaptureSelector.cs tools\desktop\DesktopScreenCapture.cs tools\desktop\DesktopNativeReader.cs
 if ($LASTEXITCODE -ne 0) { throw 'Launcher compilation failed.' }
 
 $innoDir = Join-Path $repoRoot '.runtime\inno-7.1.0'
@@ -110,3 +125,5 @@ $installer = Join-Path $OutputDir "StudentBuddy-$Version-windows-x64-setup.exe"
 $hash = FileHash $installer
 "$hash  $(Split-Path $installer -Leaf)" | Set-Content -Encoding ascii (Join-Path $OutputDir 'SHA256SUMS.txt')
 Write-Host "Installer: $installer"
+node tools\desktop\package-reader-extension.mjs $OutputDir (Join-Path $stage 'browser-extension')
+if ($LASTEXITCODE -ne 0) { throw 'Reader extension archive failed.' }

@@ -7,10 +7,11 @@
  * 功能列表补「对战」一项（实测「找不到入口」）——PK 页仍是独立页，
  * 这一项只负责把 hash 改成 `#/pk`，见下方 NAV 注释。卡牌系统并入词条视图，不再单设导航项。
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@sb/shared';
 import { AccountBox } from '../components/AccountBox';
-import { PixelSidebar } from '../components/PixelSidebar';
+import { PixelSidebar, SidebarMenuButton } from '../components/PixelSidebar';
+import { useWorkspaceSession } from './useWorkspaceSession';
 import { PlusIcon, ChevronDownIcon, ClockIcon } from '../components/icons';
 import { NAV, PK_HASH, type View } from './nav';
 import { LangToggle, useLandingLang } from './landing-lang';
@@ -27,6 +28,8 @@ import { useStudyPortal } from './useStudyPortal';
 import { PreviewPanel } from '../features/preview/PreviewPanel';
 import { SourcePanel } from '../features/sources/SourcePanel';
 import { DesktopBrowserEntry } from '../features/desktop/DesktopReader';
+import { DesktopWorkbench } from '../features/desktop/DesktopWorkbench';
+import { watchDesktopInput } from '../features/desktop/desktop-input';
 import { CoachDock } from '../features/coach/CoachDock';
 import { WaitDrill } from '../features/drill/WaitDrill';
 import { LookupPopup } from '../features/lookup/LookupPopup';
@@ -42,15 +45,19 @@ import { ReadingSplit } from './ReadingSplit';
 import './app.css';
 import './reading-workspace.css';
 
-export function App() {
+export function App({ desktopFloat = false }: { desktopFloat?: boolean }) {
   /** 壳层框架文案（新对话 / 历史 / 搜索 / 导航标签）跟着全局语言走，词表见 app/shell-copy.ts */
   const { lang } = useLandingLang();
   const reading = useReadingLayout();
   const [view, setView] = useState<View>('chat');
+  useEffect(() => watchDesktopInput(value => { if (value.focus || value.capture || value.error) setView('chat'); }), []);
   /** 回答收口的轮次计数（`HuntAlert` 据此重取地图看有没有刷出话题怪；契约 KNOWLEDGE-CONTINENT-SPEC §「话题怪」） */
   const [roundTick, setRoundTick] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [currentId, setCurrentId] = useState<string | null>(null);
+  const { currentId, setCurrentId, restoring } = useWorkspaceSession(desktopFloat);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerToggle = useRef<HTMLButtonElement>(null);
+  const drawer = { open: drawerOpen, onChange: setDrawerOpen, toggle: drawerToggle };
   /** 会话标题过滤（纯前端，服务端列表本就 ≤ 单机量级）；空串 = 不过滤 */
   const [query, setQuery] = useState('');
   /**
@@ -161,9 +168,10 @@ export function App() {
   const q = query.trim().toLowerCase();
   const visible = q ? sessions.filter((s) => s.title.toLowerCase().includes(q)) : sessions;
 
+  if (restoring) return <div className="sb-workspace-restoring" role="status">正在恢复上次对话…</div>;
   return (
     <div className={`sb-shell${reading.focused ? ' is-reading-focus' : ''}`}>
-      <PixelSidebar collapsed={reading.collapsed}>
+      <PixelSidebar collapsed={reading.collapsed} drawer={desktopFloat ? drawer : undefined}>
         {/* 品牌 logo：吉祥物团子即入口（点击回对话主界面，对话不再占导航项） */}
         <button className="sb-logo" title="studentbuddy" onClick={() => goView('chat')}>
           <Mascot />
@@ -245,6 +253,7 @@ export function App() {
       <section className="sb-workspace" aria-label={SHELL.readingTools[lang]}>
         <ReadingToolbar layout={reading} sessionId={currentId}
           title={view === 'chat' ? sessions.find((s) => s.id === currentId)?.title || SHELL.newChat[lang] : NAV.find((n) => n.key === view)?.label[lang]}>
+          {desktopFloat && <SidebarMenuButton drawer={drawer} />}
           <GuideBeacon
             lang={lang}
             view={view}
@@ -257,7 +266,8 @@ export function App() {
             }}
           />
           <CoachDock />
-          {view === 'chat' && <DesktopBrowserEntry sessionId={currentId} onOpenSession={id => { openSession(id); void reloadSessions(); }} />}
+          <DesktopWorkbench onOpenSession={id => { openSession(id); void reloadSessions(); }} />
+          {view === 'chat' && <DesktopBrowserEntry hidden sessionId={currentId} onOpenSession={id => { openSession(id); void reloadSessions(); }} />}
           <HuntAlert active={view === 'chat'} roundTick={roundTick} onGoContinent={() => goView('continent')} />
         </ReadingToolbar>
         <div className="sb-reading-content">

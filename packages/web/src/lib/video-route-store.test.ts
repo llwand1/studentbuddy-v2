@@ -12,7 +12,7 @@ import type { VideoRouteResult } from '@sb/shared';
 const api = vi.hoisted(() => ({ searchVideos: vi.fn() }));
 vi.mock('./api-sources', () => ({ searchVideos: (...a: unknown[]) => api.searchVideos(...a) }));
 
-const { closeVideoRoute, getVideoRoute, openVideoRoute, playVideo, resetVideoRouteStore, runVideoSearch, setVideoQuery, setVideoRoute } = await import('./video-route-store');
+const { applyLiveVideos, setVideoSession, closeVideoRoute, getVideoRoute, openVideoRoute, playVideo, resetVideoRouteStore, runVideoSearch, setVideoQuery, setVideoRoute } = await import('./video-route-store');
 
 const res = (route: VideoRouteResult['route'], query: string, n = 1): VideoRouteResult => ({
   route,
@@ -27,6 +27,20 @@ beforeEach(() => {
   resetVideoRouteStore();
   api.searchVideos.mockReset();
   api.searchVideos.mockImplementation(async (route: VideoRouteResult['route'], q: string) => res(route, q));
+});
+it('Agent updates replace live results, cancel old HTTP results and ignore stale or other-session frames',async()=>{
+  let finish:(v:VideoRouteResult)=>void=()=>{};
+  api.searchVideos.mockImplementationOnce(()=>new Promise<VideoRouteResult>(resolve=>{finish=resolve;}));
+  setVideoSession('s1');openVideoRoute('s1','old query');
+  const newer=res('bilibili','适合初学者的闭包',2);
+  applyLiveVideos({kind:'learning-videos',sessionId:'s1',revision:20,result:newer});
+  expect(getVideoRoute()).toMatchObject({open:true,phase:'done',query:newer.query,result:newer});
+  expect(api.searchVideos.mock.calls[0]![2].aborted).toBe(true);
+  finish(res('bilibili','old query'));await flush();expect(getVideoRoute().query).toBe(newer.query);
+  applyLiveVideos({kind:'learning-videos',sessionId:'s1',revision:19,result:res('bilibili','stale')});
+  applyLiveVideos({kind:'learning-videos',sessionId:'other',revision:100,result:res('bilibili','foreign')});
+  expect(getVideoRoute().query).toBe(newer.query);
+  setVideoSession('s2');expect(getVideoRoute().open).toBe(false);
 });
 
 describe('①② 打开与搜索', () => {

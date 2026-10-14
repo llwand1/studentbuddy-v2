@@ -24,7 +24,7 @@ vi.mock('../desktop/desktop-api', () => ({ desktopApi: {
 } }));
 const { FloatApp } = await import('./FloatApp');
 afterEach(() => { cleanup(); discardDesktopCapture(); vi.useRealTimers(); delete (window as unknown as { chrome?: unknown }).chrome; host.handlers = []; host.sent = []; });
-it('native background ticks deliver a timed question without mounting App, then return to the mascot after answering', async () => {
+it('native ticks invite without expanding; only the current challenge opens a quiz, then answering returns to the mascot', async () => {
   resetRoundMocks(); localStorage.clear();
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-11T05:00:00Z'));
   (window as unknown as { chrome: unknown }).chrome = { webview: {
@@ -39,7 +39,11 @@ it('native background ticks deliver a timed question without mounting App, then 
   expect(document.documentElement.dataset.float).toBe('ball');
   vi.setSystemTime(new Date('2026-10-11T05:03:00Z'));
   await act(async () => { host.handlers.forEach(fn => fn({ data: 'sb-float:tick' })); });
-  expect(screen.queryByText('APP_MUST_NOT_OPEN')).toBeNull(); expect(screen.getByText('2 加 3 是多少？')).toBeTruthy();
+  expect(screen.queryByText('APP_MUST_NOT_OPEN')).toBeNull(); expect(screen.queryByText('2 加 3 是多少？')).toBeNull();
+  expect(document.documentElement.dataset.float).toBe('ball');expect(host.sent.some(message=>message.startsWith('sb-float:invite:')&&message.includes('q1'))).toBe(true);
+  expect(host.sent).not.toContain('sb-float:quiz');
+  await act(async()=>{host.handlers.forEach(fn=>fn({data:'sb-float:challenge:stale'}));});expect(document.documentElement.dataset.float).toBe('ball');
+  await act(async()=>{host.handlers.forEach(fn=>fn({data:'sb-float:challenge:q1'}));});expect(screen.getByText('2 加 3 是多少？')).toBeTruthy();
   expect(host.sent).toContain('sb-float:quiz');
   fireEvent.click(screen.getByRole('button', { name: /B\s*5/ }));
   await act(async () => { fireEvent.click(screen.getByText('提交整组答案 · 逐题分析')); });
@@ -48,6 +52,16 @@ it('native background ticks deliver a timed question without mounting App, then 
   expect(document.documentElement.dataset.float).toBe('ball'); expect(host.sent).toContain('sb-float:collapse');
   expect(screen.getByRole('button', { name: /打开 StudentBuddy/ }).dataset.mood).toBe('celebrate');
   expect(server.clock.state().nextAt).toBe(Date.now() + 180000);
+});
+it('a companion invitation can be snoozed without opening the app or a quiz',async()=>{
+  vi.useFakeTimers();vi.setSystemTime(new Date('2026-10-11T05:00:00Z'));location.hash='#/float';
+  (window as unknown as {chrome:unknown}).chrome={webview:{postMessage:(value:string)=>host.sent.push(value),addEventListener:(_type:string,fn:(event:{data:string})=>void)=>host.handlers.push(fn),removeEventListener:()=>{}}};
+  server.clock=new StudyClock({enabled:true,intervalMinutes:1,scope:'learning'},async()=>({id:'snooze-q',scope:'',question:{topic:'闭包',question:'哪项？',options:['A','B'],answer:0,explanation:'环境'}}),()=> 'learning');
+  await act(async()=>{render(<FloatApp/>);});vi.setSystemTime(new Date('2026-10-11T05:01:00Z'));
+  await act(async()=>{host.handlers.forEach(fn=>fn({data:'sb-float:tick'}));});
+  await act(async()=>{host.handlers.forEach(fn=>fn({data:'sb-float:snooze:snooze-q'}));});
+  expect(server.clock.state().nextAt).toBe(Date.now()+120000);expect(document.documentElement.dataset.float).toBe('ball');
+  expect(host.sent).not.toContain('sb-float:quiz');expect(screen.queryByText('APP_MUST_NOT_OPEN')).toBeNull();
 });
 it('collapsing and reopening keeps the same app, draft and mounted conversation', async () => {
   probe.mounts = 0; probe.unmounts = 0;

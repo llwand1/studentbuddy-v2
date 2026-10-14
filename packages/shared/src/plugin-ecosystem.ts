@@ -5,7 +5,7 @@ export interface PluginManifest {
   name: string;
   version: string;
   description: string;
-  transport: 'streamable-http';
+  transport: 'streamable-http' | 'builtin';
   endpoint: string;
   tools: string[];
 }
@@ -18,7 +18,7 @@ export interface PluginView {
   authMode?: 'token' | 'browser';
   manifest: PluginManifest;
   builtin: boolean;
-  policy: 'github_read_only' | 'confirm_each_call';
+  policy: 'github_read_only' | 'bilibili_public_learning' | 'confirm_each_call';
   enabled: boolean;
   hasToken: boolean;
   repositories: string[];

@@ -9,7 +9,7 @@ export function costlyRequest(req: Request): boolean {
   const route = routePath(req);
   return /^\/api\/(chat\/(send|regenerate|resend|opener)|quiz\/(generate|explain|feedback\/(choices|adapt))|learning\/grade|drill\/new-terms|guide\/next|scenario\/generate|continent\/expand\/offer|terms\/extract|doc\/url|settings\/search\/test)$/.test(route)
     || /^\/api\/(sources\/(view|read|probe|shot|videos)|lookup\/(wiki|explain|quiz)|npc(?:\/ping|\/[^/]+\/talk)?)$/.test(route)
-    || /^\/api\/(providers\/[^/]+\/models|plugins\/([^/]+\/test|github\/repositories))$/.test(route);
+    || /^\/api\/(providers\/[^/]+\/models|plugins\/([^/]+\/test|github\/repositories|bilibili\/use))$/.test(route);
 }
 interface Options {
   limit: number; windowMs?: number; maxKeys?: number;

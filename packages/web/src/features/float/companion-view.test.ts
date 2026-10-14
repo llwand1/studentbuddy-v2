@@ -27,12 +27,19 @@ it('every moving pixel has a bounded integer native clip, with the smaller body 
       || x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > 64 || y + h > 64)).toEqual([]);
     const clipped = new Uint8Array(64 * 64);
     for (const [x, y, w, h] of paint.clips) for (let row = y; row < y + h; row++) clipped.fill(1, row * 64 + x, row * 64 + x + w);
-    const layers = [...paint.particles.flatMap(p => p.rects), ...paint.sigil, ...paint.halo, ...paint.circle, ...paint.book.flatMap(p => p.rects)];
+    const layers = [...paint.particles.flatMap(p => p.rects), ...paint.sigil, ...paint.halo, ...paint.circle, ...paint.book.flatMap(p => p.rects),...paint.glyphs.flatMap(p=>p.rects)];
     expect(layers.every(([x, y, w, h]) => {
       for (let py = y; py < y + h; py++) for (let px = x; px < x + w; px++) if (!clipped[py * 64 + px]) return false;
       return true;
     })).toBe(true);
   }
+});
+it('uses readable pixel glyph shapes for question, preparation and encouragement without font-clipping',()=>{
+  expect(companionFrame('question',0).glyphs.map(g=>g.char)).toEqual(['?','!','?','!']);
+  expect(companionFrame('preparing',0).glyphs.map(g=>g.char)).toContain('λ');
+  expect(companionFrame('encourage',0).glyphs.map(g=>g.char)).toContain('+');
+  expect(companionFrame('idle',0).glyphs).toHaveLength(0);
+  expect(companionFrame('question',0,false).glyphs).toEqual(companionFrame('question',1000,false).glyphs);
 });
 it('reduced motion freezes both sprite and particles; retrieval, embers and celebration use different trajectories', () => {
   expect(companionFrame('retrieving', 0, false)).toEqual(companionFrame('retrieving', 1000, false));

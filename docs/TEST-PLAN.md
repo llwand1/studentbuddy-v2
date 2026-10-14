@@ -1296,6 +1296,11 @@ node node_modules\vitest\vitest.mjs run --reporter=dot   # npx 不可用时的�
 | `packages/server/src/routes/plugins.test.ts` | Origin、防裸调用接口、用户/未登录隔离、测试/启用/断开/删除、导入配置 |
 | `packages/server/src/chat/plugin-flow.test.ts` | 原生 AI 工具循环、真实适配器调用、绕过强制网页搜索、SSE/工具回灌/答案落库 |
 | `packages/web/src/features/plugins/PluginsCard.test.tsx` | 配置/测试/启用、Token不回显、导入确认、断开确认、独立审计与错误可见 |
+| `packages/server/src/plugins/bilibili.test.ts` | 内置 adapter、方向证据、真实元信息/过大响应、用户笔记不可伪造、多用户、重启、停用取消、旧题拒绝 |
+| `packages/web/src/features/plugins/BilibiliLearningCard.test.tsx` | 免 Token 显式启用、视频/资料推荐、用户笔记专用提交、题卡交付、材料不足如实报错 |
+| `packages/web/src/features/float/CompanionInvitation.test.tsx` | 吉祥物完整邀请文案、字符动画、显式挑战/延后、原生消息去重和卸载清理 |
+
+原生补充：`tools/desktop/invite-smoke.ps1` 对安装包运行 30 项非激活、Unicode、DPI 与工作区几何断言，在 Windows 安装冒烟中执行。`tools/probes/bilibili-companion-demo.mjs` / `.tsx` 捕获隔离实际组件，邀请帧由 `StudyInviteSmoke.cs` 在屏幕外绘制；不使用个人数据。
 
 ## 桌面快捷连接与学习体验回归（2026-10-14）
 

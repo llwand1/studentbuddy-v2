@@ -104,7 +104,7 @@ $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 New-Item -ItemType Directory -Force -Path (Join-Path $githubTarget 'browser-launch') | Out-Null
 & $compiler /nologo /target:winexe /platform:x64 /optimize+ /codepage:65001 /r:System.Web.dll "/out:$githubTarget\browser-launch\rundll32.exe" tools\desktop\GithubBrowserLauncher.cs
 if ($LASTEXITCODE -ne 0) { throw 'GitHub browser adapter compilation failed.' }
-& $compiler /nologo /target:winexe /platform:x64 /optimize+ /codepage:65001 "/win32manifest:`"$launcherManifest`"" "/win32icon:`"$appIcon`"" /r:System.Web.Extensions.dll /r:"`"$webView2Core`"" /r:"`"$webView2WinForms`"" "/out:$stage\StudentBuddy.exe" tools\desktop\Launcher.cs tools\desktop\CompanionTrail.cs tools\desktop\DesktopRecovery.cs tools\desktop\DesktopFilesHost.cs tools\desktop\DesktopQuickMenu.cs tools\desktop\DesktopCaptureSelector.cs tools\desktop\DesktopScreenCapture.cs tools\desktop\DesktopNativeReader.cs
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ /codepage:65001 "/win32manifest:`"$launcherManifest`"" "/win32icon:`"$appIcon`"" /r:System.Web.Extensions.dll /r:"`"$webView2Core`"" /r:"`"$webView2WinForms`"" "/out:$stage\StudentBuddy.exe" tools\desktop\Launcher.cs tools\desktop\CompanionTrail.cs tools\desktop\DesktopRecovery.cs tools\desktop\DesktopFilesHost.cs tools\desktop\DesktopQuickMenu.cs tools\desktop\DesktopCaptureSelector.cs tools\desktop\DesktopScreenCapture.cs tools\desktop\DesktopNativeReader.cs tools\desktop\DesktopStudyInvite.cs
 if ($LASTEXITCODE -ne 0) { throw 'Launcher compilation failed.' }
 
 $innoDir = Join-Path $repoRoot '.runtime\inno-7.1.0'

@@ -45,6 +45,15 @@ internal sealed class DesktopQuickMenu : Form
         if (ball.Bounds.Contains(mouse))
         {
             Bounds = Place(ball.Bounds,ClientSize,Screen.FromControl(ball).WorkingArea,4);
+            Rectangle invitation=Launcher.StudyInviteBounds();
+            if(!invitation.IsEmpty&&Bounds.IntersectsWith(invitation))
+            {
+                Rectangle area=Screen.FromControl(ball).WorkingArea;
+                int y=invitation.Top<ball.Top?ball.Bottom+4:ball.Top-Height-4;
+                Rectangle alternative=new Rectangle(Left,y,Width,Height);
+                if(!area.Contains(alternative)||alternative.IntersectsWith(invitation)){Hide();return;}
+                Bounds=alternative;
+            }
             leftAt = DateTime.MinValue; if (!Visible) Show(); return;
         }
         Rectangle safe = Bounds; safe.Inflate(6,8);
@@ -76,6 +85,7 @@ internal static partial class Launcher
     }
     private static void CloseDesktopHelpers()
     {
+        CloseStudyInvite();
         if (QuickMenu != null) { QuickMenu.Dispose(); QuickMenu = null; }
         if (ActiveCapture != null) { ActiveCapture.Close(); ActiveCapture = null; }
     }

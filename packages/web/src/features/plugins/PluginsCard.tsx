@@ -4,6 +4,7 @@ import { pluginApi } from './plugin-api';
 import { PluginConnectionCard } from './PluginConnectionCard';
 import { PluginImport } from './PluginImport';
 import { GithubQuickConnect } from './GithubQuickConnect';
+import { BilibiliLearningCard } from './BilibiliLearningCard';
 import './plugins.css';
 const STATUS = {done:'成功',error:'失败',denied:'未批准',cancelled:'已停止'};
 export function PluginsCard() {
@@ -27,7 +28,7 @@ export function PluginsCard() {
     <p className="settings-hint">GitHub 支持浏览器快捷授权；子 Agent 插件授权与 GitHub 写操作尚未开放。自定义服务的配置收在高级入口。</p>
     {loading && <p role="status">读取插件配置…</p>}
     {error && <p className="plugin-error" role="alert">{error}</p>}
-    {plugins.map(p=>p.builtin ? <GithubQuickConnect key={p.manifest.id} plugin={p} onChange={reload}/> : <PluginConnectionCard key={p.manifest.id} plugin={p} onChange={reload} />)}
+    {plugins.map(p=>p.manifest.id==='bilibili'?<BilibiliLearningCard key={p.manifest.id} plugin={p} onChange={reload}/>:p.builtin ? <GithubQuickConnect key={p.manifest.id} plugin={p} onChange={reload}/> : <PluginConnectionCard key={p.manifest.id} plugin={p} onChange={reload} />)}
     <details><summary>高级：导入自定义 MCP 服务</summary><PluginImport onChange={reload} /></details>
     <details className="plugin-history"><summary>最近插件调用（{calls.length}）</summary>
       <button className="settings-add" onClick={()=>void reload().catch((e:unknown)=>setError(e instanceof Error ? e.message : '刷新失败'))}>刷新调用记录</button>

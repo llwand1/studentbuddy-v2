@@ -1,7 +1,11 @@
-import type { PluginManifest, PluginView, PluginCallLog, GithubLoginState } from '@sb/shared';
+import type { PluginManifest, PluginView, PluginCallLog, GithubLoginState, BilibiliLearningVideo } from '@sb/shared';
 import { request } from '../../lib/api-request';
 const base = '/api/plugins';
 export const pluginApi = {
+  bilibiliState: () => request<{video:BilibiliLearningVideo|null}>(base+'/bilibili/learning'),
+  bilibiliNotes: (url:string,notes:string) => request<BilibiliLearningVideo>(base+'/bilibili/notes',{method:'POST',body:JSON.stringify({url,notes})}),
+  bilibiliOpen: () => request<{ok:boolean}>(base+'/bilibili/open',{method:'POST',body:'{}'}),
+  bilibiliUse: <T,>(tool:string,args:Record<string,unknown>) => request<T>(base+'/bilibili/use',{method:'POST',body:JSON.stringify({tool,arguments:args}),timeoutMs:240000}),
   githubState: () => request<GithubLoginState>(base+'/github/login',{timeoutMs:8000}),
   githubConnect: () => request<GithubLoginState>(base+'/github/connect',{method:'POST',body:'{}',timeoutMs:15000}),
   githubCancel: () => request<PluginView>(base+'/github/cancel',{method:'POST',body:'{}'}),

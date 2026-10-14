@@ -7,7 +7,8 @@ import { BrowserPicker } from './BrowserPicker';
 beforeEach(()=>{vi.clearAllMocks();fake.preference.mockResolvedValue({selected:'edge',available:['chrome','edge']});fake.choose.mockResolvedValue({selected:'chrome',available:['chrome','edge']});});
 afterEach(cleanup);
 it('shows installed choices, saves the same browser for reader and GitHub and makes failures visible',async()=>{
-  render(<BrowserPicker />);const picker=await screen.findByRole('combobox');
+  render(<BrowserPicker readerSetupHint={false}/>);const picker=await screen.findByRole('combobox');
+  expect(screen.getByText(/此插件入口不需要共读扩展/)).toBeTruthy();
   expect((picker as HTMLSelectElement).value).toBe('edge');fireEvent.change(picker,{target:{value:'chrome'}});
   await waitFor(()=>expect(fake.choose).toHaveBeenCalledWith('chrome'));
   await waitFor(()=>expect((picker as HTMLSelectElement).value).toBe('chrome'));

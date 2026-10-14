@@ -1,5 +1,6 @@
 import type { DesktopBrowserState, DesktopStudyState } from '@sb/shared';
 import { SPRITE } from '../chat/Mascot';
+import { companionGlyphs } from './companion-glyphs';
 
 export const COMPANION_SIZE = 64;
 export const COMPANION_BODY = 32;
@@ -14,7 +15,7 @@ export const COMPANION_LABELS: Record<CompanionMood, string> = {
 export function companionMood(study: DesktopStudyState | null, page: DesktopBrowserState | null, error = ''): CompanionMood {
   if (error) return 'offline';
   if (study?.awaiting) return 'question';
-  if (study?.error) return study.settings.scope === 'browser' && !page?.chars ? 'waiting' : 'retry';
+  if (study?.error) return study.settings.scope === 'bilibili' || study.settings.scope === 'browser' && !page?.chars ? 'waiting' : 'retry';
   if (study?.preparing) return 'preparing';
   if (page?.connected && page.chars > 0) {
     if (page.retrieving) return 'retrieving';
@@ -130,10 +131,11 @@ export function companionFrame(mood: CompanionMood, frame: number, animated = tr
     const leaf = tick % 12;
     if (leaf < 6) book.push({ tone: 'page', rects: [rect(bx + 7 - leaf, by - 1, 1 + Math.min(leaf, 3), 8)] });
   }
-  const halo = [...sigil, ...particles.flatMap(p => p.rects)].map(([rx, ry, w, h]): ClipRect => [rx - 1, ry - 1, w + 2, h + 2]);
+  const glyphs=companionGlyphs(mood,tick);
+  const halo = [...sigil, ...particles.flatMap(p => p.rects),...glyphs.flatMap(p=>p.rects)].map(([rx, ry, w, h]): ClipRect => [rx - 1, ry - 1, w + 2, h + 2]);
   const body = silhouette.map(([rx, ry, w, h]): ClipRect => [x + rx, y + ry, w, h]);
   const circleOutline = clipUnion(circle);
-  return { x, y, school, particles, sigil, halo, circle: circleOutline, book, bookOpen,
-    clips: clipUnion([...body, ...halo, ...sigil, ...particles.flatMap(p => p.rects), ...circleOutline, ...book.flatMap(p => p.rects)]) };
+  return { x, y, school, particles, sigil, halo, circle: circleOutline, book, bookOpen,glyphs,
+    clips: clipUnion([...body, ...halo, ...sigil, ...particles.flatMap(p => p.rects), ...circleOutline, ...book.flatMap(p => p.rects),...glyphs.flatMap(p=>p.rects)]) };
 }
 

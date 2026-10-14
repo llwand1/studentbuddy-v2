@@ -44,3 +44,20 @@ it('imports a declarative plugin disabled, enforces ownership on edit/removal an
   await request(app).delete(base+'/remote-reader').set('Origin',origin).expect(200);
 });
 
+it('protects the user-only video notes endpoint, isolates the selection and rejects forged agent notes',async()=>{
+  const {saveBilibiliVideo,loadBilibiliVideo}=await import('../plugins/bilibili-material.js');
+  await request(app).post(base+'/bilibili/test').set('Origin',origin).send({}).expect(200);
+  await request(app).put(base+'/bilibili').set('Origin',origin).send({enabled:true}).expect(200);
+  const video={bvid:'BV1xx411c7mD',url:'https://www.bilibili.com/video/BV1xx411c7mD',title:'隔离视频',description:'简介',author:'演示',notes:'旧笔记',selectedAt:1};
+  saveBilibiliVideo(null,video);
+  await request(app).post(base+'/bilibili/notes').send({url:video.url,notes:'不应写入'}).expect(403);
+  await request(app).post(base+'/bilibili/notes').set('Origin',origin).send({url:video.url}).expect(400);
+  expect(loadBilibiliVideo(null)?.notes).toBe('旧笔记');
+  const updated=await request(app).post(base+'/bilibili/notes').set('Origin',origin).send({url:video.url,notes:'用户明确提交的学习笔记'}).expect(200);
+  expect(updated.body.notes).toBe('用户明确提交的学习笔记');
+  const user=await createUser('bili-isolation@example.com','good-password-1',undefined),cookie=AUTH_COOKIE_NAME+'='+createSession(user.id).token;
+  expect((await request(app).get(base+'/bilibili/learning').set('Cookie',cookie).expect(200)).body.video).toBeNull();
+  await request(app).post(base+'/bilibili/use').set('Origin',origin).send({tool:'select_video',arguments:{url:video.url,notes:'模型编造'}}).expect(400);
+  await request(app).post(base+'/bilibili/disconnect').set('Origin',origin).send({}).expect(200);
+  expect(loadBilibiliVideo(null)).toBeNull();
+});

@@ -36,6 +36,13 @@ export async function openReaderBrowser(owner: string | null, address: string): 
     child.once('spawn', () => { child.unref(); ok(); });
   });
 }
+export async function openBilibiliBrowser(owner: string | null): Promise<void> {
+  await new Promise<void>((ok, fail) => {
+    const child = spawn(browserExecutable(preferredBrowser(owner)), ['https://www.bilibili.com/'], { shell: false, windowsHide: true, detached: true, stdio: 'ignore' });
+    child.once('error', () => fail(new Error('浏览器未打开，请检查安装')));
+    child.once('spawn', () => { child.unref(); ok(); });
+  });
+}
 export function githubBrowserEnvironment(owner: string | null, root: string, env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   // Scope the adapter to this pinned child. Never change OS default browser or global PATH.
   const browser = preferredBrowser(owner); browserExecutable(browser);

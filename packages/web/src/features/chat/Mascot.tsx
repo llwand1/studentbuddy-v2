@@ -101,16 +101,22 @@ function Pixels({ runs }: { runs: Pixel[] }) {
   );
 }
 
-export function MascotArt({ expression = 'calm', gaze = 0 }: { expression?: 'calm' | 'bright' | 'thinking'; gaze?: number }) {
+export function MascotArt({ expression = 'calm', gaze = 0 }: { expression?: 'calm' | 'bright' | 'thinking' | 'excited' | 'gentle'; gaze?: number }) {
   return <>
     <Pixels runs={BODY} />
     {expression === 'calm' && gaze === 0 ? <g className="mascot-px-lid"><Pixels runs={LID_RUNS} /></g> : <>
       {[4, 10].map(x => <g key={x}>
         <rect x={x} y={7} width={2} height={2} className="px-base" />
         <rect x={x + (expression === 'thinking' ? 0 : gaze)} y={expression === 'calm' ? 7.5 : 8} width={2} height={expression === 'calm' ? 1 : 0.5} className="px-ink" />
-        {expression === 'bright' && <rect x={x + 0.5 + gaze} y={7.5} width={1} height={0.5} className="px-ink" />}
+        {(expression === 'bright'||expression==='excited') && <rect x={x + 0.5 + gaze} y={7.5} width={1} height={0.5} className="px-ink" />}
       </g>)}
     </>}
+    {(expression==='excited'||expression==='gentle')&&<g data-expression={expression}>
+      <rect x={7} y={10} width={2} height={2} className="px-base"/>
+      <rect x={7} y={expression==='excited'?10:10.5} width={2} height={expression==='excited'?1.5:.5} className="px-ink"/>
+      {expression==='excited'&&<rect x={7.5} y={11} width={1} height={.5} className="px-glint"/>}
+      <rect x={3} y={9} width={2} height={.5} className="px-light"/><rect x={11} y={9} width={2} height={.5} className="px-light"/>
+    </g>}
   </>;
 }
 
